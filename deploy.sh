@@ -56,7 +56,8 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  dev [options]      Start full stack (docker-compose)"
-    echo "                     --build             Rebuild images"
+    echo "                     --build             Rebuild images locally"
+    echo "                     --no-build          Use pre-built images only (no build fallback)"
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 300)"
     echo "                     --observability     Include Grafana, Jaeger, etc."
@@ -99,6 +100,7 @@ cmd_dev() {
     print_header "Starting Local Development Environment"
 
     local BUILD_FLAG=""
+    local NO_BUILD_FLAG=""
     local WAIT_FLAG=""
     local WAIT_TIMEOUT="300"
     local PROFILE_FLAGS=""
@@ -108,6 +110,10 @@ cmd_dev() {
             --build)
                 BUILD_FLAG="--build"
                 print_info "Rebuilding images..."
+                ;;
+            --no-build)
+                NO_BUILD_FLAG="--no-build"
+                print_info "Using pre-built images (skipping build)..."
                 ;;
             --wait)
                 WAIT_FLAG="--wait"
@@ -133,7 +139,7 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $NO_BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"

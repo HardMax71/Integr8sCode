@@ -106,8 +106,8 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  # Build all images, push to GHCR with immutable SHA tag (push events only).
-  # PRs fall back to artifact transfer (can't push to GHCR from forks).
+  # Build all images, push to GHCR with immutable SHA tag.
+  # Fork PRs skip GHCR push (no write access) — E2E tests require pushed images.
   build-images:
     name: Build & Push Images
     needs: [backend-unit, frontend-unit]
@@ -125,7 +125,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -168,7 +168,7 @@ jobs:
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
       - name: Push base to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           docker tag integr8scode-base:latest \
             ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/base:${{ steps.tags.outputs.sha-tag }}
@@ -187,7 +187,7 @@ jobs:
           docker build -t integr8scode-dlq-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.dlq_processor ./backend
 
       - name: Push backend and workers to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           TAG: ${{ steps.tags.outputs.sha-tag }}
           IMG: ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}
@@ -222,7 +222,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=cert-generator
 
       - name: Push cert-generator to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           docker tag integr8scode-cert-generator:latest \
             ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/cert-generator:${{ steps.tags.outputs.sha-tag }}
@@ -239,7 +239,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=zookeeper-certgen
 
       - name: Push zookeeper-certgen to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           docker tag integr8scode-zookeeper-certgen:latest \
             ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/zookeeper-certgen:${{ steps.tags.outputs.sha-tag }}
@@ -257,7 +257,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend
 
       - name: Push frontend-dev to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           docker tag integr8scode-frontend:latest \
             ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend-dev:${{ steps.tags.outputs.sha-tag }}
@@ -274,42 +274,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend-prod
 
       - name: Push frontend-prod to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         run: |
           docker tag integr8scode-frontend-prod:latest \
             ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend:${{ steps.tags.outputs.sha-tag }}
           docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend:${{ steps.tags.outputs.sha-tag }}
 
-      # ── Save images for PR builds (artifact fallback) ────────────────
-      - name: Save all images
-        if: github.event_name == 'pull_request'
-        run: |
-          docker save \
-            integr8scode-backend:latest \
-            integr8scode-coordinator:latest \
-            integr8scode-k8s-worker:latest \
-            integr8scode-pod-monitor:latest \
-            integr8scode-result-processor:latest \
-            integr8scode-saga-orchestrator:latest \
-            integr8scode-event-replay:latest \
-            integr8scode-dlq-processor:latest \
-            integr8scode-cert-generator:latest \
-            integr8scode-zookeeper-certgen:latest \
-            integr8scode-frontend:latest \
-            | zstd -T0 -3 > /tmp/all-images.tar.zst
-
-      - name: Upload images artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v6
-        with:
-          name: docker-images
-          path: /tmp/all-images.tar.zst
-          retention-days: 1
-
-  # Parallel E2E test jobs
+  # Parallel E2E test jobs — compose pulls from GHCR using IMAGE_TAG
   backend-e2e:
     name: Backend E2E Tests
     needs: [build-images]
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -318,60 +293,6 @@ jobs:
         uses: ./.github/actions/docker-cache
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      # Push events: pull pre-built images from GHCR
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull images from GHCR
-        if: github.event_name != 'pull_request'
-        env:
-          TAG: ${{ needs.build-images.outputs.sha-tag }}
-          IMG: ${{ env.REGISTRY }}/${{ needs.build-images.outputs.image-prefix }}
-        run: |
-          docker pull "$IMG/base:$TAG" &
-          docker pull "$IMG/backend:$TAG" &
-          docker pull "$IMG/frontend-dev:$TAG" &
-          docker pull "$IMG/coordinator:$TAG" &
-          docker pull "$IMG/k8s-worker:$TAG" &
-          docker pull "$IMG/pod-monitor:$TAG" &
-          docker pull "$IMG/result-processor:$TAG" &
-          docker pull "$IMG/saga-orchestrator:$TAG" &
-          docker pull "$IMG/event-replay:$TAG" &
-          docker pull "$IMG/dlq-processor:$TAG" &
-          docker pull "$IMG/cert-generator:$TAG" &
-          docker pull "$IMG/zookeeper-certgen:$TAG" &
-          wait
-
-          docker tag "$IMG/base:$TAG" integr8scode-base:latest
-          docker tag "$IMG/backend:$TAG" integr8scode-backend:latest
-          docker tag "$IMG/frontend-dev:$TAG" integr8scode-frontend:latest
-          docker tag "$IMG/coordinator:$TAG" integr8scode-coordinator:latest
-          docker tag "$IMG/k8s-worker:$TAG" integr8scode-k8s-worker:latest
-          docker tag "$IMG/pod-monitor:$TAG" integr8scode-pod-monitor:latest
-          docker tag "$IMG/result-processor:$TAG" integr8scode-result-processor:latest
-          docker tag "$IMG/saga-orchestrator:$TAG" integr8scode-saga-orchestrator:latest
-          docker tag "$IMG/event-replay:$TAG" integr8scode-event-replay:latest
-          docker tag "$IMG/dlq-processor:$TAG" integr8scode-dlq-processor:latest
-          docker tag "$IMG/cert-generator:$TAG" integr8scode-cert-generator:latest
-          docker tag "$IMG/zookeeper-certgen:$TAG" integr8scode-zookeeper-certgen:latest
-
-      # PR events: load from artifact
-      - name: Download built images
-        if: github.event_name == 'pull_request'
-        uses: actions/download-artifact@v7
-        with:
-          name: docker-images
-          path: /tmp
-
-      - name: Load built images
-        if: github.event_name == 'pull_request'
-        run: zstd -d -c /tmp/all-images.tar.zst | docker load
 
       - name: Setup k3s
         uses: ./.github/actions/k3s-setup
@@ -382,7 +303,9 @@ jobs:
           cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
-        run: ./deploy.sh dev --wait
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: ./deploy.sh dev --no-build --wait
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py
@@ -441,6 +364,7 @@ jobs:
   frontend-e2e:
     name: Frontend E2E Tests
     needs: [build-images]
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -477,60 +401,6 @@ jobs:
         with:
           images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
 
-      # Push events: pull pre-built images from GHCR
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull images from GHCR
-        if: github.event_name != 'pull_request'
-        env:
-          TAG: ${{ needs.build-images.outputs.sha-tag }}
-          IMG: ${{ env.REGISTRY }}/${{ needs.build-images.outputs.image-prefix }}
-        run: |
-          docker pull "$IMG/base:$TAG" &
-          docker pull "$IMG/backend:$TAG" &
-          docker pull "$IMG/frontend-dev:$TAG" &
-          docker pull "$IMG/coordinator:$TAG" &
-          docker pull "$IMG/k8s-worker:$TAG" &
-          docker pull "$IMG/pod-monitor:$TAG" &
-          docker pull "$IMG/result-processor:$TAG" &
-          docker pull "$IMG/saga-orchestrator:$TAG" &
-          docker pull "$IMG/event-replay:$TAG" &
-          docker pull "$IMG/dlq-processor:$TAG" &
-          docker pull "$IMG/cert-generator:$TAG" &
-          docker pull "$IMG/zookeeper-certgen:$TAG" &
-          wait
-
-          docker tag "$IMG/base:$TAG" integr8scode-base:latest
-          docker tag "$IMG/backend:$TAG" integr8scode-backend:latest
-          docker tag "$IMG/frontend-dev:$TAG" integr8scode-frontend:latest
-          docker tag "$IMG/coordinator:$TAG" integr8scode-coordinator:latest
-          docker tag "$IMG/k8s-worker:$TAG" integr8scode-k8s-worker:latest
-          docker tag "$IMG/pod-monitor:$TAG" integr8scode-pod-monitor:latest
-          docker tag "$IMG/result-processor:$TAG" integr8scode-result-processor:latest
-          docker tag "$IMG/saga-orchestrator:$TAG" integr8scode-saga-orchestrator:latest
-          docker tag "$IMG/event-replay:$TAG" integr8scode-event-replay:latest
-          docker tag "$IMG/dlq-processor:$TAG" integr8scode-dlq-processor:latest
-          docker tag "$IMG/cert-generator:$TAG" integr8scode-cert-generator:latest
-          docker tag "$IMG/zookeeper-certgen:$TAG" integr8scode-zookeeper-certgen:latest
-
-      # PR events: load from artifact
-      - name: Download built images
-        if: github.event_name == 'pull_request'
-        uses: actions/download-artifact@v7
-        with:
-          name: docker-images
-          path: /tmp
-
-      - name: Load built images
-        if: github.event_name == 'pull_request'
-        run: zstd -d -c /tmp/all-images.tar.zst | docker load
-
       - name: Setup k3s
         uses: ./.github/actions/k3s-setup
 
@@ -540,7 +410,9 @@ jobs:
           cp backend/secrets.example.toml backend/secrets.toml
 
       - name: Start stack
-        run: ./deploy.sh dev --wait
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: ./deploy.sh dev --no-build --wait
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py

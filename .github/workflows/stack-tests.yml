@@ -31,6 +31,7 @@ env:
   KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
   ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.8.2
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.8.2
+  K3S_VERSION: v1.32.11+k3s1
 
 jobs:
   # Fast unit tests (no infrastructure needed)
@@ -137,8 +138,8 @@ jobs:
         run: |
           PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
           SHA_TAG="sha-${GITHUB_SHA::7}"
-          echo "sha-tag=$SHA_TAG" >> $GITHUB_OUTPUT
-          echo "image-prefix=$PREFIX" >> $GITHUB_OUTPUT
+          echo "sha-tag=$SHA_TAG" >> "$GITHUB_OUTPUT"
+          echo "image-prefix=$PREFIX" >> "$GITHUB_OUTPUT"
 
       # ── Base image (cached separately — rarely changes) ──────────────
       - name: Cache base image
@@ -243,14 +244,24 @@ jobs:
           docker tag integr8scode-frontend:latest "$IMG/frontend-dev:$TAG"
           docker tag integr8scode-frontend-prod:latest "$IMG/frontend:$TAG"
 
-          # Push all 13 images in parallel
+          # Push all 13 images in parallel, tracking each PID
+          declare -A PIDS
           for name in base backend coordinator k8s-worker pod-monitor \
                       result-processor saga-orchestrator event-replay \
                       dlq-processor cert-generator zookeeper-certgen \
                       frontend-dev frontend; do
             docker push "$IMG/$name:$TAG" &
+            PIDS[$name]=$!
           done
-          wait
+
+          FAILED=0
+          for name in "${!PIDS[@]}"; do
+            if ! wait "${PIDS[$name]}"; then
+              echo "::error::Failed to push $name"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
 
   # Parallel E2E test jobs — compose pulls from GHCR using IMAGE_TAG
   backend-e2e:
@@ -284,7 +295,10 @@ jobs:
       # ── Phase 2: k3s install + finalize (overlaps with image pull + infra boot) ──
       - name: Install k3s
         run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
+          K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
+          curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
+          chmod +x /tmp/k3s-install.sh
+          INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
 
       - name: Finalize k3s
         run: |
@@ -415,7 +429,10 @@ jobs:
       # ── Phase 2: k3s install + Node/Playwright setup (overlapped with pull + infra) ──
       - name: Install k3s
         run: |
-          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
+          K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
+          curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
+          chmod +x /tmp/k3s-install.sh
+          INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

@@ -167,15 +167,8 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      - name: Push base to GHCR
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: |
-          docker tag integr8scode-base:latest \
-            ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/base:${{ steps.tags.outputs.sha-tag }}
-          docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/base:${{ steps.tags.outputs.sha-tag }}
-
       # ── Backend + workers (depend on local base image) ───────────────
-      - name: Build all images
+      - name: Build backend and worker images
         run: |
           docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
           docker build -t integr8scode-coordinator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.coordinator ./backend
@@ -185,30 +178,6 @@ jobs:
           docker build -t integr8scode-saga-orchestrator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.saga_orchestrator ./backend
           docker build -t integr8scode-event-replay:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.event_replay ./backend
           docker build -t integr8scode-dlq-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.dlq_processor ./backend
-
-      - name: Push backend and workers to GHCR
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        env:
-          TAG: ${{ steps.tags.outputs.sha-tag }}
-          IMG: ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}
-        run: |
-          docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
-          docker tag integr8scode-coordinator:latest "$IMG/coordinator:$TAG"
-          docker tag integr8scode-k8s-worker:latest "$IMG/k8s-worker:$TAG"
-          docker tag integr8scode-pod-monitor:latest "$IMG/pod-monitor:$TAG"
-          docker tag integr8scode-result-processor:latest "$IMG/result-processor:$TAG"
-          docker tag integr8scode-saga-orchestrator:latest "$IMG/saga-orchestrator:$TAG"
-          docker tag integr8scode-event-replay:latest "$IMG/event-replay:$TAG"
-          docker tag integr8scode-dlq-processor:latest "$IMG/dlq-processor:$TAG"
-
-          docker push "$IMG/backend:$TAG"
-          docker push "$IMG/coordinator:$TAG"
-          docker push "$IMG/k8s-worker:$TAG"
-          docker push "$IMG/pod-monitor:$TAG"
-          docker push "$IMG/result-processor:$TAG"
-          docker push "$IMG/saga-orchestrator:$TAG"
-          docker push "$IMG/event-replay:$TAG"
-          docker push "$IMG/dlq-processor:$TAG"
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
@@ -221,13 +190,6 @@ jobs:
           cache-from: type=gha,scope=cert-generator
           cache-to: type=gha,mode=max,scope=cert-generator
 
-      - name: Push cert-generator to GHCR
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: |
-          docker tag integr8scode-cert-generator:latest \
-            ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/cert-generator:${{ steps.tags.outputs.sha-tag }}
-          docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/cert-generator:${{ steps.tags.outputs.sha-tag }}
-
       - name: Build zookeeper-certgen image
         uses: docker/build-push-action@v6
         with:
@@ -237,13 +199,6 @@ jobs:
           tags: integr8scode-zookeeper-certgen:latest
           cache-from: type=gha,scope=zookeeper-certgen
           cache-to: type=gha,mode=max,scope=zookeeper-certgen
-
-      - name: Push zookeeper-certgen to GHCR
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: |
-          docker tag integr8scode-zookeeper-certgen:latest \
-            ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/zookeeper-certgen:${{ steps.tags.outputs.sha-tag }}
-          docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/zookeeper-certgen:${{ steps.tags.outputs.sha-tag }}
 
       # ── Frontend (dev for E2E, prod for scanning/deployment) ─────────
       - name: Build frontend image
@@ -256,13 +211,6 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Push frontend-dev to GHCR
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: |
-          docker tag integr8scode-frontend:latest \
-            ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend-dev:${{ steps.tags.outputs.sha-tag }}
-          docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend-dev:${{ steps.tags.outputs.sha-tag }}
-
       - name: Build frontend-prod image
         uses: docker/build-push-action@v6
         with:
@@ -273,12 +221,36 @@ jobs:
           cache-from: type=gha,scope=frontend-prod
           cache-to: type=gha,mode=max,scope=frontend-prod
 
-      - name: Push frontend-prod to GHCR
+      # ── Push all images to GHCR in parallel ────────────────────────
+      - name: Push all images to GHCR
         if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          TAG: ${{ steps.tags.outputs.sha-tag }}
+          IMG: ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}
         run: |
-          docker tag integr8scode-frontend-prod:latest \
-            ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend:${{ steps.tags.outputs.sha-tag }}
-          docker push ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}/frontend:${{ steps.tags.outputs.sha-tag }}
+          # Tag all images for GHCR
+          docker tag integr8scode-base:latest "$IMG/base:$TAG"
+          docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
+          docker tag integr8scode-coordinator:latest "$IMG/coordinator:$TAG"
+          docker tag integr8scode-k8s-worker:latest "$IMG/k8s-worker:$TAG"
+          docker tag integr8scode-pod-monitor:latest "$IMG/pod-monitor:$TAG"
+          docker tag integr8scode-result-processor:latest "$IMG/result-processor:$TAG"
+          docker tag integr8scode-saga-orchestrator:latest "$IMG/saga-orchestrator:$TAG"
+          docker tag integr8scode-event-replay:latest "$IMG/event-replay:$TAG"
+          docker tag integr8scode-dlq-processor:latest "$IMG/dlq-processor:$TAG"
+          docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
+          docker tag integr8scode-zookeeper-certgen:latest "$IMG/zookeeper-certgen:$TAG"
+          docker tag integr8scode-frontend:latest "$IMG/frontend-dev:$TAG"
+          docker tag integr8scode-frontend-prod:latest "$IMG/frontend:$TAG"
+
+          # Push all 13 images in parallel
+          for name in base backend coordinator k8s-worker pod-monitor \
+                      result-processor saga-orchestrator event-replay \
+                      dlq-processor cert-generator zookeeper-certgen \
+                      frontend-dev frontend; do
+            docker push "$IMG/$name:$TAG" &
+          done
+          wait
 
   # Parallel E2E test jobs — compose pulls from GHCR using IMAGE_TAG
   backend-e2e:

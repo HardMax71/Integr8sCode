@@ -16,7 +16,7 @@ export default defineConfig({
       name: 'E2E Coverage Report',
       outputFile: 'coverage/e2e/report.html',
       coverage: {
-        reports: ['v8', ['lcovonly', { outputFile: 'coverage/e2e/lcov.info' }]],
+        reports: ['v8', 'text', ['lcovonly', { outputFile: 'coverage/e2e/lcov.info' }]],
         sourceFilter: (sourcePath: string) => {
           return sourcePath.includes('/src/') &&
             !sourcePath.includes('node_modules') &&

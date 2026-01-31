@@ -24,9 +24,14 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   // Override default page fixture to collect coverage
   page: async ({ page }, use, testInfo) => {
     await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    await use(page);
-    const coverage = await page.coverage.stopJSCoverage();
-    await attachCoverageReport(coverage, testInfo);
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+      }
+    }
   },
 
   // Worker-scoped: one login per worker, shared across all tests in that worker
@@ -60,19 +65,29 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   userPage: async ({ userContext }, use, testInfo) => {
     const page = await userContext.newPage();
     await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    await use(page);
-    const coverage = await page.coverage.stopJSCoverage();
-    await attachCoverageReport(coverage, testInfo);
-    await page.close();
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+        await page.close();
+      }
+    }
   },
 
   adminPage: async ({ adminContext }, use, testInfo) => {
     const page = await adminContext.newPage();
     await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    await use(page);
-    const coverage = await page.coverage.stopJSCoverage();
-    await attachCoverageReport(coverage, testInfo);
-    await page.close();
+    try {
+      await use(page);
+    } finally {
+      if (!page.isClosed()) {
+        const coverage = await page.coverage.stopJSCoverage();
+        await attachCoverageReport(coverage, testInfo);
+        await page.close();
+      }
+    }
   },
 });
 

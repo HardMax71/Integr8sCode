@@ -327,7 +327,13 @@ jobs:
       - name: Start stack
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
-        run: ./deploy.sh dev --no-build --wait
+        run: docker compose up -d --no-build
+
+      - name: Wait for backend
+        run: |
+          echo "Waiting for backend health..."
+          timeout 120 bash -c 'until curl -ksf https://localhost/api/v1/health/live 2>/dev/null; do sleep 2; done'
+          echo "Backend ready"
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py
@@ -489,7 +495,16 @@ jobs:
       - name: Start stack
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
-        run: ./deploy.sh dev --no-build --wait
+        run: docker compose up -d --no-build
+
+      - name: Wait for backend and frontend
+        run: |
+          echo "Waiting for backend health..."
+          timeout 120 bash -c 'until curl -ksf https://localhost/api/v1/health/live 2>/dev/null; do sleep 2; done'
+          echo "Backend ready"
+          echo "Waiting for frontend health..."
+          timeout 60 bash -c 'until curl -ksf https://localhost:5001 2>/dev/null; do sleep 2; done'
+          echo "Frontend ready"
 
       - name: Seed test users
         run: docker compose exec -T backend uv run python scripts/seed_users.py

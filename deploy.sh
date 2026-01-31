@@ -59,6 +59,8 @@ show_help() {
     echo "                     --build             Rebuild images"
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 300)"
+    echo "                     --observability     Include Grafana, Jaeger, etc."
+    echo "                     --debug             Include observability + Kafdrop"
     echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 120)"
@@ -99,6 +101,7 @@ cmd_dev() {
     local BUILD_FLAG=""
     local WAIT_FLAG=""
     local WAIT_TIMEOUT="300"
+    local PROFILE_FLAGS=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -113,6 +116,14 @@ cmd_dev() {
                 shift
                 WAIT_TIMEOUT="$1"
                 ;;
+            --observability)
+                PROFILE_FLAGS="--profile observability"
+                print_info "Including observability stack (Grafana, Jaeger, etc.)"
+                ;;
+            --debug)
+                PROFILE_FLAGS="--profile observability --profile debug"
+                print_info "Including observability + debug tools (Kafdrop, etc.)"
+                ;;
         esac
         shift
     done
@@ -122,7 +133,7 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    docker compose --profile observability up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"
@@ -130,9 +141,13 @@ cmd_dev() {
     echo "Services:"
     echo "  Backend:   https://localhost:443"
     echo "  Frontend:  https://localhost:5001"
-    echo "  Kafdrop:   http://localhost:9000"
-    echo "  Jaeger:    http://localhost:16686"
-    echo "  Grafana:   http://localhost:3000"
+    if [[ "$PROFILE_FLAGS" == *"debug"* ]]; then
+        echo "  Kafdrop:   http://localhost:9000"
+    fi
+    if [[ "$PROFILE_FLAGS" == *"observability"* ]]; then
+        echo "  Jaeger:    http://localhost:16686"
+        echo "  Grafana:   http://localhost:3000"
+    fi
     echo ""
     echo "Commands:"
     echo "  ./deploy.sh logs             # View all logs"

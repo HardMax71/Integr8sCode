@@ -10,7 +10,7 @@ services:
     image: alpine:latest
     volumes:
       - shared_ca:/shared_ca
-    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready' && sleep 2"
+    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready'"
     networks:
       - app-network
 
@@ -74,10 +74,10 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 5s
 
   backend:
     build:
@@ -120,12 +120,11 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
       interval: 3s
       timeout: 3s
       retries: 50
-      start_period: 10s
+      start_period: 5s
 
   frontend:
     container_name: frontend
@@ -154,7 +153,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
-      start_period: 10s
+      start_period: 5s
 
 
   grafana:
@@ -322,7 +321,7 @@ services:
       interval: 5s
       timeout: 10s
       retries: 12
-      start_period: 15s
+      start_period: 5s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.8.2
@@ -348,6 +347,7 @@ services:
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
     container_name: kafdrop
+    profiles: ["debug"]
     depends_on:
       - kafka
       - schema-registry

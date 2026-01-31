@@ -17,8 +17,8 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  scan-backend:
-    name: Scan Backend
+  scan:
+    name: Scan ${{ matrix.image }}
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -28,6 +28,22 @@ jobs:
       contents: read
       security-events: write
       packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - base
+          - backend
+          - frontend
+          - coordinator
+          - k8s-worker
+          - pod-monitor
+          - result-processor
+          - saga-orchestrator
+          - event-replay
+          - dlq-processor
+          - cert-generator
+          - zookeeper-certgen
     steps:
       - uses: actions/checkout@v6
 
@@ -41,14 +57,14 @@ jobs:
             SHA="${{ github.event.workflow_run.head_sha }}"
           fi
           TAG="sha-${SHA::7}"
-          echo "image=${{ env.REGISTRY }}/$PREFIX/backend:$TAG" >> $GITHUB_OUTPUT
+          echo "image=${{ env.REGISTRY }}/$PREFIX/${{ matrix.image }}:$TAG" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ steps.ref.outputs.image }}
           format: 'sarif'
-          output: 'trivy-backend-results.sarif'
+          output: 'trivy-${{ matrix.image }}-results.sarif'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           timeout: '5m0s'
@@ -59,55 +75,13 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: 'trivy-backend-results.sarif'
-          category: 'trivy-backend'
-
-  scan-frontend:
-    name: Scan Frontend
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      packages: read
-    steps:
-      - name: Compute image ref
-        id: ref
-        run: |
-          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SHA="${{ github.event.inputs.sha || github.sha }}"
-          else
-            SHA="${{ github.event.workflow_run.head_sha }}"
-          fi
-          TAG="sha-${SHA::7}"
-          echo "image=${{ env.REGISTRY }}/$PREFIX/frontend:$TAG" >> $GITHUB_OUTPUT
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          image-ref: ${{ steps.ref.outputs.image }}
-          format: 'sarif'
-          output: 'trivy-frontend-results.sarif'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          timeout: '5m0s'
-          version: 'v0.68.2'
-
-      - name: Upload Trivy scan results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: 'trivy-frontend-results.sarif'
-          category: 'trivy-frontend'
+          sarif_file: 'trivy-${{ matrix.image }}-results.sarif'
+          category: 'trivy-${{ matrix.image }}'
 
   # Promote SHA tag → latest using crane (registry-level manifest copy, no rebuild)
   promote:
     name: Promote to Latest
-    needs: [scan-backend, scan-frontend]
+    needs: [scan]
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -169,7 +143,11 @@ jobs:
 
           echo "## Docker Images Promoted to Latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All Stack Tests passed. Images promoted from \`$TAG\` to \`latest\`." >> $GITHUB_STEP_SUMMARY
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Images promoted manually from \`$TAG\` to \`latest\` — Stack Tests may not have run." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "All Stack Tests passed. Images promoted from \`$TAG\` to \`latest\`." >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Image | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------------|" >> $GITHUB_STEP_SUMMARY
@@ -178,5 +156,4 @@ jobs:
           echo "| Frontend | \`docker pull $REGISTRY/$PREFIX/frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
-          echo "- Backend: Passed" >> $GITHUB_STEP_SUMMARY
-          echo "- Frontend: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "All 12 images scanned with Trivy (CRITICAL + HIGH, unfixed ignored)." >> $GITHUB_STEP_SUMMARY

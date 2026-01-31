@@ -1,0 +1,41 @@
+name: 'E2E Boot'
+description: 'Kick off slow background tasks: GHCR auth, image pull + infra pre-warm, k3s install'
+
+inputs:
+  image-tag:
+    description: 'GHCR image tag (e.g., sha-abc1234)'
+    required: true
+  github-token:
+    description: 'GitHub token for GHCR authentication'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ inputs.github-token }}
+
+    - name: Pull images and pre-warm infra (background)
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+      run: |
+        nohup bash -c '
+          IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
+          echo "--- pull done, starting infra ---"
+          docker compose up -d --no-build \
+            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry 2>&1
+        ' > /tmp/infra-pull.log 2>&1 &
+        echo $! > /tmp/infra-pull.pid
+
+    - name: Install k3s
+      shell: bash
+      run: |
+        K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
+        curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
+        chmod +x /tmp/k3s-install.sh
+        INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh

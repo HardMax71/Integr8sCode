@@ -306,8 +306,10 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
         run: |
+          # Start infra services in background while k3s installs.
+          # cert-generator is excluded: it needs k3s and mounts ~/.kube (conflicts with k3s-setup).
           nohup docker compose up -d --no-build \
-            mongo redis shared-ca cert-generator zookeeper-certgen zookeeper kafka schema-registry \
+            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry \
             > /tmp/infra-warm.log 2>&1 &
           echo $! > /tmp/infra-warm.pid
 
@@ -451,9 +453,9 @@ jobs:
         run: |
           # Start infra services in background while k3s installs.
           # Compose handles dependency ordering (zookeeper-certgen → zookeeper → kafka).
-          # GHCR images for cert-generator/zookeeper-certgen should be pre-pulled by now.
+          # cert-generator is excluded: it needs k3s and mounts ~/.kube (conflicts with k3s-setup).
           nohup docker compose up -d --no-build \
-            mongo redis shared-ca cert-generator zookeeper-certgen zookeeper kafka schema-registry \
+            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry \
             > /tmp/infra-warm.log 2>&1 &
           echo $! > /tmp/infra-warm.pid
 

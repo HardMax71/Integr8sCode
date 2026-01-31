@@ -16,7 +16,19 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.{ts,svelte}'],
-      exclude: ['src/lib/api/**', 'src/**/*.test.ts'],
+      exclude: [
+        'src/lib/api/**',
+        'src/**/*.test.ts',
+        'src/**/__tests__/**',
+        // Entry points & route pages — tested by E2E, not unit tests
+        'src/App.svelte',
+        'src/main.ts',
+        'src/routes/*.svelte',
+        // Editor components — tested by E2E
+        'src/components/editor/**',
+        // Barrel re-exports
+        'src/**/index.ts',
+      ],
     },
   },
   resolve: {

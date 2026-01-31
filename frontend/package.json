@@ -78,6 +78,7 @@
     "globals": "^17.0.0",
     "http-proxy": "^1.18.1",
     "jsdom": "^27.4.0",
+    "monocart-reporter": "^2.9.23",
     "rollup-plugin-serve": "^3.0.0",
     "svelte-check": "^4.3.5",
     "svelte-eslint-parser": "^1.4.1",

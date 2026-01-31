@@ -36,15 +36,20 @@ describe('formatTimestamp', () => {
     });
 
     it('formats ISO string', () => {
-        expect(formatTimestamp(new Date(2025, 0, 15).toISOString())).not.toBe('N/A');
+        const date = new Date(2025, 0, 15);
+        expect(formatTimestamp(date.toISOString())).toBe(date.toLocaleString());
     });
 
     it('accepts custom Intl options', () => {
-        expect(formatTimestamp(new Date(2025, 0, 15).toISOString(), { year: 'numeric' })).toContain('2025');
+        const date = new Date(2025, 0, 15);
+        const opts: Intl.DateTimeFormatOptions = { year: 'numeric' };
+        const expected = new Intl.DateTimeFormat(undefined, opts).format(date);
+        expect(formatTimestamp(date.toISOString(), opts)).toBe(expected);
     });
 
     it('accepts Date object', () => {
-        expect(formatTimestamp(new Date(2025, 0, 15))).not.toBe('N/A');
+        const date = new Date(2025, 0, 15);
+        expect(formatTimestamp(date)).toBe(date.toLocaleString());
     });
 });
 
@@ -141,14 +146,13 @@ describe('formatBytes', () => {
 
 describe('formatNumber', () => {
     it('formats zero', () => {
-        expect(formatNumber(0)).toBe('0');
+        const expected = new Intl.NumberFormat().format(0);
+        expect(formatNumber(0)).toBe(expected);
     });
 
     it('formats with locale separators', () => {
-        const result = formatNumber(1234567);
-        expect(result).toContain('1');
-        expect(result).toContain('234');
-        expect(result).toContain('567');
+        const expected = new Intl.NumberFormat().format(1234567);
+        expect(formatNumber(1234567)).toBe(expected);
     });
 
     it.each([null, undefined])('returns N/A for %j', (input) => {

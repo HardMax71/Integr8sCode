@@ -138,6 +138,10 @@ All 13 images are built on a single runner and pushed to GHCR with an immutable 
 | `frontend-dev`       | `frontend/Dockerfile`                       |
 | `frontend`           | `frontend/Dockerfile.prod`                  |
 
+Of these 13 images, 12 are scanned by Trivy and promoted to `latest` in the
+[Docker Scan & Promote](#docker-scan--promote) workflow. The `frontend-dev` image is excluded — it's the Vite dev
+server build used only for E2E tests in CI and is never deployed to production.
+
 The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. Worker images
 depend on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images use GHA
 layer caching.

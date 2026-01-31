@@ -261,42 +261,31 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ── Phase 1: Start background tasks + infra ──
-      - name: Pre-pull GHCR images (background)
+      # ── Phase 1: Pull images + start infra in background (overlap with k3s) ──
+      - name: Pull images and pre-warm infra (background)
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
         run: |
-          nohup bash -c "IMAGE_TAG=$IMAGE_TAG docker compose pull --quiet" \
-            > /tmp/ghcr-pull.log 2>&1 &
-          echo $! > /tmp/ghcr-pull.pid
+          # Pull all images (GHCR + Docker Hub) then start infra services.
+          # This runs throughout k3s install/finalize (~20s of overlap).
+          nohup bash -c '
+            IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
+            echo "--- pull done, starting infra ---"
+            docker compose up -d --no-build \
+              mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry 2>&1
+          ' > /tmp/infra-pull.log 2>&1 &
+          echo $! > /tmp/infra-pull.pid
 
       - name: Use test environment config
         run: |
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
 
-      # ── Phase 2: Install k3s, then overlap boot with docker-cache + infra ──
+      # ── Phase 2: k3s install + finalize (overlaps with image pull + infra boot) ──
       - name: Install k3s
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
 
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
-        with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Pre-warm infrastructure (background)
-        env:
-          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
-        run: |
-          # Start infra while k3s finishes booting (~25s+ since install).
-          # cert-generator excluded: needs k3s and mounts ~/.kube.
-          nohup docker compose up -d --no-build \
-            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry \
-            > /tmp/infra-warm.log 2>&1 &
-          echo $! > /tmp/infra-warm.pid
-
-      # ── Phase 3: Finalize k3s (should be ready — 25s+ since install) ──
       - name: Finalize k3s
         run: |
           mkdir -p /home/runner/.kube
@@ -309,20 +298,26 @@ jobs:
             /home/runner/.kube/config > backend/kubeconfig.yaml
           chmod 644 backend/kubeconfig.yaml
 
-      # ── Phase 4: Start remaining services (infra already healthy from pre-warm) ──
-      - name: Wait for background tasks
+      # Start cert-generator now that kubeconfig exists (runs during wait step)
+      - name: Start cert-generator (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
         run: |
-          for pidfile in /tmp/ghcr-pull.pid /tmp/infra-warm.pid; do
-            if [ -f "$pidfile" ]; then
-              PID=$(cat "$pidfile")
-              if kill -0 "$PID" 2>/dev/null; then
-                echo "Waiting for $(basename $pidfile .pid)..."
-                tail --pid="$PID" -f /dev/null 2>/dev/null || true
-              fi
+          nohup docker compose up -d --no-build cert-generator \
+            > /tmp/cert-gen.log 2>&1 &
+
+      # ── Phase 3: Wait for pulls + start stack ──
+      - name: Wait for image pull and infra
+        run: |
+          if [ -f /tmp/infra-pull.pid ]; then
+            PID=$(cat /tmp/infra-pull.pid)
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "Waiting for image pull + infra startup..."
+              tail --pid="$PID" -f /dev/null 2>/dev/null || true
             fi
-          done
-          cat /tmp/ghcr-pull.log 2>/dev/null || true
-          cat /tmp/infra-warm.log 2>/dev/null || true
+          fi
+          cat /tmp/infra-pull.log 2>/dev/null || true
+          cat /tmp/cert-gen.log 2>/dev/null || true
 
       - name: Start stack
         env:
@@ -402,32 +397,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ── Phase 1: Start background tasks + infra (runs during all subsequent steps) ──
-      - name: Pre-pull GHCR images (background)
+      # ── Phase 1: Pull images + start infra in background (runs during all subsequent steps) ──
+      - name: Pull images and pre-warm infra (background)
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
         run: |
-          nohup bash -c "IMAGE_TAG=$IMAGE_TAG docker compose pull --quiet" \
-            > /tmp/ghcr-pull.log 2>&1 &
-          echo $! > /tmp/ghcr-pull.pid
+          # Pull all images (GHCR + Docker Hub) then start infra services.
+          # This runs throughout k3s + Node + Playwright setup (~80s of overlap).
+          nohup bash -c '
+            IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
+            echo "--- pull done, starting infra ---"
+            docker compose up -d --no-build \
+              mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry 2>&1
+          ' > /tmp/infra-pull.log 2>&1 &
+          echo $! > /tmp/infra-pull.pid
 
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
-        with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Pre-warm infrastructure (background)
-        env:
-          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
-        run: |
-          # Start infra while k3s installs + Playwright sets up (~60s of overlap).
-          # cert-generator excluded: needs k3s and mounts ~/.kube.
-          nohup docker compose up -d --no-build \
-            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry \
-            > /tmp/infra-warm.log 2>&1 &
-          echo $! > /tmp/infra-warm.pid
-
-      # ── Phase 2: k3s install + Node/Playwright setup (overlapped) ──
+      # ── Phase 2: k3s install + Node/Playwright setup (overlapped with pull + infra) ──
       - name: Install k3s
         run: |
           curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
@@ -472,25 +457,31 @@ jobs:
             /home/runner/.kube/config > backend/kubeconfig.yaml
           chmod 644 backend/kubeconfig.yaml
 
+      # Start cert-generator now that kubeconfig exists (runs during wait step)
+      - name: Start cert-generator (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: |
+          nohup docker compose up -d --no-build cert-generator \
+            > /tmp/cert-gen.log 2>&1 &
+
       - name: Use test environment config
         run: |
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
 
-      # ── Phase 4: Start remaining services (infra already healthy from pre-warm) ──
-      - name: Wait for background tasks
+      # ── Phase 4: Wait for pulls + start stack ──
+      - name: Wait for image pull and infra
         run: |
-          for pidfile in /tmp/ghcr-pull.pid /tmp/infra-warm.pid; do
-            if [ -f "$pidfile" ]; then
-              PID=$(cat "$pidfile")
-              if kill -0 "$PID" 2>/dev/null; then
-                echo "Waiting for $(basename $pidfile .pid)..."
-                tail --pid="$PID" -f /dev/null 2>/dev/null || true
-              fi
+          if [ -f /tmp/infra-pull.pid ]; then
+            PID=$(cat /tmp/infra-pull.pid)
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "Waiting for image pull + infra startup..."
+              tail --pid="$PID" -f /dev/null 2>/dev/null || true
             fi
-          done
-          cat /tmp/ghcr-pull.log 2>/dev/null || true
-          cat /tmp/infra-warm.log 2>/dev/null || true
+          fi
+          cat /tmp/infra-pull.log 2>/dev/null || true
+          cat /tmp/cert-gen.log 2>/dev/null || true
 
       - name: Start stack
         env:

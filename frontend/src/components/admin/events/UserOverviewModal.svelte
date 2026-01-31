@@ -1,15 +1,9 @@
 <script lang="ts">
-    import type { AdminUserOverview, EventType } from '$lib/api';
+    import type { AdminUserOverview } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import { getEventTypeColor, getEventTypeLabel } from '$lib/admin/events';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
-
-    interface RecentEvent {
-        event_type: EventType;
-        aggregate_id?: string | null;
-        timestamp: string;
-    }
 
     interface Props {
         overview: AdminUserOverview | null;
@@ -20,8 +14,7 @@
 
     let { overview, loading, open, onClose }: Props = $props();
 
-    // Type-safe accessor for recent events
-    const recentEvents = $derived((overview?.recent_events ?? []) as unknown as RecentEvent[]);
+    const recentEvents = $derived(overview?.recent_events ?? []);
 </script>
 
 <Modal {open} title="User Overview" {onClose} size="lg">

@@ -4,7 +4,6 @@ import re
 import time
 
 import psutil
-from fastapi import FastAPI
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.metrics import CallbackOptions, Observation
@@ -118,13 +117,22 @@ class MetricsMiddleware:
         return path
 
 
-def setup_metrics(app: FastAPI, settings: Settings, logger: logging.Logger) -> None:
-    """Set up OpenTelemetry metrics with OTLP exporter."""
-    if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
-        logger.warning("OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping metrics setup")
+def setup_metrics(settings: Settings, logger: logging.Logger) -> None:
+    """Set up the global OpenTelemetry MeterProvider with OTLP exporter.
+
+    This is the single initialization point for metrics export.  ``BaseMetrics``
+    subclasses and ``MetricsMiddleware`` obtain meters via the global API
+    (``opentelemetry.metrics.get_meter``), so this must run before them.
+    When skipped (tests / missing endpoint), the default no-op provider is used.
+    """
+    if settings.TESTING or not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+        logger.info(
+            "Metrics OTLP export disabled (testing=%s, endpoint=%s)",
+            settings.TESTING,
+            settings.OTEL_EXPORTER_OTLP_ENDPOINT,
+        )
         return
 
-    # Configure OpenTelemetry resource
     resource = Resource.create(
         {
             SERVICE_NAME: settings.SERVICE_NAME,
@@ -133,30 +141,20 @@ def setup_metrics(app: FastAPI, settings: Settings, logger: logging.Logger) -> N
         }
     )
 
-    # Configure OTLP exporter (sends to OpenTelemetry Collector or compatible backend)
-    # Default endpoint is localhost:4317 for gRPC
     otlp_exporter = OTLPMetricExporter(endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT, insecure=True)
 
-    # Create metric reader with 60 second export interval
     metric_reader = PeriodicExportingMetricReader(
         exporter=otlp_exporter,
         export_interval_millis=60000,
     )
 
-    # Set up the meter provider
     meter_provider = MeterProvider(
         resource=resource,
         metric_readers=[metric_reader],
     )
 
-    # Set the global meter provider
     metrics.set_meter_provider(meter_provider)
-
-    # Create system metrics
     create_system_metrics()
-
-    # Add the metrics middleware (disabled for now to avoid DNS issues)
-    # app.add_middleware(MetricsMiddleware)
 
     logger.info("OpenTelemetry metrics configured with OTLP exporter")
 

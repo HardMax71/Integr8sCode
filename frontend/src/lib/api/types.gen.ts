@@ -439,10 +439,7 @@ export type CreatePodCommandEvent = {
      * Memory Request
      */
     memory_request?: string;
-    /**
-     * Priority
-     */
-    priority?: number;
+    priority?: QueuePriority;
 };
 
 /**
@@ -2230,10 +2227,7 @@ export type ExecutionAcceptedEvent = {
      * Estimated Wait Seconds
      */
     estimated_wait_seconds?: number | null;
-    /**
-     * Priority
-     */
-    priority?: number;
+    priority?: QueuePriority;
 };
 
 /**
@@ -2577,10 +2571,7 @@ export type ExecutionRequestedEvent = {
      * Memory Request
      */
     memory_request?: string;
-    /**
-     * Priority
-     */
-    priority?: number;
+    priority?: QueuePriority;
 };
 
 /**
@@ -3879,6 +3870,13 @@ export type PublishEventResponse = {
 };
 
 /**
+ * QueuePriority
+ *
+ * Execution priority, ordered highest to lowest.
+ */
+export type QueuePriority = 'critical' | 'high' | 'normal' | 'low' | 'background';
+
+/**
  * QuotaExceededEvent
  */
 export type QuotaExceededEvent = {
@@ -4937,89 +4935,6 @@ export type SseHealthResponse = {
  * Health status for SSE service.
  */
 export type SseHealthStatus = 'healthy' | 'draining';
-
-/**
- * SSENotificationEvent
- *
- * Event types for notification SSE streams.
- */
-export type SseNotificationEvent = 'connected' | 'subscribed' | 'heartbeat' | 'notification';
-
-/**
- * SSENotificationEventData
- *
- * Typed model for SSE notification stream event payload.
- *
- * This represents the JSON data sent inside each SSE message for notification streams.
- */
-export type SseNotificationEventData = {
-    /**
-     * SSE notification event type
-     */
-    event_type: SseNotificationEvent;
-    /**
-     * User Id
-     *
-     * User ID for the notification stream
-     */
-    user_id?: string | null;
-    /**
-     * Timestamp
-     *
-     * Event timestamp
-     */
-    timestamp?: string | null;
-    /**
-     * Message
-     *
-     * Human-readable message
-     */
-    message?: string | null;
-    /**
-     * Notification Id
-     *
-     * Unique notification ID
-     */
-    notification_id?: string | null;
-    /**
-     * Notification severity level
-     */
-    severity?: NotificationSeverity | null;
-    /**
-     * Notification delivery status
-     */
-    status?: NotificationStatus | null;
-    /**
-     * Tags
-     *
-     * Notification tags
-     */
-    tags?: Array<string> | null;
-    /**
-     * Subject
-     *
-     * Notification subject/title
-     */
-    subject?: string | null;
-    /**
-     * Body
-     *
-     * Notification body content
-     */
-    body?: string | null;
-    /**
-     * Action Url
-     *
-     * Optional action URL
-     */
-    action_url?: string | null;
-    /**
-     * Created At
-     *
-     * Creation timestamp
-     */
-    created_at?: string | null;
-};
 
 /**
  * SagaCancellationResponse
@@ -7912,7 +7827,7 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
      * Successful Response
      */
-    200: SseNotificationEventData;
+    200: NotificationResponse;
 };
 
 export type NotificationStreamApiV1EventsNotificationsStreamGetResponse = NotificationStreamApiV1EventsNotificationsStreamGetResponses[keyof NotificationStreamApiV1EventsNotificationsStreamGetResponses];

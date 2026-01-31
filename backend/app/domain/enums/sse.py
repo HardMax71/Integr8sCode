@@ -17,12 +17,3 @@ class SSEControlEvent(StringEnum):
     SHUTDOWN = "shutdown"
     STATUS = "status"
     ERROR = "error"
-
-
-class SSENotificationEvent(StringEnum):
-    """Event types for notification SSE streams."""
-
-    CONNECTED = "connected"
-    SUBSCRIBED = "subscribed"
-    HEARTBEAT = "heartbeat"
-    NOTIFICATION = "notification"

@@ -68,7 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     container = create_app_container(settings)
     setup_dishka(container, app)
 
-    setup_metrics(app, settings, logger)
+    setup_metrics(settings, logger)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware, container=container)

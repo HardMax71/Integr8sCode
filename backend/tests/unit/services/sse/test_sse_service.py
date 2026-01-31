@@ -198,28 +198,21 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
 
 
 @pytest.mark.asyncio
-async def test_notification_stream_connected_and_heartbeat_and_message(connection_metrics: ConnectionMetrics) -> None:
+async def test_notification_stream_yields_notification_and_shuts_down(connection_metrics: ConnectionMetrics) -> None:
+    """Notification stream yields {"event": "notification", "data": ...} for each message.
+
+    No control events (connected/subscribed/heartbeat) — those are handled by
+    the SSE protocol layer (sse-starlette ping, EventSourcePlus onResponse).
+    """
     repo = _FakeRepo()
     bus = _FakeBus()
     sm = _FakeShutdown()
-    settings = _make_fake_settings()
-    settings.SSE_HEARTBEAT_INTERVAL = 0  # emit immediately
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm, settings=settings,
-                     logger=_test_logger, connection_metrics=connection_metrics)
+    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_notification_stream("u1")
-    connected = await agen.__anext__()
-    assert _decode(connected)["event_type"] == "connected"
 
-    # Should emit subscribed after Redis subscription is ready
-    subscribed = await agen.__anext__()
-    assert _decode(subscribed)["event_type"] == "subscribed"
-
-    # With 0 interval, next yield should be heartbeat
-    hb = await agen.__anext__()
-    assert _decode(hb)["event_type"] == "heartbeat"
-
-    # Push a notification payload (must match RedisNotificationMessage schema)
+    # Push a notification payload before advancing (avoids blocking on empty queue)
     await bus.notif_sub.push({
         "notification_id": "n1",
         "severity": "low",
@@ -230,16 +223,24 @@ async def test_notification_stream_connected_and_heartbeat_and_message(connectio
         "action_url": "",
         "created_at": "2025-01-01T00:00:00Z",
     })
-    notif = await agen.__anext__()
-    assert _decode(notif)["event_type"] == "notification"
 
-    # Stop the stream by initiating shutdown and advancing once more (loop checks flag)
+    notif = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+    # New format: SSE event field + JSON data (no event_type wrapper)
+    assert notif["event"] == "notification"
+    data = json.loads(notif["data"])
+    assert data["notification_id"] == "n1"
+    assert data["subject"] == "s"
+    assert data["channel"] == "in_app"
+
+    # Stop the stream by initiating shutdown
     sm.initiate()
-    # It may loop until it sees the flag; push a None to release get(timeout)
+    # Push None to unblock the subscription.get() timeout loop
     await bus.notif_sub.push(None)
-    # Give the generator a chance to observe the flag and finish
     with pytest.raises(StopAsyncIteration):
-        await asyncio.wait_for(agen.__anext__(), timeout=0.2)
+        await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+
+    # Subscription should be closed during cleanup
+    assert bus.notif_sub.closed is True
 
 
 @pytest.mark.asyncio

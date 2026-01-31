@@ -1,4 +1,4 @@
-from app.core.metrics.base import BaseMetrics, MetricsConfig
+from app.core.metrics.base import BaseMetrics
 from app.core.metrics.connections import ConnectionMetrics
 from app.core.metrics.coordinator import CoordinatorMetrics
 from app.core.metrics.database import DatabaseMetrics
@@ -14,7 +14,6 @@ from app.core.metrics.security import SecurityMetrics
 
 __all__ = [
     "BaseMetrics",
-    "MetricsConfig",
     "ConnectionMetrics",
     "CoordinatorMetrics",
     "DatabaseMetrics",

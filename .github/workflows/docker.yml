@@ -1,213 +1,52 @@
-name: Docker Build, Scan & Publish
+name: Docker Scan & Promote
 
+# Runs after Stack Tests completes on main — promotes sha-xxx → latest.
+# "latest" is NEVER set during build. Only this workflow can set it,
+# and only after all tests pass. If any test fails, latest stays unchanged.
 on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["Stack Tests"]
+    types: [completed]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Full commit SHA to promote (defaults to latest main)'
+        required: false
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-base:
-    name: Build Base
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    outputs:
-      image-tag: ${{ steps.image-tag.outputs.tag }}
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set lowercase image prefix
-        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}/integr8scode" >> $GITHUB_ENV
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Determine image tag for dependent builds
-        id: image-tag
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.base
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=base
-          cache-to: type=gha,mode=max,scope=base
-
-  build-backend:
-    name: Build Backend
-    needs: build-base
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    outputs:
-      image-ref: ${{ steps.image-ref.outputs.ref }}
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set lowercase image prefix
-        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}/integr8scode" >> $GITHUB_ENV
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Set image reference for scan
-        id: image-ref
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:latest" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-          build-contexts: |
-            base=docker-image://${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base:${{ needs.build-base.outputs.image-tag }}
-
-  build-frontend:
-    name: Build Frontend
-    needs: build-base
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    outputs:
-      image-ref: ${{ steps.image-ref.outputs.ref }}
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set lowercase image prefix
-        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}/integr8scode" >> $GITHUB_ENV
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Set image reference for scan
-        id: image-ref
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:latest" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile.prod
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-
   scan-backend:
     name: Scan Backend
-    needs: build-backend
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
-
+      packages: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Compute image ref
+        id: ref
+        run: |
+          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${{ github.event.inputs.sha || github.sha }}"
+          else
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          TAG="sha-${SHA::7}"
+          echo "image=${{ env.REGISTRY }}/$PREFIX/backend:$TAG" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.33.1
         with:
-          image-ref: ${{ needs.build-backend.outputs.image-ref }}
+          image-ref: ${{ steps.ref.outputs.image }}
           format: 'sarif'
           output: 'trivy-backend-results.sarif'
           ignore-unfixed: true
@@ -225,17 +64,32 @@ jobs:
 
   scan-frontend:
     name: Scan Frontend
-    needs: build-frontend
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
-
+      packages: read
     steps:
+      - name: Compute image ref
+        id: ref
+        run: |
+          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${{ github.event.inputs.sha || github.sha }}"
+          else
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          TAG="sha-${SHA::7}"
+          echo "image=${{ env.REGISTRY }}/$PREFIX/frontend:$TAG" >> $GITHUB_OUTPUT
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.33.1
         with:
-          image-ref: ${{ needs.build-frontend.outputs.image-ref }}
+          image-ref: ${{ steps.ref.outputs.image }}
           format: 'sarif'
           output: 'trivy-frontend-results.sarif'
           ignore-unfixed: true
@@ -250,26 +104,79 @@ jobs:
           sarif_file: 'trivy-frontend-results.sarif'
           category: 'trivy-frontend'
 
+  # Promote SHA tag → latest using crane (registry-level manifest copy, no rebuild)
+  promote:
+    name: Promote to Latest
+    needs: [scan-backend, scan-frontend]
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Promote images (SHA → latest)
+        run: |
+          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${{ github.event.inputs.sha || github.sha }}"
+          else
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          TAG="sha-${SHA::7}"
+
+          echo "Promoting tag: $TAG → latest"
+          echo ""
+
+          crane copy "$REGISTRY/$PREFIX/base:$TAG" "$REGISTRY/$PREFIX/base:latest"
+          crane copy "$REGISTRY/$PREFIX/backend:$TAG" "$REGISTRY/$PREFIX/backend:latest"
+          crane copy "$REGISTRY/$PREFIX/frontend:$TAG" "$REGISTRY/$PREFIX/frontend:latest"
+          crane copy "$REGISTRY/$PREFIX/coordinator:$TAG" "$REGISTRY/$PREFIX/coordinator:latest"
+          crane copy "$REGISTRY/$PREFIX/k8s-worker:$TAG" "$REGISTRY/$PREFIX/k8s-worker:latest"
+          crane copy "$REGISTRY/$PREFIX/pod-monitor:$TAG" "$REGISTRY/$PREFIX/pod-monitor:latest"
+          crane copy "$REGISTRY/$PREFIX/result-processor:$TAG" "$REGISTRY/$PREFIX/result-processor:latest"
+          crane copy "$REGISTRY/$PREFIX/saga-orchestrator:$TAG" "$REGISTRY/$PREFIX/saga-orchestrator:latest"
+          crane copy "$REGISTRY/$PREFIX/event-replay:$TAG" "$REGISTRY/$PREFIX/event-replay:latest"
+          crane copy "$REGISTRY/$PREFIX/dlq-processor:$TAG" "$REGISTRY/$PREFIX/dlq-processor:latest"
+          crane copy "$REGISTRY/$PREFIX/cert-generator:$TAG" "$REGISTRY/$PREFIX/cert-generator:latest"
+          crane copy "$REGISTRY/$PREFIX/zookeeper-certgen:$TAG" "$REGISTRY/$PREFIX/zookeeper-certgen:latest"
+
   summary:
     name: Summary
-    if: github.event_name != 'pull_request'
-    needs: [build-base, build-backend, build-frontend, scan-backend, scan-frontend]
+    needs: [promote]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Set lowercase image prefix
-        run: echo "IMAGE_PREFIX=${GITHUB_REPOSITORY_OWNER,,}/integr8scode" >> $GITHUB_ENV
-
       - name: Generate summary
         run: |
-          echo "## Docker Images Published" >> $GITHUB_STEP_SUMMARY
+          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${{ github.event.inputs.sha || github.sha }}"
+          else
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          TAG="sha-${SHA::7}"
+
+          echo "## Docker Images Promoted to Latest" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All Stack Tests passed. Images promoted from \`$TAG\` to \`latest\`." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Image | Pull Command |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Base | \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/base:latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend | \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:latest\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Frontend | \`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Base | \`docker pull $REGISTRY/$PREFIX/base:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | \`docker pull $REGISTRY/$PREFIX/backend:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | \`docker pull $REGISTRY/$PREFIX/frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "- Backend scan: ✅ Passed" >> $GITHUB_STEP_SUMMARY
-          echo "- Frontend scan: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: Passed" >> $GITHUB_STEP_SUMMARY

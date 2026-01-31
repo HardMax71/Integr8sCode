@@ -4,13 +4,7 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 
 export default defineConfig({
   plugins: [
-    svelte({
-      hot: !process.env.VITEST,
-      compilerOptions: {
-        dev: true,
-        runes: true,
-      },
-    }),
+    svelte({ hot: !process.env.VITEST }),
     svelteTesting(),
   ],
   test: {

@@ -289,6 +289,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Pre-pull GHCR images (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: |
+          nohup bash -c "IMAGE_TAG=$IMAGE_TAG docker compose pull --quiet" \
+            > /tmp/ghcr-pull.log 2>&1 &
+          echo $! > /tmp/ghcr-pull.pid
+
       - name: Cache and load Docker images
         uses: ./.github/actions/docker-cache
         with:
@@ -301,6 +309,17 @@ jobs:
         run: |
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
+
+      - name: Wait for GHCR images
+        run: |
+          if [ -f /tmp/ghcr-pull.pid ]; then
+            PID=$(cat /tmp/ghcr-pull.pid)
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "Waiting for GHCR image pull to complete..."
+              tail --pid="$PID" -f /dev/null 2>/dev/null || true
+            fi
+            cat /tmp/ghcr-pull.log 2>/dev/null || true
+          fi
 
       - name: Start stack
         env:
@@ -362,12 +381,25 @@ jobs:
           path: logs/
 
   frontend-e2e:
-    name: Frontend E2E Tests
+    name: Frontend E2E (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     needs: [build-images]
     if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
     steps:
       - uses: actions/checkout@v6
+
+      - name: Pre-pull GHCR images (background)
+        env:
+          IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
+        run: |
+          nohup bash -c "IMAGE_TAG=$IMAGE_TAG docker compose pull --quiet" \
+            > /tmp/ghcr-pull.log 2>&1 &
+          echo $! > /tmp/ghcr-pull.pid
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -409,6 +441,17 @@ jobs:
           cp backend/config.test.toml backend/config.toml
           cp backend/secrets.example.toml backend/secrets.toml
 
+      - name: Wait for GHCR images
+        run: |
+          if [ -f /tmp/ghcr-pull.pid ]; then
+            PID=$(cat /tmp/ghcr-pull.pid)
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "Waiting for GHCR image pull to complete..."
+              tail --pid="$PID" -f /dev/null 2>/dev/null || true
+            fi
+            cat /tmp/ghcr-pull.log 2>/dev/null || true
+          fi
+
       - name: Start stack
         env:
           IMAGE_TAG: ${{ needs.build-images.outputs.sha-tag }}
@@ -420,13 +463,13 @@ jobs:
       - name: Run Playwright tests
         timeout-minutes: 10
         working-directory: frontend
-        run: CI=true npx playwright test
+        run: CI=true npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: frontend/playwright-report/
 
       - name: Collect logs on failure
@@ -441,5 +484,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: frontend-e2e-logs
+          name: frontend-e2e-logs-${{ matrix.shardIndex }}
           path: logs/

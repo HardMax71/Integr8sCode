@@ -5,10 +5,10 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 from app.core.metrics import EventMetrics
-from app.events.core import EventDispatcher
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.schemas_pydantic.sse import RedisSSEMessage
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -20,7 +20,7 @@ _test_logger = logging.getLogger("test.services.sse.partitioned_event_router_int
 
 
 @pytest.mark.asyncio
-async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings: Settings) -> None:
+async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_settings: Settings) -> None:
     suffix = uuid4().hex[:6]
     bus = SSERedisBus(
         redis_client,
@@ -28,17 +28,11 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
         notif_prefix=f"sse:notif:{suffix}:",
         logger=_test_logger,
     )
-    router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
-        settings=test_settings,
-        event_metrics=EventMetrics(test_settings),
-        sse_bus=bus,
-        logger=_test_logger,
-    )
-    disp = EventDispatcher(logger=_test_logger)
-    router._register_routing_handlers(disp)
 
-    # Open Redis subscription for our execution id
+    disp = EventDispatcher(logger=_test_logger)
+    for et in SSERedisBus.SSE_ROUTED_EVENTS:
+        disp.register_handler(et, bus.route_domain_event)
+
     execution_id = f"e-{uuid4().hex[:8]}"
     subscription = await bus.open_subscription(execution_id)
 
@@ -46,36 +40,47 @@ async def test_router_bridges_to_redis(redis_client: redis.Redis, test_settings:
     handler = disp._handlers[ev.event_type][0]
     await handler(ev)
 
-    # Await the subscription directly - true async, no polling
     msg = await asyncio.wait_for(subscription.get(RedisSSEMessage), timeout=2.0)
     assert msg is not None
     assert str(msg.event_type) == str(ev.event_type)
 
 
 @pytest.mark.asyncio
-async def test_router_start_and_stop(redis_client: redis.Redis, test_settings: Settings) -> None:
-    test_settings.SSE_CONSUMER_POOL_SIZE = 1
+@pytest.mark.kafka
+async def test_sse_consumer_start_and_stop(
+    redis_client: redis.Redis, test_settings: Settings,
+) -> None:
     suffix = uuid4().hex[:6]
-    router = SSEKafkaRedisBridge(
-        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
-        settings=test_settings,
-        event_metrics=EventMetrics(test_settings),
-        sse_bus=SSERedisBus(
-            redis_client,
-            exec_prefix=f"sse:exec:{suffix}:",
-            notif_prefix=f"sse:notif:{suffix}:",
-            logger=_test_logger,
-        ),
+    bus = SSERedisBus(
+        redis_client,
+        exec_prefix=f"sse:exec:{suffix}:",
+        notif_prefix=f"sse:notif:{suffix}:",
         logger=_test_logger,
     )
 
-    await router.__aenter__()
-    stats = router.get_stats()
-    assert stats["num_consumers"] == 1
-    await router.aclose()
-    assert router.get_stats()["num_consumers"] == 0
-    # idempotent start/stop
-    await router.__aenter__()
-    await router.__aenter__()
-    await router.aclose()
-    await router.aclose()
+    config = ConsumerConfig(
+        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id="sse-bridge-pool",
+        client_id="sse-consumer-test-0",
+        enable_auto_commit=True,
+        auto_offset_reset="latest",
+        max_poll_interval_ms=test_settings.KAFKA_MAX_POLL_INTERVAL_MS,
+        session_timeout_ms=test_settings.KAFKA_SESSION_TIMEOUT_MS,
+        heartbeat_interval_ms=test_settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+        request_timeout_ms=test_settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
+    dispatcher = EventDispatcher(logger=_test_logger)
+    for et in SSERedisBus.SSE_ROUTED_EVENTS:
+        dispatcher.register_handler(et, bus.route_domain_event)
+
+    consumer = UnifiedConsumer(
+        config=config,
+        event_dispatcher=dispatcher,
+        schema_registry=SchemaRegistryManager(settings=test_settings, logger=_test_logger),
+        settings=test_settings,
+        logger=_test_logger,
+        event_metrics=EventMetrics(test_settings),
+    )
+    topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
+    await consumer.start(topics)
+    await consumer.stop()

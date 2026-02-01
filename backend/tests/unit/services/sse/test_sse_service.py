@@ -12,11 +12,9 @@ from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import DomainExecution
-from app.domain.sse import ShutdownStatus, SSEExecutionStatusDomain, SSEHealthDomain
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+from app.domain.sse import SSEExecutionStatusDomain
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager
 from app.settings import Settings
 from pydantic import BaseModel
 
@@ -78,46 +76,6 @@ class _FakeRepo(SSERepository):
         return self.exec_for_result
 
 
-class _FakeShutdown(SSEShutdownManager):
-    def __init__(self) -> None:
-        # Skip parent __init__
-        self._evt = asyncio.Event()
-        self._initiated = False
-        self.registered: list[tuple[str, str]] = []
-        self.unregistered: list[tuple[str, str]] = []
-
-    async def register_connection(self, execution_id: str, connection_id: str) -> asyncio.Event:
-        self.registered.append((execution_id, connection_id))
-        return self._evt
-
-    async def unregister_connection(self, execution_id: str, connection_id: str) -> None:
-        self.unregistered.append((execution_id, connection_id))
-
-    def is_shutting_down(self) -> bool:
-        return self._initiated
-
-    def get_shutdown_status(self) -> ShutdownStatus:
-        return ShutdownStatus(
-            phase="ready",
-            initiated=self._initiated,
-            complete=False,
-            active_connections=0,
-            draining_connections=0,
-        )
-
-    def initiate(self) -> None:
-        self._initiated = True
-        self._evt.set()
-
-
-class _FakeRouter(SSEKafkaRedisBridge):
-    def __init__(self) -> None:
-        # Skip parent __init__
-        pass
-
-    def get_stats(self) -> dict[str, int | bool]:
-        return {"num_consumers": 3, "active_executions": 2, "is_running": True, "total_buffers": 0}
-
 
 def _make_fake_settings() -> Settings:
     mock = MagicMock(spec=Settings)
@@ -134,8 +92,7 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
 async def test_execution_stream_closes_on_failed_event(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
     bus = _FakeBus()
-    sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+    svc = SSEService(repository=repo, sse_bus=bus,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
@@ -178,8 +135,7 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
         exit_code=0,
     )
     bus = _FakeBus()
-    sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+    svc = SSEService(repository=repo, sse_bus=bus,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
@@ -198,16 +154,16 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
 
 
 @pytest.mark.asyncio
-async def test_notification_stream_yields_notification_and_shuts_down(connection_metrics: ConnectionMetrics) -> None:
+async def test_notification_stream_yields_notification_and_cleans_up(connection_metrics: ConnectionMetrics) -> None:
     """Notification stream yields {"event": "notification", "data": ...} for each message.
 
     No control events (connected/subscribed/heartbeat) — those are handled by
     the SSE protocol layer (sse-starlette ping, EventSourcePlus onResponse).
+    Cleanup happens via generator close (sse-starlette cancels on disconnect/shutdown).
     """
     repo = _FakeRepo()
     bus = _FakeBus()
-    sm = _FakeShutdown()
-    svc = SSEService(repository=repo, router=_FakeRouter(), sse_bus=bus, shutdown_manager=sm,
+    svc = SSEService(repository=repo, sse_bus=bus,
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_notification_stream("u1")
@@ -232,21 +188,10 @@ async def test_notification_stream_yields_notification_and_shuts_down(connection
     assert data["subject"] == "s"
     assert data["channel"] == "in_app"
 
-    # Stop the stream by initiating shutdown
-    sm.initiate()
-    # Push None to unblock the subscription.get() timeout loop
-    await bus.notif_sub.push(None)
-    with pytest.raises(StopAsyncIteration):
-        await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+    # Stop the stream by closing the generator (same as sse-starlette on disconnect)
+    await agen.aclose()
 
     # Subscription should be closed during cleanup
     assert bus.notif_sub.closed is True
 
 
-@pytest.mark.asyncio
-async def test_health_status_shape(connection_metrics: ConnectionMetrics) -> None:
-    svc = SSEService(repository=_FakeRepo(), router=_FakeRouter(), sse_bus=_FakeBus(), shutdown_manager=_FakeShutdown(),
-                     settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
-    h = await svc.get_health_status()
-    assert isinstance(h, SSEHealthDomain)
-    assert h.active_consumers == 3 and h.active_executions == 2

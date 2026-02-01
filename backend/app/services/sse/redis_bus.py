@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Type, TypeVar
+from typing import ClassVar, Type, TypeVar
 
 import redis.asyncio as redis
 from pydantic import BaseModel
 
+from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 
@@ -44,6 +45,25 @@ class SSERedisSubscription:
 class SSERedisBus:
     """Redis-backed pub/sub bus for SSE event fan-out across workers."""
 
+    SSE_ROUTED_EVENTS: ClassVar[list[EventType]] = [
+        EventType.EXECUTION_REQUESTED,
+        EventType.EXECUTION_QUEUED,
+        EventType.EXECUTION_STARTED,
+        EventType.EXECUTION_RUNNING,
+        EventType.EXECUTION_COMPLETED,
+        EventType.EXECUTION_FAILED,
+        EventType.EXECUTION_TIMEOUT,
+        EventType.EXECUTION_CANCELLED,
+        EventType.RESULT_STORED,
+        EventType.POD_CREATED,
+        EventType.POD_SCHEDULED,
+        EventType.POD_RUNNING,
+        EventType.POD_SUCCEEDED,
+        EventType.POD_FAILED,
+        EventType.POD_TERMINATED,
+        EventType.POD_DELETED,
+    ]
+
     def __init__(
         self,
         redis_client: redis.Redis,
@@ -69,6 +89,23 @@ class SSERedisBus:
             data=event.model_dump(mode="json"),
         )
         await self._redis.publish(self._exec_channel(execution_id), message.model_dump_json())
+
+    async def route_domain_event(self, event: DomainEvent) -> None:
+        """Route a domain event to its Redis execution channel by execution_id."""
+        data = event.model_dump()
+        execution_id = data.get("execution_id")
+        if not execution_id:
+            self.logger.debug("Event %s has no execution_id, skipping", event.event_type)
+            return
+        try:
+            await self.publish_event(execution_id, event)
+        except Exception as e:
+            self.logger.error(
+                "Failed to publish %s to Redis for %s: %s",
+                event.event_type, execution_id, e,
+                exc_info=True,
+
+            )
 
     async def open_subscription(self, execution_id: str) -> SSERedisSubscription:
         pubsub = self._redis.pubsub()

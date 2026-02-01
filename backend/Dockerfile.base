@@ -4,8 +4,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install all system dependencies needed by any service
-RUN apt-get update && apt-get install -y \
+# Install OS security patches + system dependencies needed by any service
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
     gcc \
     curl \
     libsnappy-dev \

@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -7,7 +6,9 @@ from datetime import datetime, timezone
 import pytest
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from app.core.metrics import DLQMetrics
-from app.dlq.manager import create_dlq_manager
+from app.db.repositories.dlq_repository import DLQRepository
+from app.dlq.manager import DLQManager
+from app.dlq.models import DLQMessage
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DLQMessageReceivedEvent
@@ -30,7 +31,6 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
     schema_registry = SchemaRegistryManager(test_settings, _test_logger)
     dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
-    manager = create_dlq_manager(settings=test_settings, schema_registry=schema_registry, logger=_test_logger, dlq_metrics=dlq_metrics)
 
     prefix = test_settings.KAFKA_TOPIC_PREFIX
     ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
@@ -40,7 +40,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
 
     # Create consumer for DLQ events topic
     dlq_events_topic = f"{prefix}{KafkaTopic.DLQ_EVENTS}"
-    consumer = AIOKafkaConsumer(
+    events_consumer = AIOKafkaConsumer(
         dlq_events_topic,
         bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id=f"test-dlq-events.{uuid.uuid4().hex[:6]}",
@@ -50,7 +50,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
 
     async def consume_dlq_events() -> None:
         """Consume DLQ events and set future when our event is received."""
-        async for msg in consumer:
+        async for msg in events_consumer:
             try:
                 event = await schema_registry.deserialize_event(msg.value, dlq_events_topic)
                 if (
@@ -63,44 +63,49 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             except Exception as e:
                 _test_logger.debug(f"Error deserializing DLQ event: {e}")
 
-    payload = {
-        "event": ev.model_dump(mode="json"),
-        "original_topic": f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
-        "error": "handler failed",
-        "retry_count": 0,
-        "failed_at": datetime.now(timezone.utc).isoformat(),
-        "producer_id": "tests",
-    }
-
-    # Produce to DLQ topic BEFORE starting consumers (auto_offset_reset="earliest")
-    producer = AIOKafkaProducer(bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS)
-    await producer.start()
-    try:
-        await producer.send_and_wait(
-            topic=f"{prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}",
-            key=ev.event_id.encode(),
-            value=json.dumps(payload).encode(),
-        )
-    finally:
-        await producer.stop()
-
-    # Start consumer for DLQ events
-    await consumer.start()
+    # Create and start a producer for the manager (lifecycle managed by test)
+    producer = AIOKafkaProducer(
+        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
+        client_id="test-dlq-producer",
+        acks="all",
+        enable_idempotence=True,
+    )
+    await asyncio.gather(producer.start(), events_consumer.start())
     consume_task = asyncio.create_task(consume_dlq_events())
 
     try:
-        # Start manager - it will consume from DLQ, persist, and emit DLQMessageReceivedEvent
-        async with manager:
-            # Await the DLQMessageReceivedEvent - true async, no polling
-            received = await asyncio.wait_for(received_future, timeout=15.0)
-            assert received.dlq_event_id == ev.event_id
-            assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-            assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
-            assert received.error == "handler failed"
+        repository = DLQRepository(_test_logger)
+        manager = DLQManager(
+            settings=test_settings,
+            producer=producer,
+            schema_registry=schema_registry,
+            logger=_test_logger,
+            dlq_metrics=dlq_metrics,
+            repository=repository,
+        )
+
+        # Build a DLQMessage directly and call handle_message (no internal consumer loop)
+        dlq_msg = DLQMessage(
+            event=ev,
+            original_topic=f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
+            error="handler failed",
+            retry_count=0,
+            failed_at=datetime.now(timezone.utc),
+            producer_id="tests",
+        )
+
+        await manager.handle_message(dlq_msg)
+
+        # Await the DLQMessageReceivedEvent — true async, no polling
+        received = await asyncio.wait_for(received_future, timeout=15.0)
+        assert received.dlq_event_id == ev.event_id
+        assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
+        assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
+        assert received.error == "handler failed"
     finally:
         consume_task.cancel()
         try:
             await consume_task
         except asyncio.CancelledError:
             pass
-        await consumer.stop()
+        await asyncio.gather(events_consumer.stop(), producer.stop())

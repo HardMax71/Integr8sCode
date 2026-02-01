@@ -4,6 +4,7 @@ import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
+from aiokafka import AIOKafkaProducer
 from dishka import Provider, Scope, from_context, provide
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
@@ -43,7 +44,7 @@ from app.db.repositories.dlq_repository import DLQRepository
 from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
-from app.dlq.manager import DLQManager, create_dlq_manager
+from app.dlq.manager import DLQManager
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
@@ -174,9 +175,29 @@ class MessagingProvider(Provider):
             schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
+            repository: DLQRepository,
     ) -> AsyncIterator[DLQManager]:
-        async with create_dlq_manager(settings, schema_registry, logger, dlq_metrics) as manager:
-            yield manager
+        producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id="dlq-manager-producer",
+            acks="all",
+            compression_type="gzip",
+            max_batch_size=16384,
+            linger_ms=10,
+            enable_idempotence=True,
+        )
+        await producer.start()
+        try:
+            yield DLQManager(
+                settings=settings,
+                producer=producer,
+                schema_registry=schema_registry,
+                logger=logger,
+                dlq_metrics=dlq_metrics,
+                repository=repository,
+            )
+        finally:
+            await producer.stop()
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from beanie.odm.enums import SortDirection
+from beanie.operators import Set
 from monggregate import Pipeline, S
 
 from app.db.docs import DLQMessageDocument
@@ -11,6 +12,7 @@ from app.dlq import (
     DLQMessage,
     DLQMessageListResult,
     DLQMessageStatus,
+    DLQMessageUpdate,
     DLQStatistics,
     DLQTopicSummary,
     EventTypeStatistic,
@@ -156,6 +158,62 @@ class DLQRepository:
         )
         results = await DLQMessageDocument.aggregate(pipeline.export()).to_list()
         return [DLQTopicSummary.model_validate(r) for r in results]
+
+    async def save_message(self, message: DLQMessage) -> None:
+        """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""
+        payload = message.model_dump()
+        await DLQMessageDocument.find_one({"event.event_id": message.event.event_id}).upsert(
+            Set(payload),  # type: ignore[no-untyped-call]
+            on_insert=DLQMessageDocument(**payload),
+        )
+
+    async def update_status(self, event_id: str, update: DLQMessageUpdate) -> None:
+        """Apply a status update to a DLQ message."""
+        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
+        if not doc:
+            return
+
+        update_dict: dict[str, Any] = {"status": update.status, "last_updated": datetime.now(timezone.utc)}
+        if update.next_retry_at is not None:
+            update_dict["next_retry_at"] = update.next_retry_at
+        if update.retried_at is not None:
+            update_dict["retried_at"] = update.retried_at
+        if update.discarded_at is not None:
+            update_dict["discarded_at"] = update.discarded_at
+        if update.retry_count is not None:
+            update_dict["retry_count"] = update.retry_count
+        if update.discard_reason is not None:
+            update_dict["discard_reason"] = update.discard_reason
+        if update.last_error is not None:
+            update_dict["last_error"] = update.last_error
+
+        await doc.set(update_dict)
+
+    async def find_due_retries(self, limit: int = 100) -> list[DLQMessage]:
+        """Find scheduled messages whose retry time has arrived."""
+        now = datetime.now(timezone.utc)
+        docs = (
+            await DLQMessageDocument.find(
+                {
+                    "status": DLQMessageStatus.SCHEDULED,
+                    "next_retry_at": {"$lte": now},
+                }
+            )
+            .limit(limit)
+            .to_list()
+        )
+        return [DLQMessage.model_validate(doc, from_attributes=True) for doc in docs]
+
+    async def get_queue_sizes_by_topic(self) -> dict[str, int]:
+        """Get message counts per topic for active (pending/scheduled) messages."""
+        pipeline: list[dict[str, Any]] = [
+            {"$match": {"status": {"$in": [DLQMessageStatus.PENDING, DLQMessageStatus.SCHEDULED]}}},
+            {"$group": {"_id": "$original_topic", "count": {"$sum": 1}}},
+        ]
+        result: dict[str, int] = {}
+        async for row in DLQMessageDocument.aggregate(pipeline):
+            result[row["_id"]] = row["count"]
+        return result
 
     async def mark_message_retried(self, event_id: str) -> bool:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})

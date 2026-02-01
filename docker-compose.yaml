@@ -1,20 +1,21 @@
 services:
   # Shared base image for all Python backend services
   base:
+    image: ghcr.io/hardmax71/integr8scode/base:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.base
-    image: integr8scode-base:latest
 
   shared-ca:
     image: alpine:latest
     volumes:
       - shared_ca:/shared_ca
-    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready' && sleep 2"
+    command: sh -c "mkdir -p /shared_ca && chmod 777 /shared_ca && echo 'Shared CA directory ready'"
     networks:
       - app-network
 
   cert-generator:
+    image: ghcr.io/hardmax71/integr8scode/cert-generator:${IMAGE_TAG:-latest}
     build:
       context: ./cert-generator
       dockerfile: Dockerfile
@@ -57,10 +58,10 @@ services:
         hard: 65536
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
-      interval: 5s
+      interval: 3s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 15
+      start_period: 5s
 
   redis:
     image: redis:7-alpine
@@ -74,12 +75,13 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
 
   backend:
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -120,14 +122,14 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      # Simpler, reliable healthcheck: curl fails non-zero for HTTP >=400 with -f
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
-      interval: 3s
+      interval: 2s
       timeout: 3s
-      retries: 50
-      start_period: 10s
+      retries: 30
+      start_period: 3s
 
   frontend:
+    image: ghcr.io/hardmax71/integr8scode/frontend-dev:${IMAGE_TAG:-latest}
     container_name: frontend
     build:
       context: ./frontend
@@ -136,7 +138,7 @@ services:
       cert-generator:
         condition: service_completed_successfully
       backend:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -151,10 +153,10 @@ services:
       - NODE_EXTRA_CA_CERTS=/shared_ca/mkcert-ca.pem
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:5001 >/dev/null || exit 1"]
-      interval: 3s
+      interval: 2s
       timeout: 3s
       retries: 30
-      start_period: 10s
+      start_period: 3s
 
 
   grafana:
@@ -176,6 +178,7 @@ services:
   # Kafka Infrastructure for Event-Driven Design
   # Certificate generator for Zookeeper/Kafka SSL
   zookeeper-certgen:
+    image: ghcr.io/hardmax71/integr8scode/zookeeper-certgen:${IMAGE_TAG:-latest}
     build:
       context: ./backend/zookeeper
       dockerfile: Dockerfile.certgen
@@ -258,10 +261,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
-      interval: 5s
+      interval: 3s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 15
+      start_period: 5s
 
   kafka:
     image: confluentinc/cp-kafka:7.8.2
@@ -319,10 +322,10 @@ services:
         hard: 65536
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
-      interval: 5s
+      interval: 3s
       timeout: 10s
-      retries: 12
-      start_period: 15s
+      retries: 15
+      start_period: 3s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.8.2
@@ -340,14 +343,15 @@ services:
       - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
-      interval: 5s
+      interval: 3s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 15
+      start_period: 5s
 
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
     container_name: kafdrop
+    profiles: ["debug"]
     depends_on:
       - kafka
       - schema-registry
@@ -362,6 +366,7 @@ services:
 
   # Kafka topic initialization
   kafka-init:
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -388,6 +393,7 @@ services:
 
   # Seed default users (runs once after mongo is ready)
   user-seed:
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -412,6 +418,7 @@ services:
 
   # Event-driven workers
   coordinator:
+    image: ghcr.io/hardmax71/integr8scode/coordinator:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.coordinator
@@ -436,6 +443,7 @@ services:
     restart: unless-stopped
 
   k8s-worker:
+    image: ghcr.io/hardmax71/integr8scode/k8s-worker:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.k8s_worker
@@ -463,6 +471,7 @@ services:
     restart: unless-stopped
 
   pod-monitor:
+    image: ghcr.io/hardmax71/integr8scode/pod-monitor:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.pod_monitor
@@ -488,6 +497,7 @@ services:
     restart: unless-stopped
 
   result-processor:
+    image: ghcr.io/hardmax71/integr8scode/result-processor:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.result_processor
@@ -515,6 +525,7 @@ services:
     restart: unless-stopped
 
   saga-orchestrator:
+    image: ghcr.io/hardmax71/integr8scode/saga-orchestrator:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.saga_orchestrator
@@ -560,6 +571,7 @@ services:
 
   # Event replay service
   event-replay:
+    image: ghcr.io/hardmax71/integr8scode/event-replay:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.event_replay
@@ -586,6 +598,7 @@ services:
 
   # DLQ Processor Service
   dlq-processor:
+    image: ghcr.io/hardmax71/integr8scode/dlq-processor:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: workers/Dockerfile.dlq_processor

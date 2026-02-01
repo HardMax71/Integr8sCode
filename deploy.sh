@@ -56,9 +56,12 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  dev [options]      Start full stack (docker-compose)"
-    echo "                     --build             Rebuild images"
+    echo "                     --build             Rebuild images locally"
+    echo "                     --no-build          Use pre-built images only (no build fallback)"
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 300)"
+    echo "                     --observability     Include Grafana, Jaeger, etc."
+    echo "                     --debug             Include observability + Kafdrop"
     echo "  infra [options]    Start infrastructure only (mongo, redis, kafka, etc.)"
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 120)"
@@ -97,8 +100,10 @@ cmd_dev() {
     print_header "Starting Local Development Environment"
 
     local BUILD_FLAG=""
+    local NO_BUILD_FLAG=""
     local WAIT_FLAG=""
     local WAIT_TIMEOUT="300"
+    local PROFILE_FLAGS=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -106,12 +111,24 @@ cmd_dev() {
                 BUILD_FLAG="--build"
                 print_info "Rebuilding images..."
                 ;;
+            --no-build)
+                NO_BUILD_FLAG="--no-build"
+                print_info "Using pre-built images (skipping build)..."
+                ;;
             --wait)
                 WAIT_FLAG="--wait"
                 ;;
             --timeout)
                 shift
                 WAIT_TIMEOUT="$1"
+                ;;
+            --observability)
+                PROFILE_FLAGS="--profile observability"
+                print_info "Including observability stack (Grafana, Jaeger, etc.)"
+                ;;
+            --debug)
+                PROFILE_FLAGS="--profile observability --profile debug"
+                print_info "Including observability + debug tools (Kafdrop, etc.)"
                 ;;
         esac
         shift
@@ -122,7 +139,7 @@ cmd_dev() {
         WAIT_TIMEOUT_FLAG="--wait-timeout $WAIT_TIMEOUT"
     fi
 
-    docker compose --profile observability up -d $BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    docker compose $PROFILE_FLAGS up -d $BUILD_FLAG $NO_BUILD_FLAG $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     echo ""
     print_success "Development environment started!"
@@ -130,9 +147,13 @@ cmd_dev() {
     echo "Services:"
     echo "  Backend:   https://localhost:443"
     echo "  Frontend:  https://localhost:5001"
-    echo "  Kafdrop:   http://localhost:9000"
-    echo "  Jaeger:    http://localhost:16686"
-    echo "  Grafana:   http://localhost:3000"
+    if [[ "$PROFILE_FLAGS" == *"debug"* ]]; then
+        echo "  Kafdrop:   http://localhost:9000"
+    fi
+    if [[ "$PROFILE_FLAGS" == *"observability"* ]]; then
+        echo "  Jaeger:    http://localhost:16686"
+        echo "  Grafana:   http://localhost:3000"
+    fi
     echo ""
     echo "Commands:"
     echo "  ./deploy.sh logs             # View all logs"

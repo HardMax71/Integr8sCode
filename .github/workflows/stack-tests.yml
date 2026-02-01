@@ -2,19 +2,22 @@ name: Stack Tests
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
+    tags: ['v*']
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'cert-generator/**'
       - 'docker-compose.yaml'
       - 'deploy.sh'
       - '.github/workflows/stack-tests.yml'
       - '.github/actions/**'
   pull_request:
-    branches: [main, dev]
+    branches: [main]
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'cert-generator/**'
       - 'docker-compose.yaml'
       - 'deploy.sh'
       - '.github/workflows/stack-tests.yml'
@@ -22,11 +25,14 @@ on:
   workflow_dispatch:
 
 env:
+  REGISTRY: ghcr.io
   MONGO_IMAGE: mongo:8.0
   REDIS_IMAGE: redis:7-alpine
   KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
   ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.8.2
   SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.8.2
+  K3S_VERSION: v1.32.11+k3s1
+  K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 
 jobs:
   # Fast unit tests (no infrastructure needed)
@@ -102,17 +108,41 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  # Build all images once, cache for test jobs
+  # Build all images, push to GHCR with immutable SHA tag.
+  # Fork PRs skip GHCR push (no write access) — E2E tests require pushed images.
   build-images:
-    name: Build Images
+    name: Build & Push Images
     needs: [backend-unit, frontend-unit]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha-tag: ${{ steps.tags.outputs.sha-tag }}
+      image-prefix: ${{ steps.tags.outputs.image-prefix }}
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GHCR
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
+          SHA_TAG="sha-${GITHUB_SHA::7}"
+          echo "sha-tag=$SHA_TAG" >> "$GITHUB_OUTPUT"
+          echo "image-prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+
+      # ── Base image (cached separately — rarely changes) ──────────────
       - name: Cache base image
         uses: actions/cache@v5
         id: base-cache
@@ -139,15 +169,19 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      - name: Build all images
+      # ── Backend + workers (depend on local base image) ───────────────
+      - name: Build backend and worker images
         run: |
           docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
-          docker build -t integr8scode-coordinator:latest -f backend/workers/Dockerfile.coordinator --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-k8s-worker:latest -f backend/workers/Dockerfile.k8s_worker --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-pod-monitor:latest -f backend/workers/Dockerfile.pod_monitor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-result-processor:latest -f backend/workers/Dockerfile.result_processor --build-context base=docker-image://integr8scode-base:latest ./backend
-          docker build -t integr8scode-saga-orchestrator:latest -f backend/workers/Dockerfile.saga_orchestrator --build-context base=docker-image://integr8scode-base:latest ./backend
+          docker build -t integr8scode-coordinator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.coordinator ./backend
+          docker build -t integr8scode-k8s-worker:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.k8s_worker ./backend
+          docker build -t integr8scode-pod-monitor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.pod_monitor ./backend
+          docker build -t integr8scode-result-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.result_processor ./backend
+          docker build -t integr8scode-saga-orchestrator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.saga_orchestrator ./backend
+          docker build -t integr8scode-event-replay:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.event_replay ./backend
+          docker build -t integr8scode-dlq-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.dlq_processor ./backend
 
+      # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
         uses: docker/build-push-action@v6
         with:
@@ -158,6 +192,17 @@ jobs:
           cache-from: type=gha,scope=cert-generator
           cache-to: type=gha,mode=max,scope=cert-generator
 
+      - name: Build zookeeper-certgen image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/zookeeper
+          file: ./backend/zookeeper/Dockerfile.certgen
+          load: true
+          tags: integr8scode-zookeeper-certgen:latest
+          cache-from: type=gha,scope=zookeeper-certgen
+          cache-to: type=gha,mode=max,scope=zookeeper-certgen
+
+      # ── Frontend (dev for E2E, prod for scanning/deployment) ─────────
       - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
@@ -168,61 +213,77 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      - name: Save all images
-        run: |
-          docker save \
-            integr8scode-backend:latest \
-            integr8scode-coordinator:latest \
-            integr8scode-k8s-worker:latest \
-            integr8scode-pod-monitor:latest \
-            integr8scode-result-processor:latest \
-            integr8scode-saga-orchestrator:latest \
-            integr8scode-cert-generator:latest \
-            integr8scode-frontend:latest \
-            | zstd -T0 -3 > /tmp/all-images.tar.zst
-
-      - name: Upload images artifact
-        uses: actions/upload-artifact@v6
+      - name: Build frontend-prod image
+        uses: docker/build-push-action@v6
         with:
-          name: docker-images
-          path: /tmp/all-images.tar.zst
-          retention-days: 1
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          load: true
+          tags: integr8scode-frontend-prod:latest
+          cache-from: type=gha,scope=frontend-prod
+          cache-to: type=gha,mode=max,scope=frontend-prod
 
-  # Parallel test jobs (backend-e2e, frontend-e2e)
+      # ── Push all images to GHCR in parallel ────────────────────────
+      - name: Push all images to GHCR
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          TAG: ${{ steps.tags.outputs.sha-tag }}
+          IMG: ${{ env.REGISTRY }}/${{ steps.tags.outputs.image-prefix }}
+        run: |
+          # Tag all images for GHCR
+          docker tag integr8scode-base:latest "$IMG/base:$TAG"
+          docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
+          docker tag integr8scode-coordinator:latest "$IMG/coordinator:$TAG"
+          docker tag integr8scode-k8s-worker:latest "$IMG/k8s-worker:$TAG"
+          docker tag integr8scode-pod-monitor:latest "$IMG/pod-monitor:$TAG"
+          docker tag integr8scode-result-processor:latest "$IMG/result-processor:$TAG"
+          docker tag integr8scode-saga-orchestrator:latest "$IMG/saga-orchestrator:$TAG"
+          docker tag integr8scode-event-replay:latest "$IMG/event-replay:$TAG"
+          docker tag integr8scode-dlq-processor:latest "$IMG/dlq-processor:$TAG"
+          docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
+          docker tag integr8scode-zookeeper-certgen:latest "$IMG/zookeeper-certgen:$TAG"
+          docker tag integr8scode-frontend:latest "$IMG/frontend-dev:$TAG"
+          docker tag integr8scode-frontend-prod:latest "$IMG/frontend:$TAG"
+
+          # Push all 13 images in parallel, tracking each PID
+          declare -A PIDS
+          for name in base backend coordinator k8s-worker pod-monitor \
+                      result-processor saga-orchestrator event-replay \
+                      dlq-processor cert-generator zookeeper-certgen \
+                      frontend-dev frontend; do
+            docker push "$IMG/$name:$TAG" &
+            PIDS[$name]=$!
+          done
+
+          FAILED=0
+          for name in "${!PIDS[@]}"; do
+            if ! wait "${PIDS[$name]}"; then
+              echo "::error::Failed to push $name"
+              FAILED=1
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+
+  # Parallel E2E test jobs — compose pulls from GHCR using IMAGE_TAG
   backend-e2e:
     name: Backend E2E Tests
     needs: [build-images]
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
+      - uses: ./.github/actions/e2e-boot
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
+          image-tag: ${{ needs.build-images.outputs.sha-tag }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download built images
-        uses: actions/download-artifact@v7
+      - uses: ./.github/actions/e2e-ready
         with:
-          name: docker-images
-          path: /tmp
-
-      - name: Load built images
-        run: zstd -d -c /tmp/all-images.tar.zst | docker load
-
-      - name: Setup k3s
-        uses: ./.github/actions/k3s-setup
-
-      - name: Use test environment config
-        run: |
-          cp backend/config.test.toml backend/config.toml
-          cp backend/secrets.example.toml backend/secrets.toml
-
-      - name: Start stack
-        run: ./deploy.sh dev --wait
-
-      - name: Seed test users
-        run: docker compose exec -T backend uv run python scripts/seed_users.py
+          image-tag: ${{ needs.build-images.outputs.sha-tag }}
 
       - name: Run E2E tests
         timeout-minutes: 15
@@ -253,19 +314,11 @@ jobs:
         run: |
           mkdir -p logs
           docker compose logs --timestamps > logs/docker-compose.log 2>&1
-          docker compose logs --timestamps backend > logs/backend.log 2>&1
-          docker compose logs --timestamps mongo > logs/mongo.log 2>&1 || true
-          docker compose logs --timestamps redis > logs/redis.log 2>&1 || true
-          docker compose logs --timestamps kafka > logs/kafka.log 2>&1 || true
-          docker compose logs --timestamps zookeeper > logs/zookeeper.log 2>&1 || true
-          docker compose logs --timestamps schema-registry > logs/schema-registry.log 2>&1 || true
-          docker compose logs --timestamps coordinator > logs/coordinator.log 2>&1 || true
-          docker compose logs --timestamps k8s-worker > logs/k8s-worker.log 2>&1 || true
-          docker compose logs --timestamps pod-monitor > logs/pod-monitor.log 2>&1 || true
-          docker compose logs --timestamps result-processor > logs/result-processor.log 2>&1 || true
-          docker compose logs --timestamps saga-orchestrator > logs/saga-orchestrator.log 2>&1 || true
-          docker compose logs --timestamps event-replay > logs/event-replay.log 2>&1 || true
-          docker compose logs --timestamps dlq-processor > logs/dlq-processor.log 2>&1 || true
+          for svc in backend mongo redis kafka zookeeper schema-registry \
+                     coordinator k8s-worker pod-monitor result-processor \
+                     saga-orchestrator event-replay dlq-processor; do
+            docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
+          done
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true
 
       - name: Upload logs
@@ -276,12 +329,28 @@ jobs:
           path: logs/
 
   frontend-e2e:
-    name: Frontend E2E Tests
+    name: Frontend E2E (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     needs: [build-images]
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
     steps:
       - uses: actions/checkout@v6
 
+      # Phase 1: kick off image pull + infra + k3s in background
+      - uses: ./.github/actions/e2e-boot
+        with:
+          image-tag: ${{ needs.build-images.outputs.sha-tag }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -309,57 +378,36 @@ jobs:
         working-directory: frontend
         run: npx playwright install chromium
 
-      - name: Cache and load Docker images
-        uses: ./.github/actions/docker-cache
+      # Phase 3: finalize k3s + start stack (k3s has been booting since e2e-boot)
+      - uses: ./.github/actions/e2e-ready
         with:
-          images: ${{ env.MONGO_IMAGE }} ${{ env.REDIS_IMAGE }} ${{ env.KAFKA_IMAGE }} ${{ env.ZOOKEEPER_IMAGE }} ${{ env.SCHEMA_REGISTRY_IMAGE }}
-
-      - name: Download built images
-        uses: actions/download-artifact@v7
-        with:
-          name: docker-images
-          path: /tmp
-
-      - name: Load built images
-        run: zstd -d -c /tmp/all-images.tar.zst | docker load
-
-      - name: Setup k3s
-        uses: ./.github/actions/k3s-setup
-
-      - name: Use test environment config
-        run: |
-          cp backend/config.test.toml backend/config.toml
-          cp backend/secrets.example.toml backend/secrets.toml
-
-      - name: Start stack
-        run: ./deploy.sh dev --wait
-
-      - name: Seed test users
-        run: docker compose exec -T backend uv run python scripts/seed_users.py
+          image-tag: ${{ needs.build-images.outputs.sha-tag }}
+          wait-for-frontend: 'true'
 
       - name: Run Playwright tests
         timeout-minutes: 10
         working-directory: frontend
-        run: CI=true npx playwright test
+        run: CI=true npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: frontend/playwright-report/
 
       - name: Collect logs on failure
         if: failure()
         run: |
           mkdir -p logs
-          docker compose logs > logs/docker-compose.log 2>&1
-          docker compose logs backend > logs/backend.log 2>&1
-          docker compose logs frontend > logs/frontend.log 2>&1
+          docker compose logs --timestamps > logs/docker-compose.log 2>&1
+          for svc in backend frontend; do
+            docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
+          done
 
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: frontend-e2e-logs
+          name: frontend-e2e-logs-${{ matrix.shardIndex }}
           path: logs/

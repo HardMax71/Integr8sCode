@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncIterator
 
@@ -75,10 +76,8 @@ from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator, create_saga_orchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge, create_sse_kafka_redis_bridge
 from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
-from app.services.sse.sse_shutdown_manager import SSEShutdownManager, create_sse_shutdown_manager
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -397,6 +396,41 @@ class RepositoryProvider(Provider):
         return UserRepository()
 
 
+def _build_sse_consumers(
+        bus: SSERedisBus,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        event_metrics: EventMetrics,
+        logger: logging.Logger,
+) -> list[UnifiedConsumer]:
+    """Build SSE Kafka consumer pool (without starting them)."""
+    consumers: list[UnifiedConsumer] = []
+    for i in range(settings.SSE_CONSUMER_POOL_SIZE):
+        config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id="sse-bridge-pool",
+            client_id=f"sse-consumer-{i}",
+            enable_auto_commit=True,
+            auto_offset_reset="latest",
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        dispatcher = EventDispatcher(logger=logger)
+        for et in SSERedisBus.SSE_ROUTED_EVENTS:
+            dispatcher.register_handler(et, bus.route_domain_event)
+        consumers.append(UnifiedConsumer(
+            config=config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        ))
+    return consumers
+
+
 class SSEProvider(Provider):
     """Provides SSE (Server-Sent Events) related services."""
 
@@ -404,52 +438,36 @@ class SSEProvider(Provider):
 
     @provide
     async def get_sse_redis_bus(
-        self, redis_client: redis.Redis, logger: logging.Logger
-    ) -> AsyncIterator[SSERedisBus]:
-        bus = SSERedisBus(redis_client, logger)
-        yield bus
-
-    @provide
-    async def get_sse_kafka_redis_bridge(
             self,
+            redis_client: redis.Redis,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
             event_metrics: EventMetrics,
-            sse_redis_bus: SSERedisBus,
             logger: logging.Logger,
-    ) -> AsyncIterator[SSEKafkaRedisBridge]:
-        async with create_sse_kafka_redis_bridge(
-                schema_registry=schema_registry,
-                settings=settings,
-                event_metrics=event_metrics,
-                sse_bus=sse_redis_bus,
-                logger=logger,
-        ) as bridge:
-            yield bridge
-
-    @provide(scope=Scope.REQUEST)
-    def get_sse_shutdown_manager(
-            self, logger: logging.Logger, connection_metrics: ConnectionMetrics
-    ) -> SSEShutdownManager:
-        return create_sse_shutdown_manager(logger=logger, connection_metrics=connection_metrics)
+    ) -> AsyncIterator[SSERedisBus]:
+        bus = SSERedisBus(redis_client, logger)
+        consumers = _build_sse_consumers(bus, schema_registry, settings, event_metrics, logger)
+        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
+        await asyncio.gather(*[c.start(topics) for c in consumers])
+        logger.info(f"SSE bus started with {len(consumers)} consumers")
+        try:
+            yield bus
+        finally:
+            await asyncio.gather(*[c.stop() for c in consumers], return_exceptions=True)
+            logger.info("SSE consumers stopped")
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
             self,
             sse_repository: SSERepository,
-            router: SSEKafkaRedisBridge,
             sse_redis_bus: SSERedisBus,
-            shutdown_manager: SSEShutdownManager,
             settings: Settings,
             logger: logging.Logger,
             connection_metrics: ConnectionMetrics,
     ) -> SSEService:
-        shutdown_manager.set_router(router)
         return SSEService(
             repository=sse_repository,
-            router=router,
             sse_bus=sse_redis_bus,
-            shutdown_manager=shutdown_manager,
             settings=settings,
             logger=logger,
             connection_metrics=connection_metrics,

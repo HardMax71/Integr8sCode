@@ -18,7 +18,6 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.notification_service import NotificationService
-from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
 from app.settings import Settings
 
 
@@ -77,12 +76,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Phase 1: Resolve all DI dependencies in parallel
+    # SSE bus + consumers start automatically via NotificationService's dependency on SSERedisBus
     (
         schema_registry,
         database,
         redis_client,
         rate_limit_metrics,
-        sse_bridge,
         event_store_consumer,
         notification_service,
     ) = await asyncio.gather(
@@ -90,7 +89,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
-        container.get(SSEKafkaRedisBridge),
         container.get(EventStoreConsumer),
         container.get(NotificationService),
     )
@@ -103,16 +101,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    # Phase 3: Start Kafka consumers in parallel (providers already started them via async with,
-    # but __aenter__ is idempotent so this is safe and explicit)
+    # Phase 3: Start lifecycle-managed services
+    # SSE bridge consumers are started by the DI provider — no lifecycle to manage here
     async with AsyncExitStack() as stack:
-        stack.push_async_callback(sse_bridge.aclose)
         stack.push_async_callback(event_store_consumer.aclose)
         stack.push_async_callback(notification_service.aclose)
         await asyncio.gather(
-            sse_bridge.__aenter__(),
             event_store_consumer.__aenter__(),
             notification_service.__aenter__(),
         )
-        logger.info("SSE bridge, EventStoreConsumer, and NotificationService started")
+        logger.info("EventStoreConsumer and NotificationService started")
         yield

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.notification import NotificationSeverity, NotificationStatus
-from app.domain.enums.sse import SSEControlEvent, SSEHealthStatus
+from app.domain.enums.sse import SSEControlEvent
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
 
 # Type variable for generic Redis message parsing
@@ -35,9 +35,7 @@ class SSEExecutionEventData(BaseModel):
 
     # Control event specific fields
     connection_id: str | None = Field(default=None, description="SSE connection ID (connected event)")
-    message: str | None = Field(default=None, description="Human-readable message (heartbeat, shutdown)")
-    grace_period: int | None = Field(default=None, description="Shutdown grace period in seconds")
-    error: str | None = Field(default=None, description="Error message (error event)")
+    message: str | None = Field(default=None, description="Human-readable message (subscribed event)")
 
     # Execution status
     status: ExecutionStatus | None = Field(default=None, description="Current execution status")
@@ -74,27 +72,3 @@ class RedisNotificationMessage(BaseModel):
     body: str = Field(description="Notification body content")
     action_url: str = Field(default="", description="Optional action URL")
     created_at: datetime = Field(description="Creation timestamp")
-
-
-class ShutdownStatusResponse(BaseModel):
-    """Response model for shutdown status."""
-
-    phase: str = Field(description="Current shutdown phase")
-    initiated: bool = Field(description="Whether shutdown has been initiated")
-    complete: bool = Field(description="Whether shutdown is complete")
-    active_connections: int = Field(description="Number of active connections")
-    draining_connections: int = Field(description="Number of connections being drained")
-    duration: float | None = Field(None, description="Duration of shutdown in seconds")
-
-
-class SSEHealthResponse(BaseModel):
-    """Response model for SSE health check."""
-
-    status: SSEHealthStatus = Field(description="Health status: healthy or draining")
-    kafka_enabled: bool = Field(True, description="Whether Kafka features are enabled")
-    active_connections: int = Field(description="Total number of active SSE connections")
-    active_executions: int = Field(description="Number of executions being monitored")
-    active_consumers: int = Field(description="Number of active Kafka consumers")
-    max_connections_per_user: int = Field(description="Maximum connections allowed per user")
-    shutdown: ShutdownStatusResponse = Field(description="Shutdown status information")
-    timestamp: datetime = Field(description="Health check timestamp")

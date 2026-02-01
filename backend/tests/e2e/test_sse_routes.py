@@ -1,8 +1,6 @@
 import pytest
 import pytest_asyncio
-from app.domain.enums.sse import SSEHealthStatus
 from app.schemas_pydantic.execution import ExecutionResponse
-from app.schemas_pydantic.sse import SSEHealthResponse
 from async_asgi_testclient import TestClient as SSETestClient
 from fastapi import FastAPI
 from httpx import AsyncClient
@@ -37,32 +35,6 @@ async def sse_client_another(app: FastAPI, another_user: AsyncClient) -> SSETest
     if csrf := another_user.headers.get("X-CSRF-Token"):
         client.headers["X-CSRF-Token"] = csrf
     return client
-
-
-class TestSSEHealth:
-    """Tests for GET /api/v1/events/health."""
-
-    @pytest.mark.asyncio
-    async def test_sse_health(self, test_user: AsyncClient) -> None:
-        """Get SSE service health status."""
-        response = await test_user.get("/api/v1/events/health")
-
-        assert response.status_code == 200
-        result = SSEHealthResponse.model_validate(response.json())
-
-        assert result.status == SSEHealthStatus.HEALTHY
-        assert isinstance(result.kafka_enabled, bool)
-        assert result.active_connections >= 0
-        assert result.active_executions >= 0
-        assert result.active_consumers >= 0
-        assert result.max_connections_per_user >= 0
-        assert result.timestamp is not None
-
-    @pytest.mark.asyncio
-    async def test_sse_health_unauthenticated(self, client: AsyncClient) -> None:
-        """SSE health requires authentication."""
-        response = await client.get("/api/v1/events/health")
-        assert response.status_code == 401
 
 
 class TestNotificationStream:

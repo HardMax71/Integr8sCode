@@ -81,12 +81,12 @@ class TestLifespanInitialization:
         assert registry is not None
 
     @pytest.mark.asyncio
-    async def test_sse_bridge_available(self, scope: AsyncContainer) -> None:
-        """SSE Kafka bridge is available after lifespan."""
-        from app.services.sse.kafka_redis_bridge import SSEKafkaRedisBridge
+    async def test_sse_redis_bus_available(self, scope: AsyncContainer) -> None:
+        """SSE Redis bus is available after lifespan."""
+        from app.services.sse.redis_bus import SSERedisBus
 
-        bridge = await scope.get(SSEKafkaRedisBridge)
-        assert bridge is not None
+        bus = await scope.get(SSERedisBus)
+        assert bus is not None
 
     @pytest.mark.asyncio
     async def test_event_store_consumer_available(

@@ -4,13 +4,18 @@ import signal
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 
+from aiokafka import AIOKafkaConsumer
 from app.core.container import create_dlq_processor_container
 from app.core.database_context import Database
+from app.core.tracing import EventAttributes
+from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
+from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.settings import Settings
 from beanie import init_beanie
+from opentelemetry.trace import SpanKind
 
 
 def _configure_retry_policies(manager: DLQManager, logger: logging.Logger) -> None:
@@ -73,6 +78,65 @@ def _configure_filters(manager: DLQManager, testing: bool, logger: logging.Logge
     manager.add_filter(filter_old_messages)
 
 
+async def _consume_messages(
+    consumer: AIOKafkaConsumer,
+    manager: DLQManager,
+    stop_event: asyncio.Event,
+    logger: logging.Logger,
+) -> None:
+    """Consume DLQ messages and dispatch each to the stateless handler."""
+    async for msg in consumer:
+        if stop_event.is_set():
+            break
+        try:
+            start = asyncio.get_running_loop().time()
+            dlq_msg = manager.parse_kafka_message(msg)
+
+            manager.metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
+            manager.metrics.record_dlq_message_age(
+                (datetime.now(timezone.utc) - dlq_msg.failed_at).total_seconds()
+            )
+
+            ctx = extract_trace_context(dlq_msg.headers)
+            with get_tracer().start_as_current_span(
+                name="dlq.consume",
+                context=ctx,
+                kind=SpanKind.CONSUMER,
+                attributes={
+                    EventAttributes.KAFKA_TOPIC: manager.dlq_topic,
+                    EventAttributes.EVENT_TYPE: dlq_msg.event.event_type,
+                    EventAttributes.EVENT_ID: dlq_msg.event.event_id,
+                },
+            ):
+                await manager.handle_message(dlq_msg)
+
+            await consumer.commit()
+            manager.metrics.record_dlq_processing_duration(asyncio.get_running_loop().time() - start, "process")
+        except Exception as e:
+            logger.error(f"Error processing DLQ message: {e}")
+
+
+async def _monitor_retries(
+    manager: DLQManager,
+    stop_event: asyncio.Event,
+    logger: logging.Logger,
+) -> None:
+    """Periodically process due retries and update queue metrics."""
+    while not stop_event.is_set():
+        try:
+            await manager.process_due_retries()
+            await manager.update_queue_metrics()
+            interval = 10
+        except Exception as e:
+            logger.error(f"Error in DLQ monitor: {e}")
+            interval = 60
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            break  # stop_event was set
+        except asyncio.TimeoutError:
+            continue
+
+
 async def main(settings: Settings) -> None:
     """Run the DLQ processor.
 
@@ -82,7 +146,7 @@ async def main(settings: Settings) -> None:
     """
     container = create_dlq_processor_container(settings)
     logger = await container.get(logging.Logger)
-    logger.info("Starting DLQ Processor with DI container...")
+    logger.info("Starting DLQ Processor...")
 
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
@@ -91,6 +155,20 @@ async def main(settings: Settings) -> None:
 
     _configure_retry_policies(manager, logger)
     _configure_filters(manager, testing=settings.TESTING, logger=logger)
+
+    topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DEAD_LETTER_QUEUE}"
+    consumer = AIOKafkaConsumer(
+        topic_name,
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id=GroupId.DLQ_MANAGER,
+        enable_auto_commit=False,
+        auto_offset_reset="earliest",
+        client_id="dlq-manager-consumer",
+        session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+        heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+        max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+        request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+    )
 
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -104,7 +182,19 @@ async def main(settings: Settings) -> None:
 
     async with AsyncExitStack() as stack:
         stack.push_async_callback(container.close)
+        await consumer.start()
+        stack.push_async_callback(consumer.stop)
+
+        consume_task = asyncio.create_task(_consume_messages(consumer, manager, stop_event, logger))
+        monitor_task = asyncio.create_task(_monitor_retries(manager, stop_event, logger))
+
+        logger.info("DLQ Processor running")
         await stop_event.wait()
+
+        consume_task.cancel()
+        monitor_task.cancel()
+        await asyncio.gather(consume_task, monitor_task, return_exceptions=True)
+        logger.info("DLQ Processor stopped")
 
 
 if __name__ == "__main__":

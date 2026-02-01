@@ -85,16 +85,12 @@ async def set_retry_policy(policy_request: RetryPolicyRequest, dlq_manager: From
 @router.delete("/messages/{event_id}", response_model=MessageResponse)
 async def discard_dlq_message(
     event_id: str,
-    repository: FromDishka[DLQRepository],
     dlq_manager: FromDishka[DLQManager],
     reason: str = Query(..., description="Reason for discarding"),
 ) -> MessageResponse:
-    message_data = await repository.get_message_by_id(event_id)
-    if not message_data:
-        raise HTTPException(status_code=404, detail="Message not found")
-
-    await dlq_manager._discard_message(message_data, f"manual: {reason}")
-    await repository.mark_message_discarded(event_id, f"manual: {reason}")
+    success = await dlq_manager.discard_message_manually(event_id, f"manual: {reason}")
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found or already in terminal state")
     return MessageResponse(message=f"Message {event_id} discarded")
 
 

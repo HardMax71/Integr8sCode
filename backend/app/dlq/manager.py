@@ -27,8 +27,6 @@ from app.domain.events.typed import (
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
-_DEFAULT_RETRY_POLICY = RetryPolicy(topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF)
-
 
 class DLQManager:
     """Stateless DLQ message handler.
@@ -48,7 +46,7 @@ class DLQManager:
         repository: DLQRepository,
         dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
         retry_topic_suffix: str = "-retry",
-        default_retry_policy: RetryPolicy = _DEFAULT_RETRY_POLICY,
+        default_retry_policy: RetryPolicy | None = None,
         retry_policies: dict[str, RetryPolicy] | None = None,
         filters: list[Callable[[DLQMessage], bool]] | None = None,
     ):
@@ -60,7 +58,9 @@ class DLQManager:
         self.repository = repository
         self.dlq_topic = dlq_topic
         self.retry_topic_suffix = retry_topic_suffix
-        self.default_retry_policy = default_retry_policy
+        self.default_retry_policy = default_retry_policy or RetryPolicy(
+            topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF
+        )
 
         self._retry_policies: dict[str, RetryPolicy] = dict(retry_policies or {})
         self._filters: list[Callable[[DLQMessage], bool]] = list(filters or [])

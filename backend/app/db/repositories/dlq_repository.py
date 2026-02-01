@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from beanie.odm.enums import SortDirection
+from beanie.operators import Set
 from monggregate import Pipeline, S
 
 from app.db.docs import DLQMessageDocument
@@ -159,12 +160,12 @@ class DLQRepository:
         return [DLQTopicSummary.model_validate(r) for r in results]
 
     async def save_message(self, message: DLQMessage) -> None:
-        """Upsert a DLQ message by event_id."""
-        doc = DLQMessageDocument(**message.model_dump())
-        existing = await DLQMessageDocument.find_one({"event.event_id": message.event.event_id})
-        if existing:
-            doc.id = existing.id
-        await doc.save()
+        """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""
+        payload = message.model_dump()
+        await DLQMessageDocument.find_one({"event.event_id": message.event.event_id}).upsert(
+            Set(payload),  # type: ignore[no-untyped-call]
+            on_insert=DLQMessageDocument(**payload),
+        )
 
     async def update_status(self, event_id: str, update: DLQMessageUpdate) -> None:
         """Apply a status update to a DLQ message."""

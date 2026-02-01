@@ -91,6 +91,7 @@ async def _consume_messages(
         try:
             start = asyncio.get_running_loop().time()
             dlq_msg = manager.parse_kafka_message(msg)
+            await manager.repository.save_message(dlq_msg)
 
             manager.metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
             manager.metrics.record_dlq_message_age(

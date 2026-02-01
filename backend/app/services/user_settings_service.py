@@ -17,7 +17,7 @@ from app.domain.user import (
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBus
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
@@ -30,11 +30,13 @@ class UserSettingsService:
         self,
         repository: UserSettingsRepository,
         event_service: KafkaEventService,
+        event_bus: EventBus,
         settings: Settings,
         logger: logging.Logger,
     ) -> None:
         self.repository = repository
         self.event_service = event_service
+        self.event_bus = event_bus
         self.settings = settings
         self.logger = logger
         self._cache_ttl = timedelta(minutes=5)
@@ -43,8 +45,6 @@ class UserSettingsService:
             maxsize=self._max_cache_size,
             ttl=self._cache_ttl.total_seconds(),
         )
-        self._event_bus_manager: EventBusManager | None = None
-        self._subscription_id: str | None = None
 
         self.logger.info(
             "UserSettingsService initialized",
@@ -60,20 +60,18 @@ class UserSettingsService:
 
         return await self.get_user_settings_fresh(user_id)
 
-    async def initialize(self, event_bus_manager: EventBusManager) -> None:
+    async def initialize(self) -> None:
         """Subscribe to settings update events for cross-instance cache invalidation.
 
         Note: EventBus filters out self-published messages, so this handler only
         runs for events from OTHER instances.
         """
-        self._event_bus_manager = event_bus_manager
-        bus = await event_bus_manager.get_event_bus()
 
         async def _handle(evt: DomainEvent) -> None:
             if isinstance(evt, UserSettingsUpdatedEvent):
                 await self.invalidate_cache(evt.user_id)
 
-        self._subscription_id = await bus.subscribe(f"{EventType.USER_SETTINGS_UPDATED}*", _handle)
+        await self.event_bus.subscribe(f"{EventType.USER_SETTINGS_UPDATED}*", _handle)
 
     async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
         """Bypass cache and rebuild settings from snapshot + events."""
@@ -114,20 +112,18 @@ class UserSettingsService:
         changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
         await self._publish_settings_event(user_id, changes_json, reason)
 
-        if self._event_bus_manager is not None:
-            bus = await self._event_bus_manager.get_event_bus()
-            await bus.publish(
-                UserSettingsUpdatedEvent(
+        await self.event_bus.publish(
+            UserSettingsUpdatedEvent(
+                user_id=user_id,
+                changed_fields=list(changes_json.keys()),
+                reason=reason,
+                metadata=EventMetadata(
+                    service_name=self.settings.SERVICE_NAME,
+                    service_version=self.settings.SERVICE_VERSION,
                     user_id=user_id,
-                    changed_fields=list(changes_json.keys()),
-                    reason=reason,
-                    metadata=EventMetadata(
-                        service_name=self.settings.SERVICE_NAME,
-                        service_version=self.settings.SERVICE_VERSION,
-                        user_id=user_id,
-                    ),
-                )
+                ),
             )
+        )
 
         self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:

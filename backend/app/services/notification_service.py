@@ -43,7 +43,7 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBus
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -110,7 +110,7 @@ class NotificationService(LifecycleEnabled):
         self,
         notification_repository: NotificationRepository,
         event_service: KafkaEventService,
-        event_bus_manager: EventBusManager,
+        event_bus: EventBus,
         schema_registry_manager: SchemaRegistryManager,
         sse_bus: SSERedisBus,
         settings: Settings,
@@ -121,7 +121,7 @@ class NotificationService(LifecycleEnabled):
         super().__init__()
         self.repository = notification_repository
         self.event_service = event_service
-        self.event_bus_manager = event_bus_manager
+        self.event_bus = event_bus
         self.metrics = notification_metrics
         self._event_metrics = event_metrics
         self.settings = settings
@@ -302,7 +302,7 @@ class NotificationService(LifecycleEnabled):
         notification = await self.repository.create_notification(create_data)
 
         # Publish event
-        event_bus = await self.event_bus_manager.get_event_bus()
+        event_bus = self.event_bus
         await event_bus.publish(
             NotificationCreatedEvent(
                 notification_id=str(notification.notification_id),
@@ -679,7 +679,7 @@ class NotificationService(LifecycleEnabled):
         """Mark notification as read."""
         success = await self.repository.mark_as_read(notification_id, user_id)
 
-        event_bus = await self.event_bus_manager.get_event_bus()
+        event_bus = self.event_bus
         if success:
             await event_bus.publish(
                 NotificationReadEvent(
@@ -778,7 +778,7 @@ class NotificationService(LifecycleEnabled):
         """Mark all notifications as read for a user."""
         count = await self.repository.mark_all_as_read(user_id)
 
-        event_bus = await self.event_bus_manager.get_event_bus()
+        event_bus = self.event_bus
         if count > 0:
             await event_bus.publish(
                 NotificationAllReadEvent(

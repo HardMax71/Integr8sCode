@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import AsyncIterator
+from uuid import uuid4
 
 import redis.asyncio as redis
-from aiokafka import AIOKafkaProducer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from dishka import Provider, Scope, from_context, provide
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
@@ -46,7 +47,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
@@ -57,7 +58,7 @@ from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.event_bus import EventBusManager
+from app.services.event_bus import EventBus
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -247,14 +248,29 @@ class EventProvider(Provider):
             yield consumer
 
     @provide
-    async def get_event_bus_manager(
+    async def get_event_bus(
             self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics
-    ) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(settings, logger, connection_metrics)
+    ) -> AsyncIterator[EventBus]:
+        topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.EVENT_BUS_STREAM}"
+        producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id="event-bus-producer",
+        )
+        consumer = AIOKafkaConsumer(
+            topic,
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=f"event-bus-{uuid4()}",
+            auto_offset_reset="latest",
+            enable_auto_commit=True,
+        )
+        await producer.start()
+        await consumer.start()
+        bus = EventBus(producer, consumer, topic, logger, connection_metrics)
         try:
-            yield manager
+            yield bus
         finally:
-            await manager.close()
+            await consumer.stop()
+            await producer.stop()
 
 
 class KubernetesProvider(Provider):
@@ -519,12 +535,12 @@ class UserServicesProvider(Provider):
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
+            event_bus: EventBus,
             settings: Settings,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, settings, logger)
-        await service.initialize(event_bus_manager)
+        service = UserSettingsService(repository, kafka_event_service, event_bus, settings, logger)
+        await service.initialize()
         return service
 
 
@@ -553,7 +569,7 @@ class AdminServicesProvider(Provider):
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
+            event_bus: EventBus,
             schema_registry: SchemaRegistryManager,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
@@ -564,7 +580,7 @@ class AdminServicesProvider(Provider):
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
-            event_bus_manager=event_bus_manager,
+            event_bus=event_bus,
             schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,

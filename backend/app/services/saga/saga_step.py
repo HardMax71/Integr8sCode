@@ -1,12 +1,9 @@
-import logging
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 
 from app.domain.events.typed import DomainEvent
-
-logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=DomainEvent)
 
@@ -18,10 +15,7 @@ class SagaContext:
         self.saga_id = saga_id
         self.execution_id = execution_id
         self.data: dict[str, Any] = {}
-        self.events: list[DomainEvent] = []
         self.compensations: list[CompensationStep] = []
-        self.current_step: str | None = None
-        self.error: Exception | None = None
 
     def set(self, key: str, value: Any) -> None:
         """Set context data"""
@@ -31,17 +25,9 @@ class SagaContext:
         """Get context data"""
         return self.data.get(key, default)
 
-    def add_event(self, event: DomainEvent) -> None:
-        """Add event to context"""
-        self.events.append(event)
-
     def add_compensation(self, compensation: "CompensationStep") -> None:
         """Add compensation step"""
         self.compensations.append(compensation)
-
-    def set_error(self, error: Exception) -> None:
-        """Set error in context"""
-        self.error = error
 
     def to_public_dict(self) -> dict[str, Any]:
         """Return a safe, persistable snapshot of context data.
@@ -91,10 +77,6 @@ class SagaStep(ABC, Generic[T]):
     def get_compensation(self) -> "CompensationStep | None":
         """Get compensation step for this action"""
         pass
-
-    async def can_execute(self, context: SagaContext, event: T) -> bool:
-        """Check if step can be executed"""
-        return True
 
     def __str__(self) -> str:
         return f"SagaStep({self.name})"

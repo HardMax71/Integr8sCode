@@ -46,6 +46,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
+from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
@@ -72,7 +73,7 @@ from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor.resource_cleaner import ResourceCleaner
-from app.services.saga import SagaOrchestrator, create_saga_orchestrator
+from app.services.saga import SagaOrchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
 from app.services.sse.redis_bus import SSERedisBus
@@ -587,32 +588,6 @@ def _create_default_saga_config() -> SagaConfig:
     )
 
 
-# Standalone factory functions for lifecycle-managed services (eliminates duplication)
-async def _provide_saga_orchestrator(
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_store: EventStore,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-) -> AsyncIterator[SagaOrchestrator]:
-    """Shared factory for SagaOrchestrator with lifecycle management."""
-    async with create_saga_orchestrator(
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            schema_registry_manager=schema_registry,
-            settings=settings,
-            event_store=event_store,
-            resource_allocation_repository=resource_allocation_repository,
-            config=_create_default_saga_config(),
-            logger=logger,
-            event_metrics=event_metrics,
-    ) as orchestrator:
-        yield orchestrator
-
-
 class BusinessServicesProvider(Provider):
     scope = Scope.REQUEST
 
@@ -864,9 +839,69 @@ class PodMonitorProvider(Provider):
 class SagaOrchestratorProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.provide(_provide_saga_orchestrator)
+    @provide
+    async def get_saga_orchestrator(
+        self,
+        saga_repository: SagaRepository,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        resource_allocation_repository: ResourceAllocationRepository,
+        logger: logging.Logger,
+        event_metrics: EventMetrics,
+    ) -> AsyncIterator[SagaOrchestrator]:
+        orchestrator = SagaOrchestrator(
+            config=_create_default_saga_config(),
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            resource_allocation_repository=resource_allocation_repository,
+            logger=logger,
+        )
+
+        dispatcher = EventDispatcher(logger=logger)
+        dispatcher.register_handler(EventType.EXECUTION_REQUESTED, orchestrator.handle_execution_requested)
+        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, orchestrator.handle_execution_completed)
+        dispatcher.register_handler(EventType.EXECUTION_FAILED, orchestrator.handle_execution_failed)
+        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, orchestrator.handle_execution_timeout)
+
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=GroupId.SAGA_ORCHESTRATOR,
+            enable_auto_commit=False,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+
+        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.SAGA_ORCHESTRATOR]))
+
+        async def timeout_loop() -> None:
+            while True:
+                await asyncio.sleep(30)
+                try:
+                    await orchestrator.check_timeouts()
+                except Exception as exc:
+                    logger.error(f"Error checking saga timeouts: {exc}")
+
+        timeout_task = asyncio.create_task(timeout_loop())
+        logger.info("Saga orchestrator consumer and timeout checker started")
+
+        try:
+            yield orchestrator
+        finally:
+            timeout_task.cancel()
+            await consumer.stop()
+            logger.info("Saga orchestrator stopped")
 
 
 class EventReplayProvider(Provider):

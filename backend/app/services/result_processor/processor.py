@@ -83,7 +83,7 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(str(event.error_type) if event.error_type else "unknown")
+        self._metrics.record_error(event.error_type)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)

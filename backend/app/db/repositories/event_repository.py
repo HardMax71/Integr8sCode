@@ -107,8 +107,13 @@ class EventRepository:
         )
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
-    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
-        condition = EventDocument.metadata.correlation_id == correlation_id
+    async def get_events_by_correlation(
+        self, correlation_id: str, limit: int = 100, skip: int = 0, user_id: str | None = None,
+    ) -> EventListResult:
+        conditions = [EventDocument.metadata.correlation_id == correlation_id]
+        if user_id:
+            conditions.append(EventDocument.metadata.user_id == user_id)
+        condition = {"$and": conditions} if len(conditions) > 1 else conditions[0]
         docs = (
             await EventDocument.find(condition)
             .sort([("timestamp", SortDirection.ASCENDING)])

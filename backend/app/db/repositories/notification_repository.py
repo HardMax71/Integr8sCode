@@ -126,6 +126,21 @@ class NotificationRepository:
             In(NotificationDocument.status, [NotificationStatus.DELIVERED]),
         ).count()
 
+    async def find_due_notifications(self, limit: int = 50) -> list[DomainNotification]:
+        """Find PENDING notifications whose scheduled_for time has passed."""
+        now = datetime.now(UTC)
+        docs = (
+            await NotificationDocument.find(
+                NotificationDocument.status == NotificationStatus.PENDING,
+                NotificationDocument.scheduled_for != None,  # noqa: E711
+                LTE(NotificationDocument.scheduled_for, now),
+            )
+            .sort([("scheduled_for", SortDirection.ASCENDING)])
+            .limit(limit)
+            .to_list()
+        )
+        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
+
     async def try_claim_pending(self, notification_id: str) -> bool:
         now = datetime.now(UTC)
         doc = await NotificationDocument.find_one(

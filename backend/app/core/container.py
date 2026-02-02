@@ -186,3 +186,5 @@ def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
         EventProvider(),
         context={Settings: settings},
     )
+
+

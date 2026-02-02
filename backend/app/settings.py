@@ -115,6 +115,7 @@ class Settings(BaseModel):
     # Notification configuration
     NOTIF_THROTTLE_WINDOW_HOURS: int = 1
     NOTIF_THROTTLE_MAX_PER_HOUR: int = 5
+    NOTIF_MAX_SCHEDULE_DAYS: int = 25  # Max days ahead a notification can be scheduled (must be < TTL)
 
     # Schema Configuration
     SCHEMA_BASE_PATH: str = "app/schemas_avro"

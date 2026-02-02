@@ -17,6 +17,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.settings import Settings
 
@@ -84,6 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         rate_limit_metrics,
         event_store_consumer,
         _notification_service,
+        _notification_scheduler,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         container.get(RateLimitMetrics),
         container.get(EventStoreConsumer),
         container.get(NotificationService),
+        container.get(NotificationScheduler),
     )
 
     # Phase 2: Initialize infrastructure in parallel (independent subsystems)

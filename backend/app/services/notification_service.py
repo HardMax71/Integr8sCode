@@ -134,6 +134,13 @@ class NotificationService:
     ) -> DomainNotification:
         if not tags:
             raise NotificationValidationError("tags must be a non-empty list")
+        if scheduled_for is not None:
+            max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
+            max_schedule = datetime.now(UTC) + timedelta(days=max_days)
+            if scheduled_for > max_schedule:
+                raise NotificationValidationError(
+                    f"scheduled_for cannot exceed {max_days} days from now"
+                )
         self.logger.info(
             f"Creating notification for user {user_id}",
             extra={
@@ -180,7 +187,10 @@ class NotificationService:
         # Save to database
         notification = await self.repository.create_notification(create_data)
 
-        await self._deliver_notification(notification)
+        # Deliver immediately if not scheduled; scheduled notifications are
+        # picked up by the NotificationScheduler worker.
+        if scheduled_for is None:
+            await self._deliver_notification(notification)
 
         return notification
 
@@ -685,7 +695,9 @@ class NotificationService:
                 self.metrics.record_notification_sent(
                     notification.severity, channel=notification.channel, severity=notification.severity
                 )
-                self.metrics.record_notification_delivery_time(delivery_time, notification.severity)
+                self.metrics.record_notification_delivery_time(
+                    delivery_time, notification.severity, channel=notification.channel
+                )
                 return
 
             except Exception as e:

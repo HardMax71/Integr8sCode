@@ -67,6 +67,7 @@ from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
+from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -593,6 +594,39 @@ class AdminServicesProvider(Provider):
             logger.info("NotificationService stopped")
 
     @provide
+    async def get_notification_scheduler(
+            self,
+            notification_repository: NotificationRepository,
+            notification_service: NotificationService,
+            logger: logging.Logger,
+    ) -> AsyncIterator[NotificationScheduler]:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+        scheduler_service = NotificationScheduler(
+            notification_repository=notification_repository,
+            notification_service=notification_service,
+            logger=logger,
+        )
+
+        apscheduler = AsyncIOScheduler()
+        apscheduler.add_job(
+            scheduler_service.process_due_notifications,
+            trigger="interval",
+            seconds=15,
+            id="process_due_notifications",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        apscheduler.start()
+        logger.info("NotificationScheduler started (APScheduler interval=15s)")
+
+        try:
+            yield scheduler_service
+        finally:
+            apscheduler.shutdown(wait=False)
+            logger.info("NotificationScheduler stopped")
+
+    @provide
     def get_grafana_alert_processor(
             self,
             notification_service: NotificationService,
@@ -1018,3 +1052,5 @@ class EventReplayProvider(Provider):
             replay_metrics=replay_metrics,
             logger=logger,
         )
+
+

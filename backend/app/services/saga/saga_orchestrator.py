@@ -213,13 +213,6 @@ class SagaOrchestrator:
         else:
             await self._fail_saga(instance, "Saga compensated due to failure")
 
-    async def _complete_saga(self, instance: Saga) -> None:
-        """Mark saga as completed."""
-        instance.state = SagaState.COMPLETED
-        instance.completed_at = datetime.now(UTC)
-        await self._save_saga(instance)
-        self.logger.info(f"Saga {instance.saga_id} completed successfully")
-
     async def _fail_saga(self, instance: Saga, error_message: str) -> None:
         """Mark saga as failed."""
         instance.state = SagaState.FAILED

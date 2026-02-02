@@ -6,11 +6,9 @@ by integration tests under tests/integration/saga/.
 """
 
 import pytest
-from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga.models import Saga
-from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 from tests.conftest import make_execution_requested_event
@@ -45,11 +43,6 @@ def test_saga_context_public_filtering() -> None:
     ctx.set("_private", 2)
     out = ctx.to_public_dict()
     assert "public" in out and "_private" not in out
-
-
-def test_execution_saga_triggers_on_request() -> None:
-    # No orchestrator needed: this is pure metadata
-    assert EventType.EXECUTION_REQUESTED in ExecutionSaga.get_trigger_events()
 
 
 @pytest.mark.asyncio

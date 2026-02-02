@@ -167,24 +167,3 @@ class SagaService:
 
         return await self.saga_repo.get_saga_statistics(saga_filter)
 
-    async def get_saga_status_from_orchestrator(self, saga_id: str, user: User) -> Saga | None:
-        """Get saga status from orchestrator with fallback to database."""
-        self.logger.debug("Getting live saga status", extra={"saga_id": saga_id})
-
-        # Try orchestrator first for live status
-        saga = await self.orchestrator.get_saga_status(saga_id)
-        if saga:
-            # Check access
-            if not await self.check_execution_access(saga.execution_id, user):
-                self.logger.warning(
-                    "Access denied to live saga",
-                    extra={"user_id": user.user_id, "saga_id": saga_id, "execution_id": saga.execution_id},
-                )
-                raise SagaAccessDeniedError(saga_id, user.user_id)
-
-            self.logger.debug("Retrieved live status for saga", extra={"saga_id": saga_id})
-            return saga
-
-        # Fall back to repository
-        self.logger.debug("No live status found for saga, checking database", extra={"saga_id": saga_id})
-        return await self.get_saga_with_access_check(saga_id, user)

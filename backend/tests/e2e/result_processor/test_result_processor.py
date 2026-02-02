@@ -16,11 +16,11 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import DomainExecutionCreate
+from app.domain.idempotency import KeyStrategy
 from app.events.core import UnifiedConsumer, UnifiedProducer
 from app.events.core.dispatcher import EventDispatcher
 from app.events.core.types import ConsumerConfig
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.domain.idempotency import KeyStrategy
 from app.services.idempotency import IdempotencyManager
 from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.result_processor.processor import ResultProcessor
@@ -64,21 +64,37 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     ))
     execution_id = created.execution_id
 
-    # Build and start the processor
+    # Build the processor and wire up dispatcher + consumer
+    processor = ResultProcessor(
+        execution_repo=repo,
+        producer=producer,
+        settings=settings,
+        logger=_test_logger,
+        execution_metrics=execution_metrics,
+    )
     proc_dispatcher = IdempotentEventDispatcher(
         logger=_test_logger,
         idempotency_manager=idem,
         key_strategy=KeyStrategy.CONTENT_HASH,
         ttl_seconds=7200,
     )
-    processor = ResultProcessor(
-        execution_repo=repo,
-        producer=producer,
+    proc_dispatcher.register_handler(EventType.EXECUTION_COMPLETED, processor.handle_execution_completed)
+    proc_dispatcher.register_handler(EventType.EXECUTION_FAILED, processor.handle_execution_failed)
+    proc_dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, processor.handle_execution_timeout)
+
+    proc_consumer_config = ConsumerConfig(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id=f"rp-proc.{uuid.uuid4().hex[:6]}",
+        max_poll_records=1,
+        enable_auto_commit=True,
+        auto_offset_reset="earliest",
+    )
+    proc_consumer = UnifiedConsumer(
+        proc_consumer_config,
+        event_dispatcher=proc_dispatcher,
         schema_registry=registry,
         settings=settings,
-        dispatcher=proc_dispatcher,
         logger=_test_logger,
-        execution_metrics=execution_metrics,
         event_metrics=event_metrics,
     )
 
@@ -126,17 +142,18 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
 
     # Start consumers after producing
     await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
+    await proc_consumer.start([KafkaTopic.EXECUTION_EVENTS])
 
     try:
-        async with processor:
-            # Await the ResultStoredEvent - signals that processing is complete
-            await asyncio.wait_for(stored_received.wait(), timeout=12.0)
+        # Await the ResultStoredEvent - signals that processing is complete
+        await asyncio.wait_for(stored_received.wait(), timeout=12.0)
 
-            # Now verify DB persistence - should be done since event was emitted
-            doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
-            assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
-            assert doc.get("status") == ExecutionStatus.COMPLETED, (
-                f"Expected COMPLETED status, got {doc.get('status')}"
-            )
+        # Now verify DB persistence - should be done since event was emitted
+        doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
+        assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
+        assert doc.get("status") == ExecutionStatus.COMPLETED, (
+            f"Expected COMPLETED status, got {doc.get('status')}"
+        )
     finally:
+        await proc_consumer.stop()
         await stored_consumer.stop()

@@ -1,16 +1,9 @@
 import logging
-from enum import auto
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics import EventMetrics, ExecutionMetrics
-from app.core.utils import StringEnum
+from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
+from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.events.typed import (
     DomainEvent,
@@ -22,128 +15,31 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.core import UnifiedProducer
 from app.settings import Settings
 
 
-class ProcessingState(StringEnum):
-    """Processing state enumeration."""
-
-    IDLE = auto()
-    PROCESSING = auto()
-    STOPPED = auto()
-
-
-class ResultProcessorConfig(BaseModel):
-    """Configuration for result processor."""
-
-    model_config = ConfigDict(frozen=True)
-
-    consumer_group: GroupId = Field(default=GroupId.RESULT_PROCESSOR)
-    topics: list[KafkaTopic] = Field(
-        default_factory=lambda: list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR])
-    )
-    result_topic: KafkaTopic = Field(default=KafkaTopic.EXECUTION_RESULTS)
-    batch_size: int = Field(default=10)
-    processing_timeout: int = Field(default=300)
-
-
-class ResultProcessor(LifecycleEnabled):
+class ResultProcessor:
     """Service for processing execution completion events and storing results."""
 
     def __init__(
             self,
             execution_repo: ExecutionRepository,
             producer: UnifiedProducer,
-            schema_registry: SchemaRegistryManager,
             settings: Settings,
-            dispatcher: EventDispatcher,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
-            event_metrics: EventMetrics,
     ) -> None:
-        """Initialize the result processor."""
-        super().__init__()
-        self.config = ResultProcessorConfig()
         self._execution_repo = execution_repo
         self._producer = producer
-        self._schema_registry = schema_registry
         self._settings = settings
         self._metrics = execution_metrics
-        self._event_metrics = event_metrics
-        self._dispatcher = dispatcher
-        self._state = ProcessingState.IDLE
-        self._consumer: UnifiedConsumer | None = None
         self.logger = logger
 
-    async def _on_start(self) -> None:
-        """Start the result processor."""
-        self.logger.info("Starting ResultProcessor...")
-
-        self._register_handlers()
-        self._consumer = await self._create_consumer()
-        self._state = ProcessingState.PROCESSING
-        self.logger.info("ResultProcessor started successfully")
-
-    async def _on_stop(self) -> None:
-        """Stop the result processor."""
-        self.logger.info("Stopping ResultProcessor...")
-        self._state = ProcessingState.STOPPED
-
-        if self._consumer:
-            await self._consumer.stop()
-
-        # Note: producer is managed by DI container, not stopped here
-        self.logger.info("ResultProcessor stopped")
-
-    def _register_handlers(self) -> None:
-        """Register event handlers on the dispatcher."""
-        self._dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
-        self._dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
-        self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_timeout_wrapper)
-
-    async def _create_consumer(self) -> UnifiedConsumer:
-        """Create and start Kafka consumer."""
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=self._settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=self.config.consumer_group,
-            max_poll_records=1,
-            enable_auto_commit=True,
-            auto_offset_reset="earliest",
-            session_timeout_ms=self._settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self._settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self._settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self._settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=self._dispatcher,
-            schema_registry=self._schema_registry,
-            settings=self._settings,
-            logger=self.logger,
-            event_metrics=self._event_metrics,
-        )
-        await consumer.start(self.config.topics)
-        return consumer
-
-    # Wrappers accepting DomainEvent to satisfy dispatcher typing
-
-    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionCompletedEvent)
-        await self._handle_completed(event)
-
-    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionFailedEvent)
-        await self._handle_failed(event)
-
-    async def _handle_timeout_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionTimeoutEvent)
-        await self._handle_timeout(event)
-
-    async def _handle_completed(self, event: ExecutionCompletedEvent) -> None:
+    async def handle_execution_completed(self, event: DomainEvent) -> None:
         """Handle execution completed event."""
+        if not isinstance(event, ExecutionCompletedEvent):
+            raise TypeError(f"Expected ExecutionCompletedEvent, got {type(event).__name__}")
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
@@ -151,23 +47,23 @@ class ResultProcessor(LifecycleEnabled):
 
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
-        # Record metrics for successful completion
         self._metrics.record_script_execution(ExecutionStatus.COMPLETED, lang_and_version)
-        if event.resource_usage:
-            runtime_seconds = event.resource_usage.execution_time_wall_seconds
-            self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
 
-            # Record memory utilization
-            memory_mib = event.resource_usage.peak_memory_kb / 1024
-            self._metrics.record_memory_usage(memory_mib, lang_and_version)
+        if event.resource_usage is None:
+            raise ValueError(f"ExecutionCompletedEvent {event.execution_id} missing resource_usage")
 
-            # Calculate and record memory utilization percentage
-            settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
-            memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
-            memory_percent = (memory_mib / memory_limit_mib) * 100
-            self._metrics.memory_utilization_percent.record(
-                memory_percent, attributes={"lang_and_version": lang_and_version}
-            )
+        runtime_seconds = event.resource_usage.execution_time_wall_seconds
+        self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
+
+        memory_mib = event.resource_usage.peak_memory_kb / 1024
+        self._metrics.record_memory_usage(memory_mib, lang_and_version)
+
+        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
+        memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
+        memory_percent = (memory_mib / memory_limit_mib) * 100
+        self._metrics.memory_utilization_percent.record(
+            memory_percent, attributes={"lang_and_version": lang_and_version}
+        )
 
         result = ExecutionResultDomain(
             execution_id=event.execution_id,
@@ -186,10 +82,11 @@ class ResultProcessor(LifecycleEnabled):
             self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
-    async def _handle_failed(self, event: ExecutionFailedEvent) -> None:
+    async def handle_execution_failed(self, event: DomainEvent) -> None:
         """Handle execution failed event."""
+        if not isinstance(event, ExecutionFailedEvent):
+            raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
 
-        # Fetch execution to get language and version for metrics
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
@@ -215,8 +112,10 @@ class ResultProcessor(LifecycleEnabled):
             self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
-    async def _handle_timeout(self, event: ExecutionTimeoutEvent) -> None:
+    async def handle_execution_timeout(self, event: DomainEvent) -> None:
         """Handle execution timeout event."""
+        if not isinstance(event, ExecutionTimeoutEvent):
+            raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
 
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
@@ -225,7 +124,6 @@ class ResultProcessor(LifecycleEnabled):
         self._metrics.record_error(ExecutionErrorType.TIMEOUT)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
-        # Record metrics for timeout
         self._metrics.record_script_execution(ExecutionStatus.TIMEOUT, lang_and_version)
         self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
 
@@ -248,7 +146,6 @@ class ResultProcessor(LifecycleEnabled):
 
     async def _publish_result_stored(self, result: ExecutionResultDomain) -> None:
         """Publish result stored event."""
-
         size_bytes = len(result.stdout) + len(result.stderr)
         event = ResultStoredEvent(
             execution_id=result.execution_id,
@@ -260,12 +157,10 @@ class ResultProcessor(LifecycleEnabled):
                 service_version="1.0.0",
             ),
         )
-
         await self._producer.produce(event_to_produce=event, key=result.execution_id)
 
     async def _publish_result_failed(self, execution_id: str, error_message: str) -> None:
         """Publish result processing failed event."""
-
         event = ResultFailedEvent(
             execution_id=execution_id,
             error=error_message,
@@ -274,12 +169,4 @@ class ResultProcessor(LifecycleEnabled):
                 service_version="1.0.0",
             ),
         )
-
         await self._producer.produce(event_to_produce=event, key=execution_id)
-
-    async def get_status(self) -> dict[str, Any]:
-        """Get processor status."""
-        return {
-            "state": self._state,
-            "consumer_active": self._consumer is not None,
-        }

@@ -124,6 +124,8 @@ class UnifiedConsumer:
             except KafkaError as e:
                 self.logger.error(f"Consumer error: {e}")
                 self._metrics.processing_errors += 1
+            except Exception as e:
+                self.logger.error(f"Unexpected error in consume loop: {e}", exc_info=True)
 
         self.logger.warning(
             f"Consumer loop ended for group {self._config.group_id}: "
@@ -191,6 +193,7 @@ class UnifiedConsumer:
             )
             if self._error_callback:
                 await self._error_callback(e, event)
+            raise
 
     def register_error_callback(self, callback: Callable[[Exception, DomainEvent], Awaitable[None]]) -> None:
         self._error_callback = callback

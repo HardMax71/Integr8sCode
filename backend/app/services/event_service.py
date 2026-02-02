@@ -154,10 +154,10 @@ class EventService:
             filtered = [e for e in result.events if e.metadata.user_id == user_id]
             return EventListResult(
                 events=filtered,
-                total=result.total,
+                total=len(filtered),
                 skip=skip,
                 limit=limit,
-                has_more=result.has_more,
+                has_more=False,
             )
         return result
 

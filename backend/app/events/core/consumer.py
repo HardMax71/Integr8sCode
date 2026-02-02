@@ -124,9 +124,8 @@ class UnifiedConsumer:
             except KafkaError as e:
                 self.logger.error(f"Consumer error: {e}")
                 self._metrics.processing_errors += 1
-            except Exception:
-                # Processing error already logged in _process_message; offset not committed
-                pass
+            except Exception as e:
+                self.logger.error(f"Unexpected error in consume loop: {e}", exc_info=True)
 
         self.logger.warning(
             f"Consumer loop ended for group {self._config.group_id}: "

@@ -942,7 +942,7 @@ class ResultProcessorProvider(Provider):
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id=GroupId.RESULT_PROCESSOR,
             max_poll_records=1,
-            enable_auto_commit=True,
+            enable_auto_commit=False,
             auto_offset_reset="earliest",
             session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
             heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,

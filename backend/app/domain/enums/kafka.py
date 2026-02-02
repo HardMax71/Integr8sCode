@@ -125,7 +125,12 @@ CONSUMER_GROUP_EVENTS: dict[GroupId, set[EventType]] = {
         EventType.EXECUTION_FAILED,
         EventType.EXECUTION_TIMEOUT,
     },
-    GroupId.SAGA_ORCHESTRATOR: set(),
+    GroupId.SAGA_ORCHESTRATOR: {
+        EventType.EXECUTION_REQUESTED,
+        EventType.EXECUTION_COMPLETED,
+        EventType.EXECUTION_FAILED,
+        EventType.EXECUTION_TIMEOUT,
+    },
     GroupId.WEBSOCKET_GATEWAY: {
         EventType.EXECUTION_REQUESTED,
         EventType.EXECUTION_STARTED,

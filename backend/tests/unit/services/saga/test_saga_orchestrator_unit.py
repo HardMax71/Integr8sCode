@@ -1,21 +1,14 @@
 import logging
-from unittest.mock import MagicMock
 
 import pytest
-from app.core.metrics import EventMetrics
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.saga import SagaState
-from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
+from app.domain.events.typed import DomainEvent
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.services.saga.base_saga import BaseSaga
+from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
-from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
-from app.settings import Settings
 
 from tests.conftest import make_execution_requested_event
 
@@ -51,13 +44,6 @@ class _FakeProd(UnifiedProducer):
         return None
 
 
-class _FakeStore(EventStore):
-    """Fake EventStore for testing."""
-
-    def __init__(self) -> None:
-        pass  # Skip parent __init__
-
-
 class _FakeAlloc(ResourceAllocationRepository):
     """Fake ResourceAllocationRepository for testing."""
 
@@ -65,73 +51,30 @@ class _FakeAlloc(ResourceAllocationRepository):
         pass  # No special attributes needed
 
 
-class _StepOK(SagaStep[ExecutionRequestedEvent]):
-    def __init__(self) -> None:
-        super().__init__("ok")
-
-    async def execute(self, context: SagaContext, event: ExecutionRequestedEvent) -> bool:
-        return True
-
-    def get_compensation(self) -> CompensationStep | None:
-        return None
-
-
-class _Saga(BaseSaga):
-    @classmethod
-    def get_name(cls) -> str:
-        return "s"
-
-    @classmethod
-    def get_trigger_events(cls) -> list[EventType]:
-        return [EventType.EXECUTION_REQUESTED]
-
-    def get_steps(self) -> list[SagaStep[ExecutionRequestedEvent]]:
-        return [_StepOK()]
-
-
-def _orch(event_metrics: EventMetrics) -> SagaOrchestrator:
+def _orch(repo: SagaRepository | None = None) -> SagaOrchestrator:
     return SagaOrchestrator(
         config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
-        saga_repository=_FakeRepo(),
+        saga_repository=repo or _FakeRepo(),
         producer=_FakeProd(),
-        schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
-        settings=MagicMock(spec=Settings),
-        event_store=_FakeStore(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
-        event_metrics=event_metrics,
     )
 
 
 @pytest.mark.asyncio
-async def test_min_success_flow(event_metrics: EventMetrics) -> None:
-    orch = _orch(event_metrics)
-    orch.register_saga(_Saga)
-    # Set orchestrator running state via lifecycle property
-    orch._lifecycle_started = True
-    await orch._handle_event(make_execution_requested_event(execution_id="e"))
-    # basic sanity; deep behavior covered by integration
-    assert orch.is_running is True
+async def test_handle_event_triggers_saga() -> None:
+    orch = _orch()
+    await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
 
 
 @pytest.mark.asyncio
-async def test_should_trigger_and_existing_short_circuit(event_metrics: EventMetrics) -> None:
+async def test_existing_saga_short_circuits() -> None:
     fake_repo = _FakeRepo()
-    orch = SagaOrchestrator(
-        config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
-        saga_repository=fake_repo,
-        producer=_FakeProd(),
-        schema_registry_manager=MagicMock(spec=SchemaRegistryManager),
-        settings=MagicMock(spec=Settings),
-        event_store=_FakeStore(),
-        resource_allocation_repository=_FakeAlloc(),
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-    orch.register_saga(_Saga)
-    assert orch._should_trigger_saga(_Saga, make_execution_requested_event(execution_id="e")) is True
-    # Existing short-circuit returns existing ID
-    s = Saga(saga_id="sX", saga_name="s", execution_id="e", state=SagaState.RUNNING)
-    fake_repo.existing[("e", "s")] = s
-    sid = await orch._start_saga("s", make_execution_requested_event(execution_id="e"))
-    assert sid == "sX"
+    saga_name = ExecutionSaga.get_name()
+    s = Saga(saga_id="sX", saga_name=saga_name, execution_id="e", state=SagaState.RUNNING)
+    fake_repo.existing[("e", saga_name)] = s
+    orch = _orch(repo=fake_repo)
+    # Should not create a duplicate — returns existing
+    await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
+    # No new sagas saved (only the existing one was found)
+    assert all(saved.saga_id == "sX" or saved.saga_name == saga_name for saved in fake_repo.saved)

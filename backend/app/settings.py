@@ -115,9 +115,6 @@ class Settings(BaseModel):
     # Notification configuration
     NOTIF_THROTTLE_WINDOW_HOURS: int = 1
     NOTIF_THROTTLE_MAX_PER_HOUR: int = 5
-    NOTIF_PENDING_BATCH_SIZE: int = 10
-    NOTIF_OLD_DAYS: int = 30
-    NOTIF_RETRY_DELAY_MINUTES: int = 5
 
     # Schema Configuration
     SCHEMA_BASE_PATH: str = "app/schemas_avro"

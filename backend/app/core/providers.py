@@ -552,15 +552,45 @@ class AdminServicesProvider(Provider):
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
-            schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
+        )
+
+        dispatcher = EventDispatcher(logger=logger)
+        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, service._handle_execution_event)
+        dispatcher.register_handler(EventType.EXECUTION_FAILED, service._handle_execution_event)
+        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, service._handle_execution_event)
+
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=GroupId.NOTIFICATION_SERVICE,
+            max_poll_records=10,
+            enable_auto_commit=False,
+            auto_offset_reset="latest",
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
             event_metrics=event_metrics,
         )
-        async with service:
+        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.NOTIFICATION_SERVICE]))
+
+        logger.info("NotificationService started")
+
+        try:
             yield service
+        finally:
+            await consumer.stop()
+            logger.info("NotificationService stopped")
 
     @provide
     def get_grafana_alert_processor(

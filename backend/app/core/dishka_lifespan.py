@@ -76,14 +76,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Phase 1: Resolve all DI dependencies in parallel
-    # SSE bus + consumers start automatically via NotificationService's dependency on SSERedisBus
+    # NotificationService consumer + background tasks start automatically via its DI provider
     (
         schema_registry,
         database,
         redis_client,
         rate_limit_metrics,
         event_store_consumer,
-        notification_service,
+        _notification_service,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
@@ -102,13 +102,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
     # Phase 3: Start lifecycle-managed services
-    # SSE bridge consumers are started by the DI provider — no lifecycle to manage here
+    # NotificationService lifecycle is handled by its DI provider
     async with AsyncExitStack() as stack:
         stack.push_async_callback(event_store_consumer.aclose)
-        stack.push_async_callback(notification_service.aclose)
-        await asyncio.gather(
-            event_store_consumer.__aenter__(),
-            notification_service.__aenter__(),
-        )
-        logger.info("EventStoreConsumer and NotificationService started")
+        await event_store_consumer.__aenter__()
+        logger.info("EventStoreConsumer started")
         yield

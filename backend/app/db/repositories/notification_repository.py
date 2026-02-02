@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LT, LTE, ElemMatch, In, NotIn, Or
+from beanie.operators import GTE, LTE, ElemMatch, In, NotIn, Or
 
 from app.db.docs import NotificationDocument, NotificationSubscriptionDocument, UserDocument
 from app.domain.enums.notification import NotificationChannel, NotificationStatus
@@ -140,41 +140,6 @@ class NotificationRepository:
             return False
         await doc.set({"status": NotificationStatus.SENDING, "sent_at": now})
         return True
-
-    async def find_pending_notifications(self, batch_size: int = 10) -> list[DomainNotification]:
-        now = datetime.now(UTC)
-        docs = (
-            await NotificationDocument.find(
-                NotificationDocument.status == NotificationStatus.PENDING,
-                Or(
-                    NotificationDocument.scheduled_for == None,  # noqa: E711
-                    LTE(NotificationDocument.scheduled_for, now),
-                ),
-            )
-            .limit(batch_size)
-            .to_list()
-        )
-        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
-
-    async def find_scheduled_notifications(self, batch_size: int = 10) -> list[DomainNotification]:
-        now = datetime.now(UTC)
-        docs = (
-            await NotificationDocument.find(
-                NotificationDocument.status == NotificationStatus.PENDING,
-                LTE(NotificationDocument.scheduled_for, now),
-                NotificationDocument.scheduled_for != None,  # noqa: E711
-            )
-            .limit(batch_size)
-            .to_list()
-        )
-        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
-
-    async def cleanup_old_notifications(self, days: int = 30) -> int:
-        cutoff = datetime.now(UTC) - timedelta(days=days)
-        result = await NotificationDocument.find(
-            LT(NotificationDocument.created_at, cutoff),
-        ).delete()
-        return result.deleted_count if result else 0
 
     # Subscriptions
     async def get_subscription(

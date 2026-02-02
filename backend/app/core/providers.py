@@ -72,6 +72,7 @@ from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import PodMonitor
 from app.services.rate_limit_service import RateLimitService
+from app.services.result_processor.processor import ResultProcessor
 from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator
 from app.services.saga.saga_service import SagaService
@@ -902,6 +903,70 @@ class SagaOrchestratorProvider(Provider):
             timeout_task.cancel()
             await consumer.stop()
             logger.info("Saga orchestrator stopped")
+
+
+class ResultProcessorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    async def get_result_processor(
+        self,
+        execution_repo: ExecutionRepository,
+        kafka_producer: UnifiedProducer,
+        schema_registry: SchemaRegistryManager,
+        settings: Settings,
+        logger: logging.Logger,
+        execution_metrics: ExecutionMetrics,
+        event_metrics: EventMetrics,
+        idempotency_manager: IdempotencyManager,
+    ) -> AsyncIterator[ResultProcessor]:
+        processor = ResultProcessor(
+            execution_repo=execution_repo,
+            producer=kafka_producer,
+            settings=settings,
+            logger=logger,
+            execution_metrics=execution_metrics,
+        )
+
+        dispatcher = IdempotentEventDispatcher(
+            logger=logger,
+            idempotency_manager=idempotency_manager,
+            key_strategy=KeyStrategy.CONTENT_HASH,
+            ttl_seconds=7200,
+        )
+        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, processor.handle_execution_completed)
+        dispatcher.register_handler(EventType.EXECUTION_FAILED, processor.handle_execution_failed)
+        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, processor.handle_execution_timeout)
+
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=GroupId.RESULT_PROCESSOR,
+            max_poll_records=1,
+            enable_auto_commit=True,
+            auto_offset_reset="earliest",
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+
+        consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+
+        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR]))
+        logger.info("ResultProcessor consumer started")
+
+        try:
+            yield processor
+        finally:
+            await consumer.stop()
+            logger.info("ResultProcessor stopped")
 
 
 class EventReplayProvider(Provider):

@@ -39,8 +39,8 @@ class NotificationScheduler:
         delivered = 0
         for notification in due:
             try:
-                await self.service._deliver_notification(notification)
-                delivered += 1
+                if await self.service._deliver_notification(notification):
+                    delivered += 1
             except Exception as e:
                 self.logger.error(
                     f"Failed to deliver scheduled notification {notification.notification_id}: {e}",

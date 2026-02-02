@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Phase 1: Resolve all DI dependencies in parallel
-    # NotificationService consumer + background tasks start automatically via its DI provider
+    # Consumers and the notification scheduler (APScheduler) start automatically via their DI providers
     (
         schema_registry,
         database,
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
     # Phase 3: Start lifecycle-managed services
-    # NotificationService lifecycle is handled by its DI provider
+    # EventStoreConsumer requires explicit __aenter__; all other services are managed by DI providers
     async with AsyncExitStack() as stack:
         stack.push_async_callback(event_store_consumer.aclose)
         await event_store_consumer.__aenter__()

@@ -628,11 +628,14 @@ class NotificationService:
 
         return None
 
-    async def _deliver_notification(self, notification: DomainNotification) -> None:
-        """Deliver notification through configured channel with inline retry."""
+    async def _deliver_notification(self, notification: DomainNotification) -> bool:
+        """Deliver notification through configured channel with inline retry.
+
+        Returns True only when the notification reaches DELIVERED status.
+        """
         claimed = await self.repository.try_claim_pending(notification.notification_id)
         if not claimed:
-            return
+            return False
 
         self.logger.info(
             f"Delivering notification {notification.notification_id}",
@@ -655,7 +658,7 @@ class NotificationService:
                 notification.user_id,
                 DomainNotificationUpdate(status=NotificationStatus.SKIPPED, error_message=skip_reason),
             )
-            return
+            return False
 
         handler = self._channel_handlers.get(notification.channel)
         if handler is None:
@@ -668,7 +671,7 @@ class NotificationService:
                     error_message=f"No handler for channel: {notification.channel}",
                 ),
             )
-            return
+            return False
 
         last_error: Exception | None = None
         start_time = asyncio.get_running_loop().time()
@@ -698,7 +701,7 @@ class NotificationService:
                 self.metrics.record_notification_delivery_time(
                     delivery_time, notification.severity, channel=notification.channel
                 )
-                return
+                return True
 
             except Exception as e:
                 last_error = e
@@ -723,3 +726,4 @@ class NotificationService:
             f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
             exc_info=last_error,
         )
+        return False

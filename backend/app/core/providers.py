@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import AsyncIterator
-from uuid import uuid4
 
 import redis.asyncio as redis
 from aiokafka import AIOKafkaProducer
@@ -47,7 +46,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
+from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
 from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
@@ -506,37 +505,14 @@ class UserServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_user_settings_service(
+    def get_user_settings_service(
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            schema_registry: SchemaRegistryManager,
             settings: Settings,
             logger: logging.Logger,
-            event_metrics: EventMetrics,
-    ) -> AsyncIterator[UserSettingsService]:
-        dispatcher = EventDispatcher(logger=logger)
-        service = UserSettingsService(repository, kafka_event_service, dispatcher, settings, logger)
-        service.initialize()
-
-        config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=f"settings-cache-{uuid4()}",
-            client_id="settings-cache-consumer",
-            auto_offset_reset="latest",
-            enable_auto_commit=True,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-        consumer = UnifiedConsumer(config, dispatcher, schema_registry, settings, logger, event_metrics)
-        await consumer.start([KafkaTopic.USER_SETTINGS_EVENTS])
-        logger.info("Settings cache broadcast consumer started")
-        try:
-            yield service
-        finally:
-            await consumer.stop()
+    ) -> UserSettingsService:
+        return UserSettingsService(repository, kafka_event_service, settings, logger)
 
 
 class AdminServicesProvider(Provider):

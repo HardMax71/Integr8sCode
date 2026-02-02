@@ -85,6 +85,7 @@ class DomainUserSettingsChangedEvent(BaseModel):
     time_format: str | None = None
     notifications: DomainNotificationSettings | None = None
     editor: DomainEditorSettings | None = None
+    custom_settings: dict[str, Any] | None = None
     reason: str | None = None
     correlation_id: str | None = None
 

@@ -460,21 +460,6 @@ class TestCacheManagement:
         settings = await svc.get_user_settings(user_id)
         assert settings.user_id == user_id
 
-    @pytest.mark.asyncio
-    async def test_get_cache_stats(self, scope: AsyncContainer) -> None:
-        """Get cache statistics."""
-        svc: UserSettingsService = await scope.get(UserSettingsService)
-
-        stats = svc.get_cache_stats()
-
-        assert isinstance(stats, dict)
-        assert "cache_size" in stats
-        assert "max_cache_size" in stats
-        assert "cache_ttl_seconds" in stats
-        assert stats["cache_size"] >= 0
-        assert stats["max_cache_size"] > 0
-
-
 class TestResetUserSettings:
     """Tests for reset_user_settings method."""
 
@@ -535,10 +520,6 @@ class TestSettingsIntegration:
         # 7. Get history
         history = await svc.get_settings_history(user_id)
         assert isinstance(history, list)
-
-        # 8. Cache stats
-        stats = svc.get_cache_stats()
-        assert stats["cache_size"] >= 0
 
     @pytest.mark.asyncio
     async def test_settings_isolation_between_users(

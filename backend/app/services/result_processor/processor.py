@@ -34,6 +34,7 @@ class ResultProcessor:
         self._producer = producer
         self._settings = settings
         self._metrics = execution_metrics
+        self._result_metadata = EventMetadata(service_name=GroupId.RESULT_PROCESSOR, service_version="1.0.0")
         self.logger = logger
 
     async def handle_execution_completed(self, event: DomainEvent) -> None:
@@ -65,15 +66,7 @@ class ResultProcessor:
             memory_percent, attributes={"lang_and_version": lang_and_version}
         )
 
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.COMPLETED,
-            exit_code=event.exit_code,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-        )
+        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.COMPLETED)
 
         try:
             await self._execution_repo.write_terminal_result(result)
@@ -95,16 +88,7 @@ class ResultProcessor:
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.FAILED,
-            exit_code=event.exit_code or -1,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-            error_type=event.error_type,
-        )
+        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.FAILED)
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
@@ -128,14 +112,7 @@ class ResultProcessor:
         self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
 
         result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.TIMEOUT,
-            exit_code=-1,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-            error_type=ExecutionErrorType.TIMEOUT,
+            **event.model_dump(), status=ExecutionStatus.TIMEOUT, exit_code=-1, error_type=ExecutionErrorType.TIMEOUT,
         )
         try:
             await self._execution_repo.write_terminal_result(result)
@@ -152,10 +129,7 @@ class ResultProcessor:
             storage_path=result.execution_id,
             size_bytes=size_bytes,
             storage_type=StorageType.DATABASE,
-            metadata=EventMetadata(
-                service_name=GroupId.RESULT_PROCESSOR,
-                service_version="1.0.0",
-            ),
+            metadata=self._result_metadata,
         )
         await self._producer.produce(event_to_produce=event, key=result.execution_id)
 
@@ -164,9 +138,6 @@ class ResultProcessor:
         event = ResultFailedEvent(
             execution_id=execution_id,
             error=error_message,
-            metadata=EventMetadata(
-                service_name=GroupId.RESULT_PROCESSOR,
-                service_version="1.0.0",
-            ),
+            metadata=self._result_metadata,
         )
         await self._producer.produce(event_to_produce=event, key=execution_id)

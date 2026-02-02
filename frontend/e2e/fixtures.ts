@@ -183,8 +183,8 @@ export async function runExampleAndExecute(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
-  // K8s pod creation + execution can take 15-20s in CI
-  await expect(success.or(failure).first()).toBeVisible({ timeout: 25000 });
+  // K8s pod creation + execution can take 20-30s in CI
+  await expect(success.or(failure).first()).toBeVisible({ timeout: 45000 });
   await expect(success).toBeVisible({ timeout: 1000 });
 }
 

@@ -34,7 +34,6 @@ class ResultProcessor:
         self._producer = producer
         self._settings = settings
         self._metrics = execution_metrics
-        self._result_metadata = EventMetadata(service_name=GroupId.RESULT_PROCESSOR, service_version="1.0.0")
         self.logger = logger
 
     async def handle_execution_completed(self, event: DomainEvent) -> None:
@@ -129,7 +128,10 @@ class ResultProcessor:
             storage_path=result.execution_id,
             size_bytes=size_bytes,
             storage_type=StorageType.DATABASE,
-            metadata=self._result_metadata,
+            metadata=EventMetadata(
+                service_name=GroupId.RESULT_PROCESSOR,
+                service_version="1.0.0",
+            ),
         )
         await self._producer.produce(event_to_produce=event, key=result.execution_id)
 
@@ -138,6 +140,9 @@ class ResultProcessor:
         event = ResultFailedEvent(
             execution_id=execution_id,
             error=error_message,
-            metadata=self._result_metadata,
+            metadata=EventMetadata(
+                service_name=GroupId.RESULT_PROCESSOR,
+                service_version="1.0.0",
+            ),
         )
         await self._producer.produce(event_to_produce=event, key=execution_id)

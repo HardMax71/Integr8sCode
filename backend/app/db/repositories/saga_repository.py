@@ -3,6 +3,7 @@ from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
+from beanie.odm.queries.update import UpdateResponse
 from beanie.operators import GT, LT, NE, Eq, In
 from monggregate import Pipeline, S
 
@@ -40,6 +41,30 @@ class SagaRepository:
             doc.id = existing.id
         await doc.save()
         return existing is not None
+
+    async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
+        """Atomically get or create a saga by (execution_id, saga_name).
+
+        Uses MongoDB findOneAndUpdate with $setOnInsert + upsert in a single
+        atomic round-trip.  Returns (saga, created).
+        """
+        insert_doc = SagaDocument(**saga.model_dump())
+        insert_data = insert_doc.model_dump()
+        insert_data.pop("id", None)
+        insert_data.pop("revision_id", None)
+
+        doc = await SagaDocument.find_one(
+            SagaDocument.execution_id == saga.execution_id,
+            SagaDocument.saga_name == saga.saga_name,
+        ).upsert(
+            {"$setOnInsert": insert_data},
+            on_insert=insert_doc,
+            response_type=UpdateResponse.NEW_DOCUMENT,
+            upsert=True,
+        )
+        assert doc is not None
+        created = doc.saga_id == saga.saga_id
+        return Saga.model_validate(doc, from_attributes=True), created
 
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         doc = await SagaDocument.find_one(

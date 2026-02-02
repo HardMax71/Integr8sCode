@@ -900,10 +900,6 @@ class SagaOrchestratorProvider(Provider):
             yield orchestrator
         finally:
             timeout_task.cancel()
-            try:
-                await timeout_task
-            except asyncio.CancelledError:
-                pass
             await consumer.stop()
             logger.info("Saga orchestrator stopped")
 

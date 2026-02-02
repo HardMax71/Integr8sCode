@@ -47,24 +47,28 @@ class SagaOrchestrator:
 
     async def handle_execution_requested(self, event: DomainEvent) -> None:
         """Handle EXECUTION_REQUESTED — starts a new saga."""
-        assert isinstance(event, ExecutionRequestedEvent)
+        if not isinstance(event, ExecutionRequestedEvent):
+            raise TypeError(f"Expected ExecutionRequestedEvent, got {type(event).__name__}")
         await self._start_saga(event)
 
     async def handle_execution_completed(self, event: DomainEvent) -> None:
         """Handle EXECUTION_COMPLETED — marks saga as completed."""
-        assert isinstance(event, ExecutionCompletedEvent)
+        if not isinstance(event, ExecutionCompletedEvent):
+            raise TypeError(f"Expected ExecutionCompletedEvent, got {type(event).__name__}")
         await self._resolve_completion(event.execution_id, SagaState.COMPLETED)
 
     async def handle_execution_failed(self, event: DomainEvent) -> None:
         """Handle EXECUTION_FAILED — marks saga as failed."""
-        assert isinstance(event, ExecutionFailedEvent)
+        if not isinstance(event, ExecutionFailedEvent):
+            raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
         await self._resolve_completion(
             event.execution_id, SagaState.FAILED, event.error_message or f"Execution {event.event_type}"
         )
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
         """Handle EXECUTION_TIMEOUT — marks saga as timed out."""
-        assert isinstance(event, ExecutionTimeoutEvent)
+        if not isinstance(event, ExecutionTimeoutEvent):
+            raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
         await self._resolve_completion(
             event.execution_id, SagaState.TIMEOUT, f"Execution timed out after {event.timeout_seconds} seconds"
         )
@@ -93,19 +97,17 @@ class SagaOrchestrator:
         execution_id = trigger_event.execution_id
         self.logger.info(f"Starting saga {_SAGA_NAME} for execution {execution_id}")
 
-        existing = await self._repo.get_saga_by_execution_and_name(execution_id, _SAGA_NAME)
-        if existing:
-            self.logger.info(f"Saga {_SAGA_NAME} already exists for execution {execution_id}")
-            return existing.saga_id
-
-        instance = Saga(
+        candidate = Saga(
             saga_id=str(uuid4()),
             saga_name=_SAGA_NAME,
             execution_id=execution_id,
             state=SagaState.RUNNING,
         )
 
-        await self._save_saga(instance)
+        instance, created = await self._repo.get_or_create_saga(candidate)
+        if not created:
+            self.logger.info(f"Saga {_SAGA_NAME} already exists for execution {execution_id}")
+            return instance.saga_id
 
         self.logger.info(f"Started saga {_SAGA_NAME} (ID: {instance.saga_id}) for execution {execution_id}")
 

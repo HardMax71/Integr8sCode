@@ -24,6 +24,14 @@ class _FakeRepo(SagaRepository):
         self.saved: list[Saga] = []
         self.existing: dict[tuple[str, str], Saga] = {}
 
+    async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
+        key = (saga.execution_id, saga.saga_name)
+        if key in self.existing:
+            return self.existing[key], False
+        self.existing[key] = saga
+        self.saved.append(saga)
+        return saga, True
+
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         return self.existing.get((execution_id, saga_name))
 
@@ -63,8 +71,14 @@ def _orch(repo: SagaRepository | None = None) -> SagaOrchestrator:
 
 @pytest.mark.asyncio
 async def test_handle_event_triggers_saga() -> None:
-    orch = _orch()
+    fake_repo = _FakeRepo()
+    orch = _orch(repo=fake_repo)
     await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
+    assert len(fake_repo.saved) == 1
+    saved = fake_repo.saved[0]
+    assert saved.execution_id == "e"
+    assert saved.saga_name == ExecutionSaga.get_name()
+    assert saved.state == SagaState.RUNNING
 
 
 @pytest.mark.asyncio
@@ -76,5 +90,5 @@ async def test_existing_saga_short_circuits() -> None:
     orch = _orch(repo=fake_repo)
     # Should not create a duplicate — returns existing
     await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
-    # No new sagas saved (only the existing one was found)
-    assert all(saved.saga_id == "sX" or saved.saga_name == saga_name for saved in fake_repo.saved)
+    # No new sagas saved — existing saga was returned as-is
+    assert fake_repo.saved == []

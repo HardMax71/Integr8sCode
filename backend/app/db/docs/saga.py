@@ -37,4 +37,9 @@ class SagaDocument(Document):
         indexes = [
             IndexModel([("state", ASCENDING)], name="idx_saga_state"),
             IndexModel([("state", ASCENDING), ("created_at", ASCENDING)], name="idx_saga_state_created"),
+            IndexModel(
+                [("execution_id", ASCENDING), ("saga_name", ASCENDING)],
+                unique=True,
+                name="idx_saga_execution_name_unique",
+            ),
         ]

@@ -3,12 +3,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cachetools import TTLCache
-from pydantic import TypeAdapter
 
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.domain.enums import Theme
 from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent, EventMetadata, UserSettingsUpdatedEvent
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
@@ -17,12 +15,8 @@ from app.domain.user import (
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
-
-_settings_adapter = TypeAdapter(DomainUserSettings)
-_update_adapter = TypeAdapter(DomainUserSettingsUpdate)
 
 
 class UserSettingsService:
@@ -43,8 +37,6 @@ class UserSettingsService:
             maxsize=self._max_cache_size,
             ttl=self._cache_ttl.total_seconds(),
         )
-        self._event_bus_manager: EventBusManager | None = None
-        self._subscription_id: str | None = None
 
         self.logger.info(
             "UserSettingsService initialized",
@@ -59,21 +51,6 @@ class UserSettingsService:
             return cached
 
         return await self.get_user_settings_fresh(user_id)
-
-    async def initialize(self, event_bus_manager: EventBusManager) -> None:
-        """Subscribe to settings update events for cross-instance cache invalidation.
-
-        Note: EventBus filters out self-published messages, so this handler only
-        runs for events from OTHER instances.
-        """
-        self._event_bus_manager = event_bus_manager
-        bus = await event_bus_manager.get_event_bus()
-
-        async def _handle(evt: DomainEvent) -> None:
-            if isinstance(evt, UserSettingsUpdatedEvent):
-                await self.invalidate_cache(evt.user_id)
-
-        self._subscription_id = await bus.subscribe(f"{EventType.USER_SETTINGS_UPDATED}*", _handle)
 
     async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
         """Bypass cache and rebuild settings from snapshot + events."""
@@ -100,34 +77,18 @@ class UserSettingsService:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
         current = await self.get_user_settings(user_id)
 
-        changes = _update_adapter.dump_python(updates, exclude_none=True)
+        changes = updates.model_dump(exclude_none=True)
         if not changes:
             return current
 
-        current_dict = _settings_adapter.dump_python(current)
-        merged = {**current_dict, **changes}
-        merged["version"] = (current.version or 0) + 1
-        merged["updated_at"] = datetime.now(timezone.utc)
+        new_settings = DomainUserSettings.model_validate({
+            **current.model_dump(),
+            **changes,
+            "version": (current.version or 0) + 1,
+            "updated_at": datetime.now(timezone.utc),
+        })
 
-        new_settings = _settings_adapter.validate_python(merged)
-
-        changes_json = _update_adapter.dump_python(updates, exclude_none=True, mode="json")
-        await self._publish_settings_event(user_id, changes_json, reason)
-
-        if self._event_bus_manager is not None:
-            bus = await self._event_bus_manager.get_event_bus()
-            await bus.publish(
-                UserSettingsUpdatedEvent(
-                    user_id=user_id,
-                    changed_fields=list(changes_json.keys()),
-                    reason=reason,
-                    metadata=EventMetadata(
-                        service_name=self.settings.SERVICE_NAME,
-                        service_version=self.settings.SERVICE_VERSION,
-                        user_id=user_id,
-                    ),
-                )
-            )
+        await self._publish_settings_event(user_id, updates.model_dump(exclude_none=True, mode="json"), reason)
 
         self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
@@ -224,20 +185,11 @@ class UserSettingsService:
 
         return settings
 
-    _settings_fields = {"theme", "timezone", "date_format", "time_format", "notifications", "editor"}
-
     def _apply_event(self, settings: DomainUserSettings, event: DomainUserSettingsChangedEvent) -> DomainUserSettings:
-        """Apply a settings update event using TypeAdapter merge."""
-        event_dict = event.model_dump()
-        changes = {k: v for k, v in event_dict.items() if k in self._settings_fields and v is not None}
-        if not changes:
-            return settings
-
-        current_dict = _settings_adapter.dump_python(settings)
-        merged = {**current_dict, **changes}
-        merged["updated_at"] = event.timestamp
-
-        return _settings_adapter.validate_python(merged)
+        """Apply a settings update event via dict merge + model_validate."""
+        return DomainUserSettings.model_validate(
+            {**settings.model_dump(), **event.model_dump(exclude_none=True), "updated_at": event.timestamp}
+        )
 
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""
@@ -248,15 +200,6 @@ class UserSettingsService:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
         self.logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
-
-    def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics for monitoring."""
-        return {
-            "cache_size": len(self._cache),
-            "max_cache_size": self._max_cache_size,
-            "expired_entries": 0,
-            "cache_ttl_seconds": self._cache_ttl.total_seconds(),
-        }
 
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""

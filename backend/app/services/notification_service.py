@@ -20,13 +20,9 @@ from app.domain.enums.notification import (
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import (
     DomainEvent,
-    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
-    NotificationAllReadEvent,
-    NotificationCreatedEvent,
-    NotificationReadEvent,
 )
 from app.domain.notification import (
     DomainNotification,
@@ -43,7 +39,6 @@ from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
-from app.services.event_bus import EventBusManager
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
@@ -110,7 +105,6 @@ class NotificationService(LifecycleEnabled):
         self,
         notification_repository: NotificationRepository,
         event_service: KafkaEventService,
-        event_bus_manager: EventBusManager,
         schema_registry_manager: SchemaRegistryManager,
         sse_bus: SSERedisBus,
         settings: Settings,
@@ -121,7 +115,6 @@ class NotificationService(LifecycleEnabled):
         super().__init__()
         self.repository = notification_repository
         self.event_service = event_service
-        self.event_bus_manager = event_bus_manager
         self.metrics = notification_metrics
         self._event_metrics = event_metrics
         self.settings = settings
@@ -300,25 +293,6 @@ class NotificationService(LifecycleEnabled):
 
         # Save to database
         notification = await self.repository.create_notification(create_data)
-
-        # Publish event
-        event_bus = await self.event_bus_manager.get_event_bus()
-        await event_bus.publish(
-            NotificationCreatedEvent(
-                notification_id=str(notification.notification_id),
-                user_id=user_id,
-                subject=subject,
-                body=body,
-                severity=severity,
-                tags=notification.tags,
-                channels=[channel],
-                metadata=EventMetadata(
-                    service_name=self.settings.SERVICE_NAME,
-                    service_version=self.settings.SERVICE_VERSION,
-                    user_id=user_id,
-                ),
-            )
-        )
 
         await self._deliver_notification(notification)
 
@@ -678,24 +652,8 @@ class NotificationService(LifecycleEnabled):
     async def mark_as_read(self, user_id: str, notification_id: str) -> bool:
         """Mark notification as read."""
         success = await self.repository.mark_as_read(notification_id, user_id)
-
-        event_bus = await self.event_bus_manager.get_event_bus()
-        if success:
-            await event_bus.publish(
-                NotificationReadEvent(
-                    notification_id=str(notification_id),
-                    user_id=user_id,
-                    read_at=datetime.now(UTC),
-                    metadata=EventMetadata(
-                        service_name=self.settings.SERVICE_NAME,
-                        service_version=self.settings.SERVICE_VERSION,
-                        user_id=user_id,
-                    ),
-                )
-            )
-        else:
+        if not success:
             raise NotificationNotFoundError(notification_id)
-
         return True
 
     async def get_unread_count(self, user_id: str) -> int:
@@ -776,24 +734,7 @@ class NotificationService(LifecycleEnabled):
 
     async def mark_all_as_read(self, user_id: str) -> int:
         """Mark all notifications as read for a user."""
-        count = await self.repository.mark_all_as_read(user_id)
-
-        event_bus = await self.event_bus_manager.get_event_bus()
-        if count > 0:
-            await event_bus.publish(
-                NotificationAllReadEvent(
-                    user_id=user_id,
-                    count=count,
-                    read_at=datetime.now(UTC),
-                    metadata=EventMetadata(
-                        service_name=self.settings.SERVICE_NAME,
-                        service_version=self.settings.SERVICE_VERSION,
-                        user_id=user_id,
-                    ),
-                )
-            )
-
-        return count
+        return await self.repository.mark_all_as_read(user_id)
 
     async def get_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         """Get all notification subscriptions for a user."""

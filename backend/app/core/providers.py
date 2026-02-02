@@ -57,7 +57,6 @@ from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.event_bus import EventBusManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -246,15 +245,6 @@ class EventProvider(Provider):
         ) as consumer:
             yield consumer
 
-    @provide
-    async def get_event_bus_manager(
-            self, settings: Settings, logger: logging.Logger, connection_metrics: ConnectionMetrics
-    ) -> AsyncIterator[EventBusManager]:
-        manager = EventBusManager(settings, logger, connection_metrics)
-        try:
-            yield manager
-        finally:
-            await manager.close()
 
 
 class KubernetesProvider(Provider):
@@ -515,17 +505,14 @@ class UserServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_user_settings_service(
+    def get_user_settings_service(
             self,
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
             settings: Settings,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        service = UserSettingsService(repository, kafka_event_service, settings, logger)
-        await service.initialize(event_bus_manager)
-        return service
+        return UserSettingsService(repository, kafka_event_service, settings, logger)
 
 
 class AdminServicesProvider(Provider):
@@ -553,7 +540,6 @@ class AdminServicesProvider(Provider):
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
-            event_bus_manager: EventBusManager,
             schema_registry: SchemaRegistryManager,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
@@ -564,7 +550,6 @@ class AdminServicesProvider(Provider):
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
-            event_bus_manager=event_bus_manager,
             schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,

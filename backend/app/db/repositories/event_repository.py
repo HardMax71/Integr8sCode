@@ -107,15 +107,21 @@ class EventRepository:
         )
         return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
 
-    async def get_events_by_correlation(self, correlation_id: str, limit: int = 100, skip: int = 0) -> EventListResult:
-        condition = EventDocument.metadata.correlation_id == correlation_id
-        total_count = await EventDocument.find(condition).count()
+    async def get_events_by_correlation(
+        self, correlation_id: str, limit: int = 100, skip: int = 0, user_id: str | None = None,
+    ) -> EventListResult:
+        conditions = [EventDocument.metadata.correlation_id == correlation_id]
+        if user_id:
+            conditions.append(EventDocument.metadata.user_id == user_id)
+        condition = {"$and": conditions} if len(conditions) > 1 else conditions[0]
         docs = (
             await EventDocument.find(condition)
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        total_count = await EventDocument.find(condition).count()
+        total_count = max(total_count, skip + len(events))
         return EventListResult(
             events=events,
             total=total_count,
@@ -159,14 +165,16 @@ class EventRepository:
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
         ]
         conditions = [c for c in conditions if c is not None]
-        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
-        total_count = await EventDocument.find(*conditions).count()
+        # Fetch before count: avoids race where a doc inserted between count→fetch
+        # makes total < len(events).
         docs = (
             await EventDocument.find(*conditions)
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        total_count = await EventDocument.find(*conditions).count()
+        total_count = max(total_count, skip + len(events))
         return EventListResult(
             events=events,
             total=total_count,
@@ -293,8 +301,6 @@ class EventRepository:
         ]
         conditions = [c for c in conditions if c is not None]
 
-        # Use separate queries for count and fetch to avoid Beanie query object mutation issues
-        total_count = await EventDocument.find(*conditions).count()
         sort_direction = SortDirection.DESCENDING if sort_order == "desc" else SortDirection.ASCENDING
         docs = (
             await EventDocument.find(*conditions)
@@ -302,6 +308,8 @@ class EventRepository:
             .skip(skip).limit(limit).to_list()
         )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        total_count = await EventDocument.find(*conditions).count()
+        total_count = max(total_count, skip + len(events))
         return EventListResult(
             events=events,
             total=total_count,
@@ -321,10 +329,14 @@ class EventRepository:
             limit: int = 100,
     ) -> EventListResult:
         """Query events with filter, sort, and pagination. Always sorts descending (newest first)."""
-        cursor = EventDocument.find(query)
-        total_count = await cursor.count()
-        docs = await cursor.sort([(sort_field, SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
+        docs = (
+            await EventDocument.find(query)
+            .sort([(sort_field, SortDirection.DESCENDING)])
+            .skip(skip).limit(limit).to_list()
+        )
         events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        total_count = await EventDocument.find(query).count()
+        total_count = max(total_count, skip + len(events))
         return EventListResult(
             events=events, total=total_count, skip=skip, limit=limit, has_more=(skip + limit) < total_count
         )

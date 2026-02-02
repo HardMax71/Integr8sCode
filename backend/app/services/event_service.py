@@ -149,17 +149,10 @@ class EventService:
         limit: int = 100,
         skip: int = 0,
     ) -> EventListResult:
-        result = await self.repository.get_events_by_correlation(correlation_id=correlation_id, limit=limit, skip=skip)
-        if not include_all_users or user_role != UserRole.ADMIN:
-            filtered = [e for e in result.events if e.metadata.user_id == user_id]
-            return EventListResult(
-                events=filtered,
-                total=result.total,
-                skip=skip,
-                limit=limit,
-                has_more=result.has_more,
-            )
-        return result
+        filter_user = user_id if not include_all_users or user_role != UserRole.ADMIN else None
+        return await self.repository.get_events_by_correlation(
+            correlation_id=correlation_id, limit=limit, skip=skip, user_id=filter_user,
+        )
 
     async def get_event_statistics(
         self,

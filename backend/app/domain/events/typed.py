@@ -239,6 +239,8 @@ class ResultFailedEvent(BaseEvent):
 
 
 class UserSettingsUpdatedEvent(BaseEvent):
+    model_config = ConfigDict(extra="allow")
+
     event_type: Literal[EventType.USER_SETTINGS_UPDATED] = EventType.USER_SETTINGS_UPDATED
     user_id: str
     changed_fields: list[str] = Field(default_factory=list)

@@ -2,13 +2,13 @@ import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from typing import TypeAlias, TypeVar
+from typing import Any, TypeAlias, TypeVar
 
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
 
 T = TypeVar("T", bound=DomainEvent)
-EventHandler: TypeAlias = Callable[[DomainEvent], Awaitable[None]]
+EventHandler: TypeAlias = Callable[[DomainEvent], Awaitable[Any]]
 
 
 class EventDispatcher:
@@ -26,7 +26,7 @@ class EventDispatcher:
         self.logger = logger
 
         # Map event types to their handlers
-        self._handlers: dict[EventType, list[Callable[[DomainEvent], Awaitable[None]]]] = defaultdict(list)
+        self._handlers: dict[EventType, list[EventHandler]] = defaultdict(list)
 
     def _wrap_handler(self, handler: EventHandler) -> EventHandler:
         """Hook for subclasses to wrap handlers at registration time."""

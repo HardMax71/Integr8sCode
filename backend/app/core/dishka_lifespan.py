@@ -9,16 +9,15 @@ import redis.asyncio as redis
 from beanie import init_beanie
 from dishka import AsyncContainer
 from fastapi import FastAPI
+from faststream.kafka import KafkaBroker
 
 from app.core.database_context import Database
 from app.core.metrics import RateLimitMetrics
 from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.notification_scheduler import NotificationScheduler
-from app.services.notification_service import NotificationService
 from app.settings import Settings
 
 
@@ -27,13 +26,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
 
-    This is much cleaner than the old lifespan.py:
-    - No dependency_overrides
-    - No manual service management
-    - Dishka handles all lifecycle automatically
+    Kafka broker lifecycle is managed here (start/stop).
+    Consumers start when the broker starts; dishka handles all DI.
     """
     # Get settings and logger from DI container (uses test settings in tests)
     container: AsyncContainer = app.state.dishka_container
+    broker: KafkaBroker = app.state.kafka_broker
     settings = await container.get(Settings)
     logger = await container.get(logging.Logger)
 
@@ -76,23 +74,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Phase 1: Resolve all DI dependencies in parallel
-    # Consumers and the notification scheduler (APScheduler) start automatically via their DI providers
+    # Phase 1: Resolve DI dependencies
+    # NotificationScheduler starts APScheduler automatically via its DI provider
     (
         schema_registry,
         database,
         redis_client,
         rate_limit_metrics,
-        _event_store,
-        _notification_service,
         _notification_scheduler,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
-        container.get(EventStore),
-        container.get(NotificationService),
         container.get(NotificationScheduler),
     )
 
@@ -104,4 +98,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    yield
+    # Phase 3: Start Kafka broker (subscribers begin consuming)
+    await broker.start()
+    logger.info("Kafka broker started — consumers active")
+
+    try:
+        yield
+    finally:
+        await broker.close()
+        logger.info("Kafka broker stopped")

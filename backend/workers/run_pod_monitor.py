@@ -8,6 +8,7 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
+from app.events.broker import create_broker
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.pod_monitor.monitor import MonitorState, PodMonitor
 from app.settings import Settings
@@ -18,16 +19,22 @@ RECONCILIATION_LOG_INTERVAL: int = 60
 
 async def run_pod_monitor(settings: Settings) -> None:
     """Run the pod monitor service."""
+    logger = setup_logger(settings.LOG_LEVEL)
 
-    container = create_pod_monitor_container(settings)
+    schema_registry = SchemaRegistryManager(settings, logger)
+    broker = create_broker(settings, schema_registry, logger)
+
+    container = create_pod_monitor_container(settings, broker)
     logger = await container.get(logging.Logger)
     logger.info("Starting PodMonitor with DI container...")
 
     db = await container.get(Database)
     await init_beanie(database=db, document_models=ALL_DOCUMENTS)
 
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
+    schema_registry_di = await container.get(SchemaRegistryManager)
+    await initialize_event_schemas(schema_registry_di)
+
+    await broker.start()
 
     # Services are already started by the DI container providers
     monitor = await container.get(PodMonitor)
@@ -49,6 +56,7 @@ async def run_pod_monitor(settings: Settings) -> None:
     finally:
         # Container cleanup stops everything
         logger.info("Initiating graceful shutdown...")
+        await broker.close()
         await container.close()
 
 

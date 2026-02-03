@@ -8,17 +8,15 @@ from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
-from app.domain.enums.events import EventType
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
-    DomainEvent,
     ExecutionFailedEvent,
     ExecutionStartedEvent,
     PodCreatedEvent,
 )
-from app.events.core import EventDispatcher, UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
@@ -42,7 +40,6 @@ class KubernetesWorker:
             self,
             api_client: k8s_client.ApiClient,
             producer: UnifiedProducer,
-            dispatcher: EventDispatcher,
             settings: Settings,
             logger: logging.Logger,
             event_metrics: EventMetrics,
@@ -67,11 +64,6 @@ class KubernetesWorker:
         # Components
         self.pod_builder = PodBuilder(settings=settings)
         self.producer = producer
-        self._dispatcher = dispatcher
-
-        # Register handlers on dispatcher
-        dispatcher.register_handler(EventType.CREATE_POD_COMMAND, self._handle_create_pod_command_wrapper)
-        dispatcher.register_handler(EventType.DELETE_POD_COMMAND, self._handle_delete_pod_command_wrapper)
 
         # State tracking
         self._active_creations: set[str] = set()
@@ -79,19 +71,7 @@ class KubernetesWorker:
 
         self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
 
-    async def _handle_create_pod_command_wrapper(self, event: DomainEvent) -> None:
-        """Wrapper for handling CreatePodCommandEvent with type safety."""
-        assert isinstance(event, CreatePodCommandEvent)
-        self.logger.info(f"Processing create_pod_command for execution {event.execution_id} from saga {event.saga_id}")
-        await self._handle_create_pod_command(event)
-
-    async def _handle_delete_pod_command_wrapper(self, event: DomainEvent) -> None:
-        """Wrapper for handling DeletePodCommandEvent."""
-        assert isinstance(event, DeletePodCommandEvent)
-        self.logger.info(f"Processing delete_pod_command for execution {event.execution_id} from saga {event.saga_id}")
-        await self._handle_delete_pod_command(event)
-
-    async def _handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
+    async def handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
         """Handle create pod command from saga orchestrator"""
         execution_id = command.execution_id
 
@@ -103,7 +83,7 @@ class KubernetesWorker:
         # Create pod asynchronously
         asyncio.create_task(self._create_pod_for_execution(command))
 
-    async def _handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
+    async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
         """Handle delete pod command from saga orchestrator (compensation)"""
         execution_id = command.execution_id
         self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")

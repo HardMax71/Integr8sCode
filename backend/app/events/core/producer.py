@@ -4,8 +4,7 @@ import logging
 import socket
 from datetime import datetime, timezone
 
-from aiokafka import AIOKafkaProducer
-from aiokafka.errors import KafkaError
+from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
 from app.core.tracing.utils import inject_trace_context
@@ -16,28 +15,25 @@ from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
 from app.settings import Settings
 
-from .types import ProducerMetrics
-
 
 class UnifiedProducer:
-    """Fully async Kafka producer using aiokafka.
+    """Fully async Kafka producer backed by FastStream KafkaBroker.
 
-    Lifecycle (start/stop of AIOKafkaProducer) is managed by the DI provider.
+    The broker's lifecycle (start/stop) is managed externally — either by
+    the FastStream app (worker entry points) or by the FastAPI lifespan.
     """
 
     def __init__(
         self,
-        producer: AIOKafkaProducer,
+        broker: KafkaBroker,
         schema_registry_manager: SchemaRegistryManager,
         logger: logging.Logger,
         settings: Settings,
         event_metrics: EventMetrics,
-        producer_metrics: ProducerMetrics,
     ):
-        self._producer = producer
+        self._broker = broker
         self._schema_registry = schema_registry_manager
         self.logger = logger
-        self.metrics = producer_metrics
         self._event_metrics = event_metrics
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
@@ -52,28 +48,18 @@ class UnifiedProducer:
                 "correlation_id": event_to_produce.metadata.correlation_id or "",
                 "service": event_to_produce.metadata.service_name,
             })
-            header_list = [(k, v.encode()) for k, v in headers.items()]
 
-            await self._producer.send_and_wait(
+            await self._broker.publish(
+                message=serialized_value,
                 topic=topic,
-                value=serialized_value,
                 key=key.encode(),
-                headers=header_list,
+                headers=headers,
             )
 
-            # Update metrics on success
-            self.metrics.messages_sent += 1
-            self.metrics.bytes_sent += len(serialized_value)
-
-            # Record Kafka metrics
             self._event_metrics.record_kafka_message_produced(topic)
-
             self.logger.debug(f"Message [{event_to_produce}] sent to topic: {topic}")
 
-        except KafkaError as e:
-            self.metrics.messages_failed += 1
-            self.metrics.last_error = str(e)
-            self.metrics.last_error_time = datetime.now(timezone.utc)
+        except Exception as e:
             self._event_metrics.record_kafka_production_error(topic=topic, error_type=type(e).__name__)
             self.logger.error(f"Failed to produce message: {e}")
             raise
@@ -83,12 +69,10 @@ class UnifiedProducer:
     ) -> None:
         """Send a failed event to the Dead Letter Queue."""
         try:
-            # Get producer ID (hostname + task name)
             current_task = asyncio.current_task()
             task_name = current_task.get_name() if current_task else "main"
             producer_id = f"{socket.gethostname()}-{task_name}"
 
-            # Create DLQ message directly
             dlq_message = DLQMessage(
                 event=original_event,
                 original_topic=original_topic,
@@ -99,7 +83,6 @@ class UnifiedProducer:
                 producer_id=producer_id,
             )
 
-            # Create DLQ event wrapper
             dlq_event_data = {
                 "event": dlq_message.event.model_dump(mode="json"),
                 "original_topic": dlq_message.original_topic,
@@ -110,27 +93,21 @@ class UnifiedProducer:
                 "status": str(dlq_message.status),
             }
 
-            # Serialize as JSON (DLQ uses JSON format for flexibility)
             serialized_value = json.dumps(dlq_event_data).encode("utf-8")
-
             dlq_topic = f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}"
 
-            # Send to DLQ topic
-            await self._producer.send_and_wait(
+            await self._broker.publish(
+                message=serialized_value,
                 topic=dlq_topic,
-                value=serialized_value,
                 key=original_event.event_id.encode() if original_event.event_id else None,
-                headers=[
-                    ("original_topic", original_topic.encode()),
-                    ("error_type", type(error).__name__.encode()),
-                    ("retry_count", str(retry_count).encode()),
-                ],
+                headers={
+                    "original_topic": original_topic,
+                    "error_type": type(error).__name__,
+                    "retry_count": str(retry_count),
+                },
             )
 
-            # Record metrics
             self._event_metrics.record_kafka_message_produced(dlq_topic)
-            self.metrics.messages_sent += 1
-
             self.logger.warning(
                 f"Event {original_event.event_id} sent to DLQ. "
                 f"Original topic: {original_topic}, Error: {error}, "
@@ -138,8 +115,6 @@ class UnifiedProducer:
             )
 
         except Exception as e:
-            # If we can't send to DLQ, log critically but don't crash
             self.logger.critical(
                 f"Failed to send event {original_event.event_id} to DLQ: {e}. Original error: {error}", exc_info=True
             )
-            self.metrics.messages_failed += 1

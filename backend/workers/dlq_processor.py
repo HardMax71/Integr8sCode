@@ -7,12 +7,15 @@ from datetime import datetime, timezone
 from aiokafka import AIOKafkaConsumer
 from app.core.container import create_dlq_processor_container
 from app.core.database_context import Database
+from app.core.logging import setup_logger
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq import DLQMessage, RetryPolicy, RetryStrategy
 from app.dlq.manager import DLQManager
 from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.events.broker import create_broker
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from beanie import init_beanie
 from opentelemetry.trace import SpanKind
@@ -145,7 +148,12 @@ async def main(settings: Settings) -> None:
     dlq_events Kafka topic for external observability. Logging is handled
     internally by the DLQ manager.
     """
-    container = create_dlq_processor_container(settings)
+    tmp_logger = setup_logger(settings.LOG_LEVEL)
+    schema_registry = SchemaRegistryManager(settings, tmp_logger)
+    broker = create_broker(settings, schema_registry, tmp_logger)
+    await broker.start()
+
+    container = create_dlq_processor_container(settings, broker)
     logger = await container.get(logging.Logger)
     logger.info("Starting DLQ Processor...")
 
@@ -182,6 +190,7 @@ async def main(settings: Settings) -> None:
         loop.add_signal_handler(sig, signal_handler)
 
     async with AsyncExitStack() as stack:
+        stack.push_async_callback(broker.close)
         stack.push_async_callback(container.close)
         await consumer.start()
         stack.push_async_callback(consumer.stop)

@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from aiokafka import AIOKafkaProducer
+from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
 from app.core.tracing.utils import inject_trace_context
@@ -39,7 +39,7 @@ class DLQManager:
     def __init__(
         self,
         settings: Settings,
-        producer: AIOKafkaProducer,
+        broker: KafkaBroker,
         schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
         dlq_metrics: DLQMetrics,
@@ -51,7 +51,7 @@ class DLQManager:
         filters: list[Callable[[DLQMessage], bool]] | None = None,
     ):
         self.settings = settings
-        self.producer = producer
+        self._broker = broker
         self.schema_registry = schema_registry
         self.logger = logger
         self.metrics = dlq_metrics
@@ -111,21 +111,21 @@ class DLQManager:
             "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         hdrs = inject_trace_context(hdrs)
-        kafka_headers: list[tuple[str, bytes]] = [(k, v.encode()) for k, v in hdrs.items()]
 
         event = message.event
+        serialized = json.dumps(event.model_dump(mode="json")).encode()
 
-        await self.producer.send_and_wait(
+        await self._broker.publish(
+            message=serialized,
             topic=retry_topic,
-            value=json.dumps(event.model_dump(mode="json")).encode(),
             key=message.event.event_id.encode(),
-            headers=kafka_headers,
+            headers=hdrs,
         )
-        await self.producer.send_and_wait(
+        await self._broker.publish(
+            message=serialized,
             topic=message.original_topic,
-            value=json.dumps(event.model_dump(mode="json")).encode(),
             key=message.event.event_id.encode(),
-            headers=kafka_headers,
+            headers=hdrs,
         )
 
         self.metrics.record_dlq_message_retried(message.original_topic, message.event.event_type, "success")
@@ -285,9 +285,9 @@ class DLQManager:
     ) -> None:
         try:
             serialized = await self.schema_registry.serialize_event(event)
-            await self.producer.send_and_wait(
+            await self._broker.publish(
+                message=serialized,
                 topic=self._dlq_events_topic,
-                value=serialized,
                 key=event.event_id.encode(),
             )
         except Exception as e:

@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import signal
 
 from app.core.container import create_coordinator_container
 from app.core.database_context import Database
@@ -8,41 +7,13 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.core import UnifiedConsumer
+from app.events.broker import create_broker
+from app.events.handlers import register_coordinator_subscriber
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.settings import Settings
 from beanie import init_beanie
-
-
-async def run_coordinator(settings: Settings) -> None:
-    """Run the execution coordinator service."""
-
-    container = create_coordinator_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting ExecutionCoordinator with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Get consumer (triggers coordinator + dispatcher + queue_manager + scheduling via DI)
-    await container.get(UnifiedConsumer)
-
-    # Shutdown event
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("ExecutionCoordinator started and running")
-
-    try:
-        await shutdown_event.wait()
-    finally:
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
+from dishka.integrations.faststream import setup_dishka
+from faststream import FastStream
 
 
 def main() -> None:
@@ -65,7 +36,30 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ExecutionCoordinator")
 
-    asyncio.run(run_coordinator(settings))
+    # Create Kafka broker and register subscriber
+    schema_registry = SchemaRegistryManager(settings, logger)
+    broker = create_broker(settings, schema_registry, logger)
+    register_coordinator_subscriber(broker, settings)
+
+    # Create DI container with broker in context
+    container = create_coordinator_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        db = await container.get(Database)
+        await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+        await initialize_event_schemas(schema_registry)
+        logger.info("ExecutionCoordinator infrastructure initialized")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("ExecutionCoordinator shutdown complete")
+
+    asyncio.run(app.run())
 
 
 if __name__ == "__main__":

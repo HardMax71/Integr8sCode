@@ -16,7 +16,6 @@ from app.domain.enums.notification import (
 )
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import (
-    DomainEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
@@ -410,8 +409,8 @@ class NotificationService:
             NotificationSeverity.URGENT: "#990000",  # Dark Red
         }.get(priority, "#808080")  # Default gray
 
-    async def _handle_execution_timeout_typed(self, event: ExecutionTimeoutEvent) -> None:
-        """Handle typed execution timeout event."""
+    async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
+        """Handle execution timeout event."""
         user_id = event.metadata.user_id
         if not user_id:
             self.logger.error("No user_id in event metadata")
@@ -430,8 +429,8 @@ class NotificationService:
             ),
         )
 
-    async def _handle_execution_completed_typed(self, event: ExecutionCompletedEvent) -> None:
-        """Handle typed execution completed event."""
+    async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
+        """Handle execution completed event."""
         user_id = event.metadata.user_id
         if not user_id:
             self.logger.error("No user_id in event metadata")
@@ -451,22 +450,8 @@ class NotificationService:
             ),
         )
 
-    async def _handle_execution_event(self, event: DomainEvent) -> None:
-        """Unified handler for execution result events."""
-        try:
-            if isinstance(event, ExecutionCompletedEvent):
-                await self._handle_execution_completed_typed(event)
-            elif isinstance(event, ExecutionFailedEvent):
-                await self._handle_execution_failed_typed(event)
-            elif isinstance(event, ExecutionTimeoutEvent):
-                await self._handle_execution_timeout_typed(event)
-            else:
-                self.logger.warning(f"Unhandled execution event type: {event.event_type}")
-        except Exception as e:
-            self.logger.error(f"Error handling execution event: {e}", exc_info=True)
-
-    async def _handle_execution_failed_typed(self, event: ExecutionFailedEvent) -> None:
-        """Handle typed execution failed event."""
+    async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
+        """Handle execution failed event."""
         user_id = event.metadata.user_id
         if not user_id:
             self.logger.error("No user_id in event metadata")

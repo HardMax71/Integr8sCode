@@ -7,12 +7,10 @@ from uuid import uuid4
 
 from app.core.metrics import CoordinatorMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import QueuePriority
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     CreatePodCommandEvent,
-    DomainEvent,
     EventMetadata,
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
@@ -20,7 +18,7 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.events.core import EventDispatcher, UnifiedProducer
+from app.events.core import UnifiedProducer
 
 
 class QueueRejectError(Exception):
@@ -44,7 +42,6 @@ class ExecutionCoordinator:
     def __init__(
         self,
         producer: UnifiedProducer,
-        dispatcher: EventDispatcher,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
@@ -72,33 +69,9 @@ class ExecutionCoordinator:
         # Scheduling state
         self._active_executions: set[str] = set()
 
-        self._register_handlers(dispatcher)
-
-    def _register_handlers(self, dispatcher: EventDispatcher) -> None:
-        dispatcher.register_handler(EventType.EXECUTION_REQUESTED, self._handle_requested_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_completed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_failed_wrapper)
-        dispatcher.register_handler(EventType.EXECUTION_CANCELLED, self._handle_cancelled_wrapper)
-
-    async def _handle_requested_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionRequestedEvent)
-        await self._handle_execution_requested(event)
-
-    async def _handle_completed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionCompletedEvent)
-        await self._handle_execution_completed(event)
-
-    async def _handle_failed_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionFailedEvent)
-        await self._handle_execution_failed(event)
-
-    async def _handle_cancelled_wrapper(self, event: DomainEvent) -> None:
-        assert isinstance(event, ExecutionCancelledEvent)
-        await self._handle_execution_cancelled(event)
-
-    async def _handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
+    async def handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
         """Handle execution requested event - add to queue for processing."""
-        self.logger.info(f"HANDLER CALLED: _handle_execution_requested for event {event.event_id}")
+        self.logger.info(f"HANDLER CALLED: handle_execution_requested for event {event.event_id}")
         start_time = time.time()
 
         try:
@@ -123,7 +96,7 @@ class ExecutionCoordinator:
         if position == 0:
             await self._try_schedule_next()
 
-    async def _handle_execution_cancelled(self, event: ExecutionCancelledEvent) -> None:
+    async def handle_execution_cancelled(self, event: ExecutionCancelledEvent) -> None:
         """Handle execution cancelled event."""
         execution_id = event.execution_id
 
@@ -137,7 +110,7 @@ class ExecutionCoordinator:
 
         await self._try_schedule_next()
 
-    async def _handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
+    async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""
         execution_id = event.execution_id
 
@@ -148,7 +121,7 @@ class ExecutionCoordinator:
         self.logger.info(f"Execution {execution_id} completed")
         await self._try_schedule_next()
 
-    async def _handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
+    async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event."""
         execution_id = event.execution_id
 

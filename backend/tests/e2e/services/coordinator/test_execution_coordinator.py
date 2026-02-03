@@ -18,7 +18,7 @@ class TestHandleExecutionRequested:
         coord: ExecutionCoordinator = await scope.get(ExecutionCoordinator)
         ev = make_execution_requested_event(execution_id="e-sched-1")
 
-        await coord._handle_execution_requested(ev)  # noqa: SLF001
+        await coord.handle_execution_requested(ev)
 
         assert "e-sched-1" in coord._active_executions  # noqa: SLF001
 
@@ -33,7 +33,7 @@ class TestHandleExecutionRequested:
             priority=QueuePriority.BACKGROUND,
         )
 
-        await coord._handle_execution_requested(ev)  # noqa: SLF001
+        await coord.handle_execution_requested(ev)
 
         assert "e-priority-1" in coord._active_executions  # noqa: SLF001
 
@@ -47,8 +47,8 @@ class TestHandleExecutionRequested:
         ev1 = make_execution_requested_event(execution_id="e-unique-1")
         ev2 = make_execution_requested_event(execution_id="e-unique-2")
 
-        await coord._handle_execution_requested(ev1)  # noqa: SLF001
-        await coord._handle_execution_requested(ev2)  # noqa: SLF001
+        await coord.handle_execution_requested(ev1)
+        await coord.handle_execution_requested(ev2)
 
         assert "e-unique-1" in coord._active_executions  # noqa: SLF001
         assert "e-unique-2" in coord._active_executions  # noqa: SLF001

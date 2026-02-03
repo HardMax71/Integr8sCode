@@ -7,6 +7,8 @@ from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
+from app.events.broker import create_broker
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
 from beanie import init_beanie
@@ -26,7 +28,11 @@ async def cleanup_task(replay_service: EventReplayService, logger: logging.Logge
 async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with cleanup task."""
 
-    container = create_event_replay_container(settings)
+    tmp_logger = setup_logger(settings.LOG_LEVEL)
+    schema_registry = SchemaRegistryManager(settings, tmp_logger)
+    broker = create_broker(settings, schema_registry, tmp_logger)
+
+    container = create_event_replay_container(settings, broker)
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
 

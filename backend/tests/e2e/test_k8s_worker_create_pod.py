@@ -5,7 +5,7 @@ import pytest
 from app.core.metrics import EventMetrics
 from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
-from app.events.core import EventDispatcher, UnifiedProducer
+from app.events.core import UnifiedProducer
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -25,12 +25,9 @@ async def test_worker_creates_configmap_and_pod(
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
     event_metrics: EventMetrics = await scope.get(EventMetrics)
 
-    dispatcher = EventDispatcher(logger=_test_logger)
-
     worker = KubernetesWorker(
         api_client=api_client,
         producer=producer,
-        dispatcher=dispatcher,
         settings=test_settings,
         logger=_test_logger,
         event_metrics=event_metrics,

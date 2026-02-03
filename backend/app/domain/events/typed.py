@@ -122,7 +122,7 @@ class ExecutionFailedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_FAILED] = EventType.EXECUTION_FAILED
     execution_id: str
     exit_code: int
-    error_type: ExecutionErrorType | None = None
+    error_type: ExecutionErrorType
     error_message: str = ""
     resource_usage: ResourceUsageDomain | None = None
     stdout: str = ""

@@ -29,7 +29,7 @@ class DomainExecution(BaseModel):
 
 
 class ExecutionResultDomain(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
 
     execution_id: str
     status: ExecutionStatus

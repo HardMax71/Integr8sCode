@@ -17,6 +17,7 @@ from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.event_store_consumer import EventStoreConsumer
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.settings import Settings
 
@@ -76,14 +77,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Phase 1: Resolve all DI dependencies in parallel
-    # SSE bus + consumers start automatically via NotificationService's dependency on SSERedisBus
+    # Consumers and the notification scheduler (APScheduler) start automatically via their DI providers
     (
         schema_registry,
         database,
         redis_client,
         rate_limit_metrics,
         event_store_consumer,
-        notification_service,
+        _notification_service,
+        _notification_scheduler,
     ) = await asyncio.gather(
         container.get(SchemaRegistryManager),
         container.get(Database),
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         container.get(RateLimitMetrics),
         container.get(EventStoreConsumer),
         container.get(NotificationService),
+        container.get(NotificationScheduler),
     )
 
     # Phase 2: Initialize infrastructure in parallel (independent subsystems)
@@ -102,13 +105,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
     # Phase 3: Start lifecycle-managed services
-    # SSE bridge consumers are started by the DI provider — no lifecycle to manage here
+    # EventStoreConsumer requires explicit __aenter__; all other services are managed by DI providers
     async with AsyncExitStack() as stack:
         stack.push_async_callback(event_store_consumer.aclose)
-        stack.push_async_callback(notification_service.aclose)
-        await asyncio.gather(
-            event_store_consumer.__aenter__(),
-            notification_service.__aenter__(),
-        )
-        logger.info("EventStoreConsumer and NotificationService started")
+        await event_store_consumer.__aenter__()
+        logger.info("EventStoreConsumer started")
         yield

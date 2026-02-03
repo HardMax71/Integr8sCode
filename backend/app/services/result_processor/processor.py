@@ -65,15 +65,7 @@ class ResultProcessor:
             memory_percent, attributes={"lang_and_version": lang_and_version}
         )
 
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.COMPLETED,
-            exit_code=event.exit_code,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-        )
+        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.COMPLETED)
 
         try:
             await self._execution_repo.write_terminal_result(result)
@@ -91,20 +83,11 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(str(event.error_type) if event.error_type else "unknown")
+        self._metrics.record_error(event.error_type)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)
-        result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.FAILED,
-            exit_code=event.exit_code or -1,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-            error_type=event.error_type,
-        )
+        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.FAILED)
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result)
@@ -128,14 +111,7 @@ class ResultProcessor:
         self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
 
         result = ExecutionResultDomain(
-            execution_id=event.execution_id,
-            status=ExecutionStatus.TIMEOUT,
-            exit_code=-1,
-            stdout=event.stdout,
-            stderr=event.stderr,
-            resource_usage=event.resource_usage,
-            metadata=event.metadata,
-            error_type=ExecutionErrorType.TIMEOUT,
+            **event.model_dump(), status=ExecutionStatus.TIMEOUT, exit_code=-1, error_type=ExecutionErrorType.TIMEOUT,
         )
         try:
             await self._execution_repo.write_terminal_result(result)

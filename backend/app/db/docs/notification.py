@@ -67,6 +67,7 @@ class NotificationDocument(Document):
         indexes = [
             IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="idx_notif_user_created_desc"),
             IndexModel([("status", ASCENDING), ("scheduled_for", ASCENDING)], name="idx_notif_status_sched"),
+            IndexModel([("created_at", ASCENDING)], expireAfterSeconds=30 * 86400, name="idx_notif_ttl"),
         ]
 
 

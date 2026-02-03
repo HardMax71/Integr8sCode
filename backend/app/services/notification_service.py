@@ -6,12 +6,9 @@ from typing import Awaitable, Callable
 
 import httpx
 
-from app.core.lifecycle import LifecycleEnabled
-from app.core.metrics import EventMetrics, NotificationMetrics
+from app.core.metrics import NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.db.repositories.notification_repository import NotificationRepository
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import GroupId
 from app.domain.enums.notification import (
     NotificationChannel,
     NotificationSeverity,
@@ -35,9 +32,6 @@ from app.domain.notification import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.mappings import get_topic_for_event
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
@@ -100,46 +94,24 @@ class SystemConfig:
     throttle_exempt: bool
 
 
-class NotificationService(LifecycleEnabled):
+class NotificationService:
     def __init__(
         self,
         notification_repository: NotificationRepository,
         event_service: KafkaEventService,
-        schema_registry_manager: SchemaRegistryManager,
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
         notification_metrics: NotificationMetrics,
-        event_metrics: EventMetrics,
     ) -> None:
-        super().__init__()
         self.repository = notification_repository
         self.event_service = event_service
         self.metrics = notification_metrics
-        self._event_metrics = event_metrics
         self.settings = settings
-        self.schema_registry_manager = schema_registry_manager
         self.sse_bus = sse_bus
         self.logger = logger
 
-        # State
         self._throttle_cache = ThrottleCache()
-
-        # Tasks
-        self._tasks: set[asyncio.Task[None]] = set()
-
-        self._consumer: UnifiedConsumer | None = None
-        self._dispatcher: EventDispatcher | None = None
-        self._consumer_task: asyncio.Task[None] | None = None
-
-        self.logger.info(
-            "NotificationService initialized",
-            extra={
-                "repository": type(notification_repository).__name__,
-                "event_service": type(event_service).__name__,
-                "schema_registry": type(schema_registry_manager).__name__,
-            },
-        )
 
         # Channel handlers mapping
         self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
@@ -147,92 +119,6 @@ class NotificationService(LifecycleEnabled):
             NotificationChannel.WEBHOOK: self._send_webhook,
             NotificationChannel.SLACK: self._send_slack,
         }
-
-    async def _on_start(self) -> None:
-        """Start the notification service with Kafka consumer."""
-        self.logger.info("Starting notification service...")
-        self._start_background_tasks()
-        await self._subscribe_to_events()
-        self.logger.info("Notification service started with Kafka consumer")
-
-    async def _on_stop(self) -> None:
-        """Stop the notification service."""
-        self.logger.info("Stopping notification service...")
-
-        # Cancel all tasks
-        for task in self._tasks:
-            task.cancel()
-
-        # Wait for cancellation
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-
-        # Stop consumer
-        if self._consumer:
-            await self._consumer.stop()
-
-        # Clear cache
-        await self._throttle_cache.clear()
-
-        self.logger.info("Notification service stopped")
-
-    def _start_background_tasks(self) -> None:
-        """Start background processing tasks."""
-        tasks = [
-            asyncio.create_task(self._process_pending_notifications()),
-            asyncio.create_task(self._cleanup_old_notifications()),
-        ]
-
-        for task in tasks:
-            self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
-
-    async def _subscribe_to_events(self) -> None:
-        """Subscribe to relevant events for notifications."""
-        # Configure consumer for notification-relevant events
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=self.settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.NOTIFICATION_SERVICE,
-            max_poll_records=10,
-            enable_auto_commit=True,
-            auto_offset_reset="latest",
-            session_timeout_ms=self.settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=self.settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=self.settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=self.settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        execution_results_topic = get_topic_for_event(EventType.EXECUTION_COMPLETED)
-
-        # Log topics for debugging
-        self.logger.info(f"Notification service will subscribe to topics: {execution_results_topic}")
-
-        # Create dispatcher and register handlers for specific event types
-        self._dispatcher = EventDispatcher(logger=self.logger)
-        # Use a single handler for execution result events (simpler and less brittle)
-        self._dispatcher.register_handler(EventType.EXECUTION_COMPLETED, self._handle_execution_event)
-        self._dispatcher.register_handler(EventType.EXECUTION_FAILED, self._handle_execution_event)
-        self._dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, self._handle_execution_event)
-
-        # Create consumer with dispatcher
-        self._consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=self._dispatcher,
-            schema_registry=self.schema_registry_manager,
-            settings=self.settings,
-            logger=self.logger,
-            event_metrics=self._event_metrics,
-        )
-
-        # Start consumer
-        await self._consumer.start([execution_results_topic])
-
-        # Start consumer task
-        self._consumer_task = asyncio.create_task(self._run_consumer())
-        self._tasks.add(self._consumer_task)
-        self._consumer_task.add_done_callback(self._tasks.discard)
-
-        self.logger.info("Notification service subscribed to execution events")
 
     async def create_notification(
         self,
@@ -248,6 +134,13 @@ class NotificationService(LifecycleEnabled):
     ) -> DomainNotification:
         if not tags:
             raise NotificationValidationError("tags must be a non-empty list")
+        if scheduled_for is not None:
+            max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
+            max_schedule = datetime.now(UTC) + timedelta(days=max_days)
+            if scheduled_for > max_schedule:
+                raise NotificationValidationError(
+                    f"scheduled_for cannot exceed {max_days} days from now"
+                )
         self.logger.info(
             f"Creating notification for user {user_id}",
             extra={
@@ -294,7 +187,10 @@ class NotificationService(LifecycleEnabled):
         # Save to database
         notification = await self.repository.create_notification(create_data)
 
-        await self._deliver_notification(notification)
+        # Deliver immediately if not scheduled; scheduled notifications are
+        # picked up by the NotificationScheduler worker.
+        if scheduled_for is None:
+            await self._deliver_notification(notification)
 
         return notification
 
@@ -514,59 +410,6 @@ class NotificationService(LifecycleEnabled):
             NotificationSeverity.URGENT: "#990000",  # Dark Red
         }.get(priority, "#808080")  # Default gray
 
-    async def _process_pending_notifications(self) -> None:
-        """Process pending notifications in background."""
-        while self.is_running:
-            try:
-                # Find pending notifications
-                notifications = await self.repository.find_pending_notifications(
-                    batch_size=self.settings.NOTIF_PENDING_BATCH_SIZE
-                )
-
-                # Process each notification
-                for notification in notifications:
-                    if not self.is_running:
-                        break
-                    await self._deliver_notification(notification)
-
-                # Sleep between batches
-                await asyncio.sleep(5)
-
-            except Exception as e:
-                self.logger.error(f"Error processing pending notifications: {e}")
-                await asyncio.sleep(10)
-
-    async def _cleanup_old_notifications(self) -> None:
-        """Cleanup old notifications periodically."""
-        while self.is_running:
-            try:
-                # Run cleanup once per day
-                await asyncio.sleep(86400)  # 24 hours
-
-                if not self.is_running:
-                    break
-
-                # Delete old notifications
-                deleted_count = await self.repository.cleanup_old_notifications(self.settings.NOTIF_OLD_DAYS)
-
-                self.logger.info(f"Cleaned up {deleted_count} old notifications")
-
-            except Exception as e:
-                self.logger.error(f"Error cleaning up old notifications: {e}")
-
-    async def _run_consumer(self) -> None:
-        """Run the event consumer loop."""
-        while self.is_running:
-            try:
-                # Consumer handles polling internally
-                await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                self.logger.info("Notification consumer task cancelled")
-                break
-            except Exception as e:
-                self.logger.error(f"Error in notification consumer loop: {e}")
-                await asyncio.sleep(5)
-
     async def _handle_execution_timeout_typed(self, event: ExecutionTimeoutEvent) -> None:
         """Handle typed execution timeout event."""
         user_id = event.metadata.user_id
@@ -785,12 +628,14 @@ class NotificationService(LifecycleEnabled):
 
         return None
 
-    async def _deliver_notification(self, notification: DomainNotification) -> None:
-        """Deliver notification through configured channel using safe state transitions."""
-        # Attempt to claim this notification for sending
+    async def _deliver_notification(self, notification: DomainNotification) -> bool:
+        """Deliver notification through configured channel with inline retry.
+
+        Returns True only when the notification reaches DELIVERED status.
+        """
         claimed = await self.repository.try_claim_pending(notification.notification_id)
         if not claimed:
-            return
+            return False
 
         self.logger.info(
             f"Delivering notification {notification.notification_id}",
@@ -803,10 +648,8 @@ class NotificationService(LifecycleEnabled):
             },
         )
 
-        # Check user subscription for the channel
         subscription = await self.repository.get_subscription(notification.user_id, notification.channel)
 
-        # Check if notification should be skipped
         skip_reason = await self._should_skip_notification(notification, subscription)
         if skip_reason:
             self.logger.info(skip_reason)
@@ -815,91 +658,72 @@ class NotificationService(LifecycleEnabled):
                 notification.user_id,
                 DomainNotificationUpdate(status=NotificationStatus.SKIPPED, error_message=skip_reason),
             )
-            return
+            return False
 
-        # Send through channel
-        start_time = asyncio.get_running_loop().time()
-        try:
-            handler = self._channel_handlers.get(notification.channel)
-            if handler is None:
-                raise ValueError(
-                    f"No handler configured for notification channel: {notification.channel}. "
-                    f"Available channels: {list(self._channel_handlers.keys())}"
-                )
-
-            self.logger.debug(f"Using handler {handler.__name__} for channel {notification.channel}")
-            await handler(notification, subscription)
-            delivery_time = asyncio.get_running_loop().time() - start_time
-
-            # Mark delivered
+        handler = self._channel_handlers.get(notification.channel)
+        if handler is None:
             await self.repository.update_notification(
                 notification.notification_id,
                 notification.user_id,
-                DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+                DomainNotificationUpdate(
+                    status=NotificationStatus.FAILED,
+                    failed_at=datetime.now(UTC),
+                    error_message=f"No handler for channel: {notification.channel}",
+                ),
             )
+            return False
 
-            self.logger.info(
-                f"Successfully delivered notification {notification.notification_id}",
-                extra={
-                    "notification_id": str(notification.notification_id),
-                    "channel": notification.channel,
-                    "delivery_time_ms": int(delivery_time * 1000),
-                },
-            )
+        last_error: Exception | None = None
+        start_time = asyncio.get_running_loop().time()
 
-            # Metrics (use tag string or severity)
-            self.metrics.record_notification_sent(
-                notification.severity, channel=notification.channel, severity=notification.severity
-            )
-            self.metrics.record_notification_delivery_time(delivery_time, notification.severity)
+        for attempt in range(notification.max_retries):
+            try:
+                await handler(notification, subscription)
 
-        except Exception as e:
-            error_details = {
-                "notification_id": str(notification.notification_id),
-                "channel": notification.channel,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "retry_count": notification.retry_count,
-                "max_retries": notification.max_retries,
-            }
-
-            self.logger.error(
-                f"Failed to deliver notification {notification.notification_id}: {str(e)}",
-                extra=error_details,
-                exc_info=True,
-            )
-
-            new_retry_count = notification.retry_count + 1
-            error_message = f"Delivery failed via {notification.channel}: {str(e)}"
-            failed_at = datetime.now(UTC)
-
-            # Schedule retry if under limit
-            if new_retry_count < notification.max_retries:
-                retry_time = datetime.now(UTC) + timedelta(minutes=self.settings.NOTIF_RETRY_DELAY_MINUTES)
+                delivery_time = asyncio.get_running_loop().time() - start_time
+                await self.repository.update_notification(
+                    notification.notification_id,
+                    notification.user_id,
+                    DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+                )
                 self.logger.info(
-                    f"Scheduled retry {new_retry_count}/{notification.max_retries} for {notification.notification_id}",
-                    extra={"retry_at": retry_time.isoformat()},
+                    f"Delivered notification {notification.notification_id}",
+                    extra={
+                        "notification_id": str(notification.notification_id),
+                        "channel": notification.channel,
+                        "delivery_time_ms": int(delivery_time * 1000),
+                        "attempt": attempt + 1,
+                    },
                 )
-                # Will be retried - keep as PENDING but with scheduled_for
-                # Note: scheduled_for not in DomainNotificationUpdate, so we update status fields only
-                await self.repository.update_notification(
-                    notification.notification_id,
-                    notification.user_id,
-                    DomainNotificationUpdate(
-                        status=NotificationStatus.PENDING,
-                        failed_at=failed_at,
-                        error_message=error_message,
-                        retry_count=new_retry_count,
-                    ),
+                self.metrics.record_notification_sent(
+                    notification.severity, channel=notification.channel, severity=notification.severity
                 )
-            else:
-                await self.repository.update_notification(
-                    notification.notification_id,
-                    notification.user_id,
-                    DomainNotificationUpdate(
-                        status=NotificationStatus.FAILED,
-                        failed_at=failed_at,
-                        error_message=error_message,
-                        retry_count=new_retry_count,
-                    ),
+                self.metrics.record_notification_delivery_time(
+                    delivery_time, notification.severity, channel=notification.channel
                 )
+                return True
+
+            except Exception as e:
+                last_error = e
+                self.logger.warning(
+                    f"Delivery attempt {attempt + 1}/{notification.max_retries} failed "
+                    f"for {notification.notification_id}: {e}",
+                )
+                if attempt + 1 < notification.max_retries:
+                    await asyncio.sleep(min(2 ** attempt, 30))
+
+        await self.repository.update_notification(
+            notification.notification_id,
+            notification.user_id,
+            DomainNotificationUpdate(
+                status=NotificationStatus.FAILED,
+                failed_at=datetime.now(UTC),
+                error_message=f"Delivery failed via {notification.channel}: {last_error}",
+                retry_count=notification.max_retries,
+            ),
+        )
+        self.logger.error(
+            f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
+            exc_info=last_error,
+        )
+        return False

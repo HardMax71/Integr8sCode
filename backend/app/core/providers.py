@@ -67,6 +67,7 @@ from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
+from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
@@ -552,15 +553,78 @@ class AdminServicesProvider(Provider):
         service = NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
-            schema_registry_manager=schema_registry,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
+        )
+
+        dispatcher = EventDispatcher(logger=logger)
+        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, service._handle_execution_event)
+        dispatcher.register_handler(EventType.EXECUTION_FAILED, service._handle_execution_event)
+        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, service._handle_execution_event)
+
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=GroupId.NOTIFICATION_SERVICE,
+            max_poll_records=10,
+            enable_auto_commit=False,
+            auto_offset_reset="latest",
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        consumer = UnifiedConsumer(
+            consumer_config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
             event_metrics=event_metrics,
         )
-        async with service:
+        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.NOTIFICATION_SERVICE]))
+
+        logger.info("NotificationService started")
+
+        try:
             yield service
+        finally:
+            await consumer.stop()
+            logger.info("NotificationService stopped")
+
+    @provide
+    async def get_notification_scheduler(
+            self,
+            notification_repository: NotificationRepository,
+            notification_service: NotificationService,
+            logger: logging.Logger,
+    ) -> AsyncIterator[NotificationScheduler]:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+        scheduler_service = NotificationScheduler(
+            notification_repository=notification_repository,
+            notification_service=notification_service,
+            logger=logger,
+        )
+
+        apscheduler = AsyncIOScheduler()
+        apscheduler.add_job(
+            scheduler_service.process_due_notifications,
+            trigger="interval",
+            seconds=15,
+            id="process_due_notifications",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        apscheduler.start()
+        logger.info("NotificationScheduler started (APScheduler interval=15s)")
+
+        try:
+            yield scheduler_service
+        finally:
+            apscheduler.shutdown(wait=False)
+            logger.info("NotificationScheduler stopped")
 
     @provide
     def get_grafana_alert_processor(
@@ -988,3 +1052,5 @@ class EventReplayProvider(Provider):
             replay_metrics=replay_metrics,
             logger=logger,
         )
+
+

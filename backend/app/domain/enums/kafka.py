@@ -96,7 +96,7 @@ CONSUMER_GROUP_SUBSCRIPTIONS: dict[GroupId, set[KafkaTopic]] = {
     },
     GroupId.NOTIFICATION_SERVICE: {
         KafkaTopic.NOTIFICATION_EVENTS,
-        KafkaTopic.EXECUTION_RESULTS,
+        KafkaTopic.EXECUTION_EVENTS,
     },
     GroupId.DLQ_PROCESSOR: {
         KafkaTopic.DEAD_LETTER_QUEUE,

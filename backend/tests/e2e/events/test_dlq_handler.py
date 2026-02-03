@@ -21,7 +21,7 @@ async def test_dlq_handler_with_retries(scope: AsyncContainer, monkeypatch: pyte
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
     monkeypatch.setattr(p, "send_to_dlq", _record_send_to_dlq)
-    h = create_dlq_error_handler(p, original_topic="t", max_retries=2, logger=_test_logger)
+    h = create_dlq_error_handler(p, max_retries=2, logger=_test_logger)
     e = SagaStartedEvent(
         saga_id="s",
         saga_name="n",
@@ -30,13 +30,13 @@ async def test_dlq_handler_with_retries(scope: AsyncContainer, monkeypatch: pyte
         metadata=EventMetadata(service_name="a", service_version="1"),
     )
     # Call 1 and 2 should not send to DLQ
-    await h(RuntimeError("boom"), e)
-    await h(RuntimeError("boom"), e)
+    await h(RuntimeError("boom"), e, "test-topic")
+    await h(RuntimeError("boom"), e, "test-topic")
     assert len(calls) == 0
     # 3rd call triggers DLQ
-    await h(RuntimeError("boom"), e)
+    await h(RuntimeError("boom"), e, "test-topic")
     assert len(calls) == 1
-    assert calls[0][1] == "t"
+    assert calls[0][1] == "test-topic"
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_immediate_dlq_handler(scope: AsyncContainer, monkeypatch: pytest.
         calls.append((original_event.event_id, original_topic, str(error), retry_count))
 
     monkeypatch.setattr(p, "send_to_dlq", _record_send_to_dlq)
-    h = create_immediate_dlq_handler(p, original_topic="t", logger=_test_logger)
+    h = create_immediate_dlq_handler(p, logger=_test_logger)
     e = SagaStartedEvent(
         saga_id="s2",
         saga_name="n",
@@ -58,5 +58,6 @@ async def test_immediate_dlq_handler(scope: AsyncContainer, monkeypatch: pytest.
         initial_event_id="i",
         metadata=EventMetadata(service_name="a", service_version="1"),
     )
-    await h(RuntimeError("x"), e)
-    assert calls and calls[0][3] == 0
+    await h(RuntimeError("x"), e, "test-topic")
+    assert calls and calls[0][1] == "test-topic"
+    assert calls[0][3] == 0

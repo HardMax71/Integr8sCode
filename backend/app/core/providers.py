@@ -277,7 +277,7 @@ class EventProvider(Provider):
         )
 
         dlq_handler = create_dlq_error_handler(
-            producer=kafka_producer, original_topic="event-store", logger=logger, max_retries=3,
+            producer=kafka_producer, logger=logger, max_retries=3,
         )
         kafka_consumer.register_error_callback(dlq_handler)
 

@@ -8,7 +8,6 @@ from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import EventMetrics
-from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
 from app.domain.events import domain_event_adapter
@@ -89,24 +88,8 @@ class KafkaEventService:
             domain_event = domain_event_adapter.validate_python(event_data)
             await self.event_repository.store_event(domain_event)
 
-            # Prepare headers
-            headers: dict[str, str] = {
-                "event_type": event_type,
-                "correlation_id": event_metadata.correlation_id or "",
-                "service": event_metadata.service_name,
-            }
-
-            # Add trace context
-            span_context = span.get_span_context()
-            if span_context.is_valid:
-                headers["trace_id"] = f"{span_context.trace_id:032x}"
-                headers["span_id"] = f"{span_context.span_id:016x}"
-
-            # Inject W3C trace context for downstream consumers
-            headers = inject_trace_context(headers)
-
-            # Publish to Kafka
-            await self.kafka_producer.produce(domain_event, aggregate_id, headers)
+            # Publish to Kafka (headers built automatically by producer)
+            await self.kafka_producer.produce(event_to_produce=domain_event, key=aggregate_id or domain_event.event_id)
             self.metrics.record_event_published(event_type)
             self.metrics.record_event_processing_duration(time.time() - start_time, event_type)
             self.logger.info("Event published", extra={"event_type": event_type, "event_id": domain_event.event_id})
@@ -185,23 +168,10 @@ class KafkaEventService:
             start_time = time.time()
             await self.event_repository.store_event(event)
 
-            headers: dict[str, str] = {
-                "event_type": event.event_type,
-                "correlation_id": event.metadata.correlation_id or "",
-                "service": event.metadata.service_name,
-            }
-            span_context = span.get_span_context()
-            if span_context.is_valid:
-                headers["trace_id"] = f"{span_context.trace_id:032x}"
-                headers["span_id"] = f"{span_context.span_id:016x}"
-            headers = inject_trace_context(headers)
-
-            await self.kafka_producer.produce(event, key or event.aggregate_id, headers)
+            await self.kafka_producer.produce(event_to_produce=event, key=key or event.aggregate_id or event.event_id)
             self.metrics.record_event_published(event.event_type)
             self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
             self.logger.info("Domain event published", extra={"event_id": event.event_id})
             return event.event_id
 
-    async def close(self) -> None:
-        """Close event service resources"""
-        await self.kafka_producer.aclose()
+

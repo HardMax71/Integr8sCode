@@ -6,16 +6,6 @@ from pydantic import BaseModel, ConfigDict
 from app.core.utils import StringEnum
 
 
-class ProducerState(StringEnum):
-    """Kafka producer state enumeration."""
-
-    STOPPED = "stopped"
-    STARTING = "starting"
-    RUNNING = "running"
-    STOPPING = "stopping"
-    ERROR = "error"
-
-
 class ConsumerState(StringEnum):
     """Kafka consumer state enumeration."""
 

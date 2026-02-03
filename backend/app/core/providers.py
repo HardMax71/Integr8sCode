@@ -50,7 +50,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
-from app.events.core import ConsumerConfig, EventDispatcher, UnifiedConsumer, UnifiedProducer
+from app.events.core import ConsumerConfig, EventDispatcher, ProducerMetrics, UnifiedConsumer, UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager
@@ -166,8 +166,24 @@ class MessagingProvider(Provider):
             self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger,
             event_metrics: EventMetrics
     ) -> AsyncIterator[UnifiedProducer]:
-        async with UnifiedProducer(schema_registry, logger, settings, event_metrics) as producer:
-            yield producer
+        aiokafka_producer = AIOKafkaProducer(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            client_id=f"{settings.SERVICE_NAME}-producer",
+            acks="all",
+            compression_type="gzip",
+            max_batch_size=16384,
+            linger_ms=10,
+            enable_idempotence=True,
+        )
+        await aiokafka_producer.start()
+        logger.info(f"Kafka producer started: {settings.KAFKA_BOOTSTRAP_SERVERS}")
+        try:
+            yield UnifiedProducer(
+                aiokafka_producer, schema_registry, logger, settings, event_metrics, ProducerMetrics(),
+            )
+        finally:
+            await aiokafka_producer.stop()
+            logger.info("Kafka producer stopped")
 
     @provide
     async def get_dlq_manager(

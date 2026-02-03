@@ -342,7 +342,7 @@ class ExecutionCoordinator:
             metadata=request.metadata,
         )
 
-        await self.producer.produce(event_to_produce=event)
+        await self.producer.produce(event_to_produce=event, key=request.execution_id)
 
     async def _publish_queue_full(self, request: ExecutionRequestedEvent, error: str) -> None:
         """Publish queue full event."""

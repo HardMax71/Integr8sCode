@@ -232,7 +232,7 @@ exec "$@"
             container_id=None,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event)
+        await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""
@@ -242,7 +242,7 @@ exec "$@"
             namespace=pod.metadata.namespace,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event)
+        await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
     async def _publish_pod_creation_failed(self, command: CreatePodCommandEvent, error: str) -> None:
         """Publish pod creation failed event"""
@@ -255,7 +255,7 @@ exec "$@"
             metadata=command.metadata,
             error_message=str(error),
         )
-        await self.producer.produce(event_to_produce=event)
+        await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
     async def get_status(self) -> dict[str, Any]:
         """Get worker status"""

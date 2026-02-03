@@ -292,7 +292,7 @@ class EventReplayService:
                     case ReplayTarget.KAFKA:
                         if not config.preserve_timestamps:
                             event.timestamp = datetime.now(timezone.utc)
-                        await self._producer.produce(event_to_produce=event)
+                        await self._producer.produce(event_to_produce=event, key=event.aggregate_id or event.event_id)
                     case ReplayTarget.FILE:
                         if not config.target_file_path:
                             self.logger.error("No target file path specified")

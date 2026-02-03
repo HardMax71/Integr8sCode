@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 from app.core.container import create_pod_monitor_container
 from app.core.logging import setup_logger
@@ -18,7 +17,6 @@ def main() -> None:
     settings = Settings(override_path="config.pod-monitor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting PodMonitor worker...")
 

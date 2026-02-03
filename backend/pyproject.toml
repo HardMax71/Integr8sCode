@@ -125,7 +125,7 @@ dependencies = [
     "monggregate==0.22.1",
     "aiofiles==25.1.0",
     "APScheduler==3.10.4",
-    "faststream[kafka]==0.6.5",
+    "faststream[kafka]==0.6.6",
 ]
 
 [build-system]

@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import pytest_asyncio
 from app.schemas_pydantic.execution import ExecutionResponse
@@ -8,6 +10,28 @@ from httpx import AsyncClient
 pytestmark = [pytest.mark.e2e]
 
 
+class _NoLifespan:
+    """ASGI wrapper that completes lifespan events immediately.
+
+    async-asgi-testclient's context manager triggers ASGI lifespan
+    startup/shutdown. Without this wrapper, the shutdown closes the
+    Kafka broker that the session-scoped ``app`` fixture owns, breaking
+    every subsequent test that publishes events.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] == "lifespan":
+            await receive()  # lifespan.startup
+            await send({"type": "lifespan.startup.complete"})
+            await receive()  # lifespan.shutdown
+            await send({"type": "lifespan.shutdown.complete"})
+            return
+        await self.app(scope, receive, send)
+
+
 @pytest_asyncio.fixture
 async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     """SSE-capable test client with auth cookies from test_user.
@@ -15,8 +39,11 @@ async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     Uses async-asgi-testclient which properly streams SSE responses,
     unlike httpx's ASGITransport which buffers entire responses.
     See: https://github.com/encode/httpx/issues/2186
+
+    The app is wrapped with _NoLifespan to prevent the SSE client's
+    context manager from closing the session-scoped Kafka broker.
     """
-    client = SSETestClient(app)
+    client = SSETestClient(_NoLifespan(app))
     # Copy auth cookies from httpx client (SimpleCookie uses dict-style assignment)
     for name, value in test_user.cookies.items():
         client.cookie_jar[name] = value
@@ -29,7 +56,7 @@ async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
 @pytest_asyncio.fixture
 async def sse_client_another(app: FastAPI, another_user: AsyncClient) -> SSETestClient:
     """SSE-capable test client with auth from another_user."""
-    client = SSETestClient(app)
+    client = SSETestClient(_NoLifespan(app))
     for name, value in another_user.cookies.items():
         client.cookie_jar[name] = value
     if csrf := another_user.headers.get("X-CSRF-Token"):

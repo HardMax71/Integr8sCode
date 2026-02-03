@@ -750,16 +750,16 @@ wheels = [
 
 [[package]]
 name = "faststream"
-version = "0.6.5"
+version = "0.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "fast-depends", extra = ["pydantic"] },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/55/fc2a34405ac63aaf973a33884c5f77f87564bbb9a4343c1d103cbf8c87f5/faststream-0.6.5.tar.gz", hash = "sha256:ddef9e85631edf1aba87e81c8886067bd94ee752f41a09f1d1cd6f75f7e4fade", size = 302206, upload-time = "2025-12-29T16:44:04.85Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/cc/26deefd97a3d51205554d4fe69ffc2a9144515cda20cb7185be27e11166e/faststream-0.6.6.tar.gz", hash = "sha256:de87502e22db0372131165221728c6993b29d42ba29aaaa0a27d1249803f2ddd", size = 302712, upload-time = "2026-02-03T18:08:35.747Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/1c/f60c0b15a8bce42ed7256d2eca6ea713bac259d6684ff392a907f95ca345/faststream-0.6.5-py3-none-any.whl", hash = "sha256:714b13b84cdbe2bdcf0b2b8a5e2b04648cb7683784a5297d445adfee9f2b4f7e", size = 507108, upload-time = "2025-12-29T16:44:03.297Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/17/169728098799d4f5c4978f9b83d2dc41541eee02ec8547149a085acf11dd/faststream-0.6.6-py3-none-any.whl", hash = "sha256:4aca70628b526d8e27771f1f8edf9cd0a80a62f335a2721ddbbc863e6098f269", size = 507654, upload-time = "2026-02-03T18:08:34.347Z" },
 ]
 
 [package.optional-dependencies]
@@ -1258,7 +1258,7 @@ requires-dist = [
     { name = "exceptiongroup", specifier = "==1.2.2" },
     { name = "fastapi", specifier = "==0.128.0" },
     { name = "fastavro", specifier = "==1.12.1" },
-    { name = "faststream", extras = ["kafka"], specifier = "==0.6.5" },
+    { name = "faststream", extras = ["kafka"], specifier = "==0.6.6" },
     { name = "fonttools", specifier = "==4.61.1" },
     { name = "frozenlist", specifier = "==1.7.0" },
     { name = "google-auth", specifier = "==2.47.0" },

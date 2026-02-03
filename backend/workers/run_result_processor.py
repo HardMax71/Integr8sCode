@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 from app.core.container import create_result_processor_container
 from app.core.database_context import Database
@@ -19,7 +18,6 @@ def main() -> None:
     settings = Settings(override_path="config.result-processor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting ResultProcessor worker...")
 

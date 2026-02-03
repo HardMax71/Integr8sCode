@@ -43,7 +43,6 @@ def main() -> None:
     settings = Settings(override_path="config.event-replay.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting Event Replay Service...")
 

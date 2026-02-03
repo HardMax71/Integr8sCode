@@ -2,11 +2,8 @@ import logging
 from uuid import uuid4
 
 import pytest
-from app.core.metrics import EventMetrics
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.settings import Settings
 from dishka import AsyncContainer
 
 from tests.conftest import make_execution_requested_event
@@ -17,25 +14,16 @@ _test_logger = logging.getLogger("test.events.producer_roundtrip")
 
 
 @pytest.mark.asyncio
-async def test_unified_producer_start_produce_send_to_dlq_stop(
-    scope: AsyncContainer, test_settings: Settings
+async def test_unified_producer_produce_and_send_to_dlq(
+    scope: AsyncContainer,
 ) -> None:
-    schema: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
-    prod = UnifiedProducer(
-        schema,
-        logger=_test_logger,
-        settings=test_settings,
-        event_metrics=event_metrics,
-    )
+    prod: UnifiedProducer = await scope.get(UnifiedProducer)
 
-    async with prod:
-        ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")
-        await prod.produce(ev)
+    ev = make_execution_requested_event(execution_id=f"exec-{uuid4().hex[:8]}")
+    await prod.produce(ev, key=ev.execution_id)
 
-        # Exercise send_to_dlq path
-        topic = str(get_topic_for_event(ev.event_type))
-        await prod.send_to_dlq(ev, original_topic=topic, error=RuntimeError("forced"), retry_count=1)
+    # Exercise send_to_dlq path
+    topic = str(get_topic_for_event(ev.event_type))
+    await prod.send_to_dlq(ev, original_topic=topic, error=RuntimeError("forced"), retry_count=1)
 
-        st = prod.get_status()
-        assert st["running"] is True and st["state"] == "running"
+    assert prod.metrics.messages_sent >= 2

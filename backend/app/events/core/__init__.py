@@ -10,12 +10,10 @@ from .types import (
     ConsumerMetrics,
     ConsumerState,
     ProducerMetrics,
-    ProducerState,
 )
 
 __all__ = [
     # Types
-    "ProducerState",
     "ConsumerState",
     "ConsumerConfig",
     "ProducerMetrics",

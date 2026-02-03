@@ -213,7 +213,7 @@ class ExecutionService:
 
             # Publish to Kafka; on failure, mark error and raise
             try:
-                await self.producer.produce(event_to_produce=event)
+                await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
             except Exception as e:  # pragma: no cover - mapped behavior
                 self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
                 self.metrics.record_error(type(e).__name__)

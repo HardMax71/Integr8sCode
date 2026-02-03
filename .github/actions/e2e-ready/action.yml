@@ -26,14 +26,6 @@ runs:
           /home/runner/.kube/config > backend/kubeconfig.yaml
         chmod 644 backend/kubeconfig.yaml
 
-    - name: Start cert-generator (background)
-      shell: bash
-      env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
-      run: |
-        nohup docker compose up -d --no-build cert-generator \
-          > /tmp/cert-gen.log 2>&1 &
-
     - name: Use test environment config
       shell: bash
       run: |
@@ -51,7 +43,6 @@ runs:
           fi
         fi
         cat /tmp/infra-pull.log 2>/dev/null || true
-        cat /tmp/cert-gen.log 2>/dev/null || true
         if [ -f /tmp/infra-pull.exit ]; then
           EXIT_CODE=$(cat /tmp/infra-pull.exit)
           if [ "$EXIT_CODE" != "0" ]; then

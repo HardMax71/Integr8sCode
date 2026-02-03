@@ -39,7 +39,7 @@ class UnifiedConsumer:
         self._running = False
         self._metrics = ConsumerMetrics()
         self._event_metrics = event_metrics
-        self._error_callback: "Callable[[Exception, DomainEvent], Awaitable[None]] | None" = None
+        self._error_callback: "Callable[[Exception, DomainEvent, str], Awaitable[None]] | None" = None
         self._consume_task: asyncio.Task[None] | None = None
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
@@ -192,10 +192,10 @@ class UnifiedConsumer:
                 topic=topic, consumer_group=self._config.group_id, error_type=type(e).__name__
             )
             if self._error_callback:
-                await self._error_callback(e, event)
+                await self._error_callback(e, event, topic)
             raise
 
-    def register_error_callback(self, callback: Callable[[Exception, DomainEvent], Awaitable[None]]) -> None:
+    def register_error_callback(self, callback: Callable[[Exception, DomainEvent, str], Awaitable[None]]) -> None:
         self._error_callback = callback
 
     @property

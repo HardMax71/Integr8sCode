@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import redis.asyncio as redis
@@ -15,7 +15,7 @@ from app.core.metrics import RateLimitMetrics
 from app.core.startup import initialize_rate_limits
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.events.event_store_consumer import EventStoreConsumer
+from app.events.event_store import EventStore
 from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         database,
         redis_client,
         rate_limit_metrics,
-        event_store_consumer,
+        _event_store,
         _notification_service,
         _notification_scheduler,
     ) = await asyncio.gather(
@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         container.get(Database),
         container.get(redis.Redis),
         container.get(RateLimitMetrics),
-        container.get(EventStoreConsumer),
+        container.get(EventStore),
         container.get(NotificationService),
         container.get(NotificationScheduler),
     )
@@ -104,10 +104,4 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Infrastructure initialized (schemas, beanie, rate limits)")
 
-    # Phase 3: Start lifecycle-managed services
-    # EventStoreConsumer requires explicit __aenter__; all other services are managed by DI providers
-    async with AsyncExitStack() as stack:
-        stack.push_async_callback(event_store_consumer.aclose)
-        await event_store_consumer.__aenter__()
-        logger.info("EventStoreConsumer started")
-        yield
+    yield

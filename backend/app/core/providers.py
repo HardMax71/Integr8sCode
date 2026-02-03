@@ -50,9 +50,15 @@ from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
 from app.domain.idempotency import KeyStrategy
 from app.domain.saga.models import SagaConfig
-from app.events.core import ConsumerConfig, EventDispatcher, ProducerMetrics, UnifiedConsumer, UnifiedProducer
+from app.events.core import (
+    ConsumerConfig,
+    EventDispatcher,
+    ProducerMetrics,
+    UnifiedConsumer,
+    UnifiedProducer,
+    create_dlq_error_handler,
+)
 from app.events.event_store import EventStore, create_event_store
-from app.events.event_store_consumer import EventStoreConsumer, create_event_store_consumer
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
@@ -236,33 +242,54 @@ class EventProvider(Provider):
 
     @provide
     async def get_event_store(
-            self, schema_registry: SchemaRegistryManager, logger: logging.Logger, event_metrics: EventMetrics
-    ) -> EventStore:
-        return create_event_store(
-            schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
-        )
-
-    @provide
-    async def get_event_store_consumer(
             self,
-            event_store: EventStore,
             schema_registry: SchemaRegistryManager,
             settings: Settings,
             kafka_producer: UnifiedProducer,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[EventStoreConsumer]:
+    ) -> AsyncIterator[EventStore]:
+        event_store = create_event_store(
+            schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
+        )
+
+        dispatcher = EventDispatcher(logger=logger)
+        for event_type in EventType:
+            dispatcher.register_handler(event_type, event_store.store_event)
+
+        config = ConsumerConfig(
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+            group_id=GroupId.EVENT_STORE_CONSUMER,
+            enable_auto_commit=False,
+            max_poll_records=100,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        kafka_consumer = UnifiedConsumer(
+            config,
+            event_dispatcher=dispatcher,
+            schema_registry=schema_registry,
+            settings=settings,
+            logger=logger,
+            event_metrics=event_metrics,
+        )
+
+        dlq_handler = create_dlq_error_handler(
+            producer=kafka_producer, logger=logger, max_retries=3,
+        )
+        kafka_consumer.register_error_callback(dlq_handler)
+
         topics = get_all_topics()
-        async with create_event_store_consumer(
-                event_store=event_store,
-                topics=list(topics),
-                schema_registry_manager=schema_registry,
-                settings=settings,
-                producer=kafka_producer,
-                logger=logger,
-                event_metrics=event_metrics,
-        ) as consumer:
-            yield consumer
+        await kafka_consumer.start(list(topics))
+        logger.info(f"Event store consumer started for topics: {list(topics)}")
+
+        try:
+            yield event_store
+        finally:
+            await kafka_consumer.stop()
+            logger.info("Event store consumer stopped")
 
 
 

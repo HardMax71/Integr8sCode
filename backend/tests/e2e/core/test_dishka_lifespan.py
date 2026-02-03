@@ -89,11 +89,11 @@ class TestLifespanInitialization:
         assert bus is not None
 
     @pytest.mark.asyncio
-    async def test_event_store_consumer_available(
+    async def test_event_store_available(
         self, scope: AsyncContainer
     ) -> None:
-        """Event store consumer is available after lifespan."""
-        from app.events.event_store_consumer import EventStoreConsumer
+        """Event store is available after lifespan."""
+        from app.events.event_store import EventStore
 
-        consumer = await scope.get(EventStoreConsumer)
-        assert consumer is not None
+        event_store = await scope.get(EventStore)
+        assert event_store is not None

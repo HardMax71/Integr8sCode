@@ -80,8 +80,7 @@ class KubernetesWorker:
             self.logger.warning(f"Already creating pod for execution {execution_id}")
             return
 
-        # Create pod asynchronously
-        asyncio.create_task(self._create_pod_for_execution(command))
+        await self._create_pod_for_execution(command)
 
     async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
         """Handle delete pod command from saga orchestrator (compensation)"""
@@ -236,16 +235,6 @@ exec "$@"
             error_message=str(error),
         )
         await self.producer.produce(event_to_produce=event, key=command.execution_id)
-
-    async def get_status(self) -> dict[str, Any]:
-        """Get worker status"""
-        return {
-            "active_creations": len(self._active_creations),
-            "config": {
-                "namespace": self._settings.K8S_NAMESPACE,
-                "max_concurrent_pods": self._settings.K8S_MAX_CONCURRENT_PODS,
-            },
-        }
 
     async def wait_for_active_creations(self, timeout: float = 30.0) -> None:
         """Wait for active pod creations to complete (for graceful shutdown)."""

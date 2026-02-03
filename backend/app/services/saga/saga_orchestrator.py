@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -114,7 +113,7 @@ class SagaOrchestrator:
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
 
-        asyncio.create_task(self._execute_saga(saga, instance, context, trigger_event))
+        await self._execute_saga(saga, instance, context, trigger_event)
 
         return instance.saga_id
 

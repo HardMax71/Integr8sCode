@@ -58,21 +58,81 @@ class DLQManager:
         self.repository = repository
         self.dlq_topic = dlq_topic
         self.retry_topic_suffix = retry_topic_suffix
+
         self.default_retry_policy = default_retry_policy or RetryPolicy(
-            topic="default", strategy=RetryStrategy.EXPONENTIAL_BACKOFF
+            topic="default",
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=4,
+            base_delay_seconds=60,
+            max_delay_seconds=1800,
+            retry_multiplier=2.5,
         )
 
-        self._retry_policies: dict[str, RetryPolicy] = dict(retry_policies or {})
-        self._filters: list[Callable[[DLQMessage], bool]] = list(filters or [])
+        self._retry_policies: dict[str, RetryPolicy] = retry_policies if retry_policies is not None else {
+            "execution-requests": RetryPolicy(
+                topic="execution-requests",
+                strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+                max_retries=5,
+                base_delay_seconds=30,
+                max_delay_seconds=300,
+                retry_multiplier=2.0,
+            ),
+            "pod-events": RetryPolicy(
+                topic="pod-events",
+                strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+                max_retries=3,
+                base_delay_seconds=60,
+                max_delay_seconds=600,
+                retry_multiplier=3.0,
+            ),
+            "resource-allocation": RetryPolicy(
+                topic="resource-allocation",
+                strategy=RetryStrategy.IMMEDIATE,
+                max_retries=3,
+            ),
+            "websocket-events": RetryPolicy(
+                topic="websocket-events",
+                strategy=RetryStrategy.FIXED_INTERVAL,
+                max_retries=10,
+                base_delay_seconds=10,
+            ),
+        }
+
+        self._filters: list[Callable[[DLQMessage], bool]] = filters if filters is not None else [
+            f for f in [
+                None if settings.TESTING else self._filter_test_events,
+                self._filter_old_messages,
+            ] if f is not None
+        ]
 
         self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
         self._event_metadata = EventMetadata(service_name="dlq-manager", service_version="1.0.0")
+
+    def _filter_test_events(self, message: DLQMessage) -> bool:
+        event_id = message.event.event_id or ""
+        return not event_id.startswith("test-")
+
+    def _filter_old_messages(self, message: DLQMessage) -> bool:
+        max_age_days = 7
+        age_seconds = (datetime.now(timezone.utc) - message.failed_at).total_seconds()
+        return age_seconds < (max_age_days * 24 * 3600)
+
+    async def process_monitoring_cycle(self) -> None:
+        """Process due retries and update queue metrics. Called by APScheduler."""
+        await self.process_due_retries()
+        await self.update_queue_metrics()
 
     def parse_kafka_message(self, msg: Any) -> DLQMessage:
         """Parse a raw Kafka ConsumerRecord into a DLQMessage."""
         data = json.loads(msg.value)
         headers = {k: v.decode() for k, v in (msg.headers or [])}
         return DLQMessage(**data, dlq_offset=msg.offset, dlq_partition=msg.partition, headers=headers)
+
+    def parse_dlq_body(
+        self, data: dict[str, Any], offset: int, partition: int, headers: dict[str, str]
+    ) -> DLQMessage:
+        """Parse a deserialized DLQ message body into a DLQMessage."""
+        return DLQMessage(**data, dlq_offset=offset, dlq_partition=partition, headers=headers)
 
     async def handle_message(self, message: DLQMessage) -> None:
         """Process a single DLQ message: filter → store → decide retry/discard."""

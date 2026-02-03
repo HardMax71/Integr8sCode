@@ -9,8 +9,11 @@ from app.core.providers import (
     CoordinatorProvider,
     CoreServicesProvider,
     DatabaseProvider,
+    DLQProvider,
+    DLQWorkerProvider,
     EventProvider,
     EventReplayProvider,
+    EventReplayWorkerProvider,
     K8sWorkerProvider,
     KafkaServicesProvider,
     KubernetesProvider,
@@ -23,6 +26,7 @@ from app.core.providers import (
     ResourceCleanerProvider,
     ResultProcessorProvider,
     SagaOrchestratorProvider,
+    SagaWorkerProvider,
     SettingsProvider,
     SSEProvider,
     UserServicesProvider,
@@ -47,6 +51,7 @@ def create_app_container(settings: Settings, broker: KafkaBroker) -> AsyncContai
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
         SagaOrchestratorProvider(),
         KafkaServicesProvider(),
@@ -76,6 +81,7 @@ def create_result_processor_container(settings: Settings, broker: KafkaBroker) -
         RepositoryProvider(),
         EventProvider(),
         MessagingProvider(),
+        DLQProvider(),
         ResultProcessorProvider(),
         context={Settings: settings, KafkaBroker: broker},
     )
@@ -92,6 +98,7 @@ def create_coordinator_container(settings: Settings, broker: KafkaBroker) -> Asy
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
         CoordinatorProvider(),
         context={Settings: settings, KafkaBroker: broker},
@@ -109,6 +116,7 @@ def create_k8s_worker_container(settings: Settings, broker: KafkaBroker) -> Asyn
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
         KubernetesProvider(),
         K8sWorkerProvider(),
@@ -127,6 +135,7 @@ def create_pod_monitor_container(settings: Settings, broker: KafkaBroker) -> Asy
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
         KafkaServicesProvider(),
         KubernetesProvider(),
@@ -136,7 +145,10 @@ def create_pod_monitor_container(settings: Settings, broker: KafkaBroker) -> Asy
 
 
 def create_saga_orchestrator_container(settings: Settings, broker: KafkaBroker) -> AsyncContainer:
-    """Create DI container for the SagaOrchestrator worker."""
+    """Create DI container for the SagaOrchestrator worker.
+
+    Uses SagaWorkerProvider which adds APScheduler-managed timeout checking.
+    """
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -146,14 +158,18 @@ def create_saga_orchestrator_container(settings: Settings, broker: KafkaBroker) 
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
-        SagaOrchestratorProvider(),
+        SagaWorkerProvider(),
         context={Settings: settings, KafkaBroker: broker},
     )
 
 
 def create_event_replay_container(settings: Settings, broker: KafkaBroker) -> AsyncContainer:
-    """Create DI container for the EventReplay worker."""
+    """Create DI container for the EventReplay worker.
+
+    Uses EventReplayWorkerProvider which adds APScheduler-managed session cleanup.
+    """
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -163,14 +179,19 @@ def create_event_replay_container(settings: Settings, broker: KafkaBroker) -> As
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQProvider(),
         EventProvider(),
-        EventReplayProvider(),
+        EventReplayWorkerProvider(),
         context={Settings: settings, KafkaBroker: broker},
     )
 
 
 def create_dlq_processor_container(settings: Settings, broker: KafkaBroker) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker."""
+    """Create DI container for the DLQ processor worker.
+
+    Uses DLQWorkerProvider which adds APScheduler-managed retry monitoring
+    and configures retry policies and filters.
+    """
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -180,6 +201,7 @@ def create_dlq_processor_container(settings: Settings, broker: KafkaBroker) -> A
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
+        DLQWorkerProvider(),
         EventProvider(),
         context={Settings: settings, KafkaBroker: broker},
     )

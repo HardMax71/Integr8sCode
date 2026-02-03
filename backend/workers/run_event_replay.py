@@ -1,33 +1,18 @@
 import asyncio
 import logging
-from contextlib import AsyncExitStack
+import signal
 
 from app.core.container import create_event_replay_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.events.broker import create_broker
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
-from beanie import init_beanie
-
-
-async def cleanup_task(replay_service: EventReplayService, logger: logging.Logger, interval_hours: int = 6) -> None:
-    """Periodically clean up old replay sessions"""
-    while True:
-        try:
-            await asyncio.sleep(interval_hours * 3600)
-            removed = await replay_service.cleanup_old_sessions(older_than_hours=48)
-            logger.info(f"Cleaned up {removed} old replay sessions")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
 
 
 async def run_replay_service(settings: Settings) -> None:
-    """Run the event replay service with cleanup task."""
-
+    """Run the event replay service with DI-managed cleanup scheduler."""
     tmp_logger = setup_logger(settings.LOG_LEVEL)
     schema_registry = SchemaRegistryManager(settings, tmp_logger)
     broker = create_broker(settings, schema_registry, tmp_logger)
@@ -36,28 +21,21 @@ async def run_replay_service(settings: Settings) -> None:
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
 
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    replay_service = await container.get(EventReplayService)
-
+    # Resolving EventReplayService triggers Database init (via dependency)
+    # and starts the APScheduler cleanup scheduler (via EventReplayWorkerProvider)
+    await container.get(EventReplayService)
     logger.info("Event replay service initialized")
 
-    async with AsyncExitStack() as stack:
-        stack.push_async_callback(container.close)
+    shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shutdown_event.set)
 
-        task = asyncio.create_task(cleanup_task(replay_service, logger))
-
-        async def _cancel_task() -> None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-        stack.push_async_callback(_cancel_task)
-
-        await asyncio.Event().wait()
+    try:
+        await shutdown_event.wait()
+    finally:
+        logger.info("Initiating graceful shutdown...")
+        await container.close()
 
 
 def main() -> None:

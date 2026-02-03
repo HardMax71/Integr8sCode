@@ -4,10 +4,13 @@ import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
+from kubernetes_asyncio.client.rest import ApiException
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import Database
@@ -28,6 +31,7 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -45,6 +49,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
+from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
@@ -64,7 +69,7 @@ from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.services.pod_monitor.monitor import PodMonitor
+from app.services.pod_monitor.monitor import ErrorType, PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor.processor import ResultProcessor
 from app.services.result_processor.resource_cleaner import ResourceCleaner
@@ -117,10 +122,25 @@ class RedisProvider(Provider):
             await client.close()
 
     @provide
-    def get_rate_limit_service(
-            self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
+    async def get_rate_limit_service(
+            self,
+            redis_client: redis.Redis,
+            settings: Settings,
+            rate_limit_metrics: RateLimitMetrics,
+            logger: logging.Logger,
     ) -> RateLimitService:
-        return RateLimitService(redis_client, settings, rate_limit_metrics)
+        service = RateLimitService(redis_client, settings, rate_limit_metrics)
+        try:
+            config_key = f"{settings.RATE_LIMIT_REDIS_PREFIX}config"
+            existing_config = await redis_client.get(config_key)
+            if not existing_config:
+                logger.info("Initializing default rate limit configuration in Redis")
+                default_config = RateLimitConfig.get_default_config()
+                await service.update_config(default_config)
+                logger.info(f"Initialized {len(default_config.default_rules)} default rate limit rules")
+        except Exception as e:
+            logger.error(f"Failed to initialize rate limits: {e}")
+        return service
 
 
 class DatabaseProvider(Provider):
@@ -132,7 +152,8 @@ class DatabaseProvider(Provider):
             settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
         )
         database = client[settings.DATABASE_NAME]
-        logger.info(f"MongoDB connected: {settings.DATABASE_NAME}")
+        await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+        logger.info(f"MongoDB connected and Beanie initialized: {settings.DATABASE_NAME}")
         try:
             yield database
         finally:
@@ -168,6 +189,22 @@ class MessagingProvider(Provider):
         return UnifiedProducer(broker, schema_registry, logger, settings, event_metrics)
 
     @provide
+    def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
+        return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
+
+    @provide
+    def get_idempotency_manager(
+            self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
+    ) -> IdempotencyManager:
+        return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
+
+
+class DLQProvider(Provider):
+    """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
+
+    scope = Scope.APP
+
+    @provide
     def get_dlq_manager(
             self,
             broker: KafkaBroker,
@@ -186,23 +223,63 @@ class MessagingProvider(Provider):
             repository=repository,
         )
 
-    @provide
-    def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
-        return RedisIdempotencyRepository(redis_client, key_prefix="idempotency")
+
+class DLQWorkerProvider(Provider):
+    """Provides DLQManager with APScheduler-managed retry monitoring.
+
+    Used by the DLQ worker container only. DLQManager configures its own
+    retry policies and filters; the provider only handles scheduling.
+    """
+
+    scope = Scope.APP
 
     @provide
-    def get_idempotency_manager(
-            self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
-    ) -> IdempotencyManager:
-        return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
+    async def get_dlq_manager(
+            self,
+            broker: KafkaBroker,
+            settings: Settings,
+            schema_registry: SchemaRegistryManager,
+            logger: logging.Logger,
+            dlq_metrics: DLQMetrics,
+            repository: DLQRepository,
+            database: Database,
+    ) -> AsyncIterator[DLQManager]:
+        manager = DLQManager(
+            settings=settings,
+            broker=broker,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_metrics=dlq_metrics,
+            repository=repository,
+        )
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            manager.process_monitoring_cycle,
+            trigger="interval",
+            seconds=10,
+            id="dlq_monitor_retries",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        scheduler.start()
+        logger.info("DLQManager retry monitor started (APScheduler interval=10s)")
+
+        try:
+            yield manager
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("DLQManager retry monitor stopped")
 
 
 class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
+    async def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
+        registry = SchemaRegistryManager(settings, logger)
+        await registry.initialize_schemas()
+        return registry
 
     @provide
     def get_event_store(
@@ -478,8 +555,8 @@ class AdminServicesProvider(Provider):
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
             logger: logging.Logger,
+            database: Database,  # ensures init_beanie completes before scheduler starts
     ) -> AsyncIterator[NotificationScheduler]:
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
         scheduler_service = NotificationScheduler(
             notification_repository=notification_repository,
@@ -654,7 +731,9 @@ class PodMonitorProvider(Provider):
         logger: logging.Logger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
+        database: Database,
     ) -> AsyncIterator[PodMonitor]:
+
         config = PodMonitorConfig()
         monitor = PodMonitor(
             config=config,
@@ -664,11 +743,40 @@ class PodMonitorProvider(Provider):
             event_mapper=event_mapper,
             kubernetes_metrics=kubernetes_metrics,
         )
-        await monitor.start()
+
+        async def _watch_cycle() -> None:
+            try:
+                await monitor.watch_pod_events()
+            except ApiException as e:
+                if e.status == 410:
+                    logger.warning("Resource version expired, resetting watch cursor")
+                    monitor._last_resource_version = None
+                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
+                else:
+                    logger.error(f"API error in watch: {e}")
+                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
+                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+            except Exception as e:
+                logger.error(f"Unexpected error in watch: {e}", exc_info=True)
+                kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            _watch_cycle,
+            trigger="interval",
+            seconds=5,
+            id="pod_monitor_watch",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        scheduler.start()
+        logger.info("PodMonitor scheduler started (list-then-watch)")
+
         try:
             yield monitor
         finally:
-            await monitor.stop()
+            scheduler.shutdown(wait=False)
 
 
 class SagaOrchestratorProvider(Provider):
@@ -689,6 +797,52 @@ class SagaOrchestratorProvider(Provider):
             resource_allocation_repository=resource_allocation_repository,
             logger=logger,
         )
+
+
+class SagaWorkerProvider(Provider):
+    """Provides SagaOrchestrator with APScheduler-managed timeout checking.
+
+    Used by the saga worker container only. The main app container uses
+    SagaOrchestratorProvider (no scheduler needed).
+    """
+
+    scope = Scope.APP
+
+    @provide
+    async def get_saga_orchestrator(
+        self,
+        saga_repository: SagaRepository,
+        kafka_producer: UnifiedProducer,
+        resource_allocation_repository: ResourceAllocationRepository,
+        logger: logging.Logger,
+        database: Database,
+    ) -> AsyncIterator[SagaOrchestrator]:
+
+        orchestrator = SagaOrchestrator(
+            config=_create_default_saga_config(),
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            resource_allocation_repository=resource_allocation_repository,
+            logger=logger,
+        )
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            orchestrator.check_timeouts,
+            trigger="interval",
+            seconds=30,
+            id="saga_check_timeouts",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        scheduler.start()
+        logger.info("SagaOrchestrator timeout scheduler started (APScheduler interval=30s)")
+
+        try:
+            yield orchestrator
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("SagaOrchestrator timeout scheduler stopped")
 
 
 class ResultProcessorProvider(Provider):
@@ -731,3 +885,51 @@ class EventReplayProvider(Provider):
             replay_metrics=replay_metrics,
             logger=logger,
         )
+
+
+class EventReplayWorkerProvider(Provider):
+    """Provides EventReplayService with APScheduler-managed session cleanup.
+
+    Used by the event replay worker container only. The main app container
+    uses EventReplayProvider (no scheduled cleanup needed).
+    """
+
+    scope = Scope.APP
+
+    @provide
+    async def get_event_replay_service(
+            self,
+            replay_repository: ReplayRepository,
+            kafka_producer: UnifiedProducer,
+            event_store: EventStore,
+            replay_metrics: ReplayMetrics,
+            logger: logging.Logger,
+            database: Database,
+    ) -> AsyncIterator[EventReplayService]:
+
+        service = EventReplayService(
+            repository=replay_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            replay_metrics=replay_metrics,
+            logger=logger,
+        )
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            service.cleanup_old_sessions,
+            trigger="interval",
+            hours=6,
+            kwargs={"older_than_hours": 48},
+            id="replay_cleanup_old_sessions",
+            max_instances=1,
+            misfire_grace_time=300,
+        )
+        scheduler.start()
+        logger.info("EventReplayService cleanup scheduler started (APScheduler interval=6h)")
+
+        try:
+            yield service
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("EventReplayService cleanup scheduler stopped")

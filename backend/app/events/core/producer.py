@@ -43,9 +43,9 @@ class UnifiedProducer:
 
     async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
         """Produce a message to Kafka."""
+        topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
         try:
             serialized_value = await self._schema_registry.serialize_event(event_to_produce)
-            topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
 
             headers = inject_trace_context({
                 "event_type": event_to_produce.event_type,

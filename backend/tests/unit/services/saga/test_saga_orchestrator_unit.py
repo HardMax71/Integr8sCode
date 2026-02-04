@@ -5,6 +5,7 @@ from app.db.repositories.resource_allocation_repository import ResourceAllocatio
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import DomainEvent
+from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.saga.execution_saga import ExecutionSaga
@@ -56,7 +57,21 @@ class _FakeAlloc(ResourceAllocationRepository):
     """Fake ResourceAllocationRepository for testing."""
 
     def __init__(self) -> None:
-        pass  # No special attributes needed
+        self.allocations: list[DomainResourceAllocation] = []
+
+    async def count_active(self, language: str) -> int:
+        return 0
+
+    async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
+        alloc = DomainResourceAllocation(
+            allocation_id="alloc-1",
+            **create_data.model_dump(),
+        )
+        self.allocations.append(alloc)
+        return alloc
+
+    async def release_allocation(self, allocation_id: str) -> bool:
+        return True
 
 
 def _orch(repo: SagaRepository | None = None) -> SagaOrchestrator:
@@ -74,11 +89,11 @@ async def test_handle_event_triggers_saga() -> None:
     fake_repo = _FakeRepo()
     orch = _orch(repo=fake_repo)
     await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
-    assert len(fake_repo.saved) == 1
-    saved = fake_repo.saved[0]
-    assert saved.execution_id == "e"
-    assert saved.saga_name == ExecutionSaga.get_name()
-    assert saved.state == SagaState.RUNNING
+    # The saga is created and fully executed (steps run to completion)
+    assert len(fake_repo.saved) >= 1
+    first_saved = fake_repo.saved[0]
+    assert first_saved.execution_id == "e"
+    assert first_saved.saga_name == ExecutionSaga.get_name()
 
 
 @pytest.mark.asyncio

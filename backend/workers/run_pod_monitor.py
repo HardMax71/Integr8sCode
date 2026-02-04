@@ -1,55 +1,15 @@
 import asyncio
-import logging
-import signal
 
 from app.core.container import create_pod_monitor_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.pod_monitor.monitor import MonitorState, PodMonitor
+from app.events.broker import create_broker
+from app.events.schema.schema_registry import SchemaRegistryManager
+from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
-from beanie import init_beanie
-
-RECONCILIATION_LOG_INTERVAL: int = 60
-
-
-async def run_pod_monitor(settings: Settings) -> None:
-    """Run the pod monitor service."""
-
-    container = create_pod_monitor_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting PodMonitor with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Services are already started by the DI container providers
-    monitor = await container.get(PodMonitor)
-
-    # Shutdown event - signal handlers just set this
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("PodMonitor started and running")
-
-    try:
-        # Wait for shutdown signal or service to stop
-        while monitor.state == MonitorState.RUNNING and not shutdown_event.is_set():
-            await asyncio.sleep(RECONCILIATION_LOG_INTERVAL)
-            status = await monitor.get_status()
-            logger.info(f"Pod monitor status: {status}")
-    finally:
-        # Container cleanup stops everything
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
+from dishka.integrations.faststream import setup_dishka
+from faststream import FastStream
 
 
 def main() -> None:
@@ -57,7 +17,6 @@ def main() -> None:
     settings = Settings(override_path="config.pod-monitor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting PodMonitor worker...")
 
@@ -72,7 +31,32 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    asyncio.run(run_pod_monitor(settings))
+    # Create Kafka broker (PodMonitor publishes events via KafkaEventService)
+    schema_registry = SchemaRegistryManager(settings, logger)
+    broker = create_broker(settings, schema_registry, logger)
+
+    # Create DI container with broker in context
+    container = create_pod_monitor_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        # Resolving PodMonitor triggers Database init (via dependency),
+        # starts the K8s watch loop, and starts the reconciliation scheduler
+        await container.get(PodMonitor)
+        logger.info("PodMonitor infrastructure initialized")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("PodMonitor shutdown complete")
+
+    async def run() -> None:
+        await app.run()
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

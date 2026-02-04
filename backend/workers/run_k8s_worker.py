@@ -1,61 +1,17 @@
 import asyncio
-import logging
-import signal
 
 from app.core.container import create_k8s_worker_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.core import UnifiedConsumer
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
+from app.events.broker import create_broker
+from app.events.handlers import register_k8s_worker_subscriber
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
-from beanie import init_beanie
-
-
-async def run_kubernetes_worker(settings: Settings) -> None:
-    """Run the Kubernetes worker service."""
-
-    container = create_k8s_worker_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting KubernetesWorker with DI container...")
-
-    # Bootstrap database
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    # Initialize schemas
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Get worker (triggers dispatcher creation and handler registration)
-    worker = await container.get(KubernetesWorker)
-
-    # Get consumer (triggers consumer creation and start)
-    # Consumer runs in background via its internal consume loop
-    await container.get(UnifiedConsumer)
-
-    # Bootstrap: ensure image pre-puller DaemonSet exists
-    # Save task to variable to prevent premature garbage collection
-    _daemonset_task = asyncio.create_task(worker.ensure_image_pre_puller_daemonset())
-    logger.info("Image pre-puller daemonset task scheduled")
-
-    # Shutdown event
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("KubernetesWorker started and running")
-
-    try:
-        # Wait for shutdown signal
-        await shutdown_event.wait()
-    finally:
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
+from dishka.integrations.faststream import setup_dishka
+from faststream import FastStream
 
 
 def main() -> None:
@@ -63,7 +19,6 @@ def main() -> None:
     settings = Settings(override_path="config.k8s-worker.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting KubernetesWorker...")
 
@@ -78,7 +33,37 @@ def main() -> None:
         )
         logger.info("Tracing initialized for KubernetesWorker")
 
-    asyncio.run(run_kubernetes_worker(settings))
+    # Create Kafka broker and register subscriber
+    schema_registry = SchemaRegistryManager(settings, logger)
+    broker = create_broker(settings, schema_registry, logger)
+    register_k8s_worker_subscriber(broker, settings)
+
+    # Create DI container with broker in context
+    container = create_k8s_worker_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        await container.get(Database)  # triggers init_beanie inside provider
+        logger.info("KubernetesWorker infrastructure initialized")
+
+    @app.after_startup
+    async def bootstrap() -> None:
+        worker = await container.get(KubernetesWorker)
+        await worker.ensure_image_pre_puller_daemonset()
+        logger.info("Image pre-puller daemonset applied")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("KubernetesWorker shutdown complete")
+
+    async def run() -> None:
+        await app.run()
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

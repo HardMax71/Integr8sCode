@@ -1,49 +1,16 @@
 import asyncio
-import logging
-import signal
 
 from app.core.container import create_result_processor_container
 from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.result_processor.processor import ResultProcessor
+from app.events.broker import create_broker
+from app.events.handlers import register_result_processor_subscriber
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
-from beanie import init_beanie
-
-
-async def run_result_processor(settings: Settings) -> None:
-    """Run the result processor."""
-
-    container = create_result_processor_container(settings)
-    logger = await container.get(logging.Logger)
-    logger.info("Starting ResultProcessor with DI container...")
-
-    db = await container.get(Database)
-    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
-
-    schema_registry = await container.get(SchemaRegistryManager)
-    await initialize_event_schemas(schema_registry)
-
-    # Triggers consumer start via DI
-    await container.get(ResultProcessor)
-
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, shutdown_event.set)
-
-    logger.info("ResultProcessor started and running")
-
-    try:
-        await shutdown_event.wait()
-    finally:
-        logger.info("Initiating graceful shutdown...")
-        await container.close()
-
-    logger.warning("ResultProcessor stopped")
+from dishka.integrations.faststream import setup_dishka
+from faststream import FastStream
 
 
 def main() -> None:
@@ -51,7 +18,6 @@ def main() -> None:
     settings = Settings(override_path="config.result-processor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     logger.info("Starting ResultProcessor worker...")
 
@@ -66,7 +32,31 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ResultProcessor Service")
 
-    asyncio.run(run_result_processor(settings))
+    # Create Kafka broker and register subscriber
+    schema_registry = SchemaRegistryManager(settings, logger)
+    broker = create_broker(settings, schema_registry, logger)
+    register_result_processor_subscriber(broker, settings)
+
+    # Create DI container with broker in context
+    container = create_result_processor_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        await container.get(Database)  # triggers init_beanie inside provider
+        logger.info("ResultProcessor infrastructure initialized")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("ResultProcessor shutdown complete")
+
+    async def run() -> None:
+        await app.run()
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
-from aiokafka import AIOKafkaProducer
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
+from faststream.kafka import KafkaBroker
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
+from kubernetes_asyncio.client.rest import ApiException
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
 from app.core.database_context import Database
@@ -29,6 +31,7 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
+from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -46,21 +49,11 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId
-from app.domain.idempotency import KeyStrategy
+from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
-from app.events.core import (
-    ConsumerConfig,
-    EventDispatcher,
-    ProducerMetrics,
-    UnifiedConsumer,
-    UnifiedProducer,
-    create_dlq_error_handler,
-)
+from app.events.core import UnifiedProducer
 from app.events.event_store import EventStore, create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
-from app.infrastructure.kafka.topics import get_all_topics
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
@@ -69,7 +62,6 @@ from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.middleware import IdempotentEventDispatcher
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
@@ -77,7 +69,7 @@ from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.services.pod_monitor.monitor import PodMonitor
+from app.services.pod_monitor.monitor import ErrorType, PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor.processor import ResultProcessor
 from app.services.result_processor.resource_cleaner import ResourceCleaner
@@ -127,13 +119,28 @@ class RedisProvider(Provider):
         try:
             yield client
         finally:
-            await client.close()
+            await client.aclose()
 
     @provide
-    def get_rate_limit_service(
-            self, redis_client: redis.Redis, settings: Settings, rate_limit_metrics: RateLimitMetrics
+    async def get_rate_limit_service(
+            self,
+            redis_client: redis.Redis,
+            settings: Settings,
+            rate_limit_metrics: RateLimitMetrics,
+            logger: logging.Logger,
     ) -> RateLimitService:
-        return RateLimitService(redis_client, settings, rate_limit_metrics)
+        service = RateLimitService(redis_client, settings, rate_limit_metrics)
+        try:
+            config_key = f"{settings.RATE_LIMIT_REDIS_PREFIX}config"
+            existing_config = await redis_client.get(config_key)
+            if not existing_config:
+                logger.info("Initializing default rate limit configuration in Redis")
+                default_config = RateLimitConfig.get_default_config()
+                await service.update_config(default_config)
+                logger.info(f"Initialized {len(default_config.default_rules)} default rate limit rules")
+        except Exception as e:
+            logger.error(f"Failed to initialize rate limits: {e}")
+        return service
 
 
 class DatabaseProvider(Provider):
@@ -145,7 +152,8 @@ class DatabaseProvider(Provider):
             settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
         )
         database = client[settings.DATABASE_NAME]
-        logger.info(f"MongoDB connected: {settings.DATABASE_NAME}")
+        await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+        logger.info(f"MongoDB connected and Beanie initialized: {settings.DATABASE_NAME}")
         try:
             yield database
         finally:
@@ -167,60 +175,18 @@ class CoreServicesProvider(Provider):
 class MessagingProvider(Provider):
     scope = Scope.APP
 
-    @provide
-    async def get_kafka_producer(
-            self, settings: Settings, schema_registry: SchemaRegistryManager, logger: logging.Logger,
-            event_metrics: EventMetrics
-    ) -> AsyncIterator[UnifiedProducer]:
-        aiokafka_producer = AIOKafkaProducer(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            client_id=f"{settings.SERVICE_NAME}-producer",
-            acks="all",
-            compression_type="gzip",
-            max_batch_size=16384,
-            linger_ms=10,
-            enable_idempotence=True,
-        )
-        await aiokafka_producer.start()
-        logger.info(f"Kafka producer started: {settings.KAFKA_BOOTSTRAP_SERVERS}")
-        try:
-            yield UnifiedProducer(
-                aiokafka_producer, schema_registry, logger, settings, event_metrics, ProducerMetrics(),
-            )
-        finally:
-            await aiokafka_producer.stop()
-            logger.info("Kafka producer stopped")
+    broker = from_context(provides=KafkaBroker, scope=Scope.APP)
 
     @provide
-    async def get_dlq_manager(
+    def get_unified_producer(
             self,
-            settings: Settings,
+            broker: KafkaBroker,
             schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
-            dlq_metrics: DLQMetrics,
-            repository: DLQRepository,
-    ) -> AsyncIterator[DLQManager]:
-        producer = AIOKafkaProducer(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            client_id="dlq-manager-producer",
-            acks="all",
-            compression_type="gzip",
-            max_batch_size=16384,
-            linger_ms=10,
-            enable_idempotence=True,
-        )
-        await producer.start()
-        try:
-            yield DLQManager(
-                settings=settings,
-                producer=producer,
-                schema_registry=schema_registry,
-                logger=logger,
-                dlq_metrics=dlq_metrics,
-                repository=repository,
-            )
-        finally:
-            await producer.stop()
+            settings: Settings,
+            event_metrics: EventMetrics,
+    ) -> UnifiedProducer:
+        return UnifiedProducer(broker, schema_registry, logger, settings, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -233,64 +199,98 @@ class MessagingProvider(Provider):
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
 
+class DLQProvider(Provider):
+    """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
+
+    scope = Scope.APP
+
+    @provide
+    def get_dlq_manager(
+            self,
+            broker: KafkaBroker,
+            settings: Settings,
+            schema_registry: SchemaRegistryManager,
+            logger: logging.Logger,
+            dlq_metrics: DLQMetrics,
+            repository: DLQRepository,
+    ) -> DLQManager:
+        return DLQManager(
+            settings=settings,
+            broker=broker,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_metrics=dlq_metrics,
+            repository=repository,
+        )
+
+
+class DLQWorkerProvider(Provider):
+    """Provides DLQManager with APScheduler-managed retry monitoring.
+
+    Used by the DLQ worker container only. DLQManager configures its own
+    retry policies and filters; the provider only handles scheduling.
+    """
+
+    scope = Scope.APP
+
+    @provide
+    async def get_dlq_manager(
+            self,
+            broker: KafkaBroker,
+            settings: Settings,
+            schema_registry: SchemaRegistryManager,
+            logger: logging.Logger,
+            dlq_metrics: DLQMetrics,
+            repository: DLQRepository,
+            database: Database,
+    ) -> AsyncIterator[DLQManager]:
+        manager = DLQManager(
+            settings=settings,
+            broker=broker,
+            schema_registry=schema_registry,
+            logger=logger,
+            dlq_metrics=dlq_metrics,
+            repository=repository,
+        )
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            manager.process_monitoring_cycle,
+            trigger="interval",
+            seconds=10,
+            id="dlq_monitor_retries",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        scheduler.start()
+        logger.info("DLQManager retry monitor started (APScheduler interval=10s)")
+
+        try:
+            yield manager
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("DLQManager retry monitor stopped")
+
+
 class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
+    async def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
+        registry = SchemaRegistryManager(settings, logger)
+        await registry.initialize_schemas()
+        return registry
 
     @provide
-    async def get_event_store(
+    def get_event_store(
             self,
             schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            kafka_producer: UnifiedProducer,
             logger: logging.Logger,
             event_metrics: EventMetrics,
-    ) -> AsyncIterator[EventStore]:
-        event_store = create_event_store(
+    ) -> EventStore:
+        return create_event_store(
             schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
         )
-
-        dispatcher = EventDispatcher(logger=logger)
-        for event_type in EventType:
-            dispatcher.register_handler(event_type, event_store.store_event)
-
-        config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.EVENT_STORE_CONSUMER,
-            enable_auto_commit=False,
-            max_poll_records=100,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-        kafka_consumer = UnifiedConsumer(
-            config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
-        dlq_handler = create_dlq_error_handler(
-            producer=kafka_producer, logger=logger, max_retries=3,
-        )
-        kafka_consumer.register_error_callback(dlq_handler)
-
-        topics = get_all_topics()
-        await kafka_consumer.start(list(topics))
-        logger.info(f"Event store consumer started for topics: {list(topics)}")
-
-        try:
-            yield event_store
-        finally:
-            await kafka_consumer.stop()
-            logger.info("Event store consumer stopped")
-
 
 
 class KubernetesProvider(Provider):
@@ -432,65 +432,14 @@ class RepositoryProvider(Provider):
         return UserRepository()
 
 
-def _build_sse_consumers(
-        bus: SSERedisBus,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        event_metrics: EventMetrics,
-        logger: logging.Logger,
-) -> list[UnifiedConsumer]:
-    """Build SSE Kafka consumer pool (without starting them)."""
-    consumers: list[UnifiedConsumer] = []
-    for i in range(settings.SSE_CONSUMER_POOL_SIZE):
-        config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id="sse-bridge-pool",
-            client_id=f"sse-consumer-{i}",
-            enable_auto_commit=True,
-            auto_offset_reset="latest",
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-        dispatcher = EventDispatcher(logger=logger)
-        for et in SSERedisBus.SSE_ROUTED_EVENTS:
-            dispatcher.register_handler(et, bus.route_domain_event)
-        consumers.append(UnifiedConsumer(
-            config=config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        ))
-    return consumers
-
-
 class SSEProvider(Provider):
     """Provides SSE (Server-Sent Events) related services."""
 
     scope = Scope.APP
 
     @provide
-    async def get_sse_redis_bus(
-            self,
-            redis_client: redis.Redis,
-            schema_registry: SchemaRegistryManager,
-            settings: Settings,
-            event_metrics: EventMetrics,
-            logger: logging.Logger,
-    ) -> AsyncIterator[SSERedisBus]:
-        bus = SSERedisBus(redis_client, logger)
-        consumers = _build_sse_consumers(bus, schema_registry, settings, event_metrics, logger)
-        topics = list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.WEBSOCKET_GATEWAY])
-        await asyncio.gather(*[c.start(topics) for c in consumers])
-        logger.info(f"SSE bus started with {len(consumers)} consumers")
-        try:
-            yield bus
-        finally:
-            await asyncio.gather(*[c.stop() for c in consumers], return_exceptions=True)
-            logger.info("SSE consumers stopped")
+    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> SSERedisBus:
+        return SSERedisBus(redis_client, logger)
 
     @provide(scope=Scope.REQUEST)
     def get_sse_service(
@@ -582,18 +531,16 @@ class AdminServicesProvider(Provider):
         return AdminSettingsService(admin_settings_repository, logger)
 
     @provide
-    async def get_notification_service(
+    def get_notification_service(
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
-            schema_registry: SchemaRegistryManager,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
             logger: logging.Logger,
             notification_metrics: NotificationMetrics,
-            event_metrics: EventMetrics,
-    ) -> AsyncIterator[NotificationService]:
-        service = NotificationService(
+    ) -> NotificationService:
+        return NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
             sse_bus=sse_redis_bus,
@@ -602,48 +549,14 @@ class AdminServicesProvider(Provider):
             notification_metrics=notification_metrics,
         )
 
-        dispatcher = EventDispatcher(logger=logger)
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, service._handle_execution_event)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, service._handle_execution_event)
-        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, service._handle_execution_event)
-
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.NOTIFICATION_SERVICE,
-            max_poll_records=10,
-            enable_auto_commit=False,
-            auto_offset_reset="latest",
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.NOTIFICATION_SERVICE]))
-
-        logger.info("NotificationService started")
-
-        try:
-            yield service
-        finally:
-            await consumer.stop()
-            logger.info("NotificationService stopped")
-
     @provide
     async def get_notification_scheduler(
             self,
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
             logger: logging.Logger,
+            database: Database,  # ensures init_beanie completes before scheduler starts
     ) -> AsyncIterator[NotificationScheduler]:
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
         scheduler_service = NotificationScheduler(
             notification_repository=notification_repository,
@@ -763,149 +676,40 @@ class CoordinatorProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_coordinator_dispatcher(
-        self, logger: logging.Logger, idempotency_manager: IdempotencyManager
-    ) -> EventDispatcher:
-        """Create idempotent EventDispatcher for coordinator."""
-        return IdempotentEventDispatcher(
-            logger=logger,
-            idempotency_manager=idempotency_manager,
-            key_strategy=KeyStrategy.EVENT_BASED,
-            ttl_seconds=7200,
-        )
-
-    @provide
     def get_execution_coordinator(
         self,
         producer: UnifiedProducer,
-        dispatcher: EventDispatcher,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
     ) -> ExecutionCoordinator:
-        """Create ExecutionCoordinator - registers handlers on dispatcher in constructor."""
         return ExecutionCoordinator(
             producer=producer,
-            dispatcher=dispatcher,
             execution_repository=execution_repository,
             logger=logger,
             coordinator_metrics=coordinator_metrics,
         )
-
-    @provide
-    async def get_coordinator_consumer(
-        self,
-        coordinator: ExecutionCoordinator,  # Ensures coordinator created first (handlers registered)
-        dispatcher: EventDispatcher,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-    ) -> AsyncIterator[UnifiedConsumer]:
-        """Create and start consumer for coordinator."""
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.EXECUTION_COORDINATOR,
-            enable_auto_commit=False,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
-        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.EXECUTION_COORDINATOR]))
-        logger.info("Coordinator consumer started")
-
-        try:
-            yield consumer
-        finally:
-            await consumer.stop()
-            logger.info("Coordinator consumer stopped")
 
 
 class K8sWorkerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_k8s_worker_dispatcher(
-        self, logger: logging.Logger, idempotency_manager: IdempotencyManager
-    ) -> EventDispatcher:
-        """Create idempotent EventDispatcher for K8s worker."""
-        return IdempotentEventDispatcher(
-            logger=logger,
-            idempotency_manager=idempotency_manager,
-            key_strategy=KeyStrategy.CONTENT_HASH,
-            ttl_seconds=3600,
-        )
-
-    @provide
     def get_kubernetes_worker(
         self,
         api_client: k8s_client.ApiClient,
         kafka_producer: UnifiedProducer,
-        dispatcher: EventDispatcher,
         settings: Settings,
         logger: logging.Logger,
         event_metrics: EventMetrics,
     ) -> KubernetesWorker:
-        """Create KubernetesWorker - registers handlers on dispatcher in constructor."""
         return KubernetesWorker(
             api_client=api_client,
             producer=kafka_producer,
-            dispatcher=dispatcher,
             settings=settings,
             logger=logger,
             event_metrics=event_metrics,
         )
-
-    @provide
-    async def get_k8s_worker_consumer(
-        self,
-        worker: KubernetesWorker,  # Ensures worker created first (handlers registered)
-        dispatcher: EventDispatcher,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
-        logger: logging.Logger,
-        event_metrics: EventMetrics,
-    ) -> AsyncIterator[UnifiedConsumer]:
-        """Create and start consumer for K8s worker."""
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.K8S_WORKER,
-            enable_auto_commit=False,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
-        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.K8S_WORKER]))
-        logger.info("K8s worker consumer started")
-
-        try:
-            yield consumer
-        finally:
-            await worker.wait_for_active_creations()
-            await consumer.stop()
-            logger.info("K8s worker consumer stopped")
 
 
 class PodMonitorProvider(Provider):
@@ -927,7 +731,9 @@ class PodMonitorProvider(Provider):
         logger: logging.Logger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
+        database: Database,
     ) -> AsyncIterator[PodMonitor]:
+
         config = PodMonitorConfig()
         monitor = PodMonitor(
             config=config,
@@ -937,14 +743,69 @@ class PodMonitorProvider(Provider):
             event_mapper=event_mapper,
             kubernetes_metrics=kubernetes_metrics,
         )
-        await monitor.start()
+
+        async def _watch_cycle() -> None:
+            try:
+                await monitor.watch_pod_events()
+            except ApiException as e:
+                if e.status == 410:
+                    logger.warning("Resource version expired, resetting watch cursor")
+                    monitor._last_resource_version = None
+                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
+                else:
+                    logger.error(f"API error in watch: {e}")
+                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
+                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+            except Exception as e:
+                logger.error(f"Unexpected error in watch: {e}", exc_info=True)
+                kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            _watch_cycle,
+            trigger="interval",
+            seconds=5,
+            id="pod_monitor_watch",
+            max_instances=1,
+            misfire_grace_time=60,
+        )
+        scheduler.start()
+        logger.info("PodMonitor scheduler started (list-then-watch)")
+
         try:
             yield monitor
         finally:
-            await monitor.stop()
+            scheduler.shutdown(wait=False)
 
 
 class SagaOrchestratorProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_saga_orchestrator(
+        self,
+        saga_repository: SagaRepository,
+        kafka_producer: UnifiedProducer,
+        resource_allocation_repository: ResourceAllocationRepository,
+        logger: logging.Logger,
+    ) -> SagaOrchestrator:
+        return SagaOrchestrator(
+            config=_create_default_saga_config(),
+            saga_repository=saga_repository,
+            producer=kafka_producer,
+            resource_allocation_repository=resource_allocation_repository,
+            logger=logger,
+        )
+
+
+class SagaWorkerProvider(Provider):
+    """Provides SagaOrchestrator with APScheduler-managed timeout checking.
+
+    Used by the saga worker container only. The main app container uses
+    SagaOrchestratorProvider (no scheduler needed).
+    """
+
     scope = Scope.APP
 
     @provide
@@ -952,12 +813,11 @@ class SagaOrchestratorProvider(Provider):
         self,
         saga_repository: SagaRepository,
         kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
-        settings: Settings,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
-        event_metrics: EventMetrics,
+        database: Database,
     ) -> AsyncIterator[SagaOrchestrator]:
+
         orchestrator = SagaOrchestrator(
             config=_create_default_saga_config(),
             saga_repository=saga_repository,
@@ -966,114 +826,44 @@ class SagaOrchestratorProvider(Provider):
             logger=logger,
         )
 
-        dispatcher = EventDispatcher(logger=logger)
-        dispatcher.register_handler(EventType.EXECUTION_REQUESTED, orchestrator.handle_execution_requested)
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, orchestrator.handle_execution_completed)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, orchestrator.handle_execution_failed)
-        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, orchestrator.handle_execution_timeout)
-
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.SAGA_ORCHESTRATOR,
-            enable_auto_commit=False,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            orchestrator.check_timeouts,
+            trigger="interval",
+            seconds=30,
+            id="saga_check_timeouts",
+            max_instances=1,
+            misfire_grace_time=60,
         )
-
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
-        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.SAGA_ORCHESTRATOR]))
-
-        async def timeout_loop() -> None:
-            while True:
-                await asyncio.sleep(30)
-                try:
-                    await orchestrator.check_timeouts()
-                except Exception as exc:
-                    logger.error(f"Error checking saga timeouts: {exc}")
-
-        timeout_task = asyncio.create_task(timeout_loop())
-        logger.info("Saga orchestrator consumer and timeout checker started")
+        scheduler.start()
+        logger.info("SagaOrchestrator timeout scheduler started (APScheduler interval=30s)")
 
         try:
             yield orchestrator
         finally:
-            timeout_task.cancel()
-            await consumer.stop()
-            logger.info("Saga orchestrator stopped")
+            scheduler.shutdown(wait=False)
+            logger.info("SagaOrchestrator timeout scheduler stopped")
 
 
 class ResultProcessorProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_result_processor(
+    def get_result_processor(
         self,
         execution_repo: ExecutionRepository,
         kafka_producer: UnifiedProducer,
-        schema_registry: SchemaRegistryManager,
         settings: Settings,
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
-        event_metrics: EventMetrics,
-        idempotency_manager: IdempotencyManager,
-    ) -> AsyncIterator[ResultProcessor]:
-        processor = ResultProcessor(
+    ) -> ResultProcessor:
+        return ResultProcessor(
             execution_repo=execution_repo,
             producer=kafka_producer,
             settings=settings,
             logger=logger,
             execution_metrics=execution_metrics,
         )
-
-        dispatcher = IdempotentEventDispatcher(
-            logger=logger,
-            idempotency_manager=idempotency_manager,
-            key_strategy=KeyStrategy.CONTENT_HASH,
-            ttl_seconds=7200,
-        )
-        dispatcher.register_handler(EventType.EXECUTION_COMPLETED, processor.handle_execution_completed)
-        dispatcher.register_handler(EventType.EXECUTION_FAILED, processor.handle_execution_failed)
-        dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, processor.handle_execution_timeout)
-
-        consumer_config = ConsumerConfig(
-            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-            group_id=GroupId.RESULT_PROCESSOR,
-            max_poll_records=1,
-            enable_auto_commit=False,
-            auto_offset_reset="earliest",
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            max_poll_interval_ms=settings.KAFKA_MAX_POLL_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-
-        consumer = UnifiedConsumer(
-            consumer_config,
-            event_dispatcher=dispatcher,
-            schema_registry=schema_registry,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
-        await consumer.start(list(CONSUMER_GROUP_SUBSCRIPTIONS[GroupId.RESULT_PROCESSOR]))
-        logger.info("ResultProcessor consumer started")
-
-        try:
-            yield processor
-        finally:
-            await consumer.stop()
-            logger.info("ResultProcessor stopped")
 
 
 class EventReplayProvider(Provider):
@@ -1097,3 +887,49 @@ class EventReplayProvider(Provider):
         )
 
 
+class EventReplayWorkerProvider(Provider):
+    """Provides EventReplayService with APScheduler-managed session cleanup.
+
+    Used by the event replay worker container only. The main app container
+    uses EventReplayProvider (no scheduled cleanup needed).
+    """
+
+    scope = Scope.APP
+
+    @provide
+    async def get_event_replay_service(
+            self,
+            replay_repository: ReplayRepository,
+            kafka_producer: UnifiedProducer,
+            event_store: EventStore,
+            replay_metrics: ReplayMetrics,
+            logger: logging.Logger,
+            database: Database,
+    ) -> AsyncIterator[EventReplayService]:
+
+        service = EventReplayService(
+            repository=replay_repository,
+            producer=kafka_producer,
+            event_store=event_store,
+            replay_metrics=replay_metrics,
+            logger=logger,
+        )
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            service.cleanup_old_sessions,
+            trigger="interval",
+            hours=6,
+            kwargs={"older_than_hours": 48},
+            id="replay_cleanup_old_sessions",
+            max_instances=1,
+            misfire_grace_time=300,
+        )
+        scheduler.start()
+        logger.info("EventReplayService cleanup scheduler started (APScheduler interval=6h)")
+
+        try:
+            yield service
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("EventReplayService cleanup scheduler stopped")

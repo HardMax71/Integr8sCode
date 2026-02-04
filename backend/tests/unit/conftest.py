@@ -4,18 +4,6 @@ from typing import NoReturn
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from kubernetes_asyncio.client import (
-    V1ContainerState,
-    V1ContainerStateTerminated,
-    V1ContainerStateWaiting,
-    V1ContainerStatus,
-    V1ObjectMeta,
-    V1Pod,
-    V1PodCondition,
-    V1PodSpec,
-    V1PodStatus,
-)
-
 from app.core.metrics import (
     ConnectionMetrics,
     CoordinatorMetrics,
@@ -31,7 +19,17 @@ from app.core.metrics import (
     SecurityMetrics,
 )
 from app.settings import Settings
-
+from kubernetes_asyncio.client import (
+    V1ContainerState,
+    V1ContainerStateTerminated,
+    V1ContainerStateWaiting,
+    V1ContainerStatus,
+    V1ObjectMeta,
+    V1Pod,
+    V1PodCondition,
+    V1PodSpec,
+    V1PodStatus,
+)
 
 # ===== Kubernetes test factories =====
 
@@ -150,17 +148,20 @@ def make_mock_watch(
     return mock
 
 
-def make_mock_v1_api(logs: str = "{}", pods: list[V1Pod] | None = None) -> MagicMock:
+def make_mock_v1_api(
+    logs: str = "{}", pods: list[V1Pod] | None = None, list_resource_version: str = "list-rv1",
+) -> MagicMock:
     """Create a mock CoreV1Api with configurable responses."""
 
     class PodList:
-        def __init__(self, items: list[V1Pod]) -> None:
+        def __init__(self, items: list[V1Pod], resource_version: str) -> None:
             self.items = items
+            self.metadata = V1ObjectMeta(resource_version=resource_version)
 
     mock = MagicMock()
     mock.read_namespaced_pod_log = AsyncMock(return_value=logs)
     mock.get_api_resources = AsyncMock(return_value=None)
-    mock.list_namespaced_pod = AsyncMock(return_value=PodList(list(pods or [])))
+    mock.list_namespaced_pod = AsyncMock(return_value=PodList(list(pods or []), list_resource_version))
     return mock
 
 

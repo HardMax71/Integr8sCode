@@ -25,16 +25,10 @@ class PodMonitorConfig:
     label_selector: str = "app=integr8s,component=executor"
     field_selector: str | None = None
     watch_timeout_seconds: int = 300  # 5 minutes
-    watch_reconnect_delay: int = 5
-    max_reconnect_attempts: int = 10
 
     # Monitoring settings
     enable_metrics: bool = True
     metrics_port: int = 9091
-
-    # State reconciliation
-    reconcile_interval_seconds: int = 300  # 5 minutes
-    enable_state_reconciliation: bool = True
 
     # Event filtering
     ignored_pod_phases: list[PodPhase] = field(default_factory=list)

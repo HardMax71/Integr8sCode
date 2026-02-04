@@ -288,7 +288,7 @@ class TestExecutionCancel:
         )
 
         assert cancel_response.status_code == 400
-        assert "completed" in cancel_response.json()["detail"].lower()
+        assert "cannot cancel" in cancel_response.json()["detail"].lower()
 
 
 class TestExecutionRetry:

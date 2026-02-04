@@ -1,34 +1,23 @@
-import asyncio
 import logging
 import uuid
 
 import pytest
 from app.core.database_context import Database
-from app.core.metrics import EventMetrics, ExecutionMetrics
+from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import (
     EventMetadata,
     ExecutionCompletedEvent,
     ResourceUsageDomain,
-    ResultStoredEvent,
 )
 from app.domain.execution import DomainExecutionCreate
-from app.domain.idempotency import KeyStrategy
-from app.events.core import UnifiedConsumer, UnifiedProducer
-from app.events.core.dispatcher import EventDispatcher
-from app.events.core.types import ConsumerConfig
-from app.events.schema.schema_registry import SchemaRegistryManager, initialize_event_schemas
-from app.services.idempotency import IdempotencyManager
-from app.services.idempotency.middleware import IdempotentEventDispatcher
+from app.events.core import UnifiedProducer
+from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 from dishka import AsyncContainer
 
-# xdist_group: Kafka consumer creation can crash librdkafka when multiple workers
-# instantiate Consumer() objects simultaneously. Serial execution prevents this.
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.kafka,
@@ -41,18 +30,15 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 
 @pytest.mark.asyncio
 async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
-    # Ensure schemas
+    # Schemas are initialized inside the SchemaRegistryManager DI provider
     registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
     execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
-    await initialize_event_schemas(registry)
 
     # Dependencies
     db: Database = await scope.get(Database)
     repo: ExecutionRepository = await scope.get(ExecutionRepository)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    idem: IdempotencyManager = await scope.get(IdempotencyManager)
 
     # Create a base execution to satisfy ResultProcessor lookup
     created = await repo.create_execution(DomainExecutionCreate(
@@ -64,7 +50,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     ))
     execution_id = created.execution_id
 
-    # Build the processor and wire up dispatcher + consumer
+    # Build the processor
     processor = ResultProcessor(
         execution_repo=repo,
         producer=producer,
@@ -72,58 +58,8 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         logger=_test_logger,
         execution_metrics=execution_metrics,
     )
-    proc_dispatcher = IdempotentEventDispatcher(
-        logger=_test_logger,
-        idempotency_manager=idem,
-        key_strategy=KeyStrategy.CONTENT_HASH,
-        ttl_seconds=7200,
-    )
-    proc_dispatcher.register_handler(EventType.EXECUTION_COMPLETED, processor.handle_execution_completed)
-    proc_dispatcher.register_handler(EventType.EXECUTION_FAILED, processor.handle_execution_failed)
-    proc_dispatcher.register_handler(EventType.EXECUTION_TIMEOUT, processor.handle_execution_timeout)
 
-    proc_consumer_config = ConsumerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"rp-proc.{uuid.uuid4().hex[:6]}",
-        max_poll_records=1,
-        enable_auto_commit=True,
-        auto_offset_reset="earliest",
-    )
-    proc_consumer = UnifiedConsumer(
-        proc_consumer_config,
-        event_dispatcher=proc_dispatcher,
-        schema_registry=registry,
-        settings=settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-
-    # Setup a small consumer to capture ResultStoredEvent
-    dispatcher = EventDispatcher(logger=_test_logger)
-    stored_received = asyncio.Event()
-
-    @dispatcher.register(EventType.RESULT_STORED)
-    async def _stored(event: ResultStoredEvent) -> None:
-        if event.execution_id == execution_id:
-            stored_received.set()
-
-    group_id = f"rp-test.{uuid.uuid4().hex[:6]}"
-    cconf = ConsumerConfig(
-        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=group_id,
-        enable_auto_commit=True,
-        auto_offset_reset="earliest",
-    )
-    stored_consumer = UnifiedConsumer(
-        cconf,
-        dispatcher,
-        schema_registry=registry,
-        settings=settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-
-    # Produce the event BEFORE starting consumers (auto_offset_reset="earliest" will read it)
+    # Build the event
     usage = ResourceUsageDomain(
         execution_time_wall_seconds=0.5,
         cpu_time_jiffies=100,
@@ -138,22 +74,13 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         resource_usage=usage,
         metadata=EventMetadata(service_name="tests", service_version="1.0.0"),
     )
-    await producer.produce(evt, key=execution_id)
 
-    # Start consumers after producing
-    await stored_consumer.start([KafkaTopic.EXECUTION_RESULTS])
-    await proc_consumer.start([KafkaTopic.EXECUTION_EVENTS])
+    # Directly call the handler (subscriber routing tested separately)
+    await processor.handle_execution_completed(evt)
 
-    try:
-        # Await the ResultStoredEvent - signals that processing is complete
-        await asyncio.wait_for(stored_received.wait(), timeout=12.0)
-
-        # Now verify DB persistence - should be done since event was emitted
-        doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
-        assert doc is not None, f"Execution {execution_id} not found in DB after ResultStoredEvent"
-        assert doc.get("status") == ExecutionStatus.COMPLETED, (
-            f"Expected COMPLETED status, got {doc.get('status')}"
-        )
-    finally:
-        await proc_consumer.stop()
-        await stored_consumer.stop()
+    # Verify DB persistence
+    doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
+    assert doc is not None, f"Execution {execution_id} not found in DB after processing"
+    assert doc.get("status") == ExecutionStatus.COMPLETED, (
+        f"Expected COMPLETED status, got {doc.get('status')}"
+    )

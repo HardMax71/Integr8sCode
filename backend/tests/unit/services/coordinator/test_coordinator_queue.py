@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from app.core.metrics import CoordinatorMetrics
@@ -22,7 +22,6 @@ def _make_coordinator(
 ) -> ExecutionCoordinator:
     return ExecutionCoordinator(
         producer=AsyncMock(),
-        dispatcher=MagicMock(),
         execution_repository=AsyncMock(),
         logger=_test_logger,
         coordinator_metrics=coordinator_metrics,

@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaConsumer
+from faststream.kafka import KafkaBroker
 from app.core.metrics import DLQMetrics
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.manager import DLQManager
@@ -63,21 +64,18 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             except Exception as e:
                 _test_logger.debug(f"Error deserializing DLQ event: {e}")
 
-    # Create and start a producer for the manager (lifecycle managed by test)
-    producer = AIOKafkaProducer(
-        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
-        client_id="test-dlq-producer",
-        acks="all",
-        enable_idempotence=True,
+    # Create and start a broker for the manager (lifecycle managed by test)
+    broker = KafkaBroker(
+        test_settings.KAFKA_BOOTSTRAP_SERVERS,
     )
-    await asyncio.gather(producer.start(), events_consumer.start())
+    await asyncio.gather(broker.start(), events_consumer.start())
     consume_task = asyncio.create_task(consume_dlq_events())
 
     try:
         repository = DLQRepository(_test_logger)
         manager = DLQManager(
             settings=test_settings,
-            producer=producer,
+            broker=broker,
             schema_registry=schema_registry,
             logger=_test_logger,
             dlq_metrics=dlq_metrics,
@@ -108,4 +106,4 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             await consume_task
         except asyncio.CancelledError:
             pass
-        await asyncio.gather(events_consumer.stop(), producer.stop())
+        await asyncio.gather(events_consumer.stop(), broker.stop())

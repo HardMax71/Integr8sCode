@@ -42,7 +42,6 @@ from app.core.middlewares import (
 )
 from app.events.broker import create_broker
 from app.events.handlers import (
-    register_event_store_subscriber,
     register_notification_subscriber,
     register_sse_subscriber,
 )
@@ -64,7 +63,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Create Kafka broker and register in-app subscribers
     schema_registry = SchemaRegistryManager(settings, logger)
     broker = create_broker(settings, schema_registry, logger)
-    register_event_store_subscriber(broker, settings)
     register_sse_subscriber(broker, settings)
     register_notification_subscriber(broker, settings)
 

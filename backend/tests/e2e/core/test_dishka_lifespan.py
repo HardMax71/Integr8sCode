@@ -88,12 +88,3 @@ class TestLifespanInitialization:
         bus = await scope.get(SSERedisBus)
         assert bus is not None
 
-    @pytest.mark.asyncio
-    async def test_event_store_available(
-        self, scope: AsyncContainer
-    ) -> None:
-        """Event store is available after lifespan."""
-        from app.events.event_store import EventStore
-
-        event_store = await scope.get(EventStore)
-        assert event_store is not None

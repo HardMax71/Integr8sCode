@@ -8,6 +8,7 @@ from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
 from app.core.tracing.utils import inject_trace_context
+from app.db.repositories.event_repository import EventRepository
 from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
@@ -27,18 +28,21 @@ class UnifiedProducer:
         self,
         broker: KafkaBroker,
         schema_registry_manager: SchemaRegistryManager,
+        event_repository: EventRepository,
         logger: logging.Logger,
         settings: Settings,
         event_metrics: EventMetrics,
     ):
         self._broker = broker
         self._schema_registry = schema_registry_manager
+        self._event_repository = event_repository
         self.logger = logger
         self._event_metrics = event_metrics
         self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
-        """Produce a message to Kafka."""
+        """Persist event to MongoDB, then publish to Kafka."""
+        await self._event_repository.store_event(event_to_produce)
         topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
         try:
             serialized_value = await self._schema_registry.serialize_event(event_to_produce)

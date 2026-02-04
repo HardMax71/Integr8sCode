@@ -6,6 +6,7 @@ from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
+from app.db.repositories.event_repository import EventRepository
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus, QueuePriority
@@ -24,7 +25,6 @@ from app.domain.execution import (
     ResourceLimitsDomain,
 )
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
@@ -49,7 +49,7 @@ class ExecutionService:
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
-        event_store: EventStore,
+        event_repository: EventRepository,
         settings: Settings,
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
@@ -60,14 +60,14 @@ class ExecutionService:
         Args:
             execution_repo: Repository for execution data persistence.
             producer: Kafka producer for publishing events.
-            event_store: Event store for event persistence.
+            event_repository: Repository for event queries.
             settings: Application settings.
             logger: Logger instance.
             execution_metrics: Metrics for tracking execution operations.
         """
         self.execution_repo = execution_repo
         self.producer = producer
-        self.event_store = event_store
+        self.event_repository = event_repository
         self.settings = settings
         self.logger = logger
         self.metrics = execution_metrics
@@ -303,12 +303,8 @@ class ExecutionService:
         Returns:
             List of events for the execution.
         """
-        # Use the correct method name - get_execution_events instead of get_events_by_execution
-        events = await self.event_store.get_execution_events(execution_id=execution_id, event_types=event_types)
-
-        # Apply limit if we got more events than requested
-        if len(events) > limit:
-            events = events[:limit]
+        result = await self.event_repository.get_execution_events(execution_id=execution_id, limit=limit)
+        events = result.events
 
         self.logger.debug(
             f"Retrieved {len(events)} events for execution {execution_id}",

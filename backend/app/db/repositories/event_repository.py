@@ -6,6 +6,7 @@ from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GTE, LT, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
+from pymongo.errors import DuplicateKeyError
 
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
@@ -41,6 +42,7 @@ class EventRepository:
         return {key: value for key, value in {"$gte": start_time, "$lte": end_time}.items() if value is not None}
 
     async def store_event(self, event: DomainEvent) -> str:
+        """Idempotent event store — silently ignores duplicates by event_id."""
         data = event.model_dump(exclude_none=True)
         data.setdefault("stored_at", datetime.now(timezone.utc))
         doc = EventDocument(**data)
@@ -51,7 +53,11 @@ class EventRepository:
                 str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
             }
         )
-        await doc.insert()
+        try:
+            await doc.insert()
+        except DuplicateKeyError:
+            self.logger.debug(f"Event {event.event_id} already stored, skipping")
+            return event.event_id
         self.logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
         return event.event_id
 

@@ -26,10 +26,6 @@ from app.domain.events.typed import (
     ExecutionTimeoutEvent,
 )
 from app.domain.idempotency import KeyStrategy
-from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
-from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
-from app.infrastructure.kafka.topics import get_all_topics
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
@@ -238,28 +234,6 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     async def on_unhandled(body: DomainEvent) -> None:
         pass
 
-
-def register_event_store_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    topics = [f"{settings.KAFKA_TOPIC_PREFIX}{t}" for t in get_all_topics()]
-
-    @broker.subscriber(
-        *topics,
-        group_id="event-store-consumer",
-        ack_policy=AckPolicy.ACK,
-        max_poll_records=100,
-    )
-    async def on_any_event(
-            body: DomainEvent,
-            event_store: FromDishka[EventStore],
-            producer: FromDishka[UnifiedProducer],
-            logger: FromDishka[logging.Logger],
-    ) -> None:
-        try:
-            await event_store.store_event(body)
-        except Exception as err:
-            logger.error(f"Error storing event {body.event_id}: {err}", exc_info=True)
-            topic = str(EVENT_TYPE_TO_TOPIC.get(body.event_type, "unknown"))
-            await producer.send_to_dlq(body, topic, err, 0)
 
 
 def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:

@@ -47,9 +47,12 @@ def main() -> None:
     @app.on_startup
     async def startup() -> None:
         await container.get(Database)  # triggers init_beanie inside provider
+        logger.info("KubernetesWorker ready")
+
+    @app.after_startup
+    async def after_startup() -> None:
         worker = await container.get(KubernetesWorker)
         await worker.ensure_image_pre_puller_daemonset()
-        logger.info("KubernetesWorker ready — all runtime images pre-pulled")
 
     @app.on_shutdown
     async def shutdown() -> None:

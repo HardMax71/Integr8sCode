@@ -32,6 +32,10 @@ runs:
         cp backend/config.test.toml backend/config.toml
         cp backend/secrets.example.toml backend/secrets.toml
 
+    - name: Pre-pull test runtime image into K3s
+      shell: bash
+      run: sudo k3s ctr images pull docker.io/library/python:3.11-slim
+
     - name: Wait for image pull and infra
       shell: bash
       run: |
@@ -70,10 +74,6 @@ runs:
           timeout 60 bash -c 'until curl -ksf https://localhost:5001 2>/dev/null; do sleep 2; done'
           echo "Frontend ready"
         fi
-
-    - name: Wait for runtime images
-      shell: bash
-      run: docker compose logs k8s-worker --follow 2>&1 | grep -qm1 "all runtime images pre-pulled"
 
     - name: Seed test users
       shell: bash

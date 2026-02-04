@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from kubernetes_asyncio import client as k8s_client
-from kubernetes_asyncio import watch as k8s_watch
 from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
@@ -252,10 +251,13 @@ exec "$@"
             self.logger.warning(f"Timeout waiting for pod creations, {len(self._active_creations)} still active")
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
-        """Create/replace the image pre-puller DaemonSet and block until all images are pulled.
+        """Create or replace the image pre-puller DaemonSet (fire-and-forget).
 
-        Uses a K8s watch stream — no polling or timeouts.  Returns only when
-        every node reports Ready (all init-container image pulls finished).
+        The DaemonSet pulls all runtime images onto every node in the background.
+        This method returns immediately after the DaemonSet is applied — it does
+        NOT wait for images to finish pulling.  In CI, the test-critical image
+        (python:3.11-slim) is pre-pulled directly into K3s containerd before the
+        stack starts, so execution pods never hit a cold pull.
         """
         daemonset_name = "runtime-image-pre-puller"
         namespace = self._settings.K8S_NAMESPACE
@@ -310,17 +312,4 @@ exec "$@"
             else:
                 raise
 
-        # Block on a watch stream until every node has pulled all images
-        w = k8s_watch.Watch()
-        async for event in w.stream(
-            self.apps_v1.list_namespaced_daemon_set,
-            namespace=namespace,
-            field_selector=f"metadata.name={daemonset_name}",
-        ):
-            ds = event["object"]
-            desired = ds.status.desired_number_scheduled or 0
-            ready = ds.status.number_ready or 0
-            self.logger.info(f"DaemonSet '{daemonset_name}': {ready}/{desired} pods ready")
-            if desired > 0 and ready >= desired:
-                await w.close()
-                return
+        self.logger.info(f"DaemonSet '{daemonset_name}' applied — images will pull in background")

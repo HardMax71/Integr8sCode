@@ -91,11 +91,6 @@ class Settings(BaseModel):
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
     SCHEMA_REGISTRY_URL: str = "http://schema-registry:8081"
-    SCHEMA_REGISTRY_AUTH: str = Field(
-        default="",
-        pattern=r"^($|[^:]+:.+)$",
-        description="Schema registry auth in 'username:password' format, or empty for no auth",
-    )
     ENABLE_EVENT_STREAMING: bool = False
     EVENT_RETENTION_DAYS: int = 30
     KAFKA_TOPIC_PREFIX: str = "pref"

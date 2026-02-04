@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import aiofiles
 from opentelemetry.trace import SpanKind
+from pydantic import ValidationError
 
 from app.core.metrics import ReplayMetrics
 from app.core.tracing.utils import trace_span
@@ -225,10 +226,18 @@ class EventReplayService:
                 if max_events and events_processed >= max_events:
                     break
 
-                event = DomainEventAdapter.validate_python(doc)
-                if event:
-                    batch.append(event)
-                    events_processed += 1
+                try:
+                    event = DomainEventAdapter.validate_python(doc)
+                except ValidationError as e:
+                    session.failed_events += 1
+                    self.logger.warning(
+                        "Skipping event that failed validation",
+                        extra={"event_id": doc.get("event_id", "unknown"), "error": str(e)},
+                    )
+                    continue
+
+                batch.append(event)
+                events_processed += 1
 
             if batch:
                 yield batch

@@ -119,7 +119,7 @@ class RedisProvider(Provider):
         try:
             yield client
         finally:
-            await client.close()
+            await client.aclose()
 
     @provide
     async def get_rate_limit_service(

@@ -77,5 +77,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
-        await broker.close()
+        await broker.stop()
         logger.info("Kafka broker stopped")

@@ -106,4 +106,4 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             await consume_task
         except asyncio.CancelledError:
             pass
-        await asyncio.gather(events_consumer.stop(), broker.close())
+        await asyncio.gather(events_consumer.stop(), broker.stop())

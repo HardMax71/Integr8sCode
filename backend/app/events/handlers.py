@@ -76,7 +76,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
     sub = broker.subscriber(
         *_topics(settings, GroupId.EXECUTION_COORDINATOR),
         group_id=GroupId.EXECUTION_COORDINATOR,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
     )
 
     @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_REQUESTED)
@@ -132,7 +132,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
     sub = broker.subscriber(
         *_topics(settings, GroupId.K8S_WORKER),
         group_id=GroupId.K8S_WORKER,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
     )
 
     @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.CREATE_POD_COMMAND)
@@ -162,7 +162,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
     sub = broker.subscriber(
         *_topics(settings, GroupId.RESULT_PROCESSOR),
         group_id=GroupId.RESULT_PROCESSOR,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
         max_poll_records=1,
         auto_offset_reset="earliest",
     )
@@ -203,7 +203,7 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     sub = broker.subscriber(
         *_topics(settings, GroupId.SAGA_ORCHESTRATOR),
         group_id=GroupId.SAGA_ORCHESTRATOR,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
     )
 
     @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_REQUESTED)
@@ -245,7 +245,7 @@ def register_event_store_subscriber(broker: KafkaBroker, settings: Settings) -> 
     @broker.subscriber(
         *topics,
         group_id="event-store-consumer",
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
         max_poll_records=100,
     )
     async def on_any_event(
@@ -282,7 +282,7 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
     sub = broker.subscriber(
         *_topics(settings, GroupId.NOTIFICATION_SERVICE),
         group_id=GroupId.NOTIFICATION_SERVICE,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
         max_poll_records=10,
         auto_offset_reset="latest",
     )
@@ -327,7 +327,7 @@ def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     @broker.subscriber(
         topic_name,
         group_id=GroupId.DLQ_MANAGER,
-        ack_policy=AckPolicy.REJECT_ON_ERROR,
+        ack_policy=AckPolicy.ACK,
         auto_offset_reset="earliest",
         decoder=dlq_json_decoder,
     )

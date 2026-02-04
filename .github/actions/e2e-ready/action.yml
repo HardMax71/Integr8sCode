@@ -73,7 +73,7 @@ runs:
 
     - name: Wait for runtime images
       shell: bash
-      run: kubectl -n integr8scode rollout status daemonset/runtime-image-pre-puller
+      run: docker compose logs k8s-worker --follow 2>&1 | grep -qm1 "all runtime images pre-pulled"
 
     - name: Seed test users
       shell: bash

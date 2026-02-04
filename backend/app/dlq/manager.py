@@ -1,7 +1,6 @@
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Callable
 
 from faststream.kafka import KafkaBroker
 
@@ -122,18 +121,6 @@ class DLQManager:
         await self.process_due_retries()
         await self.update_queue_metrics()
 
-    def parse_kafka_message(self, msg: Any) -> DLQMessage:
-        """Parse a raw Kafka ConsumerRecord into a DLQMessage."""
-        data = json.loads(msg.value)
-        headers = {k: v.decode() for k, v in (msg.headers or [])}
-        return DLQMessage(**data, dlq_offset=msg.offset, dlq_partition=msg.partition, headers=headers)
-
-    def parse_dlq_body(
-        self, data: dict[str, Any], offset: int, partition: int, headers: dict[str, str]
-    ) -> DLQMessage:
-        """Parse a deserialized DLQ message body into a DLQMessage."""
-        return DLQMessage(**data, dlq_offset=offset, dlq_partition=partition, headers=headers)
-
     async def handle_message(self, message: DLQMessage) -> None:
         """Process a single DLQ message: filter → store → decide retry/discard."""
         for filter_func in self._filters:
@@ -166,14 +153,14 @@ class DLQManager:
         retry_topic = f"{message.original_topic}{self.retry_topic_suffix}"
 
         hdrs: dict[str, str] = {
+            "event_type": message.event.event_type,
             "dlq_retry_count": str(message.retry_count + 1),
             "dlq_original_error": message.error,
             "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         hdrs = inject_trace_context(hdrs)
 
-        event = message.event
-        serialized = json.dumps(event.model_dump(mode="json")).encode()
+        serialized = await self.schema_registry.serialize_event(message.event)
 
         await self._broker.publish(
             message=serialized,

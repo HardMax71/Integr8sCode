@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
@@ -13,6 +12,7 @@ from opentelemetry.trace import SpanKind
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.dlq.manager import DLQManager
+from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
 from app.domain.events.typed import (
@@ -290,23 +290,19 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
 def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     """Register a DLQ subscriber that consumes dead-letter messages.
 
-    DLQ messages are plain JSON (not Avro), so a custom decoder is used
-    to bypass the broker-level Avro decoder.
+    DLQ messages are Avro-encoded DomainEvents (same as every other topic).
+    DLQ metadata (original_topic, error, retry_count, etc.) lives in Kafka headers.
     """
     topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DEAD_LETTER_QUEUE}"
-
-    async def dlq_json_decoder(msg: StreamMessage[Any]) -> dict[str, Any]:
-        return json.loads(msg.body)  # type: ignore[no-any-return]
 
     @broker.subscriber(
         topic_name,
         group_id=GroupId.DLQ_MANAGER,
         ack_policy=AckPolicy.ACK,
         auto_offset_reset="earliest",
-        decoder=dlq_json_decoder,
     )
     async def on_dlq_message(
-            body: dict[str, Any],
+            body: DomainEvent,
             msg: StreamMessage[Any],
             manager: FromDishka[DLQManager],
             logger: FromDishka[logging.Logger],
@@ -314,22 +310,34 @@ def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         start = asyncio.get_running_loop().time()
         raw = msg.raw_message
         headers = {k: v.decode() for k, v in (raw.headers or [])}
-        dlq_msg = manager.parse_dlq_body(body, raw.offset, raw.partition, headers)
 
-        ctx = extract_trace_context(dlq_msg.headers)
+        dlq_msg = DLQMessage(
+            event=body,
+            original_topic=headers.get("original_topic", ""),
+            error=headers.get("error", "Unknown error"),
+            retry_count=int(headers.get("retry_count", "0")),
+            failed_at=datetime.fromisoformat(headers["failed_at"]),
+            status=DLQMessageStatus(headers.get("status", "pending")),
+            producer_id=headers.get("producer_id", "unknown"),
+            dlq_offset=raw.offset,
+            dlq_partition=raw.partition,
+            headers=headers,
+        )
+
+        ctx = extract_trace_context(headers)
         with get_tracer().start_as_current_span(
             name="dlq.consume",
             context=ctx,
             kind=SpanKind.CONSUMER,
             attributes={
                 EventAttributes.KAFKA_TOPIC: str(manager.dlq_topic),
-                EventAttributes.EVENT_TYPE: dlq_msg.event.event_type,
-                EventAttributes.EVENT_ID: dlq_msg.event.event_id,
+                EventAttributes.EVENT_TYPE: body.event_type,
+                EventAttributes.EVENT_ID: body.event_id,
             },
         ):
             await manager.handle_message(dlq_msg)
 
-        manager.metrics.record_dlq_message_received(dlq_msg.original_topic, dlq_msg.event.event_type)
+        manager.metrics.record_dlq_message_received(dlq_msg.original_topic, body.event_type)
         manager.metrics.record_dlq_message_age(
             (datetime.now(timezone.utc) - dlq_msg.failed_at).total_seconds()
         )

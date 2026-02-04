@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio import watch as k8s_watch
 from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
@@ -251,63 +252,75 @@ exec "$@"
             self.logger.warning(f"Timeout waiting for pod creations, {len(self._active_creations)} still active")
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
-        """Ensure the runtime image pre-puller DaemonSet exists."""
+        """Create/replace the image pre-puller DaemonSet and block until all images are pulled.
+
+        Uses a K8s watch stream — no polling or timeouts.  Returns only when
+        every node reports Ready (all init-container image pulls finished).
+        """
         daemonset_name = "runtime-image-pre-puller"
         namespace = self._settings.K8S_NAMESPACE
 
-        try:
-            init_containers = []
-            all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
+        init_containers = []
+        all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
 
-            for i, image_ref in enumerate(sorted(list(all_images))):
-                sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
-                self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
-                container_name = f"pull-{i}-{sanitized_image_ref}"
-                init_containers.append(
-                    {
-                        "name": container_name,
-                        "image": image_ref,
-                        "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
-                        "imagePullPolicy": "Always",
-                    }
-                )
+        for i, image_ref in enumerate(sorted(list(all_images))):
+            sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
+            container_name = f"pull-{i}-{sanitized_image_ref}"
+            init_containers.append(
+                {
+                    "name": container_name,
+                    "image": image_ref,
+                    "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                    "imagePullPolicy": "Always",
+                }
+            )
 
-            manifest: dict[str, Any] = {
-                "apiVersion": "apps/v1",
-                "kind": "DaemonSet",
-                "metadata": {"name": daemonset_name, "namespace": namespace},
-                "spec": {
-                    "selector": {"matchLabels": {"name": daemonset_name}},
-                    "template": {
-                        "metadata": {"labels": {"name": daemonset_name}},
-                        "spec": {
-                            "initContainers": init_containers,
-                            "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.9"}],
-                            "tolerations": [{"operator": "Exists"}],
-                        },
+        self.logger.info(f"Pre-pulling {len(all_images)} runtime images via DaemonSet")
+
+        manifest: dict[str, Any] = {
+            "apiVersion": "apps/v1",
+            "kind": "DaemonSet",
+            "metadata": {"name": daemonset_name, "namespace": namespace},
+            "spec": {
+                "selector": {"matchLabels": {"name": daemonset_name}},
+                "template": {
+                    "metadata": {"labels": {"name": daemonset_name}},
+                    "spec": {
+                        "initContainers": init_containers,
+                        "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.9"}],
+                        "tolerations": [{"operator": "Exists"}],
                     },
-                    "updateStrategy": {"type": "RollingUpdate"},
                 },
-            }
+                "updateStrategy": {"type": "RollingUpdate"},
+            },
+        }
 
-            try:
-                await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
-                self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
-                await self.apps_v1.replace_namespaced_daemon_set(
-                    name=daemonset_name, namespace=namespace, body=manifest  # type: ignore[arg-type]
-                )
-                self.logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
-            except ApiException as e:
-                if e.status == 404:
-                    self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
-                    await self.apps_v1.create_namespaced_daemon_set(
-                        namespace=namespace, body=manifest  # type: ignore[arg-type]
-                    )
-                    self.logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
-                else:
-                    raise
-
+        try:
+            await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
+            self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
+            await self.apps_v1.replace_namespaced_daemon_set(
+                name=daemonset_name, namespace=namespace, body=manifest  # type: ignore[arg-type]
+            )
         except ApiException as e:
-            self.logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
-        except Exception as e:
-            self.logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
+            if e.status == 404:
+                self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
+                await self.apps_v1.create_namespaced_daemon_set(
+                    namespace=namespace, body=manifest  # type: ignore[arg-type]
+                )
+            else:
+                raise
+
+        # Block on a watch stream until every node has pulled all images
+        w = k8s_watch.Watch()
+        async for event in w.stream(
+            self.apps_v1.list_namespaced_daemon_set,
+            namespace=namespace,
+            field_selector=f"metadata.name={daemonset_name}",
+        ):
+            ds = event["object"]
+            desired = ds.status.desired_number_scheduled or 0
+            ready = ds.status.number_ready or 0
+            self.logger.info(f"DaemonSet '{daemonset_name}': {ready}/{desired} pods ready")
+            if desired > 0 and ready >= desired:
+                await w.close()
+                return

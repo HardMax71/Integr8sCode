@@ -71,6 +71,10 @@ runs:
           echo "Frontend ready"
         fi
 
+    - name: Wait for runtime images
+      shell: bash
+      run: kubectl -n integr8scode rollout status daemonset/runtime-image-pre-puller
+
     - name: Seed test users
       shell: bash
       run: docker compose exec -T backend uv run python scripts/seed_users.py

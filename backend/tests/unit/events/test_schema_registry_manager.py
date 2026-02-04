@@ -1,16 +1,11 @@
-import logging
-
 import pytest
+from pydantic import ValidationError
+
 from app.domain.enums.execution import QueuePriority
-from app.domain.events.typed import ExecutionRequestedEvent
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import Settings
-
-_test_logger = logging.getLogger("test.events.schema_registry_manager")
+from app.domain.events.typed import DomainEventAdapter, ExecutionRequestedEvent
 
 
-def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
-    m = SchemaRegistryManager(test_settings, logger=_test_logger)
+def test_domain_event_adapter_execution_requested() -> None:
     data = {
         "event_type": "execution_requested",
         "execution_id": "e1",
@@ -28,13 +23,12 @@ def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
         "priority": QueuePriority.NORMAL,
         "metadata": {"service_name": "t", "service_version": "1.0"},
     }
-    ev = m.deserialize_json(data)
+    ev = DomainEventAdapter.validate_python(data)
     assert isinstance(ev, ExecutionRequestedEvent)
     assert ev.execution_id == "e1"
     assert ev.language == "python"
 
 
-def test_deserialize_json_missing_type_raises(test_settings: Settings) -> None:
-    m = SchemaRegistryManager(test_settings, logger=_test_logger)
-    with pytest.raises(ValueError):
-        m.deserialize_json({})
+def test_domain_event_adapter_missing_type_raises() -> None:
+    with pytest.raises(ValidationError):
+        DomainEventAdapter.validate_python({})

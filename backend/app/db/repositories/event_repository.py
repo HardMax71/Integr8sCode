@@ -14,13 +14,13 @@ from app.domain.enums.events import EventType
 from app.domain.events import (
     ArchivedEvent,
     DomainEvent,
+    DomainEventAdapter,
     EventAggregationResult,
     EventListResult,
     EventReplayInfo,
     EventStatistics,
     EventTypeCount,
     ServiceEventCount,
-    domain_event_adapter,
 )
 
 
@@ -73,7 +73,7 @@ class EventRepository:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
-        return domain_event_adapter.validate_python(doc, from_attributes=True)
+        return DomainEventAdapter.validate_python(doc, from_attributes=True)
 
     async def get_events_by_type(
             self,
@@ -94,7 +94,7 @@ class EventRepository:
             .limit(limit)
             .to_list()
         )
-        return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_events_by_aggregate(
             self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
@@ -105,7 +105,7 @@ class EventRepository:
         docs = (
             await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
         )
-        return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_events_by_correlation(
         self, correlation_id: str, limit: int = 100, skip: int = 0, user_id: str | None = None,
@@ -119,7 +119,7 @@ class EventRepository:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
         total_count = await EventDocument.find(condition).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -152,7 +152,7 @@ class EventRepository:
             .limit(limit)
             .to_list()
         )
-        return [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_execution_events(
             self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
@@ -172,7 +172,7 @@ class EventRepository:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -307,7 +307,7 @@ class EventRepository:
             .sort([("timestamp", sort_direction)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -334,7 +334,7 @@ class EventRepository:
             .sort([(sort_field, SortDirection.DESCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
         total_count = await EventDocument.find(query).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -398,7 +398,7 @@ class EventRepository:
         )
 
         async for doc in EventDocument.aggregate(pipeline.export()):
-            events = [domain_event_adapter.validate_python(e) for e in doc["events"]]
+            events = [DomainEventAdapter.validate_python(e) for e in doc["events"]]
             return EventReplayInfo(
                 events=events,
                 event_count=doc["event_count"],

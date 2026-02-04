@@ -12,21 +12,18 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventDocument
 from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.domain.events.typed import DomainEvent, DomainEventAdapter
 
 
 class EventStore:
     def __init__(
         self,
-        schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
         event_metrics: EventMetrics,
         ttl_days: int = 90,
         batch_size: int = 100,
     ):
         self.metrics = event_metrics
-        self.schema_registry = schema_registry
         self.logger = logger
         self.ttl_days = ttl_days
         self.batch_size = batch_size
@@ -115,7 +112,7 @@ class EventStore:
         if not doc:
             return None
 
-        event = self.schema_registry.deserialize_json(doc.model_dump())
+        event = DomainEventAdapter.validate_python(doc.model_dump())
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_id", "event_store")
@@ -141,7 +138,7 @@ class EventStore:
             .limit(limit)
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
+        events = [DomainEventAdapter.validate_python(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_by_type", "event_store")
@@ -158,7 +155,7 @@ class EventStore:
             query["event_type"] = {"$in": event_types}
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).to_list()
-        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
+        events = [DomainEventAdapter.validate_python(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_execution_events", "event_store")
@@ -180,7 +177,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
+        events = [DomainEventAdapter.validate_python(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_user_events", "event_store")
@@ -201,7 +198,7 @@ class EventStore:
             query["timestamp"] = tr
 
         docs = await EventDocument.find(query).sort([("timestamp", SortDirection.DESCENDING)]).limit(limit).to_list()
-        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
+        events = [DomainEventAdapter.validate_python(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_security_events", "event_store")
@@ -214,7 +211,7 @@ class EventStore:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .to_list()
         )
-        events = [self.schema_registry.deserialize_json(doc.model_dump()) for doc in docs]
+        events = [DomainEventAdapter.validate_python(doc.model_dump()) for doc in docs]
 
         duration = asyncio.get_running_loop().time() - start
         self.metrics.record_event_query_duration(duration, "get_correlation_chain", "event_store")
@@ -238,7 +235,7 @@ class EventStore:
                 query["event_type"] = {"$in": event_types}
 
             async for doc in EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]):
-                event = self.schema_registry.deserialize_json(doc.model_dump())
+                event = DomainEventAdapter.validate_python(doc.model_dump())
                 if callback:
                     await callback(event)
                 count += 1
@@ -316,14 +313,12 @@ class EventStore:
 
 
 def create_event_store(
-    schema_registry: SchemaRegistryManager,
     logger: logging.Logger,
     event_metrics: EventMetrics,
     ttl_days: int = 90,
     batch_size: int = 100,
 ) -> EventStore:
     return EventStore(
-        schema_registry=schema_registry,
         logger=logger,
         event_metrics=event_metrics,
         ttl_days=ttl_days,

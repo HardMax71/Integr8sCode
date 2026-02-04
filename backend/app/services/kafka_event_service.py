@@ -10,7 +10,7 @@ from app.core.correlation import CorrelationContext
 from app.core.metrics import EventMetrics
 from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
-from app.domain.events import domain_event_adapter
+from app.domain.events import DomainEventAdapter
 from app.domain.events.typed import DomainEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.settings import Settings
@@ -85,7 +85,7 @@ class KafkaEventService:
                 "metadata": event_metadata,
                 **payload,
             }
-            domain_event = domain_event_adapter.validate_python(event_data)
+            domain_event = DomainEventAdapter.validate_python(event_data)
             await self.event_repository.store_event(domain_event)
 
             # Publish to Kafka (headers built automatically by producer)

@@ -29,6 +29,7 @@ from app.domain.events.typed import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     DomainEvent,
+    DomainEventAdapter,
     EventMetadata,
     # Execution Events
     ExecutionAcceptedEvent,
@@ -90,7 +91,6 @@ from app.domain.events.typed import (
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
     UserUpdatedEvent,
-    domain_event_adapter,
 )
 
 __all__ = [
@@ -119,7 +119,7 @@ __all__ = [
     "DomainEvent",
     "EventMetadata",
     "ResourceUsageDomain",
-    "domain_event_adapter",
+    "DomainEventAdapter",
     # Execution Events
     "ExecutionRequestedEvent",
     "ExecutionAcceptedEvent",

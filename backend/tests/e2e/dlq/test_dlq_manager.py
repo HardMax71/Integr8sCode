@@ -12,7 +12,7 @@ from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.domain.events.typed import DLQMessageReceivedEvent
+from app.domain.events.typed import DLQMessageReceivedEvent, DomainEventAdapter
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -53,7 +53,10 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         """Consume DLQ events and set future when our event is received."""
         async for msg in events_consumer:
             try:
-                event = await schema_registry.deserialize_event(msg.value, dlq_events_topic)
+                payload = await schema_registry.serializer.decode_message(msg.value)
+                if payload is None:
+                    continue
+                event = DomainEventAdapter.validate_python(payload)
                 if (
                     isinstance(event, DLQMessageReceivedEvent)
                     and event.dlq_event_id == ev.event_id

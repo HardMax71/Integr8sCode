@@ -276,20 +276,17 @@ class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        registry = SchemaRegistryManager(settings, logger)
-        await registry.initialize_schemas()
-        return registry
+    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
+        return SchemaRegistryManager(settings, logger)
 
     @provide
     def get_event_store(
             self,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             event_metrics: EventMetrics,
     ) -> EventStore:
         return create_event_store(
-            schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
+            logger=logger, event_metrics=event_metrics, ttl_days=90
         )
 
 
@@ -874,14 +871,12 @@ class EventReplayProvider(Provider):
             self,
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
-            event_store: EventStore,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
-            event_store=event_store,
             replay_metrics=replay_metrics,
             logger=logger,
         )
@@ -901,7 +896,6 @@ class EventReplayWorkerProvider(Provider):
             self,
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
-            event_store: EventStore,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
             database: Database,
@@ -910,7 +904,6 @@ class EventReplayWorkerProvider(Provider):
         service = EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
-            event_store=event_store,
             replay_metrics=replay_metrics,
             logger=logger,
         )

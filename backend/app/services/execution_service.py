@@ -303,7 +303,9 @@ class ExecutionService:
         Returns:
             List of events for the execution.
         """
-        result = await self.event_repository.get_execution_events(execution_id=execution_id, limit=limit)
+        result = await self.event_repository.get_execution_events(
+            execution_id=execution_id, event_types=event_types, limit=limit,
+        )
         events = result.events
 
         self.logger.debug(

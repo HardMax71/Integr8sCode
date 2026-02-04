@@ -81,7 +81,7 @@ class UnifiedProducer:
             producer_id = f"{socket.gethostname()}-{task_name}"
 
             serialized_value = await self._schema_registry.serialize_event(original_event)
-            dlq_topic = f"{self._topic_prefix}{str(KafkaTopic.DEAD_LETTER_QUEUE)}"
+            dlq_topic = f"{self._topic_prefix}{KafkaTopic.DEAD_LETTER_QUEUE}"
 
             headers = inject_trace_context({
                 "event_type": original_event.event_type,
@@ -90,7 +90,7 @@ class UnifiedProducer:
                 "error": str(error),
                 "retry_count": str(retry_count),
                 "failed_at": datetime.now(timezone.utc).isoformat(),
-                "status": str(DLQMessageStatus.PENDING),
+                "status": DLQMessageStatus.PENDING,
                 "producer_id": producer_id,
             })
 

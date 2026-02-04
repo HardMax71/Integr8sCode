@@ -161,13 +161,19 @@ class EventRepository:
         return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
 
     async def get_execution_events(
-            self, execution_id: str, limit: int = 100, skip: int = 0, exclude_system_events: bool = False
+            self,
+            execution_id: str,
+            limit: int = 100,
+            skip: int = 0,
+            exclude_system_events: bool = False,
+            event_types: list[EventType] | None = None,
     ) -> EventListResult:
         conditions: list[Any] = [
             Or(
                 EventDocument.execution_id == execution_id,
                 EventDocument.aggregate_id == execution_id,
             ),
+            In(EventDocument.event_type, event_types) if event_types else None,
             Not(RegEx(EventDocument.metadata.service_name, "^system-")) if exclude_system_events else None,
         ]
         conditions = [c for c in conditions if c is not None]

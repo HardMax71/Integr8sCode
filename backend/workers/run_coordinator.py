@@ -53,7 +53,10 @@ def main() -> None:
         await container.close()
         logger.info("ExecutionCoordinator shutdown complete")
 
-    asyncio.run(app.run())
+    async def run() -> None:
+        await app.run()
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

@@ -79,7 +79,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
         ack_policy=AckPolicy.ACK,
     )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_REQUESTED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_REQUESTED)
     async def on_execution_requested(
             body: ExecutionRequestedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
@@ -90,7 +90,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body, coordinator.handle_execution_requested, idem, KeyStrategy.EVENT_BASED, 7200, logger,
         )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_COMPLETED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_COMPLETED)
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
@@ -101,7 +101,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body, coordinator.handle_execution_completed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
         )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_FAILED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_FAILED)
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
@@ -112,7 +112,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body, coordinator.handle_execution_failed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
         )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_CANCELLED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_CANCELLED)
     async def on_execution_cancelled(
             body: ExecutionCancelledEvent,
             coordinator: FromDishka[ExecutionCoordinator],
@@ -135,7 +135,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
         ack_policy=AckPolicy.ACK,
     )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.CREATE_POD_COMMAND)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.CREATE_POD_COMMAND)
     async def on_create_pod(
             body: CreatePodCommandEvent,
             worker: FromDishka[KubernetesWorker],
@@ -144,7 +144,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
     ) -> None:
         await with_idempotency(body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.DELETE_POD_COMMAND)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.DELETE_POD_COMMAND)
     async def on_delete_pod(
             body: DeletePodCommandEvent,
             worker: FromDishka[KubernetesWorker],
@@ -167,7 +167,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
         auto_offset_reset="earliest",
     )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_COMPLETED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_COMPLETED)
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             processor: FromDishka[ResultProcessor],
@@ -176,7 +176,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
     ) -> None:
         await with_idempotency(body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_FAILED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_FAILED)
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             processor: FromDishka[ResultProcessor],
@@ -185,7 +185,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
     ) -> None:
         await with_idempotency(body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_TIMEOUT)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_TIMEOUT)
     async def on_execution_timeout(
             body: ExecutionTimeoutEvent,
             processor: FromDishka[ResultProcessor],
@@ -206,28 +206,28 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         ack_policy=AckPolicy.ACK,
     )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_REQUESTED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_REQUESTED)
     async def on_execution_requested(
             body: ExecutionRequestedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
     ) -> None:
         await orchestrator.handle_execution_requested(body)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_COMPLETED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_COMPLETED)
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
     ) -> None:
         await orchestrator.handle_execution_completed(body)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_FAILED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_FAILED)
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
     ) -> None:
         await orchestrator.handle_execution_failed(body)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_TIMEOUT)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_TIMEOUT)
     async def on_execution_timeout(
             body: ExecutionTimeoutEvent,
             orchestrator: FromDishka[SagaOrchestrator],
@@ -287,21 +287,21 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
         auto_offset_reset="latest",
     )
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_COMPLETED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_COMPLETED)
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             service: FromDishka[NotificationService],
     ) -> None:
         await service.handle_execution_completed(body)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_FAILED)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_FAILED)
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             service: FromDishka[NotificationService],
     ) -> None:
         await service.handle_execution_failed(body)
 
-    @sub(filter=lambda msg: msg.headers.get("event_type", "") == EventType.EXECUTION_TIMEOUT)
+    @sub(filter=lambda msg: msg.headers["event_type"] == EventType.EXECUTION_TIMEOUT)
     async def on_execution_timeout(
             body: ExecutionTimeoutEvent,
             service: FromDishka[NotificationService],

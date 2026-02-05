@@ -31,29 +31,31 @@ def main() -> None:
         )
         logger.info("Tracing initialized for Saga Orchestrator Service")
 
-    # Create Kafka broker and register subscriber
-    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
-    register_saga_subscriber(broker, settings)
-
-    # Create DI container with broker in context
-    container = create_saga_orchestrator_container(settings, broker)
-    setup_dishka(container, broker=broker, auto_inject=True)
-
-    app = FastStream(broker)
-
-    @app.on_startup
-    async def startup() -> None:
-        # Resolving SagaOrchestrator triggers Database init (via dependency)
-        # and starts the APScheduler timeout checker (via SagaWorkerProvider)
-        await container.get(SagaOrchestrator)
-        logger.info("SagaOrchestrator infrastructure initialized")
-
-    @app.on_shutdown
-    async def shutdown() -> None:
-        await container.close()
-        logger.info("SagaOrchestrator shutdown complete")
+    # Create DI container (broker is created by BrokerProvider)
+    container = create_saga_orchestrator_container(settings)
 
     async def run() -> None:
+        # Get broker from DI
+        broker: KafkaBroker = await container.get(KafkaBroker)
+
+        # Register subscriber and set up DI integration
+        register_saga_subscriber(broker, settings)
+        setup_dishka(container, broker=broker, auto_inject=True)
+
+        app = FastStream(broker)
+
+        @app.on_startup
+        async def startup() -> None:
+            # Resolving SagaOrchestrator triggers Database init (via dependency)
+            # and starts the APScheduler timeout checker (via SagaWorkerProvider)
+            await container.get(SagaOrchestrator)
+            logger.info("SagaOrchestrator infrastructure initialized")
+
+        @app.on_shutdown
+        async def shutdown() -> None:
+            await container.close()
+            logger.info("SagaOrchestrator shutdown complete")
+
         await app.run()
 
     asyncio.run(run())

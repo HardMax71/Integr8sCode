@@ -49,6 +49,7 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
+from app.dlq.models import RetryPolicy, RetryStrategy
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
@@ -199,6 +200,53 @@ class MessagingProvider(Provider):
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
 
+def _default_retry_policy() -> RetryPolicy:
+    """Default retry policy for DLQ messages."""
+    return RetryPolicy(
+        topic="default",
+        strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+        max_retries=4,
+        base_delay_seconds=60,
+        max_delay_seconds=1800,
+        retry_multiplier=2.5,
+    )
+
+
+def _default_retry_policies() -> dict[str, RetryPolicy]:
+    """Topic-specific retry policies for DLQ."""
+    return {
+        "execution_requested": RetryPolicy(
+            topic="execution_requested",
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=5,
+            base_delay_seconds=30,
+            max_delay_seconds=300,
+            retry_multiplier=2.0,
+        ),
+        "pod_created": RetryPolicy(
+            topic="pod_created",
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=3,
+            base_delay_seconds=60,
+            max_delay_seconds=600,
+            retry_multiplier=3.0,
+        ),
+        "execution_completed": RetryPolicy(
+            topic="execution_completed",
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=5,
+            base_delay_seconds=30,
+            max_delay_seconds=300,
+            retry_multiplier=2.0,
+        ),
+        "execution_failed": RetryPolicy(
+            topic="execution_failed",
+            strategy=RetryStrategy.IMMEDIATE,
+            max_retries=3,
+        ),
+    }
+
+
 class DLQProvider(Provider):
     """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
 
@@ -209,7 +257,6 @@ class DLQProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -217,18 +264,18 @@ class DLQProvider(Provider):
         return DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
+            default_retry_policy=_default_retry_policy(),
+            retry_policies=_default_retry_policies(),
         )
 
 
 class DLQWorkerProvider(Provider):
     """Provides DLQManager with APScheduler-managed retry monitoring.
 
-    Used by the DLQ worker container only. DLQManager configures its own
-    retry policies and filters; the provider only handles scheduling.
+    Used by the DLQ worker container only.
     """
 
     scope = Scope.APP
@@ -238,7 +285,6 @@ class DLQWorkerProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -247,10 +293,11 @@ class DLQWorkerProvider(Provider):
         manager = DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
+            default_retry_policy=_default_retry_policy(),
+            retry_policies=_default_retry_policies(),
         )
 
         scheduler = AsyncIOScheduler()

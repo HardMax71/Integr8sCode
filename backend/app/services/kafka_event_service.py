@@ -8,9 +8,8 @@ from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import EventMetrics
-from app.db.repositories.event_repository import EventRepository
 from app.domain.enums.events import EventType
-from app.domain.events import domain_event_adapter
+from app.domain.events import DomainEventAdapter
 from app.domain.events.typed import DomainEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.settings import Settings
@@ -21,13 +20,11 @@ tracer = trace.get_tracer(__name__)
 class KafkaEventService:
     def __init__(
         self,
-        event_repository: EventRepository,
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: logging.Logger,
         event_metrics: EventMetrics,
     ):
-        self.event_repository = event_repository
         self.kafka_producer = kafka_producer
         self.logger = logger
         self.metrics = event_metrics
@@ -42,17 +39,9 @@ class KafkaEventService:
         metadata: EventMetadata | None = None,
     ) -> str:
         """
-        Publish an event to Kafka and store an audit copy via the repository
+        Build a typed DomainEvent from parameters and publish to Kafka.
 
-        Args:
-            event_type: Type of event (e.g., "execution.requested")
-            payload: Event-specific data
-            aggregate_id: ID of the aggregate root
-            correlation_id: ID for correlating related events
-            metadata: Event metadata (service/user/trace/IP). If None, service fills minimal defaults.
-
-        Returns:
-            Event ID of published event
+        The producer persists the event to MongoDB before publishing.
         """
         with tracer.start_as_current_span("publish_event") as span:
             span.set_attribute("event.type", event_type)
@@ -85,10 +74,8 @@ class KafkaEventService:
                 "metadata": event_metadata,
                 **payload,
             }
-            domain_event = domain_event_adapter.validate_python(event_data)
-            await self.event_repository.store_event(domain_event)
+            domain_event = DomainEventAdapter.validate_python(event_data)
 
-            # Publish to Kafka (headers built automatically by producer)
             await self.kafka_producer.produce(event_to_produce=domain_event, key=aggregate_id or domain_event.event_id)
             self.metrics.record_event_published(event_type)
             self.metrics.record_event_processing_duration(time.time() - start_time, event_type)
@@ -159,19 +146,19 @@ class KafkaEventService:
         )
 
     async def publish_domain_event(self, event: DomainEvent, key: str | None = None) -> str:
-        """Publish a pre-built DomainEvent to Kafka and store an audit copy."""
+        """Publish a pre-built DomainEvent to Kafka.
+
+        The producer persists the event to MongoDB before publishing.
+        """
         with tracer.start_as_current_span("publish_domain_event") as span:
             span.set_attribute("event.type", event.event_type)
             if event.aggregate_id:
                 span.set_attribute("aggregate.id", event.aggregate_id)
 
             start_time = time.time()
-            await self.event_repository.store_event(event)
 
             await self.kafka_producer.produce(event_to_produce=event, key=key or event.aggregate_id or event.event_id)
             self.metrics.record_event_published(event.event_type)
             self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
             self.logger.info("Domain event published", extra={"event_id": event.event_id})
             return event.event_id
-
-

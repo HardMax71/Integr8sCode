@@ -1,9 +1,9 @@
 import logging
 
 import pytest
-from app.events.schema.schema_registry import MAGIC_BYTE, SchemaRegistryManager
-from app.infrastructure.kafka.mappings import get_topic_for_event
-from app.settings import Settings
+
+from app.domain.events.typed import DomainEventAdapter
+from app.events.schema.schema_registry import SchemaRegistryManager
 from dishka import AsyncContainer
 
 from tests.conftest import make_execution_requested_event
@@ -16,20 +16,10 @@ _test_logger = logging.getLogger("test.events.schema_registry_roundtrip")
 @pytest.mark.asyncio
 async def test_schema_registry_serialize_deserialize_roundtrip(scope: AsyncContainer) -> None:
     reg: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
-    # Schema registration happens lazily in serialize_event
     ev = make_execution_requested_event(execution_id="e-rt")
     data = await reg.serialize_event(ev)
-    assert data.startswith(MAGIC_BYTE)
-    topic = str(get_topic_for_event(ev.event_type))
-    back = await reg.deserialize_event(data, topic=topic)
+    assert data[:1] == b"\x00"  # Confluent wire format magic byte
+    payload = await reg.serializer.decode_message(data)
+    assert payload is not None
+    back = DomainEventAdapter.validate_python(payload)
     assert back.event_id == ev.event_id and getattr(back, "execution_id", None) == ev.execution_id
-
-    # initialize_schemas should be a no-op if already initialized; call to exercise path
-    await reg.initialize_schemas()
-
-
-@pytest.mark.asyncio
-async def test_schema_registry_deserialize_invalid_header(test_settings: Settings) -> None:
-    reg = SchemaRegistryManager(settings=test_settings, logger=_test_logger)
-    with pytest.raises(ValueError):
-        await reg.deserialize_event(b"\x01\x00\x00\x00\x01", topic="t")  # wrong magic byte

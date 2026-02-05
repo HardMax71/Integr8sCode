@@ -7,13 +7,14 @@ from uuid import uuid4
 
 import aiofiles
 from opentelemetry.trace import SpanKind
+from pydantic import ValidationError
 
 from app.core.metrics import ReplayMetrics
 from app.core.tracing.utils import trace_span
 from app.db.repositories.replay_repository import ReplayRepository
 from app.domain.admin.replay_updates import ReplaySessionUpdate
 from app.domain.enums.replay import ReplayStatus, ReplayTarget
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import DomainEvent, DomainEventAdapter
 from app.domain.replay import (
     CleanupResult,
     ReplayConfig,
@@ -24,7 +25,6 @@ from app.domain.replay import (
     ReplaySessionState,
 )
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
 
 
 class EventReplayService:
@@ -32,7 +32,6 @@ class EventReplayService:
         self,
         repository: ReplayRepository,
         producer: UnifiedProducer,
-        event_store: EventStore,
         replay_metrics: ReplayMetrics,
         logger: logging.Logger,
     ) -> None:
@@ -41,7 +40,6 @@ class EventReplayService:
         self._resume_events: dict[str, asyncio.Event] = {}
         self._repository = repository
         self._producer = producer
-        self._event_store = event_store
         self.logger = logger
         self._file_locks: dict[str, asyncio.Lock] = {}
         self._metrics = replay_metrics
@@ -228,10 +226,18 @@ class EventReplayService:
                 if max_events and events_processed >= max_events:
                     break
 
-                event = self._event_store.schema_registry.deserialize_json(doc)
-                if event:
-                    batch.append(event)
-                    events_processed += 1
+                try:
+                    event = DomainEventAdapter.validate_python(doc)
+                except ValidationError as e:
+                    session.failed_events += 1
+                    self.logger.warning(
+                        "Skipping event that failed validation",
+                        extra={"event_id": doc.get("event_id", "unknown"), "error": str(e)},
+                    )
+                    continue
+
+                batch.append(event)
+                events_processed += 1
 
             if batch:
                 yield batch

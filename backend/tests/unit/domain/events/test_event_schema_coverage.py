@@ -12,8 +12,7 @@ Run this test to catch missing event implementations early.
 from typing import get_args
 
 from app.domain.enums.events import EventType
-from app.domain.events.typed import BaseEvent, DomainEvent, domain_event_adapter
-from app.events.schema.schema_registry import _get_event_type_to_class_mapping
+from app.domain.events.typed import BaseEvent, DomainEvent, DomainEventAdapter
 
 
 def get_domain_event_classes() -> dict[EventType, type]:
@@ -50,8 +49,8 @@ def get_domain_event_classes() -> dict[EventType, type]:
 
 
 def get_kafka_event_classes() -> dict[EventType, type]:
-    """Extract EventType -> class mapping from Kafka DomainEvent subclasses."""
-    return _get_event_type_to_class_mapping()
+    """Extract EventType -> class mapping from DomainEvent union (same source)."""
+    return get_domain_event_classes()
 
 
 class TestEventSchemaCoverage:
@@ -84,15 +83,15 @@ class TestEventSchemaCoverage:
             )
         )
 
-    def test_domain_event_adapter_covers_all_types(self) -> None:
-        """The domain_event_adapter TypeAdapter must handle all EventTypes."""
+    def test_DomainEventAdapter_covers_all_types(self) -> None:
+        """The DomainEventAdapter TypeAdapter must handle all EventTypes."""
         errors: list[str] = []
 
         for et in EventType:
             try:
                 # Validation will fail due to missing required fields, but that's OK
                 # We just want to confirm the type IS in the union (not "unknown discriminator")
-                domain_event_adapter.validate_python({"event_type": et})
+                DomainEventAdapter.validate_python({"event_type": et})
             except Exception as e:
                 error_str = str(e).lower()
                 # "validation error" means type IS recognized but fields are missing - that's fine
@@ -100,7 +99,7 @@ class TestEventSchemaCoverage:
                 if "no match" in error_str or "unable to extract" in error_str:
                     errors.append(f"  - {et.value}: not in DomainEvent union")
 
-        assert not errors, f"domain_event_adapter missing {len(errors)} type(s):\n" + "\n".join(errors)
+        assert not errors, f"DomainEventAdapter missing {len(errors)} type(s):\n" + "\n".join(errors)
 
     def test_no_orphan_domain_event_classes(self) -> None:
         """All domain event classes must have a corresponding EventType."""

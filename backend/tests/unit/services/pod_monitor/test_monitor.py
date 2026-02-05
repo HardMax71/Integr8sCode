@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.metrics import EventMetrics, KubernetesMetrics
-from app.db.repositories.event_repository import EventRepository
 from app.domain.events.typed import (
     DomainEvent,
     EventMetadata,
@@ -42,18 +41,6 @@ _test_logger = logging.getLogger("test.pod_monitor")
 # ===== Test doubles for KafkaEventService dependencies =====
 
 
-class FakeEventRepository(EventRepository):
-    """In-memory event repository for testing."""
-
-    def __init__(self) -> None:
-        super().__init__(_test_logger)
-        self.stored_events: list[DomainEvent] = []
-
-    async def store_event(self, event: DomainEvent) -> str:
-        self.stored_events.append(event)
-        return event.event_id
-
-
 class FakeUnifiedProducer(UnifiedProducer):
     """Fake producer that captures events without Kafka."""
 
@@ -74,11 +61,9 @@ class FakeUnifiedProducer(UnifiedProducer):
 def create_test_kafka_event_service(event_metrics: EventMetrics) -> tuple[KafkaEventService, FakeUnifiedProducer]:
     """Create real KafkaEventService with fake dependencies for testing."""
     fake_producer = FakeUnifiedProducer()
-    fake_repo = FakeEventRepository()
     settings = Settings(config_path="config.test.toml")
 
     service = KafkaEventService(
-        event_repository=fake_repo,
         kafka_producer=fake_producer,
         settings=settings,
         logger=_test_logger,
@@ -406,9 +391,7 @@ async def test_publish_event_exception_handling(
             raise RuntimeError("Publish failed")
 
     failing_producer = FailingProducer()
-    fake_repo = FakeEventRepository()
     failing_service = KafkaEventService(
-        event_repository=fake_repo,
         kafka_producer=failing_producer,
         settings=Settings(config_path="config.test.toml"),
         logger=_test_logger,

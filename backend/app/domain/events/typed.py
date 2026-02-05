@@ -703,4 +703,4 @@ ExecutionDomainEvent = Annotated[
 ]
 
 # TypeAdapter for polymorphic loading - validates raw data to correct typed event
-domain_event_adapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
+DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)

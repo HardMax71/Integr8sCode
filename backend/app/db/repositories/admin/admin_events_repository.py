@@ -17,6 +17,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events import (
     DomainEvent,
+    DomainEventAdapter,
     EventBrowseResult,
     EventDetail,
     EventExportRow,
@@ -26,7 +27,6 @@ from app.domain.events import (
     EventTypeCount,
     HourlyEventCount,
     UserEventCount,
-    domain_event_adapter,
 )
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
 
@@ -59,7 +59,7 @@ class AdminEventsRepository:
         total = await query.count()
 
         docs = await query.sort([(sort_by, sort_order)]).skip(skip).limit(limit).to_list()
-        events = [domain_event_adapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
 
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
@@ -68,7 +68,7 @@ class AdminEventsRepository:
         if not doc:
             return None
 
-        event = domain_event_adapter.validate_python(doc, from_attributes=True)
+        event = DomainEventAdapter.validate_python(doc, from_attributes=True)
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (

@@ -52,7 +52,6 @@ from app.dlq.manager import DLQManager
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore, create_event_store
 from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
@@ -182,11 +181,12 @@ class MessagingProvider(Provider):
             self,
             broker: KafkaBroker,
             schema_registry: SchemaRegistryManager,
+            event_repository: EventRepository,
             logger: logging.Logger,
             settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, schema_registry, logger, settings, event_metrics)
+        return UnifiedProducer(broker, schema_registry, event_repository, logger, settings, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -276,21 +276,8 @@ class EventProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        registry = SchemaRegistryManager(settings, logger)
-        await registry.initialize_schemas()
-        return registry
-
-    @provide
-    def get_event_store(
-            self,
-            schema_registry: SchemaRegistryManager,
-            logger: logging.Logger,
-            event_metrics: EventMetrics,
-    ) -> EventStore:
-        return create_event_store(
-            schema_registry=schema_registry, logger=logger, event_metrics=event_metrics, ttl_days=90
-        )
+    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
+        return SchemaRegistryManager(settings, logger)
 
 
 class KubernetesProvider(Provider):
@@ -481,14 +468,12 @@ class KafkaServicesProvider(Provider):
     @provide
     def get_kafka_event_service(
             self,
-            event_repository: EventRepository,
             kafka_producer: UnifiedProducer,
             settings: Settings,
             logger: logging.Logger,
             event_metrics: EventMetrics,
     ) -> KafkaEventService:
         return KafkaEventService(
-            event_repository=event_repository,
             kafka_producer=kafka_producer,
             settings=settings,
             logger=logger,
@@ -632,7 +617,7 @@ class BusinessServicesProvider(Provider):
             self,
             execution_repository: ExecutionRepository,
             kafka_producer: UnifiedProducer,
-            event_store: EventStore,
+            event_repository: EventRepository,
             settings: Settings,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
@@ -640,7 +625,7 @@ class BusinessServicesProvider(Provider):
         return ExecutionService(
             execution_repo=execution_repository,
             producer=kafka_producer,
-            event_store=event_store,
+            event_repository=event_repository,
             settings=settings,
             logger=logger,
             execution_metrics=execution_metrics,
@@ -874,14 +859,12 @@ class EventReplayProvider(Provider):
             self,
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
-            event_store: EventStore,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
-            event_store=event_store,
             replay_metrics=replay_metrics,
             logger=logger,
         )
@@ -901,7 +884,6 @@ class EventReplayWorkerProvider(Provider):
             self,
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
-            event_store: EventStore,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
             database: Database,
@@ -910,7 +892,6 @@ class EventReplayWorkerProvider(Provider):
         service = EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
-            event_store=event_store,
             replay_metrics=replay_metrics,
             logger=logger,
         )

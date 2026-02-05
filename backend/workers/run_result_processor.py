@@ -1,7 +1,6 @@
 import asyncio
 
 from app.core.container import create_result_processor_container
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.domain.enums.kafka import GroupId
@@ -42,19 +41,9 @@ def main() -> None:
         register_result_processor_subscriber(broker, settings)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            await container.get(Database)  # triggers init_beanie inside provider
-            logger.info("ResultProcessor infrastructure initialized")
-
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("ResultProcessor shutdown complete")
-
+        app = FastStream(broker, on_shutdown=[container.close])
         await app.run()
+        logger.info("ResultProcessor shutdown complete")
 
     asyncio.run(run())
 

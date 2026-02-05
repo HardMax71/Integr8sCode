@@ -42,21 +42,14 @@ def main() -> None:
         register_saga_subscriber(broker, settings)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            # Resolving SagaOrchestrator triggers Database init (via dependency)
-            # and starts the APScheduler timeout checker (via SagaWorkerProvider)
+        # Resolving SagaOrchestrator starts APScheduler timeout checker (via provider)
+        async def init_saga() -> None:
             await container.get(SagaOrchestrator)
-            logger.info("SagaOrchestrator infrastructure initialized")
+            logger.info("SagaOrchestrator initialized")
 
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("SagaOrchestrator shutdown complete")
-
+        app = FastStream(broker, on_startup=[init_saga], on_shutdown=[container.close])
         await app.run()
+        logger.info("SagaOrchestrator shutdown complete")
 
     asyncio.run(run())
 

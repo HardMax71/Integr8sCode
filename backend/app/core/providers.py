@@ -83,22 +83,31 @@ from app.settings import Settings
 
 
 class BrokerProvider(Provider):
-    """Provides KafkaBroker instance.
+    """Provides KafkaBroker instance with managed lifecycle.
 
-    Creates a configured KafkaBroker. Lifecycle (start/stop) is managed
-    externally by FastAPI lifespan or FastStream app.
+    The broker is started when first resolved and closed when the container closes.
+    This ensures proper cleanup even if initialization fails after broker start.
     """
 
     scope = Scope.APP
 
     @provide
-    def get_broker(self, settings: Settings, logger: logging.Logger) -> KafkaBroker:
-        return KafkaBroker(
+    async def get_broker(
+        self, settings: Settings, logger: logging.Logger
+    ) -> AsyncIterator[KafkaBroker]:
+        broker = KafkaBroker(
             settings.KAFKA_BOOTSTRAP_SERVERS,
             logger=logger,
             client_id=f"integr8scode-{settings.SERVICE_NAME}",
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
+        await broker.start()
+        logger.info("Kafka broker started")
+        try:
+            yield broker
+        finally:
+            await broker.close()
+            logger.info("Kafka broker closed")
 
 
 class SettingsProvider(Provider):

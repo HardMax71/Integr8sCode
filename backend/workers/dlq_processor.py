@@ -42,21 +42,14 @@ def main() -> None:
         register_dlq_subscriber(broker, settings)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            # Resolving DLQManager triggers Database init (via dependency),
-            # configures retry policies/filters, and starts APScheduler retry monitor
+        # Resolving DLQManager starts APScheduler retry monitor (via provider)
+        async def init_dlq() -> None:
             await container.get(DLQManager)
-            logger.info("DLQ Processor infrastructure initialized")
+            logger.info("DLQ Processor initialized")
 
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("DLQ Processor shutdown complete")
-
+        app = FastStream(broker, on_startup=[init_dlq], on_shutdown=[container.close])
         await app.run()
+        logger.info("DLQ Processor shutdown complete")
 
     asyncio.run(run())
 

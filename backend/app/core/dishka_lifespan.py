@@ -27,9 +27,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     DI providers. Resolving NotificationScheduler cascades through the
     dependency graph and triggers all required initialisation.
 
-    KafkaBroker is created via BrokerProvider. Subscriber registration,
-    FastStream integration setup, and broker lifecycle (start/stop) are
-    managed here.
+    KafkaBroker lifecycle (start/stop) is managed by BrokerProvider.
+    Subscriber registration and FastStream integration are set up here.
     """
     container: AsyncContainer = app.state.dishka_container
     settings: Settings = app.state.settings
@@ -71,11 +70,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Get broker from DI (created by BrokerProvider)
+    # Get broker from DI (BrokerProvider starts it automatically)
     broker: KafkaBroker = await container.get(KafkaBroker)
     app.state.kafka_broker = broker
 
-    # Register in-app Kafka subscribers
+    # Register in-app Kafka subscribers (works on already-started broker)
     register_sse_subscriber(broker, settings)
     register_notification_subscriber(broker, settings)
     logger.info("Kafka subscribers registered")
@@ -89,12 +88,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.get(NotificationScheduler)
     logger.info("Infrastructure initialized via DI providers")
 
-    # Start Kafka broker (subscribers begin consuming)
-    await broker.start()
-    logger.info("Kafka broker started — consumers active")
-
-    try:
-        yield
-    finally:
-        await broker.close()
-        logger.info("Kafka broker stopped")
+    yield
+    # Broker cleanup handled by BrokerProvider when container closes

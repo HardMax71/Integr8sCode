@@ -40,21 +40,14 @@ def main() -> None:
         # Set up DI integration (no subscribers for pod monitor - it only publishes)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            # Resolving PodMonitor triggers Database init (via dependency),
-            # starts the K8s watch loop, and starts the reconciliation scheduler
+        # Resolving PodMonitor starts K8s watch loop and reconciliation scheduler (via provider)
+        async def init_monitor() -> None:
             await container.get(PodMonitor)
-            logger.info("PodMonitor infrastructure initialized")
+            logger.info("PodMonitor initialized")
 
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("PodMonitor shutdown complete")
-
+        app = FastStream(broker, on_startup=[init_monitor], on_shutdown=[container.close])
         await app.run()
+        logger.info("PodMonitor shutdown complete")
 
     asyncio.run(run())
 

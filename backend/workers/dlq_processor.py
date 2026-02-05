@@ -5,12 +5,11 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.dlq.manager import DLQManager
 from app.domain.enums.kafka import GroupId
-from app.events.broker import create_broker
 from app.events.handlers import register_dlq_subscriber
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
+from faststream.kafka import KafkaBroker
 
 
 def main() -> None:
@@ -32,30 +31,31 @@ def main() -> None:
         )
         logger.info("Tracing initialized for DLQ Processor")
 
-    # Create Kafka broker and register DLQ subscriber
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
-    register_dlq_subscriber(broker, settings)
-
-    # Create DI container with broker in context
-    container = create_dlq_processor_container(settings, broker)
-    setup_dishka(container, broker=broker, auto_inject=True)
-
-    app = FastStream(broker)
-
-    @app.on_startup
-    async def startup() -> None:
-        # Resolving DLQManager triggers Database init (via dependency),
-        # configures retry policies/filters, and starts APScheduler retry monitor
-        await container.get(DLQManager)
-        logger.info("DLQ Processor infrastructure initialized")
-
-    @app.on_shutdown
-    async def shutdown() -> None:
-        await container.close()
-        logger.info("DLQ Processor shutdown complete")
+    # Create DI container (broker is created by BrokerProvider)
+    container = create_dlq_processor_container(settings)
 
     async def run() -> None:
+        # Get broker from DI
+        broker: KafkaBroker = await container.get(KafkaBroker)
+
+        # Register DLQ subscriber and set up DI integration
+        register_dlq_subscriber(broker, settings)
+        setup_dishka(container, broker=broker, auto_inject=True)
+
+        app = FastStream(broker)
+
+        @app.on_startup
+        async def startup() -> None:
+            # Resolving DLQManager triggers Database init (via dependency),
+            # configures retry policies/filters, and starts APScheduler retry monitor
+            await container.get(DLQManager)
+            logger.info("DLQ Processor infrastructure initialized")
+
+        @app.on_shutdown
+        async def shutdown() -> None:
+            await container.close()
+            logger.info("DLQ Processor shutdown complete")
+
         await app.run()
 
     asyncio.run(run())

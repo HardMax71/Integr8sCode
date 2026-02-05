@@ -5,13 +5,12 @@ from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.domain.enums.kafka import GroupId
-from app.events.broker import create_broker
 from app.events.handlers import register_k8s_worker_subscriber
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
+from faststream.kafka import KafkaBroker
 
 
 def main() -> None:
@@ -33,34 +32,35 @@ def main() -> None:
         )
         logger.info("Tracing initialized for KubernetesWorker")
 
-    # Create Kafka broker and register subscriber
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
-    register_k8s_worker_subscriber(broker, settings)
-
-    # Create DI container with broker in context
-    container = create_k8s_worker_container(settings, broker)
-    setup_dishka(container, broker=broker, auto_inject=True)
-
-    app = FastStream(broker)
-
-    @app.on_startup
-    async def startup() -> None:
-        await container.get(Database)  # triggers init_beanie inside provider
-        logger.info("KubernetesWorker infrastructure initialized")
-
-    @app.after_startup
-    async def bootstrap() -> None:
-        worker = await container.get(KubernetesWorker)
-        await worker.ensure_image_pre_puller_daemonset()
-        logger.info("Image pre-puller daemonset applied")
-
-    @app.on_shutdown
-    async def shutdown() -> None:
-        await container.close()
-        logger.info("KubernetesWorker shutdown complete")
+    # Create DI container (broker is created by BrokerProvider)
+    container = create_k8s_worker_container(settings)
 
     async def run() -> None:
+        # Get broker from DI
+        broker: KafkaBroker = await container.get(KafkaBroker)
+
+        # Register subscriber and set up DI integration
+        register_k8s_worker_subscriber(broker, settings)
+        setup_dishka(container, broker=broker, auto_inject=True)
+
+        app = FastStream(broker)
+
+        @app.on_startup
+        async def startup() -> None:
+            await container.get(Database)  # triggers init_beanie inside provider
+            logger.info("KubernetesWorker infrastructure initialized")
+
+        @app.after_startup
+        async def bootstrap() -> None:
+            worker = await container.get(KubernetesWorker)
+            await worker.ensure_image_pre_puller_daemonset()
+            logger.info("Image pre-puller daemonset applied")
+
+        @app.on_shutdown
+        async def shutdown() -> None:
+            await container.close()
+            logger.info("KubernetesWorker shutdown complete")
+
         await app.run()
 
     asyncio.run(run())

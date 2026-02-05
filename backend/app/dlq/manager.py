@@ -23,7 +23,6 @@ from app.domain.events.typed import (
     DLQMessageRetriedEvent,
     EventMetadata,
 )
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
@@ -39,7 +38,6 @@ class DLQManager:
         self,
         settings: Settings,
         broker: KafkaBroker,
-        schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
@@ -51,7 +49,6 @@ class DLQManager:
     ):
         self.settings = settings
         self._broker = broker
-        self.schema_registry = schema_registry
         self.logger = logger
         self.metrics = dlq_metrics
         self.repository = repository
@@ -160,16 +157,15 @@ class DLQManager:
         }
         hdrs = inject_trace_context(hdrs)
 
-        serialized = await self.schema_registry.serialize_event(message.event)
-
+        # FastStream handles Pydantic → JSON serialization natively
         await self._broker.publish(
-            message=serialized,
+            message=message.event,
             topic=retry_topic,
             key=message.event.event_id.encode(),
             headers=hdrs,
         )
         await self._broker.publish(
-            message=serialized,
+            message=message.event,
             topic=message.original_topic,
             key=message.event.event_id.encode(),
             headers=hdrs,
@@ -331,9 +327,9 @@ class DLQManager:
         self, event: DLQMessageReceivedEvent | DLQMessageRetriedEvent | DLQMessageDiscardedEvent
     ) -> None:
         try:
-            serialized = await self.schema_registry.serialize_event(event)
+            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
-                message=serialized,
+                message=event,
                 topic=self._dlq_events_topic,
                 key=event.event_id.encode(),
             )

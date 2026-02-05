@@ -52,7 +52,6 @@ from app.dlq.manager import DLQManager
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
@@ -79,6 +78,25 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
+
+
+class BrokerProvider(Provider):
+    """Provides KafkaBroker instance.
+
+    Creates a configured KafkaBroker. Lifecycle (start/stop) is managed
+    externally by FastAPI lifespan or FastStream app.
+    """
+
+    scope = Scope.APP
+
+    @provide
+    def get_broker(self, settings: Settings, logger: logging.Logger) -> KafkaBroker:
+        return KafkaBroker(
+            settings.KAFKA_BOOTSTRAP_SERVERS,
+            logger=logger,
+            client_id=f"integr8scode-{settings.SERVICE_NAME}",
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
 
 
 class SettingsProvider(Provider):
@@ -174,19 +192,16 @@ class CoreServicesProvider(Provider):
 class MessagingProvider(Provider):
     scope = Scope.APP
 
-    broker = from_context(provides=KafkaBroker, scope=Scope.APP)
-
     @provide
     def get_unified_producer(
             self,
             broker: KafkaBroker,
-            schema_registry: SchemaRegistryManager,
             event_repository: EventRepository,
             logger: logging.Logger,
             settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, schema_registry, event_repository, logger, settings, event_metrics)
+        return UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -209,7 +224,6 @@ class DLQProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -217,7 +231,6 @@ class DLQProvider(Provider):
         return DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
@@ -238,7 +251,6 @@ class DLQWorkerProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -247,7 +259,6 @@ class DLQWorkerProvider(Provider):
         manager = DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
@@ -270,14 +281,6 @@ class DLQWorkerProvider(Provider):
         finally:
             scheduler.shutdown(wait=False)
             logger.info("DLQManager retry monitor stopped")
-
-
-class EventProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
 
 
 class KubernetesProvider(Provider):

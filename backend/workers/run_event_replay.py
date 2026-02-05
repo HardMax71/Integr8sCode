@@ -5,21 +5,22 @@ import signal
 from app.core.container import create_event_replay_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.events.broker import create_broker
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
+from faststream.kafka import KafkaBroker
 
 
 async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with DI-managed cleanup scheduler."""
-    tmp_logger = setup_logger(settings.LOG_LEVEL)
-    schema_registry = SchemaRegistryManager(settings, tmp_logger)
-    broker = create_broker(settings, schema_registry, tmp_logger)
+    # Create DI container (broker is created by BrokerProvider)
+    container = create_event_replay_container(settings)
 
-    container = create_event_replay_container(settings, broker)
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
+
+    # Get broker from DI (for producer functionality)
+    broker: KafkaBroker = await container.get(KafkaBroker)
+    await broker.start()
 
     # Resolving EventReplayService triggers Database init (via dependency)
     # and starts the APScheduler cleanup scheduler (via EventReplayWorkerProvider)
@@ -35,6 +36,7 @@ async def run_replay_service(settings: Settings) -> None:
         await shutdown_event.wait()
     finally:
         logger.info("Initiating graceful shutdown...")
+        await broker.close()
         await container.close()
 
 

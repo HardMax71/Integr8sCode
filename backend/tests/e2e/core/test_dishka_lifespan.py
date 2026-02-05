@@ -71,16 +71,6 @@ class TestLifespanInitialization:
         assert pong is True
 
     @pytest.mark.asyncio
-    async def test_schema_registry_initialized(
-        self, scope: AsyncContainer
-    ) -> None:
-        """Schema registry is initialized during lifespan."""
-        from app.events.schema.schema_registry import SchemaRegistryManager
-
-        registry = await scope.get(SchemaRegistryManager)
-        assert registry is not None
-
-    @pytest.mark.asyncio
     async def test_sse_redis_bus_available(self, scope: AsyncContainer) -> None:
         """SSE Redis bus is available after lifespan."""
         from app.services.sse.redis_bus import SSERedisBus

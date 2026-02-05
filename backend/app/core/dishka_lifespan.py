@@ -5,10 +5,15 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from dishka import AsyncContainer
+from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 
 from app.core.tracing import init_tracing
+from app.events.handlers import (
+    register_notification_subscriber,
+    register_sse_subscriber,
+)
 from app.services.notification_scheduler import NotificationScheduler
 from app.settings import Settings
 
@@ -19,14 +24,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Application lifespan with dishka dependency injection.
 
     Infrastructure init (Beanie, schemas, rate limits) is handled inside
-    DI providers.  Resolving NotificationScheduler cascades through the
+    DI providers. Resolving NotificationScheduler cascades through the
     dependency graph and triggers all required initialisation.
 
-    Kafka broker lifecycle is managed here (start/stop).
+    KafkaBroker is created via BrokerProvider. Subscriber registration,
+    FastStream integration setup, and broker lifecycle (start/stop) are
+    managed here.
     """
     container: AsyncContainer = app.state.dishka_container
-    broker: KafkaBroker = app.state.kafka_broker
-    settings = await container.get(Settings)
+    settings: Settings = app.state.settings
     logger = await container.get(logging.Logger)
 
     logger.info(
@@ -65,6 +71,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
+    # Get broker from DI (created by BrokerProvider)
+    broker: KafkaBroker = await container.get(KafkaBroker)
+    app.state.kafka_broker = broker
+
+    # Register in-app Kafka subscribers
+    register_sse_subscriber(broker, settings)
+    register_notification_subscriber(broker, settings)
+    logger.info("Kafka subscribers registered")
+
+    # Set up FastStream DI integration
+    setup_dishka_faststream(container, broker=broker, auto_inject=True)
+    logger.info("FastStream DI integration configured")
+
     # Resolve NotificationScheduler — cascades init_beanie, schema registration,
     # and starts APScheduler via the DI provider graph.
     await container.get(NotificationScheduler)
@@ -77,5 +96,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
-        await broker.stop()
+        await broker.close()
         logger.info("Kafka broker stopped")

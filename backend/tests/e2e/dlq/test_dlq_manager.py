@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -13,7 +14,6 @@ from app.dlq.models import DLQMessage
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DLQMessageReceivedEvent, DomainEventAdapter
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka import AsyncContainer
 
@@ -30,7 +30,6 @@ _test_logger = logging.getLogger("test.dlq.manager")
 @pytest.mark.asyncio
 async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_settings: Settings) -> None:
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
-    schema_registry = SchemaRegistryManager(test_settings, _test_logger)
     dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
 
     prefix = test_settings.KAFKA_TOPIC_PREFIX
@@ -53,9 +52,8 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         """Consume DLQ events and set future when our event is received."""
         async for msg in events_consumer:
             try:
-                payload = await schema_registry.serializer.decode_message(msg.value)
-                if payload is None:
-                    continue
+                # FastStream uses JSON serialization for Pydantic models
+                payload = json.loads(msg.value.decode("utf-8"))
                 event = DomainEventAdapter.validate_python(payload)
                 if (
                     isinstance(event, DLQMessageReceivedEvent)
@@ -79,7 +77,6 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         manager = DLQManager(
             settings=test_settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=_test_logger,
             dlq_metrics=dlq_metrics,
             repository=repository,

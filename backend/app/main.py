@@ -1,6 +1,5 @@
 import uvicorn
 from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
-from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -40,12 +39,6 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.events.broker import create_broker
-from app.events.handlers import (
-    register_notification_subscriber,
-    register_sse_subscriber,
-)
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
@@ -56,15 +49,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     Args:
         settings: Optional pre-configured settings (e.g., TestSettings for testing).
                  If None, loads from config.toml.
+
+    Note: KafkaBroker is created via DI (BrokerProvider). Subscriber registration
+    and FastStream integration are set up in the lifespan handler.
     """
     settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
-
-    # Create Kafka broker and register in-app subscribers
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
-    register_sse_subscriber(broker, settings)
-    register_notification_subscriber(broker, settings)
 
     # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
     app = FastAPI(
@@ -75,12 +65,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
     )
 
-    # Store broker on app state for lifespan access
-    app.state.kafka_broker = broker
+    # Store settings on app state for lifespan access
+    app.state.settings = settings
 
-    container = create_app_container(settings, broker)
+    # Create DI container - broker is created via BrokerProvider
+    container = create_app_container(settings)
     setup_dishka_fastapi(container, app)
-    setup_dishka_faststream(container, broker=broker, auto_inject=True)
 
     setup_metrics(settings, logger)
     app.add_middleware(MetricsMiddleware)

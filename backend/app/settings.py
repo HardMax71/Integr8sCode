@@ -90,7 +90,6 @@ class Settings(BaseModel):
 
     # Event-Driven Design Configuration
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
-    SCHEMA_REGISTRY_URL: str = "http://schema-registry:8081"
     ENABLE_EVENT_STREAMING: bool = False
     EVENT_RETENTION_DAYS: int = 30
     KAFKA_TOPIC_PREFIX: str = "pref"
@@ -111,12 +110,6 @@ class Settings(BaseModel):
     NOTIF_THROTTLE_WINDOW_HOURS: int = 1
     NOTIF_THROTTLE_MAX_PER_HOUR: int = 5
     NOTIF_MAX_SCHEDULE_DAYS: int = 25  # Max days ahead a notification can be scheduled (must be < TTL)
-
-    # Schema Configuration
-    SCHEMA_BASE_PATH: str = "app/schemas_avro"
-    SCHEMA_AVRO_PATH: str = "app/schemas_avro"
-    SCHEMA_CONFIG_PATH: str | None = None
-    SCHEMA_SUBJECT_PREFIX: str = ""
 
     # OpenTelemetry / Jaeger Configuration
     ENABLE_TRACING: bool = True

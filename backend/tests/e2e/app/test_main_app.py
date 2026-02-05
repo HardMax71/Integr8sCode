@@ -6,7 +6,6 @@ import pytest
 import redis.asyncio as aioredis
 from app.core.database_context import Database
 from app.domain.exceptions import DomainError
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
@@ -293,12 +292,6 @@ class TestLifespanInitialization:
         # Ping returns a coroutine for async client
         pong = await redis_client.ping()  # type: ignore[misc]
         assert pong is True
-
-    @pytest.mark.asyncio
-    async def test_schema_registry_initialized(self, scope: AsyncContainer) -> None:
-        """Schema registry manager is initialized."""
-        schema_registry = await scope.get(SchemaRegistryManager)
-        assert schema_registry is not None
 
 
 class TestCreateAppFunction:

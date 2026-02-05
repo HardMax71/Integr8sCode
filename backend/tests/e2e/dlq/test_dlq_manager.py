@@ -81,7 +81,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             dlq_metrics=dlq_metrics,
             repository=repository,
             default_retry_policy=_default_retry_policy(),
-            retry_policies=_default_retry_policies(),
+            retry_policies=_default_retry_policies(test_settings.KAFKA_TOPIC_PREFIX),
         )
 
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)

@@ -13,7 +13,6 @@ from app.domain.events.typed import (
 )
 from app.domain.execution import DomainExecutionCreate
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.result_processor.processor import ResultProcessor
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -30,8 +29,6 @@ _test_logger = logging.getLogger("test.result_processor.processor")
 
 @pytest.mark.asyncio
 async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
-    # Schemas are initialized inside the SchemaRegistryManager DI provider
-    registry: SchemaRegistryManager = await scope.get(SchemaRegistryManager)
     settings: Settings = await scope.get(Settings)
     execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
 

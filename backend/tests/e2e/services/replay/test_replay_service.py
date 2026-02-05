@@ -1,8 +1,7 @@
 import pytest
 from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay.exceptions import ReplaySessionNotFoundError
-from app.services.event_replay import ReplayConfig, ReplayFilter
-from app.services.event_replay import EventReplayService
+from app.services.event_replay import EventReplayService, ReplayConfig, ReplayFilter
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]

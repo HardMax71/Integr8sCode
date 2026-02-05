@@ -1,5 +1,5 @@
 import pytest
-from app.core.database_context import Database
+from app.db.docs import AuditLogDocument
 from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from dishka import AsyncContainer
@@ -26,12 +26,12 @@ async def test_get_system_settings_existing(repo: AdminSettingsRepository) -> No
 
 
 @pytest.mark.asyncio
-async def test_update_and_reset_settings(repo: AdminSettingsRepository, db: Database) -> None:
+async def test_update_and_reset_settings(repo: AdminSettingsRepository) -> None:
     s = SystemSettings()
     updated = await repo.update_system_settings(s, updated_by="admin", user_id="u1")
     assert isinstance(updated, SystemSettings)
-    # verify audit log entry exists
-    assert await db.get_collection("audit_log").count_documents({}) >= 1
+    # verify audit log entry exists using Beanie ODM
+    assert await AuditLogDocument.count() >= 1
     reset = await repo.reset_system_settings("admin", "u1")
     assert isinstance(reset, SystemSettings)
-    assert await db.get_collection("audit_log").count_documents({}) >= 2
+    assert await AuditLogDocument.count() >= 2

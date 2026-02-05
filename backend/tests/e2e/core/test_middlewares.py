@@ -1,6 +1,5 @@
 import httpx
 import pytest
-
 from app.settings import Settings
 
 pytestmark = pytest.mark.e2e

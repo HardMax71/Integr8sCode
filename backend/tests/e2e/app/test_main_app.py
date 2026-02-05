@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 import redis.asyncio as aioredis
-from app.core.database_context import Database
+from app.db.docs import UserDocument
 from app.domain.exceptions import DomainError
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -278,12 +278,12 @@ class TestLifespanInitialization:
     """Tests for app state after lifespan initialization."""
 
     @pytest.mark.asyncio
-    async def test_beanie_initialized(self, scope: AsyncContainer) -> None:
+    async def test_beanie_initialized(self) -> None:
         """Beanie ODM is initialized with document models."""
-        database = await scope.get(Database)
-        assert database is not None
-        # Beanie stores document models after init
-        # If not initialized, getting a collection would fail
+        # If Beanie isn't initialized, accessing the collection would fail
+        db = UserDocument.get_motor_collection().database
+        assert db is not None
+        assert db.name is not None
 
     @pytest.mark.asyncio
     async def test_redis_connected(self, scope: AsyncContainer) -> None:

@@ -2,15 +2,15 @@ import logging
 
 import pytest
 import redis.asyncio as aioredis
-from app.core.database_context import Database
 from app.core.security import SecurityService
+from app.db.docs import UserDocument
+from app.services.admin import AdminUserService
+from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.notification_service import NotificationService
 from app.services.rate_limit_service import RateLimitService
-from app.services.event_replay import EventReplayService
 from app.services.saved_script_service import SavedScriptService
-from app.services.admin import AdminUserService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -38,13 +38,12 @@ class TestCoreInfrastructure:
         assert logger.name == "integr8scode"
 
     @pytest.mark.asyncio
-    async def test_resolves_database(self, scope: AsyncContainer) -> None:
-        """Container resolves Database."""
-        database = await scope.get(Database)
-
-        assert database is not None
-        assert database.name is not None
-        assert isinstance(database.name, str)
+    async def test_beanie_initialized(self) -> None:
+        """Beanie is initialized and document classes work."""
+        # If Beanie isn't initialized, this would raise
+        db = UserDocument.get_motor_collection().database
+        assert db is not None
+        assert db.name is not None
 
     @pytest.mark.asyncio
     async def test_resolves_redis(self, scope: AsyncContainer) -> None:

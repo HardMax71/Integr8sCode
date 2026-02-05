@@ -70,6 +70,11 @@ class DLQRepository:
         if time_results and time_results[0].get("oldest"):
             r = time_results[0]
             oldest, newest = r["oldest"], r["newest"]
+            # MongoDB returns naive datetimes (implicitly UTC), make them aware
+            if oldest.tzinfo is None:
+                oldest = oldest.replace(tzinfo=timezone.utc)
+            if newest.tzinfo is None:
+                newest = newest.replace(tzinfo=timezone.utc)
             # Convert average timestamp (ms) back to datetime for age calculation
             avg_failed_at_ms = r.get("avg_failed_at_ms")
             if avg_failed_at_ms:

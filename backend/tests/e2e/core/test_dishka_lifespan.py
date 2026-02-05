@@ -1,6 +1,9 @@
 from importlib import import_module
 
 import pytest
+import redis.asyncio as aioredis
+from app.db.docs import UserDocument
+from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
@@ -51,20 +54,16 @@ class TestLifespanInitialization:
     """Tests for services initialized during lifespan."""
 
     @pytest.mark.asyncio
-    async def test_beanie_initialized(self, scope: AsyncContainer) -> None:
+    async def test_beanie_initialized(self) -> None:
         """Beanie ODM is initialized during lifespan."""
-        from app.core.database_context import Database
-
-        database = await scope.get(Database)
-        assert database is not None
-        # Database name should be set
-        assert database.name is not None
+        # If Beanie isn't initialized, accessing the collection would fail
+        db = UserDocument.get_motor_collection().database
+        assert db is not None
+        assert db.name is not None
 
     @pytest.mark.asyncio
     async def test_redis_connected(self, scope: AsyncContainer) -> None:
         """Redis client is connected during lifespan."""
-        import redis.asyncio as aioredis
-
         redis_client = await scope.get(aioredis.Redis)
         # Should be able to ping
         pong = await redis_client.ping()  # type: ignore[misc]
@@ -73,8 +72,6 @@ class TestLifespanInitialization:
     @pytest.mark.asyncio
     async def test_sse_redis_bus_available(self, scope: AsyncContainer) -> None:
         """SSE Redis bus is available after lifespan."""
-        from app.services.sse.redis_bus import SSERedisBus
-
         bus = await scope.get(SSERedisBus)
         assert bus is not None
 

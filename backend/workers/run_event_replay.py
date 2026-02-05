@@ -7,6 +7,7 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
+from faststream.kafka import KafkaBroker
 
 
 async def run_replay_service(settings: Settings) -> None:

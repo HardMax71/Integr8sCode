@@ -2,6 +2,7 @@ import uvicorn
 from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from faststream.kafka import KafkaBroker
 
 from app.api.routes import (
     auth,

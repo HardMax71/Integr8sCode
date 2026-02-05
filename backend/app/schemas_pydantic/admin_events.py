@@ -2,18 +2,17 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums.events import EventType
 from app.domain.events.event_models import EventSummary
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.domain.replay import ReplayError
-from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
+from app.schemas_pydantic.events import HourlyEventCountSchema, TopicCountSchema
 from app.schemas_pydantic.execution import ExecutionResult
 
 
 class EventFilter(BaseModel):
     """Filter criteria for browsing events"""
 
-    event_types: list[EventType] | None = None
+    topics: list[str] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -48,7 +47,7 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     total: int
     skip: int
     limit: int
@@ -57,7 +56,7 @@ class EventBrowseResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
-    event: DomainEvent
+    event: BaseEvent
     related_events: list[EventSummary]
     timeline: list[EventSummary]
 
@@ -120,7 +119,7 @@ class EventStatsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     total_events: int
-    events_by_type: list[EventTypeCountSchema]
+    events_by_topic: list[TopicCountSchema]
     events_by_hour: list[HourlyEventCountSchema]
     top_users: list[UserEventCountSchema]
     error_rate: float

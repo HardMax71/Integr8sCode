@@ -48,8 +48,9 @@ class IdempotencyManager:
     def _generate_key(
         self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None = None, fields: set[str] | None = None
     ) -> str:
+        topic = type(event).topic()
         if key_strategy == KeyStrategy.EVENT_BASED:
-            key = f"{event.event_type}:{event.event_id}"
+            key = f"{topic}:{event.event_id}"
         elif key_strategy == KeyStrategy.CONTENT_HASH:
             event_dict = event.model_dump(mode="json")
             event_dict.pop("event_id", None)
@@ -60,7 +61,7 @@ class IdempotencyManager:
             content = json.dumps(event_dict, sort_keys=True)
             key = hashlib.sha256(content.encode()).hexdigest()
         elif key_strategy == KeyStrategy.CUSTOM and custom_key:
-            key = f"{event.event_type}:{custom_key}"
+            key = f"{topic}:{custom_key}"
         else:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
         return f"{self.config.key_prefix}:{key}"
@@ -76,12 +77,13 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         ttl = ttl_seconds or self.config.default_ttl_seconds
 
+        topic = type(event).topic()
         existing = await self._repo.find_by_key(full_key)
         if existing:
-            self.metrics.record_idempotency_cache_hit(event.event_type, "check_and_reserve")
-            return await self._handle_existing_key(existing, full_key, event.event_type)
+            self.metrics.record_idempotency_cache_hit(topic, "check_and_reserve")
+            return await self._handle_existing_key(existing, full_key, topic)
 
-        self.metrics.record_idempotency_cache_miss(event.event_type, "check_and_reserve")
+        self.metrics.record_idempotency_cache_miss(topic, "check_and_reserve")
         return await self._create_new_key(full_key, event, ttl)
 
     async def _handle_existing_key(
@@ -136,11 +138,12 @@ class IdempotencyManager:
 
     async def _create_new_key(self, full_key: str, event: BaseEvent, ttl: int) -> IdempotencyResult:
         created_at = datetime.now(timezone.utc)
+        topic = type(event).topic()
         try:
             record = IdempotencyRecord(
                 key=full_key,
                 status=IdempotencyStatus.PROCESSING,
-                event_type=event.event_type,
+                event_type=topic,
                 event_id=str(event.event_id),
                 created_at=created_at,
                 ttl_seconds=ttl,
@@ -154,7 +157,7 @@ class IdempotencyManager:
             # Race: someone inserted the same key concurrently — treat as existing
             existing = await self._repo.find_by_key(full_key)
             if existing:
-                return await self._handle_existing_key(existing, full_key, event.event_type)
+                return await self._handle_existing_key(existing, full_key, topic)
             # If for some reason it's still not found, allow processing
             return IdempotencyResult(
                 is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
@@ -240,3 +243,63 @@ class IdempotencyManager:
         existing = await self._repo.find_by_key(full_key)
         assert existing and existing.result_json is not None, "Invariant: cached result must exist when requested"
         return existing.result_json
+
+    # -------------------------------------------------------------------------
+    # Key-based methods for middleware (bypass event object requirement)
+    # -------------------------------------------------------------------------
+
+    async def reserve_by_key(
+        self,
+        key: str,
+        event_type: str,
+        ttl_seconds: int | None = None,
+    ) -> bool:
+        """Reserve a key for processing. Returns False if duplicate (should skip).
+
+        Used by middleware where we compute the key from headers/body directly.
+        """
+        full_key = f"{self.config.key_prefix}:{key}"
+        ttl = ttl_seconds or self.config.default_ttl_seconds
+
+        existing = await self._repo.find_by_key(full_key)
+        if existing:
+            self.metrics.record_idempotency_cache_hit(event_type, "reserve_by_key")
+            result = await self._handle_existing_key(existing, full_key, event_type)
+            return not result.is_duplicate
+
+        self.metrics.record_idempotency_cache_miss(event_type, "reserve_by_key")
+        created_at = datetime.now(timezone.utc)
+        try:
+            record = IdempotencyRecord(
+                key=full_key,
+                status=IdempotencyStatus.PROCESSING,
+                event_type=event_type,
+                event_id=key,  # Use key as event_id for tracking
+                created_at=created_at,
+                ttl_seconds=ttl,
+            )
+            await self._repo.insert_processing(record)
+            self.metrics.increment_idempotency_keys(self.config.key_prefix)
+            return True  # Reserved successfully, proceed with processing
+        except DuplicateKeyError:
+            # Race condition: another consumer reserved it first
+            self.metrics.record_idempotency_duplicate_blocked(event_type)
+            return False
+
+    async def complete_by_key(self, key: str) -> bool:
+        """Mark a key as completed. Used by middleware after successful processing."""
+        full_key = f"{self.config.key_prefix}:{key}"
+        existing = await self._repo.find_by_key(full_key)
+        if not existing:
+            self.logger.warning(f"Idempotency key {full_key} not found when marking completed")
+            return False
+        return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED)
+
+    async def fail_by_key(self, key: str, error: str) -> bool:
+        """Mark a key as failed. Used by middleware after failed processing."""
+        full_key = f"{self.config.key_prefix}:{key}"
+        existing = await self._repo.find_by_key(full_key)
+        if not existing:
+            self.logger.warning(f"Idempotency key {full_key} not found when marking failed")
+            return False
+        return await self._update_key_status(full_key, existing, IdempotencyStatus.FAILED, error=error)

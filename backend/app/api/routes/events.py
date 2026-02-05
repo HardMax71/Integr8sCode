@@ -11,10 +11,10 @@ from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
 from app.domain.enums.common import SortOrder
-from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
-from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
+from app.domain.events.typed import BaseEvent, EventMetadata
+from app.events.core import EventPublisher
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -28,7 +28,6 @@ from app.schemas_pydantic.events import (
 from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
-from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
 router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
@@ -74,7 +73,7 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: list[EventType] | None = Query(None),
+    topics: list[str] | None = Query(None),
     start_time: datetime | None = Query(None),
     end_time: datetime | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -84,7 +83,7 @@ async def get_user_events(
     """Get events for the current user"""
     result = await event_service.get_user_events_paginated(
         user_id=current_user.user_id,
-        event_types=event_types,
+        topics=topics,
         start_time=start_time,
         end_time=end_time,
         limit=limit,
@@ -108,7 +107,7 @@ async def query_events(
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
     event_filter = EventFilter(
-        event_types=filter_request.event_types,
+        topics=filter_request.topics,
         aggregate_id=filter_request.aggregate_id,
         correlation_id=filter_request.correlation_id,
         user_id=filter_request.user_id,
@@ -218,10 +217,10 @@ async def get_event_statistics(
     return EventStatistics.model_validate(stats)
 
 
-@router.get("/{event_id}", response_model=DomainEvent)
+@router.get("/{event_id}", response_model=BaseEvent)
 async def get_event(
     event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
-) -> DomainEvent:
+) -> BaseEvent:
     """Get a specific event by ID"""
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
     if event is None:
@@ -234,27 +233,29 @@ async def publish_custom_event(
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_request: PublishEventRequest,
     request: Request,
-    event_service: FromDishka[KafkaEventService],
+    producer: FromDishka[EventPublisher],
     settings: FromDishka[Settings],
 ) -> PublishEventResponse:
+    """Publish a custom event (admin only). Creates a BaseEvent with the provided payload."""
     base_meta = EventMetadata(
         service_name=settings.SERVICE_NAME,
         service_version=settings.SERVICE_VERSION,
         user_id=admin.user_id,
         ip_address=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
+        correlation_id=event_request.correlation_id or CorrelationContext.get_correlation_id(),
     )
     # Merge any additional metadata provided in request (extra allowed)
     if event_request.metadata:
         base_meta = base_meta.model_copy(update=event_request.metadata)
 
-    event_id = await event_service.publish_event(
-        event_type=event_request.event_type,
-        payload=event_request.payload,
+    # Create a BaseEvent with the custom payload in metadata
+    event = BaseEvent(
         aggregate_id=event_request.aggregate_id,
-        correlation_id=event_request.correlation_id,
         metadata=base_meta,
     )
+
+    event_id = await producer.publish(event=event, key=event_request.aggregate_id)
 
     return PublishEventResponse(event_id=event_id, status="published", timestamp=datetime.now(timezone.utc))
 
@@ -275,12 +276,12 @@ async def aggregate_events(
     return result.results
 
 
-@router.get("/types/list", response_model=list[str])
-async def list_event_types(
+@router.get("/topics/list", response_model=list[str])
+async def list_topics(
     current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> list[str]:
-    event_types = await event_service.list_event_types(user_id=current_user.user_id, user_role=current_user.role)
-    return event_types
+    topics = await event_service.list_topics(user_id=current_user.user_id, user_role=current_user.role)
+    return topics
 
 
 @router.delete("/{event_id}", response_model=DeleteEventResponse)
@@ -300,7 +301,6 @@ async def delete_event(
         extra={
             "event_id": event_id,
             "admin_email": admin.email,
-            "event_type": result.event_type,
             "aggregate_id": result.aggregate_id,
             "correlation_id": result.metadata.correlation_id,
         },
@@ -316,8 +316,7 @@ async def replay_aggregate_events(
     aggregate_id: str,
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
-    kafka_event_service: FromDishka[KafkaEventService],
-    settings: FromDishka[Settings],
+    producer: FromDishka[EventPublisher],
     logger: FromDishka[logging.Logger],
     target_service: str | None = Query(None, description="Service to replay events to"),
     dry_run: bool = Query(True, description="If true, only show what would be replayed"),
@@ -331,7 +330,7 @@ async def replay_aggregate_events(
             dry_run=True,
             aggregate_id=aggregate_id,
             event_count=replay_info.event_count,
-            event_types=replay_info.event_types,
+            topics=replay_info.topics,
             start_time=replay_info.start_time,
             end_time=replay_info.end_time,
         )
@@ -346,21 +345,9 @@ async def replay_aggregate_events(
             await asyncio.sleep(0.1)
 
         try:
-            meta = EventMetadata(
-                service_name=settings.SERVICE_NAME,
-                service_version=settings.SERVICE_VERSION,
-                user_id=admin.user_id,
-            )
-            # Extract payload fields (exclude base event fields + event_type discriminator)
-            base_fields = set(BaseEvent.model_fields.keys()) | {"event_type"}
-            extra_fields = {k: v for k, v in event.model_dump().items() if k not in base_fields}
-            await kafka_event_service.publish_event(
-                event_type=event.event_type,
-                payload=extra_fields,
-                aggregate_id=aggregate_id,
-                correlation_id=replay_correlation_id,
-                metadata=meta,
-            )
+            # Update correlation_id for replay tracking
+            event.metadata.correlation_id = replay_correlation_id
+            await producer.publish(event=event, key=aggregate_id)
             replayed_count += 1
         except Exception as e:
             logger.error(f"Failed to replay event {event.event_id}: {e}")

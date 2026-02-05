@@ -9,8 +9,8 @@ from kubernetes_asyncio import watch as k8s_watch
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
-from app.domain.events.typed import DomainEvent
-from app.services.kafka_event_service import KafkaEventService
+from app.domain.events.typed import BaseEvent
+from app.events.core import EventPublisher
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 
@@ -61,7 +61,7 @@ class PodMonitor:
     def __init__(
         self,
         config: PodMonitorConfig,
-        kafka_event_service: KafkaEventService,
+        producer: EventPublisher,
         logger: logging.Logger,
         api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
@@ -76,7 +76,7 @@ class PodMonitor:
 
         # Components
         self._event_mapper = event_mapper
-        self._kafka_event_service = kafka_event_service
+        self._producer = producer
 
         # Watch cursor — set from LIST on first run or after 410 Gone
         self._last_resource_version: ResourceVersion | None = None
@@ -195,13 +195,13 @@ class PodMonitor:
                 )
 
             duration = time.time() - start_time
-            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
+            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type.value)
 
         except Exception as e:
             self.logger.error(f"Error processing pod event: {e}", exc_info=True)
             self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
 
-    async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
+    async def _publish_event(self, event: BaseEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
         try:
             if pod.metadata and pod.metadata.labels:
@@ -210,10 +210,10 @@ class PodMonitor:
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
             key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 
-            await self._kafka_event_service.publish_domain_event(event=event, key=key)
+            await self._producer.publish(event=event, key=key)
 
             phase = pod.status.phase if pod.status else "Unknown"
-            self._metrics.record_pod_monitor_event_published(event.event_type, phase)
+            self._metrics.record_pod_monitor_event_published(type(event).topic(), phase)
 
         except Exception as e:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)

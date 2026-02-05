@@ -2,11 +2,10 @@ from datetime import datetime
 from typing import Any
 
 from app.db.repositories.event_repository import EventRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events import (
     ArchivedEvent,
-    DomainEvent,
+    BaseEvent,
     EventAggregationResult,
     EventFilter,
     EventListResult,
@@ -19,8 +18,8 @@ def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
     """Convert EventFilter to MongoDB query dict."""
     query: dict[str, Any] = {}
 
-    if flt.event_types:
-        query["event_type"] = {"$in": flt.event_types}
+    if flt.topics:
+        query["topic"] = {"$in": flt.topics}
     if flt.aggregate_id:
         query["aggregate_id"] = flt.aggregate_id
     if flt.correlation_id:
@@ -89,7 +88,7 @@ class EventService:
     async def get_user_events_paginated(
         self,
         user_id: str,
-        event_types: list[EventType] | None = None,
+        topics: list[str] | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         limit: int = 100,
@@ -98,7 +97,7 @@ class EventService:
     ) -> EventListResult:
         return await self.repository.get_user_events_paginated(
             user_id=user_id,
-            event_types=event_types,
+            topics=topics,
             start_time=start_time,
             end_time=end_time,
             limit=limit,
@@ -174,7 +173,7 @@ class EventService:
         event_id: str,
         user_id: str,
         user_role: UserRole,
-    ) -> DomainEvent | None:
+    ) -> BaseEvent | None:
         event = await self.repository.get_event(event_id)
         if not event:
             return None
@@ -199,13 +198,13 @@ class EventService:
                 new_pipeline.insert(0, {"$match": user_filter})
         return await self.repository.aggregate_events(new_pipeline, limit=limit)
 
-    async def list_event_types(
+    async def list_topics(
         self,
         user_id: str,
         user_role: UserRole,
     ) -> list[str]:
         match = self._build_user_filter(user_id, user_role)
-        return await self.repository.list_event_types(match=match)
+        return await self.repository.list_topics(match=match)
 
     async def delete_event_with_archival(
         self,
@@ -225,11 +224,11 @@ class EventService:
     async def get_events_by_aggregate(
         self,
         aggregate_id: str,
-        event_types: list[EventType] | None = None,
+        topics: list[str] | None = None,
         limit: int = 100,
-    ) -> list[DomainEvent]:
+    ) -> list[BaseEvent]:
         return await self.repository.get_events_by_aggregate(
             aggregate_id=aggregate_id,
-            event_types=event_types,
+            topics=topics,
             limit=limit,
         )

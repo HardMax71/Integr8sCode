@@ -39,28 +39,6 @@ def _make_processor(
     )
 
 
-class TestHandlerTypeGuards:
-    """Handlers must reject wrong event types with TypeError."""
-
-    async def test_completed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
-        wrong = ExecutionFailedEvent(execution_id="e1", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA)
-        with pytest.raises(TypeError, match="Expected ExecutionCompletedEvent"):
-            await processor.handle_execution_completed(wrong)
-
-    async def test_failed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
-        wrong = ExecutionCompletedEvent(execution_id="e1", exit_code=0, metadata=_METADATA)
-        with pytest.raises(TypeError, match="Expected ExecutionFailedEvent"):
-            await processor.handle_execution_failed(wrong)
-
-    async def test_timeout_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
-        processor = _make_processor(execution_metrics)
-        wrong = ExecutionCompletedEvent(execution_id="e1", exit_code=0, metadata=_METADATA)
-        with pytest.raises(TypeError, match="Expected ExecutionTimeoutEvent"):
-            await processor.handle_execution_timeout(wrong)
-
-
 class TestHandleExecutionCompleted:
     async def test_raises_when_execution_not_found(self, execution_metrics: ExecutionMetrics) -> None:
         repo = AsyncMock()
@@ -91,7 +69,7 @@ class TestHandleExecutionCompleted:
         assert result_arg.execution_id == "e1"
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
-        producer.produce.assert_awaited_once()
+        producer.publish.assert_awaited_once()
 
 
 class TestHandleExecutionFailed:
@@ -115,7 +93,7 @@ class TestHandleExecutionFailed:
         assert result_arg.execution_id == "e2"
         assert result_arg.status == ExecutionStatus.FAILED
         assert result_arg.exit_code == 1
-        producer.produce.assert_awaited_once()
+        producer.publish.assert_awaited_once()
 
 
 class TestHandleExecutionTimeout:
@@ -138,4 +116,4 @@ class TestHandleExecutionTimeout:
         assert result_arg.execution_id == "e3"
         assert result_arg.status == ExecutionStatus.TIMEOUT
         assert result_arg.exit_code == -1
-        producer.produce.assert_awaited_once()
+        producer.publish.assert_awaited_once()

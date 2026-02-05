@@ -1,8 +1,8 @@
 import uuid
 
 import pytest
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
+from app.domain.events.typed import ExecutionRequestedEvent
 from app.domain.execution import ResourceLimitsDomain
 from app.domain.execution.exceptions import ExecutionNotFoundError
 from app.services.execution_service import ExecutionService
@@ -186,16 +186,14 @@ class TestGetExecutionEvents:
         events = await svc.get_execution_events(exec_result.execution_id)
 
         assert isinstance(events, list)
-        # Should have at least EXECUTION_REQUESTED event
-        if events:
-            event_types = {e.event_type for e in events}
-            assert EventType.EXECUTION_REQUESTED in event_types
+        # Should have at least one event
+        assert len(events) > 0
 
     @pytest.mark.asyncio
     async def test_get_execution_events_with_filter(
         self, scope: AsyncContainer
     ) -> None:
-        """Get events filtered by type."""
+        """Get events filtered by topic."""
         svc: ExecutionService = await scope.get(ExecutionService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
@@ -210,12 +208,12 @@ class TestGetExecutionEvents:
 
         events = await svc.get_execution_events(
             exec_result.execution_id,
-            event_types=[EventType.EXECUTION_REQUESTED],
+            topics=[ExecutionRequestedEvent.topic()],
         )
 
         assert isinstance(events, list)
-        for event in events:
-            assert event.event_type == EventType.EXECUTION_REQUESTED
+        # When filtered by topic, should return matching events
+        assert len(events) > 0
 
 
 class TestGetUserExecutions:

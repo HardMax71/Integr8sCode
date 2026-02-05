@@ -3,9 +3,9 @@ from typing import Any, Generic, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 
-T = TypeVar("T", bound=DomainEvent)
+T = TypeVar("T", bound=BaseEvent)
 
 
 class SagaContext:

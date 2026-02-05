@@ -16,7 +16,7 @@ from app.domain.events.typed import (
     ExecutionStartedEvent,
     PodCreatedEvent,
 )
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
@@ -24,8 +24,7 @@ from .pod_builder import PodBuilder
 
 
 class KubernetesWorker:
-    """
-    Worker service that creates Kubernetes pods from execution events.
+    """Worker service that creates Kubernetes pods from execution events.
 
     This service:
     1. Handles CreatePodCommand events from saga orchestrator
@@ -34,12 +33,13 @@ class KubernetesWorker:
     4. Publishes PodCreated events
 
     Lifecycle is managed by DI - consumer is injected already started.
+    Idempotency is handled by FastStream middleware (IdempotencyMiddleware).
     """
 
     def __init__(
             self,
             api_client: k8s_client.ApiClient,
-            producer: UnifiedProducer,
+            producer: EventPublisher,
             settings: Settings,
             logger: logging.Logger,
             event_metrics: EventMetrics,
@@ -72,10 +72,9 @@ class KubernetesWorker:
         self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
 
     async def handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
-        """Handle create pod command from saga orchestrator"""
+        """Handle create pod command from saga orchestrator."""
         execution_id = command.execution_id
 
-        # Check if already processing
         if execution_id in self._active_creations:
             self.logger.warning(f"Already creating pod for execution {execution_id}")
             return
@@ -83,7 +82,7 @@ class KubernetesWorker:
         await self._create_pod_for_execution(command)
 
     async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
-        """Handle delete pod command from saga orchestrator (compensation)"""
+        """Handle delete pod command from saga orchestrator (compensation)."""
         execution_id = command.execution_id
         self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
 
@@ -211,7 +210,7 @@ exec "$@"
             container_id=None,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""
@@ -221,7 +220,7 @@ exec "$@"
             namespace=pod.metadata.namespace,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def _publish_pod_creation_failed(self, command: CreatePodCommandEvent, error: str) -> None:
         """Publish pod creation failed event"""
@@ -234,7 +233,7 @@ exec "$@"
             metadata=command.metadata,
             error_message=str(error),
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def wait_for_active_creations(self, timeout: float = 30.0) -> None:
         """Wait for active pod creations to complete (for graceful shutdown)."""

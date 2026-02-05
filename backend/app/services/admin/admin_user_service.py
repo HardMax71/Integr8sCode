@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from app.core.security import SecurityService
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.user import UserRole
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult
@@ -74,17 +73,17 @@ class AdminUserService:
         )
 
         # Recent execution-related events (last 10)
-        event_types: list[EventType] = [
-            EventType.EXECUTION_REQUESTED,
-            EventType.EXECUTION_STARTED,
-            EventType.EXECUTION_COMPLETED,
-            EventType.EXECUTION_FAILED,
-            EventType.EXECUTION_TIMEOUT,
-            EventType.EXECUTION_CANCELLED,
+        execution_topics = [
+            "execution_requested",
+            "execution_started",
+            "execution_completed",
+            "execution_failed",
+            "execution_timeout",
+            "execution_cancelled",
         ]
         recent_result = await self._events.get_user_events_paginated(
             user_id=user_id,
-            event_types=event_types,
+            topics=execution_topics,
             start_time=start,
             end_time=now,
             limit=10,

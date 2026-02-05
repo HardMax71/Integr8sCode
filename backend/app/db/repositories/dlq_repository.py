@@ -18,7 +18,6 @@ from app.dlq import (
     EventTypeStatistic,
     TopicStatistic,
 )
-from app.domain.enums.events import EventType
 
 
 class DLQRepository:
@@ -45,16 +44,8 @@ class DLQRepository:
         topic_results = await DLQMessageDocument.aggregate(topic_pipeline.export()).to_list()
         by_topic = [TopicStatistic.model_validate(doc) for doc in topic_results]
 
-        # Counts by event type (top 10) - project renames _id->event_type
-        event_type_pipeline = (
-            Pipeline()
-            .group(by=S.field(DLQMessageDocument.event.event_type), query={"count": S.sum(1)})
-            .sort(by="count", descending=True)
-            .limit(10)
-            .project(_id=0, event_type="$_id", count=1)
-        )
-        event_type_results = await DLQMessageDocument.aggregate(event_type_pipeline.export()).to_list()
-        by_event_type = [EventTypeStatistic.model_validate(doc) for doc in event_type_results if doc["event_type"]]
+        # Note: event_type field removed from events - use original_topic for statistics instead
+        by_event_type: list[EventTypeStatistic] = []
 
         # Age statistics - use $toLong to convert Date to milliseconds for $avg
         time_pipeline = Pipeline().group(
@@ -91,14 +82,12 @@ class DLQRepository:
             self,
             status: DLQMessageStatus | None = None,
             topic: str | None = None,
-            event_type: EventType | None = None,
             limit: int = 50,
             offset: int = 0,
     ) -> DLQMessageListResult:
         conditions: list[Any] = [
             DLQMessageDocument.status == status if status else None,
             DLQMessageDocument.original_topic == topic if topic else None,
-            DLQMessageDocument.event.event_type == event_type if event_type else None,
         ]
         conditions = [c for c in conditions if c is not None]
 

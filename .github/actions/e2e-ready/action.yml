@@ -34,7 +34,7 @@ runs:
 
     - name: Pre-pull test runtime image into K3s
       shell: bash
-      run: sudo k3s ctr images pull docker.io/library/python:3.11-slim
+      run: sudo k3s crictl pull docker.io/library/python:3.11-slim
 
     - name: Wait for image pull and infra
       shell: bash

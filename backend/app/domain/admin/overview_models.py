@@ -4,7 +4,7 @@ from dataclasses import field
 
 from pydantic.dataclasses import dataclass
 
-from app.domain.events import DomainEvent, EventStatistics
+from app.domain.events import BaseEvent, EventStatistics
 from app.domain.user import User as DomainAdminUser
 
 
@@ -30,4 +30,4 @@ class AdminUserOverviewDomain:
     stats: EventStatistics
     derived_counts: DerivedCountsDomain
     rate_limit_summary: RateLimitSummaryDomain
-    recent_events: list[DomainEvent] = field(default_factory=list)
+    recent_events: list[BaseEvent] = field(default_factory=list)

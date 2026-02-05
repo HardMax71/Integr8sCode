@@ -1,8 +1,7 @@
 import asyncio
 
 import pytest
-from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventListResponse,
@@ -13,9 +12,6 @@ from app.schemas_pydantic.events import (
 )
 from app.schemas_pydantic.execution import ExecutionResponse
 from httpx import AsyncClient
-from pydantic import TypeAdapter
-
-DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
@@ -162,7 +158,7 @@ class TestUserEvents:
         response = await test_user.get(
             "/api/v1/events/user",
             params={
-                "event_types": [EventType.EXECUTION_REQUESTED],
+                "topics": ["execution_requested"],
                 "limit": 10,
             },
         )
@@ -193,7 +189,7 @@ class TestQueryEvents:
         response = await test_user.post(
             "/api/v1/events/query",
             json={
-                "event_types": [EventType.EXECUTION_REQUESTED],
+                "topics": ["execution_requested"],
                 "limit": 50,
                 "skip": 0,
             },
@@ -271,7 +267,7 @@ class TestEventStatistics:
         stats = EventStatistics.model_validate(response.json())
 
         assert stats.total_events >= 1
-        assert stats.events_by_type is not None
+        assert stats.events_by_topic is not None
         assert stats.events_by_service is not None
 
     @pytest.mark.asyncio
@@ -315,7 +311,7 @@ class TestSingleEvent:
         response = await test_user.get(f"/api/v1/events/{event_id}")
 
         assert response.status_code == 200
-        event = DomainEventAdapter.validate_python(response.json())
+        event = BaseEvent.model_validate(response.json())
         assert event.event_id == event_id
 
 
@@ -330,7 +326,7 @@ class TestPublishEvent:
         response = await test_admin.post(
             "/api/v1/events/publish",
             json={
-                "event_type": EventType.SYSTEM_ERROR,
+                "topic": "system_error",
                 "payload": {
                     "error_type": "test_error",
                     "message": "Test error message",
@@ -354,7 +350,7 @@ class TestPublishEvent:
         response = await test_user.post(
             "/api/v1/events/publish",
             json={
-                "event_type": EventType.SYSTEM_ERROR,
+                "topic": "system_error",
                 "payload": {
                     "error_type": "test_error",
                     "message": "Test error message",
@@ -380,7 +376,7 @@ class TestAggregateEvents:
             "/api/v1/events/aggregate",
             json={
                 "pipeline": [
-                    {"$group": {"_id": "$event_type", "count": {"$sum": 1}}}
+                    {"$group": {"_id": "$topic", "count": {"$sum": 1}}}
                 ],
                 "limit": 100,
             },
@@ -398,9 +394,9 @@ class TestListEventTypes:
     @pytest.mark.asyncio
     async def test_list_event_types(self, test_admin: AsyncClient) -> None:
         """List available event types."""
-        # First create an event so there's at least one type (requires admin)
+        # First create an event so there's at least one topic (requires admin)
         request = PublishEventRequest(
-            event_type=EventType.SCRIPT_SAVED,
+            topic="script_saved",
             payload={
                 "script_id": "test-script",
                 "user_id": "test-user",
@@ -430,7 +426,7 @@ class TestDeleteEvent:
         publish_response = await test_admin.post(
             "/api/v1/events/publish",
             json={
-                "event_type": EventType.SYSTEM_ERROR,
+                "topic": "system_error",
                 "payload": {
                     "error_type": "test_delete_error",
                     "message": "Event to be deleted",

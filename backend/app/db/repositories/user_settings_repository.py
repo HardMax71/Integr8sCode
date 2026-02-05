@@ -6,7 +6,6 @@ from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GT, LTE, Eq, In
 
 from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
-from app.domain.enums.events import EventType
 from app.domain.user.settings_models import DomainUserSettings, DomainUserSettingsChangedEvent
 
 
@@ -31,7 +30,7 @@ class UserSettingsRepository:
     async def get_settings_events(
         self,
         user_id: str,
-        event_types: list[EventType],
+        topics: list[str],
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
@@ -40,7 +39,7 @@ class UserSettingsRepository:
         aggregate_id = f"user_settings_{user_id}"
         conditions: list[BaseFindOperator] = [
             Eq(EventDocument.aggregate_id, aggregate_id),
-            In(EventDocument.event_type, [str(et) for et in event_types]),
+            In(EventDocument.topic, topics),
         ]
         if since:
             conditions.append(GT(EventDocument.timestamp, since))

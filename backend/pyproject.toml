@@ -14,7 +14,6 @@ dependencies = [
     "asgiref==3.11.0",
     "async-timeout==5.0.1",
     "attrs==25.3.0",
-    "avro-python3==1.10.2",
     "backoff==2.2.1",
     "blinker==1.9.0",
     "Brotli==1.2.0",
@@ -24,7 +23,6 @@ dependencies = [
     "click==8.1.7",
     "ConfigArgParse==1.7.1",
     "aiokafka==0.12.0",
-    "python-schema-registry-client==2.6.1",
     "contourpy==1.3.3",
     "cycler==0.12.1",
     "Deprecated==1.2.14",
@@ -34,7 +32,6 @@ dependencies = [
     "email-validator==2.3.0",
     "exceptiongroup==1.2.2",
     "fastapi==0.128.0",
-    "fastavro==1.12.1",
     "fonttools==4.61.1",
     "frozenlist==1.7.0",
     "google-auth==2.47.0",
@@ -89,7 +86,6 @@ dependencies = [
     "pyasn1==0.6.2",
     "pyasn1_modules==0.4.2",
     "pydantic==2.9.2",
-    "pydantic-avro==0.9.1",
     "pydantic_core==2.23.4",
     "Pygments==2.19.2",
     "PyJWT==2.9.0",
@@ -173,7 +169,7 @@ exclude = [
 ]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.params.Query"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.Query", "fastapi.params.Query", "faststream.Context"]
 
 [tool.ruff.lint.flake8-annotations]
 mypy-init-return = true

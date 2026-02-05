@@ -13,19 +13,17 @@ from app.db.docs import (
 )
 from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
-from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
 from app.domain.events import (
-    DomainEvent,
-    DomainEventAdapter,
+    BaseEvent,
     EventBrowseResult,
     EventDetail,
     EventExportRow,
     EventFilter,
     EventStatistics,
     EventSummary,
-    EventTypeCount,
     HourlyEventCount,
+    TopicCount,
     UserEventCount,
 )
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
@@ -35,7 +33,7 @@ class AdminEventsRepository:
     def _event_filter_conditions(self, f: EventFilter) -> list[Any]:
         """Build Beanie query conditions from EventFilter for EventDocument."""
         conditions = [
-            In(EventDocument.event_type, f.event_types) if f.event_types else None,
+            In(EventDocument.topic, f.topics) if f.topics else None,
             EventDocument.aggregate_id == f.aggregate_id if f.aggregate_id else None,
             EventDocument.metadata.correlation_id == f.correlation_id if f.correlation_id else None,
             EventDocument.metadata.user_id == f.user_id if f.user_id else None,
@@ -59,7 +57,7 @@ class AdminEventsRepository:
         total = await query.count()
 
         docs = await query.sort([(sort_by, sort_order)]).skip(skip).limit(limit).to_list()
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [BaseEvent.model_validate(d, from_attributes=True) for d in docs]
 
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
@@ -68,7 +66,7 @@ class AdminEventsRepository:
         if not doc:
             return None
 
-        event = DomainEventAdapter.validate_python(doc, from_attributes=True)
+        event = BaseEvent.model_validate(doc, from_attributes=True)
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (
@@ -77,7 +75,7 @@ class AdminEventsRepository:
         related_events = [
             EventSummary(
                 event_id=d.event_id,
-                event_type=d.event_type,
+                topic=d.topic,
                 timestamp=d.timestamp,
                 aggregate_id=d.aggregate_id,
             )
@@ -143,7 +141,7 @@ class AdminEventsRepository:
             .limit(10)
         )
         top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
-        events_by_type = [EventTypeCount(event_type=EventType(t["_id"]), count=t["count"]) for t in top_types]
+        events_by_topic = [TopicCount(topic=t["_id"], count=t["count"]) for t in top_types]
 
         # Hourly events pipeline - project renames _id->hour
         hourly_pipeline = (
@@ -189,7 +187,7 @@ class AdminEventsRepository:
 
         return EventStatistics(
             total_events=stats["total_events"],
-            events_by_type=events_by_type,
+            events_by_topic=events_by_topic,
             events_by_hour=events_by_hour,
             top_users=top_users,
             error_rate=round(error_rate, 2),
@@ -205,7 +203,7 @@ class AdminEventsRepository:
         return [
             EventExportRow(
                 event_id=doc.event_id,
-                event_type=doc.event_type,
+                topic=doc.topic,
                 timestamp=doc.timestamp,
                 correlation_id=doc.metadata.correlation_id or "",
                 aggregate_id=doc.aggregate_id or "",
@@ -217,7 +215,7 @@ class AdminEventsRepository:
             for doc in docs
         ]
 
-    async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
+    async def archive_event(self, event: BaseEvent, deleted_by: str) -> bool:
         archive_doc = EventArchiveDocument(
             **event.model_dump(),
             deleted_at=datetime.now(timezone.utc),
@@ -326,7 +324,7 @@ class AdminEventsRepository:
         return [
             EventSummary(
                 event_id=doc.event_id,
-                event_type=doc.event_type,
+                topic=doc.topic,
                 timestamp=doc.timestamp,
                 aggregate_id=doc.aggregate_id,
             )

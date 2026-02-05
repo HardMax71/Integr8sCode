@@ -7,7 +7,7 @@ by integration tests under tests/integration/saga/.
 
 import pytest
 from app.domain.enums.saga import SagaState
-from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
+from app.domain.events.typed import BaseEvent, ExecutionRequestedEvent
 from app.domain.saga.models import Saga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
@@ -21,12 +21,12 @@ class _NoopComp(CompensationStep):
         return True
 
 
-class _Step(SagaStep[DomainEvent]):
+class _Step(SagaStep[BaseEvent]):
     def __init__(self, name: str, ok: bool = True) -> None:
         super().__init__(name)
         self._ok = ok
 
-    async def execute(self, context: SagaContext, event: DomainEvent) -> bool:  # noqa: ARG002
+    async def execute(self, context: SagaContext, event: BaseEvent) -> bool:  # noqa: ARG002
         return self._ok
 
     def get_compensation(self) -> CompensationStep:

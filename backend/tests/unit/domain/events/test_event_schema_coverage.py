@@ -1,183 +1,104 @@
 """
-Validates complete correspondence between EventType enum and event classes.
+Validates event class topic naming conventions for 1:1 topic mapping.
 
 This test ensures that:
-1. Every EventType has a corresponding domain event class (in DomainEvent union)
-2. Every EventType has a corresponding Kafka event class (DomainEvent subclass)
-3. No orphan event classes exist (classes without matching EventType)
+1. All BaseEvent subclasses have proper topic() classmethod
+2. Topic names are derived correctly from class names (snake_case, no 'Event' suffix)
+3. No duplicate topic names exist
 
-Run this test to catch missing event implementations early.
+Run this test to catch event naming issues early.
 """
 
-from typing import get_args
+import re
 
-from app.domain.enums.events import EventType
-from app.domain.events.typed import BaseEvent, DomainEvent, DomainEventAdapter
-
-
-def get_domain_event_classes() -> dict[EventType, type]:
-    """Extract EventType -> class mapping from DomainEvent union."""
-    mapping: dict[EventType, type] = {}
-    union_types = get_args(DomainEvent)
-    # First element is the actual union, need to get its args
-    if union_types:
-        inner = union_types[0]
-        if hasattr(inner, "__args__"):
-            event_classes = inner.__args__
-        else:
-            # Python 3.10+ union syntax
-            event_classes = get_args(inner) or [inner]
-            if not event_classes:
-                event_classes = list(union_types[:-1])  # Exclude Discriminator
-    else:
-        event_classes = []
-
-    # Fallback: iterate through all BaseEvent subclasses
-    if not event_classes:
-        event_classes = []
-        for cls in BaseEvent.__subclasses__():
-            if hasattr(cls, "model_fields") and "event_type" in cls.model_fields:
-                event_classes.append(cls)
-
-    for cls in event_classes:
-        if hasattr(cls, "model_fields") and "event_type" in cls.model_fields:
-            field = cls.model_fields["event_type"]
-            if field.default is not None:
-                mapping[field.default] = cls
-
-    return mapping
+from app.domain.events.typed import BaseEvent
 
 
-def get_kafka_event_classes() -> dict[EventType, type]:
-    """Extract EventType -> class mapping from DomainEvent union (same source)."""
-    return get_domain_event_classes()
+def get_all_event_classes() -> list[type[BaseEvent]]:
+    """Get all BaseEvent subclasses."""
+    classes: list[type[BaseEvent]] = []
+
+    def collect_subclasses(cls: type) -> None:
+        for subclass in cls.__subclasses__():
+            if subclass.__name__.startswith("_"):
+                continue
+            classes.append(subclass)
+            collect_subclasses(subclass)
+
+    collect_subclasses(BaseEvent)
+    return classes
 
 
-class TestEventSchemaCoverage:
-    """Ensure complete correspondence between EventType and event classes."""
+class TestEventTopicCoverage:
+    """Ensure proper topic naming for all event classes."""
 
-    def test_all_event_types_have_domain_event_class(self) -> None:
-        """Every EventType must have a corresponding domain event class."""
-        domain_mapping = get_domain_event_classes()
-        all_types = set(EventType)
-        covered_types = set(domain_mapping.keys())
-        missing = all_types - covered_types
-
-        assert not missing, (
-            f"Missing domain event classes for {len(missing)} EventType(s):\n"
-            + "\n".join(f"  - {et.value}: needs a class in typed.py" for et in sorted(missing, key=lambda x: x.value))
-        )
-
-    def test_all_event_types_have_kafka_event_class(self) -> None:
-        """Every EventType must have a corresponding Kafka event class."""
-        kafka_mapping = get_kafka_event_classes()
-        all_types = set(EventType)
-        covered_types = set(kafka_mapping.keys())
-        missing = all_types - covered_types
-
-        assert not missing, (
-            f"Missing Kafka event classes for {len(missing)} EventType(s):\n"
-            + "\n".join(
-                f"  - {et.value}: needs a class in infrastructure/kafka/events/"
-                for et in sorted(missing, key=lambda x: x.value)
-            )
-        )
-
-    def test_DomainEventAdapter_covers_all_types(self) -> None:
-        """The DomainEventAdapter TypeAdapter must handle all EventTypes."""
+    def test_all_event_classes_have_topic_method(self) -> None:
+        """Every BaseEvent subclass must have a topic() classmethod."""
         errors: list[str] = []
 
-        for et in EventType:
-            try:
-                # Validation will fail due to missing required fields, but that's OK
-                # We just want to confirm the type IS in the union (not "unknown discriminator")
-                DomainEventAdapter.validate_python({"event_type": et})
-            except Exception as e:
-                error_str = str(e).lower()
-                # "validation error" means type IS recognized but fields are missing - that's fine
-                # "no match" or "discriminator" means type is NOT in union - that's a failure
-                if "no match" in error_str or "unable to extract" in error_str:
-                    errors.append(f"  - {et.value}: not in DomainEvent union")
+        for cls in get_all_event_classes():
+            if not hasattr(cls, "topic"):
+                errors.append(f"  - {cls.__name__}: missing topic() classmethod")
+            elif not callable(cls.topic):
+                errors.append(f"  - {cls.__name__}: topic is not callable")
 
-        assert not errors, f"DomainEventAdapter missing {len(errors)} type(s):\n" + "\n".join(errors)
+        assert not errors, "Event classes missing topic():\n" + "\n".join(errors)
 
-    def test_no_orphan_domain_event_classes(self) -> None:
-        """All domain event classes must have a corresponding EventType."""
-        orphans: list[str] = []
+    def test_all_topics_are_snake_case(self) -> None:
+        """All topic names should be lowercase snake_case."""
+        violations: list[str] = []
 
-        for cls in BaseEvent.__subclasses__():
-            # Skip test fixtures/mocks (private classes starting with _)
-            if cls.__name__.startswith("_"):
-                continue
-            if not hasattr(cls, "model_fields"):
-                continue
-            field = cls.model_fields.get("event_type")
-            if field is None:
-                continue
-            if field.default is None:
-                orphans.append(f"  - {cls.__name__}: event_type field has no default")
-            elif not isinstance(field.default, EventType):
-                orphans.append(f"  - {cls.__name__}: event_type default is not an EventType")
+        for cls in get_all_event_classes():
+            topic = cls.topic()
+            if topic != topic.lower():
+                violations.append(f"  - {cls.__name__}: topic '{topic}' contains uppercase")
+            if " " in topic or "-" in topic:
+                violations.append(f"  - {cls.__name__}: topic '{topic}' contains spaces or hyphens")
+            if not re.match(r"^[a-z][a-z0-9_]*$", topic):
+                violations.append(f"  - {cls.__name__}: topic '{topic}' has invalid format")
 
-        assert not orphans, "Orphan domain event classes:\n" + "\n".join(orphans)
+        assert not violations, "Topic naming violations:\n" + "\n".join(violations)
 
-    def test_no_orphan_kafka_event_classes(self) -> None:
-        """All Kafka event classes must have a corresponding EventType."""
-        orphans: list[str] = []
+    def test_no_duplicate_topics(self) -> None:
+        """All event classes must have unique topic names."""
+        topic_to_classes: dict[str, list[str]] = {}
 
-        for cls in BaseEvent.__subclasses__():
-            # Skip test fixtures/mocks (private classes starting with _)
-            if cls.__name__.startswith("_"):
-                continue
-            if not hasattr(cls, "model_fields"):
-                continue
-            field = cls.model_fields.get("event_type")
-            if field is None:
-                orphans.append(f"  - {cls.__name__}: missing event_type field")
-            elif field.default is None:
-                orphans.append(f"  - {cls.__name__}: event_type field has no default")
-            elif not isinstance(field.default, EventType):
-                orphans.append(f"  - {cls.__name__}: event_type default is not an EventType")
+        for cls in get_all_event_classes():
+            topic = cls.topic()
+            if topic not in topic_to_classes:
+                topic_to_classes[topic] = []
+            topic_to_classes[topic].append(cls.__name__)
 
-        assert not orphans, "Orphan Kafka event classes:\n" + "\n".join(orphans)
+        duplicates = {t: classes for t, classes in topic_to_classes.items() if len(classes) > 1}
 
-    def test_domain_and_kafka_event_names_match(self) -> None:
-        """Domain and Kafka event classes for same EventType should have same name."""
-        domain_mapping = get_domain_event_classes()
-        kafka_mapping = get_kafka_event_classes()
-
-        mismatches: list[str] = []
-        for et in EventType:
-            domain_cls = domain_mapping.get(et)
-            kafka_cls = kafka_mapping.get(et)
-
-            if domain_cls and kafka_cls:
-                if domain_cls.__name__ != kafka_cls.__name__:
-                    mismatches.append(
-                        f"  - {et.value}: domain={domain_cls.__name__}, kafka={kafka_cls.__name__}"
-                    )
-
-        assert not mismatches, (
-            f"Event class name mismatches for {len(mismatches)} type(s):\n" + "\n".join(mismatches)
+        assert not duplicates, (
+            "Duplicate topic names found:\n"
+            + "\n".join(f"  - {topic}: {', '.join(classes)}" for topic, classes in duplicates.items())
         )
 
+    def test_topic_derived_from_class_name(self) -> None:
+        """Topic names should be derived from class names (snake_case, no 'Event' suffix)."""
+        errors: list[str] = []
 
-class TestEventSchemaConsistency:
-    """Additional consistency checks between domain and Kafka event schemas."""
+        for cls in get_all_event_classes():
+            topic = cls.topic()
+            class_name = cls.__name__
 
-    def test_event_type_count_sanity(self) -> None:
-        """Sanity check: we should have a reasonable number of event types."""
-        count = len(EventType)
-        assert count >= 50, f"Expected at least 50 EventTypes, got {count}"
+            # Expected: remove 'Event' suffix and convert to snake_case
+            expected_base = class_name.removesuffix("Event")
+            # Convert PascalCase to snake_case
+            expected_topic = re.sub(r"(?<!^)(?=[A-Z])", "_", expected_base).lower()
 
-    def test_all_event_types_are_lowercase_snake_case(self) -> None:
-        """All EventType values should be lowercase snake_case."""
-        violations: list[str] = []
-        for et in EventType:
-            value = et.value
-            if value != value.lower():
-                violations.append(f"  - {et.name}: '{value}' contains uppercase")
-            if " " in value or "-" in value:
-                violations.append(f"  - {et.name}: '{value}' contains spaces or hyphens")
+            if topic != expected_topic:
+                errors.append(f"  - {class_name}: expected topic '{expected_topic}', got '{topic}'")
 
-        assert not violations, "EventType naming violations:\n" + "\n".join(violations)
+        assert not errors, "Topic naming mismatches:\n" + "\n".join(errors)
+
+
+class TestEventClassCount:
+    """Sanity checks for event class coverage."""
+
+    def test_event_class_count_sanity(self) -> None:
+        """Sanity check: we should have a reasonable number of event classes."""
+        count = len(get_all_event_classes())
+        assert count >= 10, f"Expected at least 10 event classes, got {count}"

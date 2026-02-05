@@ -5,17 +5,15 @@ import signal
 from app.core.container import create_event_replay_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
-from app.events.broker import create_broker
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
+from faststream.kafka import KafkaBroker
 
 
 async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with DI-managed cleanup scheduler."""
     tmp_logger = setup_logger(settings.LOG_LEVEL)
-    schema_registry = SchemaRegistryManager(settings, tmp_logger)
-    broker = create_broker(settings, schema_registry, tmp_logger)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=tmp_logger)
 
     container = create_event_replay_container(settings, broker)
     logger = await container.get(logging.Logger)

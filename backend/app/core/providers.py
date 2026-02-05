@@ -51,8 +51,7 @@ from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
-from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.events.core import EventPublisher
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
@@ -60,10 +59,9 @@ from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.grafana_alert_processor import GrafanaAlertProcessor
-from app.services.idempotency import IdempotencyConfig, IdempotencyManager
+from app.services.idempotency import IdempotencyConfig, IdempotencyManager, IdempotencyMiddleware
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
-from app.services.kafka_event_service import KafkaEventService
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
@@ -177,16 +175,14 @@ class MessagingProvider(Provider):
     broker = from_context(provides=KafkaBroker, scope=Scope.APP)
 
     @provide
-    def get_unified_producer(
+    def get_event_publisher(
             self,
             broker: KafkaBroker,
-            schema_registry: SchemaRegistryManager,
             event_repository: EventRepository,
             logger: logging.Logger,
             settings: Settings,
-            event_metrics: EventMetrics,
-    ) -> UnifiedProducer:
-        return UnifiedProducer(broker, schema_registry, event_repository, logger, settings, event_metrics)
+    ) -> EventPublisher:
+        return EventPublisher(broker, event_repository, logger, settings)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -199,6 +195,16 @@ class MessagingProvider(Provider):
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
 
+class IdempotencyMiddlewareProvider(Provider):
+    """Provides APP-scoped IdempotencyMiddleware for broker registration."""
+
+    scope = Scope.APP
+
+    @provide
+    def get_middleware(self, redis_client: redis.Redis, settings: Settings) -> IdempotencyMiddleware:
+        return IdempotencyMiddleware(redis_client, settings.KAFKA_TOPIC_PREFIX)
+
+
 class DLQProvider(Provider):
     """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
 
@@ -209,7 +215,6 @@ class DLQProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -217,7 +222,6 @@ class DLQProvider(Provider):
         return DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
@@ -238,7 +242,6 @@ class DLQWorkerProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -247,7 +250,6 @@ class DLQWorkerProvider(Provider):
         manager = DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
@@ -270,14 +272,6 @@ class DLQWorkerProvider(Provider):
         finally:
             scheduler.shutdown(wait=False)
             logger.info("DLQManager retry monitor stopped")
-
-
-class EventProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
 
 
 class KubernetesProvider(Provider):
@@ -465,21 +459,6 @@ class KafkaServicesProvider(Provider):
     def get_event_service(self, event_repository: EventRepository) -> EventService:
         return EventService(event_repository)
 
-    @provide
-    def get_kafka_event_service(
-            self,
-            kafka_producer: UnifiedProducer,
-            settings: Settings,
-            logger: logging.Logger,
-            event_metrics: EventMetrics,
-    ) -> KafkaEventService:
-        return KafkaEventService(
-            kafka_producer=kafka_producer,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
-
 
 class UserServicesProvider(Provider):
     scope = Scope.APP
@@ -488,11 +467,10 @@ class UserServicesProvider(Provider):
     def get_user_settings_service(
             self,
             repository: UserSettingsRepository,
-            kafka_event_service: KafkaEventService,
             settings: Settings,
             logger: logging.Logger,
     ) -> UserSettingsService:
-        return UserSettingsService(repository, kafka_event_service, settings, logger)
+        return UserSettingsService(repository, settings, logger)
 
 
 class AdminServicesProvider(Provider):
@@ -519,7 +497,6 @@ class AdminServicesProvider(Provider):
     def get_notification_service(
             self,
             notification_repository: NotificationRepository,
-            kafka_event_service: KafkaEventService,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
             logger: logging.Logger,
@@ -527,7 +504,6 @@ class AdminServicesProvider(Provider):
     ) -> NotificationService:
         return NotificationService(
             notification_repository=notification_repository,
-            event_service=kafka_event_service,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
@@ -616,7 +592,7 @@ class BusinessServicesProvider(Provider):
     def get_execution_service(
             self,
             execution_repository: ExecutionRepository,
-            kafka_producer: UnifiedProducer,
+            kafka_producer: EventPublisher,
             event_repository: EventRepository,
             settings: Settings,
             logger: logging.Logger,
@@ -663,7 +639,7 @@ class CoordinatorProvider(Provider):
     @provide
     def get_execution_coordinator(
         self,
-        producer: UnifiedProducer,
+        producer: EventPublisher,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
@@ -683,7 +659,7 @@ class K8sWorkerProvider(Provider):
     def get_kubernetes_worker(
         self,
         api_client: k8s_client.ApiClient,
-        kafka_producer: UnifiedProducer,
+        kafka_producer: EventPublisher,
         settings: Settings,
         logger: logging.Logger,
         event_metrics: EventMetrics,
@@ -711,7 +687,7 @@ class PodMonitorProvider(Provider):
     @provide
     async def get_pod_monitor(
         self,
-        kafka_event_service: KafkaEventService,
+        producer: EventPublisher,
         api_client: k8s_client.ApiClient,
         logger: logging.Logger,
         event_mapper: PodEventMapper,
@@ -722,7 +698,7 @@ class PodMonitorProvider(Provider):
         config = PodMonitorConfig()
         monitor = PodMonitor(
             config=config,
-            kafka_event_service=kafka_event_service,
+            producer=producer,
             logger=logger,
             api_client=api_client,
             event_mapper=event_mapper,
@@ -771,7 +747,7 @@ class SagaOrchestratorProvider(Provider):
     def get_saga_orchestrator(
         self,
         saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
+        kafka_producer: EventPublisher,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
     ) -> SagaOrchestrator:
@@ -797,7 +773,7 @@ class SagaWorkerProvider(Provider):
     async def get_saga_orchestrator(
         self,
         saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
+        kafka_producer: EventPublisher,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
         database: Database,
@@ -837,7 +813,7 @@ class ResultProcessorProvider(Provider):
     def get_result_processor(
         self,
         execution_repo: ExecutionRepository,
-        kafka_producer: UnifiedProducer,
+        kafka_producer: EventPublisher,
         settings: Settings,
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
@@ -858,7 +834,7 @@ class EventReplayProvider(Provider):
     def get_event_replay_service(
             self,
             replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
+            kafka_producer: EventPublisher,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
     ) -> EventReplayService:
@@ -883,7 +859,7 @@ class EventReplayWorkerProvider(Provider):
     async def get_event_replay_service(
             self,
             replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
+            kafka_producer: EventPublisher,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
             database: Database,

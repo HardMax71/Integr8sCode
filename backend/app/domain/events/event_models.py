@@ -6,8 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
@@ -46,7 +45,7 @@ class EventSummary:
     """Lightweight event summary for lists and previews."""
 
     event_id: str
-    event_type: EventType
+    topic: str
     timestamp: datetime
     aggregate_id: str | None = None
 
@@ -56,7 +55,7 @@ class EventFilter(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    event_types: list[EventType] | None = None
+    topics: list[str] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -85,7 +84,7 @@ class EventQuery:
 class EventListResult:
     """Result of event list query."""
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     total: int
     skip: int
     limit: int
@@ -96,7 +95,7 @@ class EventListResult:
 class EventBrowseResult:
     """Result for event browsing."""
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     total: int
     skip: int
     limit: int
@@ -106,14 +105,14 @@ class EventBrowseResult:
 class EventDetail:
     """Detailed event information with related events."""
 
-    event: DomainEvent
+    event: BaseEvent
     related_events: list[EventSummary] = field(default_factory=list)
     timeline: list[EventSummary] = field(default_factory=list)
 
 
 @dataclass
-class EventTypeCount:
-    event_type: EventType
+class TopicCount:
+    topic: str
     count: int
 
 
@@ -140,7 +139,7 @@ class EventStatistics:
     """Event statistics."""
 
     total_events: int
-    events_by_type: list[EventTypeCount] = field(default_factory=list)
+    events_by_topic: list[TopicCount] = field(default_factory=list)
     events_by_service: list[ServiceEventCount] = field(default_factory=list)
     events_by_hour: list[HourlyEventCount | dict[str, Any]] = field(default_factory=list)
     top_users: list[UserEventCount] = field(default_factory=list)
@@ -167,9 +166,9 @@ class EventProjection:
 class EventReplayInfo:
     """Information for event replay."""
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     event_count: int
-    event_types: list[EventType]
+    topics: list[str]
     start_time: datetime
     end_time: datetime
 
@@ -178,11 +177,11 @@ class EventReplayInfo:
 class ExecutionEventsResult:
     """Result of execution events query."""
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     access_allowed: bool
     include_system_events: bool
 
-    def get_filtered_events(self) -> list[DomainEvent]:
+    def get_filtered_events(self) -> list[BaseEvent]:
         """Get events filtered based on access and system event settings."""
         if not self.access_allowed:
             return []
@@ -200,7 +199,7 @@ class EventExportRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event_id: str
-    event_type: EventType
+    topic: str
     timestamp: datetime
     correlation_id: str
     aggregate_id: str

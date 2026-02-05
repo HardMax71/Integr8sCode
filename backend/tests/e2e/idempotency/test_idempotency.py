@@ -46,7 +46,7 @@ class TestIdempotencyManager:
 
         assert result.is_duplicate is False
         assert result.status == IdempotencyStatus.PROCESSING
-        assert result.key.endswith(f"{real_event.event_type}:{real_event.event_id}")
+        assert result.key.endswith(f"{type(real_event).topic()}:{real_event.event_id}")
         assert result.key.startswith(f"{manager.config.key_prefix}:")
 
         # Verify it's in the repository

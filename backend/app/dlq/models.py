@@ -5,8 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 
 
 class DLQMessageStatus(StringEnum):
@@ -29,11 +28,11 @@ class RetryStrategy(StringEnum):
 
 
 class DLQMessage(BaseModel):
-    """Unified DLQ message model. Access event_id/event_type via event.event_id, event.event_type."""
+    """Unified DLQ message model. Access event_id via event.event_id."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    event: DomainEvent  # Discriminated union - auto-validates from dict
+    event: BaseEvent
     original_topic: str = ""
     error: str = "Unknown error"
     retry_count: int = 0
@@ -72,7 +71,6 @@ class DLQMessageFilter:
 
     status: DLQMessageStatus | None = None
     topic: str | None = None
-    event_type: EventType | None = None
 
 
 @dataclass

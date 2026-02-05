@@ -32,7 +32,6 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.schemas_pydantic.sse import RedisNotificationMessage
-from app.services.kafka_event_service import KafkaEventService
 from app.services.sse.redis_bus import SSERedisBus
 from app.settings import Settings
 
@@ -97,14 +96,12 @@ class NotificationService:
     def __init__(
         self,
         notification_repository: NotificationRepository,
-        event_service: KafkaEventService,
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: logging.Logger,
         notification_metrics: NotificationMetrics,
     ) -> None:
         self.repository = notification_repository
-        self.event_service = event_service
         self.metrics = notification_metrics
         self.settings = settings
         self.sse_bus = sse_bus

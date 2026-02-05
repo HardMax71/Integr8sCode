@@ -264,7 +264,6 @@ class AdminEventsService:
                 "Event deleted",
                 extra={
                     "event_id": event_id,
-                    "event_type": detail.event.event_type,
                     "correlation_id": correlation_id,
                     "deleted_by": deleted_by,
                 },

@@ -18,7 +18,7 @@ from app.domain.events.typed import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
 )
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 
 
 class QueueRejectError(Exception):
@@ -29,19 +29,20 @@ _PRIORITY_SORT = {p: i for i, p in enumerate(QueuePriority)}
 
 
 class ExecutionCoordinator:
-    """
-    Coordinates execution scheduling across the system.
+    """Coordinates execution scheduling across the system.
 
     This service:
     1. Consumes ExecutionRequested events
     2. Manages execution queue with priority
     3. Enforces per-user rate limits
     4. Publishes CreatePodCommand events for workers
+
+    Idempotency is handled by FastStream middleware (IdempotencyMiddleware).
     """
 
     def __init__(
         self,
-        producer: UnifiedProducer,
+        producer: EventPublisher,
         execution_repository: ExecutionRepository,
         logger: logging.Logger,
         coordinator_metrics: CoordinatorMetrics,
@@ -71,7 +72,7 @@ class ExecutionCoordinator:
 
     async def handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
         """Handle execution requested event - add to queue for processing."""
-        self.logger.info(f"HANDLER CALLED: handle_execution_requested for event {event.event_id}")
+        self.logger.info(f"Handling execution_requested for event {event.event_id}")
         start_time = time.time()
 
         try:
@@ -301,7 +302,7 @@ class ExecutionCoordinator:
             metadata=metadata,
         )
 
-        await self.producer.produce(event_to_produce=create_pod_cmd, key=request.execution_id)
+        await self.producer.publish(event=create_pod_cmd, key=request.execution_id)
 
     async def _publish_execution_accepted(self, request: ExecutionRequestedEvent, position: int) -> None:
         """Publish execution accepted event to notify that request was valid and queued."""
@@ -315,7 +316,7 @@ class ExecutionCoordinator:
             metadata=request.metadata,
         )
 
-        await self.producer.produce(event_to_produce=event, key=request.execution_id)
+        await self.producer.publish(event=event, key=request.execution_id)
 
     async def _publish_queue_full(self, request: ExecutionRequestedEvent, error: str) -> None:
         """Publish queue full event."""
@@ -329,7 +330,7 @@ class ExecutionCoordinator:
             error_message=error,
         )
 
-        await self.producer.produce(event_to_produce=event, key=request.execution_id)
+        await self.producer.publish(event=event, key=request.execution_id)
 
     async def _publish_scheduling_failed(self, request: ExecutionRequestedEvent, error: str) -> None:
         """Publish scheduling failed event."""
@@ -343,4 +344,4 @@ class ExecutionCoordinator:
             error_message=error,
         )
 
-        await self.producer.produce(event_to_produce=event, key=request.execution_id)
+        await self.producer.publish(event=event, key=request.execution_id)

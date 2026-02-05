@@ -5,15 +5,15 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.dlq.models import DLQMessageStatus
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 
 
 class DLQMessageDocument(Document):
-    """Unified DLQ message document. Access event_id/event_type via event.event_id, event.event_type."""
+    """Unified DLQ message document. Access event_id via event.event_id."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    event: DomainEvent  # Discriminated union - contains event_id, event_type
+    event: BaseEvent
     original_topic: Indexed(str) = ""  # type: ignore[valid-type]
     error: str = "Unknown error"
     retry_count: Indexed(int) = 0  # type: ignore[valid-type]
@@ -36,7 +36,7 @@ class DLQMessageDocument(Document):
         use_state_management = True
         indexes = [
             IndexModel([("event.event_id", ASCENDING)], unique=True, name="idx_dlq_event_id"),
-            IndexModel([("event.event_type", ASCENDING)], name="idx_dlq_event_type"),
+            IndexModel([("original_topic", ASCENDING)], name="idx_dlq_original_topic"),
             IndexModel([("status", ASCENDING)], name="idx_dlq_status"),
             IndexModel([("failed_at", DESCENDING)], name="idx_dlq_failed_desc"),
             IndexModel([("created_at", ASCENDING)], name="idx_dlq_created_ttl", expireAfterSeconds=7 * 24 * 3600),

@@ -1,5 +1,3 @@
-from .producer import UnifiedProducer
+from .producer import EventPublisher
 
-__all__ = [
-    "UnifiedProducer",
-]
+__all__ = ["EventPublisher"]

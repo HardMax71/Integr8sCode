@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.schemas_pydantic.events import EventStatistics
 from app.schemas_pydantic.user import UserResponse
 
@@ -30,6 +30,6 @@ class AdminUserOverview(BaseModel):
     stats: EventStatistics
     derived_counts: DerivedCounts
     rate_limit_summary: RateLimitSummary
-    recent_events: list[DomainEvent] = []
+    recent_events: list[BaseEvent] = []
 
     model_config = ConfigDict(from_attributes=True)

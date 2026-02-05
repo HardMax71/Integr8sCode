@@ -9,8 +9,8 @@ pytestmark = pytest.mark.unit
 def test_pod_monitor_config_defaults() -> None:
     cfg = PodMonitorConfig()
     assert cfg.namespace in {"integr8scode", "default"}
-    assert isinstance(cfg.pod_events_topic, str) and cfg.pod_events_topic
-    assert isinstance(cfg.execution_completed_topic, str)
+    assert cfg.label_selector == "app=integr8s,component=executor"
+    assert cfg.watch_timeout_seconds == 300
     assert cfg.ignored_pod_phases == []
 
 

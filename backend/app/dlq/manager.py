@@ -1,7 +1,6 @@
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Callable
 
 from faststream.kafka import KafkaBroker
 
@@ -24,7 +23,6 @@ from app.domain.events.typed import (
     DLQMessageRetriedEvent,
     EventMetadata,
 )
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
@@ -40,7 +38,6 @@ class DLQManager:
         self,
         settings: Settings,
         broker: KafkaBroker,
-        schema_registry: SchemaRegistryManager,
         logger: logging.Logger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
@@ -52,7 +49,6 @@ class DLQManager:
     ):
         self.settings = settings
         self._broker = broker
-        self.schema_registry = schema_registry
         self.logger = logger
         self.metrics = dlq_metrics
         self.repository = repository
@@ -122,18 +118,6 @@ class DLQManager:
         await self.process_due_retries()
         await self.update_queue_metrics()
 
-    def parse_kafka_message(self, msg: Any) -> DLQMessage:
-        """Parse a raw Kafka ConsumerRecord into a DLQMessage."""
-        data = json.loads(msg.value)
-        headers = {k: v.decode() for k, v in (msg.headers or [])}
-        return DLQMessage(**data, dlq_offset=msg.offset, dlq_partition=msg.partition, headers=headers)
-
-    def parse_dlq_body(
-        self, data: dict[str, Any], offset: int, partition: int, headers: dict[str, str]
-    ) -> DLQMessage:
-        """Parse a deserialized DLQ message body into a DLQMessage."""
-        return DLQMessage(**data, dlq_offset=offset, dlq_partition=partition, headers=headers)
-
     async def handle_message(self, message: DLQMessage) -> None:
         """Process a single DLQ message: filter → store → decide retry/discard."""
         for filter_func in self._filters:
@@ -164,31 +148,30 @@ class DLQManager:
     async def retry_message(self, message: DLQMessage) -> None:
         """Retry a DLQ message by republishing to the retry topic and original topic."""
         retry_topic = f"{message.original_topic}{self.retry_topic_suffix}"
+        event_topic = type(message.event).topic()
 
         hdrs: dict[str, str] = {
+            "topic": event_topic,
             "dlq_retry_count": str(message.retry_count + 1),
             "dlq_original_error": message.error,
             "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         hdrs = inject_trace_context(hdrs)
 
-        event = message.event
-        serialized = json.dumps(event.model_dump(mode="json")).encode()
-
         await self._broker.publish(
-            message=serialized,
+            message=message.event,
             topic=retry_topic,
             key=message.event.event_id.encode(),
             headers=hdrs,
         )
         await self._broker.publish(
-            message=serialized,
+            message=message.event,
             topic=message.original_topic,
             key=message.event.event_id.encode(),
             headers=hdrs,
         )
 
-        self.metrics.record_dlq_message_retried(message.original_topic, message.event.event_type, "success")
+        self.metrics.record_dlq_message_retried(message.original_topic, event_topic, "success")
 
         new_retry_count = message.retry_count + 1
         await self.repository.update_status(
@@ -205,7 +188,8 @@ class DLQManager:
 
     async def discard_message(self, message: DLQMessage, reason: str) -> None:
         """Discard a DLQ message, updating status and emitting an event."""
-        self.metrics.record_dlq_message_discarded(message.original_topic, message.event.event_type, reason)
+        event_topic = type(message.event).topic()
+        self.metrics.record_dlq_message_discarded(message.original_topic, event_topic, reason)
 
         await self.repository.update_status(
             message.event.event_id,
@@ -309,7 +293,6 @@ class DLQManager:
         event = DLQMessageReceivedEvent(
             dlq_event_id=message.event.event_id,
             original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
             error=message.error,
             retry_count=message.retry_count,
             producer_id=message.producer_id,
@@ -322,7 +305,6 @@ class DLQManager:
         event = DLQMessageRetriedEvent(
             dlq_event_id=message.event.event_id,
             original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
             retry_count=new_retry_count,
             retry_topic=retry_topic,
             metadata=self._event_metadata,
@@ -333,7 +315,6 @@ class DLQManager:
         event = DLQMessageDiscardedEvent(
             dlq_event_id=message.event.event_id,
             original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
             reason=reason,
             retry_count=message.retry_count,
             metadata=self._event_metadata,
@@ -344,11 +325,10 @@ class DLQManager:
         self, event: DLQMessageReceivedEvent | DLQMessageRetriedEvent | DLQMessageDiscardedEvent
     ) -> None:
         try:
-            serialized = await self.schema_registry.serialize_event(event)
             await self._broker.publish(
-                message=serialized,
+                message=event,
                 topic=self._dlq_events_topic,
                 key=event.event_id.encode(),
             )
         except Exception as e:
-            self.logger.error(f"Failed to emit DLQ event {event.event_type}: {e}")
+            self.logger.error(f"Failed to emit DLQ event {type(event).topic()}: {e}")

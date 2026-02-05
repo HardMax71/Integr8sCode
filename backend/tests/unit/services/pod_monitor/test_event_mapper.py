@@ -3,9 +3,6 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from kubernetes_asyncio.client import V1Pod, V1PodCondition
-
-from app.domain.enums.events import EventType
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
     EventMetadata,
@@ -15,6 +12,8 @@ from app.domain.events.typed import (
     PodRunningEvent,
 )
 from app.services.pod_monitor.event_mapper import PodContext, PodEventMapper
+from kubernetes_asyncio.client import V1Pod, V1PodCondition
+
 from tests.unit.conftest import make_container_status, make_pod
 
 pytestmark = pytest.mark.unit
@@ -62,7 +61,7 @@ async def test_pending_running_and_succeeded_mapping() -> None:
         conditions=[V1PodCondition(type="PodScheduled", status="True")],
     )
     evts = await pem.map_pod_event(pend, "ADDED")
-    assert any(e.event_type == EventType.POD_SCHEDULED for e in evts)
+    assert any(type(e).topic() == "pod_scheduled" for e in evts)
 
     # Running -> running
     run = make_pod(
@@ -75,8 +74,8 @@ async def test_pending_running_and_succeeded_mapping() -> None:
         ],
     )
     evts = await pem.map_pod_event(run, "MODIFIED")
-    assert any(e.event_type == EventType.POD_RUNNING for e in evts)
-    pr = [e for e in evts if e.event_type == EventType.POD_RUNNING][0]
+    assert any(type(e).topic() == "pod_running" for e in evts)
+    pr = [e for e in evts if type(e).topic() == "pod_running"][0]
     assert isinstance(pr, PodRunningEvent)
     assert any("waiting" in s.state for s in pr.container_statuses) and any(
         "terminated" in s.state for s in pr.container_statuses
@@ -90,7 +89,7 @@ async def test_pending_running_and_succeeded_mapping() -> None:
         container_statuses=[make_container_status(terminated_exit_code=0)],
     )
     evts = await pem.map_pod_event(suc, "MODIFIED")
-    comp = [e for e in evts if e.event_type == EventType.EXECUTION_COMPLETED][0]
+    comp = [e for e in evts if type(e).topic() == "execution_completed"][0]
     assert isinstance(comp, ExecutionCompletedEvent)
     assert comp.exit_code == 0 and comp.stdout == "ok"
 
@@ -111,7 +110,7 @@ async def test_failed_timeout_and_deleted() -> None:
     )
     ev = (await pem.map_pod_event(pod_to, "MODIFIED"))[0]
     assert isinstance(ev, ExecutionTimeoutEvent)
-    assert ev.event_type == EventType.EXECUTION_TIMEOUT and ev.timeout_seconds == 5
+    assert type(ev).topic() == "execution_timeout" and ev.timeout_seconds == 5
 
     # Failed: terminated exit_code nonzero
     pem_no_logs = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
@@ -123,7 +122,7 @@ async def test_failed_timeout_and_deleted() -> None:
     )
     evf = (await pem_no_logs.map_pod_event(pod_fail, "MODIFIED"))[0]
     assert isinstance(evf, ExecutionFailedEvent)
-    assert evf.event_type == EventType.EXECUTION_FAILED and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
+    assert type(evf).topic() == "execution_failed" and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
 
     # Deleted with exit code 0 returns completed
     valid_logs_0 = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
@@ -135,7 +134,7 @@ async def test_failed_timeout_and_deleted() -> None:
         container_statuses=[make_container_status(terminated_exit_code=0, terminated_reason="Completed")],
     )
     evd = (await pem_completed.map_pod_event(pod_del, "DELETED"))[0]
-    assert evd.event_type == EventType.EXECUTION_COMPLETED
+    assert type(evd).topic() == "execution_completed"
 
 
 def test_extract_id_and_metadata_priority_and_duplicates() -> None:
@@ -264,11 +263,11 @@ async def test_all_containers_succeeded_and_cache_behavior() -> None:
     )
     # When all succeeded, failed mapping returns completed instead of failed
     ev = (await pem.map_pod_event(pod, "MODIFIED"))[0]
-    assert ev.event_type == EventType.EXECUTION_COMPLETED
+    assert type(ev).topic() == "execution_completed"
 
     # Cache prevents duplicate for same phase
     p2 = make_pod(name="p2", phase="Running")
     a = await pem.map_pod_event(p2, "ADDED")
     b = await pem.map_pod_event(p2, "MODIFIED")
-    assert a == [] or all(x.event_type for x in a)
-    assert b == [] or all(x.event_type for x in b)
+    assert a == [] or all(type(x).topic() for x in a)
+    assert b == [] or all(type(x).topic() for x in b)

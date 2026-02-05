@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionStartedEvent
+from app.domain.events.typed import BaseEvent, EventMetadata, ExecutionStartedEvent
 from app.services.sse.redis_bus import SSERedisBus
 
 pytestmark = pytest.mark.unit
@@ -14,10 +14,10 @@ class _FakeBus(SSERedisBus):
 
     def __init__(self) -> None:
         # Skip parent __init__ - no real Redis
-        self.published: list[tuple[str, DomainEvent]] = []
+        self.published: list[tuple[str, BaseEvent]] = []
         self.logger = _test_logger
 
-    async def publish_event(self, execution_id: str, event: DomainEvent) -> None:
+    async def publish_event(self, execution_id: str, event: BaseEvent) -> None:
         self.published.append((execution_id, event))
 
 
@@ -34,5 +34,6 @@ async def test_route_domain_event_publishes_to_redis() -> None:
     assert fake_bus.published == []
 
     # Proper event is published
-    await fake_bus.route_domain_event(ExecutionStartedEvent(execution_id="exec-123", pod_name="p", metadata=_make_metadata()))
+    event = ExecutionStartedEvent(execution_id="exec-123", pod_name="p", metadata=_make_metadata())
+    await fake_bus.route_domain_event(event)
     assert fake_bus.published and fake_bus.published[-1][0] == "exec-123"

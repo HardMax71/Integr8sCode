@@ -6,7 +6,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums.common import Theme
-from app.domain.enums.events import EventType
 from app.domain.enums.notification import NotificationChannel
 
 
@@ -75,7 +74,7 @@ class DomainUserSettingsChangedEvent(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="ignore")
 
     event_id: str
-    event_type: EventType
+    topic: str
     timestamp: datetime
     user_id: str
     changed_fields: list[str]
@@ -94,7 +93,7 @@ class DomainSettingsHistoryEntry(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     timestamp: datetime
-    event_type: EventType
+    topic: str
     field: str
     old_value: Any
     new_value: Any

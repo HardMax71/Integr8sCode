@@ -16,7 +16,7 @@ from app.domain.events.typed import (
     ExecutionStartedEvent,
     PodCreatedEvent,
 )
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
@@ -24,8 +24,7 @@ from .pod_builder import PodBuilder
 
 
 class KubernetesWorker:
-    """
-    Worker service that creates Kubernetes pods from execution events.
+    """Worker service that creates Kubernetes pods from execution events.
 
     This service:
     1. Handles CreatePodCommand events from saga orchestrator
@@ -34,12 +33,13 @@ class KubernetesWorker:
     4. Publishes PodCreated events
 
     Lifecycle is managed by DI - consumer is injected already started.
+    Idempotency is handled by FastStream middleware (IdempotencyMiddleware).
     """
 
     def __init__(
             self,
             api_client: k8s_client.ApiClient,
-            producer: UnifiedProducer,
+            producer: EventPublisher,
             settings: Settings,
             logger: logging.Logger,
             event_metrics: EventMetrics,
@@ -72,10 +72,9 @@ class KubernetesWorker:
         self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
 
     async def handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
-        """Handle create pod command from saga orchestrator"""
+        """Handle create pod command from saga orchestrator."""
         execution_id = command.execution_id
 
-        # Check if already processing
         if execution_id in self._active_creations:
             self.logger.warning(f"Already creating pod for execution {execution_id}")
             return
@@ -83,7 +82,7 @@ class KubernetesWorker:
         await self._create_pod_for_execution(command)
 
     async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
-        """Handle delete pod command from saga orchestrator (compensation)"""
+        """Handle delete pod command from saga orchestrator (compensation)."""
         execution_id = command.execution_id
         self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
 
@@ -211,7 +210,7 @@ exec "$@"
             container_id=None,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""
@@ -221,7 +220,7 @@ exec "$@"
             namespace=pod.metadata.namespace,
             metadata=command.metadata,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def _publish_pod_creation_failed(self, command: CreatePodCommandEvent, error: str) -> None:
         """Publish pod creation failed event"""
@@ -234,7 +233,7 @@ exec "$@"
             metadata=command.metadata,
             error_message=str(error),
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        await self.producer.publish(event=event, key=command.execution_id)
 
     async def wait_for_active_creations(self, timeout: float = 30.0) -> None:
         """Wait for active pod creations to complete (for graceful shutdown)."""
@@ -251,63 +250,65 @@ exec "$@"
             self.logger.warning(f"Timeout waiting for pod creations, {len(self._active_creations)} still active")
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
-        """Ensure the runtime image pre-puller DaemonSet exists."""
+        """Create or replace the image pre-puller DaemonSet (fire-and-forget).
+
+        The DaemonSet pulls all runtime images onto every node in the background.
+        This method returns immediately after the DaemonSet is applied — it does
+        NOT wait for images to finish pulling.  In CI, the test-critical image
+        (python:3.11-slim) is pre-pulled directly into K3s containerd before the
+        stack starts, so execution pods never hit a cold pull.
+        """
         daemonset_name = "runtime-image-pre-puller"
         namespace = self._settings.K8S_NAMESPACE
 
-        try:
-            init_containers = []
-            all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
+        init_containers = []
+        all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
 
-            for i, image_ref in enumerate(sorted(list(all_images))):
-                sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
-                self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
-                container_name = f"pull-{i}-{sanitized_image_ref}"
-                init_containers.append(
-                    {
-                        "name": container_name,
-                        "image": image_ref,
-                        "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
-                        "imagePullPolicy": "Always",
-                    }
-                )
+        for i, image_ref in enumerate(sorted(list(all_images))):
+            sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
+            container_name = f"pull-{i}-{sanitized_image_ref}"
+            init_containers.append(
+                {
+                    "name": container_name,
+                    "image": image_ref,
+                    "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                    "imagePullPolicy": "Always",
+                }
+            )
 
-            manifest: dict[str, Any] = {
-                "apiVersion": "apps/v1",
-                "kind": "DaemonSet",
-                "metadata": {"name": daemonset_name, "namespace": namespace},
-                "spec": {
-                    "selector": {"matchLabels": {"name": daemonset_name}},
-                    "template": {
-                        "metadata": {"labels": {"name": daemonset_name}},
-                        "spec": {
-                            "initContainers": init_containers,
-                            "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.9"}],
-                            "tolerations": [{"operator": "Exists"}],
-                        },
+        self.logger.info(f"Pre-pulling {len(all_images)} runtime images via DaemonSet")
+
+        manifest: dict[str, Any] = {
+            "apiVersion": "apps/v1",
+            "kind": "DaemonSet",
+            "metadata": {"name": daemonset_name, "namespace": namespace},
+            "spec": {
+                "selector": {"matchLabels": {"name": daemonset_name}},
+                "template": {
+                    "metadata": {"labels": {"name": daemonset_name}},
+                    "spec": {
+                        "initContainers": init_containers,
+                        "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.9"}],
+                        "tolerations": [{"operator": "Exists"}],
                     },
-                    "updateStrategy": {"type": "RollingUpdate"},
                 },
-            }
+                "updateStrategy": {"type": "RollingUpdate"},
+            },
+        }
 
-            try:
-                await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
-                self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
-                await self.apps_v1.replace_namespaced_daemon_set(
-                    name=daemonset_name, namespace=namespace, body=manifest  # type: ignore[arg-type]
-                )
-                self.logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
-            except ApiException as e:
-                if e.status == 404:
-                    self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
-                    await self.apps_v1.create_namespaced_daemon_set(
-                        namespace=namespace, body=manifest  # type: ignore[arg-type]
-                    )
-                    self.logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
-                else:
-                    raise
-
+        try:
+            await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
+            self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
+            await self.apps_v1.replace_namespaced_daemon_set(
+                name=daemonset_name, namespace=namespace, body=manifest  # type: ignore[arg-type]
+            )
         except ApiException as e:
-            self.logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
-        except Exception as e:
-            self.logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
+            if e.status == 404:
+                self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
+                await self.apps_v1.create_namespaced_daemon_set(
+                    namespace=namespace, body=manifest  # type: ignore[arg-type]
+                )
+            else:
+                raise
+
+        self.logger.info(f"DaemonSet '{daemonset_name}' applied — images will pull in background")

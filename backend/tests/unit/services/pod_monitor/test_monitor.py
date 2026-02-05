@@ -4,17 +4,15 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.core.metrics import EventMetrics, KubernetesMetrics
-from app.db.repositories.event_repository import EventRepository
+from app.core.metrics import KubernetesMetrics
 from app.domain.events.typed import (
-    DomainEvent,
+    BaseEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionStartedEvent,
     ResourceUsageDomain,
 )
-from app.events.core import UnifiedProducer
-from app.services.kafka_event_service import KafkaEventService
+from app.events.core import EventPublisher
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper
 from app.services.pod_monitor.monitor import (
@@ -22,7 +20,6 @@ from app.services.pod_monitor.monitor import (
     PodMonitor,
     WatchEventType,
 )
-from app.settings import Settings
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client import V1Pod
 from kubernetes_asyncio.client.rest import ApiException
@@ -39,52 +36,25 @@ pytestmark = pytest.mark.unit
 _test_logger = logging.getLogger("test.pod_monitor")
 
 
-# ===== Test doubles for KafkaEventService dependencies =====
+# ===== Test doubles for EventPublisher =====
 
 
-class FakeEventRepository(EventRepository):
-    """In-memory event repository for testing."""
-
-    def __init__(self) -> None:
-        super().__init__(_test_logger)
-        self.stored_events: list[DomainEvent] = []
-
-    async def store_event(self, event: DomainEvent) -> str:
-        self.stored_events.append(event)
-        return event.event_id
-
-
-class FakeUnifiedProducer(UnifiedProducer):
+class FakeEventPublisher(EventPublisher):
     """Fake producer that captures events without Kafka."""
 
     def __init__(self) -> None:
         # Don't call super().__init__ - we don't need real Kafka
-        self.produced_events: list[tuple[DomainEvent, str | None]] = []
+        self.produced_events: list[tuple[BaseEvent, str | None]] = []
         self.logger = _test_logger
 
-    async def produce(
-            self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        self.produced_events.append((event_to_produce, key))
+    async def publish(
+            self, event: BaseEvent, key: str | None = None
+    ) -> str:
+        self.produced_events.append((event, key))
+        return event.event_id
 
     async def aclose(self) -> None:
         pass
-
-
-def create_test_kafka_event_service(event_metrics: EventMetrics) -> tuple[KafkaEventService, FakeUnifiedProducer]:
-    """Create real KafkaEventService with fake dependencies for testing."""
-    fake_producer = FakeUnifiedProducer()
-    fake_repo = FakeEventRepository()
-    settings = Settings(config_path="config.test.toml")
-
-    service = KafkaEventService(
-        event_repository=fake_repo,
-        kafka_producer=fake_producer,
-        settings=settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-    return service, fake_producer
 
 
 # ===== Helpers to create test instances with pure DI =====
@@ -98,10 +68,9 @@ def make_mock_api_client() -> MagicMock:
 
 
 def make_pod_monitor(
-        event_metrics: EventMetrics,
         kubernetes_metrics: KubernetesMetrics,
         config: PodMonitorConfig | None = None,
-        kafka_service: KafkaEventService | None = None,
+        producer: FakeEventPublisher | None = None,
         api_client: k8s_client.ApiClient | None = None,
         event_mapper: PodEventMapper | None = None,
         mock_v1: Any | None = None,
@@ -110,16 +79,16 @@ def make_pod_monitor(
         events: list[dict[str, Any]] | None = None,
         resource_version: str = "rv1",
         list_resource_version: str = "list-rv1",
-) -> PodMonitor:
+) -> tuple[PodMonitor, FakeEventPublisher]:
     """Create PodMonitor with sensible test defaults."""
     cfg = config or PodMonitorConfig()
     client = api_client or make_mock_api_client()
     mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api("{}"))
-    service = kafka_service or create_test_kafka_event_service(event_metrics)[0]
+    fake_producer = producer or FakeEventPublisher()
 
     monitor = PodMonitor(
         config=cfg,
-        kafka_event_service=service,
+        producer=fake_producer,
         logger=_test_logger,
         api_client=client,
         event_mapper=mapper,
@@ -130,7 +99,7 @@ def make_pod_monitor(
     monitor._v1 = mock_v1 or make_mock_v1_api(pods=pods, list_resource_version=list_resource_version)
     monitor._watch = mock_watch or make_mock_watch(events or [], resource_version)
 
-    return monitor
+    return monitor, fake_producer
 
 
 # ===== Tests =====
@@ -138,15 +107,15 @@ def make_pod_monitor(
 
 @pytest.mark.asyncio
 async def test_watch_pod_events_list_then_watch(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     """First call does LIST + WATCH; second call skips LIST."""
     cfg = PodMonitorConfig()
 
     pod = make_pod(name="existing", phase="Running", resource_version="rv1")
 
-    pm = make_pod_monitor(
-        event_metrics, kubernetes_metrics, config=cfg,
+    pm, _ = make_pod_monitor(
+        kubernetes_metrics, config=cfg,
         pods=[pod], list_resource_version="list-rv5",
         events=[{"type": "MODIFIED", "object": make_pod(name="existing", phase="Succeeded", resource_version="rv6")}],
         resource_version="rv7",
@@ -166,7 +135,7 @@ async def test_watch_pod_events_list_then_watch(
 
 @pytest.mark.asyncio
 async def test_watch_pod_events_with_field_selector(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
     cfg.field_selector = "status.phase=Running"
@@ -192,8 +161,8 @@ async def test_watch_pod_events_with_field_selector(
     tracking_watch.stop.return_value = None
     tracking_watch.resource_version = "rv1"
 
-    pm = make_pod_monitor(
-        event_metrics, kubernetes_metrics, config=cfg,
+    pm, _ = make_pod_monitor(
+        kubernetes_metrics, config=cfg,
         mock_v1=tracking_v1, mock_watch=tracking_watch,
     )
 
@@ -204,11 +173,11 @@ async def test_watch_pod_events_with_field_selector(
 
 @pytest.mark.asyncio
 async def test_watch_pod_events_raises_api_exception(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     """watch_pod_events propagates ApiException to the caller."""
     cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg)
 
     # Pre-set resource version so LIST is skipped
     pm._last_resource_version = "rv1"
@@ -223,15 +192,15 @@ async def test_watch_pod_events_raises_api_exception(
 
 @pytest.mark.asyncio
 async def test_watch_resets_after_410(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     """After 410 Gone resets _last_resource_version, next call re-LISTs."""
     cfg = PodMonitorConfig()
 
     pod = make_pod(name="p1", phase="Running", resource_version="rv10")
 
-    pm = make_pod_monitor(
-        event_metrics, kubernetes_metrics, config=cfg,
+    pm, _ = make_pod_monitor(
+        kubernetes_metrics, config=cfg,
         pods=[pod], list_resource_version="list-rv10",
         events=[], resource_version="rv11",
     )
@@ -248,10 +217,10 @@ async def test_watch_resets_after_410(
 
 @pytest.mark.asyncio
 async def test_process_raw_event_invalid(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg)
 
     # Should not raise - invalid events are caught and logged
     await pm._process_raw_event({})
@@ -259,10 +228,10 @@ async def test_process_raw_event_invalid(
 
 @pytest.mark.asyncio
 async def test_process_raw_event_with_metadata(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg)
 
     processed: list[PodEvent] = []
 
@@ -289,7 +258,7 @@ async def test_process_raw_event_with_metadata(
 
 @pytest.mark.asyncio
 async def test_process_pod_event_full_flow(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
     cfg.ignored_pod_phases = ["Unknown"]
@@ -306,7 +275,7 @@ async def test_process_pod_event_full_flow(
         def clear_cache(self) -> None:
             pass
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, event_mapper=MockMapper())  # type: ignore[arg-type]
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg, event_mapper=MockMapper())  # type: ignore[arg-type]
 
     published: list[Any] = []
 
@@ -347,7 +316,7 @@ async def test_process_pod_event_full_flow(
 
 @pytest.mark.asyncio
 async def test_process_pod_event_exception_handling(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
 
@@ -358,7 +327,7 @@ async def test_process_pod_event_exception_handling(
         def clear_cache(self) -> None:
             pass
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, event_mapper=FailMapper())  # type: ignore[arg-type]
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg, event_mapper=FailMapper())  # type: ignore[arg-type]
 
     event = PodEvent(
         event_type=WatchEventType.ADDED,
@@ -372,11 +341,10 @@ async def test_process_pod_event_exception_handling(
 
 @pytest.mark.asyncio
 async def test_publish_event_full_flow(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
-    service, fake_producer = create_test_kafka_event_service(event_metrics)
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, kafka_service=service)
+    pm, fake_producer = make_pod_monitor(kubernetes_metrics, config=cfg)
 
     event = ExecutionCompletedEvent(
         execution_id="exec1",
@@ -395,27 +363,19 @@ async def test_publish_event_full_flow(
 
 @pytest.mark.asyncio
 async def test_publish_event_exception_handling(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
+    kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
 
-    class FailingProducer(FakeUnifiedProducer):
+    class FailingProducer(FakeEventPublisher):
         async def produce(
-                self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
-        ) -> None:
+                self, event: BaseEvent, key: str | None = None
+        ) -> str:
             raise RuntimeError("Publish failed")
 
     failing_producer = FailingProducer()
-    fake_repo = FakeEventRepository()
-    failing_service = KafkaEventService(
-        event_repository=fake_repo,
-        kafka_producer=failing_producer,
-        settings=Settings(config_path="config.test.toml"),
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
 
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, kafka_service=failing_service)
+    pm, _ = make_pod_monitor(kubernetes_metrics, config=cfg, producer=failing_producer)
 
     event = ExecutionStartedEvent(
         execution_id="exec1",

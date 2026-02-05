@@ -1,40 +1,51 @@
-import logging
-
 import pytest
 from app.domain.enums.execution import QueuePriority
-from app.domain.events.typed import ExecutionRequestedEvent
-from app.events.schema.schema_registry import SchemaRegistryManager
-from app.settings import Settings
-
-_test_logger = logging.getLogger("test.events.schema_registry_manager")
+from app.domain.events.typed import BaseEvent, EventMetadata, ExecutionRequestedEvent
+from pydantic import ValidationError
 
 
-def test_deserialize_json_execution_requested(test_settings: Settings) -> None:
-    m = SchemaRegistryManager(test_settings, logger=_test_logger)
-    data = {
-        "event_type": "execution_requested",
-        "execution_id": "e1",
-        "script": "print('ok')",
-        "language": "python",
-        "language_version": "3.11",
-        "runtime_image": "python:3.11-slim",
-        "runtime_command": ["python"],
-        "runtime_filename": "main.py",
-        "timeout_seconds": 30,
-        "cpu_limit": "100m",
-        "memory_limit": "128Mi",
-        "cpu_request": "50m",
-        "memory_request": "64Mi",
-        "priority": QueuePriority.NORMAL,
-        "metadata": {"service_name": "t", "service_version": "1.0"},
-    }
-    ev = m.deserialize_json(data)
+def test_execution_requested_event_validation() -> None:
+    """Test that ExecutionRequestedEvent can be instantiated with valid data."""
+    ev = ExecutionRequestedEvent(
+        execution_id="e1",
+        script="print('ok')",
+        language="python",
+        language_version="3.11",
+        runtime_image="python:3.11-slim",
+        runtime_command=["python"],
+        runtime_filename="main.py",
+        timeout_seconds=30,
+        cpu_limit="100m",
+        memory_limit="128Mi",
+        cpu_request="50m",
+        memory_request="64Mi",
+        priority=QueuePriority.NORMAL,
+        metadata=EventMetadata(service_name="t", service_version="1.0"),
+    )
     assert isinstance(ev, ExecutionRequestedEvent)
     assert ev.execution_id == "e1"
     assert ev.language == "python"
 
 
-def test_deserialize_json_missing_type_raises(test_settings: Settings) -> None:
-    m = SchemaRegistryManager(test_settings, logger=_test_logger)
-    with pytest.raises(ValueError):
-        m.deserialize_json({})
+def test_execution_requested_event_topic() -> None:
+    """Test that ExecutionRequestedEvent has correct topic."""
+    assert ExecutionRequestedEvent.topic() == "execution_requested"
+
+
+def test_event_missing_required_fields_raises() -> None:
+    """Test that missing required fields raise ValidationError."""
+    with pytest.raises(ValidationError):
+        ExecutionRequestedEvent(  # type: ignore[call-arg]
+            execution_id="e1",
+            # Missing all other required fields
+            metadata=EventMetadata(service_name="t", service_version="1.0"),
+        )
+
+
+def test_base_event_topic_derivation() -> None:
+    """Test that topic is derived correctly from class name."""
+    # BaseEvent itself should have topic 'base' (class name without 'Event')
+    assert BaseEvent.topic() == "base"
+
+    # Subclasses should have their own topics
+    assert ExecutionRequestedEvent.topic() == "execution_requested"

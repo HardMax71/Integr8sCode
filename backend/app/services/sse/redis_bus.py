@@ -6,8 +6,7 @@ from typing import ClassVar, Type, TypeVar
 import redis.asyncio as redis
 from pydantic import BaseModel
 
-from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 
 T = TypeVar("T", bound=BaseModel)
@@ -45,23 +44,23 @@ class SSERedisSubscription:
 class SSERedisBus:
     """Redis-backed pub/sub bus for SSE event fan-out across workers."""
 
-    SSE_ROUTED_EVENTS: ClassVar[list[EventType]] = [
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_QUEUED,
-        EventType.EXECUTION_STARTED,
-        EventType.EXECUTION_RUNNING,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_TIMEOUT,
-        EventType.EXECUTION_CANCELLED,
-        EventType.RESULT_STORED,
-        EventType.POD_CREATED,
-        EventType.POD_SCHEDULED,
-        EventType.POD_RUNNING,
-        EventType.POD_SUCCEEDED,
-        EventType.POD_FAILED,
-        EventType.POD_TERMINATED,
-        EventType.POD_DELETED,
+    SSE_ROUTED_TOPICS: ClassVar[list[str]] = [
+        "execution_requested",
+        "execution_queued",
+        "execution_started",
+        "execution_running",
+        "execution_completed",
+        "execution_failed",
+        "execution_timeout",
+        "execution_cancelled",
+        "result_stored",
+        "pod_created",
+        "pod_scheduled",
+        "pod_running",
+        "pod_succeeded",
+        "pod_failed",
+        "pod_terminated",
+        "pod_deleted",
     ]
 
     def __init__(
@@ -82,27 +81,29 @@ class SSERedisBus:
     def _notif_channel(self, user_id: str) -> str:
         return f"{self._notif_prefix}{user_id}"
 
-    async def publish_event(self, execution_id: str, event: DomainEvent) -> None:
+    async def publish_event(self, execution_id: str, event: BaseEvent) -> None:
+        topic = type(event).topic()
         message = RedisSSEMessage(
-            event_type=event.event_type,
+            event_type=topic,
             execution_id=execution_id,
             data=event.model_dump(mode="json"),
         )
         await self._redis.publish(self._exec_channel(execution_id), message.model_dump_json())
 
-    async def route_domain_event(self, event: DomainEvent) -> None:
+    async def route_domain_event(self, event: BaseEvent) -> None:
         """Route a domain event to its Redis execution channel by execution_id."""
         data = event.model_dump()
         execution_id = data.get("execution_id")
+        topic = type(event).topic()
         if not execution_id:
-            self.logger.debug("Event %s has no execution_id, skipping", event.event_type)
+            self.logger.debug("Event %s has no execution_id, skipping", topic)
             return
         try:
             await self.publish_event(execution_id, event)
         except Exception as e:
             self.logger.error(
                 "Failed to publish %s to Redis for %s: %s",
-                event.event_type, execution_id, e,
+                topic, execution_id, e,
                 exc_info=True,
 
             )

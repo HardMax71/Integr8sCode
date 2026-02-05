@@ -3,6 +3,7 @@ from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from faststream.kafka import KafkaBroker
 
 from app.api.routes import (
     auth,
@@ -40,13 +41,10 @@ from app.core.middlewares import (
     RequestSizeLimitMiddleware,
     setup_metrics,
 )
-from app.events.broker import create_broker
 from app.events.handlers import (
-    register_event_store_subscriber,
     register_notification_subscriber,
     register_sse_subscriber,
 )
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 
 
@@ -62,9 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     logger = setup_logger(settings.LOG_LEVEL)
 
     # Create Kafka broker and register in-app subscribers
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
-    register_event_store_subscriber(broker, settings)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
     register_sse_subscriber(broker, settings)
     register_notification_subscriber(broker, settings)
 

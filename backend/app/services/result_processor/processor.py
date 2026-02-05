@@ -6,7 +6,6 @@ from app.domain.enums.execution import ExecutionStatus
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 from app.domain.events.typed import (
-    DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -15,17 +14,20 @@ from app.domain.events.typed import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 from app.settings import Settings
 
 
 class ResultProcessor:
-    """Service for processing execution completion events and storing results."""
+    """Service for processing execution completion events and storing results.
+
+    Idempotency is handled by FastStream middleware (IdempotencyMiddleware).
+    """
 
     def __init__(
             self,
             execution_repo: ExecutionRepository,
-            producer: UnifiedProducer,
+            producer: EventPublisher,
             settings: Settings,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
@@ -36,11 +38,8 @@ class ResultProcessor:
         self._metrics = execution_metrics
         self.logger = logger
 
-    async def handle_execution_completed(self, event: DomainEvent) -> None:
+    async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""
-        if not isinstance(event, ExecutionCompletedEvent):
-            raise TypeError(f"Expected ExecutionCompletedEvent, got {type(event).__name__}")
-
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
@@ -74,11 +73,8 @@ class ResultProcessor:
             self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
-    async def handle_execution_failed(self, event: DomainEvent) -> None:
+    async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event."""
-        if not isinstance(event, ExecutionFailedEvent):
-            raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
-
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
@@ -95,11 +91,8 @@ class ResultProcessor:
             self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e))
 
-    async def handle_execution_timeout(self, event: DomainEvent) -> None:
+    async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Handle execution timeout event."""
-        if not isinstance(event, ExecutionTimeoutEvent):
-            raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
-
         exec_obj = await self._execution_repo.get_execution(event.execution_id)
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
@@ -133,7 +126,7 @@ class ResultProcessor:
                 service_version="1.0.0",
             ),
         )
-        await self._producer.produce(event_to_produce=event, key=result.execution_id)
+        await self._producer.publish(event=event, key=result.execution_id)
 
     async def _publish_result_failed(self, execution_id: str, error_message: str) -> None:
         """Publish result processing failed event."""
@@ -145,4 +138,4 @@ class ResultProcessor:
                 service_version="1.0.0",
             ),
         )
-        await self._producer.produce(event_to_produce=event, key=execution_id)
+        await self._producer.publish(event=event, key=execution_id)

@@ -10,7 +10,6 @@ from app.db.repositories.resource_allocation_repository import ResourceAllocatio
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
 from app.domain.events.typed import (
-    DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -19,7 +18,7 @@ from app.domain.events.typed import (
     SagaCancelledEvent,
 )
 from app.domain.saga.models import Saga, SagaConfig
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 
 from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
@@ -28,13 +27,16 @@ _SAGA_NAME = ExecutionSaga.get_name()
 
 
 class SagaOrchestrator:
-    """Orchestrates saga execution and compensation."""
+    """Orchestrates saga execution and compensation.
+
+    Idempotency is handled by FastStream middleware (IdempotencyMiddleware).
+    """
 
     def __init__(
         self,
         config: SagaConfig,
         saga_repository: SagaRepository,
-        producer: UnifiedProducer,
+        producer: EventPublisher,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
     ):
@@ -44,30 +46,22 @@ class SagaOrchestrator:
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
         self.logger = logger
 
-    async def handle_execution_requested(self, event: DomainEvent) -> None:
+    async def handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
         """Handle EXECUTION_REQUESTED — starts a new saga."""
-        if not isinstance(event, ExecutionRequestedEvent):
-            raise TypeError(f"Expected ExecutionRequestedEvent, got {type(event).__name__}")
         await self._start_saga(event)
 
-    async def handle_execution_completed(self, event: DomainEvent) -> None:
+    async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle EXECUTION_COMPLETED — marks saga as completed."""
-        if not isinstance(event, ExecutionCompletedEvent):
-            raise TypeError(f"Expected ExecutionCompletedEvent, got {type(event).__name__}")
         await self._resolve_completion(event.execution_id, SagaState.COMPLETED)
 
-    async def handle_execution_failed(self, event: DomainEvent) -> None:
+    async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle EXECUTION_FAILED — marks saga as failed."""
-        if not isinstance(event, ExecutionFailedEvent):
-            raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
         await self._resolve_completion(
-            event.execution_id, SagaState.FAILED, event.error_message or f"Execution {event.event_type}"
+            event.execution_id, SagaState.FAILED, event.error_message or "Execution failed"
         )
 
-    async def handle_execution_timeout(self, event: DomainEvent) -> None:
+    async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Handle EXECUTION_TIMEOUT — marks saga as timed out."""
-        if not isinstance(event, ExecutionTimeoutEvent):
-            raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
         await self._resolve_completion(
             event.execution_id, SagaState.TIMEOUT, f"Execution timed out after {event.timeout_seconds} seconds"
         )
@@ -132,7 +126,7 @@ class SagaOrchestrator:
         saga: ExecutionSaga,
         instance: Saga,
         context: SagaContext,
-        trigger_event: DomainEvent,
+        trigger_event: ExecutionRequestedEvent,
     ) -> None:
         """Execute saga steps."""
         tracer = get_tracer()
@@ -331,7 +325,7 @@ class SagaOrchestrator:
             )
 
             if self._producer:
-                await self._producer.produce(event_to_produce=event, key=saga_instance.execution_id)
+                await self._producer.publish(event=event, key=saga_instance.execution_id)
 
             self.logger.info(f"Published cancellation event for saga {saga_instance.saga_id}")
 

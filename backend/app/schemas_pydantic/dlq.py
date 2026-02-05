@@ -10,7 +10,7 @@ from app.dlq import (
     RetryStrategy,
     TopicStatistic,
 )
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 
 
 class DLQStats(BaseModel):
@@ -30,7 +30,7 @@ class DLQMessageResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    event: DomainEvent
+    event: BaseEvent
     original_topic: str
     error: str
     retry_count: int
@@ -101,7 +101,7 @@ class DLQMessageDetail(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    event: DomainEvent
+    event: BaseEvent
     original_topic: str
     error: str
     retry_count: int

@@ -11,10 +11,10 @@ from app.domain.events.event_models import (
     EventSortOrder,
     EventStatistics,
     EventSummary,
-    EventTypeCount,
     ExecutionEventsResult,
     HourlyEventCount,
     ServiceEventCount,
+    TopicCount,
     UserEventCount,
 )
 from app.domain.events.typed import (
@@ -28,7 +28,10 @@ from app.domain.events.typed import (
     ContainerStatusInfo,
     CreatePodCommandEvent,
     DeletePodCommandEvent,
-    DomainEvent,
+    # DLQ Events
+    DLQMessageDiscardedEvent,
+    DLQMessageReceivedEvent,
+    DLQMessageRetriedEvent,
     EventMetadata,
     # Execution Events
     ExecutionAcceptedEvent,
@@ -90,7 +93,6 @@ from app.domain.events.typed import (
     UserRegisteredEvent,
     UserSettingsUpdatedEvent,
     UserUpdatedEvent,
-    domain_event_adapter,
 )
 
 __all__ = [
@@ -107,19 +109,17 @@ __all__ = [
     "EventSortOrder",
     "EventStatistics",
     "EventSummary",
-    "EventTypeCount",
     "ExecutionEventsResult",
     "HourlyEventCount",
     "ServiceEventCount",
+    "TopicCount",
     "UserEventCount",
     # Base types
     "ArchivedEvent",
     "BaseEvent",
     "ContainerStatusInfo",
-    "DomainEvent",
     "EventMetadata",
     "ResourceUsageDomain",
-    "domain_event_adapter",
     # Execution Events
     "ExecutionRequestedEvent",
     "ExecutionAcceptedEvent",
@@ -185,4 +185,8 @@ __all__ = [
     "SystemErrorEvent",
     "ServiceUnhealthyEvent",
     "ServiceRecoveredEvent",
+    # DLQ Events
+    "DLQMessageReceivedEvent",
+    "DLQMessageRetriedEvent",
+    "DLQMessageDiscardedEvent",
 ]

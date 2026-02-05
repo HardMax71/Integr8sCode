@@ -33,4 +33,4 @@ async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_setting
 
     msg = await asyncio.wait_for(subscription.get(RedisSSEMessage), timeout=2.0)
     assert msg is not None
-    assert str(msg.event_type) == str(ev.event_type)
+    assert msg.event_type == type(ev).topic()

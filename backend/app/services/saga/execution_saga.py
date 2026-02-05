@@ -4,7 +4,7 @@ from typing import Any
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.domain.events.typed import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocationCreate
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 
 from .saga_step import CompensationStep, SagaContext, SagaStep
 
@@ -76,7 +76,7 @@ class AllocateResourcesStep(SagaStep[ExecutionRequestedEvent]):
 class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
     """Create Kubernetes pod."""
 
-    def __init__(self, producer: UnifiedProducer, publish_commands: bool) -> None:
+    def __init__(self, producer: EventPublisher, publish_commands: bool) -> None:
         super().__init__("create_pod")
         self.producer = producer
         self.publish_commands = publish_commands
@@ -116,7 +116,7 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
             ),
         )
 
-        await self.producer.produce(event_to_produce=create_pod_cmd, key=execution_id)
+        await self.producer.publish(event=create_pod_cmd, key=execution_id)
 
         context.set("pod_creation_triggered", True)
         logger.info(f"CreatePodCommandEvent published for execution {execution_id}")
@@ -151,7 +151,7 @@ class ReleaseResourcesCompensation(CompensationStep):
 class DeletePodCompensation(CompensationStep):
     """Delete created pod."""
 
-    def __init__(self, producer: UnifiedProducer) -> None:
+    def __init__(self, producer: EventPublisher) -> None:
         super().__init__("delete_pod")
         self.producer = producer
 
@@ -173,7 +173,7 @@ class DeletePodCompensation(CompensationStep):
             ),
         )
 
-        await self.producer.produce(event_to_produce=delete_pod_cmd, key=execution_id)
+        await self.producer.publish(event=delete_pod_cmd, key=execution_id)
 
         logger.info(f"DeletePodCommandEvent published for {execution_id}")
         return True
@@ -188,7 +188,7 @@ class ExecutionSaga:
 
     def bind_dependencies(
         self,
-        producer: UnifiedProducer,
+        producer: EventPublisher,
         alloc_repo: ResourceAllocationRepository,
         publish_commands: bool,
     ) -> None:

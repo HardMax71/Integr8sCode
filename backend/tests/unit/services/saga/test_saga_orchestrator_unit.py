@@ -4,10 +4,10 @@ import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.domain.enums.saga import SagaState
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.domain.saga.models import Saga, SagaConfig
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 from app.services.saga.execution_saga import ExecutionSaga
 from app.services.saga.saga_orchestrator import SagaOrchestrator
 
@@ -41,16 +41,14 @@ class _FakeRepo(SagaRepository):
         return True
 
 
-class _FakeProd(UnifiedProducer):
-    """Fake UnifiedProducer for testing."""
+class _FakeProd(EventPublisher):
+    """Fake EventPublisher for testing."""
 
     def __init__(self) -> None:
         pass  # Skip parent __init__
 
-    async def produce(
-        self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        return None
+    async def publish(self, event: BaseEvent, key: str | None = None) -> str:
+        return event.event_id
 
 
 class _FakeAlloc(ResourceAllocationRepository):

@@ -6,7 +6,6 @@ from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
-from app.domain.enums.events import EventType
 from app.domain.events.typed import EventMetadata
 
 
@@ -15,10 +14,11 @@ class EventDocument(Document):
 
     Uses extra='allow' for flexible event data storage - event-specific fields
     are stored directly at document level (no payload wrapper needed).
+    Topic field stores the event type name (e.g., 'execution_requested').
     """
 
     event_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
-    event_type: EventType  # Indexed via Settings.indexes
+    topic: str  # Event topic name (snake_case class name without 'Event' suffix)
     event_version: str = "1.0"
     timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
     aggregate_id: Indexed(str) | None = None  # type: ignore[valid-type]
@@ -36,7 +36,7 @@ class EventDocument(Document):
         use_state_management = True
         indexes = [
             # Compound indexes for common query patterns
-            IndexModel([("event_type", ASCENDING), ("timestamp", DESCENDING)], name="idx_event_type_ts"),
+            IndexModel([("topic", ASCENDING), ("timestamp", DESCENDING)], name="idx_topic_ts"),
             IndexModel([("aggregate_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_aggregate_ts"),
             IndexModel([("metadata.correlation_id", ASCENDING)], name="idx_meta_correlation"),
             IndexModel([("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_user_ts"),
@@ -47,19 +47,19 @@ class EventDocument(Document):
             # TTL index (expireAfterSeconds=0 means use ttl_expires_at value directly)
             IndexModel([("ttl_expires_at", ASCENDING)], name="idx_ttl", expireAfterSeconds=0),
             # Additional compound indexes for query optimization
-            IndexModel([("event_type", ASCENDING), ("aggregate_id", ASCENDING)], name="idx_events_type_agg"),
+            IndexModel([("topic", ASCENDING), ("aggregate_id", ASCENDING)], name="idx_events_topic_agg"),
             IndexModel([("aggregate_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_agg_ts"),
-            IndexModel([("event_type", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_type_ts_asc"),
+            IndexModel([("topic", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_topic_ts_asc"),
             IndexModel([("metadata.user_id", ASCENDING), ("timestamp", ASCENDING)], name="idx_events_user_ts"),
-            IndexModel([("metadata.user_id", ASCENDING), ("event_type", ASCENDING)], name="idx_events_user_type"),
+            IndexModel([("metadata.user_id", ASCENDING), ("topic", ASCENDING)], name="idx_events_user_topic"),
             IndexModel(
-                [("event_type", ASCENDING), ("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)],
-                name="idx_events_type_user_ts",
+                [("topic", ASCENDING), ("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)],
+                name="idx_events_topic_user_ts",
             ),
             # Text search index
             IndexModel(
                 [
-                    ("event_type", pymongo.TEXT),
+                    ("topic", pymongo.TEXT),
                     ("metadata.service_name", pymongo.TEXT),
                     ("metadata.user_id", pymongo.TEXT),
                     ("execution_id", pymongo.TEXT),
@@ -79,7 +79,7 @@ class EventArchiveDocument(Document):
     """
 
     event_id: Indexed(str, unique=True)  # type: ignore[valid-type]
-    event_type: EventType  # Indexed via Settings.indexes
+    topic: str  # Event topic name
     event_version: str = "1.0"
     timestamp: Indexed(datetime)  # type: ignore[valid-type]
     aggregate_id: str | None = None
@@ -98,5 +98,5 @@ class EventArchiveDocument(Document):
         name = "events_archive"
         use_state_management = True
         indexes = [
-            IndexModel([("event_type", 1)]),
+            IndexModel([("topic", 1)]),
         ]

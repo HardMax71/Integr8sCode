@@ -1,12 +1,15 @@
-from app.domain.events.typed import DomainEvent, EventMetadata
-from app.infrastructure.kafka.mappings import get_event_class_for_type, get_topic_for_event
-from app.infrastructure.kafka.topics import get_all_topics, get_topic_configs
+"""Kafka infrastructure.
+
+Topic routing is handled by FastStream via BaseEvent.topic() method.
+This package provides infrastructure-level Kafka utilities.
+"""
+
+from app.domain.enums.kafka import GroupId, KafkaTopic
+from app.domain.events.typed import BaseEvent, EventMetadata
 
 __all__ = [
-    "DomainEvent",
+    "BaseEvent",
     "EventMetadata",
-    "get_all_topics",
-    "get_topic_configs",
-    "get_event_class_for_type",
-    "get_topic_for_event",
+    "GroupId",
+    "KafkaTopic",
 ]

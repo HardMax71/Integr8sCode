@@ -1,21 +1,20 @@
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 from aiokafka import AIOKafkaConsumer
-from faststream.kafka import KafkaBroker
 from app.core.metrics import DLQMetrics
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage
-from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
-from app.domain.events.typed import DLQMessageReceivedEvent
-from app.events.schema.schema_registry import SchemaRegistryManager
+from app.domain.events.typed import DLQMessageReceivedEvent, ExecutionRequestedEvent
 from app.settings import Settings
 from dishka import AsyncContainer
+from faststream.kafka import KafkaBroker
 
 from tests.conftest import make_execution_requested_event
 
@@ -30,7 +29,6 @@ _test_logger = logging.getLogger("test.dlq.manager")
 @pytest.mark.asyncio
 async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_settings: Settings) -> None:
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
-    schema_registry = SchemaRegistryManager(test_settings, _test_logger)
     dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
 
     prefix = test_settings.KAFKA_TOPIC_PREFIX
@@ -53,12 +51,9 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         """Consume DLQ events and set future when our event is received."""
         async for msg in events_consumer:
             try:
-                event = await schema_registry.deserialize_event(msg.value, dlq_events_topic)
-                if (
-                    isinstance(event, DLQMessageReceivedEvent)
-                    and event.dlq_event_id == ev.event_id
-                    and not received_future.done()
-                ):
+                payload = json.loads(msg.value)
+                event = DLQMessageReceivedEvent.model_validate(payload)
+                if event.dlq_event_id == ev.event_id and not received_future.done():
                     received_future.set_result(event)
                     return
             except Exception as e:
@@ -76,7 +71,6 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         manager = DLQManager(
             settings=test_settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=_test_logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
@@ -85,7 +79,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)
         dlq_msg = DLQMessage(
             event=ev,
-            original_topic=f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
+            original_topic=f"{prefix}{ExecutionRequestedEvent.topic()}",
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),
@@ -97,8 +91,8 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         # Await the DLQMessageReceivedEvent — true async, no polling
         received = await asyncio.wait_for(received_future, timeout=15.0)
         assert received.dlq_event_id == ev.event_id
-        assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-        assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
+        assert type(received).topic() == "dlq_message_received"
+        assert "execution" in received.original_topic.lower()
         assert received.error == "handler failed"
     finally:
         consume_task.cancel()

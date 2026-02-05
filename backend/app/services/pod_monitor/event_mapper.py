@@ -8,8 +8,8 @@ from kubernetes_asyncio import client as k8s_client
 from app.domain.enums.kafka import GroupId
 from app.domain.enums.storage import ExecutionErrorType
 from app.domain.events.typed import (
+    BaseEvent,
     ContainerStatusInfo,
-    DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -22,8 +22,8 @@ from app.domain.events.typed import (
 
 # Python 3.12 type aliases
 type PodPhase = str
-type EventList = list[DomainEvent]
-type AsyncMapper = Callable[["PodContext"], Awaitable[DomainEvent | None]]
+type EventList = list[BaseEvent]
+type AsyncMapper = Callable[["PodContext"], Awaitable[BaseEvent | None]]
 
 
 @dataclass(frozen=True)
@@ -104,7 +104,7 @@ class PodEventMapper:
         )
 
         # Collect events from mappers
-        events: list[DomainEvent] = []
+        events: list[BaseEvent] = []
 
         # Check for timeout first - if pod timed out, only return timeout event
         if timeout_event := await self._check_timeout(ctx):
@@ -132,14 +132,14 @@ class PodEventMapper:
         for mapper in self._phase_mappers.get(phase, []):
             if event := await mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                self.logger.info(f"POD-EVENT: phase-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
+                self.logger.info(f"POD-EVENT: phase-map {mapper_name} -> {type(event).topic()} exec={ctx.execution_id}")
                 events.append(event)
 
         # Event type mappers
         for mapper in self._event_type_mappers.get(event_type, []):
             if event := await mapper(ctx):
                 mapper_name = getattr(mapper, "__name__", repr(mapper))
-                self.logger.info(f"POD-EVENT: type-map {mapper_name} -> {event.event_type} exec={ctx.execution_id}")
+                self.logger.info(f"POD-EVENT: type-map {mapper_name} -> {type(event).topic()} exec={ctx.execution_id}")
                 events.append(event)
 
         return events
@@ -213,7 +213,7 @@ class PodEventMapper:
             node_name=ctx.pod.spec.node_name or "pending",
             metadata=ctx.metadata,
         )
-        self.logger.debug(f"POD-EVENT: mapped scheduled -> {evt.event_type} exec={ctx.execution_id}")
+        self.logger.debug(f"POD-EVENT: mapped scheduled -> {type(evt).topic()} exec={ctx.execution_id}")
         return evt
 
     async def _map_running(self, ctx: PodContext) -> PodRunningEvent | None:
@@ -238,7 +238,7 @@ class PodEventMapper:
             container_statuses=container_statuses,
             metadata=ctx.metadata,
         )
-        self.logger.debug(f"POD-EVENT: mapped running -> {evt.event_type} exec={ctx.execution_id}")
+        self.logger.debug(f"POD-EVENT: mapped running -> {type(evt).topic()} exec={ctx.execution_id}")
         return evt
 
     async def _map_completed(self, ctx: PodContext) -> ExecutionCompletedEvent | None:
@@ -264,7 +264,7 @@ class PodEventMapper:
         self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
-    async def _map_failed_or_completed(self, ctx: PodContext) -> DomainEvent | None:
+    async def _map_failed_or_completed(self, ctx: PodContext) -> BaseEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
             return await self._check_timeout(ctx)

@@ -56,7 +56,7 @@ class SSEExecutionEventData(BaseModel):
 class RedisSSEMessage(BaseModel):
     """Message structure published to Redis for execution SSE delivery."""
 
-    event_type: EventType = Field(description="Event type from Kafka")
+    event_type: str = Field(description="Event topic name from Kafka")
     execution_id: str | None = Field(None, description="Execution ID")
     data: dict[str, Any] = Field(description="Full event data from BaseEvent.model_dump()")
 

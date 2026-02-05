@@ -8,7 +8,6 @@ from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
-from app.domain.enums.events import EventType
 from app.domain.events.event_models import EventFilter
 from app.domain.replay import ReplayFilter
 from app.schemas_pydantic.admin_events import (
@@ -69,14 +68,14 @@ async def get_event_stats(
 @router.get("/export/csv")
 async def export_events_csv(
     service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
+    topics: list[str] | None = Query(None, description="Event topics (repeat param for multiple)"),
     start_time: datetime | None = Query(None, description="Start time"),
     end_time: datetime | None = Query(None, description="End time"),
     limit: int = Query(default=10000, le=50000),
 ) -> StreamingResponse:
     try:
         export_filter = EventFilter(
-            event_types=event_types,
+            topics=topics,
             start_time=start_time,
             end_time=end_time,
         )
@@ -94,7 +93,7 @@ async def export_events_csv(
 @router.get("/export/json")
 async def export_events_json(
     service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
+    topics: list[str] | None = Query(None, description="Event topics (repeat param for multiple)"),
     aggregate_id: str | None = Query(None, description="Aggregate ID filter"),
     correlation_id: str | None = Query(None, description="Correlation ID filter"),
     user_id: str | None = Query(None, description="User ID filter"),
@@ -106,7 +105,7 @@ async def export_events_json(
     """Export events as JSON with comprehensive filtering."""
     try:
         export_filter = EventFilter(
-            event_types=event_types,
+            topics=topics,
             aggregate_id=aggregate_id,
             correlation_id=correlation_id,
             user_id=user_id,

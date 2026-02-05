@@ -3,9 +3,8 @@ import uuid
 import pytest
 import pytest_asyncio
 from app.db.repositories.event_repository import EventRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.replay import ReplayStatus
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import BaseEvent
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -17,16 +16,16 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from dishka import AsyncContainer
 from httpx import AsyncClient
+
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
 
 
 @pytest_asyncio.fixture
-async def stored_event(scope: AsyncContainer) -> DomainEvent:
+async def stored_event(scope: AsyncContainer) -> BaseEvent:
     """Insert a test event directly into DB - no Kafka/waiting needed."""
     repo = await scope.get(EventRepository)
     event = make_execution_requested_event(execution_id=f"e-{uuid.uuid4().hex[:8]}")
@@ -61,12 +60,12 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_event_type_filter(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Browse events filtered by event type."""
         request = EventBrowseRequest(
             filters=EventFilter(
-                event_types=[EventType.EXECUTION_REQUESTED],
+                topics=["execution_requested"],
                 aggregate_id=stored_event.aggregate_id,
             ),
             skip=0,
@@ -102,7 +101,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_aggregate_filter(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Browse events filtered by aggregate ID."""
         request = EventBrowseRequest(
@@ -172,7 +171,7 @@ class TestEventStats:
         stats = EventStatsResponse.model_validate(response.json())
 
         assert stats.total_events >= 0
-        assert isinstance(stats.events_by_type, list)
+        assert isinstance(stats.events_by_topic, list)
         assert isinstance(stats.events_by_hour, list)
         assert isinstance(stats.top_users, list)
         assert stats.error_rate >= 0.0
@@ -243,7 +242,7 @@ class TestExportEventsCSV:
         response = await test_admin.get(
             "/api/v1/admin/events/export/csv",
             params={
-                "event_types": [EventType.EXECUTION_REQUESTED],
+                "topics": ["execution_requested"],
                 "limit": 100,
             },
         )
@@ -289,7 +288,7 @@ class TestExportEventsJSON:
         response = await test_admin.get(
             "/api/v1/admin/events/export/json",
             params={
-                "event_types": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_STARTED],
+                "topics": ["execution_requested", "execution_started"],
                 "limit": 500,
             },
         )
@@ -311,7 +310,7 @@ class TestGetEventDetail:
 
     @pytest.mark.asyncio
     async def test_get_event_detail(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Admin can get event details."""
         response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
@@ -349,7 +348,7 @@ class TestReplayEvents:
 
     @pytest.mark.asyncio
     async def test_replay_events_dry_run(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Admin can replay events in dry run mode."""
         request = EventReplayRequest(
@@ -411,7 +410,7 @@ class TestGetReplayStatus:
 
     @pytest.mark.asyncio
     async def test_get_replay_status_after_replay(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Get replay status after starting a replay."""
         request = EventReplayRequest(
@@ -456,7 +455,7 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: BaseEvent
     ) -> None:
         """Admin can delete an event."""
         response = await test_admin.delete(f"/api/v1/admin/events/{stored_event.event_id}")

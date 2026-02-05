@@ -5,16 +5,15 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums.common import Environment, SortOrder
-from app.domain.enums.events import EventType
-from app.domain.events.typed import ContainerStatusInfo, DomainEvent
+from app.domain.events.typed import BaseEvent, ContainerStatusInfo
 
 
-class EventTypeCountSchema(BaseModel):
-    """Event count by type."""
+class TopicCountSchema(BaseModel):
+    """Event count by topic."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    event_type: EventType
+    topic: str
     count: int
 
 
@@ -56,7 +55,7 @@ class EventSummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     event_id: str
-    event_type: EventType
+    topic: str
     timestamp: datetime
     aggregate_id: str | None = None
 
@@ -64,7 +63,7 @@ class EventSummaryResponse(BaseModel):
 class EventListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    events: list[DomainEvent]
+    events: list[BaseEvent]
     total: int
     limit: int
     skip: int
@@ -74,7 +73,7 @@ class EventListResponse(BaseModel):
 class EventFilterRequest(BaseModel):
     """Request model for filtering events."""
 
-    event_types: list[EventType] | None = Field(None, description="Filter by event types")
+    topics: list[str] | None = Field(None, description="Filter by event topics")
     aggregate_id: str | None = Field(None, description="Filter by aggregate ID")
     correlation_id: str | None = Field(None, description="Filter by correlation ID")
     user_id: str | None = Field(None, description="Filter by user ID (admin only)")
@@ -90,7 +89,7 @@ class EventFilterRequest(BaseModel):
     @field_validator("sort_by")
     @classmethod
     def validate_sort_field(cls, v: str) -> str:
-        allowed_fields = {"timestamp", "event_type", "aggregate_id", "correlation_id", "stored_at"}
+        allowed_fields = {"timestamp", "topic", "aggregate_id", "correlation_id", "stored_at"}
         if v not in allowed_fields:
             raise ValueError(f"Sort field must be one of {allowed_fields}")
         return v
@@ -106,7 +105,7 @@ class EventAggregationRequest(BaseModel):
 class PublishEventRequest(BaseModel):
     """Request model for publishing events."""
 
-    event_type: EventType = Field(..., description="Type of event to publish")
+    topic: str = Field(..., description="Topic name for the event")
     payload: dict[str, Any] = Field(..., description="Event payload data")
     aggregate_id: str | None = Field(None, description="Aggregate root ID")
     correlation_id: str | None = Field(None, description="Correlation ID")
@@ -118,7 +117,7 @@ class EventBase(BaseModel):
     """Base event model for API responses."""
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))
-    event_type: EventType
+    topic: str
     event_version: str = "1.0"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     aggregate_id: str | None = None
@@ -131,7 +130,7 @@ class EventBase(BaseModel):
         json_schema_extra={
             "example": {
                 "event_id": "550e8400-e29b-41d4-a716-446655440000",
-                "event_type": EventType.EXECUTION_REQUESTED,
+                "topic": "execution_requested",
                 "event_version": "1.0",
                 "timestamp": "2024-01-20T10:30:00Z",
                 "aggregate_id": "execution-123",
@@ -192,7 +191,7 @@ class EventInDB(EventBase):
 class EventQuery(BaseModel):
     """Query parameters for event search."""
 
-    event_types: list[EventType] | None = None
+    topics: list[str] | None = None
     aggregate_id: str | None = None
     correlation_id: str | None = None
     user_id: str | None = None
@@ -206,7 +205,7 @@ class EventQuery(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "event_types": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
+                "topics": ["execution_requested", "execution_completed"],
                 "user_id": "user-123",
                 "start_time": "2024-01-20T00:00:00Z",
                 "end_time": "2024-01-20T23:59:59Z",
@@ -221,7 +220,7 @@ class EventStatistics(BaseModel):
     """Event statistics response."""
 
     total_events: int
-    events_by_type: list[EventTypeCountSchema]
+    events_by_topic: list[TopicCountSchema]
     events_by_service: list[ServiceEventCountSchema]
     events_by_hour: list[HourlyEventCountSchema]
     start_time: datetime | None = None
@@ -232,10 +231,10 @@ class EventStatistics(BaseModel):
         json_schema_extra={
             "example": {
                 "total_events": 1543,
-                "events_by_type": [
-                    {"event_type": "EXECUTION_REQUESTED", "count": 523},
-                    {"event_type": "EXECUTION_COMPLETED", "count": 498},
-                    {"event_type": "POD_CREATED", "count": 522},
+                "events_by_topic": [
+                    {"topic": "execution_requested", "count": 523},
+                    {"topic": "execution_completed", "count": 498},
+                    {"topic": "pod_created", "count": 522},
                 ],
                 "events_by_service": [
                     {"service_name": "api-gateway", "count": 523},
@@ -255,7 +254,7 @@ class EventProjection(BaseModel):
 
     name: str
     description: str | None = None
-    source_events: list[EventType]  # Event types to include
+    source_topics: list[str]  # Event topics to include
     aggregation_pipeline: list[dict[str, Any]]
     output_collection: str
     refresh_interval_seconds: int = 300  # 5 minutes default
@@ -266,9 +265,9 @@ class EventProjection(BaseModel):
             "example": {
                 "name": "execution_summary",
                 "description": "Summary of executions by user and status",
-                "source_events": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
+                "source_topics": ["execution_requested", "execution_completed"],
                 "aggregation_pipeline": [
-                    {"$match": {"event_type": {"$in": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED]}}},
+                    {"$match": {"topic": {"$in": ["execution_requested", "execution_completed"]}}},
                     {
                         "$group": {
                             "_id": {"user_id": "$metadata.user_id", "status": "$payload.status"},
@@ -314,7 +313,7 @@ class ReplayAggregateResponse(BaseModel):
     dry_run: bool
     aggregate_id: str
     event_count: int | None = None
-    event_types: list[EventType] | None = None
+    topics: list[str] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     replayed_count: int | None = None

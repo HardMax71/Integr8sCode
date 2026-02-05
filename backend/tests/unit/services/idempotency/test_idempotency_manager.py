@@ -40,13 +40,23 @@ class TestIdempotencyConfig:
         assert config.max_result_size_bytes == 2048
 
 
+class _TestEvent(BaseEvent):
+    """Test event class for idempotency testing."""
+
+    @classmethod
+    def topic(cls, prefix: str = "") -> str:
+        return f"{prefix}t" if prefix else "t"
+
+
 def test_manager_generate_key_variants(database_metrics: DatabaseMetrics) -> None:
+    from app.domain.events.typed import EventMetadata
+
     repo = MagicMock()
     mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, database_metrics=database_metrics)
-    ev = MagicMock(spec=BaseEvent)
-    ev.event_type = "t"
-    ev.event_id = "e"
-    ev.model_dump.return_value = {"event_id": "e", "event_type": "t"}
+    ev = _TestEvent(
+        event_id="e",
+        metadata=EventMetadata(service_name="test", service_version="1.0"),
+    )
 
     assert mgr._generate_key(ev, KeyStrategy.EVENT_BASED) == "idempotency:t:e"
     ch = mgr._generate_key(ev, KeyStrategy.CONTENT_HASH)

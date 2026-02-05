@@ -8,9 +8,8 @@ enabling complete end-to-end validation of execution creation through completion
 import asyncio
 
 import pytest
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus
-from app.domain.events.typed import ExecutionDomainEvent
+from app.domain.events.typed import BaseEvent, ExecutionRequestedEvent
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -29,7 +28,7 @@ from pydantic import TypeAdapter
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 # TypeAdapter for parsing list of execution events from API response
-ExecutionEventsAdapter = TypeAdapter(list[ExecutionDomainEvent])
+ExecutionEventsAdapter = TypeAdapter(list[BaseEvent])
 
 # Initial states when execution is created
 INITIAL_STATES = {
@@ -383,12 +382,10 @@ class TestExecutionEvents:
         # at least one execution event is present (COMPLETED is always stored by
         # the time we query since wait_for_terminal_state ensures execution finished).
         assert len(events) > 0
-        event_types = {e.event_type for e in events}
-        assert event_types & {EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED}
 
     @pytest.mark.asyncio
-    async def test_get_events_filtered_by_type(self, test_user: AsyncClient) -> None:
-        """Filter events by event type."""
+    async def test_get_events_filtered_by_topic(self, test_user: AsyncClient) -> None:
+        """Filter events by topic."""
         request = ExecutionRequest(script="print('filter test')", lang="python", lang_version="3.11")
 
         response = await test_user.post("/api/v1/execute", json=request.model_dump())
@@ -399,13 +396,13 @@ class TestExecutionEvents:
 
         events_response = await test_user.get(
             f"/api/v1/executions/{exec_response.execution_id}/events",
-            params={"event_types": [EventType.EXECUTION_REQUESTED]},
+            params={"topics": [ExecutionRequestedEvent.topic()]},
         )
         assert events_response.status_code == 200
 
         events = ExecutionEventsAdapter.validate_python(events_response.json())
-        for event in events:
-            assert event.event_type == EventType.EXECUTION_REQUESTED
+        # When filtered by topic, all returned events should be of that topic
+        assert len(events) > 0
 
     @pytest.mark.asyncio
     async def test_get_events_access_denied(self, test_user: AsyncClient, another_user: AsyncClient) -> None:

@@ -6,11 +6,11 @@ from typing import Any, Generator, TypeAlias
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
+from app.db.repositories.event_repository import EventRepository
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
 from app.domain.enums.execution import ExecutionStatus, QueuePriority
 from app.domain.events.typed import (
-    DomainEvent,
+    BaseEvent,
     EventMetadata,
     ExecutionCancelledEvent,
     ExecutionRequestedEvent,
@@ -23,14 +23,13 @@ from app.domain.execution import (
     ExecutionResultDomain,
     ResourceLimitsDomain,
 )
-from app.events.core import UnifiedProducer
-from app.events.event_store import EventStore
+from app.events.core import EventPublisher
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 
 # Type aliases for better readability
 UserId: TypeAlias = str
-EventFilter: TypeAlias = list[EventType] | None
+TopicsFilter: TypeAlias = list[str] | None
 TimeRange: TypeAlias = tuple[datetime | None, datetime | None]
 ExecutionQuery: TypeAlias = dict[str, Any]
 ExecutionStats: TypeAlias = dict[str, Any]
@@ -48,8 +47,8 @@ class ExecutionService:
     def __init__(
         self,
         execution_repo: ExecutionRepository,
-        producer: UnifiedProducer,
-        event_store: EventStore,
+        producer: EventPublisher,
+        event_repository: EventRepository,
         settings: Settings,
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
@@ -60,14 +59,14 @@ class ExecutionService:
         Args:
             execution_repo: Repository for execution data persistence.
             producer: Kafka producer for publishing events.
-            event_store: Event store for event persistence.
+            event_repository: Repository for event queries.
             settings: Application settings.
             logger: Logger instance.
             execution_metrics: Metrics for tracking execution operations.
         """
         self.execution_repo = execution_repo
         self.producer = producer
-        self.event_store = event_store
+        self.event_repository = event_repository
         self.settings = settings
         self.logger = logger
         self.metrics = execution_metrics
@@ -213,7 +212,7 @@ class ExecutionService:
 
             # Publish to Kafka; on failure, mark error and raise
             try:
-                await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
+                await self.producer.publish(event=event, key=created_execution.execution_id)
             except Exception as e:  # pragma: no cover - mapped behavior
                 self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
                 self.metrics.record_error(type(e).__name__)
@@ -289,33 +288,31 @@ class ExecutionService:
     async def get_execution_events(
         self,
         execution_id: str,
-        event_types: EventFilter = None,
+        topics: list[str] | None = None,
         limit: int = 100,
-    ) -> list[DomainEvent]:
+    ) -> list[BaseEvent]:
         """
         Get all events for an execution from the event store.
 
         Args:
             execution_id: UUID of the execution.
-            event_types: Filter by specific event types.
+            topics: Filter by specific event topics.
             limit: Maximum number of events to return.
 
         Returns:
             List of events for the execution.
         """
-        # Use the correct method name - get_execution_events instead of get_events_by_execution
-        events = await self.event_store.get_execution_events(execution_id=execution_id, event_types=event_types)
-
-        # Apply limit if we got more events than requested
-        if len(events) > limit:
-            events = events[:limit]
+        result = await self.event_repository.get_execution_events(
+            execution_id=execution_id, topics=topics, limit=limit,
+        )
+        events = result.events
 
         self.logger.debug(
             f"Retrieved {len(events)} events for execution {execution_id}",
             extra={
                 "execution_id": execution_id,
                 "event_count": len(events),
-                "event_types": event_types,
+                "topics": topics,
             },
         )
 
@@ -427,6 +424,36 @@ class ExecutionService:
 
         return query
 
+    async def cancel_execution(self, execution_id: str, reason: str, user_id: str | None = None) -> None:
+        """
+        Cancel an execution by publishing a cancellation event.
+
+        Args:
+            execution_id: UUID of execution to cancel.
+            reason: Reason for cancellation.
+            user_id: ID of user requesting cancellation.
+        """
+        metadata = self._create_event_metadata(user_id=user_id)
+
+        event = ExecutionCancelledEvent(
+            execution_id=execution_id,
+            aggregate_id=execution_id,
+            reason=reason,
+            cancelled_by=user_id,
+            metadata=metadata,
+        )
+
+        await self.producer.publish(event=event, key=execution_id)
+
+        self.logger.info(
+            "Published cancellation event",
+            extra={
+                "execution_id": execution_id,
+                "event_id": str(event.event_id),
+                "reason": reason,
+            },
+        )
+
     async def delete_execution(self, execution_id: str) -> bool:
         """
         Delete an execution and publish deletion event.
@@ -463,7 +490,7 @@ class ExecutionService:
             execution_id=execution_id, reason="user_requested", cancelled_by=metadata.user_id, metadata=metadata
         )
 
-        await self.producer.produce(event_to_produce=event, key=execution_id)
+        await self.producer.publish(event=event, key=execution_id)
 
         self.logger.info(
             "Published cancellation event",

@@ -1,8 +1,8 @@
 import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
+from app.domain.events.typed import BaseEvent, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
-from app.events.core import UnifiedProducer
+from app.events.core import EventPublisher
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,
     CreatePodStep,
@@ -81,15 +81,15 @@ async def test_allocate_resources_step_paths() -> None:
         await AllocateResourcesStep(alloc_repo=_FakeAllocRepo(active=100)).execute(ctx2, _req())
 
 
-class _FakeProducer(UnifiedProducer):
-    """Fake UnifiedProducer for testing."""
+class _FakeProducer(EventPublisher):
+    """Fake EventPublisher for testing."""
 
     def __init__(self) -> None:
-        self.events: list[DomainEvent] = []
+        self.events: list[BaseEvent] = []
 
-    async def produce(self, event_to_produce: DomainEvent, key: str | None = None,
-                      headers: dict[str, str] | None = None) -> None:
-        self.events.append(event_to_produce)
+    async def publish(self, event: BaseEvent, key: str | None = None) -> str:
+        self.events.append(event)
+        return event.event_id
 
 
 @pytest.mark.asyncio
@@ -152,9 +152,12 @@ async def test_delete_pod_compensation_variants() -> None:
 
 
 def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
-    class DummyProd(UnifiedProducer):
+    class DummyProd(EventPublisher):
         def __init__(self) -> None:
             pass
+
+        async def publish(self, event: BaseEvent, key: str | None = None) -> str:
+            return event.event_id
 
     class DummyAlloc(ResourceAllocationRepository):
         def __init__(self) -> None:

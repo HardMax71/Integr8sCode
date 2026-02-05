@@ -1,4 +1,5 @@
 import uvicorn
+from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,6 +26,7 @@ from app.api.routes.admin import (
 from app.api.routes.admin import (
     users_router as admin_users_router,
 )
+from app.core.container import create_app_container
 from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
@@ -64,8 +66,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     # Store settings on app state for lifespan access
-    # Container creation happens in lifespan (async context)
     app.state.settings = settings
+
+    # Create DI container and set up Dishka middleware
+    # Note: init_beanie() is called in lifespan before any providers are resolved
+    container = create_app_container(settings)
+    setup_dishka_fastapi(container, app)
 
     setup_metrics(settings, logger)
     app.add_middleware(MetricsMiddleware)

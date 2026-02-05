@@ -4,12 +4,11 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from beanie import init_beanie
-from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
+from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 
-from app.core.container import create_app_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
@@ -26,23 +25,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
 
-    Infrastructure bootstrapping (init_beanie) happens here BEFORE the DI
-    container is created. Beanie manages the MongoDB connection internally.
+    DI container is created in create_app() and middleware is set up there.
+    init_beanie() is called here BEFORE any providers are resolved, so that
+    Beanie document classes are initialized before repositories use them.
 
     KafkaBroker lifecycle (start/stop) is managed by BrokerProvider.
     Subscriber registration and FastStream integration are set up here.
     """
     settings: Settings = app.state.settings
+    container: AsyncContainer = app.state.dishka_container
     logger = setup_logger(settings.LOG_LEVEL)
 
     # Initialize Beanie with connection string (manages client internally)
+    # This MUST happen before any provider that uses Beanie documents is resolved
     await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
-
-    # Create DI container
-    container = create_app_container(settings)
-    setup_dishka_fastapi(container, app)
-    logger.info("DI container created")
 
     logger.info(
         "Starting application with dishka DI",
@@ -94,7 +91,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("FastStream DI integration configured")
 
     # Resolve NotificationScheduler — starts APScheduler via DI provider graph.
-    # (init_beanie already completed above, before container creation)
     await container.get(NotificationScheduler)
     logger.info("NotificationScheduler started")
 

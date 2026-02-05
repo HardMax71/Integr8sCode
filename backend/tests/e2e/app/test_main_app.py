@@ -278,12 +278,12 @@ class TestLifespanInitialization:
     """Tests for app state after lifespan initialization."""
 
     @pytest.mark.asyncio
-    async def test_beanie_initialized(self) -> None:
+    async def test_beanie_initialized(self, app: FastAPI) -> None:
         """Beanie ODM is initialized with document models."""
-        # If Beanie isn't initialized, accessing the collection would fail
-        db = UserDocument.get_motor_collection().database
-        assert db is not None
-        assert db.name is not None
+        # app fixture runs lifespan which initializes Beanie
+        # get_settings() raises CollectionWasNotInitialized if not initialized
+        settings = UserDocument.get_settings()
+        assert settings.name == "users"
 
     @pytest.mark.asyncio
     async def test_redis_connected(self, scope: AsyncContainer) -> None:

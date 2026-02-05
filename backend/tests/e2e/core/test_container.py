@@ -14,6 +14,7 @@ from app.services.saved_script_service import SavedScriptService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 from dishka import AsyncContainer
+from fastapi import FastAPI
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 
@@ -38,12 +39,12 @@ class TestCoreInfrastructure:
         assert logger.name == "integr8scode"
 
     @pytest.mark.asyncio
-    async def test_beanie_initialized(self) -> None:
+    async def test_beanie_initialized(self, app: FastAPI) -> None:
         """Beanie is initialized and document classes work."""
-        # If Beanie isn't initialized, this would raise
-        db = UserDocument.get_motor_collection().database
-        assert db is not None
-        assert db.name is not None
+        # app fixture runs lifespan which initializes Beanie
+        # get_settings() raises CollectionWasNotInitialized if not initialized
+        settings = UserDocument.get_settings()
+        assert settings.name == "users"
 
     @pytest.mark.asyncio
     async def test_resolves_redis(self, scope: AsyncContainer) -> None:

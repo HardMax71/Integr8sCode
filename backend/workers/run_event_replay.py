@@ -16,7 +16,7 @@ async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with DI-managed cleanup scheduler."""
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Initialize Beanie with connection string (manages client internally)
+    # Initialize Beanie with connection string (Beanie manages client internally)
     await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
 

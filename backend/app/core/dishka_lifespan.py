@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     container: AsyncContainer = app.state.dishka_container
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Initialize Beanie with connection string (manages client internally)
+    # Initialize Beanie with connection string (Beanie manages client internally)
     # This MUST happen before any provider that uses Beanie documents is resolved
     await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")

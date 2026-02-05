@@ -33,7 +33,7 @@ def main() -> None:
         logger.info("Tracing initialized for ExecutionCoordinator")
 
     async def run() -> None:
-        # Initialize Beanie with connection string (manages client internally)
+        # Initialize Beanie with connection string (Beanie manages client internally)
         await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
         logger.info("MongoDB initialized via Beanie")
 

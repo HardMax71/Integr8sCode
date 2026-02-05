@@ -16,11 +16,10 @@ from app.settings import Settings
 
 
 class UnifiedProducer:
-    """Fully async Kafka producer backed by FastStream KafkaBroker.
+    """Kafka producer backed by FastStream KafkaBroker.
 
-    FastStream handles Pydantic model → JSON serialization natively.
-    The broker's lifecycle (start/stop) is managed externally — either by
-    the FastStream app (worker entry points) or by the FastAPI lifespan.
+    FastStream handles Pydantic JSON serialization natively.
+    The broker's lifecycle is managed externally (FastStream app or FastAPI lifespan).
     """
 
     def __init__(
@@ -48,7 +47,6 @@ class UnifiedProducer:
                 "service": event_to_produce.metadata.service_name,
             })
 
-            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
                 message=event_to_produce,
                 topic=topic,
@@ -57,7 +55,7 @@ class UnifiedProducer:
             )
 
             self._event_metrics.record_kafka_message_produced(topic)
-            self.logger.debug(f"Message [{event_to_produce}] sent to topic: {topic}")
+            self.logger.debug(f"Event {event_to_produce.event_type} sent to topic: {topic}")
 
         except Exception as e:
             self._event_metrics.record_kafka_production_error(topic=topic, error_type=type(e).__name__)
@@ -67,11 +65,7 @@ class UnifiedProducer:
     async def send_to_dlq(
         self, original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int = 0
     ) -> None:
-        """Send a failed event to the Dead Letter Queue.
-
-        The event body is JSON-encoded (Pydantic serialization via FastStream).
-        DLQ metadata is carried in Kafka headers.
-        """
+        """Send a failed event to the Dead Letter Queue."""
         try:
             current_task = asyncio.current_task()
             task_name = current_task.get_name() if current_task else "main"
@@ -90,7 +84,6 @@ class UnifiedProducer:
                 "producer_id": producer_id,
             })
 
-            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
                 message=original_event,
                 topic=dlq_topic,

@@ -294,6 +294,7 @@ class TestLifespanInitialization:
         assert pong is True
 
 
+
 class TestCreateAppFunction:
     """Tests for create_app factory function."""
 

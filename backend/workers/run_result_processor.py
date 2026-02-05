@@ -31,29 +31,27 @@ def main() -> None:
         )
         logger.info("Tracing initialized for ResultProcessor Service")
 
-    # Create DI container (broker is created by BrokerProvider)
-    container = create_result_processor_container(settings)
+    # Create Kafka broker and register subscriber
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
+    register_result_processor_subscriber(broker, settings)
+
+    # Create DI container with broker in context
+    container = create_result_processor_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        await container.get(Database)  # triggers init_beanie inside provider
+        logger.info("ResultProcessor infrastructure initialized")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("ResultProcessor shutdown complete")
 
     async def run() -> None:
-        # Get broker from DI
-        broker: KafkaBroker = await container.get(KafkaBroker)
-
-        # Register subscriber and set up DI integration
-        register_result_processor_subscriber(broker, settings)
-        setup_dishka(container, broker=broker, auto_inject=True)
-
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            await container.get(Database)  # triggers init_beanie inside provider
-            logger.info("ResultProcessor infrastructure initialized")
-
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("ResultProcessor shutdown complete")
-
         await app.run()
 
     asyncio.run(run())

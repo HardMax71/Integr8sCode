@@ -32,35 +32,33 @@ def main() -> None:
         )
         logger.info("Tracing initialized for KubernetesWorker")
 
-    # Create DI container (broker is created by BrokerProvider)
-    container = create_k8s_worker_container(settings)
+    # Create Kafka broker and register subscriber
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
+    register_k8s_worker_subscriber(broker, settings)
+
+    # Create DI container with broker in context
+    container = create_k8s_worker_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        await container.get(Database)  # triggers init_beanie inside provider
+        logger.info("KubernetesWorker infrastructure initialized")
+
+    @app.after_startup
+    async def bootstrap() -> None:
+        worker = await container.get(KubernetesWorker)
+        await worker.ensure_image_pre_puller_daemonset()
+        logger.info("Image pre-puller daemonset applied")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("KubernetesWorker shutdown complete")
 
     async def run() -> None:
-        # Get broker from DI
-        broker: KafkaBroker = await container.get(KafkaBroker)
-
-        # Register subscriber and set up DI integration
-        register_k8s_worker_subscriber(broker, settings)
-        setup_dishka(container, broker=broker, auto_inject=True)
-
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            await container.get(Database)  # triggers init_beanie inside provider
-            logger.info("KubernetesWorker infrastructure initialized")
-
-        @app.after_startup
-        async def bootstrap() -> None:
-            worker = await container.get(KubernetesWorker)
-            await worker.ensure_image_pre_puller_daemonset()
-            logger.info("Image pre-puller daemonset applied")
-
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("KubernetesWorker shutdown complete")
-
         await app.run()
 
     asyncio.run(run())

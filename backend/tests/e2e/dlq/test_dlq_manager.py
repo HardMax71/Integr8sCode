@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 from aiokafka import AIOKafkaConsumer
-from faststream.kafka import KafkaBroker
 from app.core.metrics import DLQMetrics
+from app.core.providers import _default_retry_policies, _default_retry_policy
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage
@@ -16,6 +16,7 @@ from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DLQMessageReceivedEvent, DomainEventAdapter
 from app.settings import Settings
 from dishka import AsyncContainer
+from faststream.kafka import KafkaBroker
 
 from tests.conftest import make_execution_requested_event
 
@@ -52,8 +53,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         """Consume DLQ events and set future when our event is received."""
         async for msg in events_consumer:
             try:
-                # FastStream uses JSON serialization for Pydantic models
-                payload = json.loads(msg.value.decode("utf-8"))
+                payload = json.loads(msg.value.decode())
                 event = DomainEventAdapter.validate_python(payload)
                 if (
                     isinstance(event, DLQMessageReceivedEvent)
@@ -80,6 +80,8 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             logger=_test_logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
+            default_retry_policy=_default_retry_policy(),
+            retry_policies=_default_retry_policies(test_settings.KAFKA_TOPIC_PREFIX),
         )
 
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)

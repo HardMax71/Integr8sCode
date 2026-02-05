@@ -41,10 +41,9 @@ class DLQManager:
         logger: logging.Logger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
+        default_retry_policy: RetryPolicy,
+        retry_policies: dict[str, RetryPolicy],
         dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
-        retry_topic_suffix: str = "-retry",
-        default_retry_policy: RetryPolicy | None = None,
-        retry_policies: dict[str, RetryPolicy] | None = None,
         filters: list[Callable[[DLQMessage], bool]] | None = None,
     ):
         self.settings = settings
@@ -53,46 +52,8 @@ class DLQManager:
         self.metrics = dlq_metrics
         self.repository = repository
         self.dlq_topic = dlq_topic
-        self.retry_topic_suffix = retry_topic_suffix
-
-        self.default_retry_policy = default_retry_policy or RetryPolicy(
-            topic="default",
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-            max_retries=4,
-            base_delay_seconds=60,
-            max_delay_seconds=1800,
-            retry_multiplier=2.5,
-        )
-
-        self._retry_policies: dict[str, RetryPolicy] = retry_policies if retry_policies is not None else {
-            "execution-requests": RetryPolicy(
-                topic="execution-requests",
-                strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-                max_retries=5,
-                base_delay_seconds=30,
-                max_delay_seconds=300,
-                retry_multiplier=2.0,
-            ),
-            "pod-events": RetryPolicy(
-                topic="pod-events",
-                strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-                max_retries=3,
-                base_delay_seconds=60,
-                max_delay_seconds=600,
-                retry_multiplier=3.0,
-            ),
-            "resource-allocation": RetryPolicy(
-                topic="resource-allocation",
-                strategy=RetryStrategy.IMMEDIATE,
-                max_retries=3,
-            ),
-            "websocket-events": RetryPolicy(
-                topic="websocket-events",
-                strategy=RetryStrategy.FIXED_INTERVAL,
-                max_retries=10,
-                base_delay_seconds=10,
-            ),
-        }
+        self.default_retry_policy = default_retry_policy
+        self._retry_policies = retry_policies
 
         self._filters: list[Callable[[DLQMessage], bool]] = filters if filters is not None else [
             f for f in [
@@ -128,7 +89,20 @@ class DLQManager:
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
         await self.repository.save_message(message)
-        await self._emit_message_received_event(message)
+
+        await self._broker.publish(
+            DLQMessageReceivedEvent(
+                dlq_event_id=message.event.event_id,
+                original_topic=message.original_topic,
+                original_event_type=str(message.event.event_type),
+                error=message.error,
+                retry_count=message.retry_count,
+                producer_id=message.producer_id,
+                failed_at=message.failed_at,
+                metadata=self._event_metadata,
+            ),
+            topic=self._dlq_events_topic,
+        )
 
         retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
 
@@ -146,9 +120,10 @@ class DLQManager:
             await self.retry_message(message)
 
     async def retry_message(self, message: DLQMessage) -> None:
-        """Retry a DLQ message by republishing to the retry topic and original topic."""
-        retry_topic = f"{message.original_topic}{self.retry_topic_suffix}"
+        """Retry a DLQ message by republishing to the original topic.
 
+        FastStream handles JSON serialization of Pydantic models natively.
+        """
         hdrs: dict[str, str] = {
             "event_type": message.event.event_type,
             "dlq_retry_count": str(message.retry_count + 1),
@@ -157,17 +132,11 @@ class DLQManager:
         }
         hdrs = inject_trace_context(hdrs)
 
-        # FastStream handles Pydantic → JSON serialization natively
-        await self._broker.publish(
-            message=message.event,
-            topic=retry_topic,
-            key=message.event.event_id.encode(),
-            headers=hdrs,
-        )
+        # Publish directly to original topic - FastStream serializes Pydantic to JSON
         await self._broker.publish(
             message=message.event,
             topic=message.original_topic,
-            key=message.event.event_id.encode(),
+            key=message.event.event_id.encode() if message.event.event_id else None,
             headers=hdrs,
         )
 
@@ -183,7 +152,17 @@ class DLQManager:
             ),
         )
 
-        await self._emit_message_retried_event(message, retry_topic, new_retry_count)
+        await self._broker.publish(
+            DLQMessageRetriedEvent(
+                dlq_event_id=message.event.event_id,
+                original_topic=message.original_topic,
+                original_event_type=str(message.event.event_type),
+                retry_count=new_retry_count,
+                retry_topic=message.original_topic,
+                metadata=self._event_metadata,
+            ),
+            topic=self._dlq_events_topic,
+        )
         self.logger.info("Successfully retried message", extra={"event_id": message.event.event_id})
 
     async def discard_message(self, message: DLQMessage, reason: str) -> None:
@@ -199,7 +178,17 @@ class DLQManager:
             ),
         )
 
-        await self._emit_message_discarded_event(message, reason)
+        await self._broker.publish(
+            DLQMessageDiscardedEvent(
+                dlq_event_id=message.event.event_id,
+                original_topic=message.original_topic,
+                original_event_type=str(message.event.event_type),
+                reason=reason,
+                retry_count=message.retry_count,
+                metadata=self._event_metadata,
+            ),
+            topic=self._dlq_events_topic,
+        )
         self.logger.warning("Discarded message", extra={"event_id": message.event.event_id, "reason": reason})
 
     async def process_due_retries(self) -> int:
@@ -287,51 +276,3 @@ class DLQManager:
 
         await self.discard_message(message, reason)
         return True
-
-    async def _emit_message_received_event(self, message: DLQMessage) -> None:
-        event = DLQMessageReceivedEvent(
-            dlq_event_id=message.event.event_id,
-            original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
-            error=message.error,
-            retry_count=message.retry_count,
-            producer_id=message.producer_id,
-            failed_at=message.failed_at,
-            metadata=self._event_metadata,
-        )
-        await self._produce_dlq_event(event)
-
-    async def _emit_message_retried_event(self, message: DLQMessage, retry_topic: str, new_retry_count: int) -> None:
-        event = DLQMessageRetriedEvent(
-            dlq_event_id=message.event.event_id,
-            original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
-            retry_count=new_retry_count,
-            retry_topic=retry_topic,
-            metadata=self._event_metadata,
-        )
-        await self._produce_dlq_event(event)
-
-    async def _emit_message_discarded_event(self, message: DLQMessage, reason: str) -> None:
-        event = DLQMessageDiscardedEvent(
-            dlq_event_id=message.event.event_id,
-            original_topic=message.original_topic,
-            original_event_type=str(message.event.event_type),
-            reason=reason,
-            retry_count=message.retry_count,
-            metadata=self._event_metadata,
-        )
-        await self._produce_dlq_event(event)
-
-    async def _produce_dlq_event(
-        self, event: DLQMessageReceivedEvent | DLQMessageRetriedEvent | DLQMessageDiscardedEvent
-    ) -> None:
-        try:
-            # FastStream handles Pydantic → JSON serialization natively
-            await self._broker.publish(
-                message=event,
-                topic=self._dlq_events_topic,
-                key=event.event_id.encode(),
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to emit DLQ event {event.event_type}: {e}")

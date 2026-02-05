@@ -30,30 +30,28 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    # Create DI container (broker is created by BrokerProvider)
-    container = create_pod_monitor_container(settings)
+    # Create Kafka broker (PodMonitor publishes events via KafkaEventService)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
+
+    # Create DI container with broker in context
+    container = create_pod_monitor_container(settings, broker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+
+    app = FastStream(broker)
+
+    @app.on_startup
+    async def startup() -> None:
+        # Resolving PodMonitor triggers Database init (via dependency),
+        # starts the K8s watch loop, and starts the reconciliation scheduler
+        await container.get(PodMonitor)
+        logger.info("PodMonitor infrastructure initialized")
+
+    @app.on_shutdown
+    async def shutdown() -> None:
+        await container.close()
+        logger.info("PodMonitor shutdown complete")
 
     async def run() -> None:
-        # Get broker from DI (PodMonitor publishes events via KafkaEventService)
-        broker: KafkaBroker = await container.get(KafkaBroker)
-
-        # Set up DI integration (no subscribers for pod monitor - it only publishes)
-        setup_dishka(container, broker=broker, auto_inject=True)
-
-        app = FastStream(broker)
-
-        @app.on_startup
-        async def startup() -> None:
-            # Resolving PodMonitor triggers Database init (via dependency),
-            # starts the K8s watch loop, and starts the reconciliation scheduler
-            await container.get(PodMonitor)
-            logger.info("PodMonitor infrastructure initialized")
-
-        @app.on_shutdown
-        async def shutdown() -> None:
-            await container.close()
-            logger.info("PodMonitor shutdown complete")
-
         await app.run()
 
     asyncio.run(run())

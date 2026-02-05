@@ -12,15 +12,12 @@ from faststream.kafka import KafkaBroker
 
 async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with DI-managed cleanup scheduler."""
-    # Create DI container (broker is created by BrokerProvider)
-    container = create_event_replay_container(settings)
+    tmp_logger = setup_logger(settings.LOG_LEVEL)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=tmp_logger)
 
+    container = create_event_replay_container(settings, broker)
     logger = await container.get(logging.Logger)
     logger.info("Starting EventReplayService with DI container...")
-
-    # Get broker from DI (for producer functionality)
-    broker: KafkaBroker = await container.get(KafkaBroker)
-    await broker.start()
 
     # Resolving EventReplayService triggers Database init (via dependency)
     # and starts the APScheduler cleanup scheduler (via EventReplayWorkerProvider)
@@ -36,7 +33,6 @@ async def run_replay_service(settings: Settings) -> None:
         await shutdown_event.wait()
     finally:
         logger.info("Initiating graceful shutdown...")
-        await broker.close()
         await container.close()
 
 

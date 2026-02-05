@@ -8,7 +8,6 @@ from app.core.providers import (
     BusinessServicesProvider,
     CoordinatorProvider,
     CoreServicesProvider,
-    DatabaseProvider,
     DLQProvider,
     DLQWorkerProvider,
     EventReplayProvider,
@@ -39,6 +38,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
     Args:
         settings: Application settings (injected via from_context).
 
+    Note: init_beanie() must be called BEFORE this container is created.
     KafkaBroker is created by BrokerProvider and can be retrieved
     via container.get(KafkaBroker) after container creation.
     """
@@ -46,7 +46,6 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -75,7 +74,6 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -93,7 +91,6 @@ def create_coordinator_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -111,7 +108,6 @@ def create_k8s_worker_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -130,7 +126,6 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -153,7 +148,6 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -174,7 +168,6 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),
@@ -196,7 +189,6 @@ def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
         SettingsProvider(),
         LoggingProvider(),
         BrokerProvider(),
-        DatabaseProvider(),
         RedisProvider(),
         CoreServicesProvider(),
         MetricsProvider(),

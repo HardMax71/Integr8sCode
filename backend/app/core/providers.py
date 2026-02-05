@@ -5,15 +5,12 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
 from kubernetes_asyncio.client.rest import ApiException
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
@@ -31,7 +28,6 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -171,23 +167,6 @@ class RedisProvider(Provider):
         return service
 
 
-class DatabaseProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[Database]:
-        client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-        )
-        database = client[settings.DATABASE_NAME]
-        await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-        logger.info(f"MongoDB connected and Beanie initialized: {settings.DATABASE_NAME}")
-        try:
-            yield database
-        finally:
-            await client.close()
-
-
 class CoreServicesProvider(Provider):
     scope = Scope.APP
 
@@ -321,7 +300,6 @@ class DLQWorkerProvider(Provider):
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
-            database: Database,
     ) -> AsyncIterator[DLQManager]:
         manager = DLQManager(
             settings=settings,
@@ -430,7 +408,11 @@ class MetricsProvider(Provider):
 
 
 class RepositoryProvider(Provider):
-    """Provides all repository instances. Repositories are stateless facades over database operations."""
+    """Provides all repository instances.
+
+    Repositories are stateless facades over Beanie document operations.
+    Database (with init_beanie already called) is available from context.
+    """
 
     scope = Scope.APP
 
@@ -612,7 +594,6 @@ class AdminServicesProvider(Provider):
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
             logger: logging.Logger,
-            database: Database,  # ensures init_beanie completes before scheduler starts
     ) -> AsyncIterator[NotificationScheduler]:
 
         scheduler_service = NotificationScheduler(
@@ -788,7 +769,6 @@ class PodMonitorProvider(Provider):
         logger: logging.Logger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
-        database: Database,
     ) -> AsyncIterator[PodMonitor]:
 
         config = PodMonitorConfig()
@@ -872,7 +852,6 @@ class SagaWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
-        database: Database,
     ) -> AsyncIterator[SagaOrchestrator]:
 
         orchestrator = SagaOrchestrator(
@@ -958,7 +937,6 @@ class EventReplayWorkerProvider(Provider):
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
-            database: Database,
     ) -> AsyncIterator[EventReplayService]:
 
         service = EventReplayService(

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from dishka import AsyncContainer
+from beanie import init_beanie
+from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 
+from app.core.container import create_app_container
+from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import (
     register_notification_subscriber,
     register_sse_subscriber,
@@ -23,16 +26,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
 
-    Infrastructure init (Beanie, schemas, rate limits) is handled inside
-    DI providers. Resolving NotificationScheduler cascades through the
-    dependency graph and triggers all required initialisation.
+    Infrastructure bootstrapping (init_beanie) happens here BEFORE the DI
+    container is created. Beanie manages the MongoDB connection internally.
 
     KafkaBroker lifecycle (start/stop) is managed by BrokerProvider.
     Subscriber registration and FastStream integration are set up here.
     """
-    container: AsyncContainer = app.state.dishka_container
     settings: Settings = app.state.settings
-    logger = await container.get(logging.Logger)
+    logger = setup_logger(settings.LOG_LEVEL)
+
+    # Initialize Beanie with connection string (manages client internally)
+    await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
+    logger.info("MongoDB initialized via Beanie")
+
+    # Create DI container
+    container = create_app_container(settings)
+    setup_dishka_fastapi(container, app)
+    logger.info("DI container created")
 
     logger.info(
         "Starting application with dishka DI",
@@ -83,10 +93,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_dishka_faststream(container, broker=broker, auto_inject=True)
     logger.info("FastStream DI integration configured")
 
-    # Resolve NotificationScheduler — cascades init_beanie, schema registration,
-    # and starts APScheduler via the DI provider graph.
+    # Resolve NotificationScheduler — starts APScheduler via DI provider graph.
+    # (init_beanie already completed above, before container creation)
     await container.get(NotificationScheduler)
-    logger.info("Infrastructure initialized via DI providers")
+    logger.info("NotificationScheduler started")
 
-    yield
-    # Broker cleanup handled by BrokerProvider when container closes
+    try:
+        yield
+    finally:
+        # Container close triggers BrokerProvider cleanup (closes broker)
+        # and all other async generators in providers
+        await container.close()
+        logger.info("DI container closed")

@@ -1,8 +1,6 @@
 import uvicorn
-from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from faststream.kafka import KafkaBroker
 
 from app.api.routes import (
     auth,
@@ -27,7 +25,6 @@ from app.api.routes.admin import (
 from app.api.routes.admin import (
     users_router as admin_users_router,
 )
-from app.core.container import create_app_container
 from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
@@ -51,8 +48,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings: Optional pre-configured settings (e.g., TestSettings for testing).
                  If None, loads from config.toml.
 
-    Note: KafkaBroker is created via DI (BrokerProvider). Subscriber registration
-    and FastStream integration are set up in the lifespan handler.
+    Note: DI container and infrastructure (MongoDB, Kafka) are created in the
+    async lifespan handler to allow proper async initialization (init_beanie).
     """
     settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
@@ -67,16 +64,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     # Store settings on app state for lifespan access
+    # Container creation happens in lifespan (async context)
     app.state.settings = settings
-
-    # Create DI container - broker is created via BrokerProvider
-    container = create_app_container(settings)
-    setup_dishka_fastapi(container, app)
 
     setup_metrics(settings, logger)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
-    app.add_middleware(CSRFMiddleware, container=container)
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)

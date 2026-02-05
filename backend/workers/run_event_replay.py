@@ -1,26 +1,30 @@
 import asyncio
-import logging
 import signal
 
 from app.core.container import create_event_replay_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
-from faststream.kafka import KafkaBroker
+from beanie import init_beanie
 
 
 async def run_replay_service(settings: Settings) -> None:
     """Run the event replay service with DI-managed cleanup scheduler."""
-    # Create DI container (broker lifecycle managed by BrokerProvider)
-    container = create_event_replay_container(settings)
+    logger = setup_logger(settings.LOG_LEVEL)
 
-    logger = await container.get(logging.Logger)
+    # Initialize Beanie with connection string (manages client internally)
+    await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
+    logger.info("MongoDB initialized via Beanie")
+
+    # Create DI container
+    container = create_event_replay_container(settings)
     logger.info("Starting EventReplayService with DI container...")
 
-    # Resolving EventReplayService triggers Database init (via dependency)
-    # and starts the APScheduler cleanup scheduler (via EventReplayWorkerProvider).
-    # Broker is started automatically by BrokerProvider when first resolved.
+    # Resolving EventReplayService starts the APScheduler cleanup scheduler
+    # (via EventReplayWorkerProvider). Broker is started automatically by
+    # BrokerProvider when first resolved.
     await container.get(EventReplayService)
     logger.info("Event replay service initialized")
 
@@ -33,7 +37,6 @@ async def run_replay_service(settings: Settings) -> None:
         await shutdown_event.wait()
     finally:
         logger.info("Initiating graceful shutdown...")
-        # Container close triggers BrokerProvider cleanup (closes broker)
         await container.close()
 
 

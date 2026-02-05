@@ -3,9 +3,11 @@ import asyncio
 from app.core.container import create_pod_monitor_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
+from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
@@ -30,10 +32,14 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    # Create DI container (broker is created by BrokerProvider)
-    container = create_pod_monitor_container(settings)
-
     async def run() -> None:
+        # Initialize Beanie with connection string (manages client internally)
+        await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
+        logger.info("MongoDB initialized via Beanie")
+
+        # Create DI container
+        container = create_pod_monitor_container(settings)
+
         # Get broker from DI (PodMonitor publishes events via KafkaEventService)
         broker: KafkaBroker = await container.get(KafkaBroker)
 

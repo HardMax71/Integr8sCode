@@ -4,7 +4,6 @@ import pytest
 import redis.asyncio as aioredis
 from app.core.database_context import Database
 from app.core.security import SecurityService
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.notification_service import NotificationService
@@ -81,15 +80,6 @@ class TestEventServices:
         service = await scope.get(EventService)
 
         assert isinstance(service, EventService)
-
-    @pytest.mark.asyncio
-    async def test_resolves_schema_registry(
-        self, scope: AsyncContainer
-    ) -> None:
-        """Container resolves SchemaRegistryManager."""
-        registry = await scope.get(SchemaRegistryManager)
-
-        assert isinstance(registry, SchemaRegistryManager)
 
 
 class TestBusinessServices:

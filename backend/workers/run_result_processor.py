@@ -5,12 +5,11 @@ from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.domain.enums.kafka import GroupId
-from app.events.broker import create_broker
 from app.events.handlers import register_result_processor_subscriber
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.settings import Settings
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
+from faststream.kafka import KafkaBroker
 
 
 def main() -> None:
@@ -33,8 +32,7 @@ def main() -> None:
         logger.info("Tracing initialized for ResultProcessor Service")
 
     # Create Kafka broker and register subscriber
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
     register_result_processor_subscriber(broker, settings)
 
     # Create DI container with broker in context

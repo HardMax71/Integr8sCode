@@ -11,29 +11,26 @@ from app.db.repositories.event_repository import EventRepository
 from app.dlq.models import DLQMessageStatus
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.events.typed import DomainEvent
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
 from app.settings import Settings
 
 
 class UnifiedProducer:
-    """Fully async Kafka producer backed by FastStream KafkaBroker.
+    """Kafka producer backed by FastStream KafkaBroker.
 
-    The broker's lifecycle (start/stop) is managed externally — either by
-    the FastStream app (worker entry points) or by the FastAPI lifespan.
+    FastStream handles Pydantic JSON serialization natively.
+    The broker's lifecycle is managed externally (FastStream app or FastAPI lifespan).
     """
 
     def __init__(
         self,
         broker: KafkaBroker,
-        schema_registry_manager: SchemaRegistryManager,
         event_repository: EventRepository,
         logger: logging.Logger,
         settings: Settings,
         event_metrics: EventMetrics,
     ):
         self._broker = broker
-        self._schema_registry = schema_registry_manager
         self._event_repository = event_repository
         self.logger = logger
         self._event_metrics = event_metrics
@@ -44,8 +41,6 @@ class UnifiedProducer:
         await self._event_repository.store_event(event_to_produce)
         topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
         try:
-            serialized_value = await self._schema_registry.serialize_event(event_to_produce)
-
             headers = inject_trace_context({
                 "event_type": event_to_produce.event_type,
                 "correlation_id": event_to_produce.metadata.correlation_id or "",
@@ -53,14 +48,14 @@ class UnifiedProducer:
             })
 
             await self._broker.publish(
-                message=serialized_value,
+                message=event_to_produce,
                 topic=topic,
                 key=key.encode(),
                 headers=headers,
             )
 
             self._event_metrics.record_kafka_message_produced(topic)
-            self.logger.debug(f"Message [{event_to_produce}] sent to topic: {topic}")
+            self.logger.debug(f"Event {event_to_produce.event_type} sent to topic: {topic}")
 
         except Exception as e:
             self._event_metrics.record_kafka_production_error(topic=topic, error_type=type(e).__name__)
@@ -70,17 +65,12 @@ class UnifiedProducer:
     async def send_to_dlq(
         self, original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int = 0
     ) -> None:
-        """Send a failed event to the Dead Letter Queue.
-
-        The event body is Avro-encoded (same as every other topic).
-        DLQ metadata is carried in Kafka headers.
-        """
+        """Send a failed event to the Dead Letter Queue."""
         try:
             current_task = asyncio.current_task()
             task_name = current_task.get_name() if current_task else "main"
             producer_id = f"{socket.gethostname()}-{task_name}"
 
-            serialized_value = await self._schema_registry.serialize_event(original_event)
             dlq_topic = f"{self._topic_prefix}{KafkaTopic.DEAD_LETTER_QUEUE}"
 
             headers = inject_trace_context({
@@ -95,7 +85,7 @@ class UnifiedProducer:
             })
 
             await self._broker.publish(
-                message=serialized_value,
+                message=original_event,
                 topic=dlq_topic,
                 key=original_event.event_id.encode() if original_event.event_id else None,
                 headers=headers,

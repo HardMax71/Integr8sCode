@@ -49,10 +49,11 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
+from app.dlq.models import RetryPolicy, RetryStrategy
+from app.domain.enums.kafka import KafkaTopic
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
 from app.services.coordinator.coordinator import ExecutionCoordinator
@@ -180,13 +181,12 @@ class MessagingProvider(Provider):
     def get_unified_producer(
             self,
             broker: KafkaBroker,
-            schema_registry: SchemaRegistryManager,
             event_repository: EventRepository,
             logger: logging.Logger,
             settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, schema_registry, event_repository, logger, settings, event_metrics)
+        return UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -199,6 +199,61 @@ class MessagingProvider(Provider):
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
 
+def _default_retry_policy() -> RetryPolicy:
+    """Default retry policy for DLQ messages."""
+    return RetryPolicy(
+        topic="default",
+        strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+        max_retries=4,
+        base_delay_seconds=60,
+        max_delay_seconds=1800,
+        retry_multiplier=2.5,
+    )
+
+
+def _default_retry_policies(prefix: str) -> dict[str, RetryPolicy]:
+    """Topic-specific retry policies for DLQ.
+
+    Keys must match message.original_topic (full prefixed topic name).
+    """
+    execution_events = f"{prefix}{KafkaTopic.EXECUTION_EVENTS}"
+    pod_events = f"{prefix}{KafkaTopic.POD_EVENTS}"
+    saga_commands = f"{prefix}{KafkaTopic.SAGA_COMMANDS}"
+    execution_results = f"{prefix}{KafkaTopic.EXECUTION_RESULTS}"
+
+    return {
+        execution_events: RetryPolicy(
+            topic=execution_events,
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=5,
+            base_delay_seconds=30,
+            max_delay_seconds=300,
+            retry_multiplier=2.0,
+        ),
+        pod_events: RetryPolicy(
+            topic=pod_events,
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=3,
+            base_delay_seconds=60,
+            max_delay_seconds=600,
+            retry_multiplier=3.0,
+        ),
+        saga_commands: RetryPolicy(
+            topic=saga_commands,
+            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+            max_retries=5,
+            base_delay_seconds=30,
+            max_delay_seconds=300,
+            retry_multiplier=2.0,
+        ),
+        execution_results: RetryPolicy(
+            topic=execution_results,
+            strategy=RetryStrategy.IMMEDIATE,
+            max_retries=3,
+        ),
+    }
+
+
 class DLQProvider(Provider):
     """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
 
@@ -209,7 +264,6 @@ class DLQProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -217,18 +271,18 @@ class DLQProvider(Provider):
         return DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
+            default_retry_policy=_default_retry_policy(),
+            retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
         )
 
 
 class DLQWorkerProvider(Provider):
     """Provides DLQManager with APScheduler-managed retry monitoring.
 
-    Used by the DLQ worker container only. DLQManager configures its own
-    retry policies and filters; the provider only handles scheduling.
+    Used by the DLQ worker container only.
     """
 
     scope = Scope.APP
@@ -238,7 +292,6 @@ class DLQWorkerProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            schema_registry: SchemaRegistryManager,
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
@@ -247,10 +300,11 @@ class DLQWorkerProvider(Provider):
         manager = DLQManager(
             settings=settings,
             broker=broker,
-            schema_registry=schema_registry,
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
+            default_retry_policy=_default_retry_policy(),
+            retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
         )
 
         scheduler = AsyncIOScheduler()
@@ -270,14 +324,6 @@ class DLQWorkerProvider(Provider):
         finally:
             scheduler.shutdown(wait=False)
             logger.info("DLQManager retry monitor stopped")
-
-
-class EventProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def get_schema_registry(self, settings: Settings, logger: logging.Logger) -> SchemaRegistryManager:
-        return SchemaRegistryManager(settings, logger)
 
 
 class KubernetesProvider(Provider):

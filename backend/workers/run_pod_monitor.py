@@ -4,12 +4,11 @@ from app.core.container import create_pod_monitor_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.domain.enums.kafka import GroupId
-from app.events.broker import create_broker
-from app.events.schema.schema_registry import SchemaRegistryManager
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
+from faststream.kafka import KafkaBroker
 
 
 def main() -> None:
@@ -32,8 +31,7 @@ def main() -> None:
         logger.info("Tracing initialized for PodMonitor Service")
 
     # Create Kafka broker (PodMonitor publishes events via KafkaEventService)
-    schema_registry = SchemaRegistryManager(settings, logger)
-    broker = create_broker(settings, schema_registry, logger)
+    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
 
     # Create DI container with broker in context
     container = create_pod_monitor_container(settings, broker)

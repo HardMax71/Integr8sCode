@@ -8,6 +8,8 @@ from app.db.docs import ALL_DOCUMENTS
 from app.services.event_replay.replay_service import EventReplayService
 from app.settings import Settings
 from beanie import init_beanie
+from dishka.integrations.faststream import setup_dishka
+from faststream.kafka import KafkaBroker
 
 
 async def run_replay_service(settings: Settings) -> None:
@@ -22,9 +24,14 @@ async def run_replay_service(settings: Settings) -> None:
     container = create_event_replay_container(settings)
     logger.info("Starting EventReplayService with DI container...")
 
+    # Get broker, setup DI, start (no subscribers - this worker only publishes)
+    broker: KafkaBroker = await container.get(KafkaBroker)
+    setup_dishka(container, broker=broker, auto_inject=True)
+    await broker.start()
+    logger.info("Kafka broker started")
+
     # Resolving EventReplayService starts the APScheduler cleanup scheduler
-    # (via EventReplayWorkerProvider). Broker is started automatically by
-    # BrokerProvider when first resolved.
+    # (via EventReplayWorkerProvider).
     await container.get(EventReplayService)
     logger.info("Event replay service initialized")
 

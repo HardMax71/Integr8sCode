@@ -77,18 +77,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Get broker from DI (BrokerProvider starts it automatically)
+    # Get unstarted broker from DI (BrokerProvider yields without starting)
     broker: KafkaBroker = await container.get(KafkaBroker)
     app.state.kafka_broker = broker
 
-    # Register in-app Kafka subscribers (works on already-started broker)
+    # Register subscribers BEFORE broker.start() - FastStream requirement
     register_sse_subscriber(broker, settings)
     register_notification_subscriber(broker, settings)
     logger.info("Kafka subscribers registered")
 
-    # Set up FastStream DI integration
+    # Set up FastStream DI integration (must be before start per Dishka docs)
     setup_dishka_faststream(container, broker=broker, auto_inject=True)
     logger.info("FastStream DI integration configured")
+
+    # Now start the broker
+    await broker.start()
+    logger.info("Kafka broker started")
 
     # Resolve NotificationScheduler — starts APScheduler via DI provider graph.
     await container.get(NotificationScheduler)

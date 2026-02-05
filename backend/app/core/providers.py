@@ -79,10 +79,15 @@ from app.settings import Settings
 
 
 class BrokerProvider(Provider):
-    """Provides KafkaBroker instance with managed lifecycle.
+    """Provides KafkaBroker instance.
 
-    The broker is started when first resolved and closed when the container closes.
-    This ensures proper cleanup even if initialization fails after broker start.
+    The broker is created here but NOT started. This is required because:
+    1. Subscribers must be registered before broker.start()
+    2. setup_dishka() must be called before broker.start()
+
+    Lifecycle is managed externally:
+    - Workers with FastStream: FastStream(broker).run() handles start/stop
+    - Main app / event_replay: Manual broker.start(), provider handles stop
     """
 
     scope = Scope.APP
@@ -97,13 +102,12 @@ class BrokerProvider(Provider):
             client_id=f"integr8scode-{settings.SERVICE_NAME}",
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
-        await broker.start()
-        logger.info("Kafka broker started")
+        logger.info("Kafka broker created")
         try:
             yield broker
         finally:
-            await broker.close()
-            logger.info("Kafka broker closed")
+            await broker.stop()
+            logger.info("Kafka broker stopped")
 
 
 class SettingsProvider(Provider):

@@ -37,10 +37,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     container: AsyncContainer = app.state.dishka_container
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
-    # This MUST happen before any provider that uses Beanie documents is resolved
+    # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes).
+    # Use URL database first and fall back to configured DATABASE_NAME so runtime
+    # and auxiliary scripts resolve the same DB consistently.
     client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
-    await init_beanie(database=client.get_default_database(), document_models=ALL_DOCUMENTS)
+    database = client.get_default_database(default=settings.DATABASE_NAME)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
 
     logger.info(

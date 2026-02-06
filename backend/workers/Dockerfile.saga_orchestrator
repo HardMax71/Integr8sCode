@@ -1,8 +1,0 @@
-# Saga Orchestrator worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run saga orchestrator
-CMD ["python", "workers/run_saga_orchestrator.py"]

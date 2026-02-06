@@ -53,7 +53,7 @@ The DLQ can be monitored via the admin API:
 
 | File                                                                                                      | Purpose              |
 |-----------------------------------------------------------------------------------------------------------|----------------------|
-| [`dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/dlq_processor.py) | Entry point          |
+| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py) | Entry point          |
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py)            | DLQ management logic |
 | [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/dlq.py)             | Admin API routes     |
 
@@ -61,8 +61,8 @@ The DLQ can be monitored via the admin API:
 
 ```yaml
 dlq-processor:
-  build:
-    dockerfile: workers/Dockerfile.dlq_processor
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_dlq_processor.py"]
 ```
 
 Usually runs as a single replica. The processor is designed to handle periodic retries, not real-time processing.

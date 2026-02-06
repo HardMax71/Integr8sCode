@@ -112,6 +112,6 @@ docker compose down -v
 ## Next steps
 
 - [Architecture Overview](architecture/overview.md) - How the pieces fit together
-- [Deployment](operations/deployment.md) - Production deployment with Helm
+- [Deployment](operations/deployment.md) - Docker Compose deployment
 - [API Reference](reference/api-reference.md) - Full endpoint documentation
 - [Configuration Reference](reference/configuration.md) - TOML configuration options

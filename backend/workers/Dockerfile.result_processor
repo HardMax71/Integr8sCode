@@ -1,8 +1,0 @@
-# Result Processor worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run result processor
-CMD ["python", "workers/run_result_processor.py"]

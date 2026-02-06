@@ -56,8 +56,8 @@ The worker refuses to run pods in the `default` namespace to ensure network poli
 
 ```yaml
 k8s-worker:
-  build:
-    dockerfile: workers/Dockerfile.k8s_worker
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_k8s_worker.py"]
 ```
 
 Scale based on pod creation throughput. Each instance needs access to the Kubernetes API via kubeconfig.

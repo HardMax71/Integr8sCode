@@ -35,13 +35,6 @@ jobs:
           - base
           - backend
           - frontend
-          - coordinator
-          - k8s-worker
-          - pod-monitor
-          - result-processor
-          - saga-orchestrator
-          - event-replay
-          - dlq-processor
           - cert-generator
           - zookeeper-certgen
     steps:
@@ -116,13 +109,6 @@ jobs:
           crane copy "$REGISTRY/$PREFIX/base:$TAG" "$REGISTRY/$PREFIX/base:latest"
           crane copy "$REGISTRY/$PREFIX/backend:$TAG" "$REGISTRY/$PREFIX/backend:latest"
           crane copy "$REGISTRY/$PREFIX/frontend:$TAG" "$REGISTRY/$PREFIX/frontend:latest"
-          crane copy "$REGISTRY/$PREFIX/coordinator:$TAG" "$REGISTRY/$PREFIX/coordinator:latest"
-          crane copy "$REGISTRY/$PREFIX/k8s-worker:$TAG" "$REGISTRY/$PREFIX/k8s-worker:latest"
-          crane copy "$REGISTRY/$PREFIX/pod-monitor:$TAG" "$REGISTRY/$PREFIX/pod-monitor:latest"
-          crane copy "$REGISTRY/$PREFIX/result-processor:$TAG" "$REGISTRY/$PREFIX/result-processor:latest"
-          crane copy "$REGISTRY/$PREFIX/saga-orchestrator:$TAG" "$REGISTRY/$PREFIX/saga-orchestrator:latest"
-          crane copy "$REGISTRY/$PREFIX/event-replay:$TAG" "$REGISTRY/$PREFIX/event-replay:latest"
-          crane copy "$REGISTRY/$PREFIX/dlq-processor:$TAG" "$REGISTRY/$PREFIX/dlq-processor:latest"
           crane copy "$REGISTRY/$PREFIX/cert-generator:$TAG" "$REGISTRY/$PREFIX/cert-generator:latest"
           crane copy "$REGISTRY/$PREFIX/zookeeper-certgen:$TAG" "$REGISTRY/$PREFIX/zookeeper-certgen:latest"
 
@@ -156,4 +142,4 @@ jobs:
           echo "| Frontend | \`docker pull $REGISTRY/$PREFIX/frontend:latest\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
-          echo "All 12 images scanned with Trivy (CRITICAL + HIGH, unfixed ignored)." >> $GITHUB_STEP_SUMMARY
+          echo "All 5 images scanned with Trivy (CRITICAL + HIGH, unfixed ignored)." >> $GITHUB_STEP_SUMMARY

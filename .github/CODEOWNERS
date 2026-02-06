@@ -11,6 +11,5 @@ backend/  @HardMax71
 # Frontend
 frontend/ @HardMax71
 
-# DevOps / Helm / CI
-helm/     @HardMax71
+# DevOps / CI
 .github/  @HardMax71

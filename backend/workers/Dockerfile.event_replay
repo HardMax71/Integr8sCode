@@ -1,8 +1,0 @@
-# Event Replay worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run event replay service
-CMD ["python", "workers/run_event_replay.py"]

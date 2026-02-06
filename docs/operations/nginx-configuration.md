@@ -25,7 +25,7 @@ backend.
 
 | Directive       | Purpose                                          |
 |-----------------|--------------------------------------------------|
-| `listen 5001`   | Internal container port (mapped via K8s Service) |
+| `listen 5001`   | Internal container port (mapped via Docker Compose) |
 | `server_name _` | Catch-all server name                            |
 | `root`          | Static files from Svelte build                   |
 
@@ -132,16 +132,15 @@ The nginx image automatically processes files in `/etc/nginx/templates/*.templat
 |---------------|-----------------------------------|-----------------------|
 | `BACKEND_URL` | Backend service URL for API proxy | `https://backend:443` |
 
-Set this via docker-compose environment section or Kubernetes deployment env vars.
+Set this via the docker-compose environment section.
 
 ### Rebuilding
 
 To apply nginx configuration changes:
 
 ```bash
-docker build --no-cache -t integr8scode-frontend:latest \
-  -f frontend/Dockerfile.prod frontend/
-kubectl rollout restart deployment/frontend -n integr8scode
+docker compose build --no-cache frontend
+docker compose restart frontend
 ```
 
 ## Troubleshooting
@@ -150,5 +149,5 @@ kubectl rollout restart deployment/frontend -n integr8scode
 |--------------------------|----------------------------------|-------------------------------------------|
 | SSE connections dropping | Default 60s `proxy_read_timeout` | Verify 86400s timeout is set              |
 | CSP blocking resources   | Missing source in directive      | Check browser console, add blocked source |
-| 502 Bad Gateway          | Backend unreachable              | `kubectl get svc backend -n integr8scode` |
+| 502 Bad Gateway          | Backend unreachable              | `docker compose logs backend`             |
 | Assets not updating      | Browser cache                    | Clear cache or verify `no-cache` on HTML  |

@@ -1,15 +1,12 @@
 #!/bin/bash
 # =============================================================================
-# Integr8sCode Unified Deployment Script
+# Integr8sCode Deployment Script (Docker Compose)
 # =============================================================================
 #
 # Usage:
 #   ./deploy.sh dev                 # Start local development (docker-compose)
 #   ./deploy.sh dev --build         # Rebuild and start local development
 #   ./deploy.sh down                # Stop local development
-#   ./deploy.sh prod                # Deploy to K8s (builds images locally)
-#   ./deploy.sh prod --prod         # Deploy with production values (uses registry)
-#   ./deploy.sh prod --dry-run      # Test Helm deployment without applying
 #   ./deploy.sh check               # Run local quality checks (lint, type, security)
 #   ./deploy.sh test                # Run full test suite locally
 #   ./deploy.sh logs [service]      # View logs (dev mode)
@@ -30,11 +27,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
-
-# Helm configuration
-NAMESPACE="integr8scode"
-RELEASE_NAME="integr8scode"
-CHART_PATH="./helm/integr8scode"
 
 print_header() {
     echo -e "${BLUE}"
@@ -66,7 +58,6 @@ show_help() {
     echo "                     --wait              Wait for services to be healthy"
     echo "                     --timeout <secs>    Health check timeout (default: 120)"
     echo "  down               Stop all services"
-    echo "  prod [options]     Deploy to Kubernetes with Helm"
     echo "  check              Run quality checks (ruff, mypy, bandit)"
     echo "  test               Run full test suite"
     echo "  logs [service]     View logs (defaults to all services)"
@@ -74,12 +65,6 @@ show_help() {
     echo "  openapi [path]     Generate OpenAPI spec (default: docs/reference/openapi.json)"
     echo "  types              Generate TypeScript types for frontend from OpenAPI spec"
     echo "  help               Show this help message"
-    echo ""
-    echo "Prod options:"
-    echo "  --dry-run          Validate templates without applying"
-    echo "  --prod             Use production values (ghcr.io images, no local build)"
-    echo "  --local            Force local build even with --prod values"
-    echo "  --set key=value    Override Helm values"
     echo ""
     echo "Configuration:"
     echo "  All settings come from backend/config.toml (single source of truth)"
@@ -89,7 +74,6 @@ show_help() {
     echo "  ./deploy.sh dev                    # Start dev environment"
     echo "  ./deploy.sh dev --build            # Rebuild and start"
     echo "  ./deploy.sh dev --wait             # Start and wait for healthy"
-    echo "  ./deploy.sh prod                   # Deploy with local images"
     echo "  ./deploy.sh logs backend           # View backend logs"
 }
 
@@ -214,10 +198,6 @@ cmd_status() {
     echo ""
     echo "Docker Compose Services:"
     docker compose ps 2>/dev/null || echo "  No docker-compose services running"
-
-    echo ""
-    echo "Kubernetes Pods (if deployed):"
-    kubectl get pods -n "$NAMESPACE" 2>/dev/null || echo "  No Kubernetes deployment found"
 }
 
 # =============================================================================
@@ -279,132 +259,6 @@ cmd_test() {
     docker compose down
 
     exit $TEST_RESULT
-}
-
-# =============================================================================
-# KUBERNETES DEPLOYMENT (Helm)
-# =============================================================================
-build_and_import_images() {
-    print_info "Building Docker images..."
-
-    docker build -t base:latest -f ./backend/Dockerfile.base ./backend
-    docker build -t integr8scode-backend:latest -f ./backend/Dockerfile ./backend
-
-    if [[ -f ./frontend/Dockerfile.prod ]]; then
-        docker build -t integr8scode-frontend:latest -f ./frontend/Dockerfile.prod ./frontend
-    else
-        docker build -t integr8scode-frontend:latest -f ./frontend/Dockerfile ./frontend
-    fi
-
-    print_success "Images built"
-
-    if command -v k3s &> /dev/null; then
-        print_info "Importing images to K3s..."
-        docker save base:latest | sudo k3s ctr images import -
-        docker save integr8scode-backend:latest | sudo k3s ctr images import -
-        docker save integr8scode-frontend:latest | sudo k3s ctr images import -
-        print_success "Images imported to K3s"
-    else
-        print_warning "K3s not found - skipping image import"
-    fi
-}
-
-cmd_prod() {
-    print_header "Deploying to Kubernetes"
-
-    local DRY_RUN=""
-    local VALUES_FILE="values.yaml"
-    local EXTRA_ARGS=""
-    local USE_REGISTRY=false
-    local FORCE_LOCAL=false
-
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --dry-run)
-                DRY_RUN="--dry-run"
-                print_warning "DRY RUN MODE - No changes will be applied"
-                ;;
-            --prod)
-                VALUES_FILE="values-prod.yaml"
-                USE_REGISTRY=true
-                print_info "Using production values (ghcr.io images)"
-                ;;
-            --local)
-                FORCE_LOCAL=true
-                print_info "Forcing local image build"
-                ;;
-            --set)
-                shift
-                EXTRA_ARGS="$EXTRA_ARGS --set $1"
-                ;;
-            *)
-                print_error "Unknown option: $1"
-                exit 1
-                ;;
-        esac
-        shift
-    done
-
-    deploy_helm "$VALUES_FILE" "$DRY_RUN" "$EXTRA_ARGS" "$USE_REGISTRY" "$FORCE_LOCAL"
-}
-
-deploy_helm() {
-    local VALUES_FILE="$1"
-    local DRY_RUN="$2"
-    local EXTRA_ARGS="$3"
-    local USE_REGISTRY="$4"
-    local FORCE_LOCAL="$5"
-
-    # Build images if:
-    # - Not dry-run AND
-    # - Not using registry OR force local build
-    if [[ -z "$DRY_RUN" ]]; then
-        if [[ "$USE_REGISTRY" != "true" ]] || [[ "$FORCE_LOCAL" == "true" ]]; then
-            build_and_import_images
-        else
-            print_info "Using pre-built images from ghcr.io (skipping local build)"
-        fi
-    fi
-
-    print_info "Updating Helm dependencies..."
-    helm dependency update "$CHART_PATH"
-
-    print_info "Creating namespace..."
-    if [[ -z "$DRY_RUN" ]]; then
-        kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-    fi
-
-    print_info "Deploying with Helm..."
-    helm upgrade --install "$RELEASE_NAME" "$CHART_PATH" \
-        --namespace "$NAMESPACE" \
-        --values "$CHART_PATH/$VALUES_FILE" \
-        --wait \
-        --timeout 10m \
-        $DRY_RUN \
-        $EXTRA_ARGS
-
-    if [[ -z "$DRY_RUN" ]]; then
-        echo ""
-        print_success "Deployment complete!"
-        echo ""
-        echo "Pods:"
-        kubectl get pods -n "$NAMESPACE"
-        echo ""
-        echo "Services:"
-        kubectl get services -n "$NAMESPACE"
-        echo ""
-        if [[ "$VALUES_FILE" == "values-prod.yaml" ]]; then
-            echo "Note: Passwords must be set via --set flags for production"
-        else
-            echo "Default credentials: user/user123, admin/admin123"
-        fi
-        echo ""
-        echo "Commands:"
-        echo "  kubectl logs -n $NAMESPACE -l app.kubernetes.io/component=backend"
-        echo "  kubectl port-forward -n $NAMESPACE svc/$RELEASE_NAME-backend 8443:443"
-        echo "  helm uninstall $RELEASE_NAME -n $NAMESPACE"
-    fi
 }
 
 # =============================================================================
@@ -476,10 +330,6 @@ case "${1:-help}" in
         ;;
     test)
         cmd_test
-        ;;
-    prod)
-        shift
-        cmd_prod "$@"
         ;;
     openapi)
         cmd_openapi "$2"

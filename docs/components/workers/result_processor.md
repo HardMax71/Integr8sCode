@@ -39,8 +39,8 @@ module deletes ConfigMaps and pods that are no longer needed, keeping the Kubern
 
 ```yaml
 result-processor:
-  build:
-    dockerfile: workers/Dockerfile.result_processor
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_result_processor.py"]
 ```
 
 Runs in the `result-processor-group` consumer group. Can scale horizontally if result throughput becomes a bottleneck.

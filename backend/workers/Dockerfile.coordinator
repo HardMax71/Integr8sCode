@@ -1,8 +1,0 @@
-# Coordinator worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run the coordinator service
-CMD ["python", "-m", "workers.run_coordinator"]

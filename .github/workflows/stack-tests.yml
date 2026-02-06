@@ -168,17 +168,10 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      # ── Backend + workers (depend on local base image) ───────────────
-      - name: Build backend and worker images
+      # ── Backend (depends on local base image) ───────────────
+      - name: Build backend image
         run: |
           docker build -t integr8scode-backend:latest --build-context base=docker-image://integr8scode-base:latest -f ./backend/Dockerfile ./backend
-          docker build -t integr8scode-coordinator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.coordinator ./backend
-          docker build -t integr8scode-k8s-worker:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.k8s_worker ./backend
-          docker build -t integr8scode-pod-monitor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.pod_monitor ./backend
-          docker build -t integr8scode-result-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.result_processor ./backend
-          docker build -t integr8scode-saga-orchestrator:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.saga_orchestrator ./backend
-          docker build -t integr8scode-event-replay:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.event_replay ./backend
-          docker build -t integr8scode-dlq-processor:latest --build-context base=docker-image://integr8scode-base:latest -f backend/workers/Dockerfile.dlq_processor ./backend
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
@@ -232,23 +225,14 @@ jobs:
           # Tag all images for GHCR
           docker tag integr8scode-base:latest "$IMG/base:$TAG"
           docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
-          docker tag integr8scode-coordinator:latest "$IMG/coordinator:$TAG"
-          docker tag integr8scode-k8s-worker:latest "$IMG/k8s-worker:$TAG"
-          docker tag integr8scode-pod-monitor:latest "$IMG/pod-monitor:$TAG"
-          docker tag integr8scode-result-processor:latest "$IMG/result-processor:$TAG"
-          docker tag integr8scode-saga-orchestrator:latest "$IMG/saga-orchestrator:$TAG"
-          docker tag integr8scode-event-replay:latest "$IMG/event-replay:$TAG"
-          docker tag integr8scode-dlq-processor:latest "$IMG/dlq-processor:$TAG"
           docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
           docker tag integr8scode-zookeeper-certgen:latest "$IMG/zookeeper-certgen:$TAG"
           docker tag integr8scode-frontend:latest "$IMG/frontend-dev:$TAG"
           docker tag integr8scode-frontend-prod:latest "$IMG/frontend:$TAG"
 
-          # Push all 13 images in parallel, tracking each PID
+          # Push all 6 images in parallel, tracking each PID
           declare -A PIDS
-          for name in base backend coordinator k8s-worker pod-monitor \
-                      result-processor saga-orchestrator event-replay \
-                      dlq-processor cert-generator zookeeper-certgen \
+          for name in base backend cert-generator zookeeper-certgen \
                       frontend-dev frontend; do
             docker push "$IMG/$name:$TAG" &
             PIDS[$name]=$!

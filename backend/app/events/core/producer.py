@@ -43,8 +43,6 @@ class UnifiedProducer:
         try:
             headers = inject_trace_context({
                 "event_type": event_to_produce.event_type,
-                "correlation_id": event_to_produce.metadata.correlation_id or "",
-                "service": event_to_produce.metadata.service_name,
             })
 
             # FastStream handles Pydantic → JSON serialization natively

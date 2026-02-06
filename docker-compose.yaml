@@ -100,8 +100,6 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      schema-registry:
-        condition: service_healthy
     volumes:
       - ./backend/app:/app/app
       - ./backend/workers:/app/workers
@@ -327,40 +325,17 @@ services:
       retries: 15
       start_period: 3s
 
-  schema-registry:
-    image: confluentinc/cp-schema-registry:7.8.2
-    container_name: schema-registry
-    depends_on:
-      kafka:
-        condition: service_healthy
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
-      interval: 3s
-      timeout: 5s
-      retries: 15
-      start_period: 5s
-
   kafdrop:
     image: obsidiandynamics/kafdrop:3.31.0
     container_name: kafdrop
     profiles: ["debug"]
     depends_on:
       - kafka
-      - schema-registry
     ports:
       - "9000:9000"
     environment:
       KAFKA_BROKERCONNECT: kafka:29092
       JVM_OPTS: "-Xms256M -Xmx512M"
-      SCHEMAREGISTRY_CONNECT: http://schema-registry:8081
     networks:
       - app-network
 
@@ -378,11 +353,8 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
-      schema-registry:
-        condition: service_healthy
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SCHEMA_REGISTRY_URL=http://schema-registry:8081
     volumes:
       - ./backend/config.toml:/app/config.toml:ro
       - ./backend/secrets.toml:/app/secrets.toml:ro

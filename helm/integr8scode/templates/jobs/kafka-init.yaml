@@ -38,19 +38,6 @@ spec:
             sleep 5
           done
           echo "Kafka is ready!"
-      # Wait for Schema Registry to be ready
-      - name: wait-for-schema-registry
-        image: busybox:1.36
-        command:
-        - sh
-        - -c
-        - |
-          echo "Waiting for Schema Registry to be ready..."
-          until wget -q -O- http://{{ include "integr8scode.fullname" . }}-schema-registry:8081/config > /dev/null 2>&1; do
-            echo "Schema Registry not ready, waiting 5 seconds..."
-            sleep 5
-          done
-          echo "Schema Registry is ready!"
       containers:
       - name: kafka-init
         image: {{ .Values.kafkaInit.image | default (include "integr8scode.backendImage" .) }}
@@ -64,8 +51,6 @@ spec:
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: {{ include "integr8scode.kafkaBootstrapServers" . | quote }}
-        - name: SCHEMA_REGISTRY_URL
-          value: {{ include "integr8scode.schemaRegistryUrl" . | quote }}
         - name: LOG_LEVEL
           value: "INFO"
         resources:

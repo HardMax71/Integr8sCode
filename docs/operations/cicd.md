@@ -177,7 +177,7 @@ This action kicks off three slow tasks that can overlap:
 
 1. **GHCR login** using `docker/login-action@v3`
 2. **Background image pull + infra pre-warm** — pulls all compose images then starts infrastructure services
-   (mongo, redis, kafka, zookeeper, schema-registry) in a background `nohup` process. The exit status is persisted
+   (mongo, redis, kafka, zookeeper) in a background `nohup` process. The exit status is persisted
    to `/tmp/infra-pull.exit` so the next action can check for failures.
 3. **k3s install** — downloads and installs a pinned k3s version with SHA256 checksum verification (see
    [supply-chain hardening](#supply-chain-hardening) below)

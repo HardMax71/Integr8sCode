@@ -62,10 +62,8 @@ If you still encounter issues:
    ```python
    @pytest.fixture(scope="function")
    async def producer():
-       p = UnifiedProducer(config, schema_registry)
-       await p.start()
+       p = UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
        yield p
-       await p.stop()  # Always clean up
    ```
 
 ## Consumer teardown delays

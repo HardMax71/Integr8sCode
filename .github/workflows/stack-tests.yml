@@ -30,7 +30,6 @@ env:
   REDIS_IMAGE: redis:7-alpine
   KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
   ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.8.2
-  SCHEMA_REGISTRY_IMAGE: confluentinc/cp-schema-registry:7.8.2
   K3S_VERSION: v1.32.11+k3s1
   K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 
@@ -314,7 +313,7 @@ jobs:
         run: |
           mkdir -p logs
           docker compose logs --timestamps > logs/docker-compose.log 2>&1
-          for svc in backend mongo redis kafka zookeeper schema-registry \
+          for svc in backend mongo redis kafka zookeeper \
                      coordinator k8s-worker pod-monitor result-processor \
                      saga-orchestrator event-replay dlq-processor; do
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true

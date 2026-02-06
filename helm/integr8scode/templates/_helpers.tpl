@@ -121,13 +121,6 @@ Kafka bootstrap servers
 {{- end }}
 
 {{/*
-Schema Registry URL
-*/}}
-{{- define "integr8scode.schemaRegistryUrl" -}}
-{{- printf "http://%s-schema-registry:8081" .Release.Name }}
-{{- end }}
-
-{{/*
 Jaeger host
 */}}
 {{- define "integr8scode.jaegerHost" -}}

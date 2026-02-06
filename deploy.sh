@@ -193,7 +193,7 @@ cmd_infra() {
 
     # Start only infrastructure services (no app, no workers, no observability)
     # zookeeper-certgen is needed for kafka to start
-    docker compose up -d zookeeper-certgen mongo redis zookeeper kafka schema-registry $WAIT_FLAG $WAIT_TIMEOUT_FLAG
+    docker compose up -d zookeeper-certgen mongo redis zookeeper kafka $WAIT_FLAG $WAIT_TIMEOUT_FLAG
 
     print_success "Infrastructure services started"
     docker compose ps

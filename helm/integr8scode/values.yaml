@@ -304,21 +304,6 @@ infrastructure:
         cpu: "1000m"
         ephemeral-storage: "512Mi"
 
-  # Schema Registry
-  schemaRegistry:
-    enabled: true
-    image: confluentinc/cp-schema-registry:7.8.2
-    heapOpts: "-Xms256M -Xmx256M"
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-        ephemeral-storage: "128Mi"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-        ephemeral-storage: "256Mi"
-
   # Jaeger (distributed tracing)
   jaeger:
     enabled: true

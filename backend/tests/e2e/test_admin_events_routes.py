@@ -57,7 +57,6 @@ class TestBrowseEvents:
         assert result.total >= 0
         assert result.skip == 0
         assert result.limit == 50
-        assert isinstance(result.events, list)
 
     @pytest.mark.asyncio
     async def test_browse_events_with_event_type_filter(
@@ -78,7 +77,6 @@ class TestBrowseEvents:
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
-        assert isinstance(result.events, list)
         assert result.total >= 1
 
     @pytest.mark.asyncio
@@ -132,8 +130,7 @@ class TestBrowseEvents:
         )
 
         assert response.status_code == 200
-        result = EventBrowseResponse.model_validate(response.json())
-        assert isinstance(result.events, list)
+        EventBrowseResponse.model_validate(response.json())
 
     @pytest.mark.asyncio
     async def test_browse_events_forbidden_for_regular_user(
@@ -172,9 +169,6 @@ class TestEventStats:
         stats = EventStatsResponse.model_validate(response.json())
 
         assert stats.total_events >= 0
-        assert isinstance(stats.events_by_type, list)
-        assert isinstance(stats.events_by_hour, list)
-        assert isinstance(stats.top_users, list)
         assert stats.error_rate >= 0.0
         assert stats.avg_processing_time >= 0.0
 
@@ -203,8 +197,7 @@ class TestEventStats:
         )
 
         assert response.status_code == 200
-        stats = EventStatsResponse.model_validate(response.json())
-        assert isinstance(stats.events_by_hour, list)
+        EventStatsResponse.model_validate(response.json())
 
     @pytest.mark.asyncio
     async def test_get_event_stats_forbidden_for_regular_user(
@@ -278,7 +271,6 @@ class TestExportEventsJSON:
         data = response.json()
         assert "export_metadata" in data
         assert "events" in data
-        assert isinstance(data["events"], list)
         assert "exported_at" in data["export_metadata"]
 
     @pytest.mark.asyncio
@@ -320,8 +312,6 @@ class TestGetEventDetail:
         detail = EventDetailResponse.model_validate(response.json())
 
         assert detail.event is not None
-        assert isinstance(detail.related_events, list)
-        assert isinstance(detail.timeline, list)
 
     @pytest.mark.asyncio
     async def test_get_event_detail_not_found(

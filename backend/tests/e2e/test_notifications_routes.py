@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.execution import ExecutionResponse
@@ -16,40 +14,6 @@ from httpx import AsyncClient
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
 
-async def wait_for_notification(
-        client: AsyncClient,
-        timeout: float = 30.0,
-        poll_interval: float = 0.5,
-) -> NotificationResponse:
-    """Poll until at least one notification exists for the user.
-
-    Args:
-        client: Authenticated HTTP client
-        timeout: Maximum time to wait in seconds
-        poll_interval: Time between polls in seconds
-
-    Returns:
-        First notification found
-
-    Raises:
-        TimeoutError: If no notification appears within timeout
-        AssertionError: If API returns unexpected status code
-    """
-    deadline = asyncio.get_event_loop().time() + timeout
-
-    while asyncio.get_event_loop().time() < deadline:
-        response = await client.get("/api/v1/notifications", params={"limit": 10})
-        assert response.status_code == 200, f"Unexpected: {response.status_code} - {response.text}"
-
-        result = NotificationListResponse.model_validate(response.json())
-        if result.notifications:
-            return result.notifications[0]
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"No notification appeared within {timeout}s")
-
-
 class TestGetNotifications:
     """Tests for GET /api/v1/notifications."""
 
@@ -61,8 +25,8 @@ class TestGetNotifications:
         assert response.status_code == 200
         result = NotificationListResponse.model_validate(response.json())
 
-        assert result.total >= 0
-        assert result.unread_count >= 0
+        assert result.total == 0
+        assert result.unread_count == 0
         assert isinstance(result.notifications, list)
 
     @pytest.mark.asyncio
@@ -92,6 +56,8 @@ class TestGetNotifications:
         assert response.status_code == 200
         result = NotificationListResponse.model_validate(response.json())
         assert isinstance(result.notifications, list)
+        for n in result.notifications:
+            assert n.status == NotificationStatus.DELIVERED
 
     @pytest.mark.asyncio
     async def test_get_notifications_with_tag_filters(
@@ -109,6 +75,8 @@ class TestGetNotifications:
         assert response.status_code == 200
         result = NotificationListResponse.model_validate(response.json())
         assert isinstance(result.notifications, list)
+        for n in result.notifications:
+            assert any(t.startswith("exec") for t in n.tags)
 
     @pytest.mark.asyncio
     async def test_get_notifications_unauthenticated(
@@ -136,10 +104,10 @@ class TestMarkNotificationRead:
     async def test_mark_notification_read(
             self,
             test_user: AsyncClient,
-            created_execution: ExecutionResponse,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """Mark existing notification as read."""
-        notification = await wait_for_notification(test_user)
+        _, notification = execution_with_notification
 
         response = await test_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -147,16 +115,34 @@ class TestMarkNotificationRead:
 
         assert response.status_code == 204
 
+        # Verify state actually changed
+        get_resp = await test_user.get("/api/v1/notifications")
+        assert get_resp.status_code == 200
+        result = NotificationListResponse.model_validate(get_resp.json())
+        marked = [n for n in result.notifications if n.notification_id == notification.notification_id]
+        assert len(marked) == 1
+        assert marked[0].read_at is not None
+
 
 class TestMarkAllRead:
     """Tests for POST /api/v1/notifications/mark-all-read."""
 
     @pytest.mark.asyncio
-    async def test_mark_all_read(self, test_user: AsyncClient) -> None:
+    async def test_mark_all_read(
+            self,
+            test_user: AsyncClient,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+    ) -> None:
         """Mark all notifications as read returns 204."""
         response = await test_user.post("/api/v1/notifications/mark-all-read")
 
         assert response.status_code == 204
+
+        # Verify unread count is now zero
+        count_resp = await test_user.get("/api/v1/notifications/unread-count")
+        assert count_resp.status_code == 200
+        count_result = UnreadCountResponse.model_validate(count_resp.json())
+        assert count_result.unread_count == 0
 
     @pytest.mark.asyncio
     async def test_mark_all_read_idempotent(
@@ -183,7 +169,7 @@ class TestSubscriptions:
 
         assert isinstance(result.subscriptions, list)
         for sub in result.subscriptions:
-            assert sub.channel is not None
+            assert sub.channel in list(NotificationChannel)
 
     @pytest.mark.asyncio
     async def test_update_subscription(self, test_user: AsyncClient) -> None:
@@ -201,6 +187,8 @@ class TestSubscriptions:
 
         assert result.enabled is True
         assert result.channel == NotificationChannel.IN_APP
+        expected_severities = {NotificationSeverity.LOW, NotificationSeverity.MEDIUM, NotificationSeverity.HIGH}
+        assert set(result.severities) == expected_severities
 
     @pytest.mark.asyncio
     async def test_update_subscription_disable(
@@ -233,21 +221,26 @@ class TestSubscriptions:
         assert response.status_code == 200
         result = NotificationSubscription.model_validate(response.json())
         assert result.enabled is True
+        assert result.include_tags == ["execution", "system"]
+        assert result.exclude_tags == ["debug"]
 
 
 class TestUnreadCount:
     """Tests for GET /api/v1/notifications/unread-count."""
 
     @pytest.mark.asyncio
-    async def test_get_unread_count(self, test_user: AsyncClient) -> None:
+    async def test_get_unread_count(
+            self,
+            test_user: AsyncClient,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+    ) -> None:
         """Get unread notification count."""
         response = await test_user.get("/api/v1/notifications/unread-count")
 
         assert response.status_code == 200
         result = UnreadCountResponse.model_validate(response.json())
 
-        assert result.unread_count >= 0
-        assert isinstance(result.unread_count, int)
+        assert result.unread_count >= 1
 
 
 class TestDeleteNotification:
@@ -268,10 +261,10 @@ class TestDeleteNotification:
     async def test_delete_notification(
             self,
             test_user: AsyncClient,
-            created_execution: ExecutionResponse,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """Delete existing notification returns success."""
-        notification = await wait_for_notification(test_user)
+        _, notification = execution_with_notification
 
         response = await test_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"
@@ -280,6 +273,13 @@ class TestDeleteNotification:
         assert response.status_code == 200
         result = DeleteNotificationResponse.model_validate(response.json())
         assert "deleted" in result.message.lower()
+
+        # Verify notification is actually gone
+        get_resp = await test_user.get("/api/v1/notifications")
+        assert get_resp.status_code == 200
+        remaining = NotificationListResponse.model_validate(get_resp.json())
+        remaining_ids = [n.notification_id for n in remaining.notifications]
+        assert notification.notification_id not in remaining_ids
 
 
 class TestNotificationIsolation:
@@ -290,10 +290,10 @@ class TestNotificationIsolation:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            created_execution: ExecutionResponse,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """User's notification list does not include other users' notifications."""
-        notification = await wait_for_notification(test_user)
+        _, notification = execution_with_notification
 
         response = await another_user.get("/api/v1/notifications")
         assert response.status_code == 200
@@ -308,10 +308,10 @@ class TestNotificationIsolation:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            created_execution: ExecutionResponse,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """Cannot mark another user's notification as read."""
-        notification = await wait_for_notification(test_user)
+        _, notification = execution_with_notification
 
         response = await another_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -319,18 +319,30 @@ class TestNotificationIsolation:
 
         assert response.status_code == 404
 
+        # Verify owner CAN mark it
+        owner_resp = await test_user.put(
+            f"/api/v1/notifications/{notification.notification_id}/read"
+        )
+        assert owner_resp.status_code == 204
+
     @pytest.mark.asyncio
     async def test_cannot_delete_other_users_notification(
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            created_execution: ExecutionResponse,
+            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """Cannot delete another user's notification."""
-        notification = await wait_for_notification(test_user)
+        _, notification = execution_with_notification
 
         response = await another_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"
         )
 
         assert response.status_code == 404
+
+        # Verify owner CAN delete it
+        owner_resp = await test_user.delete(
+            f"/api/v1/notifications/{notification.notification_id}"
+        )
+        assert owner_resp.status_code == 200

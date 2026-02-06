@@ -25,9 +25,8 @@ class TestGetUserSettings:
         assert response.status_code == 200
         settings = UserSettings.model_validate(response.json())
 
-        assert settings.theme in [Theme.LIGHT, Theme.DARK, Theme.AUTO]
-        assert settings.timezone is not None
-        assert settings.notifications is not None
+        assert settings.theme in list(Theme)
+        assert settings.timezone
         assert settings.editor is not None
 
     @pytest.mark.asyncio
@@ -94,9 +93,12 @@ class TestUpdateTheme:
     """Tests for PUT /api/v1/user/settings/theme."""
 
     @pytest.mark.asyncio
-    async def test_update_theme_dark(self, test_user: AsyncClient) -> None:
-        """Update theme to dark."""
-        request = ThemeUpdateRequest(theme=Theme.DARK)
+    @pytest.mark.parametrize("theme", list(Theme), ids=lambda t: t.value)
+    async def test_update_theme(
+        self, test_user: AsyncClient, theme: Theme
+    ) -> None:
+        """Update theme to each valid value."""
+        request = ThemeUpdateRequest(theme=theme)
         response = await test_user.put(
             "/api/v1/user/settings/theme",
             json=request.model_dump(),
@@ -104,33 +106,7 @@ class TestUpdateTheme:
 
         assert response.status_code == 200
         settings = UserSettings.model_validate(response.json())
-        assert settings.theme == Theme.DARK
-
-    @pytest.mark.asyncio
-    async def test_update_theme_light(self, test_user: AsyncClient) -> None:
-        """Update theme to light."""
-        request = ThemeUpdateRequest(theme=Theme.LIGHT)
-        response = await test_user.put(
-            "/api/v1/user/settings/theme",
-            json=request.model_dump(),
-        )
-
-        assert response.status_code == 200
-        settings = UserSettings.model_validate(response.json())
-        assert settings.theme == Theme.LIGHT
-
-    @pytest.mark.asyncio
-    async def test_update_theme_system(self, test_user: AsyncClient) -> None:
-        """Update theme to system."""
-        request = ThemeUpdateRequest(theme=Theme.AUTO)
-        response = await test_user.put(
-            "/api/v1/user/settings/theme",
-            json=request.model_dump(),
-        )
-
-        assert response.status_code == 200
-        settings = UserSettings.model_validate(response.json())
-        assert settings.theme == Theme.AUTO
+        assert settings.theme == theme
 
 
 class TestUpdateNotificationSettings:
@@ -154,7 +130,10 @@ class TestUpdateNotificationSettings:
 
         assert response.status_code == 200
         settings = UserSettings.model_validate(response.json())
-        assert settings.notifications is not None
+        assert settings.notifications.execution_completed is True
+        assert settings.notifications.execution_failed is True
+        assert settings.notifications.system_updates is True
+        assert settings.notifications.security_alerts is True
 
 
 class TestUpdateEditorSettings:
@@ -219,7 +198,6 @@ class TestSettingsHistory:
         assert response.status_code == 200
         history = SettingsHistoryResponse.model_validate(response.json())
         assert history.limit == 10
-        assert isinstance(history.history, list)
         assert len(history.history) >= 1
 
     @pytest.mark.asyncio
@@ -230,8 +208,7 @@ class TestSettingsHistory:
         response = await test_user.get("/api/v1/user/settings/history")
 
         assert response.status_code == 200
-        history = SettingsHistoryResponse.model_validate(response.json())
-        assert isinstance(history.history, list)
+        SettingsHistoryResponse.model_validate(response.json())
 
 
 class TestRestoreSettings:
@@ -264,7 +241,7 @@ class TestRestoreSettings:
 
         assert restore_response.status_code == 200
         restored = UserSettings.model_validate(restore_response.json())
-        assert restored.theme is not None
+        assert restored.theme in list(Theme)
 
 
 class TestCustomSettings:

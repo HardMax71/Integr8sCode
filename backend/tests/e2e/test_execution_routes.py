@@ -26,6 +26,8 @@ from app.schemas_pydantic.execution import (
 from httpx import AsyncClient
 from pydantic import TypeAdapter
 
+from tests.e2e.conftest import EventWaiter
+
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 # TypeAdapter for parsing list of execution events from API response
@@ -48,46 +50,21 @@ TERMINAL_STATES = {
 }
 
 
-async def wait_for_terminal_state(
+async def submit_and_wait(
     client: AsyncClient,
-    execution_id: str,
-    timeout: float = 90.0,
-    poll_interval: float = 1.0,
-) -> ExecutionResult:
-    """Poll execution result until it reaches a terminal state.
-
-    Args:
-        client: Authenticated HTTP client
-        execution_id: ID of execution to wait for
-        timeout: Maximum time to wait in seconds
-        poll_interval: Time between polls in seconds
-
-    Returns:
-        ExecutionResult with terminal status
-
-    Raises:
-        TimeoutError: If execution doesn't reach terminal state within timeout
-        AssertionError: If API returns unexpected status code
-    """
-    deadline = asyncio.get_event_loop().time() + timeout
-
-    while asyncio.get_event_loop().time() < deadline:
-        response = await client.get(f"/api/v1/executions/{execution_id}/result")
-
-        if response.status_code == 404:
-            # Result not ready yet, keep polling
-            await asyncio.sleep(poll_interval)
-            continue
-
-        assert response.status_code == 200, f"Unexpected status {response.status_code}: {response.text}"
-
-        result = ExecutionResult.model_validate(response.json())
-        if result.status in TERMINAL_STATES:
-            return result
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"Execution {execution_id} did not reach terminal state within {timeout}s")
+    waiter: EventWaiter,
+    request: ExecutionRequest,
+    *,
+    timeout: float = 30.0,
+) -> tuple[ExecutionResponse, ExecutionResult]:
+    """Submit script and wait for result via Kafka event — no polling."""
+    resp = await client.post("/api/v1/execute", json=request.model_dump())
+    assert resp.status_code == 200
+    execution = ExecutionResponse.model_validate(resp.json())
+    await waiter.wait_for_result(execution.execution_id, timeout=timeout)
+    result_resp = await client.get(f"/api/v1/executions/{execution.execution_id}/result")
+    assert result_resp.status_code == 200
+    return execution, ExecutionResult.model_validate(result_resp.json())
 
 
 class TestExecutionAuthentication:
@@ -107,29 +84,22 @@ class TestExecutionHappyPath:
 
     @pytest.mark.asyncio
     async def test_execute_simple_script_completes(
-        self, test_user: AsyncClient, simple_execution_request: ExecutionRequest
+        self, test_user: AsyncClient, event_waiter: EventWaiter, simple_execution_request: ExecutionRequest
     ) -> None:
         """Simple script executes and completes successfully."""
-        response = await test_user.post("/api/v1/execute", json=simple_execution_request.model_dump())
-        assert response.status_code == 200
+        exec_response, result = await submit_and_wait(test_user, event_waiter, simple_execution_request)
 
-        exec_response = ExecutionResponse.model_validate(response.json())
         assert exec_response.execution_id
-        assert exec_response.status in [ExecutionStatus.QUEUED, ExecutionStatus.SCHEDULED, ExecutionStatus.RUNNING]
-
-        # Wait for completion
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id)
-
         assert result.status == ExecutionStatus.COMPLETED
         assert result.execution_id == exec_response.execution_id
         assert result.lang == "python"
         assert result.lang_version == "3.11"
         assert result.stdout is not None
-        assert "test" in result.stdout
+        assert result.stdout.strip() == "test"
         assert result.exit_code == 0
 
     @pytest.mark.asyncio
-    async def test_execute_multiline_output(self, test_user: AsyncClient) -> None:
+    async def test_execute_multiline_output(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Script with multiple print statements produces correct output."""
         request = ExecutionRequest(
             script="print('Line 1')\nprint('Line 2')\nprint('Line 3')",
@@ -137,20 +107,14 @@ class TestExecutionHappyPath:
             lang_version="3.11",
         )
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id)
+        _, result = await submit_and_wait(test_user, event_waiter, request)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
-        assert "Line 1" in result.stdout
-        assert "Line 2" in result.stdout
-        assert "Line 3" in result.stdout
+        assert result.stdout.strip() == "Line 1\nLine 2\nLine 3"
 
     @pytest.mark.asyncio
-    async def test_execute_tracks_resource_usage(self, test_user: AsyncClient) -> None:
+    async def test_execute_tracks_resource_usage(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Execution tracks resource usage metrics."""
         request = ExecutionRequest(
             script="import time; data = list(range(10000)); time.sleep(0.1); print('done')",
@@ -158,19 +122,18 @@ class TestExecutionHappyPath:
             lang_version="3.11",
         )
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id)
+        _, result = await submit_and_wait(test_user, event_waiter, request)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.resource_usage is not None
         assert result.resource_usage.execution_time_wall_seconds >= 0.1
         assert result.resource_usage.peak_memory_kb > 0
+        assert result.resource_usage.cpu_time_jiffies >= 0
+        assert result.resource_usage.clk_tck_hertz > 0
+        assert result.exit_code == 0
 
     @pytest.mark.asyncio
-    async def test_execute_large_output(self, test_user: AsyncClient) -> None:
+    async def test_execute_large_output(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Script with large output completes successfully."""
         request = ExecutionRequest(
             script="for i in range(500): print(f'Line {i}: ' + 'x' * 50)\nprint('END')",
@@ -178,23 +141,21 @@ class TestExecutionHappyPath:
             lang_version="3.11",
         )
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id, timeout=120)
+        _, result = await submit_and_wait(test_user, event_waiter, request, timeout=120)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
         assert "END" in result.stdout
         assert len(result.stdout) > 10000
+        assert result.exit_code == 0
+        assert "Line 0:" in result.stdout
 
 
 class TestExecutionErrors:
     """Tests for execution error handling."""
 
     @pytest.mark.asyncio
-    async def test_execute_syntax_error(self, test_user: AsyncClient) -> None:
+    async def test_execute_syntax_error(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Script with syntax error fails with proper error info."""
         request = ExecutionRequest(
             script="def broken(\n    pass",  # Missing closing paren
@@ -202,11 +163,7 @@ class TestExecutionErrors:
             lang_version="3.11",
         )
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id)
+        _, result = await submit_and_wait(test_user, event_waiter, request)
 
         # Script errors result in COMPLETED status with non-zero exit code
         # FAILED is reserved for infrastructure/timeout failures
@@ -216,7 +173,7 @@ class TestExecutionErrors:
         assert result.exit_code != 0
 
     @pytest.mark.asyncio
-    async def test_execute_runtime_error(self, test_user: AsyncClient) -> None:
+    async def test_execute_runtime_error(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Script with runtime error fails with traceback."""
         request = ExecutionRequest(
             script="print('before')\nraise ValueError('test error')\nprint('after')",
@@ -224,18 +181,14 @@ class TestExecutionErrors:
             lang_version="3.11",
         )
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        result = await wait_for_terminal_state(test_user, exec_response.execution_id)
+        _, result = await submit_and_wait(test_user, event_waiter, request)
 
         # Script errors result in COMPLETED status with non-zero exit code
         # FAILED is reserved for infrastructure/timeout failures
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
         assert "before" in result.stdout
-        assert "after" not in (result.stdout or "")
+        assert "after" not in result.stdout
         assert result.stderr is not None
         assert "ValueError" in result.stderr
         assert "test error" in result.stderr
@@ -246,7 +199,7 @@ class TestExecutionCancel:
 
     @pytest.mark.asyncio
     async def test_cancel_running_execution(
-        self, test_user: AsyncClient, long_running_execution_request: ExecutionRequest
+        self, test_user: AsyncClient, event_waiter: EventWaiter, long_running_execution_request: ExecutionRequest
     ) -> None:
         """Running execution can be cancelled."""
         response = await test_user.post("/api/v1/execute", json=long_running_execution_request.model_dump())
@@ -254,8 +207,8 @@ class TestExecutionCancel:
 
         exec_response = ExecutionResponse.model_validate(response.json())
 
-        # Give it a moment to start
-        await asyncio.sleep(1)
+        # Wait for saga to start (pod creation command sent) instead of blind sleep
+        await event_waiter.wait_for_saga_command(exec_response.execution_id)
 
         cancel_req = CancelExecutionRequest(reason="Test cancellation")
         cancel_response = await test_user.post(
@@ -266,20 +219,16 @@ class TestExecutionCancel:
 
         cancel_result = CancelResponse.model_validate(cancel_response.json())
         assert cancel_result.execution_id == exec_response.execution_id
-        assert cancel_result.status in ["cancellation_requested", "already_cancelled"]
+        assert cancel_result.status == "cancellation_requested"
+        assert cancel_result.message
 
     @pytest.mark.asyncio
-    async def test_cancel_completed_execution_fails(self, test_user: AsyncClient) -> None:
+    async def test_cancel_completed_execution_fails(
+        self, test_user: AsyncClient, event_waiter: EventWaiter
+    ) -> None:
         """Cannot cancel already completed execution."""
         request = ExecutionRequest(script="print('quick')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-
-        # Wait for completion
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
+        exec_response, _ = await submit_and_wait(test_user, event_waiter, request)
 
         cancel_req = CancelExecutionRequest(reason="Too late")
         cancel_response = await test_user.post(
@@ -295,15 +244,12 @@ class TestExecutionRetry:
     """Tests for execution retry."""
 
     @pytest.mark.asyncio
-    async def test_retry_completed_execution(self, test_user: AsyncClient) -> None:
+    async def test_retry_completed_execution(
+        self, test_user: AsyncClient, event_waiter: EventWaiter
+    ) -> None:
         """Completed execution can be retried."""
         request = ExecutionRequest(script="print('original')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        original = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, original.execution_id)
+        original, _ = await submit_and_wait(test_user, event_waiter, request)
 
         retry_req = RetryExecutionRequest()
         retry_response = await test_user.post(
@@ -316,10 +262,13 @@ class TestExecutionRetry:
         assert retried.execution_id != original.execution_id
 
         # Wait for retried execution to complete
-        result = await wait_for_terminal_state(test_user, retried.execution_id)
+        await event_waiter.wait_for_result(retried.execution_id)
+        result_resp = await test_user.get(f"/api/v1/executions/{retried.execution_id}/result")
+        assert result_resp.status_code == 200
+        result = ExecutionResult.model_validate(result_resp.json())
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
-        assert "original" in result.stdout
+        assert result.stdout.strip() == "original"
 
     @pytest.mark.asyncio
     async def test_retry_running_execution_fails(
@@ -338,23 +287,19 @@ class TestExecutionRetry:
         )
 
         assert retry_response.status_code == 400
+        assert "detail" in retry_response.json()
 
     @pytest.mark.asyncio
     async def test_retry_other_users_execution_forbidden(
-        self, test_user: AsyncClient, another_user: AsyncClient
+        self, test_user: AsyncClient, another_user: AsyncClient, event_waiter: EventWaiter
     ) -> None:
         """Cannot retry another user's execution."""
         request = ExecutionRequest(script="print('owned')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
+        original, _ = await submit_and_wait(test_user, event_waiter, request)
 
         retry_req = RetryExecutionRequest()
         retry_response = await another_user.post(
-            f"/api/v1/executions/{exec_response.execution_id}/retry",
+            f"/api/v1/executions/{original.execution_id}/retry",
             json=retry_req.model_dump(),
         )
 
@@ -365,37 +310,24 @@ class TestExecutionEvents:
     """Tests for execution events."""
 
     @pytest.mark.asyncio
-    async def test_get_execution_events(self, test_user: AsyncClient) -> None:
+    async def test_get_execution_events(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Get events for completed execution."""
         request = ExecutionRequest(script="print('events test')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
+        exec_response, _ = await submit_and_wait(test_user, event_waiter, request)
 
         events_response = await test_user.get(f"/api/v1/executions/{exec_response.execution_id}/events")
         assert events_response.status_code == 200
 
         events = ExecutionEventsAdapter.validate_python(events_response.json())
-        # Event store is eventually consistent (batch flush). Verify API works and
-        # at least one execution event is present (COMPLETED is always stored by
-        # the time we query since wait_for_terminal_state ensures execution finished).
-        assert len(events) > 0
+        assert len(events) >= 2
         event_types = {e.event_type for e in events}
-        assert event_types & {EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED}
+        assert {EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED} <= event_types
 
     @pytest.mark.asyncio
-    async def test_get_events_filtered_by_type(self, test_user: AsyncClient) -> None:
+    async def test_get_events_filtered_by_type(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Filter events by event type."""
         request = ExecutionRequest(script="print('filter test')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
+        exec_response, _ = await submit_and_wait(test_user, event_waiter, request)
 
         events_response = await test_user.get(
             f"/api/v1/executions/{exec_response.execution_id}/events",
@@ -426,15 +358,12 @@ class TestExecutionDelete:
 
     @pytest.mark.asyncio
     @pytest.mark.admin
-    async def test_admin_delete_execution(self, test_user: AsyncClient, test_admin: AsyncClient) -> None:
+    async def test_admin_delete_execution(
+        self, test_user: AsyncClient, test_admin: AsyncClient, event_waiter: EventWaiter
+    ) -> None:
         """Admin can delete an execution."""
         request = ExecutionRequest(script="print('to delete')", lang="python", lang_version="3.11")
-
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
+        exec_response, _ = await submit_and_wait(test_user, event_waiter, request)
 
         delete_response = await test_admin.delete(f"/api/v1/executions/{exec_response.execution_id}")
         assert delete_response.status_code == 200
@@ -472,17 +401,11 @@ class TestExecutionList:
     """Tests for execution listing."""
 
     @pytest.mark.asyncio
-    async def test_get_user_executions(self, test_user: AsyncClient) -> None:
+    async def test_get_user_executions(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """User can list their executions."""
-        # Create an execution
         request = ExecutionRequest(script="print('list test')", lang="python", lang_version="3.11")
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
+        exec_response, _ = await submit_and_wait(test_user, event_waiter, request)
 
-        exec_response = ExecutionResponse.model_validate(response.json())
-        await wait_for_terminal_state(test_user, exec_response.execution_id)
-
-        # List executions
         list_response = await test_user.get("/api/v1/user/executions", params={"limit": 10, "skip": 0})
         assert list_response.status_code == 200
 
@@ -491,6 +414,8 @@ class TestExecutionList:
         assert result.skip == 0
         assert result.total >= 1
         assert len(result.executions) >= 1
+        exec_ids = {e.execution_id for e in result.executions}
+        assert exec_response.execution_id in exec_ids
 
     @pytest.mark.asyncio
     async def test_list_executions_pagination(self, test_user: AsyncClient) -> None:
@@ -516,6 +441,11 @@ class TestExecutionList:
 
         page2 = ExecutionListResponse.model_validate(page2_response.json())
         assert page2.skip == 2
+        assert len(page2.executions) >= 1
+
+        ids1 = {e.execution_id for e in page1.executions}
+        ids2 = {e.execution_id for e in page2.executions}
+        assert ids1.isdisjoint(ids2)
 
     @pytest.mark.asyncio
     async def test_list_executions_filter_by_language(self, test_user: AsyncClient) -> None:
@@ -528,6 +458,7 @@ class TestExecutionList:
         assert list_response.status_code == 200
 
         result = ExecutionListResponse.model_validate(list_response.json())
+        assert len(result.executions) >= 1
         for execution in result.executions:
             assert execution.lang == "python"
 
@@ -558,7 +489,7 @@ class TestExecutionConcurrency:
     @pytest.mark.asyncio
     @pytest.mark.xdist_group("execution_concurrency")
     @pytest.mark.xfail(reason="Flaky: K8s pod scheduling may timeout under resource pressure", strict=False)
-    async def test_concurrent_executions(self, test_user: AsyncClient) -> None:
+    async def test_concurrent_executions(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Multiple concurrent executions work correctly."""
         tasks = []
         for i in range(3):
@@ -576,10 +507,15 @@ class TestExecutionConcurrency:
         # All IDs should be unique
         assert len(execution_ids) == 3
 
-        # Wait for all to complete
+        # Wait for all to complete — parallel futures, not sequential polling
+        await asyncio.gather(*(event_waiter.wait_for_result(eid) for eid in execution_ids))
         for exec_id in execution_ids:
-            result = await wait_for_terminal_state(test_user, exec_id)
+            result_resp = await test_user.get(f"/api/v1/executions/{exec_id}/result")
+            assert result_resp.status_code == 200
+            result = ExecutionResult.model_validate(result_resp.json())
             assert result.status == ExecutionStatus.COMPLETED
+            assert result.exit_code == 0
+            assert result.stdout is not None
 
 
 class TestPublicEndpoints:
@@ -592,8 +528,9 @@ class TestPublicEndpoints:
         assert response.status_code == 200
 
         result = ExampleScripts.model_validate(response.json())
-        assert isinstance(result.scripts, dict)
+        assert len(result.scripts) >= 1
         assert "python" in result.scripts
+        assert len(result.scripts["python"]) > 0
 
     @pytest.mark.asyncio
     async def test_get_k8s_resource_limits(self, client: AsyncClient) -> None:
@@ -604,5 +541,8 @@ class TestPublicEndpoints:
         result = ResourceLimits.model_validate(response.json())
         assert result.cpu_limit
         assert result.memory_limit
+        assert result.cpu_request
+        assert result.memory_request
         assert result.execution_timeout > 0
         assert "python" in result.supported_runtimes
+        assert len(result.supported_runtimes["python"].versions) >= 1

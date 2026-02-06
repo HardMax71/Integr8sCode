@@ -24,31 +24,22 @@ class TestGetSystemSettings:
         settings = SystemSettings.model_validate(response.json())
 
         # Validate execution limits
-        assert settings.execution_limits is not None
-        assert isinstance(settings.execution_limits, ExecutionLimitsSchema)
         assert settings.execution_limits.max_timeout_seconds >= 10
         assert settings.execution_limits.max_memory_mb >= 128
         assert settings.execution_limits.max_cpu_cores >= 1
         assert settings.execution_limits.max_concurrent_executions >= 1
 
         # Validate security settings
-        assert settings.security_settings is not None
-        assert isinstance(settings.security_settings, SecuritySettingsSchema)
         assert settings.security_settings.password_min_length >= 6
         assert settings.security_settings.session_timeout_minutes >= 5
         assert settings.security_settings.max_login_attempts >= 3
         assert settings.security_settings.lockout_duration_minutes >= 5
 
         # Validate monitoring settings
-        assert settings.monitoring_settings is not None
-        assert isinstance(
-            settings.monitoring_settings, MonitoringSettingsSchema
-        )
         assert settings.monitoring_settings.metrics_retention_days >= 7
         assert settings.monitoring_settings.log_level in [
             "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
         ]
-        assert isinstance(settings.monitoring_settings.enable_tracing, bool)
         assert 0.0 <= settings.monitoring_settings.sampling_rate <= 1.0
 
     @pytest.mark.asyncio

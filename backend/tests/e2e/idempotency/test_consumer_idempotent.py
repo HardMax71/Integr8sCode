@@ -4,6 +4,7 @@ import pytest
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.services.idempotency.idempotency_manager import IdempotencyManager
 from dishka import AsyncContainer
+
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]

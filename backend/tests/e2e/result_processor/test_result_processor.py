@@ -1,9 +1,8 @@
 import logging
-import uuid
 
 import pytest
-from app.core.database_context import Database
 from app.core.metrics import ExecutionMetrics
+from app.db.docs import ExecutionDocument
 from app.db.repositories.execution_repository import ExecutionRepository
 from app.domain.enums.execution import ExecutionStatus
 from app.domain.events.typed import (
@@ -33,7 +32,6 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
 
     # Dependencies
-    db: Database = await scope.get(Database)
     repo: ExecutionRepository = await scope.get(ExecutionRepository)
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
 
@@ -75,9 +73,9 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     # Directly call the handler (subscriber routing tested separately)
     await processor.handle_execution_completed(evt)
 
-    # Verify DB persistence
-    doc = await db.get_collection("executions").find_one({"execution_id": execution_id})
+    # Verify DB persistence using Beanie ODM
+    doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
     assert doc is not None, f"Execution {execution_id} not found in DB after processing"
-    assert doc.get("status") == ExecutionStatus.COMPLETED, (
-        f"Expected COMPLETED status, got {doc.get('status')}"
+    assert doc.status == ExecutionStatus.COMPLETED, (
+        f"Expected COMPLETED status, got {doc.status}"
     )

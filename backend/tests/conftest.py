@@ -7,7 +7,6 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from app.core.database_context import Database
 from app.domain.enums.execution import QueuePriority
 from app.domain.events.typed import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
@@ -74,12 +73,6 @@ async def scope(app: FastAPI) -> AsyncGenerator[AsyncContainer, None]:
     container: AsyncContainer = app.state.dishka_container
     async with container() as s:
         yield s
-
-
-@pytest_asyncio.fixture
-async def db(scope: AsyncContainer) -> AsyncGenerator[Database, None]:
-    database: Database = await scope.get(Database)
-    yield database
 
 
 @pytest_asyncio.fixture

@@ -17,9 +17,9 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from dishka import AsyncContainer
 from httpx import AsyncClient
+
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]

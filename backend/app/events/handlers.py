@@ -290,7 +290,7 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
 def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     """Register a DLQ subscriber that consumes dead-letter messages.
 
-    DLQ messages are Avro-encoded DomainEvents (same as every other topic).
+    DLQ messages are JSON-encoded DomainEvents (Pydantic serialization via FastStream).
     DLQ metadata (original_topic, error, retry_count, etc.) lives in Kafka headers.
     """
     topic_name = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DEAD_LETTER_QUEUE}"

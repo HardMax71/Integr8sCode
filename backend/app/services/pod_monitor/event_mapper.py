@@ -267,7 +267,8 @@ class PodEventMapper:
     async def _map_failed_or_completed(self, ctx: PodContext) -> DomainEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
-            return await self._check_timeout(ctx)
+            if timeout_event := await self._check_timeout(ctx):
+                return timeout_event
 
         if self._all_containers_succeeded(ctx.pod):
             return await self._map_completed(ctx)
@@ -323,6 +324,14 @@ class PodEventMapper:
 
     async def _check_timeout(self, ctx: PodContext) -> ExecutionTimeoutEvent | None:
         if not (ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded"):
+            return None
+
+        # A pod can carry DeadlineExceeded while containers already exited 0.
+        # In that case, let the normal completed mapping path handle it.
+        if self._all_containers_succeeded(ctx.pod):
+            self.logger.info(
+                f"POD-EVENT: timeout ignored because containers succeeded exec={ctx.execution_id}"
+            )
             return None
 
         logs = await self._extract_logs(ctx.pod)

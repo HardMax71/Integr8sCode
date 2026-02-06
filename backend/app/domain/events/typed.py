@@ -2,8 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import ConfigDict, Discriminator, Field, TypeAdapter
-from pydantic_avro.to_avro.base import AvroBase
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter
 
 from app.domain.enums.auth import LoginMethod
 from app.domain.enums.common import Environment
@@ -13,7 +12,7 @@ from app.domain.enums.notification import NotificationChannel, NotificationSever
 from app.domain.enums.storage import ExecutionErrorType, StorageType
 
 
-class ResourceUsageDomain(AvroBase):
+class ResourceUsageDomain(BaseModel):
     """Resource usage metrics from script execution."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -24,7 +23,7 @@ class ResourceUsageDomain(AvroBase):
     peak_memory_kb: int = 0
 
 
-class EventMetadata(AvroBase):
+class EventMetadata(BaseModel):
     """Event metadata - embedded in all events."""
 
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
@@ -38,7 +37,7 @@ class EventMetadata(AvroBase):
     environment: Environment = Environment.PRODUCTION
 
 
-class BaseEvent(AvroBase):
+class BaseEvent(BaseModel):
     """Base fields for all domain events."""
 
     # Pydantic marks fields with default/default_factory as optional in JSON Schema,
@@ -163,7 +162,7 @@ class PodScheduledEvent(BaseEvent):
     node_name: str = ""
 
 
-class ContainerStatusInfo(AvroBase):
+class ContainerStatusInfo(BaseModel):
     """Container status information from Kubernetes pod."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -594,7 +593,7 @@ class DLQMessageDiscardedEvent(BaseEvent):
 # --- Archived Event (for deleted events) ---
 
 
-class ArchivedEvent(AvroBase):
+class ArchivedEvent(BaseModel):
     """Archived event with deletion metadata. Wraps the original event data."""
 
     model_config = ConfigDict(from_attributes=True)

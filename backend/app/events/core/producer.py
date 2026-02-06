@@ -47,6 +47,7 @@ class UnifiedProducer:
                 "service": event_to_produce.metadata.service_name,
             })
 
+            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
                 message=event_to_produce,
                 topic=topic,
@@ -84,6 +85,7 @@ class UnifiedProducer:
                 "producer_id": producer_id,
             })
 
+            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
                 message=original_event,
                 topic=dlq_topic,

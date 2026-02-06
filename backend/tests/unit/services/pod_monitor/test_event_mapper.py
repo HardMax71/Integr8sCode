@@ -113,6 +113,21 @@ async def test_failed_timeout_and_deleted() -> None:
     assert isinstance(ev, ExecutionTimeoutEvent)
     assert ev.event_type == EventType.EXECUTION_TIMEOUT and ev.timeout_seconds == 5
 
+    # DeadlineExceeded with clean container exit should be treated as completed
+    valid_logs_done = json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {}})
+    pem_done = PodEventMapper(k8s_api=_make_mock_api(valid_logs_done), logger=_test_logger)
+    pod_to_done = make_pod(
+        name="p0",
+        phase="Failed",
+        labels={"execution-id": "e0"},
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_reason="Completed")],
+        reason="DeadlineExceeded",
+        active_deadline_seconds=5,
+    )
+    ev_done = (await pem_done.map_pod_event(pod_to_done, "MODIFIED"))[0]
+    assert isinstance(ev_done, ExecutionCompletedEvent)
+    assert ev_done.event_type == EventType.EXECUTION_COMPLETED
+
     # Failed: terminated exit_code nonzero
     pem_no_logs = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
     pod_fail = make_pod(

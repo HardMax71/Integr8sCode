@@ -1,12 +1,15 @@
 import logging
+from typing import TYPE_CHECKING
 
-from dishka import AsyncContainer
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
+
+if TYPE_CHECKING:
+    from dishka import AsyncContainer
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +28,17 @@ class CSRFMiddleware:
     - User is not authenticated (no access_token cookie)
     """
 
-    def __init__(self, app: ASGIApp, container: AsyncContainer) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
-        self.container = container
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        security_service: SecurityService = await self.container.get(SecurityService)
+        # Get container from app state (set during lifespan)
+        container: AsyncContainer = scope["app"].state.dishka_container
+        security_service: SecurityService = await container.get(SecurityService)
 
         request = Request(scope, receive=receive)
 

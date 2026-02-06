@@ -1,14 +1,18 @@
 import asyncio
+from typing import Any
 
 from app.core.container import create_pod_monitor_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums.kafka import GroupId
 from app.services.pod_monitor.monitor import PodMonitor
 from app.settings import Settings
+from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
 
 
 def main() -> None:
@@ -30,29 +34,32 @@ def main() -> None:
         )
         logger.info("Tracing initialized for PodMonitor Service")
 
-    # Create Kafka broker (PodMonitor publishes events via KafkaEventService)
-    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
-
-    # Create DI container with broker in context
-    container = create_pod_monitor_container(settings, broker)
-    setup_dishka(container, broker=broker, auto_inject=True)
-
-    app = FastStream(broker)
-
-    @app.on_startup
-    async def startup() -> None:
-        # Resolving PodMonitor triggers Database init (via dependency),
-        # starts the K8s watch loop, and starts the reconciliation scheduler
-        await container.get(PodMonitor)
-        logger.info("PodMonitor infrastructure initialized")
-
-    @app.on_shutdown
-    async def shutdown() -> None:
-        await container.close()
-        logger.info("PodMonitor shutdown complete")
-
     async def run() -> None:
+        # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
+        client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+        await init_beanie(
+            database=client.get_default_database(default=settings.DATABASE_NAME),
+            document_models=ALL_DOCUMENTS,
+        )
+        logger.info("MongoDB initialized via Beanie")
+
+        # Create DI container
+        container = create_pod_monitor_container(settings)
+
+        # Get broker from DI (PodMonitor publishes events via KafkaEventService)
+        broker: KafkaBroker = await container.get(KafkaBroker)
+
+        # Set up DI integration (no subscribers for pod monitor - it only publishes)
+        setup_dishka(container, broker=broker, auto_inject=True)
+
+        # Resolving PodMonitor starts K8s watch loop and reconciliation scheduler (via provider)
+        async def init_monitor() -> None:
+            await container.get(PodMonitor)
+            logger.info("PodMonitor initialized")
+
+        app = FastStream(broker, on_startup=[init_monitor], on_shutdown=[container.close])
         await app.run()
+        logger.info("PodMonitor shutdown complete")
 
     asyncio.run(run())
 

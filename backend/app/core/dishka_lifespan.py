@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
+from beanie import init_beanie
 from dishka import AsyncContainer
+from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
 
+from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
+from app.events.handlers import (
+    register_notification_subscriber,
+    register_sse_subscriber,
+)
 from app.services.notification_scheduler import NotificationScheduler
 from app.settings import Settings
 
@@ -18,16 +26,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan with dishka dependency injection.
 
-    Infrastructure init (Beanie, schemas, rate limits) is handled inside
-    DI providers.  Resolving NotificationScheduler cascades through the
-    dependency graph and triggers all required initialisation.
+    DI container is created in create_app() and middleware is set up there.
+    init_beanie() is called here BEFORE any providers are resolved, so that
+    Beanie document classes are initialized before repositories use them.
 
-    Kafka broker lifecycle is managed here (start/stop).
+    KafkaBroker lifecycle (start/stop) is managed by BrokerProvider.
+    Subscriber registration and FastStream integration are set up here.
     """
+    settings: Settings = app.state.settings
     container: AsyncContainer = app.state.dishka_container
-    broker: KafkaBroker = app.state.kafka_broker
-    settings = await container.get(Settings)
-    logger = await container.get(logging.Logger)
+    logger = setup_logger(settings.LOG_LEVEL)
+
+    # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes).
+    # Use URL database first and fall back to configured DATABASE_NAME so runtime
+    # and auxiliary scripts resolve the same DB consistently.
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+    database = client.get_default_database(default=settings.DATABASE_NAME)
+    await init_beanie(database=database, document_models=ALL_DOCUMENTS)
+    logger.info("MongoDB initialized via Beanie")
 
     logger.info(
         "Starting application with dishka DI",
@@ -65,17 +81,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
         )
 
-    # Resolve NotificationScheduler — cascades init_beanie, schema registration,
-    # and starts APScheduler via the DI provider graph.
-    await container.get(NotificationScheduler)
-    logger.info("Infrastructure initialized via DI providers")
+    # Get unstarted broker from DI (BrokerProvider yields without starting)
+    broker: KafkaBroker = await container.get(KafkaBroker)
+    app.state.kafka_broker = broker
 
-    # Start Kafka broker (subscribers begin consuming)
+    # Register subscribers BEFORE broker.start() - FastStream requirement
+    register_sse_subscriber(broker, settings)
+    register_notification_subscriber(broker, settings)
+    logger.info("Kafka subscribers registered")
+
+    # Set up FastStream DI integration (must be before start per Dishka docs)
+    setup_dishka_faststream(container, broker=broker, auto_inject=True)
+    logger.info("FastStream DI integration configured")
+
+    # Now start the broker
     await broker.start()
-    logger.info("Kafka broker started — consumers active")
+    logger.info("Kafka broker started")
+
+    # Resolve NotificationScheduler — starts APScheduler via DI provider graph.
+    await container.get(NotificationScheduler)
+    logger.info("NotificationScheduler started")
 
     try:
         yield
     finally:
-        await broker.stop()
-        logger.info("Kafka broker stopped")
+        # Container close triggers BrokerProvider cleanup (closes broker)
+        # and all other async generators in providers
+        await container.close()
+        logger.info("DI container closed")

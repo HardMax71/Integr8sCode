@@ -1,15 +1,19 @@
 import asyncio
+from typing import Any
 
 from app.core.container import create_dlq_processor_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
+from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
 from app.domain.enums.kafka import GroupId
 from app.events.handlers import register_dlq_subscriber
 from app.settings import Settings
+from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
 
 
 def main() -> None:
@@ -31,30 +35,33 @@ def main() -> None:
         )
         logger.info("Tracing initialized for DLQ Processor")
 
-    # Create Kafka broker and register DLQ subscriber
-    broker = KafkaBroker(settings.KAFKA_BOOTSTRAP_SERVERS, logger=logger)
-    register_dlq_subscriber(broker, settings)
-
-    # Create DI container with broker in context
-    container = create_dlq_processor_container(settings, broker)
-    setup_dishka(container, broker=broker, auto_inject=True)
-
-    app = FastStream(broker)
-
-    @app.on_startup
-    async def startup() -> None:
-        # Resolving DLQManager triggers Database init (via dependency),
-        # configures retry policies/filters, and starts APScheduler retry monitor
-        await container.get(DLQManager)
-        logger.info("DLQ Processor infrastructure initialized")
-
-    @app.on_shutdown
-    async def shutdown() -> None:
-        await container.close()
-        logger.info("DLQ Processor shutdown complete")
-
     async def run() -> None:
+        # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
+        client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+        await init_beanie(
+            database=client.get_default_database(default=settings.DATABASE_NAME),
+            document_models=ALL_DOCUMENTS,
+        )
+        logger.info("MongoDB initialized via Beanie")
+
+        # Create DI container
+        container = create_dlq_processor_container(settings)
+
+        # Get broker from DI
+        broker: KafkaBroker = await container.get(KafkaBroker)
+
+        # Register DLQ subscriber and set up DI integration
+        register_dlq_subscriber(broker, settings)
+        setup_dishka(container, broker=broker, auto_inject=True)
+
+        # Resolving DLQManager starts APScheduler retry monitor (via provider)
+        async def init_dlq() -> None:
+            await container.get(DLQManager)
+            logger.info("DLQ Processor initialized")
+
+        app = FastStream(broker, on_startup=[init_dlq], on_shutdown=[container.close])
         await app.run()
+        logger.info("DLQ Processor shutdown complete")
 
     asyncio.run(run())
 

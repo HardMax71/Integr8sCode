@@ -5,15 +5,12 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from beanie import init_beanie
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
 from kubernetes_asyncio.client.rest import ApiException
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-from app.core.database_context import Database
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
@@ -31,7 +28,6 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
-from app.db.docs import ALL_DOCUMENTS
 from app.db.repositories import (
     EventRepository,
     ExecutionRepository,
@@ -80,6 +76,38 @@ from app.services.sse.redis_bus import SSERedisBus
 from app.services.sse.sse_service import SSEService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
+
+
+class BrokerProvider(Provider):
+    """Provides KafkaBroker instance.
+
+    The broker is created here but NOT started. This is required because:
+    1. Subscribers must be registered before broker.start()
+    2. setup_dishka() must be called before broker.start()
+
+    Lifecycle is managed externally:
+    - Workers with FastStream: FastStream(broker).run() handles start/stop
+    - Main app / event_replay: Manual broker.start(), provider handles stop
+    """
+
+    scope = Scope.APP
+
+    @provide
+    async def get_broker(
+        self, settings: Settings, logger: logging.Logger
+    ) -> AsyncIterator[KafkaBroker]:
+        broker = KafkaBroker(
+            settings.KAFKA_BOOTSTRAP_SERVERS,
+            logger=logger,
+            client_id=f"integr8scode-{settings.SERVICE_NAME}",
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+        )
+        logger.info("Kafka broker created")
+        try:
+            yield broker
+        finally:
+            await broker.stop()
+            logger.info("Kafka broker stopped")
 
 
 class SettingsProvider(Provider):
@@ -143,23 +171,6 @@ class RedisProvider(Provider):
         return service
 
 
-class DatabaseProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    async def get_database(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[Database]:
-        client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
-            settings.MONGODB_URL, tz_aware=True, serverSelectionTimeoutMS=5000
-        )
-        database = client[settings.DATABASE_NAME]
-        await init_beanie(database=database, document_models=ALL_DOCUMENTS)
-        logger.info(f"MongoDB connected and Beanie initialized: {settings.DATABASE_NAME}")
-        try:
-            yield database
-        finally:
-            await client.close()
-
-
 class CoreServicesProvider(Provider):
     scope = Scope.APP
 
@@ -174,8 +185,6 @@ class CoreServicesProvider(Provider):
 
 class MessagingProvider(Provider):
     scope = Scope.APP
-
-    broker = from_context(provides=KafkaBroker, scope=Scope.APP)
 
     @provide
     def get_unified_producer(
@@ -295,7 +304,6 @@ class DLQWorkerProvider(Provider):
             logger: logging.Logger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
-            database: Database,
     ) -> AsyncIterator[DLQManager]:
         manager = DLQManager(
             settings=settings,
@@ -404,7 +412,11 @@ class MetricsProvider(Provider):
 
 
 class RepositoryProvider(Provider):
-    """Provides all repository instances. Repositories are stateless facades over database operations."""
+    """Provides all repository instances.
+
+    Repositories are stateless facades over Beanie document operations.
+    Database (with init_beanie already called) is available from context.
+    """
 
     scope = Scope.APP
 
@@ -586,7 +598,6 @@ class AdminServicesProvider(Provider):
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
             logger: logging.Logger,
-            database: Database,  # ensures init_beanie completes before scheduler starts
     ) -> AsyncIterator[NotificationScheduler]:
 
         scheduler_service = NotificationScheduler(
@@ -762,7 +773,6 @@ class PodMonitorProvider(Provider):
         logger: logging.Logger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
-        database: Database,
     ) -> AsyncIterator[PodMonitor]:
 
         config = PodMonitorConfig()
@@ -846,7 +856,6 @@ class SagaWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: logging.Logger,
-        database: Database,
     ) -> AsyncIterator[SagaOrchestrator]:
 
         orchestrator = SagaOrchestrator(
@@ -932,7 +941,6 @@ class EventReplayWorkerProvider(Provider):
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
             logger: logging.Logger,
-            database: Database,
     ) -> AsyncIterator[EventReplayService]:
 
         service = EventReplayService(

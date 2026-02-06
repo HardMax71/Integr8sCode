@@ -1,8 +1,0 @@
-# Kubernetes Worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run Kubernetes worker
-CMD ["python", "workers/run_k8s_worker.py"]

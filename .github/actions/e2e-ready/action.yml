@@ -1,5 +1,5 @@
 name: 'E2E Ready'
-description: 'Finalize k3s, wait for infra, start compose stack, health-check, seed test users'
+description: 'Finalize k3s, wait for infra, start compose stack, health-check'
 
 inputs:
   image-tag:
@@ -75,6 +75,3 @@ runs:
           echo "Frontend ready"
         fi
 
-    - name: Seed test users
-      shell: bash
-      run: docker compose exec -T backend uv run python scripts/seed_users.py

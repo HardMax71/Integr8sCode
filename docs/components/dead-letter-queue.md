@@ -36,7 +36,7 @@ This handler tracks retry counts per event. If an event fails 3 times, it gets s
 
 ### DLQ processor
 
-The `dlq_processor` is a separate service that monitors the dead letter queue topic. It's responsible for the retry orchestration. When it sees a message in the DLQ, it applies topic-specific retry policies to determine when (or if) to retry sending that message back to its original topic.
+The `run_dlq_processor` is a separate service that monitors the dead letter queue topic. It's responsible for the retry orchestration. When it sees a message in the DLQ, it applies topic-specific retry policies to determine when (or if) to retry sending that message back to its original topic.
 
 Different topics have different retry strategies configured:
 
@@ -92,7 +92,7 @@ The system is designed to be resilient but not perfect. In catastrophic scenario
 
 | File                                                                                                                     | Purpose                |
 |--------------------------------------------------------------------------------------------------------------------------|------------------------|
-| [`dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/dlq_processor.py)               | DLQ processor worker   |
+| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py)       | DLQ processor worker   |
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py)                           | DLQ management logic   |
 | [`unified_producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/unified_producer.py)      | `send_to_dlq()` method |
 | [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/dlq.py)                            | Admin API routes       |

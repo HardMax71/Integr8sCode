@@ -55,8 +55,8 @@ Executions are processed in priority order. Lower numeric values are processed f
 
 ```yaml
 coordinator:
-  build:
-    dockerfile: workers/Dockerfile.coordinator
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_coordinator.py"]
 ```
 
 Usually runs as a single replica. Leader election via Redis is available if scaling is needed.

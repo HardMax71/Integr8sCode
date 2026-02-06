@@ -32,7 +32,7 @@ graph LR
     end
 
     subgraph "Docker Scan & Promote"
-        Scan["Trivy Scan (12 images)"]
+        Scan["Trivy Scan (5 images)"]
         Promote["Promote SHA → latest"]
         Scan --> Promote
     end
@@ -73,7 +73,7 @@ the backend and frontend E2E jobs, which both need k3s and the full docker compo
 | Action                  | File                                         | Purpose                                    |
 |-------------------------|----------------------------------------------|--------------------------------------------|
 | E2E Boot                | `.github/actions/e2e-boot/action.yml`        | GHCR login, background image pull + infra pre-warm, k3s install |
-| E2E Ready               | `.github/actions/e2e-ready/action.yml`       | Finalize k3s, start compose stack, health checks, seed users |
+| E2E Ready               | `.github/actions/e2e-ready/action.yml`       | Finalize k3s, start compose stack, health checks |
 
 The split is intentional. Frontend E2E needs to install Node.js and Playwright browsers _between_ boot and ready,
 overlapping that work with k3s installation to save wall-clock time. Backend E2E calls them back-to-back since it has
@@ -81,7 +81,7 @@ no setup to overlap.
 
 ## Stack Tests (the main workflow)
 
-This is the core testing workflow. It builds all 13 container images, pushes them to GHCR with immutable SHA-based
+This is the core testing workflow. It builds all 6 container images, pushes them to GHCR with immutable SHA-based
 tags, then runs E2E tests on separate runners that pull images from the registry.
 
 ```mermaid
@@ -92,7 +92,7 @@ graph TD
     end
 
     subgraph "Phase 2: Build"
-        C["Build & Push 13 Images to GHCR"]
+        C["Build & Push 6 Images to GHCR"]
     end
 
     subgraph "Phase 3: E2E (parallel runners)"
@@ -120,37 +120,31 @@ the image build is skipped entirely.
 
 ### Phase 2: Build and push
 
-All 13 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
+All 6 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
 
 | Image                | Source                                      |
 |----------------------|---------------------------------------------|
 | `base`               | `backend/Dockerfile.base`                   |
 | `backend`            | `backend/Dockerfile`                        |
-| `coordinator`        | `backend/workers/Dockerfile.coordinator`    |
-| `k8s-worker`         | `backend/workers/Dockerfile.k8s_worker`     |
-| `pod-monitor`        | `backend/workers/Dockerfile.pod_monitor`    |
-| `result-processor`   | `backend/workers/Dockerfile.result_processor` |
-| `saga-orchestrator`  | `backend/workers/Dockerfile.saga_orchestrator` |
-| `event-replay`       | `backend/workers/Dockerfile.event_replay`   |
-| `dlq-processor`      | `backend/workers/Dockerfile.dlq_processor`  |
 | `cert-generator`     | `cert-generator/Dockerfile`                 |
 | `zookeeper-certgen`  | `backend/zookeeper/Dockerfile.certgen`      |
 | `frontend-dev`       | `frontend/Dockerfile`                       |
 | `frontend`           | `frontend/Dockerfile.prod`                  |
 
-Of these 13 images, 12 are scanned by Trivy and promoted to `latest` in the
+Workers reuse the `backend` image with different `command:` overrides in docker-compose, so no separate worker images
+are needed. Of these 6 images, 5 are scanned by Trivy and promoted to `latest` in the
 [Docker Scan & Promote](#docker-scan--promote) workflow. The `frontend-dev` image is excluded — it's the Vite dev
 server build used only for E2E tests in CI and is never deployed to production.
 
-The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. Worker images
-depend on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images use GHA
-layer caching.
+The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
+image depends on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images
+use GHA layer caching.
 
-All 13 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
+All 6 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 
 ```yaml
 declare -A PIDS
-for name in base backend coordinator k8s-worker ...; do
+for name in base backend cert-generator zookeeper-certgen ...; do
   docker push "$IMG/$name:$TAG" &
   PIDS[$name]=$!
 done
@@ -194,7 +188,6 @@ This action finalizes the environment after boot tasks complete:
    `/tmp/infra-pull.exit`, failing fast if the background process had errors
 5. **Start compose stack** with `docker compose up -d --no-build`
 6. **Health checks** — waits for backend (`/api/v1/health/live`), and optionally frontend (`https://localhost:5001`)
-7. **Seed test users** via `scripts/seed_users.py`
 
 #### Frontend E2E sharding
 
@@ -236,7 +229,7 @@ sets it, and only after all tests pass.
 ```mermaid
 graph LR
     ST["Stack Tests<br/>(main, success)"] -->|workflow_run trigger| Scan
-    Scan["Trivy Scan<br/>(12 images in parallel)"] --> Promote["crane copy<br/>sha-xxx → latest"]
+    Scan["Trivy Scan<br/>(5 images in parallel)"] --> Promote["crane copy<br/>sha-xxx → latest"]
     Promote --> Summary["Step Summary"]
 ```
 
@@ -247,7 +240,7 @@ Runs automatically when `Stack Tests` completes successfully on `main`. Can also
 
 ### Scan
 
-Uses [Trivy](https://trivy.dev/) (pinned at `v0.68.2`) to scan all 12 deployed images in parallel via matrix strategy.
+Uses [Trivy](https://trivy.dev/) (pinned at `v0.68.2`) to scan all 5 deployed images in parallel via matrix strategy.
 Scans for `CRITICAL` and `HIGH` severity vulnerabilities with unfixed issues ignored. Results are uploaded as SARIF
 files to GitHub's Security tab.
 
@@ -376,7 +369,7 @@ Playwright browsers are cached by `package-lock.json` hash. On cache hit, only s
 
 ### Parallel image push
 
-All 13 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
+All 6 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
 reported individually via `::error::` annotations.
 
 ## Running locally

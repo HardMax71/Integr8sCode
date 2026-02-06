@@ -99,6 +99,3 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 
-# Helm
-helm/*/charts/*.tgz
-helm/*/Chart.lock

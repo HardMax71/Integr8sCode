@@ -55,8 +55,8 @@ doing a periodic inventory check to make sure nothing slipped through.
 
 ```yaml
 pod-monitor:
-  build:
-    dockerfile: workers/Dockerfile.pod_monitor
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_pod_monitor.py"]
 ```
 
 Runs as a single replica. The watch connection handles high throughput well.

@@ -44,7 +44,7 @@ The network policy and RBAC resources are created by the setup script during ini
 ./cert-generator/setup-k8s.sh
 ```
 
-This script creates the `integr8scode` namespace, a ServiceAccount with appropriate permissions, and the deny-all NetworkPolicy. For Helm deployments, only the ServiceAccount is managed by templates in the chart (`helm/integr8scode/templates/rbac/`). The namespace is created by `deploy.sh` before Helm runs, and the NetworkPolicy must be applied separately using the setup script or manually.
+This script creates the `integr8scode` namespace, a ServiceAccount with appropriate permissions, and the deny-all NetworkPolicy.
 
 ## Notes
 

@@ -33,7 +33,7 @@ graph LR
 | [Pod Monitor](pod_monitor.md)             | Watches pods, translates K8s events to domain events      | `run_pod_monitor.py`       |
 | [Result Processor](result_processor.md)   | Persists execution results, cleans up resources           | `run_result_processor.py`  |
 | [Event Replay](event_replay.md)           | Re-emits historical events for debugging                  | `run_event_replay.py`      |
-| [DLQ Processor](dlq_processor.md)         | Retries failed messages from the dead letter queue        | `dlq_processor.py`         |
+| [DLQ Processor](dlq_processor.md)         | Retries failed messages from the dead letter queue        | `run_dlq_processor.py`     |
 
 All entry points live in [`backend/workers/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/workers).
 

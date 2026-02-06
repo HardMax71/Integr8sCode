@@ -62,8 +62,8 @@ stateDiagram-v2
 
 ```yaml
 saga-orchestrator:
-  build:
-    dockerfile: workers/Dockerfile.saga_orchestrator
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_saga_orchestrator.py"]
 ```
 
 The orchestrator runs as a single replica since it's stateful. Event sourcing allows recovery after restarts.

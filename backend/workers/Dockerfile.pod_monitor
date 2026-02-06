@@ -1,8 +1,0 @@
-# Pod Monitor worker
-FROM base
-
-# Copy application code
-COPY . .
-
-# Run pod monitor
-CMD ["python", "workers/run_pod_monitor.py"]

@@ -342,15 +342,8 @@ services:
   # Kafka topic initialization
   kafka-init:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      additional_contexts:
-        base: service:base
     container_name: kafka-init
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     environment:
@@ -366,15 +359,8 @@ services:
   # Seed default users (runs once after mongo is ready)
   user-seed:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      additional_contexts:
-        base: service:base
     container_name: user-seed
     depends_on:
-      base:
-        condition: service_completed_successfully
       mongo:
         condition: service_healthy
     environment:
@@ -390,16 +376,10 @@ services:
 
   # Event-driven workers
   coordinator:
-    image: ghcr.io/hardmax71/integr8scode/coordinator:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.coordinator
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: coordinator
+    command: ["python", "workers/run_coordinator.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -415,16 +395,10 @@ services:
     restart: unless-stopped
 
   k8s-worker:
-    image: ghcr.io/hardmax71/integr8scode/k8s-worker:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.k8s_worker
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: k8s-worker
+    command: ["python", "workers/run_k8s_worker.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -443,16 +417,10 @@ services:
     restart: unless-stopped
 
   pod-monitor:
-    image: ghcr.io/hardmax71/integr8scode/pod-monitor:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.pod_monitor
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: pod-monitor
+    command: ["python", "workers/run_pod_monitor.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     volumes:
@@ -469,16 +437,10 @@ services:
     restart: unless-stopped
 
   result-processor:
-    image: ghcr.io/hardmax71/integr8scode/result-processor:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.result_processor
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: result-processor
+    command: ["python", "workers/run_result_processor.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -497,16 +459,10 @@ services:
     restart: unless-stopped
 
   saga-orchestrator:
-    image: ghcr.io/hardmax71/integr8scode/saga-orchestrator:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.saga_orchestrator
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: saga-orchestrator
+    command: ["python", "workers/run_saga_orchestrator.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
@@ -543,21 +499,14 @@ services:
 
   # Event replay service
   event-replay:
-    image: ghcr.io/hardmax71/integr8scode/event-replay:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.event_replay
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: event-replay
+    command: ["python", "workers/run_event_replay.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: ["python", "workers/run_event_replay.py"]
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -570,21 +519,14 @@ services:
 
   # DLQ Processor Service
   dlq-processor:
-    image: ghcr.io/hardmax71/integr8scode/dlq-processor:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      dockerfile: workers/Dockerfile.dlq_processor
-      additional_contexts:
-        base: service:base
+    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: dlq-processor
+    command: ["python", "workers/run_dlq_processor.py"]
     depends_on:
-      base:
-        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
       mongo:
         condition: service_started
-    command: ["python", "workers/dlq_processor.py"]
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro

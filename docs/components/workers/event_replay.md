@@ -46,8 +46,8 @@ filter criteria before running a real replay.
 
 ```yaml
 event-replay:
-  build:
-    dockerfile: workers/Dockerfile.event_replay
+  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
+  command: ["python", "workers/run_event_replay.py"]
 ```
 
-Typically runs on-demand with 0 replicas. Scale up when replay is needed, scale back down when complete.
+Typically runs on-demand. Scale up when replay is needed, scale back down when complete.

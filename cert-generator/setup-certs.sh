@@ -28,7 +28,7 @@ echo "Copied cert/key to frontend directory"
 
 # Copy to shared CA directory
 if [ -n "$SHARED_CA_DIR" ]; then
-    cp "$BACKEND_CERT_DIR/server.crt" "$SHARED_CA_DIR/mkcert-ca.pem"
+    cp "$BACKEND_CERT_DIR/server.crt" "$SHARED_CA_DIR/ca.pem"
     echo "Certificate copied to shared CA directory"
 fi
 

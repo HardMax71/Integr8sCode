@@ -55,7 +55,7 @@ Rollup splits the bundle into chunks to improve load performance. The `manualChu
 
 The plugin pipeline processes files in order: **replace** substitutes `process.env.VITE_BACKEND_URL` with an empty string for relative API paths; **svelte** compiles `.svelte` files with TypeScript preprocessing and `runes: true` for Svelte 5; **postcss** processes CSS and extracts styles to `bundle.css`; **typescript** compiles TypeScript with source maps; **json** allows importing JSON files; **resolve** handles `node_modules` imports preferring ES modules; **commonjs** converts CommonJS to ES modules; and **terser** (production only) minifies JavaScript, removes console logs, and runs two compression passes.
 
-In development mode (`npm run dev`), Rollup watches for changes and a custom HTTPS server starts automatically. The server serves files from `public/` with SPA fallback to `index.html`, and proxies `/api/*` requests to the backend container over HTTPS. The proxy uses a custom `https.Agent` that trusts the local CA certificate at `/shared_ca/mkcert-ca.pem`, allowing secure communication with the backend during development on port 5001.
+In development mode (`npm run dev`), Rollup watches for changes and a custom HTTPS server starts automatically. The server serves files from `public/` with SPA fallback to `index.html`, and proxies `/api/*` requests to the backend container over HTTPS. The proxy uses a custom `https.Agent` that trusts the local CA certificate at `/shared_ca/ca.pem`, allowing secure communication with the backend during development on port 5001.
 
 ## TypeScript configuration
 
@@ -193,6 +193,6 @@ If you see TypeScript errors after SDK regeneration, check `types.gen.ts` for th
 
 For styles not applying, ensure the class exists in Tailwind's default utilities or is defined in `app.css`, and check for typos in semantic token names (e.g., `bg-default` vs `bg-bg-default`). 
 
-Dev server certificate errors mean the certificates at `./certs/server.key` and `./certs/server.crt` are missing, or the CA at `/shared_ca/mkcert-ca.pem` isn't available — run the cert-generator container first via Docker Compose. 
+Dev server certificate errors mean the certificates at `./certs/server.key` and `./certs/server.crt` are missing, or the CA at `/shared_ca/ca.pem` isn't available — run the cert-generator container first via Docker Compose. 
 
 If API calls fail in development, verify the backend is running and healthy; the dev server proxies to `https://backend:443`, so check Docker networking if the container can't resolve the hostname.

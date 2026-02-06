@@ -42,7 +42,7 @@ function startServer() {
     };
 
     // --- HTTPS Agent for the PROXY to the backend ---
-    const caPath = '/shared_ca/mkcert-ca.pem';
+    const caPath = '/shared_ca/ca.pem';
     if (!fs.existsSync(caPath)) {
         console.error(`\n\nFATAL ERROR: The CA certificate for the proxy is missing.`);
         console.error(`Expected path: ${caPath}`);

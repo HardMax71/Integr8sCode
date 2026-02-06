@@ -1,28 +1,23 @@
 FROM alpine:3.23
 
 # Pin versions for reproducible builds
-# kubectl: Use supported version (N-2 policy: 1.35, 1.34, 1.33 as of Dec 2025)
-# mkcert: Latest stable release
-ARG KUBECTL_VERSION=v1.33.6
-ARG MKCERT_VERSION=v1.4.4
+# kubectl: Use supported version (N-2 policy: 1.35, 1.34, 1.33 as of Feb 2026)
+ARG KUBECTL_VERSION=v1.35.0
 
 # Install required packages and tools for all architectures
-RUN apk add --no-cache wget ca-certificates openssl curl dos2unix netcat-openbsd iproute2 && \
+RUN apk add --no-cache ca-certificates openssl curl dos2unix netcat-openbsd iproute2 && \
     update-ca-certificates && \
     # Detect architecture and install appropriate binaries
     ARCH=$(uname -m); \
     case $ARCH in \
-        x86_64) KUBECTL_ARCH=amd64; MKCERT_ARCH=amd64 ;; \
-        aarch64) KUBECTL_ARCH=arm64; MKCERT_ARCH=arm64 ;; \
-        armv7l) KUBECTL_ARCH=arm; MKCERT_ARCH=arm ;; \
+        x86_64) KUBECTL_ARCH=amd64 ;; \
+        aarch64) KUBECTL_ARCH=arm64 ;; \
+        armv7l) KUBECTL_ARCH=arm ;; \
         *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
     esac && \
     # Install kubectl (pinned version for reproducibility)
     curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" -o /usr/local/bin/kubectl && \
-    chmod +x /usr/local/bin/kubectl && \
-    # Install mkcert
-    wget -q "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VERSION}/mkcert-${MKCERT_VERSION}-linux-${MKCERT_ARCH}" -O /usr/local/bin/mkcert && \
-    chmod +x /usr/local/bin/mkcert
+    chmod +x /usr/local/bin/kubectl
 
 # Create shared directory for root CA
 RUN mkdir -p /shared_ca

@@ -17,7 +17,7 @@ For details on specific components, see:
 ![System diagram](/assets/images/system_diagram.png)
 
 The SPA hits the frontend, which proxies to the API over HTTPS; the API
-serves both REST and SSE. Kafka carries events with Schema Registry and Zookeeper backing it; kafka-
+serves both REST and SSE. Kafka carries events as JSON (serialized by FastStream) with Zookeeper backing it; kafka-
 init seeds topics. All workers are separate containers subscribed to Kafka; the k8s-worker talks to the
 Kubernetes API to run code, the pod-monitor watches pods, the result-processor writes results to Mongo
 and nudges Redis for SSE fanout, and the saga-orchestrator coordinates long flows with Mongo and Redis.
@@ -44,7 +44,6 @@ graph LR
           Mongo[(MongoDB)]
           Redis[(Redis)]
           Kafka[Kafka]
-          Schema["Schema Registry"]
           K8s["Kubernetes API"]
           OTel["OTel Collector"]
           VM["VictoriaMetrics"]
@@ -63,7 +62,6 @@ graph LR
       Repos --> Mongo
       Services <-->|"keys + SSE bus"| Redis
       Events <-->|"produce/consume"| Kafka
-      Events ---|"subjects/IDs"| Schema
       Services -->|"read limits"| K8s
 
       %% Telemetry edges
@@ -76,11 +74,11 @@ graph LR
     - **Routers**: REST + SSE endpoints
     - **DI (Dishka)**: Dependency injection & providers
     - **Services**: Execution, Events, SSE, Idempotency, Notifications, User Settings, Rate Limit, Saved Scripts, Replay, Saga API
-    - **Kafka Layer**: Producer, Consumer, Dispatcher, EventStore, SchemaRegistryManager
+    - **Kafka Layer**: UnifiedProducer, FastStream subscribers, EventStore
 
 FastAPI under Uvicorn exposes REST and SSE routes, with middleware and DI wiring the core services.
 Those services use Mongo-backed repositories for state and a unified Kafka layer to publish and react
-to events, with the schema registry ensuring compatibility. Redis handles rate limiting and SSE fanout. 
+to events. FastStream handles Pydantic JSON serialization for all Kafka messages. Redis handles rate limiting and SSE fanout.
 Telemetry flows through the OpenTelemetry Collector—metrics to VictoriaMetrics for Grafana and traces
 to Jaeger. Kubernetes interactions are read via the API. This view focuses on the app’s building blocks;
 event workers live in the system diagram.

@@ -4,7 +4,7 @@ This document explains how events flow through the system and how domain events 
 
 ## The unified event model
 
-Events in Integr8sCode use a unified design where domain events are directly Avro-serializable:
+Events in Integr8sCode use a unified design where domain events are plain Pydantic models serialized as JSON:
 
 ```mermaid
 graph LR
@@ -13,7 +13,7 @@ graph LR
     end
 
     subgraph "Domain Layer"
-        DE[Domain Events<br/>typed.py<br/>extends AvroBase]
+        DE[Domain Events<br/>typed.py<br/>extends BaseModel]
     end
 
     subgraph "Infrastructure"
@@ -26,7 +26,7 @@ graph LR
     DE --> MongoDB[(MongoDB)]
 ```
 
-The `EventType` enum defines all possible event types as strings. Domain events are Pydantic models that extend `AvroBase` (from `pydantic-avro`), making them both usable for MongoDB storage and Avro-serializable for Kafka. The mappings module routes events to the correct Kafka topics.
+The `EventType` enum defines all possible event types as strings. Domain events are Pydantic `BaseModel` subclasses, making them usable for both MongoDB storage and Kafka transport. FastStream handles JSON serialization natively when publishing and deserializing when consuming. The mappings module routes events to the correct Kafka topics.
 
 This design eliminates duplication between "domain events" and "Kafka events" by making the domain event the single source of truth.
 
@@ -42,7 +42,7 @@ Earlier designs maintained separate domain and Kafka event classes, arguing that
 The unified approach addresses these issues:
 
 - **Single definition**: Each event is defined once in `domain/events/typed.py`
-- **Avro-compatible**: `BaseEvent` extends `AvroBase`, enabling automatic schema generation
+- **JSON-native**: `BaseEvent` extends Pydantic `BaseModel`; FastStream serializes to JSON automatically
 - **Storage-ready**: Events include storage fields (`stored_at`, `ttl_expires_at`) that MongoDB uses
 - **Topic routing**: The `EVENT_TYPE_TO_TOPIC` mapping in `infrastructure/kafka/mappings.py` handles routing
 
@@ -92,12 +92,12 @@ sequenceDiagram
 
 This approach is more performant than trying each union member until one validates. The discriminator tells Pydantic exactly which class to use.
 
-## BaseEvent and AvroBase
+## BaseEvent
 
-The `BaseEvent` class provides common fields for all events and inherits from `AvroBase` for Avro schema generation:
+The `BaseEvent` class provides common fields for all events:
 
 ```python
-class BaseEvent(AvroBase):
+class BaseEvent(BaseModel):
     """Base fields for all domain events."""
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,10 +111,7 @@ class BaseEvent(AvroBase):
     ttl_expires_at: datetime = Field(default_factory=...)
 ```
 
-The `AvroBase` inheritance enables:
-- Automatic Avro schema generation via `BaseEvent.avro_schema()`
-- Serialization through the Schema Registry
-- Forward compatibility checking
+Since `BaseEvent` is a plain Pydantic model, FastStream handles serialization and deserialization transparently — publishing calls `model.model_dump_json()` under the hood, and subscribers receive typed model instances from the incoming JSON.
 
 ## Topic routing
 
@@ -180,9 +177,9 @@ graph TB
 ```
 
 When publishing events, the `UnifiedProducer`:
-1. Looks up the topic via `EVENT_TYPE_TO_TOPIC`
-2. Serializes the event using the Schema Registry
-3. Publishes to Kafka
+1. Persists the event to MongoDB via `EventRepository`
+2. Looks up the topic via `EVENT_TYPE_TO_TOPIC`
+3. Publishes the Pydantic model to Kafka through `broker.publish()` (FastStream handles JSON serialization)
 
 The producer handles both storage in MongoDB and publishing to Kafka in a single flow.
 
@@ -193,7 +190,7 @@ The producer handles both storage in MongoDB and publishing to Kafka in a single
 | [`domain/enums/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/enums/events.py) | `EventType` enum with all event type values |
 | [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | All domain event classes and `DomainEvent` union |
 | [`infrastructure/kafka/mappings.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/mappings.py) | Event-to-topic routing and helper functions |
-| [`services/kafka_event_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/kafka_event_service.py) | Publishes events to both MongoDB and Kafka |
+| [`events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py) | UnifiedProducer — persists to MongoDB then publishes to Kafka |
 | [`tests/unit/domain/events/test_event_schema_coverage.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/tests/unit/domain/events/test_event_schema_coverage.py) | Validates correspondence between enum and event classes |
 
 ## Related docs

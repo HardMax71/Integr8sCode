@@ -76,7 +76,6 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
     | Key | Description | Default |
     |-----|-------------|---------|
     | `KAFKA_BOOTSTRAP_SERVERS` | Broker addresses (comma-separated) | `kafka:29092` |
-    | `SCHEMA_REGISTRY_URL` | Confluent Schema Registry URL | `http://schema-registry:8081` |
     | `ENABLE_EVENT_STREAMING` | Enable Kafka events | `false` |
     | `EVENT_RETENTION_DAYS` | Days to retain events in MongoDB | `30` |
     | `KAFKA_CONSUMER_GROUP_ID` | Consumer group ID | `integr8scode-backend` |

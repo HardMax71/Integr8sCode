@@ -4,7 +4,7 @@ This guide walks you through running Integr8sCode locally and executing your fir
 
 ## What you're deploying
 
-The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafka with Schema Registry, and seven background workers. Sounds like a lot, but `docker compose` handles all of it. First startup takes a few minutes to pull images and initialize services; subsequent starts are much faster.
+The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafka, and seven background workers. Sounds like a lot, but `docker compose` handles all of it. First startup takes a few minutes to pull images and initialize services; subsequent starts are much faster.
 
 ## Start the stack
 

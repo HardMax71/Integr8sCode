@@ -13,7 +13,7 @@ notifications, or editor settings. This eliminates branching in both publishing 
 ```
 
 The `changed_fields` list identifies which settings changed. Typed fields (`theme`, `notifications`, `editor`, etc.)
-contain the new values in Avro-compatible form.
+contain the new values as Pydantic model fields.
 
 ## TypeAdapter pattern
 

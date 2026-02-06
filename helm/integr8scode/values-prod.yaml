@@ -128,16 +128,6 @@ infrastructure:
         memory: "2Gi"
         cpu: "2000m"
 
-  schemaRegistry:
-    heapOpts: "-Xms512M -Xmx512M"
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "200m"
-      limits:
-        memory: "1Gi"
-        cpu: "1000m"
-
   jaeger:
     resources:
       requests:

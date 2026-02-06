@@ -28,7 +28,7 @@ runs:
           IMAGE_TAG='"$IMAGE_TAG"' docker compose pull --quiet 2>&1
           echo "--- pull done, starting infra ---"
           docker compose up -d --no-build \
-            mongo redis shared-ca zookeeper-certgen zookeeper kafka schema-registry 2>&1
+            mongo redis shared-ca zookeeper-certgen zookeeper kafka 2>&1
           echo $? > /tmp/infra-pull.exit
         ' > /tmp/infra-pull.log 2>&1 &
         echo $! > /tmp/infra-pull.pid

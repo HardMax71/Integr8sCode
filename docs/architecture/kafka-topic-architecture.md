@@ -147,9 +147,9 @@ Admins can:
 
 Key files:
 
-- `domain/events/typed.py` — all Pydantic event models (extends `AvroBase` for Avro serialization)
+- `domain/events/typed.py` — all Pydantic event models (plain `BaseModel` subclasses)
 - `infrastructure/kafka/mappings.py` — event-to-topic routing and helper functions
-- `events/schema/schema_registry.py` — schema manager
-- `events/core/{producer,consumer,dispatcher}.py` — unified Kafka plumbing
+- `events/core/producer.py` — UnifiedProducer (persists to MongoDB, publishes to Kafka)
+- `events/handlers.py` — FastStream subscriber registrations for all workers
 
-All events are Pydantic models with *strict typing* that extend `AvroBase` for Avro schema generation. The mappings module routes each event type to its destination topic via `EVENT_TYPE_TO_TOPIC`. Schema Registry integration ensures producers and consumers agree on structure, catching incompatible changes *before* runtime failures. The unified producer and consumer classes handle serialization, error handling, and observability.
+All events are Pydantic models with strict typing. FastStream handles JSON serialization natively — the producer publishes Pydantic instances directly via `broker.publish()`, and subscribers receive typed model instances. The mappings module routes each event type to its destination topic via `EVENT_TYPE_TO_TOPIC`. Pydantic validation on both ends ensures structural agreement between producers and consumers.

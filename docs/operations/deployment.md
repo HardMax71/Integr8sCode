@@ -47,7 +47,7 @@ with health checks and dependency ordering, so containers start in the correct s
 ./deploy.sh dev
 ```
 
-This brings up MongoDB, Redis, Kafka with Zookeeper and Schema Registry, all seven workers, the backend API, and the
+This brings up MongoDB, Redis, Kafka with Zookeeper, all seven workers, the backend API, and the
 frontend. Two initialization containers run automatically: `kafka-init` creates required Kafka topics, and `user-seed`
 populates the database with default user accounts.
 
@@ -136,7 +136,6 @@ services define healthchecks in `docker-compose.yaml`:
 | Redis           | `redis-cli ping`                              |
 | Backend         | `curl /api/v1/health/live`                    |
 | Kafka           | `kafka-broker-api-versions`                   |
-| Schema Registry | `curl /config`                                |
 | Zookeeper       | `echo ruok \| nc localhost 2181 \| grep imok` |
 
 Services without explicit healthchecks (workers, Grafana, Kafdrop) are considered "started" when their container is
@@ -162,7 +161,7 @@ The Helm chart organizes templates by function:
 | `templates/rbac/`           | ServiceAccount, Role, RoleBinding         |
 | `templates/secrets/`        | Kubeconfig and Kafka JAAS                 |
 | `templates/configmaps/`     | TOML configuration and environment        |
-| `templates/infrastructure/` | Zookeeper, Kafka, Schema Registry, Jaeger |
+| `templates/infrastructure/` | Zookeeper, Kafka, Jaeger                  |
 | `templates/app/`            | Backend and Frontend deployments          |
 | `templates/workers/`        | All seven worker deployments              |
 | `templates/jobs/`           | Kafka topic init and user seed            |
@@ -252,7 +251,7 @@ infrastructure:
 
 ### Post-install jobs
 
-Two Helm hooks run after the main deployment completes. The kafka-init job waits for Kafka and Schema Registry to become
+Two Helm hooks run after the main deployment completes. The kafka-init job waits for Kafka to become
 healthy, then creates all required topics using the `scripts/create_topics.py` module. Topics are created with the
 prefix defined in settings (default `pref`) to avoid conflicts with Kubernetes-generated environment variables.
 

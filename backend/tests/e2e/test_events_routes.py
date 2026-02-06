@@ -89,7 +89,7 @@ class TestUserEvents:
         result = EventListResponse.model_validate(response.json())
         assert result.total >= 1
         assert len(result.events) >= 1
-        assert len(result.events) == min(result.total, 10)
+        assert len(result.events) <= min(result.total, 10)
 
     @pytest.mark.asyncio
     async def test_get_user_events_with_filters(

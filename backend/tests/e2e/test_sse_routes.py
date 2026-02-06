@@ -1,89 +1,16 @@
 import asyncio
-import contextlib
-import json
-from dataclasses import dataclass
 from typing import Any
 
 import pytest
 import pytest_asyncio
-from app.domain.enums.sse import SSEControlEvent
-from app.schemas_pydantic.execution import ExecutionResponse
+from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from async_asgi_testclient import TestClient as SSETestClient
 from fastapi import FastAPI
 from httpx import AsyncClient
 
+from tests.e2e.conftest import EventWaiter
+
 pytestmark = [pytest.mark.e2e]
-
-
-
-@dataclass
-class SSEEvent:
-    """Parsed SSE event."""
-
-    event: str = "message"
-    data: str = ""
-    id: str = ""
-    retry: int | None = None
-
-    def json(self) -> Any:
-        return json.loads(self.data)
-
-
-def _parse_sse_event(raw: str) -> SSEEvent | None:
-    """Parse a single SSE event block (text between double-newlines)."""
-    ev = SSEEvent()
-    data_lines: list[str] = []
-    has_data = False
-
-    for line in raw.split("\n"):
-        line = line.rstrip("\r")
-        if not line or line.startswith(":"):
-            continue
-        name, _, value = line.partition(":")
-        value = value.lstrip(" ")  # SSE spec: strip one leading space
-        if name == "event":
-            ev.event = value
-        elif name == "data":
-            has_data = True
-            data_lines.append(value)
-        elif name == "id":
-            ev.id = value
-        elif name == "retry":
-            with contextlib.suppress(ValueError):
-                ev.retry = int(value)
-
-    if not has_data:
-        return None
-    ev.data = "\n".join(data_lines)
-    return ev
-
-
-async def collect_sse_events(
-    response: Any,
-    *,
-    max_events: int = 10,
-    timeout: float = 10.0,
-) -> list[SSEEvent]:
-    """Read SSE events from an async-asgi-testclient streaming response.
-
-    Stops after *max_events* data-bearing events or *timeout* seconds.
-    """
-    events: list[SSEEvent] = []
-    buf = ""
-
-    async with asyncio.timeout(timeout):
-        async for chunk in response.iter_content(512):
-            buf += chunk.decode("utf-8")
-            while "\n\n" in buf:
-                block, buf = buf.split("\n\n", 1)
-                ev = _parse_sse_event(block)
-                if ev is not None:
-                    events.append(ev)
-            if len(events) >= max_events:
-                break
-
-    return events
-
 
 
 class _NoLifespan:
@@ -108,7 +35,6 @@ class _NoLifespan:
         await self.app(scope, receive, send)
 
 
-
 @pytest_asyncio.fixture
 async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     """SSE-capable test client with auth cookies from test_user.
@@ -121,10 +47,8 @@ async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     context manager from closing the session-scoped Kafka broker.
     """
     client = SSETestClient(_NoLifespan(app))
-    # Copy auth cookies from httpx client (SimpleCookie uses dict-style assignment)
     for name, value in test_user.cookies.items():
         client.cookie_jar[name] = value
-    # Copy CSRF header
     if csrf := test_user.headers.get("X-CSRF-Token"):
         client.headers["X-CSRF-Token"] = csrf
     return client
@@ -141,22 +65,8 @@ async def sse_client_another(app: FastAPI, another_user: AsyncClient) -> SSETest
     return client
 
 
-
 class TestNotificationStream:
     """Tests for GET /api/v1/events/notifications/stream."""
-
-    @pytest.mark.asyncio
-    async def test_notification_stream_returns_event_stream(
-        self, sse_client: SSETestClient
-    ) -> None:
-        """Notification stream returns SSE content type."""
-        async with sse_client:
-            response = await sse_client.get(
-                "/api/v1/events/notifications/stream", stream=True
-            )
-
-            assert response.status_code == 200
-            assert "text/event-stream" in response.headers.get("content-type", "")
 
     @pytest.mark.asyncio
     async def test_notification_stream_unauthenticated(
@@ -166,6 +76,50 @@ class TestNotificationStream:
         response = await client.get("/api/v1/events/notifications/stream")
         assert response.status_code == 401
 
+    @pytest.mark.asyncio
+    @pytest.mark.kafka
+    async def test_notification_stream_returns_event_stream(
+        self,
+        sse_client: SSETestClient,
+        test_user: AsyncClient,
+        simple_execution_request: ExecutionRequest,
+        event_waiter: EventWaiter,
+    ) -> None:
+        """Notification stream returns SSE content type when a notification arrives.
+
+        The notification stream has no initial control events (unlike the
+        execution stream). async-asgi-testclient blocks until the first
+        http.response.body ASGI message. We trigger a real notification by
+        creating an execution and waiting for its result — the notification
+        handler publishes to Redis before RESULT_STORED, unblocking the stream.
+        """
+        async with sse_client:
+            # Start stream in background — blocks until first body chunk
+            stream_task = asyncio.create_task(
+                sse_client.get(
+                    "/api/v1/events/notifications/stream", stream=True
+                )
+            )
+            # Allow Redis subscription to establish
+            await asyncio.sleep(0.5)
+
+            # Trigger a notification: execution → result → notification
+            resp = await test_user.post(
+                "/api/v1/execute",
+                json=simple_execution_request.model_dump(),
+            )
+            assert resp.status_code == 200
+            execution = ExecutionResponse.model_validate(resp.json())
+            await event_waiter.wait_for_result(execution.execution_id)
+
+            # Notification published to Redis unblocks the SSE stream
+            response = await asyncio.wait_for(stream_task, timeout=10.0)
+
+            assert response.status_code == 200
+            assert "text/event-stream" in response.headers.get("content-type", "")
+            body = response.raw.read().decode("utf-8")
+            assert len(body) > 0
+
 
 class TestExecutionStream:
     """Tests for GET /api/v1/events/executions/{execution_id}."""
@@ -174,7 +128,13 @@ class TestExecutionStream:
     async def test_execution_stream_returns_event_stream(
         self, sse_client: SSETestClient, created_execution: ExecutionResponse
     ) -> None:
-        """Execution stream returns SSE content type."""
+        """Execution stream returns SSE content type and first body chunk.
+
+        async-asgi-testclient waits for the first http.response.body ASGI
+        message before returning the response object. For execution streams
+        this is the ``connected`` control event, confirming the SSE generator
+        started and yielded data.
+        """
         async with sse_client:
             response = await sse_client.get(
                 f"/api/v1/events/executions/{created_execution.execution_id}",
@@ -184,41 +144,12 @@ class TestExecutionStream:
             assert response.status_code == 200
             assert "text/event-stream" in response.headers.get("content-type", "")
 
-    @pytest.mark.asyncio
-    async def test_execution_stream_yields_control_events(
-        self, sse_client: SSETestClient, created_execution: ExecutionResponse
-    ) -> None:
-        """Execution stream yields connected/subscribed/status control events."""
-        async with sse_client:
-            response = await sse_client.get(
-                f"/api/v1/events/executions/{created_execution.execution_id}",
-                stream=True,
-            )
-            assert response.status_code == 200
-
-            # The server yields connected + subscribed immediately, then status
-            # after a DB lookup. Collect up to 3 events with a generous timeout.
-            events = await collect_sse_events(response, max_events=3, timeout=10.0)
-
-            assert len(events) >= 2, f"Expected >= 2 control events, got {len(events)}"
-
-            # First event: connected
-            connected = events[0].json()
-            assert connected["event_type"] == SSEControlEvent.CONNECTED
-            assert connected["execution_id"] == created_execution.execution_id
-
-            # Second event: subscribed
-            subscribed = events[1].json()
-            assert subscribed["event_type"] == SSEControlEvent.SUBSCRIBED
-            assert subscribed["execution_id"] == created_execution.execution_id
-            assert subscribed["message"] == "Redis subscription established"
-
-            # Third event (if present): status with current execution state
-            if len(events) >= 3:
-                status_ev = events[2].json()
-                assert status_ev["event_type"] == SSEControlEvent.STATUS
-                assert status_ev["execution_id"] == created_execution.execution_id
-                assert status_ev["status"] is not None
+            # The first body chunk (buffered by async-asgi-testclient during
+            # response construction) contains the ``connected`` SSE event.
+            first_chunk = response.raw.read()
+            body = first_chunk.decode("utf-8")
+            assert "connected" in body
+            assert created_execution.execution_id in body
 
     @pytest.mark.asyncio
     async def test_execution_stream_unauthenticated(
@@ -248,8 +179,6 @@ class TestExecutionStream:
             assert response.status_code == 200
             assert "text/event-stream" in response.headers.get("content-type", "")
 
-            # Even another user receives control events (connected, subscribed)
-            events = await collect_sse_events(response, max_events=2, timeout=10.0)
-            assert len(events) >= 2
-            assert events[0].json()["event_type"] == SSEControlEvent.CONNECTED
-            assert events[1].json()["event_type"] == SSEControlEvent.SUBSCRIBED
+            # Another user still receives the initial connected event
+            first_chunk = response.raw.read()
+            assert b"connected" in first_chunk

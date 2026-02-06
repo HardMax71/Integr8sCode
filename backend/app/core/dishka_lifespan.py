@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from beanie import init_beanie
 from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
 
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
@@ -36,9 +37,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     container: AsyncContainer = app.state.dishka_container
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Initialize Beanie with connection string (manages client internally)
+    # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
     # This MUST happen before any provider that uses Beanie documents is resolved
-    await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
+    client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+    await init_beanie(database=client.get_default_database(), document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
 
     logger.info(

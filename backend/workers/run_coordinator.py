@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from app.core.container import create_coordinator_container
 from app.core.logging import setup_logger
@@ -11,6 +12,7 @@ from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
 
 
 def main() -> None:
@@ -33,8 +35,9 @@ def main() -> None:
         logger.info("Tracing initialized for ExecutionCoordinator")
 
     async def run() -> None:
-        # Initialize Beanie with connection string (manages client internally)
-        await init_beanie(connection_string=settings.MONGODB_URL, document_models=ALL_DOCUMENTS)
+        # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
+        client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
+        await init_beanie(database=client.get_default_database(), document_models=ALL_DOCUMENTS)
         logger.info("MongoDB initialized via Beanie")
 
         # Create DI container

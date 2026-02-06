@@ -267,7 +267,8 @@ class PodEventMapper:
     async def _map_failed_or_completed(self, ctx: PodContext) -> DomainEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
-            return await self._check_timeout(ctx)
+            if timeout_event := await self._check_timeout(ctx):
+                return timeout_event
 
         if self._all_containers_succeeded(ctx.pod):
             return await self._map_completed(ctx)

@@ -325,6 +325,14 @@ class PodEventMapper:
         if not (ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded"):
             return None
 
+        # A pod can carry DeadlineExceeded while containers already exited 0.
+        # In that case, let the normal completed mapping path handle it.
+        if self._all_containers_succeeded(ctx.pod):
+            self.logger.info(
+                f"POD-EVENT: timeout ignored because containers succeeded exec={ctx.execution_id}"
+            )
+            return None
+
         logs = await self._extract_logs(ctx.pod)
         if not logs:
             self.logger.error(f"POD-EVENT: failed to extract logs for timed out pod exec={ctx.execution_id}")

@@ -72,23 +72,27 @@ test.describe('Editor Execution', () => {
 
   test('can execute simple python script', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await runExampleAndExecute(userPage);
-    await expect(userPage.locator('text=Status:').first()).toBeVisible();
+    const result = await runExampleAndExecute(userPage);
+    expect(result.status).toBe('completed');
+    expect(result.exit_code).toBe(0);
+    expect(result.stdout ?? '').toContain('Hello from a Python');
   });
 
   test('shows execution output on successful run', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await runExampleAndExecute(userPage);
+    const result = await runExampleAndExecute(userPage);
     await expect(userPage.locator('text=Output:').first()).toBeVisible({ timeout: 5000 });
-    await expect(userPage.locator('.output-pre').first()).toBeVisible();
+    await expect(userPage.locator('.output-pre').first()).toContainText('Hello from a Python');
+    expect(result.stdout ?? '').toContain('Hello from a Python');
   });
 
   test('shows resource usage after execution', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await runExampleAndExecute(userPage);
+    const result = await runExampleAndExecute(userPage);
     await expect(userPage.getByText('Resource Usage:')).toBeVisible({ timeout: 5000 });
     await expect(userPage.getByText(/CPU:/)).toBeVisible();
     await expect(userPage.getByText(/Memory:/)).toBeVisible();
+    expect(result.resource_usage).toBeTruthy();
   });
 
   test('run button is disabled during execution', async ({ userPage }) => {

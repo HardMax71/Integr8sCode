@@ -1,6 +1,7 @@
 import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
 import { attachCoverageReport } from 'monocart-reporter';
 import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
+import type { ExecutionResult } from '../src/lib/api';
 
 
 export const TEST_USERS = {
@@ -176,16 +177,56 @@ export async function expectTableColumn(page: Page, columnName: string, emptyPat
   }
 }
 
-export async function runExampleAndExecute(page: Page): Promise<void> {
+const TERMINAL_EXEC_STATUSES = new Set(['completed', 'failed', 'timeout', 'cancelled', 'error']);
+
+async function waitForExecutionResult(page: Page, executionId: string, timeoutMs = 45000): Promise<ExecutionResult> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await page.request.get(`/api/v1/executions/${executionId}/result`);
+
+    if (response.status() === 404) {
+      await page.waitForTimeout(500);
+      continue;
+    }
+
+    expect(response.ok(), `Unexpected status ${response.status()} for execution result`).toBeTruthy();
+    const result = await response.json() as ExecutionResult;
+
+    if (TERMINAL_EXEC_STATUSES.has(result.status)) {
+      return result;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  throw new Error(`Execution ${executionId} did not reach terminal state within ${timeoutMs}ms`);
+}
+
+export async function runExampleAndExecute(page: Page): Promise<ExecutionResult> {
   await page.getByRole('button', { name: /Example/i }).click();
   await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
+
+  const executeResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && response.url().includes('/api/v1/execute')
+  );
+
   await page.getByRole('button', { name: /Run Script/i }).click();
+  const executeResponse = await executeResponsePromise;
+  expect(executeResponse.ok(), `Execute request failed with status ${executeResponse.status()}`).toBeTruthy();
+  const executeBody = await executeResponse.json() as { execution_id: string; status: string };
+  expect(executeBody.execution_id).toBeTruthy();
+
   await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
   const success = page.locator('text=Status:').first();
   const failure = page.getByText('Execution Failed');
   // K8s pod creation + execution can take 20-30s in CI
   await expect(success.or(failure).first()).toBeVisible({ timeout: 45000 });
-  await expect(success).toBeVisible({ timeout: 1000 });
+  await expect(page.getByText(/Status:\s*completed/i).first()).toBeVisible({ timeout: 10000 });
+
+  const result = await waitForExecutionResult(page, executeBody.execution_id);
+  expect(result.status).toBe('completed');
+  return result;
 }
 
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {

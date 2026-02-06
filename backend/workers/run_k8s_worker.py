@@ -38,7 +38,10 @@ def main() -> None:
     async def run() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
         client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
-        await init_beanie(database=client.get_default_database(), document_models=ALL_DOCUMENTS)
+        await init_beanie(
+            database=client.get_default_database(default=settings.DATABASE_NAME),
+            document_models=ALL_DOCUMENTS,
+        )
         logger.info("MongoDB initialized via Beanie")
 
         # Create DI container

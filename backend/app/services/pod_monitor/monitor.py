@@ -204,9 +204,6 @@ class PodMonitor:
     async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
         try:
-            if pod.metadata and pod.metadata.labels:
-                event.metadata.correlation_id = pod.metadata.labels.get("execution-id") or ""
-
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
             key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 

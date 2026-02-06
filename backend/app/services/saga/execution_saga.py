@@ -113,11 +113,13 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
                 user_id=event.metadata.user_id or "system",
+                correlation_id=event.metadata.correlation_id,
             ),
         )
 
         await self.producer.produce(event_to_produce=create_pod_cmd, key=execution_id)
 
+        context.set("correlation_id", event.metadata.correlation_id)
         context.set("pod_creation_triggered", True)
         logger.info(f"CreatePodCommandEvent published for execution {execution_id}")
 
@@ -170,6 +172,7 @@ class DeletePodCompensation(CompensationStep):
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
                 user_id=context.get("user_id", "system"),
+                correlation_id=context.get("correlation_id", ""),
             ),
         )
 

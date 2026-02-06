@@ -63,11 +63,9 @@ class DLQManager:
         ]
 
         self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
-        self._event_metadata = EventMetadata(service_name="dlq-manager", service_version="1.0.0")
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
-        event_id = message.event.event_id or ""
-        return not event_id.startswith("test-")
+        return not message.event.event_id.startswith("test-")
 
     def _filter_old_messages(self, message: DLQMessage) -> bool:
         max_age_days = 7
@@ -99,7 +97,11 @@ class DLQManager:
                 retry_count=message.retry_count,
                 producer_id=message.producer_id,
                 failed_at=message.failed_at,
-                metadata=self._event_metadata,
+                metadata=EventMetadata(
+                    service_name="dlq-manager",
+                    service_version="1.0.0",
+                    correlation_id=message.event.metadata.correlation_id,
+                ),
             ),
             topic=self._dlq_events_topic,
         )
@@ -126,9 +128,6 @@ class DLQManager:
         """
         hdrs: dict[str, str] = {
             "event_type": message.event.event_type,
-            "dlq_retry_count": str(message.retry_count + 1),
-            "dlq_original_error": message.error,
-            "dlq_retry_timestamp": datetime.now(timezone.utc).isoformat(),
         }
         hdrs = inject_trace_context(hdrs)
 
@@ -136,7 +135,7 @@ class DLQManager:
         await self._broker.publish(
             message=message.event,
             topic=message.original_topic,
-            key=message.event.event_id.encode() if message.event.event_id else None,
+            key=message.event.event_id.encode(),
             headers=hdrs,
         )
 
@@ -159,7 +158,11 @@ class DLQManager:
                 original_event_type=str(message.event.event_type),
                 retry_count=new_retry_count,
                 retry_topic=message.original_topic,
-                metadata=self._event_metadata,
+                metadata=EventMetadata(
+                    service_name="dlq-manager",
+                    service_version="1.0.0",
+                    correlation_id=message.event.metadata.correlation_id,
+                ),
             ),
             topic=self._dlq_events_topic,
         )
@@ -185,7 +188,11 @@ class DLQManager:
                 original_event_type=str(message.event.event_type),
                 reason=reason,
                 retry_count=message.retry_count,
-                metadata=self._event_metadata,
+                metadata=EventMetadata(
+                    service_name="dlq-manager",
+                    service_version="1.0.0",
+                    correlation_id=message.event.metadata.correlation_id,
+                ),
             ),
             topic=self._dlq_events_topic,
         )

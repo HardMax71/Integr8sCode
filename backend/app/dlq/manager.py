@@ -65,8 +65,7 @@ class DLQManager:
         self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
-        event_id = message.event.event_id or ""
-        return not event_id.startswith("test-")
+        return not message.event.event_id.startswith("test-")
 
     def _filter_old_messages(self, message: DLQMessage) -> bool:
         max_age_days = 7
@@ -136,7 +135,7 @@ class DLQManager:
         await self._broker.publish(
             message=message.event,
             topic=message.original_topic,
-            key=message.event.event_id.encode() if message.event.event_id else None,
+            key=message.event.event_id.encode(),
             headers=hdrs,
         )
 

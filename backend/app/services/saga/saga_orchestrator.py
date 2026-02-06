@@ -312,8 +312,8 @@ class SagaOrchestrator:
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event."""
         try:
-            cancelled_by = saga_instance.context_data.get("user_id") if saga_instance.context_data else None
-            correlation_id = saga_instance.context_data.get("correlation_id", "") if saga_instance.context_data else ""
+            cancelled_by = saga_instance.context_data.get("user_id")
+            correlation_id = saga_instance.context_data.get("correlation_id", "")
             metadata = EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",

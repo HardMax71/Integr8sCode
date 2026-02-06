@@ -87,7 +87,7 @@ class UnifiedProducer:
             await self._broker.publish(
                 message=original_event,
                 topic=dlq_topic,
-                key=original_event.event_id.encode() if original_event.event_id else None,
+                key=original_event.event_id.encode(),
                 headers=headers,
             )
 

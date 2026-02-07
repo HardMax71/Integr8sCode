@@ -36,7 +36,7 @@ class DomainNotification(BaseModel):
     failed_at: datetime | None = None
 
     retry_count: int = 0
-    max_retries: int = 3
+    max_retries: int = Field(3, ge=1)
     error_message: str | None = None
 
     metadata: dict[str, Any] = Field(default_factory=dict)

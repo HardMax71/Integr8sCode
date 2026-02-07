@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Awaitable, Callable
 
+import backoff
 import httpx
 
 from app.core.metrics import NotificationMetrics
@@ -658,57 +659,59 @@ class NotificationService:
             )
             return False
 
-        last_error: Exception | None = None
         start_time = asyncio.get_running_loop().time()
 
-        for attempt in range(notification.max_retries):
-            try:
-                await handler(notification, subscription)
-
-                delivery_time = asyncio.get_running_loop().time() - start_time
-                await self.repository.update_notification(
-                    notification.notification_id,
-                    notification.user_id,
-                    DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
-                )
-                self.logger.info(
-                    f"Delivered notification {notification.notification_id}",
-                    extra={
-                        "notification_id": str(notification.notification_id),
-                        "channel": notification.channel,
-                        "delivery_time_ms": int(delivery_time * 1000),
-                        "attempt": attempt + 1,
-                    },
-                )
-                self.metrics.record_notification_sent(
-                    notification.severity, channel=notification.channel, severity=notification.severity
-                )
-                self.metrics.record_notification_delivery_time(
-                    delivery_time, notification.severity, channel=notification.channel
-                )
-                return True
-
-            except Exception as e:
-                last_error = e
-                self.logger.warning(
-                    f"Delivery attempt {attempt + 1}/{notification.max_retries} failed "
-                    f"for {notification.notification_id}: {e}",
-                )
-                if attempt + 1 < notification.max_retries:
-                    await asyncio.sleep(min(2 ** attempt, 30))
-
-        await self.repository.update_notification(
-            notification.notification_id,
-            notification.user_id,
-            DomainNotificationUpdate(
-                status=NotificationStatus.FAILED,
-                failed_at=datetime.now(UTC),
-                error_message=f"Delivery failed via {notification.channel}: {last_error}",
-                retry_count=notification.max_retries,
+        @backoff.on_exception(
+            backoff.expo,
+            Exception,
+            max_tries=notification.max_retries,
+            max_value=30,
+            jitter=None,
+            on_backoff=lambda details: self.logger.warning(
+                f"Delivery attempt {details['tries']}/{notification.max_retries} failed "
+                f"for {notification.notification_id}: {details['exception']}",
             ),
         )
-        self.logger.error(
-            f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
-            exc_info=last_error,
-        )
-        return False
+        async def _attempt() -> None:
+            await handler(notification, subscription)
+
+        try:
+            await _attempt()
+            delivery_time = asyncio.get_running_loop().time() - start_time
+            await self.repository.update_notification(
+                notification.notification_id,
+                notification.user_id,
+                DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
+            )
+            self.logger.info(
+                f"Delivered notification {notification.notification_id}",
+                extra={
+                    "notification_id": str(notification.notification_id),
+                    "channel": notification.channel,
+                    "delivery_time_ms": int(delivery_time * 1000),
+                },
+            )
+            notification_type = notification.tags[0] if notification.tags else "unknown"
+            self.metrics.record_notification_sent(
+                notification_type, channel=notification.channel, severity=notification.severity
+            )
+            self.metrics.record_notification_delivery_time(
+                delivery_time, notification_type, channel=notification.channel
+            )
+            return True
+        except Exception as last_error:
+            await self.repository.update_notification(
+                notification.notification_id,
+                notification.user_id,
+                DomainNotificationUpdate(
+                    status=NotificationStatus.FAILED,
+                    failed_at=datetime.now(UTC),
+                    error_message=f"Delivery failed via {notification.channel}: {last_error}",
+                    retry_count=notification.max_retries,
+                ),
+            )
+            self.logger.error(
+                f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
+                exc_info=last_error,
+            )
+            return False

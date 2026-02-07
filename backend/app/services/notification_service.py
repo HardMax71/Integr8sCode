@@ -17,9 +17,11 @@ from app.domain.enums.notification import (
 )
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import (
+    EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
+    NotificationCreatedEvent,
 )
 from app.domain.notification import (
     DomainNotification,
@@ -187,12 +189,35 @@ class NotificationService:
         # Save to database
         notification = await self.repository.create_notification(create_data)
 
+        await self._publish_notification_created_event(notification)
+
         # Deliver immediately if not scheduled; scheduled notifications are
         # picked up by the NotificationScheduler worker.
         if scheduled_for is None:
             await self._deliver_notification(notification)
 
         return notification
+
+    async def _publish_notification_created_event(self, notification: DomainNotification) -> None:
+        """Publish NotificationCreatedEvent after the notification is persisted."""
+        try:
+            event = NotificationCreatedEvent(
+                notification_id=notification.notification_id,
+                user_id=notification.user_id,
+                subject=notification.subject,
+                body=notification.body,
+                severity=notification.severity,
+                tags=list(notification.tags or []),
+                channels=[notification.channel],
+                metadata=EventMetadata(
+                    service_name=self.settings.SERVICE_NAME,
+                    service_version=self.settings.SERVICE_VERSION,
+                    user_id=notification.user_id,
+                ),
+            )
+            await self.event_service.publish_domain_event(event, key=notification.user_id)
+        except Exception as e:
+            self.logger.error(f"Failed to publish notification created event: {e}")
 
     async def create_system_notification(
         self,

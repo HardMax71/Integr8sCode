@@ -47,10 +47,8 @@ test.describe('Notifications Page', () => {
     await gotoAndWaitForNotifications(userPage);
     const emptyState = userPage.getByText('No notifications yet');
     // Notification cards have aria-label="Mark notification as read"
-    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]');
-    const hasEmptyState = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
-    const hasNotifications = await notificationCard.first().isVisible({ timeout: 3000 }).catch(() => false);
-    expect(hasEmptyState || hasNotifications).toBe(true);
+    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
+    await expect(emptyState.or(notificationCard)).toBeVisible({ timeout: 5000 });
   });
 });
 

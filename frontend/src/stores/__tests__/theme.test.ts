@@ -1,17 +1,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { get } from 'svelte/store';
 
 // Mock the dynamic imports before importing the theme module
 vi.mock('../../lib/user-settings', () => ({
   saveUserSettings: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('../auth', () => ({
-  isAuthenticated: {
-    subscribe: vi.fn((fn) => {
-      fn(false);
-      return () => {};
-    }),
+vi.mock('../auth.svelte', () => ({
+  authStore: {
+    isAuthenticated: false,
   },
 }));
 
@@ -39,52 +35,52 @@ describe('theme store', () => {
 
   describe('initial state', () => {
     it('defaults to auto when no stored value', async () => {
-      const { theme } = await import('$stores/theme');
-      expect(get(theme)).toBe('auto');
+      const { themeStore } = await import('$stores/theme.svelte');
+      expect(themeStore.value).toBe('auto');
     });
 
     it('loads stored theme from localStorage', async () => {
       localStorageData['app-theme'] = 'dark';
-      const { theme } = await import('$stores/theme');
-      expect(get(theme)).toBe('dark');
+      const { themeStore } = await import('$stores/theme.svelte');
+      expect(themeStore.value).toBe('dark');
     });
 
     it('ignores invalid stored values', async () => {
       localStorageData['app-theme'] = 'invalid';
-      const { theme } = await import('$stores/theme');
-      expect(get(theme)).toBe('auto');
+      const { themeStore } = await import('$stores/theme.svelte');
+      expect(themeStore.value).toBe('auto');
     });
 
     it('accepts light theme from storage', async () => {
       localStorageData['app-theme'] = 'light';
-      const { theme } = await import('$stores/theme');
-      expect(get(theme)).toBe('light');
+      const { themeStore } = await import('$stores/theme.svelte');
+      expect(themeStore.value).toBe('light');
     });
   });
 
-  describe('theme.set', () => {
+  describe('setTheme', () => {
     it('updates the store value', async () => {
-      const { theme } = await import('$stores/theme');
-      theme.set('dark');
-      expect(get(theme)).toBe('dark');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('dark');
+      expect(themeStore.value).toBe('dark');
     });
 
     it('persists to localStorage', async () => {
-      const { theme } = await import('$stores/theme');
-      theme.set('dark');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('dark');
       expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
     });
 
     it('applies dark class when set to dark', async () => {
-      const { theme } = await import('$stores/theme');
-      theme.set('dark');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('dark');
       expect(document.documentElement.classList.contains('dark')).toBe(true);
     });
 
     it('removes dark class when set to light', async () => {
       document.documentElement.classList.add('dark');
-      const { theme } = await import('$stores/theme');
-      theme.set('light');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('light');
       expect(document.documentElement.classList.contains('dark')).toBe(false);
     });
   });
@@ -92,56 +88,56 @@ describe('theme store', () => {
   describe('toggleTheme', () => {
     it('cycles from light to dark', async () => {
       localStorageData['app-theme'] = 'light';
-      const { theme, toggleTheme } = await import('$stores/theme');
+      const { themeStore } = await import('$stores/theme.svelte');
 
-      toggleTheme();
-      expect(get(theme)).toBe('dark');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('dark');
     });
 
     it('cycles from dark to auto', async () => {
       localStorageData['app-theme'] = 'dark';
-      const { theme, toggleTheme } = await import('$stores/theme');
+      const { themeStore } = await import('$stores/theme.svelte');
 
-      toggleTheme();
-      expect(get(theme)).toBe('auto');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('auto');
     });
 
     it('cycles from auto to light', async () => {
-      const { theme, toggleTheme } = await import('$stores/theme');
+      const { themeStore } = await import('$stores/theme.svelte');
       // Default is auto
-      toggleTheme();
-      expect(get(theme)).toBe('light');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('light');
     });
 
     it('completes full cycle', async () => {
-      const { theme, toggleTheme } = await import('$stores/theme');
+      const { themeStore } = await import('$stores/theme.svelte');
 
-      expect(get(theme)).toBe('auto');
-      toggleTheme();
-      expect(get(theme)).toBe('light');
-      toggleTheme();
-      expect(get(theme)).toBe('dark');
-      toggleTheme();
-      expect(get(theme)).toBe('auto');
+      expect(themeStore.value).toBe('auto');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('light');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('dark');
+      themeStore.toggleTheme();
+      expect(themeStore.value).toBe('auto');
     });
   });
 
-  describe('setTheme', () => {
+  describe('setTheme export', () => {
     it('sets theme to specified value', async () => {
-      const { theme, setTheme } = await import('$stores/theme');
+      const { themeStore, setTheme } = await import('$stores/theme.svelte');
 
       setTheme('dark');
-      expect(get(theme)).toBe('dark');
+      expect(themeStore.value).toBe('dark');
 
       setTheme('light');
-      expect(get(theme)).toBe('light');
+      expect(themeStore.value).toBe('light');
 
       setTheme('auto');
-      expect(get(theme)).toBe('auto');
+      expect(themeStore.value).toBe('auto');
     });
 
     it('persists to localStorage', async () => {
-      const { setTheme } = await import('$stores/theme');
+      const { setTheme } = await import('$stores/theme.svelte');
       setTheme('dark');
       expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
     });
@@ -160,8 +156,8 @@ describe('theme store', () => {
         dispatchEvent: vi.fn(),
       }));
 
-      const { theme } = await import('$stores/theme');
-      theme.set('auto');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('auto');
 
       expect(document.documentElement.classList.contains('dark')).toBe(false);
     });
@@ -179,29 +175,10 @@ describe('theme store', () => {
       }));
 
       vi.resetModules();
-      const { theme } = await import('$stores/theme');
-      theme.set('auto');
+      const { themeStore } = await import('$stores/theme.svelte');
+      themeStore.setTheme('auto');
 
       expect(document.documentElement.classList.contains('dark')).toBe(true);
-    });
-  });
-
-  describe('subscription', () => {
-    it('notifies subscribers on change', async () => {
-      const { theme } = await import('$stores/theme');
-      const values: string[] = [];
-
-      const unsubscribe = theme.subscribe((value) => {
-        values.push(value);
-      });
-
-      theme.set('dark');
-      theme.set('light');
-
-      expect(values).toContain('dark');
-      expect(values).toContain('light');
-
-      unsubscribe();
     });
   });
 });

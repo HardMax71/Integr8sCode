@@ -2,8 +2,7 @@
     import { route, goto } from '@mateothegreat/svelte5-router';
     import { onMount } from 'svelte';
     import { toast } from 'svelte-sonner';
-    import { isAuthenticated, username, userRole, verifyAuth } from '$stores/auth';
-    import { get } from 'svelte/store';
+    import { authStore } from '$stores/auth.svelte';
     import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
     import { ShieldCheck } from '@lucide/svelte';
@@ -20,14 +19,10 @@
             loading = true;
 
             // Verify auth with backend - this will update the stores
-            const authValid = await verifyAuth();
+            const authValid = await authStore.verifyAuth();
 
             // Now check the stores after verification
-            const isAuth = get(isAuthenticated);
-            const currentUsername = get(username);
-            const currentRole = get(userRole);
-
-            if (!authValid || !isAuth || !currentUsername) {
+            if (!authValid || !authStore.isAuthenticated || !authStore.username) {
                 // Save current path for redirect after login
                 const currentPath = window.location.pathname + window.location.search + window.location.hash;
                 sessionStorage.setItem('redirectAfterLogin', currentPath);
@@ -38,13 +33,13 @@
             }
 
             // Check for admin role
-            if (currentRole !== 'admin') {
+            if (authStore.userRole !== 'admin') {
                 toast.error('Admin access required');
                 goto('/');
                 return;
             }
 
-            user = { username: currentUsername, role: currentRole };
+            user = { username: authStore.username, role: authStore.userRole };
         } catch (err) {
             console.error('Admin auth check failed:', err);
             // Save current path for redirect after login

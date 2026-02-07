@@ -74,7 +74,8 @@ export function createExecutionState() {
             return fetchResult(executionId);
         }
 
-        const reader = response.body!.getReader();
+        if (!response.body) return fetchResult(executionId);
+        const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 

@@ -1,15 +1,16 @@
 <script lang="ts">
     import { onDestroy, type Component } from 'svelte';
     import { fly } from 'svelte/transition';
-    import { isAuthenticated } from '$stores/auth';
+    import { authStore } from '$stores/auth.svelte';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { notificationStore, notifications, unreadCount, loading } from '$stores/notificationStore';
+    import { notificationStore } from '$stores/notificationStore.svelte';
     import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
 
     let showDropdown = $state(false);
     let hasLoadedInitialData = false;
+    let autoMarkTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
@@ -28,12 +29,12 @@
 
     // Reactive connection based on auth state
     $effect(() => {
-        if ($isAuthenticated) {
+        if (authStore.isAuthenticated) {
             if (!hasLoadedInitialData) {
                 hasLoadedInitialData = true;
                 notificationStore.load(20).then(() => {
                     notificationStream.connect((data) => notificationStore.add(data));
-                });
+                }).catch((err) => console.error('Failed to load notifications:', err));
             }
         } else {
             notificationStream.disconnect();
@@ -44,6 +45,7 @@
 
     onDestroy(() => {
         notificationStream.disconnect();
+        if (autoMarkTimeout) clearTimeout(autoMarkTimeout);
     });
 
     async function markAsRead(notification: NotificationResponse): Promise<void> {
@@ -60,12 +62,15 @@
 
     function toggleDropdown(): void {
         showDropdown = !showDropdown;
+        if (autoMarkTimeout) { clearTimeout(autoMarkTimeout); autoMarkTimeout = null; }
 
-        if (showDropdown && $unreadCount > 0) {
-            setTimeout(() => {
-                $notifications.slice(0, 5).forEach(n => {
+        if (showDropdown && notificationStore.unreadCount > 0) {
+            autoMarkTimeout = setTimeout(() => {
+                if (!showDropdown) return;
+                autoMarkTimeout = null;
+                notificationStore.notifications.slice(0, 5).forEach(n => {
                     if (n.status !== 'read') {
-                        markAsRead(n);
+                        markAsRead(n).catch(() => {});
                     }
                 });
             }, 2000);
@@ -103,9 +108,9 @@
         aria-label="Notifications"
     >
         <Bell class="w-5 h-5" />
-        {#if $unreadCount > 0}
+        {#if notificationStore.unreadCount > 0}
             <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                {$unreadCount > 9 ? '9+' : $unreadCount}
+                {notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount}
             </span>
         {/if}
     </button>
@@ -118,7 +123,7 @@
             <div class="p-4 border-b border-border-default dark:border-dark-border-default">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
-                    {#if $unreadCount > 0}
+                    {#if notificationStore.unreadCount > 0}
                         <button
                             onclick={markAllAsRead}
                             class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -139,16 +144,16 @@
             </div>
 
             <div class="max-h-96 overflow-y-auto">
-                {#if $loading}
+                {#if notificationStore.loading}
                     <div class="p-8 text-center">
                         <span class="loading loading-spinner loading-sm"></span>
                     </div>
-                {:else if $notifications.length === 0}
+                {:else if notificationStore.notifications.length === 0}
                     <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">
                         No notifications yet
                     </div>
                 {:else}
-                    {#each $notifications as notification}
+                    {#each notificationStore.notifications as notification}
                         {@const NotifIcon = getNotificationIcon(notification.tags)}
                         <div
                             class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"

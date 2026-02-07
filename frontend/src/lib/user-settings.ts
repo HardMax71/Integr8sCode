@@ -1,7 +1,6 @@
-import { get } from 'svelte/store';
-import { isAuthenticated } from '$stores/auth';
-import { setTheme } from '$stores/theme';
-import { setUserSettings } from '$stores/userSettings';
+import { authStore } from '$stores/auth.svelte';
+import { setTheme } from '$stores/theme.svelte';
+import { setUserSettings } from '$stores/userSettings.svelte';
 import {
     getUserSettingsApiV1UserSettingsGet,
     updateUserSettingsApiV1UserSettingsPut,
@@ -32,7 +31,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
 }
 
 export async function saveUserSettings(partial: UserSettingsUpdate): Promise<boolean> {
-    if (!get(isAuthenticated)) return false;
+    if (!authStore.isAuthenticated) return false;
 
     try {
         const data = unwrap(await updateUserSettingsApiV1UserSettingsPut({ body: partial }));

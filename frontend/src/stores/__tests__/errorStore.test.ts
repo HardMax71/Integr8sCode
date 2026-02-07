@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { get } from 'svelte/store';
-import { appError } from '$stores/errorStore';
 
 describe('errorStore', () => {
-  beforeEach(() => {
-    // Clear the store before each test
-    appError.clear();
+  beforeEach(async () => {
+    vi.resetModules();
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -14,106 +11,90 @@ describe('errorStore', () => {
   });
 
   describe('initial state', () => {
-    it('has null error initially', () => {
-      expect(get(appError)).toBe(null);
+    it('has null error initially', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
+      expect(appError.current).toBe(null);
     });
   });
 
   describe('setError', () => {
-    it('sets an Error object', () => {
+    it('sets an Error object', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       const error = new Error('Test error message');
       appError.setError(error);
 
-      const current = get(appError);
-      expect(current).not.toBe(null);
-      expect(current?.error).toBe(error);
-      expect(current?.timestamp).toBeDefined();
-      expect(current?.title).toBeUndefined();
+      expect(appError.current).not.toBe(null);
+      expect(appError.current?.error).toBe(error);
+      expect(appError.current?.timestamp).toBeDefined();
+      expect(appError.current?.title).toBeUndefined();
     });
 
-    it('sets a string error', () => {
+    it('sets a string error', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       appError.setError('String error message');
 
-      const current = get(appError);
-      expect(current).not.toBe(null);
-      expect(current?.error).toBe('String error message');
+      expect(appError.current).not.toBe(null);
+      expect(appError.current?.error).toBe('String error message');
     });
 
-    it('sets error with title', () => {
+    it('sets error with title', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       appError.setError('Error with title', 'Custom Title');
 
-      const current = get(appError);
-      expect(current).not.toBe(null);
-      expect(current?.error).toBe('Error with title');
-      expect(current?.title).toBe('Custom Title');
+      expect(appError.current).not.toBe(null);
+      expect(appError.current?.error).toBe('Error with title');
+      expect(appError.current?.title).toBe('Custom Title');
     });
 
-    it('logs error to console', () => {
+    it('logs error to console', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error', 'Error Title');
 
       expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error Title', 'Logged error');
     });
 
-    it('uses default title in log when not provided', () => {
+    it('uses default title in log when not provided', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error without title');
 
       expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error:', 'Logged error without title');
     });
 
-    it('includes timestamp', () => {
+    it('includes timestamp', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       const before = Date.now();
       appError.setError('Timestamped error');
       const after = Date.now();
 
-      const current = get(appError);
-      expect(current?.timestamp).toBeGreaterThanOrEqual(before);
-      expect(current?.timestamp).toBeLessThanOrEqual(after);
+      expect(appError.current?.timestamp).toBeGreaterThanOrEqual(before);
+      expect(appError.current?.timestamp).toBeLessThanOrEqual(after);
     });
 
-    it('overwrites previous error', () => {
+    it('overwrites previous error', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       appError.setError('First error');
       appError.setError('Second error');
 
-      const current = get(appError);
-      expect(current?.error).toBe('Second error');
+      expect(appError.current?.error).toBe('Second error');
     });
   });
 
   describe('clear', () => {
-    it('clears the error', () => {
+    it('clears the error', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       appError.setError('Error to clear');
-      expect(get(appError)).not.toBe(null);
+      expect(appError.current).not.toBe(null);
 
       appError.clear();
-      expect(get(appError)).toBe(null);
+      expect(appError.current).toBe(null);
     });
 
-    it('does nothing when already null', () => {
+    it('does nothing when already null', async () => {
+      const { appError } = await import('$stores/errorStore.svelte');
       appError.clear();
-      expect(get(appError)).toBe(null);
-    });
-  });
-
-  describe('subscribe', () => {
-    it('allows subscription to store changes', () => {
-      const values: (typeof appError extends { subscribe: (fn: (v: infer T) => void) => void } ? T : never)[] = [];
-      const unsubscribe = appError.subscribe((value) => {
-        values.push(value);
-      });
-
-      appError.setError('First');
-      appError.setError('Second');
-      appError.clear();
-
-      unsubscribe();
-
-      expect(values).toHaveLength(4); // initial null + 2 errors + clear
-      expect(values[0]).toBe(null);
-      expect(values[1]?.error).toBe('First');
-      expect(values[2]?.error).toBe('Second');
-      expect(values[3]).toBe(null);
+      expect(appError.current).toBe(null);
     });
   });
 });

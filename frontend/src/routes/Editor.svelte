@@ -1,8 +1,7 @@
 <script lang="ts">
-    import { onDestroy, onMount } from 'svelte';
+    import { onMount } from 'svelte';
     import { fade, slide } from 'svelte/transition';
-    import { get, writable } from 'svelte/store';
-    import { isAuthenticated, verifyAuth } from '$stores/auth';
+    import { authStore } from '$stores/auth.svelte';
     import {
         getK8sResourceLimitsApiV1K8sLimitsGet,
         getExampleScriptsApiV1ExampleScriptsGet,
@@ -17,7 +16,7 @@
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import Spinner from '$components/Spinner.svelte';
     import { updateMetaTags, pageMeta } from '$utils/meta';
-    import { editorSettings as editorSettingsStore } from '$stores/userSettings';
+    import { userSettingsStore } from '$stores/userSettings.svelte';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
     import { createExecutionState } from '$lib/editor';
     import {
@@ -38,42 +37,29 @@
         lang_version?: string;
     }
 
-    function createPersistentStore<T>(key: string, startValue: T) {
-        if (typeof localStorage === 'undefined') {
-            return writable<T>(startValue);
+    function loadFromStorage<T>(key: string, defaultValue: T): T {
+        if (typeof localStorage === 'undefined') return defaultValue;
+        const stored = localStorage.getItem(key);
+        if (!stored) return defaultValue;
+        try {
+            return JSON.parse(stored) as T;
+        } catch {
+            localStorage.removeItem(key);
+            return defaultValue;
         }
-        const storedValue = localStorage.getItem(key);
-        let parsedValue: T = startValue;
-        if (storedValue) {
-            try {
-                parsedValue = JSON.parse(storedValue) as T;
-            } catch {
-                localStorage.removeItem(key);
-            }
-        }
-        const { subscribe, set, update } = writable<T>(parsedValue);
-        return {
-            subscribe,
-            set(value: T) {
-                set(value);
-                localStorage.setItem(key, JSON.stringify(value));
-            },
-            update(fn: (value: T) => T) {
-                update(v => {
-                    const newValue = fn(v);
-                    localStorage.setItem(key, JSON.stringify(newValue));
-                    return newValue;
-                });
-            }
-        };
     }
 
-    // Stores
-    const script = createPersistentStore('script', "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')");
-    const scriptName = createPersistentStore('scriptName', '');
-    const currentScriptId = createPersistentStore<string | null>('currentScriptId', null);
-    const selectedLang = writable('python');
-    const selectedVersion = writable('3.11');
+    // Local persistent state
+    let script = $state(loadFromStorage('script', "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')"));
+    let scriptName = $state(loadFromStorage('scriptName', ''));
+    let currentScriptId = $state<string | null>(loadFromStorage('currentScriptId', null));
+    let selectedLang = $state('python');
+    let selectedVersion = $state('3.11');
+
+    // Persist to localStorage
+    $effect(() => { localStorage.setItem('script', JSON.stringify(script)); });
+    $effect(() => { localStorage.setItem('scriptName', JSON.stringify(scriptName)); });
+    $effect(() => { localStorage.setItem('currentScriptId', JSON.stringify(currentScriptId)); });
 
     // State
     let authenticated = $state(false);
@@ -82,7 +68,7 @@
     let exampleScripts: Record<string, string> = {};
     let savedScripts = $state<SavedScript[]>([]);
     let showOptions = $state(false);
-    let editorSettings = $state({ theme: 'auto', font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true });
+    let editorSettings = $derived({ ...{ theme: 'auto', font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true }, ...userSettingsStore.editorSettings });
     let fileInput: HTMLInputElement;
     let editorRef: CodeMirrorEditor;
 
@@ -90,44 +76,34 @@
     const runtimesAvailable = $derived(Object.keys(supportedRuntimes).length > 0);
     const acceptedFileExts = $derived(Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(',') || '.txt');
 
-    // Reactive store values for $effect
-    let currentScriptIdValue = $state<string | null>(null);
-    let scriptNameValue = $state('');
-
-    let unsubscribeAuth: (() => void) | undefined;
-    let unsubscribeSettings: (() => void) | undefined;
-    let unsubscribeScriptId: (() => void) | undefined;
-    let unsubscribeScriptName: (() => void) | undefined;
-
     $effect(() => {
-        if (typeof window !== 'undefined' && currentScriptIdValue && savedScripts.length > 0) {
-            const saved = savedScripts.find(s => s.id === currentScriptIdValue);
-            if (saved && saved.name !== scriptNameValue) {
-                currentScriptId.set(null);
+        if (typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
+            const saved = savedScripts.find(s => s.id === currentScriptId);
+            if (saved && saved.name !== scriptName) {
+                currentScriptId = null;
                 toast.info('Script name changed. Next save will create a new script.');
             }
+        }
+    });
+
+    // React to auth changes
+    $effect(() => {
+        const isAuth = authStore.isAuthenticated ?? false;
+        const wasAuthenticated = authenticated;
+        authenticated = isAuth;
+        if (!wasAuthenticated && authenticated) {
+            loadSavedScripts();
+        } else if (wasAuthenticated && !authenticated) {
+            savedScripts = [];
+            currentScriptId = null;
+            scriptName = '';
         }
     });
 
     onMount(async () => {
         updateMetaTags(pageMeta.editor.title, pageMeta.editor.description);
 
-        unsubscribeScriptId = currentScriptId.subscribe(v => currentScriptIdValue = v);
-        unsubscribeScriptName = scriptName.subscribe(v => scriptNameValue = v);
-
-        await verifyAuth();
-
-        unsubscribeSettings = editorSettingsStore.subscribe(s => editorSettings = { ...editorSettings, ...s });
-        unsubscribeAuth = isAuthenticated.subscribe(async authStatus => {
-            const wasAuthenticated = authenticated;
-            authenticated = authStatus ?? false;
-            if (!wasAuthenticated && authenticated) await loadSavedScripts();
-            else if (wasAuthenticated && !authenticated) {
-                savedScripts = [];
-                currentScriptId.set(null);
-                scriptName.set('');
-            }
-        });
+        await authStore.verifyAuth();
 
         const { data: limitsData, error: limitsError } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
         if (limitsError) {
@@ -135,14 +111,12 @@
         } else {
             k8sLimits = limitsData ?? null;
             supportedRuntimes = k8sLimits?.supported_runtimes || {};
-            const lang = get(selectedLang);
-            const ver = get(selectedVersion);
-            const info = supportedRuntimes[lang];
-            if (!info || !info.versions.includes(ver)) {
+            const info = supportedRuntimes[selectedLang];
+            if (!info || !info.versions.includes(selectedVersion)) {
                 const first = Object.keys(supportedRuntimes)[0];
                 if (first) {
-                    selectedLang.set(first);
-                    selectedVersion.set(supportedRuntimes[first].versions[0] || '');
+                    selectedLang = first;
+                    selectedVersion = supportedRuntimes[first].versions[0] || '';
                 }
             }
         }
@@ -153,13 +127,6 @@
         if (authenticated) await loadSavedScripts();
     });
 
-    onDestroy(() => {
-        unsubscribeAuth?.();
-        unsubscribeSettings?.();
-        unsubscribeScriptId?.();
-        unsubscribeScriptName?.();
-    });
-
     async function loadSavedScripts() {
         if (!authenticated) return;
         const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
@@ -167,11 +134,11 @@
     }
 
     function loadScript(s: SavedScript) {
-        script.set(s.script);
-        scriptName.set(s.name);
-        currentScriptId.set(s.id);
-        if (s.lang) selectedLang.set(s.lang);
-        if (s.lang_version) selectedVersion.set(s.lang_version);
+        script = s.script;
+        scriptName = s.name;
+        currentScriptId = s.id;
+        if (s.lang) selectedLang = s.lang;
+        if (s.lang_version) selectedVersion = s.lang_version;
         editorRef?.setContent(s.script);
         execution.reset();
         toast.info(`Loaded script: ${s.name}`);
@@ -180,19 +147,17 @@
 
     async function saveScript() {
         if (!authenticated) { toast.warning('Please log in to save scripts.'); return; }
-        const name = get(scriptName);
-        if (!name.trim()) { toast.warning('Please provide a name for your script.'); return; }
+        if (!scriptName.trim()) { toast.warning('Please provide a name for your script.'); return; }
 
-        const body = { name, script: get(script), lang: get(selectedLang), lang_version: get(selectedVersion) };
-        const id = get(currentScriptId);
+        const body = { name: scriptName, script, lang: selectedLang, lang_version: selectedVersion };
 
-        if (id) {
-            const { error, response } = await updateSavedScriptApiV1ScriptsScriptIdPut({ path: { script_id: id }, body });
+        if (currentScriptId) {
+            const { error, response } = await updateSavedScriptApiV1ScriptsScriptIdPut({ path: { script_id: currentScriptId }, body });
             if (error) {
                 if (response?.status === 404) {
-                    currentScriptId.set(null);
+                    currentScriptId = null;
                     const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-                    currentScriptId.set(data.script_id);
+                    currentScriptId = data.script_id;
                     toast.success('Script saved successfully.');
                 }
                 return;
@@ -200,7 +165,7 @@
             toast.success('Script updated successfully.');
         } else {
             const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-            currentScriptId.set(data.script_id);
+            currentScriptId = data.script_id;
             toast.success('Script saved successfully.');
         }
         await loadSavedScripts();
@@ -211,26 +176,24 @@
         if (!confirm(s ? `Are you sure you want to delete "${s.name}"?` : 'Are you sure you want to delete this script?')) return;
         unwrap(await deleteSavedScriptApiV1ScriptsScriptIdDelete({ path: { script_id: id } }));
         toast.success('Script deleted successfully.');
-        if (get(currentScriptId) === id) newScript();
+        if (currentScriptId === id) newScript();
         await loadSavedScripts();
     }
 
     function newScript() {
-        script.set('');
-        scriptName.set('');
-        currentScriptId.set(null);
+        script = '';
+        scriptName = '';
+        currentScriptId = null;
         editorRef?.setContent('');
         execution.reset();
         toast.info('New script started.');
     }
 
     function exportScript() {
-        const content = get(script);
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const blob = new Blob([script], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
-        const lang = get(selectedLang);
-        const ext = supportedRuntimes[lang]?.file_ext || 'txt';
-        let filename = get(scriptName).trim() || `script.${ext}`;
+        const ext = supportedRuntimes[selectedLang]?.file_ext || 'txt';
+        let filename = scriptName.trim() || `script.${ext}`;
         if (!filename.toLowerCase().endsWith(`.${ext}`)) filename = filename.replace(/\.[^.]+$/, '') + `.${ext}`;
         const a = document.createElement('a');
         a.href = url;
@@ -269,11 +232,11 @@
         reader.onload = (e) => {
             const text = e.target?.result as string;
             newScript();
-            script.set(text);
-            scriptName.set(file.name);
-            selectedLang.set(detectedLang);
+            script = text;
+            scriptName = file.name;
+            selectedLang = detectedLang;
             const info = supportedRuntimes[detectedLang];
-            if (info?.versions.length) selectedVersion.set(info.versions[0]);
+            if (info?.versions.length) selectedVersion = info.versions[0];
             editorRef?.setContent(text);
             toast.info(`Loaded ${detectedLang} script from ${file.name}`);
         };
@@ -283,23 +246,22 @@
     }
 
     function loadExampleScript() {
-        const lang = get(selectedLang);
-        const example = exampleScripts[lang];
-        if (!example) { toast.warning(`No example script available for ${lang}.`); return; }
+        const example = exampleScripts[selectedLang];
+        if (!example) { toast.warning(`No example script available for ${selectedLang}.`); return; }
 
         const lines = example.split('\n');
         const firstLine = lines.find((l: string) => l.trim().length > 0);
         const indent = firstLine ? (firstLine.match(/^\s*/) ?? [''])[0] : '';
         const cleaned = lines.map((l: string) => l.startsWith(indent) ? l.substring(indent.length) : l).join('\n').trim();
 
-        script.set(cleaned);
+        script = cleaned;
         editorRef?.setContent(cleaned);
         execution.reset();
-        toast.info(`Loaded example script for ${lang}.`);
+        toast.info(`Loaded example script for ${selectedLang}.`);
     }
 
     function handleExecute() {
-        execution.execute(get(script), get(selectedLang), get(selectedVersion));
+        execution.execute(script, selectedLang, selectedVersion);
     }
 </script>
 
@@ -312,15 +274,15 @@
     </div>
 
     <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
-        <EditorToolbar name={$scriptName} onchange={(n) => scriptName.set(n)} onexample={loadExampleScript} />
+        <EditorToolbar name={scriptName} onchange={(n) => scriptName = n} onexample={loadExampleScript} />
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
                 bind:this={editorRef}
-                bind:content={$script}
-                lang={$selectedLang}
+                bind:content={script}
+                lang={selectedLang}
                 settings={editorSettings}
             />
-            {#if $script.trim() === ''}
+            {#if script.trim() === ''}
                 <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none">
                     <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">Start typing, upload a file, or use an example to begin.</p>
@@ -342,9 +304,9 @@
             <div class="flex items-center space-x-2 flex-wrap gap-y-2">
                 <LanguageSelect
                     runtimes={supportedRuntimes}
-                    lang={$selectedLang}
-                    version={$selectedVersion}
-                    onselect={(l, v) => { selectedLang.set(l); selectedVersion.set(v); }}
+                    lang={selectedLang}
+                    version={selectedVersion}
+                    onselect={(l, v) => { selectedLang = l; selectedVersion = v; }}
                 />
                 <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={handleExecute}
                         disabled={execution.isExecuting || !runtimesAvailable}>

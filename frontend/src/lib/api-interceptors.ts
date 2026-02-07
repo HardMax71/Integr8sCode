@@ -1,15 +1,7 @@
 import { client } from '$lib/api/client.gen';
 import { toast } from 'svelte-sonner';
 import { goto } from '@mateothegreat/svelte5-router';
-import {
-    isAuthenticated,
-    username,
-    userId,
-    userRole,
-    userEmail,
-    csrfToken,
-} from '$stores/auth';
-import { get } from 'svelte/store';
+import { authStore } from '$stores/auth.svelte';
 import type { ValidationError } from '$lib/api';
 
 let isHandling401 = false;
@@ -46,19 +38,19 @@ function formatValidationErrors(detail: ValidationError[]): string {
 }
 
 function clearAuthState(): void {
-    isAuthenticated.set(false);
-    username.set(null);
-    userId.set(null);
-    userRole.set(null);
-    userEmail.set(null);
-    csrfToken.set(null);
+    authStore.isAuthenticated = false;
+    authStore.username = null;
+    authStore.userId = null;
+    authStore.userRole = null;
+    authStore.userEmail = null;
+    authStore.csrfToken = null;
     sessionStorage.removeItem('authState');
 }
 
 function handle401(isAuthEndpoint: boolean): void {
     if (isAuthEndpoint) return;
 
-    const wasAuthenticated = get(isAuthenticated);
+    const wasAuthenticated = authStore.isAuthenticated;
     if (wasAuthenticated && !isHandling401) {
         isHandling401 = true;
         const currentPath = window.location.pathname + window.location.search;
@@ -130,7 +122,7 @@ export function initializeApiInterceptors(): void {
 
     client.interceptors.request.use(async (request, _opts) => {
         if (request.method !== 'GET') {
-            const token = get(csrfToken);
+            const token = authStore.csrfToken;
             if (token) {
                 request.headers.set('X-CSRF-Token', token);
             }

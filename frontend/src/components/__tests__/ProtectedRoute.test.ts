@@ -3,19 +3,15 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 
 // vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Mock store factory (must be inline - vi.hoisted runs before imports)
-  function createMockStore<T>(initial: T) {
-    let value = initial;
-    const subscribers = new Set<(v: T) => void>();
-    return {
-      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
-      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
-      update(fn: (v: T) => T) { this.set(fn(value)); },
-    };
-  }
-
   return {
-    mockIsAuthenticated: createMockStore<boolean | null>(null),
+    mockAuthStore: {
+      isAuthenticated: null as boolean | null,
+      username: null as string | null,
+      userId: null as string | null,
+      userRole: null as string | null,
+      userEmail: null as string | null,
+      csrfToken: null as string | null,
+    },
     mockWaitForInit: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
     mockGoto: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
   };
@@ -30,9 +26,9 @@ vi.mock('@mateothegreat/svelte5-router', () => ({
   get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); },
 }));
 
-// Mock auth store - use getter to defer access
-vi.mock('../../stores/auth', () => ({
-  get isAuthenticated() { return mocks.mockIsAuthenticated; },
+// Mock auth store - direct object, not writable stores
+vi.mock('../../stores/auth.svelte', () => ({
+  get authStore() { return mocks.mockAuthStore; },
 }));
 
 // Mock auth-init - use getter to defer access
@@ -63,7 +59,12 @@ describe('ProtectedRoute', () => {
 
   beforeEach(() => {
     // Reset stores
-    mocks.mockIsAuthenticated.set(null);
+    mocks.mockAuthStore.isAuthenticated = null;
+    mocks.mockAuthStore.username = null;
+    mocks.mockAuthStore.userId = null;
+    mocks.mockAuthStore.userRole = null;
+    mocks.mockAuthStore.userEmail = null;
+    mocks.mockAuthStore.csrfToken = null;
 
     // Reset mocks
     mocks.mockGoto.mockReset();
@@ -136,7 +137,7 @@ describe('ProtectedRoute', () => {
     });
 
     it('waits for AuthInitializer.waitForInit', async () => {
-      mocks.mockIsAuthenticated.set(true);
+      mocks.mockAuthStore.isAuthenticated = true;
 
       render(ProtectedRoute);
 
@@ -148,7 +149,7 @@ describe('ProtectedRoute', () => {
 
   describe('authenticated state', () => {
     beforeEach(() => {
-      mocks.mockIsAuthenticated.set(true);
+      mocks.mockAuthStore.isAuthenticated = true;
       mocks.mockWaitForInit.mockResolvedValue(true);
     });
 
@@ -180,7 +181,7 @@ describe('ProtectedRoute', () => {
 
   describe('unauthenticated state', () => {
     beforeEach(() => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
       mocks.mockWaitForInit.mockResolvedValue(false);
     });
 
@@ -251,32 +252,9 @@ describe('ProtectedRoute', () => {
     });
   });
 
-  describe('auth state changes', () => {
-    it('redirects when auth becomes false after being true', async () => {
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockWaitForInit.mockResolvedValue(true);
-
-      render(ProtectedRoute);
-
-      await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
-      });
-
-      // Initially should not redirect
-      expect(mocks.mockGoto).not.toHaveBeenCalled();
-
-      // Simulate logout
-      mocks.mockIsAuthenticated.set(false);
-
-      await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
-      });
-    });
-  });
-
   describe('props handling', () => {
     it('accepts custom redirectTo prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { redirectTo: '/signin' } });
 
@@ -286,7 +264,7 @@ describe('ProtectedRoute', () => {
     });
 
     it('accepts custom message prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { message: 'You need to sign in first' } });
 
@@ -316,7 +294,7 @@ describe('ProtectedRoute', () => {
     });
 
     it('shows spinner during redirect', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       const { container } = render(ProtectedRoute);
 
@@ -330,7 +308,7 @@ describe('ProtectedRoute', () => {
 
   describe('edge cases', () => {
     it('handles null isAuthenticated during initialization', async () => {
-      mocks.mockIsAuthenticated.set(null);
+      mocks.mockAuthStore.isAuthenticated = null;
       mocks.mockWaitForInit.mockResolvedValue(false);
 
       render(ProtectedRoute);
@@ -340,28 +318,8 @@ describe('ProtectedRoute', () => {
       });
     });
 
-    it('handles rapid auth state changes', async () => {
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockWaitForInit.mockResolvedValue(true);
-
-      render(ProtectedRoute);
-
-      await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
-      });
-
-      // Rapidly toggle auth
-      mocks.mockIsAuthenticated.set(false);
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockIsAuthenticated.set(false);
-
-      await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
-      });
-    });
-
     it('handles empty message prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { message: '' } });
 

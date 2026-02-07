@@ -1,6 +1,5 @@
-import { get } from 'svelte/store';
-import { isAuthenticated, username, userId, userRole, userEmail, csrfToken, verifyAuth } from '$stores/auth';
-import { clearUserSettings } from '$stores/userSettings';
+import { authStore } from '$stores/auth.svelte';
+import { clearUserSettings } from '$stores/userSettings.svelte';
 import { loadUserSettings } from '$lib/user-settings';
 
 interface PersistedAuth {
@@ -59,7 +58,7 @@ export class AuthInitializer {
         this._setAuthStores(persistedAuth);
 
         try {
-            const isValid = await verifyAuth(true);
+            const isValid = await authStore.verifyAuth(true);
 
             if (!isValid) {
                 console.log('[AuthInit] Authentication invalid, clearing state');
@@ -81,7 +80,7 @@ export class AuthInitializer {
         console.log('[AuthInit] No persisted auth state found');
 
         try {
-            const isValid = await verifyAuth();
+            const isValid = await authStore.verifyAuth();
             console.log('[AuthInit] Backend verification result:', isValid);
 
             if (isValid) {
@@ -97,12 +96,12 @@ export class AuthInitializer {
     }
 
     private static _setAuthStores(authData: PersistedAuth): void {
-        isAuthenticated.set(true);
-        username.set(authData.username);
-        userId.set(authData.userId);
-        userRole.set(authData.userRole);
-        userEmail.set(authData.userEmail);
-        csrfToken.set(authData.csrfToken);
+        authStore.isAuthenticated = true;
+        authStore.username = authData.username;
+        authStore.userId = authData.userId;
+        authStore.userRole = authData.userRole;
+        authStore.userEmail = authData.userEmail;
+        authStore.csrfToken = authData.csrfToken;
     }
 
     private static async _loadUserSettingsSafely(): Promise<void> {
@@ -141,12 +140,12 @@ export class AuthInitializer {
     }
 
     private static _clearAuth(): void {
-        isAuthenticated.set(false);
-        username.set(null);
-        userId.set(null);
-        userRole.set(null);
-        userEmail.set(null);
-        csrfToken.set(null);
+        authStore.isAuthenticated = false;
+        authStore.username = null;
+        authStore.userId = null;
+        authStore.userRole = null;
+        authStore.userEmail = null;
+        authStore.csrfToken = null;
         clearUserSettings();
         sessionStorage.removeItem('authState');
     }
@@ -156,7 +155,7 @@ export class AuthInitializer {
             console.warn('[AuthInit] Checking auth before initialization');
             return false;
         }
-        return get(isAuthenticated) ?? false;
+        return authStore.isAuthenticated ?? false;
     }
 
     static async waitForInit(): Promise<boolean> {

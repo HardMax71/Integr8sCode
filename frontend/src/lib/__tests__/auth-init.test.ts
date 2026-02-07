@@ -1,33 +1,28 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock verifyAuth from auth store
-const mockVerifyAuth = vi.fn();
-const mockIsAuthenticatedSet = vi.fn();
-const mockUsernameSet = vi.fn();
-const mockUserIdSet = vi.fn();
-const mockUserRoleSet = vi.fn();
-const mockUserEmailSet = vi.fn();
-const mockCsrfTokenSet = vi.fn();
+// Mock authStore as a plain object (Svelte 5 runes class pattern)
+const mockAuthStore = {
+  isAuthenticated: null as boolean | null,
+  username: null as string | null,
+  userId: null as string | null,
+  userRole: null as string | null,
+  userEmail: null as string | null,
+  csrfToken: null as string | null,
+  verifyAuth: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  fetchUserProfile: vi.fn(),
+};
 
-let mockIsAuthenticatedValue: boolean | null = null;
+vi.mock('../../stores/auth.svelte', () => ({
+  authStore: mockAuthStore,
+}));
 
-vi.mock('../../stores/auth', () => ({
-  verifyAuth: (...args: unknown[]) => mockVerifyAuth(...args),
-  isAuthenticated: {
-    set: (v: boolean | null) => {
-      mockIsAuthenticatedValue = v;
-      mockIsAuthenticatedSet(v);
-    },
-    subscribe: (fn: (v: boolean | null) => void) => {
-      fn(mockIsAuthenticatedValue);
-      return () => {};
-    },
-  },
-  username: { set: mockUsernameSet },
-  userId: { set: mockUserIdSet },
-  userRole: { set: mockUserRoleSet },
-  userEmail: { set: mockUserEmailSet },
-  csrfToken: { set: mockCsrfTokenSet },
+// Mock clearUserSettings
+const mockClearUserSettings = vi.fn();
+
+vi.mock('../../stores/userSettings.svelte', () => ({
+  clearUserSettings: () => mockClearUserSettings(),
 }));
 
 // Mock loadUserSettings
@@ -58,7 +53,6 @@ describe('auth-init', () => {
   let sessionStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
-    // Setup matchMedia before module imports (must happen after resetModules)
     setupMatchMedia();
 
     // Reset sessionStorage mock
@@ -71,16 +65,20 @@ describe('auth-init', () => {
       delete sessionStorageData[key];
     });
 
-    // Reset all mocks
-    mockVerifyAuth.mockReset();
-    mockIsAuthenticatedSet.mockReset();
-    mockUsernameSet.mockReset();
-    mockUserIdSet.mockReset();
-    mockUserRoleSet.mockReset();
-    mockUserEmailSet.mockReset();
-    mockCsrfTokenSet.mockReset();
+    // Reset authStore mock state
+    mockAuthStore.isAuthenticated = null;
+    mockAuthStore.username = null;
+    mockAuthStore.userId = null;
+    mockAuthStore.userRole = null;
+    mockAuthStore.userEmail = null;
+    mockAuthStore.csrfToken = null;
+    mockAuthStore.verifyAuth.mockReset();
+    mockAuthStore.login.mockReset();
+    mockAuthStore.logout.mockReset();
+    mockAuthStore.fetchUserProfile.mockReset();
+
+    mockClearUserSettings.mockReset();
     mockLoadUserSettings.mockReset();
-    mockIsAuthenticatedValue = null;
 
     // Default mock implementations
     mockLoadUserSettings.mockResolvedValue({});
@@ -103,7 +101,7 @@ describe('auth-init', () => {
 
   describe('AuthInitializer.initialize', () => {
     it('returns false when no persisted auth and verification fails', async () => {
-      mockVerifyAuth.mockResolvedValue(false);
+      mockAuthStore.verifyAuth.mockResolvedValue(false);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
@@ -112,7 +110,7 @@ describe('auth-init', () => {
     });
 
     it('returns true when no persisted auth but verification succeeds', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
@@ -120,22 +118,19 @@ describe('auth-init', () => {
       expect(result).toBe(true);
     });
 
-    // Note: "loads user settings on successful auth" is implicitly tested by
-    // "handles loadUserSettings errors gracefully" which proves loadUserSettings is called
-
     it('only initializes once', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
       await AuthInitializer.initialize();
       await AuthInitializer.initialize();
 
-      expect(mockVerifyAuth).toHaveBeenCalledTimes(1);
+      expect(mockAuthStore.verifyAuth).toHaveBeenCalledTimes(1);
     });
 
     it('handles concurrent initialization calls', async () => {
-      mockVerifyAuth.mockImplementation(() =>
+      mockAuthStore.verifyAuth.mockImplementation(() =>
         new Promise(resolve => setTimeout(() => resolve(true), 100))
       );
 
@@ -148,7 +143,7 @@ describe('auth-init', () => {
       ]);
 
       expect(results).toEqual([true, true, true]);
-      expect(mockVerifyAuth).toHaveBeenCalledTimes(1);
+      expect(mockAuthStore.verifyAuth).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -164,17 +159,17 @@ describe('auth-init', () => {
         timestamp: Date.now(),
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
-      expect(mockIsAuthenticatedSet).toHaveBeenCalledWith(true);
-      expect(mockUsernameSet).toHaveBeenCalledWith('testuser');
-      expect(mockUserIdSet).toHaveBeenCalledWith('user-123');
-      expect(mockUserRoleSet).toHaveBeenCalledWith('admin');
-      expect(mockUserEmailSet).toHaveBeenCalledWith('test@example.com');
-      expect(mockCsrfTokenSet).toHaveBeenCalledWith('csrf-token');
+      expect(mockAuthStore.isAuthenticated).toBe(true);
+      expect(mockAuthStore.username).toBe('testuser');
+      expect(mockAuthStore.userId).toBe('user-123');
+      expect(mockAuthStore.userRole).toBe('admin');
+      expect(mockAuthStore.userEmail).toBe('test@example.com');
+      expect(mockAuthStore.csrfToken).toBe('csrf-token');
     });
 
     it('clears auth when verification fails', async () => {
@@ -188,12 +183,12 @@ describe('auth-init', () => {
         timestamp: Date.now(),
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockResolvedValue(false);
+      mockAuthStore.verifyAuth.mockResolvedValue(false);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
-      expect(mockIsAuthenticatedSet).toHaveBeenLastCalledWith(false);
+      expect(mockAuthStore.isAuthenticated).toBe(false);
       expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
@@ -208,7 +203,7 @@ describe('auth-init', () => {
         timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockRejectedValue(new Error('Network error'));
+      mockAuthStore.verifyAuth.mockRejectedValue(new Error('Network error'));
 
       const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
@@ -227,13 +222,13 @@ describe('auth-init', () => {
         timestamp: Date.now() - 10 * 60 * 1000, // 10 minutes ago
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
-      mockVerifyAuth.mockRejectedValue(new Error('Network error'));
+      mockAuthStore.verifyAuth.mockRejectedValue(new Error('Network error'));
 
       const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
 
       expect(result).toBe(false);
-      expect(mockIsAuthenticatedSet).toHaveBeenLastCalledWith(false);
+      expect(mockAuthStore.isAuthenticated).toBe(false);
     });
   });
 
@@ -245,8 +240,8 @@ describe('auth-init', () => {
     });
 
     it('returns correct value after initialization', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
-      mockIsAuthenticatedValue = true;
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
+      mockAuthStore.isAuthenticated = true;
 
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
@@ -257,19 +252,19 @@ describe('auth-init', () => {
 
   describe('waitForInit', () => {
     it('returns immediately if already initialized', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
       const result = await AuthInitializer.waitForInit();
       expect(result).toBe(true);
-      expect(mockVerifyAuth).toHaveBeenCalledTimes(1);
+      expect(mockAuthStore.verifyAuth).toHaveBeenCalledTimes(1);
     });
 
     it('waits for pending initialization', async () => {
       let resolveVerify: (value: boolean) => void;
-      mockVerifyAuth.mockImplementation(() =>
+      mockAuthStore.verifyAuth.mockImplementation(() =>
         new Promise(resolve => { resolveVerify = resolve; })
       );
 
@@ -291,20 +286,20 @@ describe('auth-init', () => {
     });
 
     it('initializes if not started', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { AuthInitializer } = await import('$lib/auth-init');
 
       const result = await AuthInitializer.waitForInit();
 
       expect(result).toBe(true);
-      expect(mockVerifyAuth).toHaveBeenCalled();
+      expect(mockAuthStore.verifyAuth).toHaveBeenCalled();
     });
   });
 
   describe('exported functions', () => {
     it('initializeAuth calls AuthInitializer.initialize', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { initializeAuth } = await import('$lib/auth-init');
       const result = await initializeAuth();
@@ -313,7 +308,7 @@ describe('auth-init', () => {
     });
 
     it('waitForAuth calls AuthInitializer.waitForInit', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
 
       const { waitForAuth } = await import('$lib/auth-init');
       const result = await waitForAuth();
@@ -322,8 +317,8 @@ describe('auth-init', () => {
     });
 
     it('checkAuth calls AuthInitializer.isAuthenticated', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
-      mockIsAuthenticatedValue = true;
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
+      mockAuthStore.isAuthenticated = true;
 
       const { initializeAuth, checkAuth } = await import('$lib/auth-init');
       await initializeAuth();
@@ -335,7 +330,7 @@ describe('auth-init', () => {
   describe('error handling', () => {
     it('handles malformed JSON in sessionStorage', async () => {
       sessionStorageData['authState'] = 'not valid json{';
-      mockVerifyAuth.mockResolvedValue(false);
+      mockAuthStore.verifyAuth.mockResolvedValue(false);
 
       const { AuthInitializer } = await import('$lib/auth-init');
       const result = await AuthInitializer.initialize();
@@ -344,7 +339,7 @@ describe('auth-init', () => {
     });
 
     it('handles loadUserSettings errors gracefully', async () => {
-      mockVerifyAuth.mockResolvedValue(true);
+      mockAuthStore.verifyAuth.mockResolvedValue(true);
       mockLoadUserSettings.mockRejectedValue(new Error('Settings error'));
 
       const { AuthInitializer } = await import('$lib/auth-init');

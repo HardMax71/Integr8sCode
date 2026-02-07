@@ -7,12 +7,11 @@
         getSettingsHistoryApiV1UserSettingsHistoryGet,
         type SettingsHistoryEntry,
     } from '$lib/api';
-    import { isAuthenticated, username } from '$stores/auth';
-    import { theme as themeStore, setTheme } from '$stores/theme';
+    import { authStore } from '$stores/auth.svelte';
+    import { setTheme } from '$stores/theme.svelte';
     import { toast } from 'svelte-sonner';
-    import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { setUserSettings } from '$stores/userSettings';
+    import { setUserSettings } from '$stores/userSettings.svelte';
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
 
@@ -71,7 +70,7 @@
     
     onMount(() => {
         // First verify if user is authenticated
-        if (!get(isAuthenticated)) {
+        if (!authStore.isAuthenticated) {
             return;
         }
 

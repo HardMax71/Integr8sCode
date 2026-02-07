@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { isAuthenticated } from '$stores/auth';
+    import { authStore } from '$stores/auth.svelte';
     import { AuthInitializer } from '$lib/auth-init';
     import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
@@ -25,7 +25,7 @@
         authReady = true;
 
         // Check if user is authenticated
-        authorized = $isAuthenticated ?? false;
+        authorized = authStore.isAuthenticated ?? false;
 
         if (!authorized) {
             // Save current path for redirect after login
@@ -46,7 +46,7 @@
 
     // React to auth changes
     $effect(() => {
-        if (authReady && !$isAuthenticated) {
+        if (authReady && !authStore.isAuthenticated) {
             authorized = false;
             goto(redirectTo);
         }

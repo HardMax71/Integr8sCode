@@ -72,9 +72,9 @@
         } else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             if (inSubmenu && (e.key === 'Enter' || e.key === ' ')) {
-                selectVersion(hoveredLang!, currentVersions[focusedVersionIndex]);
+                selectVersion(hoveredLang!, currentVersions[focusedVersionIndex]!);
             } else if (!inSubmenu && focusedLangIndex >= 0) {
-                hoveredLang = langKeys[focusedLangIndex];
+                hoveredLang = langKeys[focusedLangIndex] ?? null;
                 focusedVersionIndex = 0;
             }
         } else if (e.key === 'ArrowLeft' && inSubmenu) {

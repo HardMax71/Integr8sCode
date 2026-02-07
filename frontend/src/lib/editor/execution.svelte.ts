@@ -80,7 +80,7 @@ export function createExecutionState() {
         let buffer = '';
 
         try {
-            while (true) {
+            for (;;) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
@@ -93,7 +93,7 @@ export function createExecutionState() {
 
                     let eventData: SseExecutionEventData;
                     try {
-                        eventData = JSON.parse(line.slice(5).trim());
+                        eventData = JSON.parse(line.slice(5).trim()) as SseExecutionEventData;
                     } catch {
                         continue; // Skip malformed SSE events
                     }
@@ -111,7 +111,7 @@ export function createExecutionState() {
 
                     // Terminal: failure - fetch result (may have partial output)
                     if (isTerminalFailure(eventType)) {
-                        return fetchResult(executionId);
+                        return await fetchResult(executionId);
                     }
                 }
             }
@@ -128,7 +128,7 @@ export function createExecutionState() {
             path: { execution_id: executionId }
         });
         if (error) throw error;
-        return data!;
+        return data;
     }
 
     return {

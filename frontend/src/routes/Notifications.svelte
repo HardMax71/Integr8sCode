@@ -1,7 +1,5 @@
 <script lang="ts">
     import { onMount, type Component } from 'svelte';
-    import { goto } from '@mateothegreat/svelte5-router';
-    import { authStore } from '$stores/auth.svelte';
     import { toast } from 'svelte-sonner';
     import { notificationStore } from '$stores/notificationStore.svelte';
     import { fly } from 'svelte/transition';
@@ -17,28 +15,9 @@
     
     
     onMount(async () => {
-        // Check cached auth state first
-        if (authStore.isAuthenticated === false) {
-            goto('/login');
-            return;
-        }
-
-        // Load data immediately using shared store
         loading = true;
         await notificationStore.load(100);
         loading = false;
-
-        // Verify auth in background
-        authStore.verifyAuth().then(isValid => {
-            if (!isValid) {
-                goto('/login');
-            }
-        }).catch(err => {
-            console.error('Auth verification failed:', err);
-            if (!authStore.isAuthenticated) {
-                goto('/login');
-            }
-        });
     });
     
     async function deleteNotification(id: string): Promise<void> {

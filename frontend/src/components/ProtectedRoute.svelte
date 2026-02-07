@@ -2,7 +2,6 @@
     import { onMount } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
     import { authStore } from '$stores/auth.svelte';
-    import { AuthInitializer } from '$lib/auth-init';
     import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
 
@@ -21,7 +20,7 @@
 
     onMount(async () => {
         // Wait for auth initialization
-        await AuthInitializer.waitForInit();
+        await authStore.waitForInit();
         authReady = true;
 
         // Check if user is authenticated

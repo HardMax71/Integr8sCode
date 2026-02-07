@@ -26,6 +26,7 @@ export default [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
+        project: './tsconfig.json',
       },
       globals: {
         ...globals.browser,
@@ -37,9 +38,12 @@ export default [
       '@typescript-eslint': tseslint,
     },
     rules: {
-      ...tseslint.configs.recommended.rules,
+      ...tseslint.configs['strict-type-checked'].rules,
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-explicit-any': 'off', // Too noisy for generated code
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/only-throw-error': 'off', // API client returns unknown errors
+      '@typescript-eslint/no-non-null-assertion': 'off', // Needed with noUncheckedIndexedAccess
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       'no-unused-vars': 'off',
     },
   },

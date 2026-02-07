@@ -89,7 +89,7 @@ export function createAutoRefresh(options: AutoRefreshOptions): AutoRefreshState
         void enabled;
         void rate;
         start();
-        return () => stop();
+        return () => { stop(); };
     });
 
     return {

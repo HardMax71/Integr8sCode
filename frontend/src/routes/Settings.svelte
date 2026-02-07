@@ -94,68 +94,15 @@
     
     async function loadSettings() {
         loading = true;
-        try {
-            const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
-            if (error) throw error;
-
-            setUserSettings(data ?? null);
-
-            if (data) {
-                formData = {
-                    theme: data.theme || 'auto',
-                    notifications: {
-                        execution_completed: data.notifications?.execution_completed ?? true,
-                        execution_failed: data.notifications?.execution_failed ?? true,
-                        system_updates: data.notifications?.system_updates ?? true,
-                        security_alerts: data.notifications?.security_alerts ?? true,
-                        channels: [...(data.notifications?.channels || ['in_app'])]
-                    },
-                    editor: {
-                        theme: data.editor?.theme || 'auto',
-                        font_size: data.editor?.font_size || 14,
-                        tab_size: data.editor?.tab_size || 4,
-                        use_tabs: data.editor?.use_tabs ?? false,
-                        word_wrap: data.editor?.word_wrap ?? true,
-                        show_line_numbers: data.editor?.show_line_numbers ?? true,
-                    }
-                };
-            }
-            savedSnapshot = JSON.stringify(formData);
-        } catch (err) {
-            console.error('Failed to load settings:', err);
-            toast.error('Failed to load settings. Using defaults.');
-        } finally {
+        const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
+        if (error) {
             loading = false;
-        }
-    }
-    
-    async function saveSettings() {
-        const currentState = JSON.stringify(formData);
-        if (currentState === savedSnapshot) {
-            toast.info('No changes to save');
             return;
         }
 
-        saving = true;
-        try {
-            const original = JSON.parse(savedSnapshot);
-            const updates: Record<string, any> = {};
+        setUserSettings(data ?? null);
 
-            if (formData.theme !== original.theme) {
-                updates.theme = formData.theme;
-            }
-            if (JSON.stringify(formData.notifications) !== JSON.stringify(original.notifications)) {
-                updates.notifications = formData.notifications;
-            }
-            if (JSON.stringify(formData.editor) !== JSON.stringify(original.editor)) {
-                updates.editor = formData.editor;
-            }
-
-            const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
-            if (error) throw error;
-
-            setUserSettings(data);
-
+        if (data) {
             formData = {
                 theme: data.theme || 'auto',
                 notifications: {
@@ -174,15 +121,62 @@
                     show_line_numbers: data.editor?.show_line_numbers ?? true,
                 }
             };
-            savedSnapshot = JSON.stringify(formData);
-
-            toast.success('Settings saved successfully');
-        } catch (err) {
-            console.error('Settings save error:', err);
-            toast.error('Failed to save settings');
-        } finally {
-            saving = false;
         }
+        savedSnapshot = JSON.stringify(formData);
+        loading = false;
+    }
+    
+    async function saveSettings() {
+        const currentState = JSON.stringify(formData);
+        if (currentState === savedSnapshot) {
+            toast.info('No changes to save');
+            return;
+        }
+
+        saving = true;
+        const original = JSON.parse(savedSnapshot);
+        const updates: Record<string, any> = {};
+
+        if (formData.theme !== original.theme) {
+            updates.theme = formData.theme;
+        }
+        if (JSON.stringify(formData.notifications) !== JSON.stringify(original.notifications)) {
+            updates.notifications = formData.notifications;
+        }
+        if (JSON.stringify(formData.editor) !== JSON.stringify(original.editor)) {
+            updates.editor = formData.editor;
+        }
+
+        const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
+        if (error) {
+            saving = false;
+            return;
+        }
+
+        setUserSettings(data);
+
+        formData = {
+            theme: data.theme || 'auto',
+            notifications: {
+                execution_completed: data.notifications?.execution_completed ?? true,
+                execution_failed: data.notifications?.execution_failed ?? true,
+                system_updates: data.notifications?.system_updates ?? true,
+                security_alerts: data.notifications?.security_alerts ?? true,
+                channels: [...(data.notifications?.channels || ['in_app'])]
+            },
+            editor: {
+                theme: data.editor?.theme || 'auto',
+                font_size: data.editor?.font_size || 14,
+                tab_size: data.editor?.tab_size || 4,
+                use_tabs: data.editor?.use_tabs ?? false,
+                word_wrap: data.editor?.word_wrap ?? true,
+                show_line_numbers: data.editor?.show_line_numbers ?? true,
+            }
+        };
+        savedSnapshot = JSON.stringify(formData);
+
+        toast.success('Settings saved successfully');
+        saving = false;
     }
     
     // Cache for history data
@@ -202,22 +196,18 @@
         history = [];
         historyLoading = true;
 
-        try {
-            const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
-            if (error) throw error;
-
-            history = [...(data?.history || [])]
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-            historyCache = history;
-            historyCacheTime = Date.now();
-        } catch (err) {
-            console.error('Failed to load settings history:', err);
-            toast.error('Failed to load settings history');
-            history = [];
-        } finally {
+        const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
+        if (error) {
             historyLoading = false;
+            return;
         }
+
+        history = [...(data?.history || [])]
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        historyCache = history;
+        historyCacheTime = Date.now();
+        historyLoading = false;
     }
     
     async function restoreSettings(timestamp: string): Promise<void> {
@@ -225,27 +215,22 @@
             return;
         }
 
-        try {
-            const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
-                body: { timestamp, reason: 'User requested restore' }
-            });
-            if (error) throw error;
+        const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
+            body: { timestamp, reason: 'User requested restore' }
+        });
+        if (error) return;
 
-            historyCache = null;
-            historyCacheTime = 0;
+        historyCache = null;
+        historyCacheTime = 0;
 
-            await loadSettings();
+        await loadSettings();
 
-            if (data.theme) {
-                setTheme(data.theme);
-            }
-
-            showHistory = false;
-            toast.success('Settings restored successfully');
-        } catch (err) {
-            console.error('Failed to restore settings:', err);
-            toast.error('Failed to restore settings');
+        if (data.theme) {
+            setTheme(data.theme);
         }
+
+        showHistory = false;
+        toast.success('Settings restored successfully');
     }
     
     function formatTimestamp(ts: string | number): string {

@@ -27,6 +27,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
         return data;
     } catch (err) {
         console.error('Failed to load user settings:', err);
+        return undefined;
     }
 }
 

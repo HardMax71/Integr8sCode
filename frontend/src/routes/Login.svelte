@@ -7,6 +7,7 @@
   import { onMount } from 'svelte';
   import { updateMetaTags, pageMeta } from '$utils/meta';
   import { loadUserSettings } from '$lib/user-settings';
+  import { getErrorMessage } from '$lib/api-interceptors';
 
   let username = $state("");
   let password = $state("");
@@ -44,7 +45,7 @@
         goto("/editor");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed. Please check your credentials.";
+      const message = getErrorMessage(err, "Login failed. Please check your credentials.");
       error = message;
       toast.error(error);
     } finally {

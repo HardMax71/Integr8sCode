@@ -4,8 +4,9 @@ import {
     verifyTokenApiV1AuthVerifyTokenGet,
     getCurrentUserProfileApiV1AuthMeGet,
 } from '$lib/api';
+import { clearUserSettings } from '$stores/userSettings.svelte';
 
-interface AuthState {
+export interface AuthState {
     isAuthenticated: boolean | null;
     username: string | null;
     userId: string | null;
@@ -15,7 +16,7 @@ interface AuthState {
     timestamp: number;
 }
 
-function getPersistedAuthState(): AuthState | null {
+export function getPersistedAuthState(): AuthState | null {
     if (typeof window === 'undefined') return null;
     try {
         const data = sessionStorage.getItem('authState');
@@ -36,6 +37,7 @@ function persistAuthState(state: Partial<AuthState> | null) {
 const persisted = getPersistedAuthState();
 
 const AUTH_CACHE_DURATION = 30000;
+const STALE_AUTH_THRESHOLD = 5 * 60 * 1000;
 
 class AuthStore {
     isAuthenticated = $state<boolean | null>(persisted?.isAuthenticated ?? null);
@@ -47,6 +49,17 @@ class AuthStore {
 
     #authCache: { valid: boolean | null; timestamp: number } = { valid: null, timestamp: 0 };
     #verifyPromise: Promise<boolean> | null = null;
+    #initialized = false;
+    #initPromise: Promise<boolean> | null = null;
+
+    restoreFrom(state: AuthState) {
+        this.isAuthenticated = true;
+        this.username = state.username;
+        this.userId = state.userId;
+        this.userRole = state.userRole;
+        this.userEmail = state.userEmail;
+        this.csrfToken = state.csrfToken;
+    }
 
     clearAuth() {
         this.isAuthenticated = false;
@@ -58,24 +71,85 @@ class AuthStore {
         persistAuthState(null);
     }
 
+    async initialize(): Promise<boolean> {
+        if (this.#initialized) return true;
+        if (this.#initPromise) return this.#initPromise;
+
+        this.#initPromise = this.#performInitialization();
+        try {
+            const result = await this.#initPromise;
+            this.#initialized = true;
+            return result;
+        } catch (err) {
+            console.error('Auth initialization failed:', err);
+            this.#initialized = false;
+            throw err;
+        } finally {
+            this.#initPromise = null;
+        }
+    }
+
+    async waitForInit(): Promise<boolean> {
+        if (this.#initialized) return true;
+        if (this.#initPromise) return this.#initPromise;
+        return this.initialize();
+    }
+
+    async #performInitialization(): Promise<boolean> {
+        const persistedState = getPersistedAuthState();
+
+        if (persistedState) {
+            this.restoreFrom(persistedState);
+            const isValid = await this.verifyAuth(true);
+            if (!isValid) {
+                // Distinguish network error from explicit token invalidation.
+                // verifyAuth sets #authCache.valid = false when server says invalid,
+                // but leaves it null on network error (no cache to fall back to).
+                if (this.#authCache.valid === null && Date.now() - persistedState.timestamp < STALE_AUTH_THRESHOLD) {
+                    return true;
+                }
+                this.clearAuth();
+                clearUserSettings();
+                return false;
+            }
+            await this.#loadUserSettingsSafely();
+            return true;
+        }
+
+        const isValid = await this.verifyAuth();
+        if (isValid) await this.#loadUserSettingsSafely();
+        return isValid;
+    }
+
+    async #loadUserSettingsSafely(): Promise<void> {
+        try {
+            // Dynamic import to avoid circular dependency:
+            // auth.svelte.ts -> user-settings.ts -> auth.svelte.ts
+            const { loadUserSettings } = await import('$lib/user-settings');
+            await loadUserSettings();
+        } catch (err) {
+            console.warn('Failed to load user settings:', err);
+        }
+    }
+
     async login(user: string, password: string): Promise<boolean> {
         const { data, error } = await loginApiV1AuthLoginPost({
             body: { username: user, password, scope: '' }
         });
-        if (error || !data) throw error ?? new Error('Login failed');
+        if (error) throw error;
 
         this.isAuthenticated = true;
-        this.username = data.username ?? user;
-        this.userRole = data.role ?? 'user';
-        this.csrfToken = data.csrf_token ?? null;
+        this.username = data.username;
+        this.userRole = data.role;
+        this.csrfToken = data.csrf_token;
         this.userId = null;
         this.userEmail = null;
 
         persistAuthState({
             isAuthenticated: true,
-            username: data.username ?? user,
-            userRole: data.role ?? 'user',
-            csrfToken: data.csrf_token ?? null,
+            username: data.username,
+            userRole: data.role,
+            csrfToken: data.csrf_token,
             userId: null,
             userEmail: null
         });
@@ -91,11 +165,11 @@ class AuthStore {
 
     async fetchUserProfile() {
         const { data, error } = await getCurrentUserProfileApiV1AuthMeGet({});
-        if (error || !data) throw error ?? new Error('Failed to fetch profile');
-        this.userId = data.user_id;
-        this.userEmail = data.email ?? null;
+        if (error) throw error;
+        this.userId = data!.user_id;
+        this.userEmail = data!.email;
         const current = getPersistedAuthState();
-        if (current) persistAuthState({ ...current, userId: data.user_id, userEmail: data.email ?? null });
+        if (current) persistAuthState({ ...current, userId: data!.user_id, userEmail: data!.email });
         return data;
     }
 
@@ -106,6 +180,7 @@ class AuthStore {
             console.error('Logout API call failed:', err);
         } finally {
             this.clearAuth();
+            clearUserSettings();
             this.#authCache = { valid: false, timestamp: Date.now() };
         }
     }
@@ -138,16 +213,17 @@ class AuthStore {
                     return false;
                 }
                 this.isAuthenticated = true;
-                this.username = data.username ?? null;
-                this.userRole = data.role ?? 'user';
-                this.csrfToken = data.csrf_token ?? null;
+                this.username = data.username;
+                this.userRole = data.role;
+                this.csrfToken = data.csrf_token;
+                const current = getPersistedAuthState();
                 persistAuthState({
                     isAuthenticated: true,
-                    username: data.username ?? null,
-                    userRole: data.role ?? 'user',
-                    csrfToken: data.csrf_token ?? null,
-                    userId: null,
-                    userEmail: null
+                    username: data.username,
+                    userRole: data.role,
+                    csrfToken: data.csrf_token,
+                    userId: current?.userId ?? null,
+                    userEmail: current?.userEmail ?? null
                 });
                 this.#authCache = { valid: true, timestamp: Date.now() };
                 try {

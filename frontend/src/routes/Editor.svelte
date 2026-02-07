@@ -105,19 +105,15 @@
 
         await authStore.verifyAuth();
 
-        const { data: limitsData, error: limitsError } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
-        if (limitsError) {
-            toast.error('Failed to load runtime configuration. Execution disabled.');
-        } else {
-            k8sLimits = limitsData ?? null;
-            supportedRuntimes = k8sLimits?.supported_runtimes || {};
-            const info = supportedRuntimes[selectedLang];
-            if (!info || !info.versions.includes(selectedVersion)) {
-                const first = Object.keys(supportedRuntimes)[0];
-                if (first) {
-                    selectedLang = first;
-                    selectedVersion = supportedRuntimes[first].versions[0] || '';
-                }
+        const { data: limitsData } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
+        k8sLimits = limitsData ?? null;
+        supportedRuntimes = k8sLimits?.supported_runtimes || {};
+        const info = supportedRuntimes[selectedLang];
+        if (!info || !info.versions.includes(selectedVersion)) {
+            const first = Object.keys(supportedRuntimes)[0];
+            if (first) {
+                selectedLang = first;
+                selectedVersion = supportedRuntimes[first]!.versions[0] ?? '';
             }
         }
 
@@ -236,7 +232,7 @@
             scriptName = file.name;
             selectedLang = detectedLang;
             const info = supportedRuntimes[detectedLang];
-            if (info?.versions.length) selectedVersion = info.versions[0];
+            if (info?.versions.length) selectedVersion = info.versions[0]!;
             editorRef?.setContent(text);
             toast.info(`Loaded ${detectedLang} script from ${file.name}`);
         };

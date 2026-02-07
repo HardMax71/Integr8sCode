@@ -29,7 +29,10 @@ describe('getErrorMessage', () => {
         }, 'email: invalid email, name: required'],
         ['ValidationError[] with empty loc', {
             detail: [{ loc: [], msg: 'bad', type: 'value_error' }],
-        }, 'field: bad'],
+        }, 'bad'],
+        ['detail[] without loc', {
+            detail: [{ msg: 'Error' }],
+        }, 'Error'],
     ] as [string, unknown, string][])('extracts message from %s', (_label, input, expected) => {
         expect(getErrorMessage(input)).toBe(expected);
     });

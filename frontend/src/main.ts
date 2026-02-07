@@ -10,7 +10,7 @@ initializeApiInterceptors();
 // Global error handlers to catch unhandled errors
 window.onerror = (message, source, lineno, colno, error) => {
   console.error('[Global Error]', { message, source, lineno, colno, error });
-  appError.setError(error || String(message), 'Unexpected Error');
+  appError.setError(error ?? new Error(typeof message === 'string' ? message : 'Unknown error'), 'Unexpected Error');
   return true; // Prevent default browser error handling
 };
 

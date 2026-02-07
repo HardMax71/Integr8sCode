@@ -13,6 +13,28 @@ vi.mock('../../lib/api', () => ({
   deleteNotificationApiV1NotificationsNotificationIdDelete: (...args: unknown[]) => mockDeleteNotification(...args),
 }));
 
+vi.mock('../../lib/api-interceptors', () => ({
+  getErrorMessage: (err: unknown, fallback = 'An error occurred') => {
+    if (!err) return fallback;
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    if (typeof err !== 'object') return fallback;
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.detail === 'string') return obj.detail;
+    if (typeof obj.message === 'string') return obj.message;
+    if (Array.isArray(obj.detail)) {
+      return (obj.detail as Array<{ loc?: unknown[]; msg?: string }>)
+        .map(e => {
+          const msg = e.msg ?? String(e);
+          if (!e.loc?.length) return msg;
+          return `${e.loc[e.loc.length - 1] ?? 'field'}: ${msg}`;
+        })
+        .join(', ');
+    }
+    return fallback;
+  },
+}));
+
 const createMockNotification = (overrides: Record<string, unknown> = {}) => ({
   notification_id: `notif-${Math.random().toString(36).slice(2)}`,
   channel: 'in_app' as const,

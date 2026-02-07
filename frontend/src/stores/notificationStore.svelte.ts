@@ -5,6 +5,7 @@ import {
     deleteNotificationApiV1NotificationsNotificationIdDelete,
     type NotificationResponse,
 } from '$lib/api';
+import { getErrorMessage } from '$lib/api-interceptors';
 
 class NotificationStore {
     notifications = $state.raw<NotificationResponse[]>([]);
@@ -25,14 +26,12 @@ class NotificationStore {
                 }
             });
             if (error) {
-                const msg = (error as { detail?: Array<{ msg?: string }> }).detail?.[0]?.msg
-                    ?? JSON.stringify(error);
-                this.error = msg;
+                this.error = getErrorMessage(error);
                 return [];
             }
-            this.notifications = data?.notifications ?? [];
+            this.notifications = data.notifications;
             this.error = null;
-            return data?.notifications ?? [];
+            return data.notifications;
         } catch (err) {
             this.error = String(err);
             return [];

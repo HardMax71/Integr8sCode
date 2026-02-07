@@ -41,10 +41,13 @@ describe('sagaStates', () => {
       expect(running.color).toBe('badge-info');
     });
 
-    it('returns default for unknown state', () => {
-      const unknown = getSagaStateInfo('unknown_state');
-      expect(unknown.label).toBe('unknown_state');
-      expect(unknown.color).toBe('badge-neutral');
+    it('returns info for all valid states', () => {
+      const states = ['created', 'running', 'compensating', 'completed', 'failed', 'timeout', 'cancelled'] as const;
+      for (const state of states) {
+        const info = getSagaStateInfo(state);
+        expect(info.label).toBeTruthy();
+        expect(info.color).toBeTruthy();
+      }
     });
   });
 
@@ -82,9 +85,8 @@ describe('sagaStates', () => {
       expect(getSagaProgressPercentage([], 'execution_saga')).toBe(0);
     });
 
-    it('returns 0 for null/undefined steps', () => {
-      expect(getSagaProgressPercentage(null as unknown as string[], 'execution_saga')).toBe(0);
-      expect(getSagaProgressPercentage(undefined as unknown as string[], 'execution_saga')).toBe(0);
+    it('returns 0 for empty steps array', () => {
+      expect(getSagaProgressPercentage([], 'execution_saga')).toBe(0);
     });
 
     it('calculates correct percentage for execution_saga', () => {

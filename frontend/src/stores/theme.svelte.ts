@@ -6,7 +6,7 @@ const storageKey = 'app-theme';
 
 function getSystemTheme(): 'light' | 'dark' {
     if (!browser) return 'light';
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function getInitialTheme(): ThemeValue {
@@ -28,7 +28,7 @@ let saveUserSettingsFn: ((partial: { theme?: ThemeValue }) => Promise<boolean>) 
 let authStoreRef: { isAuthenticated: boolean | null } | null = null;
 
 if (browser) {
-    Promise.all([
+    void Promise.all([
         import('$lib/user-settings'),
         import('$stores/auth.svelte')
     ]).then(([userSettings, auth]) => {
@@ -44,7 +44,7 @@ class ThemeStore {
         // Apply initial theme
         if (browser) {
             applyTheme(this.value);
-            window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
                 if (this.value === 'auto') applyTheme('auto');
             });
         }
@@ -62,11 +62,11 @@ class ThemeStore {
         const next: ThemeValue = this.value === 'light' ? 'dark' : this.value === 'dark' ? 'auto' : 'light';
         this.setTheme(next);
         if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
-            saveUserSettingsFn({ theme: next });
+            void saveUserSettingsFn({ theme: next });
         }
     }
 }
 
 export const themeStore = new ThemeStore();
-export const setTheme = (v: ThemeValue) => themeStore.setTheme(v);
-export const toggleTheme = () => themeStore.toggleTheme();
+export const setTheme = (v: ThemeValue) => { themeStore.setTheme(v); };
+export const toggleTheme = () => { themeStore.toggleTheme(); };

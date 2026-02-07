@@ -7,7 +7,6 @@
     import Spinner from "$components/Spinner.svelte";
     import ErrorDisplay from "$components/ErrorDisplay.svelte";
     import { themeStore } from '$stores/theme.svelte';
-    import { initializeAuth, AuthInitializer } from '$lib/auth-init';
     import { appError } from '$stores/errorStore.svelte';
     import { authStore } from '$stores/auth.svelte';
 
@@ -29,7 +28,7 @@
     // Initialize auth before rendering routes
     onMount(async () => {
         try {
-            await initializeAuth();
+            await authStore.initialize();
             console.log('[App] Authentication initialized');
         } catch (err) {
             console.error('[App] Auth initialization failed:', err);
@@ -40,7 +39,7 @@
 
     // Auth hook for protected routes
     const requireAuth = async () => {
-        await AuthInitializer.waitForInit();
+        await authStore.waitForInit();
         if (!authStore.isAuthenticated) {
             const currentPath = window.location.pathname + window.location.search;
             if (currentPath !== '/login' && currentPath !== '/register') {

@@ -2,7 +2,6 @@ import { client } from '$lib/api/client.gen';
 import { toast } from 'svelte-sonner';
 import { goto } from '@mateothegreat/svelte5-router';
 import { authStore } from '$stores/auth.svelte';
-import type { ValidationError } from '$lib/api';
 
 let isHandling401 = false;
 const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/verify-token'];
@@ -23,23 +22,21 @@ export function getErrorMessage(err: unknown, fallback = 'An error occurred'): s
     if (typeof obj.detail === 'string') return obj.detail;
     if (typeof obj.message === 'string') return obj.message;
 
-    // FastAPI ValidationError[]
+    // FastAPI ValidationError[] or [{msg: '...'}]
     if (Array.isArray(obj.detail)) {
-        return (obj.detail as ValidationError[])
-            .map(e => `${e.loc[e.loc.length - 1] ?? 'field'}: ${e.msg}`)
+        return (obj.detail as Array<{ loc?: unknown[]; msg?: string }>)
+            .map(e => {
+                const msg = e.msg ?? 'Unknown error';
+                if (!e.loc?.length) return msg;
+                const field = e.loc[e.loc.length - 1];
+                return `${typeof field === 'string' ? field : 'field'}: ${msg}`;
+            })
             .join(', ');
     }
 
     return fallback;
 }
 
-function formatValidationErrors(detail: ValidationError[]): string {
-    return detail.map(e => `${e.loc[e.loc.length - 1] ?? 'field'}: ${e.msg}`).join('\n');
-}
-
-function clearAuthState(): void {
-    authStore.clearAuth();
-}
 
 function handle401(isAuthEndpoint: boolean): void {
     if (isAuthEndpoint) return;
@@ -49,14 +46,14 @@ function handle401(isAuthEndpoint: boolean): void {
         isHandling401 = true;
         const currentPath = window.location.pathname + window.location.search;
         toast.warning('Session expired. Please log in again.');
-        clearAuthState();
+        authStore.clearAuth();
         if (currentPath !== '/login' && currentPath !== '/register') {
             sessionStorage.setItem('redirectAfterLogin', currentPath);
         }
         goto('/login');
         setTimeout(() => { isHandling401 = false; }, 1000);
     } else {
-        clearAuthState();
+        authStore.clearAuth();
     }
 }
 
@@ -80,7 +77,7 @@ function handleErrorStatus(status: number | undefined, error: unknown, isAuthEnd
     if (status === 422 && typeof error === 'object' && error !== null) {
         const detail = (error as Record<string, unknown>).detail;
         if (Array.isArray(detail) && detail.length > 0) {
-            toast.error(`Validation error:\n${formatValidationErrors(detail as ValidationError[])}`);
+            toast.error(`Validation error:\n${getErrorMessage(error)}`);
             return true;
         }
     }
@@ -99,9 +96,9 @@ export function initializeApiInterceptors(): void {
         credentials: 'include',
     });
 
-    client.interceptors.error.use(async (error, response, request, _opts) => {
-        const status = response?.status;
-        const url = request?.url || '';
+    client.interceptors.error.use((error, response, request, _opts) => {
+        const status = response.status;
+        const url = request.url;
         const isAuthEndpoint = AUTH_ENDPOINTS.some(ep => url.includes(ep));
 
         console.error('[API Error]', { status, url, error });
@@ -114,7 +111,7 @@ export function initializeApiInterceptors(): void {
         return error;
     });
 
-    client.interceptors.request.use(async (request, _opts) => {
+    client.interceptors.request.use((request, _opts) => {
         if (request.method !== 'GET') {
             const token = authStore.csrfToken;
             if (token) {

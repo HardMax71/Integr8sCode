@@ -8,13 +8,14 @@ from contextlib import suppress
 import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer
+from app.db.docs.saga import SagaDocument
 from app.domain.enums.events import EventType
 from app.domain.enums.kafka import KafkaTopic
 from app.domain.enums.user import UserRole
 from app.domain.events.typed import DomainEvent, DomainEventAdapter
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
-from app.schemas_pydantic.saga import SagaListResponse, SagaStatusResponse
+from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
 from app.settings import Settings
@@ -217,18 +218,27 @@ async def created_execution_admin(
 
 @pytest_asyncio.fixture
 async def execution_with_saga(
-    test_user: AsyncClient,
     event_waiter: EventWaiter,
     created_execution: ExecutionResponse,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Execution with saga guaranteed in MongoDB (via CREATE_POD_COMMAND event)."""
+    """Execution with saga guaranteed in MongoDB (via CREATE_POD_COMMAND event).
+
+    The saga orchestrator persists the saga document multiple times before
+    publishing CREATE_POD_COMMAND to Kafka.  Once EventWaiter resolves the
+    command, the document is definitively in MongoDB.  We query Beanie
+    directly (same DB, no HTTP round-trip) for a deterministic, sleep-free
+    lookup.
+    """
     await event_waiter.wait_for_saga_command(created_execution.execution_id)
-    resp = await test_user.get(f"/api/v1/sagas/execution/{created_execution.execution_id}")
-    assert resp.status_code == 200
-    result = SagaListResponse.model_validate(resp.json())
-    assert result.sagas, f"No saga for {created_execution.execution_id} despite CREATE_POD_COMMAND received"
-    assert result.sagas[0].execution_id == created_execution.execution_id
-    return created_execution, result.sagas[0]
+
+    doc = await SagaDocument.find_one(SagaDocument.execution_id == created_execution.execution_id)
+    assert doc is not None, (
+        f"No saga document for {created_execution.execution_id} despite CREATE_POD_COMMAND received"
+    )
+
+    saga = SagaStatusResponse.model_validate(doc, from_attributes=True)
+    assert saga.execution_id == created_execution.execution_id
+    return created_execution, saga
 
 
 @pytest_asyncio.fixture

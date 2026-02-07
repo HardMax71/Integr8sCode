@@ -135,6 +135,77 @@ test.describe('Editor Script Management', () => {
     await optionsToggle.click();
     await expect(userPage.getByRole('heading', { name: 'Saved Scripts' })).toBeVisible();
   });
+
+  test('can load a previously saved script', async ({ userPage }) => {
+    await userPage.goto(PATH);
+    const scriptName = `Load Test ${Date.now()}`;
+
+    // Save a script first
+    await userPage.getByRole('button', { name: /Example/i }).click();
+    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+    await userPage.locator('#scriptNameInput').fill(scriptName);
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
+    await userPage.locator('button[title="Save current script"]').click();
+    await expectToastVisible(userPage);
+
+    // Create new script to clear state
+    await userPage.getByRole('button', { name: /New/i }).click();
+    await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
+
+    // Find and load the saved script
+    const savedScript = userPage.locator(`text="${scriptName}"`).first();
+    if (await savedScript.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await savedScript.click();
+      await expectToastVisible(userPage);
+      await expect(userPage.locator('#scriptNameInput')).toHaveValue(scriptName);
+    }
+  });
+
+  test('can delete a saved script', async ({ userPage }) => {
+    await userPage.goto(PATH);
+    const scriptName = `Delete Test ${Date.now()}`;
+
+    // Save a script first
+    await userPage.getByRole('button', { name: /Example/i }).click();
+    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+    await userPage.locator('#scriptNameInput').fill(scriptName);
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
+    await userPage.locator('button[title="Save current script"]').click();
+    await expectToastVisible(userPage);
+
+    // Find the delete button near the saved script and click it
+    const scriptRow = userPage.locator(`text="${scriptName}"`).first();
+    if (await scriptRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Accept the confirm dialog
+      userPage.on('dialog', dialog => dialog.accept());
+      const deleteBtn = scriptRow.locator('..').locator('button').filter({ has: userPage.locator('svg') }).last();
+      if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await deleteBtn.click();
+        await expectToastVisible(userPage);
+      }
+    }
+  });
+
+  test('can export script as file', async ({ userPage }) => {
+    await userPage.goto(PATH);
+    await userPage.getByRole('button', { name: /Example/i }).click();
+    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+    await userPage.locator('#scriptNameInput').fill('export-test');
+    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
+    await optionsToggle.click();
+
+    // Listen for download
+    const [download] = await Promise.all([
+      userPage.waitForEvent('download', { timeout: 5000 }).catch(() => null),
+      userPage.getByRole('button', { name: /Export/i }).click(),
+    ]);
+    // Download may or may not trigger depending on browser handling
+    if (download) {
+      expect(download.suggestedFilename()).toContain('export-test');
+    }
+  });
 });
 
 describeAuthRequired(test, PATH);

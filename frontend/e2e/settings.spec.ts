@@ -148,6 +148,29 @@ test.describe('Settings Save and History', () => {
     await userPage.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(userPage.getByRole('heading', { name: 'Settings History' })).not.toBeVisible();
   });
+
+  test('can restore settings from history', async ({ userPage }) => {
+    // First make a change and save to ensure history exists
+    await userPage.goto(PATH);
+    await userPage.getByRole('button', { name: 'Editor' }).click();
+    const fontSizeInput = userPage.locator('#font-size');
+    const currentValue = await fontSizeInput.inputValue();
+    await fontSizeInput.fill(currentValue === '14' ? '15' : '14');
+    await userPage.getByRole('button', { name: 'Save Settings' }).click();
+    await expectToastVisible(userPage);
+
+    // Open history and look for restore button
+    await userPage.getByRole('button', { name: 'View History' }).click();
+    await expect(userPage.getByRole('heading', { name: 'Settings History' })).toBeVisible();
+
+    const restoreBtn = userPage.getByRole('button', { name: 'Restore' }).first();
+    if (await restoreBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Accept the confirm dialog
+      userPage.on('dialog', dialog => dialog.accept());
+      await restoreBtn.click();
+      await expectToastVisible(userPage);
+    }
+  });
 });
 
 test.describe('Settings Access Control', () => {

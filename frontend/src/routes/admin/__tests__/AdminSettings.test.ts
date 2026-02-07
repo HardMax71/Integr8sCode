@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
@@ -83,6 +83,8 @@ describe('AdminSettings', () => {
       error: undefined,
     });
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   async function renderAdminSettings() {
     const { default: AdminSettings } = await import('$routes/admin/AdminSettings.svelte');

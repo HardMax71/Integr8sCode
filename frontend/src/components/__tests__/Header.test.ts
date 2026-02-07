@@ -42,11 +42,9 @@ vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
   get toggleTheme() { return () => mocks.mockToggleTheme(); },
 }));
-vi.mock('../NotificationCenter.svelte', () => {
-  const Mock = function() { return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } }; };
-  Mock.render = () => ({ html: '<div data-testid="notification-center">NotificationCenter</div>', css: { code: '', map: null }, head: '' });
-  return { default: Mock };
-});
+vi.mock('../NotificationCenter.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+    '<div>NotificationCenter</div>', 'notification-center'));
 
 import Header from '$components/Header.svelte';
 

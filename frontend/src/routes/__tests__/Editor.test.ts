@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { setupAnimationMock } from '$lib/../__tests__/test-utils';
@@ -84,24 +84,42 @@ vi.mock('$components/Spinner.svelte', async () =>
   (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span></span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule('CirclePlay', 'Settings', 'Lightbulb'));
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule(
+    'CirclePlay', 'Settings', 'Lightbulb',
+    'FilePlus', 'Upload', 'Download', 'Save',
+    'List', 'Trash2'));
 
-vi.mock('$components/editor', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockNamedComponents({
-    CodeMirrorEditor: '<div data-testid="code-editor" class="cm-editor"></div>',
+vi.mock('$components/editor', async () => {
+  const utils = await import('$lib/../__tests__/test-utils');
+  const components = utils.createMockNamedComponents({
     OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
     LanguageSelect: '<div data-testid="lang-select"></div>',
     ResourceLimits: '<div data-testid="resource-limits"></div>',
-    EditorToolbar: '<div data-testid="editor-toolbar"><input id="scriptNameInput" /></div>',
-    ScriptActions: '<div data-testid="script-actions"></div>',
-    SavedScripts: '<div data-testid="saved-scripts"></div>',
-  }));
+  });
+  // CodeMirrorEditor needs setContent for bind:this usage in newScript/loadScript
+  const CodeMirrorEditor = function () {
+    return { setContent() {} };
+  } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
+  CodeMirrorEditor.render = () => ({
+    html: '<div data-testid="code-editor" class="cm-editor"></div>',
+    css: { code: '', map: null }, head: '',
+  });
+  components.CodeMirrorEditor = CodeMirrorEditor;
+  const { default: EditorToolbar } = await import('$components/editor/EditorToolbar.svelte');
+  components.EditorToolbar = EditorToolbar;
+  const { default: ScriptActions } = await import('$components/editor/ScriptActions.svelte');
+  components.ScriptActions = ScriptActions;
+  const { default: SavedScripts } = await import('$components/editor/SavedScripts.svelte');
+  components.SavedScripts = SavedScripts;
+  return components;
+});
 
 describe('Editor', () => {
   const user = userEvent.setup();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     setupAnimationMock();
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
@@ -124,6 +142,8 @@ describe('Editor', () => {
     mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({ data: {}, error: undefined });
     mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete.mockResolvedValue({ data: {}, error: undefined });
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   async function renderEditor() {
     const { default: Editor } = await import('$routes/Editor.svelte');
@@ -172,23 +192,43 @@ describe('Editor', () => {
   });
 
   describe('Save script', () => {
-    it('warns when not authenticated', async () => {
+    it('hides Save button when not authenticated', async () => {
       mocks.mockAuthStore.isAuthenticated = false;
       await renderEditor();
       await waitFor(() => {
         expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      expect(screen.queryByTitle('Save current script')).not.toBeInTheDocument();
     });
 
-    it('creates new script via POST API', async () => {
+    it('creates new script via POST API when Save is clicked', async () => {
       await renderEditor();
       await waitFor(() => {
         expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
-      expect(mocks.createSavedScriptApiV1ScriptsPost).toBeDefined();
+
+      await user.type(screen.getByLabelText('Script Name'), 'My New Script');
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByTitle('Save current script'));
+
+      await waitFor(() => {
+        expect(mocks.createSavedScriptApiV1ScriptsPost).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            name: 'My New Script',
+            lang: 'python',
+            lang_version: '3.11',
+          }),
+        });
+      });
+      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script saved successfully.');
     });
 
     it('falls back to create when update returns 404', async () => {
+      mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({
+        data: [{ script_id: 'script-99', name: 'Existing Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }],
+        error: undefined,
+      });
       mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({
         data: undefined,
         error: { detail: 'Not found' },
@@ -198,40 +238,105 @@ describe('Editor', () => {
         data: { script_id: 'fallback-1' },
         error: undefined,
       });
-      const updateResult = await mocks.updateSavedScriptApiV1ScriptsScriptIdPut({});
-      expect(updateResult.response?.status).toBe(404);
+
+      await renderEditor();
+      await waitFor(() => {
+        expect(mocks.listSavedScriptsApiV1ScriptsGet).toHaveBeenCalled();
+      });
+
+      // Load saved script to set currentScriptId
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
+      await waitFor(() => {
+        expect(screen.getByTitle(/Load Existing Script/)).toBeInTheDocument();
+      });
+      await user.click(screen.getByTitle(/Load Existing Script/));
+      expect(mocks.addToast).toHaveBeenCalledWith('info', 'Loaded script: Existing Script');
+
+      // Options closed after loadScript, reopen and click Save
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByTitle('Save current script'));
+
+      await waitFor(() => {
+        expect(mocks.updateSavedScriptApiV1ScriptsScriptIdPut).toHaveBeenCalledWith({
+          path: { script_id: 'script-99' },
+          body: expect.objectContaining({
+            name: 'Existing Script',
+            lang: 'python',
+            lang_version: '3.11',
+          }),
+        });
+      });
+      await waitFor(() => {
+        expect(mocks.createSavedScriptApiV1ScriptsPost).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            name: 'Existing Script',
+            lang: 'python',
+            lang_version: '3.11',
+          }),
+        });
+      });
+      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script saved successfully.');
     });
   });
 
   describe('Delete script', () => {
-    it('calls confirm with script name and deletes on acceptance', async () => {
+    it('calls confirm and delete API when delete button is clicked', async () => {
       mocks.mockConfirm.mockReturnValue(true);
+      mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({
+        data: [{ script_id: 'script-99', name: 'My Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }],
+        error: undefined,
+      });
+
       await renderEditor();
       await waitFor(() => {
-        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+        expect(mocks.listSavedScriptsApiV1ScriptsGet).toHaveBeenCalled();
       });
-      expect(mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete).toBeDefined();
+
+      // Open options panel, then expand saved scripts list
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
+      await waitFor(() => {
+        expect(screen.getByTitle('Delete My Script')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTitle('Delete My Script'));
+      expect(mocks.mockConfirm).toHaveBeenCalledWith('Are you sure you want to delete "My Script"?');
+      await waitFor(() => {
+        expect(mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete).toHaveBeenCalledWith({
+          path: { script_id: 'script-99' },
+        });
+      });
+      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script deleted successfully.');
     });
   });
 
   describe('Execution', () => {
-    it('has execution state wired from createExecutionState', async () => {
+    it('calls execution.execute with script, lang, and version when Run Script is clicked', async () => {
       await renderEditor();
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Code Editor' })).toBeInTheDocument();
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
-      expect(mocks.mockExecutionState.execute).toBeDefined();
-      expect(mocks.mockExecutionState.reset).toBeDefined();
+
+      await user.click(screen.getByRole('button', { name: /Run Script/i }));
+      expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(
+        expect.any(String), 'python', '3.11',
+      );
     });
   });
 
   describe('New script', () => {
-    it('verifies execution.reset is available for new script flow', async () => {
+    it('calls execution.reset and shows toast when New is clicked', async () => {
       await renderEditor();
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: 'Code Editor' })).toBeInTheDocument();
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
-      expect(mocks.mockExecutionState.reset).toBeDefined();
+
+      // Open options panel then click New inside ScriptActions
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByRole('button', { name: 'New' }));
+      expect(mocks.mockExecutionState.reset).toHaveBeenCalled();
+      expect(mocks.addToast).toHaveBeenCalledWith('info', 'New script started.');
     });
   });
 });

@@ -85,16 +85,8 @@ export function createMockSvelteComponent(html: string, testId?: string): {
     ? html.replace('>', ` data-testid="${testId}">`)
     : html;
 
-  const MockComponent = function (this: object) {
-    return {
-      $$: {
-        on_mount: [],
-        on_destroy: [],
-        before_update: [],
-        after_update: [],
-        context: new Map(),
-      },
-    };
+  const MockComponent = function () {
+    return {};
   } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
 
   MockComponent.render = () => ({
@@ -197,10 +189,8 @@ function createMockStore<T>(initial: T) {
 export function createMockNamedComponents(components: Record<string, string>): Record<string, unknown> {
   const module: Record<string, unknown> = {};
   for (const [name, html] of Object.entries(components)) {
-    const Mock = function (this: object) {
-      return {
-        $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() },
-      };
+    const Mock = function () {
+      return {};
     } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
     Mock.render = () => ({ html, css: { code: '', map: null }, head: '' });
     module[name] = Mock;
@@ -268,6 +258,7 @@ export function createMockNotification(overrides: Partial<{
   notification_id: string;
   subject: string;
   body: string;
+  channel: string;
   status: 'unread' | 'read';
   severity: 'low' | 'medium' | 'high' | 'urgent';
   tags: string[];
@@ -277,6 +268,7 @@ export function createMockNotification(overrides: Partial<{
   notification_id: string;
   subject: string;
   body: string;
+  channel: string;
   status: 'unread' | 'read';
   severity: 'low' | 'medium' | 'high' | 'urgent';
   tags: string[];
@@ -287,6 +279,7 @@ export function createMockNotification(overrides: Partial<{
     notification_id: 'notif-1',
     subject: 'Test Notification',
     body: 'This is a test notification body',
+    channel: 'in_app',
     status: 'unread',
     severity: 'medium',
     tags: [],

@@ -53,13 +53,15 @@
     let script = $state(loadFromStorage('script', "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')"));
     let scriptName = $state(loadFromStorage('scriptName', ''));
     let currentScriptId = $state<string | null>(loadFromStorage('currentScriptId', null));
-    let selectedLang = $state('python');
-    let selectedVersion = $state('3.11');
+    let selectedLang = $state(loadFromStorage('selectedLang', 'python'));
+    let selectedVersion = $state(loadFromStorage('selectedVersion', '3.11'));
 
     // Persist to localStorage
     $effect(() => { localStorage.setItem('script', JSON.stringify(script)); });
     $effect(() => { localStorage.setItem('scriptName', JSON.stringify(scriptName)); });
     $effect(() => { localStorage.setItem('currentScriptId', JSON.stringify(currentScriptId)); });
+    $effect(() => { localStorage.setItem('selectedLang', JSON.stringify(selectedLang)); });
+    $effect(() => { localStorage.setItem('selectedVersion', JSON.stringify(selectedVersion)); });
 
     // State
     let prevAuth = false;
@@ -72,18 +74,20 @@
     let editorSettings = $derived({ ...{ theme: 'auto', font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true }, ...userSettingsStore.editorSettings });
     let fileInput: HTMLInputElement;
     let editorRef: CodeMirrorEditor;
+    let nameEditedByUser = false;
 
     const execution = createExecutionState();
     const runtimesAvailable = $derived(Object.keys(supportedRuntimes).length > 0);
     const acceptedFileExts = $derived(Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(',') || '.txt');
 
     $effect(() => {
-        if (typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
+        if (nameEditedByUser && typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
             const saved = savedScripts.find(s => s.id === currentScriptId);
             if (saved && saved.name !== scriptName) {
                 currentScriptId = null;
                 toast.info('Script name changed. Next save will create a new script.');
             }
+            nameEditedByUser = false;
         }
     });
 
@@ -91,7 +95,7 @@
     $effect(() => {
         const isAuth = authenticated;
         if (!prevAuth && isAuth) {
-            loadSavedScripts();
+            loadSavedScripts().catch(console.error);
         } else if (prevAuth && !isAuth) {
             savedScripts = [];
             currentScriptId = null;
@@ -270,7 +274,7 @@
     </div>
 
     <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
-        <EditorToolbar name={scriptName} onchange={(n) => scriptName = n} onexample={loadExampleScript} />
+        <EditorToolbar name={scriptName} onchange={(n) => { scriptName = n; nameEditedByUser = true; }} onexample={loadExampleScript} />
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
                 bind:this={editorRef}

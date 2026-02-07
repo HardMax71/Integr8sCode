@@ -133,13 +133,11 @@ test.describe('Editor Script Management', () => {
     await userPage.getByRole('button', { name: /New/i }).click();
     await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
 
-    // Find and load the saved script
     const savedScript = userPage.locator(`text="${scriptName}"`).first();
-    if (await savedScript.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await savedScript.click();
-      await expectToastVisible(userPage);
-      await expect(userPage.locator('#scriptNameInput')).toHaveValue(scriptName);
-    }
+    await expect(savedScript).toBeVisible({ timeout: 3000 });
+    await savedScript.click();
+    await expectToastVisible(userPage);
+    await expect(userPage.locator('#scriptNameInput')).toHaveValue(scriptName);
   });
 
   test('can delete a saved script', async ({ userPage }) => {
@@ -147,16 +145,13 @@ test.describe('Editor Script Management', () => {
     const scriptName = `Delete Test ${Date.now()}`;
     await saveScriptAs(userPage, scriptName);
 
-    // Find the delete button near the saved script and click it
     const scriptRow = userPage.locator(`text="${scriptName}"`).first();
-    if (await scriptRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-      userPage.on('dialog', dialog => dialog.accept());
-      const deleteBtn = scriptRow.locator('..').locator('button').filter({ has: userPage.locator('svg') }).last();
-      if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await deleteBtn.click();
-        await expectToastVisible(userPage);
-      }
-    }
+    await expect(scriptRow).toBeVisible({ timeout: 3000 });
+    const deleteBtn = userPage.locator(`button[title="Delete ${scriptName}"]`);
+    await expect(deleteBtn).toBeVisible({ timeout: 2000 });
+    userPage.on('dialog', dialog => dialog.accept());
+    await deleteBtn.click();
+    await expectToastVisible(userPage);
   });
 
   test('can export script as file', async ({ userPage }) => {
@@ -165,15 +160,11 @@ test.describe('Editor Script Management', () => {
     await userPage.locator('#scriptNameInput').fill('export-test');
     await openScriptOptions(userPage);
 
-    // Listen for download
     const [download] = await Promise.all([
-      userPage.waitForEvent('download', { timeout: 5000 }).catch(() => null),
+      userPage.waitForEvent('download', { timeout: 5000 }),
       userPage.getByRole('button', { name: /Export/i }).click(),
     ]);
-    // Download may or may not trigger depending on browser handling
-    if (download) {
-      expect(download.suggestedFilename()).toContain('export-test');
-    }
+    expect(download.suggestedFilename()).toContain('export-test');
   });
 });
 

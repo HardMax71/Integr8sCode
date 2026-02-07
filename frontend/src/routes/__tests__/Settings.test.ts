@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { setupAnimationMock } from '$lib/../__tests__/test-utils';
@@ -81,6 +81,8 @@ describe('Settings', () => {
       error: undefined,
     });
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   async function renderSettings() {
     const { default: Settings } = await import('$routes/Settings.svelte');

@@ -93,9 +93,7 @@ test.describe('Notification Actions', () => {
       await notificationCard.click();
       // After clicking, check if styling changed or "Read" label appeared
       if (hasBlue) {
-        await expect(
-          notificationCard.locator('text=Read').or(notificationCard)
-        ).toBeVisible({ timeout: 3000 });
+        await expect(notificationCard.locator('text=Read')).toBeVisible({ timeout: 3000 });
       }
     }
   });

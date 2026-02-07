@@ -71,10 +71,11 @@ describe('Notifications', () => {
       const notif = createMockNotification({
         subject: 'Execution Complete',
         body: 'Your script finished running',
+        channel: 'email',
         severity: 'high',
         tags: ['completed', 'exec:abc123'],
         status: 'unread',
-      } as Parameters<typeof createMockNotification>[0] & { channel: string });
+      });
       mocks.mockNotificationStore.notifications = [notif as never];
       mocks.mockNotificationStore.unreadCount = 1;
 
@@ -83,6 +84,9 @@ describe('Notifications', () => {
         expect(screen.getByText('Execution Complete')).toBeInTheDocument();
       });
       expect(screen.getByText('Your script finished running')).toBeInTheDocument();
+      expect(screen.getByText('email')).toBeInTheDocument();
+      expect(screen.getByText('high')).toBeInTheDocument();
+      expect(screen.getByText('completed')).toBeInTheDocument();
     });
 
     it('shows "Read" label for read notifications', async () => {
@@ -194,23 +198,28 @@ describe('Notifications', () => {
   });
 
   describe('Delete', () => {
+    async function findDeleteButton(): Promise<HTMLElement> {
+      const btn = await waitFor(() => {
+        const buttons = screen.getAllByRole('button');
+        const found = buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
+        expect(found).toBeDefined();
+        return found!;
+      });
+      return btn;
+    }
+
     it('calls delete with exact id and shows success toast', async () => {
       mocks.mockNotificationStore.notifications = [
         createMockNotification({ notification_id: 'del-1' }),
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await waitFor(() => {
-        const buttons = screen.getAllByRole('button');
-        return buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
+      const deleteBtn = await findDeleteButton();
+      await user.click(deleteBtn);
+      await waitFor(() => {
+        expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
       });
-      if (deleteBtn) {
-        await user.click(deleteBtn);
-        await waitFor(() => {
-          expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
-        });
-        expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
-      }
+      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
     });
 
     it('shows error toast on delete failure', async () => {
@@ -220,16 +229,11 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await waitFor(() => {
-        const buttons = screen.getAllByRole('button');
-        return buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
+      const deleteBtn = await findDeleteButton();
+      await user.click(deleteBtn);
+      await waitFor(() => {
+        expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to delete notification');
       });
-      if (deleteBtn) {
-        await user.click(deleteBtn);
-        await waitFor(() => {
-          expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to delete notification');
-        });
-      }
     });
 
     it('prevents double-click deletion', async () => {
@@ -242,16 +246,11 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await waitFor(() => {
-        const buttons = screen.getAllByRole('button');
-        return buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
-      });
-      if (deleteBtn) {
-        await user.click(deleteBtn);
-        await user.click(deleteBtn);
-        expect(mocks.mockNotificationStore.delete).toHaveBeenCalledTimes(1);
-        resolveDelete!(true);
-      }
+      const deleteBtn = await findDeleteButton();
+      await user.click(deleteBtn);
+      await user.click(deleteBtn);
+      expect(mocks.mockNotificationStore.delete).toHaveBeenCalledTimes(1);
+      resolveDelete!(true);
     });
   });
 

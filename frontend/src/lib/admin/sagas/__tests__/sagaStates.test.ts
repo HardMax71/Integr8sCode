@@ -85,10 +85,6 @@ describe('sagaStates', () => {
       expect(getSagaProgressPercentage([], 'execution_saga')).toBe(0);
     });
 
-    it('returns 0 for empty steps array', () => {
-      expect(getSagaProgressPercentage([], 'execution_saga')).toBe(0);
-    });
-
     it('calculates correct percentage for execution_saga', () => {
       expect(getSagaProgressPercentage(['step1'], 'execution_saga')).toBe(20);
       expect(getSagaProgressPercentage(['step1', 'step2'], 'execution_saga')).toBe(40);

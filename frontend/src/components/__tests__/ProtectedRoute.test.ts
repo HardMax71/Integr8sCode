@@ -31,14 +31,9 @@ vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
 
-// Mock Spinner component with Svelte 5 compatible structure
-vi.mock('../Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<div data-testid="spinner" role="status">Loading...</div>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('../Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+    '<div role="status">Loading...</div>', 'spinner'));
 
 import ProtectedRoute from '$components/ProtectedRoute.svelte';
 

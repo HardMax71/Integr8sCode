@@ -164,12 +164,10 @@ test.describe('Settings Save and History', () => {
     await expect(userPage.getByRole('heading', { name: 'Settings History' })).toBeVisible();
 
     const restoreBtn = userPage.getByRole('button', { name: 'Restore' }).first();
-    if (await restoreBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Accept the confirm dialog
-      userPage.on('dialog', dialog => dialog.accept());
-      await restoreBtn.click();
-      await expectToastVisible(userPage);
-    }
+    await expect(restoreBtn).toBeVisible({ timeout: 3000 });
+    userPage.on('dialog', dialog => dialog.accept());
+    await restoreBtn.click();
+    await expectToastVisible(userPage);
   });
 });
 

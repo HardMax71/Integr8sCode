@@ -44,9 +44,9 @@
         }
     });
 
-    // React to auth changes
+    // React to auth revocation after initial load
     $effect(() => {
-        if (authReady && !authStore.isAuthenticated) {
+        if (authReady && authorized && !authStore.isAuthenticated) {
             authorized = false;
             goto(redirectTo);
         }

@@ -38,13 +38,7 @@ function formatValidationErrors(detail: ValidationError[]): string {
 }
 
 function clearAuthState(): void {
-    authStore.isAuthenticated = false;
-    authStore.username = null;
-    authStore.userId = null;
-    authStore.userRole = null;
-    authStore.userEmail = null;
-    authStore.csrfToken = null;
-    sessionStorage.removeItem('authState');
+    authStore.clearAuth();
 }
 
 function handle401(isAuthEndpoint: boolean): void {

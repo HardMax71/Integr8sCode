@@ -12,6 +12,14 @@ const mockAuthStore = {
   login: vi.fn(),
   logout: vi.fn(),
   fetchUserProfile: vi.fn(),
+  clearAuth: vi.fn(() => {
+    mockAuthStore.isAuthenticated = false;
+    mockAuthStore.username = null;
+    mockAuthStore.userId = null;
+    mockAuthStore.userRole = null;
+    mockAuthStore.userEmail = null;
+    mockAuthStore.csrfToken = null;
+  }),
 };
 
 vi.mock('../../stores/auth.svelte', () => ({
@@ -76,6 +84,14 @@ describe('auth-init', () => {
     mockAuthStore.login.mockReset();
     mockAuthStore.logout.mockReset();
     mockAuthStore.fetchUserProfile.mockReset();
+    mockAuthStore.clearAuth.mockReset().mockImplementation(() => {
+      mockAuthStore.isAuthenticated = false;
+      mockAuthStore.username = null;
+      mockAuthStore.userId = null;
+      mockAuthStore.userRole = null;
+      mockAuthStore.userEmail = null;
+      mockAuthStore.csrfToken = null;
+    });
 
     mockClearUserSettings.mockReset();
     mockLoadUserSettings.mockReset();
@@ -188,8 +204,8 @@ describe('auth-init', () => {
       const { AuthInitializer } = await import('$lib/auth-init');
       await AuthInitializer.initialize();
 
+      expect(mockAuthStore.clearAuth).toHaveBeenCalled();
       expect(mockAuthStore.isAuthenticated).toBe(false);
-      expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
 
     it('keeps recent auth on network error (<5 min)', async () => {

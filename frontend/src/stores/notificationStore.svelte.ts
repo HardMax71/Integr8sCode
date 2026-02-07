@@ -7,7 +7,7 @@ import {
 } from '$lib/api';
 
 class NotificationStore {
-    notifications = $state<NotificationResponse[]>([]);
+    notifications = $state.raw<NotificationResponse[]>([]);
     loading = $state(false);
     error = $state<string | null>(null);
     unreadCount = $derived(this.notifications.filter(n => n.status !== 'read').length);
@@ -15,25 +15,30 @@ class NotificationStore {
     async load(limit = 20, options: { include_tags?: string[]; exclude_tags?: string[]; tag_prefix?: string } = {}) {
         this.loading = true;
         this.error = null;
-        const { data, error } = await getNotificationsApiV1NotificationsGet({
-            query: {
-                limit,
-                include_tags: options.include_tags?.filter(Boolean),
-                exclude_tags: options.exclude_tags?.filter(Boolean),
-                tag_prefix: options.tag_prefix
+        try {
+            const { data, error } = await getNotificationsApiV1NotificationsGet({
+                query: {
+                    limit,
+                    include_tags: options.include_tags?.filter(Boolean),
+                    exclude_tags: options.exclude_tags?.filter(Boolean),
+                    tag_prefix: options.tag_prefix
+                }
+            });
+            if (error) {
+                const msg = (error as { detail?: Array<{ msg?: string }> }).detail?.[0]?.msg
+                    ?? JSON.stringify(error);
+                this.error = msg;
+                return [];
             }
-        });
-        if (error) {
-            const msg = (error as { detail?: Array<{ msg?: string }> }).detail?.[0]?.msg
-                ?? JSON.stringify(error);
-            this.loading = false;
-            this.error = msg;
+            this.notifications = data?.notifications ?? [];
+            this.error = null;
+            return data?.notifications ?? [];
+        } catch (err) {
+            this.error = String(err);
             return [];
+        } finally {
+            this.loading = false;
         }
-        this.notifications = data?.notifications ?? [];
-        this.loading = false;
-        this.error = null;
-        return data?.notifications ?? [];
     }
 
     add(notification: NotificationResponse) {

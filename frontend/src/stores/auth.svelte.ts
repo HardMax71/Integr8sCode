@@ -48,7 +48,7 @@ class AuthStore {
     #authCache: { valid: boolean | null; timestamp: number } = { valid: null, timestamp: 0 };
     #verifyPromise: Promise<boolean> | null = null;
 
-    #clearAuth() {
+    clearAuth() {
         this.isAuthenticated = false;
         this.username = null;
         this.userId = null;
@@ -105,7 +105,7 @@ class AuthStore {
         } catch (err) {
             console.error('Logout API call failed:', err);
         } finally {
-            this.#clearAuth();
+            this.clearAuth();
             this.#authCache = { valid: false, timestamp: Date.now() };
         }
     }
@@ -133,7 +133,7 @@ class AuthStore {
             try {
                 const { data, error } = await verifyTokenApiV1AuthVerifyTokenGet({});
                 if (error || !data?.valid) {
-                    this.#clearAuth();
+                    this.clearAuth();
                     this.#authCache = { valid: false, timestamp: Date.now() };
                     return false;
                 }
@@ -161,7 +161,7 @@ class AuthStore {
                 // See function docstring for security trade-off explanation
                 console.warn('Auth verification failed (network error):', err);
                 if (this.#authCache.valid !== null) return this.#authCache.valid;
-                this.#clearAuth();
+                this.clearAuth();
                 return false;
             } finally {
                 this.#verifyPromise = null;

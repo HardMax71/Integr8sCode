@@ -62,7 +62,8 @@
     $effect(() => { localStorage.setItem('currentScriptId', JSON.stringify(currentScriptId)); });
 
     // State
-    let authenticated = $state(false);
+    let prevAuth = false;
+    let authenticated = $derived(authStore.isAuthenticated ?? false);
     let k8sLimits = $state<ResourceLimits | null>(null);
     let supportedRuntimes = $state<Record<string, LanguageInfo>>({});
     let exampleScripts: Record<string, string> = {};
@@ -88,16 +89,15 @@
 
     // React to auth changes
     $effect(() => {
-        const isAuth = authStore.isAuthenticated ?? false;
-        const wasAuthenticated = authenticated;
-        authenticated = isAuth;
-        if (!wasAuthenticated && authenticated) {
+        const isAuth = authenticated;
+        if (!prevAuth && isAuth) {
             loadSavedScripts();
-        } else if (wasAuthenticated && !authenticated) {
+        } else if (prevAuth && !isAuth) {
             savedScripts = [];
             currentScriptId = null;
             scriptName = '';
         }
+        prevAuth = isAuth;
     });
 
     onMount(async () => {

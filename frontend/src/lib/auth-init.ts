@@ -140,14 +140,8 @@ export class AuthInitializer {
     }
 
     private static _clearAuth(): void {
-        authStore.isAuthenticated = false;
-        authStore.username = null;
-        authStore.userId = null;
-        authStore.userRole = null;
-        authStore.userEmail = null;
-        authStore.csrfToken = null;
+        authStore.clearAuth();
         clearUserSettings();
-        sessionStorage.removeItem('authState');
     }
 
     static isAuthenticated(): boolean {

@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('../../../__tests__/test-utils')).createMockIconModule('AlertTriangle', 'FileText', 'Copy'));
+  (await import('$test/test-utils')).createMockIconModule('AlertTriangle', 'FileText', 'Copy'));
 vi.mock('svelte-sonner', async () =>
-  (await import('../../../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('../../../__tests__/test-utils')).createMockSvelteComponent('<div>Loading...</div>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<div>Loading...</div>', 'spinner'));
 
 import OutputPanel from '../OutputPanel.svelte';
 

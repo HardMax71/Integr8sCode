@@ -49,19 +49,19 @@ vi.mock('../../../lib/api', () => ({
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockRouterModule());
+  (await import('$test/test-utils')).createMockRouterModule());
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$routes/admin/AdminLayout.svelte', () =>
   import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte'));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ShieldCheck'));
+  (await import('$test/test-utils')).createMockIconModule('ShieldCheck'));
 
 describe('AdminSettings', () => {
   const user = userEvent.setup();

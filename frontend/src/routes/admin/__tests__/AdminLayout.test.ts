@@ -19,16 +19,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockRouterModule(mocks.mockGoto));
+  (await import('$test/test-utils')).createMockRouterModule(mocks.mockGoto));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ShieldCheck'));
+  (await import('$test/test-utils')).createMockIconModule('ShieldCheck'));
 
 describe('AdminLayout', () => {
   beforeEach(() => {

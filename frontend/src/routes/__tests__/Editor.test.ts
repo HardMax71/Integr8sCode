@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 function createMockLimits() {
   return {
@@ -67,7 +67,7 @@ vi.mock('$stores/userSettings.svelte', () => ({
 }));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
   unwrap: (...args: unknown[]) => mocks.mockUnwrap(...args),
@@ -75,22 +75,22 @@ vi.mock('$lib/api-interceptors', () => ({
 }));
 
 vi.mock('$utils/meta', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+  (await import('$test/test-utils')).createMetaMock(
     mocks.mockUpdateMetaTags, { editor: { title: 'Code Editor', description: 'Editor desc' } }));
 
 vi.mock('$lib/editor', () => ({ createExecutionState: () => mocks.mockExecutionState }));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span></span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span></span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule(
+  (await import('$test/test-utils')).createMockIconModule(
     'CirclePlay', 'Settings', 'Lightbulb',
     'FilePlus', 'Upload', 'Download', 'Save',
     'List', 'Trash2'));
 
 vi.mock('$components/editor', async () => {
-  const utils = await import('$lib/../__tests__/test-utils');
+  const utils = await import('$test/test-utils');
   const components = utils.createMockNamedComponents({
     OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
     LanguageSelect: '<div data-testid="lang-select"></div>',

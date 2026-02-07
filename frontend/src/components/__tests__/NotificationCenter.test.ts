@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '../../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 // Types for mock notification state
 interface MockNotification {

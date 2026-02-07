@@ -32,7 +32,7 @@ vi.mock('../../stores/auth.svelte', () => ({
 }));
 
 vi.mock('../Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+  (await import('$test/test-utils')).createMockSvelteComponent(
     '<div role="status">Loading...</div>', 'spinner'));
 
 import ProtectedRoute from '$components/ProtectedRoute.svelte';

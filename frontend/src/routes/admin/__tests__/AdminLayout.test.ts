@@ -16,39 +16,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
-  authStore: mocks.mockAuthStore,
-}));
+vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  goto: (...args: unknown[]) => mocks.mockGoto(...args),
-  route: () => {},
-}));
+vi.mock('@mateothegreat/svelte5-router', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockRouterModule(mocks.mockGoto));
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span data-testid="spinner">Loading</span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { ShieldCheck: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ShieldCheck'));
 
 describe('AdminLayout', () => {
   beforeEach(() => {
@@ -88,8 +68,7 @@ describe('AdminLayout', () => {
     expect(screen.getByText('Users')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
 
-    const links = screen.getAllByRole('link');
-    const adminLinks = links.filter(l => l.getAttribute('href')?.startsWith('/admin/'));
+    const adminLinks = screen.getAllByRole('link').filter(l => l.getAttribute('href')?.startsWith('/admin/'));
     expect(adminLinks.length).toBe(4);
 
     const hrefs = adminLinks.map(l => l.getAttribute('href'));

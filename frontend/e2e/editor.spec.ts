@@ -1,4 +1,7 @@
-import { test, expect, runExampleAndExecute, expectToastVisible, describeAuthRequired } from './fixtures';
+import {
+  test, expect, runExampleAndExecute, expectToastVisible, describeAuthRequired,
+  loadExampleScript, openScriptOptions, saveScriptAs,
+} from './fixtures';
 
 const PATH = '/editor';
 
@@ -35,10 +38,7 @@ test.describe('Editor Page', () => {
 
   test('shows file actions when panel opened', async ({ userPage }) => {
     await userPage.goto(PATH);
-    // Use the button's accessible name from sr-only text
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await expect(optionsToggle).toBeVisible();
-    await optionsToggle.click();
+    await openScriptOptions(userPage);
     await expect(userPage.getByText('File Actions')).toBeVisible();
     await expect(userPage.getByRole('button', { name: /New/i })).toBeVisible();
     await expect(userPage.getByRole('button', { name: /Upload/i })).toBeVisible();
@@ -48,10 +48,8 @@ test.describe('Editor Page', () => {
 
   test('can load example script', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    const editor = userPage.locator('.cm-content');
-    await expect(editor).not.toBeEmpty({ timeout: 3000 });
-    const content = await editor.textContent();
+    await loadExampleScript(userPage);
+    const content = await userPage.locator('.cm-content').textContent();
     expect(content).toBeTruthy();
     expect(content!.length).toBeGreaterThan(0);
   });
@@ -97,8 +95,7 @@ test.describe('Editor Execution', () => {
 
   test('run button is disabled during execution', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+    await loadExampleScript(userPage);
     const runButton = userPage.getByRole('button', { name: /Run Script/i });
     await runButton.click();
     const executingButton = userPage.getByRole('button', { name: /Executing/i });
@@ -110,44 +107,27 @@ test.describe('Editor Execution', () => {
 test.describe('Editor Script Management', () => {
   test('can save script when authenticated', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-    await userPage.locator('#scriptNameInput').fill(`Test Script ${Date.now()}`);
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
-    await userPage.locator('button[title="Save current script"]').click();
-    await expectToastVisible(userPage);
+    await saveScriptAs(userPage, `Test Script ${Date.now()}`);
   });
 
   test('can create new script', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
+    await loadExampleScript(userPage);
+    await openScriptOptions(userPage);
     await userPage.getByRole('button', { name: /New/i }).click();
     await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
   });
 
   test('shows saved scripts section when authenticated', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
+    await openScriptOptions(userPage);
     await expect(userPage.getByRole('heading', { name: 'Saved Scripts' })).toBeVisible();
   });
 
   test('can load a previously saved script', async ({ userPage }) => {
     await userPage.goto(PATH);
     const scriptName = `Load Test ${Date.now()}`;
-
-    // Save a script first
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-    await userPage.locator('#scriptNameInput').fill(scriptName);
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
-    await userPage.locator('button[title="Save current script"]').click();
-    await expectToastVisible(userPage);
+    await saveScriptAs(userPage, scriptName);
 
     // Create new script to clear state
     await userPage.getByRole('button', { name: /New/i }).click();
@@ -165,20 +145,11 @@ test.describe('Editor Script Management', () => {
   test('can delete a saved script', async ({ userPage }) => {
     await userPage.goto(PATH);
     const scriptName = `Delete Test ${Date.now()}`;
-
-    // Save a script first
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-    await userPage.locator('#scriptNameInput').fill(scriptName);
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
-    await userPage.locator('button[title="Save current script"]').click();
-    await expectToastVisible(userPage);
+    await saveScriptAs(userPage, scriptName);
 
     // Find the delete button near the saved script and click it
     const scriptRow = userPage.locator(`text="${scriptName}"`).first();
     if (await scriptRow.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Accept the confirm dialog
       userPage.on('dialog', dialog => dialog.accept());
       const deleteBtn = scriptRow.locator('..').locator('button').filter({ has: userPage.locator('svg') }).last();
       if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -190,11 +161,9 @@ test.describe('Editor Script Management', () => {
 
   test('can export script as file', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: /Example/i }).click();
-    await expect(userPage.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+    await loadExampleScript(userPage);
     await userPage.locator('#scriptNameInput').fill('export-test');
-    const optionsToggle = userPage.getByRole('button', { name: 'Toggle Script Options' });
-    await optionsToggle.click();
+    await openScriptOptions(userPage);
 
     // Listen for download
     const [download] = await Promise.all([

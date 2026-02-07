@@ -15,38 +15,22 @@ vi.mock('$lib/api', () => ({
   registerApiV1AuthRegisterPost: (...args: unknown[]) => mocks.registerApiV1AuthRegisterPost(...args),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  goto: (...args: unknown[]) => mocks.mockGoto(...args),
-  route: () => {},
-}));
+vi.mock('@mateothegreat/svelte5-router', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockRouterModule(mocks.mockGoto));
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
   getErrorMessage: (...args: unknown[]) => mocks.mockGetErrorMessage(...args),
 }));
 
-vi.mock('$utils/meta', () => ({
-  updateMetaTags: (...args: unknown[]) => mocks.mockUpdateMetaTags(...args),
-  pageMeta: {
-    register: { title: 'Register', description: 'Register desc' },
-  },
-}));
+vi.mock('$utils/meta', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+    mocks.mockUpdateMetaTags, { register: { title: 'Register', description: 'Register desc' } }));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span>Loading</span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 describe('Register', () => {
   const user = userEvent.setup();

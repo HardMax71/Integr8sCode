@@ -6,24 +6,15 @@ const mocks = vi.hoisted(() => ({
   mockUpdateMetaTags: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-}));
+vi.mock('@mateothegreat/svelte5-router', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockRouterModule());
 
-vi.mock('$utils/meta', () => ({
-  updateMetaTags: (...args: unknown[]) => mocks.mockUpdateMetaTags(...args),
-  pageMeta: {
-    home: { title: 'Home', description: 'Home desc' },
-  },
-}));
+vi.mock('$utils/meta', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+    mocks.mockUpdateMetaTags, { home: { title: 'Home', description: 'Home desc' } }));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { Zap: MockIcon, ShieldCheck: MockIcon, Clock: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule('Zap', 'ShieldCheck', 'Clock'));
 
 describe('Home', () => {
   beforeEach(() => {

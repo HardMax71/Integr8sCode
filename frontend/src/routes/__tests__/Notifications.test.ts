@@ -17,34 +17,17 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('$stores/notificationStore.svelte', () => ({
-  notificationStore: mocks.mockNotificationStore,
-}));
+vi.mock('$stores/notificationStore.svelte', () => ({ notificationStore: mocks.mockNotificationStore }));
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span data-testid="spinner">Loading</span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { Bell: MockIcon, Trash2: MockIcon, Clock: MockIcon, CircleCheck: MockIcon, AlertCircle: MockIcon, Info: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule(
+    'Bell', 'Trash2', 'Clock', 'CircleCheck', 'AlertCircle', 'Info'));
 
 vi.mock('$lib/api', () => ({}));
 
@@ -88,7 +71,6 @@ describe('Notifications', () => {
       const notif = createMockNotification({
         subject: 'Execution Complete',
         body: 'Your script finished running',
-        channel: 'in_app',
         severity: 'high',
         tags: ['completed', 'exec:abc123'],
         status: 'unread',
@@ -104,9 +86,7 @@ describe('Notifications', () => {
     });
 
     it('shows "Read" label for read notifications', async () => {
-      mocks.mockNotificationStore.notifications = [
-        createMockNotification({ status: 'read' }),
-      ] as never[];
+      mocks.mockNotificationStore.notifications = [createMockNotification({ status: 'read' })] as never[];
       mocks.mockNotificationStore.unreadCount = 0;
 
       await renderNotifications();
@@ -117,9 +97,7 @@ describe('Notifications', () => {
 
     it('shows up to 6 tag chips', async () => {
       const tags = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7', 'tag8'];
-      mocks.mockNotificationStore.notifications = [
-        createMockNotification({ tags }),
-      ] as never[];
+      mocks.mockNotificationStore.notifications = [createMockNotification({ tags })] as never[];
 
       await renderNotifications();
       await waitFor(() => {
@@ -180,8 +158,6 @@ describe('Notifications', () => {
 
   describe('Mark all as read', () => {
     it('button only visible when unreadCount > 0 and notifications exist', async () => {
-      mocks.mockNotificationStore.notifications = [];
-      mocks.mockNotificationStore.unreadCount = 0;
       await renderNotifications();
       expect(screen.queryByRole('button', { name: /mark all as read/i })).not.toBeInTheDocument();
     });
@@ -286,13 +262,9 @@ describe('Notifications', () => {
         expect(screen.getByText('Notifications')).toBeInTheDocument();
       });
 
-      const includeInput = screen.getByLabelText('Include tags');
-      const excludeInput = screen.getByLabelText('Exclude tags');
-      const prefixInput = screen.getByLabelText('Tag prefix');
-
-      await user.type(includeInput, 'exec,completed');
-      await user.type(excludeInput, 'alert');
-      await user.type(prefixInput, 'exec:');
+      await user.type(screen.getByLabelText('Include tags'), 'exec,completed');
+      await user.type(screen.getByLabelText('Exclude tags'), 'alert');
+      await user.type(screen.getByLabelText('Tag prefix'), 'exec:');
       await user.click(screen.getByRole('button', { name: 'Filter' }));
 
       await waitFor(() => {

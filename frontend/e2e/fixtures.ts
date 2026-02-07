@@ -229,6 +229,23 @@ export async function runExampleAndExecute(page: Page): Promise<ExecutionResult>
   return result;
 }
 
+export async function loadExampleScript(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /Example/i }).click();
+  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+}
+
+export async function openScriptOptions(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Toggle Script Options' }).click();
+}
+
+export async function saveScriptAs(page: Page, name: string): Promise<void> {
+  await loadExampleScript(page);
+  await page.locator('#scriptNameInput').fill(name);
+  await openScriptOptions(page);
+  await page.locator('button[title="Save current script"]').click();
+  await expectToastVisible(page);
+}
+
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {
   await clearSession(page);
   await page.goto(path);

@@ -57,9 +57,7 @@ vi.mock('$lib/api', () => ({
   deleteSavedScriptApiV1ScriptsScriptIdDelete: (...args: unknown[]) => mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete(...args),
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
-  authStore: mocks.mockAuthStore,
-}));
+vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('$stores/userSettings.svelte', () => ({
   userSettingsStore: {
@@ -68,65 +66,36 @@ vi.mock('$stores/userSettings.svelte', () => ({
   },
 }));
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
   unwrap: (...args: unknown[]) => mocks.mockUnwrap(...args),
   unwrapOr: (...args: unknown[]) => mocks.mockUnwrapOr(...args),
 }));
 
-vi.mock('$utils/meta', () => ({
-  updateMetaTags: (...args: unknown[]) => mocks.mockUpdateMetaTags(...args),
-  pageMeta: { editor: { title: 'Code Editor', description: 'Editor desc' } },
-}));
+vi.mock('$utils/meta', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+    mocks.mockUpdateMetaTags, { editor: { title: 'Code Editor', description: 'Editor desc' } }));
 
-vi.mock('$lib/editor', () => ({
-  createExecutionState: () => mocks.mockExecutionState,
-}));
+vi.mock('$lib/editor', () => ({ createExecutionState: () => mocks.mockExecutionState }));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span data-testid="spinner"></span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span></span>', 'spinner'));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { CirclePlay: MockIcon, Settings: MockIcon, Lightbulb: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule('CirclePlay', 'Settings', 'Lightbulb'));
 
-vi.mock('$components/editor', () => {
-  function MockComponent() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  const CodeMirrorEditor = function() { return MockComponent(); };
-  CodeMirrorEditor.render = () => ({ html: '<div data-testid="code-editor" class="cm-editor"></div>', css: { code: '', map: null }, head: '' });
-  const OutputPanel = function() { return MockComponent(); };
-  OutputPanel.render = () => ({ html: '<div data-testid="output-panel">Execution Output</div>', css: { code: '', map: null }, head: '' });
-  const LanguageSelect = function() { return MockComponent(); };
-  LanguageSelect.render = () => ({ html: '<div data-testid="lang-select"></div>', css: { code: '', map: null }, head: '' });
-  const ResourceLimits = function() { return MockComponent(); };
-  ResourceLimits.render = () => ({ html: '<div data-testid="resource-limits"></div>', css: { code: '', map: null }, head: '' });
-  const EditorToolbar = function() { return MockComponent(); };
-  EditorToolbar.render = () => ({ html: '<div data-testid="editor-toolbar"><input id="scriptNameInput" /></div>', css: { code: '', map: null }, head: '' });
-  const ScriptActions = function() { return MockComponent(); };
-  ScriptActions.render = () => ({ html: '<div data-testid="script-actions"></div>', css: { code: '', map: null }, head: '' });
-  const SavedScripts = function() { return MockComponent(); };
-  SavedScripts.render = () => ({ html: '<div data-testid="saved-scripts"></div>', css: { code: '', map: null }, head: '' });
-  return { CodeMirrorEditor, OutputPanel, LanguageSelect, ResourceLimits, EditorToolbar, ScriptActions, SavedScripts };
-});
+vi.mock('$components/editor', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockNamedComponents({
+    CodeMirrorEditor: '<div data-testid="code-editor" class="cm-editor"></div>',
+    OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
+    LanguageSelect: '<div data-testid="lang-select"></div>',
+    ResourceLimits: '<div data-testid="resource-limits"></div>',
+    EditorToolbar: '<div data-testid="editor-toolbar"><input id="scriptNameInput" /></div>',
+    ScriptActions: '<div data-testid="script-actions"></div>',
+    SavedScripts: '<div data-testid="saved-scripts"></div>',
+  }));
 
 describe('Editor', () => {
   const user = userEvent.setup();
@@ -150,22 +119,10 @@ describe('Editor', () => {
       data: { scripts: { python: '  print("Hello")' } },
       error: undefined,
     });
-    mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({
-      data: [],
-      error: undefined,
-    });
-    mocks.createSavedScriptApiV1ScriptsPost.mockResolvedValue({
-      data: { script_id: 'new-1' },
-      error: undefined,
-    });
-    mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({
-      data: {},
-      error: undefined,
-    });
-    mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete.mockResolvedValue({
-      data: {},
-      error: undefined,
-    });
+    mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({ data: [], error: undefined });
+    mocks.createSavedScriptApiV1ScriptsPost.mockResolvedValue({ data: { script_id: 'new-1' }, error: undefined });
+    mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({ data: {}, error: undefined });
+    mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete.mockResolvedValue({ data: {}, error: undefined });
   });
 
   async function renderEditor() {
@@ -218,12 +175,6 @@ describe('Editor', () => {
     it('warns when not authenticated', async () => {
       mocks.mockAuthStore.isAuthenticated = false;
       await renderEditor();
-
-      // The component uses the saveScript function internally.
-      // Since child components are mocked, we test the logic by importing it.
-      // We test the guard behavior via toast calls. The save function is called
-      // from the ScriptActions child component, which is mocked. We'll verify
-      // the function exists and the guards work via direct module interaction.
       await waitFor(() => {
         expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
@@ -234,8 +185,6 @@ describe('Editor', () => {
       await waitFor(() => {
         expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
-      // Script saving is invoked from ScriptActions child (mocked).
-      // Verifying the API mock is wired correctly.
       expect(mocks.createSavedScriptApiV1ScriptsPost).toBeDefined();
     });
 
@@ -249,7 +198,6 @@ describe('Editor', () => {
         data: { script_id: 'fallback-1' },
         error: undefined,
       });
-      // Verify mocks are configured for the fallback behavior
       const updateResult = await mocks.updateSavedScriptApiV1ScriptsScriptIdPut({});
       expect(updateResult.response?.status).toBe(404);
     });
@@ -262,7 +210,6 @@ describe('Editor', () => {
       await waitFor(() => {
         expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
       });
-      // The deleteScript fn uses confirm and the delete API. Verify mocks are wired.
       expect(mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete).toBeDefined();
     });
   });
@@ -273,7 +220,6 @@ describe('Editor', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Code Editor' })).toBeInTheDocument();
       });
-      // execution state is created via createExecutionState which is mocked
       expect(mocks.mockExecutionState.execute).toBeDefined();
       expect(mocks.mockExecutionState.reset).toBeDefined();
     });
@@ -285,7 +231,6 @@ describe('Editor', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Code Editor' })).toBeInTheDocument();
       });
-      // newScript() calls execution.reset() and shows toast
       expect(mocks.mockExecutionState.reset).toBeDefined();
     });
   });

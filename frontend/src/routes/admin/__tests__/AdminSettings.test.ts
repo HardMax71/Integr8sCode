@@ -46,43 +46,22 @@ vi.mock('../../../lib/api', () => ({
   resetSystemSettingsApiV1AdminSettingsResetPost: (...args: unknown[]) => mocks.resetSystemSettingsApiV1AdminSettingsResetPost(...args),
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
-  authStore: mocks.mockAuthStore,
-}));
+vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  goto: vi.fn(),
-  route: () => {},
-}));
+vi.mock('@mateothegreat/svelte5-router', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockRouterModule());
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$routes/admin/AdminLayout.svelte', () =>
-  import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte')
-);
+  import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte'));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span data-testid="spinner">Loading</span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { ShieldCheck: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ShieldCheck'));
 
 describe('AdminSettings', () => {
   const user = userEvent.setup();

@@ -48,43 +48,21 @@ vi.mock('$lib/api', () => ({
   getSettingsHistoryApiV1UserSettingsHistoryGet: (...args: unknown[]) => mocks.getSettingsHistoryApiV1UserSettingsHistoryGet(...args),
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
-  authStore: mocks.mockAuthStore,
-}));
-
-vi.mock('$stores/theme.svelte', () => ({
-  setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args),
-}));
-
+vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('$stores/theme.svelte', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
 vi.mock('$stores/userSettings.svelte', () => ({
   setUserSettings: (...args: unknown[]) => mocks.mockSetUserSettings(...args),
   userSettingsStore: { settings: null, editorSettings: {} },
 }));
 
-vi.mock('svelte-sonner', () => ({
-  toast: {
-    success: (...args: unknown[]) => mocks.addToast('success', ...args),
-    error: (...args: unknown[]) => mocks.addToast('error', ...args),
-    warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-    info: (...args: unknown[]) => mocks.addToast('info', ...args),
-  },
-}));
+vi.mock('svelte-sonner', async () =>
+  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
 
-vi.mock('$components/Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<span data-testid="spinner">Loading</span>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('$components/Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
-vi.mock('@lucide/svelte', () => {
-  function MockIcon() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  }
-  MockIcon.render = () => ({ html: '<svg></svg>', css: { code: '', map: null }, head: '' });
-  return { ChevronDown: MockIcon };
-});
+vi.mock('@lucide/svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ChevronDown'));
 
 describe('Settings', () => {
   const user = userEvent.setup();
@@ -263,20 +241,22 @@ describe('Settings', () => {
   });
 
   describe('Restore', () => {
+    const historyEntry = { timestamp: '2025-01-15T10:00:00Z', field: 'theme', old_value: 'light', new_value: 'dark' };
+
+    function setupHistoryMock() {
+      mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
+        data: { history: [historyEntry] },
+        error: undefined,
+      });
+    }
+
     it('restores settings on confirm', async () => {
       mocks.mockConfirm.mockReturnValue(true);
       mocks.restoreSettingsApiV1UserSettingsRestorePost.mockResolvedValue({
         data: { ...createMockSettings(), theme: 'light' },
         error: undefined,
       });
-      mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
-        data: {
-          history: [
-            { timestamp: '2025-01-15T10:00:00Z', field: 'theme', old_value: 'light', new_value: 'dark' },
-          ],
-        },
-        error: undefined,
-      });
+      setupHistoryMock();
 
       await renderSettings();
       await waitFor(() => {
@@ -300,14 +280,7 @@ describe('Settings', () => {
 
     it('does not call API when confirm is cancelled', async () => {
       mocks.mockConfirm.mockReturnValue(false);
-      mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
-        data: {
-          history: [
-            { timestamp: '2025-01-15T10:00:00Z', field: 'theme', old_value: 'light', new_value: 'dark' },
-          ],
-        },
-        error: undefined,
-      });
+      setupHistoryMock();
 
       await renderSettings();
       await waitFor(() => {

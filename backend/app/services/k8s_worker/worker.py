@@ -236,20 +236,6 @@ exec "$@"
         )
         await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
-    async def wait_for_active_creations(self, timeout: float = 30.0) -> None:
-        """Wait for active pod creations to complete (for graceful shutdown)."""
-        if not self._active_creations:
-            return
-
-        self.logger.info(f"Waiting for {len(self._active_creations)} active pod creations to complete...")
-        start_time = time.time()
-
-        while self._active_creations and (time.time() - start_time) < timeout:
-            await asyncio.sleep(1)
-
-        if self._active_creations:
-            self.logger.warning(f"Timeout waiting for pod creations, {len(self._active_creations)} still active")
-
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""
         daemonset_name = "runtime-image-pre-puller"

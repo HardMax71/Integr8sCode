@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
@@ -340,11 +339,7 @@ async def replay_aggregate_events(
     replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
     replayed_count = 0
 
-    for i, event in enumerate(replay_info.events):
-        # Rate limiting: pause every 100 events to prevent overwhelming the system
-        if i > 0 and i % 100 == 0:
-            await asyncio.sleep(0.1)
-
+    for event in replay_info.events:
         try:
             meta = EventMetadata(
                 service_name=settings.SERVICE_NAME,

@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from app.domain.enums.events import EventType
 from app.domain.events.typed import DomainEvent
@@ -19,78 +17,9 @@ DomainEventAdapter: TypeAdapter[DomainEvent] = TypeAdapter(DomainEvent)
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
-
-async def wait_for_user_events(
-        client: AsyncClient,
-        timeout: float = 30.0,
-        poll_interval: float = 0.5,
-) -> EventListResponse:
-    """Poll until at least one event exists for the user.
-
-    Args:
-        client: Authenticated HTTP client
-        timeout: Maximum time to wait in seconds
-        poll_interval: Time between polls in seconds
-
-    Returns:
-        EventListResponse with at least one event
-
-    Raises:
-        TimeoutError: If no events appear within timeout
-        AssertionError: If API returns unexpected status code
-    """
-    deadline = asyncio.get_event_loop().time() + timeout
-
-    while asyncio.get_event_loop().time() < deadline:
-        response = await client.get("/api/v1/events/user", params={"limit": 10})
-        assert response.status_code == 200, f"Unexpected: {response.status_code} - {response.text}"
-
-        result = EventListResponse.model_validate(response.json())
-        if result.events:
-            return result
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"No events appeared for user within {timeout}s")
-
-
-async def wait_for_aggregate_events(
-        client: AsyncClient,
-        aggregate_id: str,
-        timeout: float = 30.0,
-        poll_interval: float = 0.5,
-) -> EventListResponse:
-    """Poll until at least one event exists for the aggregate.
-
-    Args:
-        client: Authenticated HTTP client
-        aggregate_id: Aggregate ID (execution_id) to check
-        timeout: Maximum time to wait in seconds
-        poll_interval: Time between polls in seconds
-
-    Returns:
-        EventListResponse with at least one event
-
-    Raises:
-        TimeoutError: If no events appear within timeout
-        AssertionError: If API returns unexpected status code
-    """
-    deadline = asyncio.get_event_loop().time() + timeout
-
-    while asyncio.get_event_loop().time() < deadline:
-        response = await client.get(
-            f"/api/v1/events/executions/{aggregate_id}/events",
-            params={"limit": 10},
-        )
-        assert response.status_code == 200, f"Unexpected: {response.status_code} - {response.text}"
-
-        result = EventListResponse.model_validate(response.json())
-        if result.events:
-            return result
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"No events appeared for aggregate {aggregate_id} within {timeout}s")
+# Events are stored in MongoDB by the producer BEFORE publishing to Kafka.
+# By the time the created_execution fixture returns, EXECUTION_REQUESTED is
+# already in the event store. No waiting needed for any of these tests.
 
 
 class TestExecutionEvents:
@@ -101,21 +30,26 @@ class TestExecutionEvents:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get events for a specific execution."""
-        result = await wait_for_aggregate_events(test_user, created_execution.execution_id)
+        response = await test_user.get(
+            f"/api/v1/events/executions/{created_execution.execution_id}/events",
+            params={"limit": 10},
+        )
 
-        assert result.total >= 1
+        assert response.status_code == 200
+        result = EventListResponse.model_validate(response.json())
+        assert result.total == 1
         assert result.limit == 10
         assert result.skip == 0
         assert isinstance(result.has_more, bool)
-        assert len(result.events) >= 1
+        assert len(result.events) == 1
+        assert result.events[0].event_type == EventType.EXECUTION_REQUESTED
+        assert result.events[0].execution_id == created_execution.execution_id
 
     @pytest.mark.asyncio
     async def test_get_execution_events_pagination(
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Pagination works for execution events."""
-        await wait_for_aggregate_events(test_user, created_execution.execution_id)
-
         response = await test_user.get(
             f"/api/v1/events/executions/{created_execution.execution_id}/events",
             params={"limit": 5, "skip": 0},
@@ -125,6 +59,8 @@ class TestExecutionEvents:
         result = EventListResponse.model_validate(response.json())
         assert result.limit == 5
         assert result.skip == 0
+        assert len(result.events) <= 5
+        assert result.total >= 1
 
     @pytest.mark.asyncio
     async def test_get_execution_events_access_denied(
@@ -147,18 +83,19 @@ class TestUserEvents:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get events for current user."""
-        result = await wait_for_user_events(test_user)
+        response = await test_user.get("/api/v1/events/user", params={"limit": 10})
 
+        assert response.status_code == 200
+        result = EventListResponse.model_validate(response.json())
         assert result.total >= 1
         assert len(result.events) >= 1
+        assert len(result.events) <= min(result.total, 10)
 
     @pytest.mark.asyncio
     async def test_get_user_events_with_filters(
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Filter user events by event types."""
-        await wait_for_user_events(test_user)
-
         response = await test_user.get(
             "/api/v1/events/user",
             params={
@@ -170,6 +107,8 @@ class TestUserEvents:
         assert response.status_code == 200
         result = EventListResponse.model_validate(response.json())
         assert result.limit == 10
+        for e in result.events:
+            assert e.event_type == EventType.EXECUTION_REQUESTED
 
     @pytest.mark.asyncio
     async def test_get_user_events_unauthenticated(
@@ -188,8 +127,6 @@ class TestQueryEvents:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Query events with filters."""
-        await wait_for_user_events(test_user)
-
         response = await test_user.post(
             "/api/v1/events/query",
             json={
@@ -202,6 +139,9 @@ class TestQueryEvents:
         assert response.status_code == 200
         result = EventListResponse.model_validate(response.json())
         assert result.limit == 50
+        assert len(result.events) >= 1
+        for e in result.events:
+            assert e.event_type == EventType.EXECUTION_REQUESTED
 
     @pytest.mark.asyncio
     async def test_query_events_with_correlation_id(
@@ -263,24 +203,21 @@ class TestEventStatistics:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get event statistics for current user."""
-        await wait_for_user_events(test_user)
-
         response = await test_user.get("/api/v1/events/statistics")
 
         assert response.status_code == 200
         stats = EventStatistics.model_validate(response.json())
 
         assert stats.total_events >= 1
-        assert stats.events_by_type is not None
-        assert stats.events_by_service is not None
+        assert len(stats.events_by_type) >= 1
+        assert len(stats.events_by_service) >= 1
+        assert any(e.event_type == EventType.EXECUTION_REQUESTED for e in stats.events_by_type)
 
     @pytest.mark.asyncio
     async def test_get_event_statistics_with_time_range(
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get event statistics with time range."""
-        await wait_for_user_events(test_user)
-
         response = await test_user.get(
             "/api/v1/events/statistics",
             params={
@@ -292,6 +229,7 @@ class TestEventStatistics:
         assert response.status_code == 200
         stats = EventStatistics.model_validate(response.json())
         assert stats.total_events >= 1
+        assert len(stats.events_by_type) >= 1
 
 
 class TestSingleEvent:
@@ -309,7 +247,10 @@ class TestSingleEvent:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Get single event by ID."""
-        events_result = await wait_for_user_events(test_user)
+        events_resp = await test_user.get("/api/v1/events/user", params={"limit": 10})
+        assert events_resp.status_code == 200
+        events_result = EventListResponse.model_validate(events_resp.json())
+        assert events_result.events
         event_id = events_result.events[0].event_id
 
         response = await test_user.get(f"/api/v1/events/{event_id}")
@@ -374,8 +315,6 @@ class TestAggregateEvents:
             self, test_user: AsyncClient, created_execution: ExecutionResponse
     ) -> None:
         """Aggregate events with MongoDB pipeline."""
-        await wait_for_user_events(test_user)
-
         response = await test_user.post(
             "/api/v1/events/aggregate",
             json={
@@ -390,6 +329,8 @@ class TestAggregateEvents:
         result = response.json()
         assert isinstance(result, list)
         assert len(result) >= 1
+        for item in result:
+            assert "_id" in item and "count" in item and item["count"] > 0
 
 
 class TestListEventTypes:
@@ -417,6 +358,7 @@ class TestListEventTypes:
         result = response.json()
         assert isinstance(result, list)
         assert len(result) > 0
+        assert EventType.SCRIPT_SAVED in result
 
 
 class TestDeleteEvent:
@@ -452,6 +394,10 @@ class TestDeleteEvent:
         assert result.event_id == event_id
         assert "deleted" in result.message.lower()
 
+        # Verify event is actually gone
+        get_resp = await test_admin.get(f"/api/v1/events/{event_id}")
+        assert get_resp.status_code == 404
+
     @pytest.mark.asyncio
     async def test_delete_event_forbidden_for_user(
             self, test_user: AsyncClient
@@ -470,8 +416,6 @@ class TestReplayAggregateEvents:
             self, test_admin: AsyncClient, created_execution_admin: ExecutionResponse
     ) -> None:
         """Replay events in dry run mode."""
-        await wait_for_aggregate_events(test_admin, created_execution_admin.execution_id)
-
         response = await test_admin.post(
             f"/api/v1/events/replay/{created_execution_admin.execution_id}",
             params={"dry_run": True},
@@ -481,6 +425,8 @@ class TestReplayAggregateEvents:
         result = ReplayAggregateResponse.model_validate(response.json())
         assert result.dry_run is True
         assert result.aggregate_id == created_execution_admin.execution_id
+        assert result.event_count is not None and result.event_count >= 1
+        assert result.event_types is not None and len(result.event_types) >= 1
 
     @pytest.mark.asyncio
     async def test_replay_events_not_found(
@@ -518,8 +464,6 @@ class TestEventIsolation:
             created_execution: ExecutionResponse,
     ) -> None:
         """User cannot access another user's execution events."""
-        await wait_for_aggregate_events(test_user, created_execution.execution_id)
-
         response = await another_user.get(
             f"/api/v1/events/executions/{created_execution.execution_id}/events"
         )
@@ -534,13 +478,13 @@ class TestEventIsolation:
             created_execution: ExecutionResponse,
     ) -> None:
         """User events endpoint only returns user's own events."""
-        events_result = await wait_for_user_events(test_user)
-        user_event_ids = {e.event_id for e in events_result.events}
+        events_resp = await test_user.get("/api/v1/events/user")
+        assert events_resp.status_code == 200
+        user_event_ids = {e.event_id for e in EventListResponse.model_validate(events_resp.json()).events}
 
         another_response = await another_user.get("/api/v1/events/user")
         assert another_response.status_code == 200
+        another_event_ids = {e.event_id for e in EventListResponse.model_validate(another_response.json()).events}
 
-        another_result = EventListResponse.model_validate(another_response.json())
-        another_event_ids = {e.event_id for e in another_result.events}
-
+        assert len(user_event_ids) >= 1, "test_user should have events from created_execution"
         assert user_event_ids.isdisjoint(another_event_ids)

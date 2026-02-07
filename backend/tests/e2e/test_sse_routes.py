@@ -1,11 +1,14 @@
+import asyncio
 from typing import Any
 
 import pytest
 import pytest_asyncio
-from app.schemas_pydantic.execution import ExecutionResponse
+from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from async_asgi_testclient import TestClient as SSETestClient
 from fastapi import FastAPI
 from httpx import AsyncClient
+
+from tests.e2e.conftest import EventWaiter
 
 pytestmark = [pytest.mark.e2e]
 
@@ -44,10 +47,8 @@ async def sse_client(app: FastAPI, test_user: AsyncClient) -> SSETestClient:
     context manager from closing the session-scoped Kafka broker.
     """
     client = SSETestClient(_NoLifespan(app))
-    # Copy auth cookies from httpx client (SimpleCookie uses dict-style assignment)
     for name, value in test_user.cookies.items():
         client.cookie_jar[name] = value
-    # Copy CSRF header
     if csrf := test_user.headers.get("X-CSRF-Token"):
         client.headers["X-CSRF-Token"] = csrf
     return client
@@ -68,25 +69,56 @@ class TestNotificationStream:
     """Tests for GET /api/v1/events/notifications/stream."""
 
     @pytest.mark.asyncio
-    async def test_notification_stream_returns_event_stream(
-        self, sse_client: SSETestClient
-    ) -> None:
-        """Notification stream returns SSE content type and streams data."""
-        async with sse_client:
-            response = await sse_client.get(
-                "/api/v1/events/notifications/stream", stream=True
-            )
-
-            assert response.status_code == 200
-            assert "text/event-stream" in response.headers.get("content-type", "")
-
-    @pytest.mark.asyncio
     async def test_notification_stream_unauthenticated(
         self, client: AsyncClient
     ) -> None:
         """Notification stream requires authentication."""
         response = await client.get("/api/v1/events/notifications/stream")
         assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    @pytest.mark.kafka
+    async def test_notification_stream_returns_event_stream(
+        self,
+        sse_client: SSETestClient,
+        test_user: AsyncClient,
+        simple_execution_request: ExecutionRequest,
+        event_waiter: EventWaiter,
+    ) -> None:
+        """Notification stream returns SSE content type when a notification arrives.
+
+        The notification stream has no initial control events (unlike the
+        execution stream). async-asgi-testclient blocks until the first
+        http.response.body ASGI message. We trigger a real notification by
+        creating an execution and waiting for its result — the notification
+        handler publishes to Redis before RESULT_STORED, unblocking the stream.
+        """
+        async with sse_client:
+            # Start stream in background — blocks until first body chunk
+            stream_task = asyncio.create_task(
+                sse_client.get(
+                    "/api/v1/events/notifications/stream", stream=True
+                )
+            )
+            # Allow Redis subscription to establish
+            await asyncio.sleep(0.5)
+
+            # Trigger a notification: execution → result → notification
+            resp = await test_user.post(
+                "/api/v1/execute",
+                json=simple_execution_request.model_dump(),
+            )
+            assert resp.status_code == 200
+            execution = ExecutionResponse.model_validate(resp.json())
+            await event_waiter.wait_for_result(execution.execution_id)
+
+            # Notification published to Redis unblocks the SSE stream
+            response = await asyncio.wait_for(stream_task, timeout=10.0)
+
+            assert response.status_code == 200
+            assert "text/event-stream" in response.headers.get("content-type", "")
+            body = response.raw.read().decode("utf-8")
+            assert len(body) > 0
 
 
 class TestExecutionStream:
@@ -96,7 +128,13 @@ class TestExecutionStream:
     async def test_execution_stream_returns_event_stream(
         self, sse_client: SSETestClient, created_execution: ExecutionResponse
     ) -> None:
-        """Execution events stream returns SSE content type."""
+        """Execution stream returns SSE content type and first body chunk.
+
+        async-asgi-testclient waits for the first http.response.body ASGI
+        message before returning the response object. For execution streams
+        this is the ``connected`` control event, confirming the SSE generator
+        started and yielded data.
+        """
         async with sse_client:
             response = await sse_client.get(
                 f"/api/v1/events/executions/{created_execution.execution_id}",
@@ -105,6 +143,13 @@ class TestExecutionStream:
 
             assert response.status_code == 200
             assert "text/event-stream" in response.headers.get("content-type", "")
+
+            # The first body chunk (buffered by async-asgi-testclient during
+            # response construction) contains the ``connected`` SSE event.
+            first_chunk = response.raw.read()
+            body = first_chunk.decode("utf-8")
+            assert "connected" in body
+            assert created_execution.execution_id in body
 
     @pytest.mark.asyncio
     async def test_execution_stream_unauthenticated(
@@ -120,11 +165,10 @@ class TestExecutionStream:
         sse_client_another: SSETestClient,
         created_execution: ExecutionResponse,
     ) -> None:
-        """Streaming another user's execution opens but events are filtered.
+        """Another user's execution stream still opens (auth at event level).
 
-        SSE endpoints return 200 and start streaming - authorization
-        happens at event level (user won't receive events for executions
-        they don't own). We verify the stream opens with correct content-type.
+        SSE endpoints return 200 and start streaming. The connected/subscribed
+        control events are always sent; business events are filtered by ownership.
         """
         async with sse_client_another:
             response = await sse_client_another.get(
@@ -134,3 +178,7 @@ class TestExecutionStream:
 
             assert response.status_code == 200
             assert "text/event-stream" in response.headers.get("content-type", "")
+
+            # Another user still receives the initial connected event
+            first_chunk = response.raw.read()
+            assert b"connected" in first_chunk

@@ -46,10 +46,10 @@ class TestGrafanaWebhook:
         assert response.status_code == 200
         result = AlertResponse.model_validate(response.json())
 
-        assert result.message is not None
+        assert result.message
         assert result.alerts_received == 1
-        assert result.alerts_processed >= 0
-        assert isinstance(result.errors, list)
+        assert result.alerts_processed == 1
+        assert len(result.errors) == 0
 
     @pytest.mark.asyncio
     async def test_receive_multiple_grafana_alerts(
@@ -88,7 +88,7 @@ class TestGrafanaWebhook:
         result = AlertResponse.model_validate(response.json())
 
         assert result.alerts_received == 3
-        assert result.alerts_processed >= 0
+        assert result.alerts_processed == 3
 
     @pytest.mark.asyncio
     async def test_receive_grafana_alert_resolved(

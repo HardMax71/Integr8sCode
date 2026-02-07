@@ -95,8 +95,6 @@ class TestAuthRegister:
         assert result.email == new_user_request.email
         assert result.role == UserRole.USER
         assert result.is_superuser is False
-        assert result.created_at is not None
-        assert result.updated_at is not None
 
     @pytest.mark.asyncio
     async def test_register_duplicate_username(
@@ -169,9 +167,9 @@ class TestAuthMe:
         assert response.status_code == 200
         result = UserResponse.model_validate(response.json())
 
-        assert result.user_id is not None
-        assert result.username is not None
-        assert result.email is not None
+        assert result.user_id
+        assert result.username
+        assert result.email
         assert result.role in [UserRole.USER, UserRole.ADMIN]
         assert response.headers.get("Cache-Control") == "no-store"
 
@@ -195,9 +193,9 @@ class TestAuthVerifyToken:
         result = TokenValidationResponse.model_validate(response.json())
 
         assert result.valid is True
-        assert result.username is not None
+        assert result.username
         assert result.role in [UserRole.USER, UserRole.ADMIN]
-        assert result.csrf_token is not None
+        assert result.csrf_token
 
     @pytest.mark.asyncio
     async def test_verify_invalid_token(self, client: AsyncClient) -> None:

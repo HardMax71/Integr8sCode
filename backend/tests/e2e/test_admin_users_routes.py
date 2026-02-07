@@ -2,11 +2,7 @@ import uuid
 
 import pytest
 from app.domain.enums.user import UserRole
-from app.schemas_pydantic.admin_user_overview import (
-    AdminUserOverview,
-    DerivedCounts,
-    RateLimitSummary,
-)
+from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
@@ -46,10 +42,9 @@ class TestListUsers:
         assert response.status_code == 200
         result = UserListResponse.model_validate(response.json())
 
-        assert result.total >= 0
+        assert result.total >= 1  # at least admin + test users
         assert result.offset == 0
         assert result.limit == 100  # default
-        assert isinstance(result.users, list)
 
     @pytest.mark.asyncio
     async def test_list_users_with_pagination(
@@ -77,8 +72,7 @@ class TestListUsers:
         )
 
         assert response.status_code == 200
-        result = UserListResponse.model_validate(response.json())
-        assert isinstance(result.users, list)
+        UserListResponse.model_validate(response.json())
 
     @pytest.mark.asyncio
     async def test_list_users_with_role_filter(
@@ -128,13 +122,11 @@ class TestCreateUser:
         raw_data = response.json()
         user = UserResponse.model_validate(raw_data)
 
-        assert user.user_id is not None
+        assert user.user_id
         assert user.username == request.username
         assert user.email == request.email
         assert user.role == UserRole.USER
         assert user.is_active is True
-        assert user.created_at is not None
-        assert user.updated_at is not None
 
         # Security: password must not be exposed in response
         assert "password" not in raw_data
@@ -294,19 +286,6 @@ class TestGetUserOverview:
         overview = AdminUserOverview.model_validate(response.json())
 
         assert overview.user.user_id == user_id
-        assert overview.stats is not None
-        assert overview.stats.total_events >= 0
-
-        # Validate derived counts
-        assert isinstance(overview.derived_counts, DerivedCounts)
-        assert overview.derived_counts.succeeded >= 0
-        assert overview.derived_counts.failed >= 0
-        assert overview.derived_counts.timeout >= 0
-        assert overview.derived_counts.cancelled >= 0
-
-        # Validate rate limit summary
-        assert isinstance(overview.rate_limit_summary, RateLimitSummary)
-        assert isinstance(overview.recent_events, list)
 
     @pytest.mark.asyncio
     async def test_get_user_overview_not_found(

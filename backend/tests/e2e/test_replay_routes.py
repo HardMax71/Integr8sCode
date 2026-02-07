@@ -39,10 +39,9 @@ class TestCreateReplaySession:
         assert response.status_code == 200
         result = ReplayResponse.model_validate(response.json())
 
-        assert result.session_id is not None
+        assert result.session_id
         # Newly created session has CREATED status
         assert result.status == ReplayStatus.CREATED
-        assert result.message is not None
 
     @pytest.mark.asyncio
     async def test_create_replay_session_with_filter(
@@ -62,7 +61,7 @@ class TestCreateReplaySession:
 
         assert response.status_code == 200
         result = ReplayResponse.model_validate(response.json())
-        assert result.session_id is not None
+        assert result.session_id
 
     @pytest.mark.asyncio
     async def test_create_replay_session_file_target(
@@ -81,7 +80,7 @@ class TestCreateReplaySession:
 
         assert response.status_code == 200
         result = ReplayResponse.model_validate(response.json())
-        assert result.session_id is not None
+        assert result.session_id
 
     @pytest.mark.asyncio
     async def test_create_replay_session_forbidden_for_regular_user(

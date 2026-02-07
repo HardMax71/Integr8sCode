@@ -97,7 +97,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         await manager.handle_message(dlq_msg)
 
         # Await the DLQMessageReceivedEvent — true async, no polling
-        received = await asyncio.wait_for(received_future, timeout=15.0)
+        received = await asyncio.wait_for(received_future, timeout=5.0)
         assert received.dlq_event_id == ev.event_id
         assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
         assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)

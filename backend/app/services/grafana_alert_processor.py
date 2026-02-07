@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from app.domain.enums.notification import NotificationSeverity
+from app.domain.enums.user import UserRole
 from app.schemas_pydantic.grafana import GrafanaAlertItem, GrafanaWebhook
 from app.services.notification_service import NotificationService
 
@@ -99,6 +100,7 @@ class GrafanaAlertProcessor:
                 severity=severity,
                 tags=["external_alert", "grafana", "entity:external_alert"],
                 metadata=metadata,
+                target_roles=[UserRole.ADMIN],
             )
             return True, None
 

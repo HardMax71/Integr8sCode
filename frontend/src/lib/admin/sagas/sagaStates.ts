@@ -1,14 +1,14 @@
 /**
  * Saga state configurations
  */
-import { Plus, Loader, AlertTriangle, CheckCircle, XCircle, Clock } from '@lucide/svelte';
+import { Plus, Loader, TriangleAlert, CircleCheckBig, CircleX, Clock } from '@lucide/svelte';
 import type { SagaState } from '$lib/api';
 
 export interface SagaStateConfig {
     label: string;
     color: string;
     bgColor: string;
-    icon: typeof CheckCircle;
+    icon: typeof CircleCheckBig;
 }
 
 export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
@@ -28,19 +28,19 @@ export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
         label: 'Compensating',
         color: 'badge-warning',
         bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
-        icon: AlertTriangle
+        icon: TriangleAlert
     },
     completed: {
         label: 'Completed',
         color: 'badge-success',
         bgColor: 'bg-green-50 dark:bg-green-900/20',
-        icon: CheckCircle
+        icon: CircleCheckBig
     },
     failed: {
         label: 'Failed',
         color: 'badge-danger',
         bgColor: 'bg-red-50 dark:bg-red-900/20',
-        icon: XCircle
+        icon: CircleX
     },
     timeout: {
         label: 'Timeout',
@@ -52,19 +52,12 @@ export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
         label: 'Cancelled',
         color: 'badge-neutral',
         bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
-        icon: XCircle
+        icon: CircleX
     }
 };
 
-const DEFAULT_STATE: SagaStateConfig = {
-    label: 'Unknown',
-    color: 'badge-neutral',
-    bgColor: 'bg-neutral-50',
-    icon: Plus
-};
-
 export function getSagaStateInfo(state: SagaState): SagaStateConfig {
-    return SAGA_STATES[state] || { ...DEFAULT_STATE, label: state };
+    return SAGA_STATES[state];
 }
 
 // Filter type for saga state filters - empty string means "all"
@@ -86,7 +79,7 @@ export const EXECUTION_SAGA_STEPS: SagaStep[] = [
 ];
 
 export function getSagaProgressPercentage(completedSteps: string[], sagaName: string): number {
-    if (!completedSteps?.length) return 0;
+    if (!completedSteps.length) return 0;
     const totalSteps = sagaName === 'execution_saga' ? 5 : 3;
     return Math.min(100, (completedSteps.length / totalSteps) * 100);
 }

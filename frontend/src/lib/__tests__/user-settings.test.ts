@@ -10,25 +10,22 @@ vi.mock('../api', () => ({
 
 const mockSetUserSettings = vi.fn();
 
-vi.mock('../../stores/userSettings', () => ({
+vi.mock('../../stores/userSettings.svelte', () => ({
   setUserSettings: (settings: unknown) => mockSetUserSettings(settings),
 }));
 
 const mockSetTheme = vi.fn();
 
-vi.mock('../../stores/theme', () => ({
+vi.mock('../../stores/theme.svelte', () => ({
   setTheme: (theme: string) => mockSetTheme(theme),
 }));
 
-let mockIsAuthenticated = true;
+const mockAuthStore = {
+  isAuthenticated: true as boolean | null,
+};
 
-vi.mock('../../stores/auth', () => ({
-  isAuthenticated: {
-    subscribe: (fn: (value: boolean) => void) => {
-      fn(mockIsAuthenticated);
-      return () => {};
-    },
-  },
+vi.mock('../../stores/auth.svelte', () => ({
+  authStore: mockAuthStore,
 }));
 
 vi.mock('../api-interceptors', () => ({
@@ -45,7 +42,7 @@ describe('user-settings', () => {
     mockSetUserSettings.mockReset();
     mockSetTheme.mockReset();
 
-    mockIsAuthenticated = true;
+    mockAuthStore.isAuthenticated = true;
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -129,7 +126,7 @@ describe('user-settings', () => {
 
   describe('saveUserSettings', () => {
     it('returns false when not authenticated', async () => {
-      mockIsAuthenticated = false;
+      mockAuthStore.isAuthenticated = false;
       vi.resetModules();
 
       const { saveUserSettings } = await import('$lib/user-settings');

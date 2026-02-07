@@ -7,7 +7,7 @@
     import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
     import { oneDark } from '@codemirror/theme-one-dark';
     import { githubLight } from '@uiw/codemirror-theme-github';
-    import { theme as appTheme } from '$stores/theme';
+    import { themeStore } from '$stores/theme.svelte';
     import { getLanguageExtension } from '$lib/editor/languages';
     import type { EditorSettings } from '$lib/api';
 
@@ -75,8 +75,6 @@
         view.dispatch({ effects: lineWrappingCompartment.reconfigure(settings.word_wrap ? EditorView.lineWrapping : []) });
     }
 
-    let unsubscribeTheme: (() => void) | null = null;
-
     onMount(() => {
         if (!container) return;
 
@@ -86,18 +84,19 @@
         });
 
         view = new EditorView({ state: startState, parent: container });
-
-        unsubscribeTheme = appTheme.subscribe(() => {
-            if (view && (settings.theme === 'auto' || !settings.theme)) {
-                view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
-            }
-        });
     });
 
     onDestroy(() => {
         view?.destroy();
         view = null;
-        unsubscribeTheme?.();
+    });
+
+    // React to app theme changes for auto-theme mode
+    $effect(() => {
+        void themeStore.value;
+        if (view && (settings.theme === 'auto' || !settings.theme)) {
+            view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
+        }
     });
 
     $effect(() => {

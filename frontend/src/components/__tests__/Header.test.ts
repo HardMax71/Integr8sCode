@@ -5,53 +5,55 @@ import { setupAnimationMock, suppressConsoleError } from '../../__tests__/test-u
 
 // vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  function createMockStore<T>(initial: T) {
-    let value = initial;
-    const subscribers = new Set<(v: T) => void>();
-    return {
-      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
-      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
-      update(fn: (v: T) => T) { this.set(fn(value)); },
-    };
-  }
   return {
-    mockIsAuthenticated: createMockStore<boolean | null>(false),
-    mockUsername: createMockStore<string | null>(null),
-    mockUserRole: createMockStore<string | null>(null),
-    mockUserEmail: createMockStore<string | null>(null),
-    mockTheme: createMockStore<string>('auto'),
-    mockLogout: vi.fn(),
-    mockToggleTheme: vi.fn(),
-    mockGoto: vi.fn(),
+    mockAuthStore: {
+      isAuthenticated: false as boolean | null,
+      username: null as string | null,
+      userRole: null as string | null,
+      userEmail: null as string | null,
+      userId: null as string | null,
+      csrfToken: null as string | null,
+      logout: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
+      login: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
+      verifyAuth: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
+      fetchUserProfile: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
+    },
+    mockThemeStore: {
+      value: 'auto' as string,
+    },
+    mockToggleTheme: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
+    mockGoto: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
   };
 });
 
+// Initialize vi.fn() mocks outside hoisted context
+mocks.mockAuthStore.logout = vi.fn();
+mocks.mockAuthStore.login = vi.fn();
+mocks.mockAuthStore.verifyAuth = vi.fn();
+mocks.mockAuthStore.fetchUserProfile = vi.fn();
+mocks.mockToggleTheme = vi.fn();
+mocks.mockGoto = vi.fn();
+
 vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: (...args: unknown[]) => mocks.mockGoto(...args) }));
-vi.mock('../../stores/auth', () => ({
-  get isAuthenticated() { return mocks.mockIsAuthenticated; },
-  get username() { return mocks.mockUsername; },
-  get userRole() { return mocks.mockUserRole; },
-  get userEmail() { return mocks.mockUserEmail; },
-  get logout() { return () => mocks.mockLogout(); },
+vi.mock('../../stores/auth.svelte', () => ({
+  get authStore() { return mocks.mockAuthStore; },
 }));
-vi.mock('../../stores/theme', () => ({
-  get theme() { return mocks.mockTheme; },
+vi.mock('../../stores/theme.svelte', () => ({
+  get themeStore() { return mocks.mockThemeStore; },
   get toggleTheme() { return () => mocks.mockToggleTheme(); },
 }));
-vi.mock('../NotificationCenter.svelte', () => {
-  const Mock = function() { return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } }; };
-  Mock.render = () => ({ html: '<div data-testid="notification-center">NotificationCenter</div>', css: { code: '', map: null }, head: '' });
-  return { default: Mock };
-});
+vi.mock('../NotificationCenter.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+    '<div>NotificationCenter</div>', 'notification-center'));
 
 import Header from '$components/Header.svelte';
 
 // Test helpers
 const setAuth = (isAuth: boolean, username: string | null = null, role: string | null = null, email: string | null = null) => {
-  mocks.mockIsAuthenticated.set(isAuth);
-  mocks.mockUsername.set(username);
-  mocks.mockUserRole.set(role);
-  mocks.mockUserEmail.set(email);
+  mocks.mockAuthStore.isAuthenticated = isAuth;
+  mocks.mockAuthStore.username = username;
+  mocks.mockAuthStore.userRole = role;
+  mocks.mockAuthStore.userEmail = email;
 };
 
 const openUserDropdown = async (username: string) => {
@@ -75,8 +77,8 @@ describe('Header', () => {
   beforeEach(() => {
     setupAnimationMock();
     setAuth(false);
-    mocks.mockTheme.set('auto');
-    mocks.mockLogout.mockReset();
+    mocks.mockThemeStore.value = 'auto';
+    mocks.mockAuthStore.logout.mockReset();
     mocks.mockToggleTheme.mockReset();
     mocks.mockGoto.mockReset();
     originalInnerWidth = window.innerWidth;
@@ -120,7 +122,7 @@ describe('Header', () => {
       { theme: 'dark', iconClass: 'lucide-moon' },
       { theme: 'auto', iconClass: 'lucide-monitor-cog' },
     ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
-      mocks.mockTheme.set(theme);
+      mocks.mockThemeStore.value = theme;
       const { container } = render(Header);
       await waitFor(() => {
         const svg = container.querySelector('[title="Toggle theme"] svg');
@@ -153,7 +155,7 @@ describe('Header', () => {
     });
 
     it('shows "No email set" when email is null', async () => {
-      mocks.mockUserEmail.set(null);
+      mocks.mockAuthStore.userEmail = null;
       await openUserDropdown('testuser');
       await waitFor(() => { expect(screen.getByText('No email set')).toBeInTheDocument(); });
     });
@@ -162,7 +164,7 @@ describe('Header', () => {
       const user = await openUserDropdown('testuser');
       await waitFor(() => { expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument(); });
       await user.click(screen.getByRole('button', { name: /Logout/i }));
-      expect(mocks.mockLogout).toHaveBeenCalled();
+      expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
       expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
     });
   });
@@ -287,7 +289,7 @@ describe('Header', () => {
       const logoutButton = screen.getByRole('button', { name: /Logout/i });
       await user.click(logoutButton);
 
-      expect(mocks.mockLogout).toHaveBeenCalled();
+      expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
       expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
     });
   });

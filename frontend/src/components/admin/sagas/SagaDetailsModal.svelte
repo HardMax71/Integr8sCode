@@ -98,7 +98,7 @@
                                     <div class="flex items-center w-full relative h-12">
                                         <div class="flex-1 flex items-center justify-end">
                                             {#if index > 0}
-                                                {@const prevCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index - 1].name)}
+                                                {@const prevCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index - 1]!.name)}
                                                 <div class="h-0.5 w-full {prevCompleted && (isCompleted || isCompensated) ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
                                             {/if}
                                         </div>
@@ -118,7 +118,7 @@
                                         </div>
                                         <div class="flex-1 flex items-center justify-start">
                                             {#if index < EXECUTION_SAGA_STEPS.length - 1}
-                                                {@const nextCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index + 1].name)}
+                                                {@const nextCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index + 1]!.name)}
                                                 <div class="h-0.5 w-full {isCompleted && nextCompleted ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
                                             {/if}
                                         </div>

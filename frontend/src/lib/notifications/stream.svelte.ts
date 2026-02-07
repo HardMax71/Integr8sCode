@@ -32,7 +32,7 @@ class NotificationStream {
             onMessage: (message) => {
                 if (message.event !== 'notification') return;
                 try {
-                    const data: NotificationResponse = JSON.parse(message.data);
+                    const data = JSON.parse(message.data) as NotificationResponse;
                     this.#onNotification?.(data);
 
                     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -45,7 +45,7 @@ class NotificationStream {
             onRequestError: ({ error }) => {
                 console.error('Notification stream request error:', error);
                 this.connected = false;
-                this.error = error?.message ?? 'Connection failed';
+                this.error = (error as Error | null)?.message ?? 'Connection failed';
             },
             onResponseError: ({ response }) => {
                 console.error('Notification stream response error:', response.status);

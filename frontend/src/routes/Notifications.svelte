@@ -1,10 +1,7 @@
 <script lang="ts">
     import { onMount, type Component } from 'svelte';
-    import { goto } from '@mateothegreat/svelte5-router';
-    import { isAuthenticated, verifyAuth } from '$stores/auth';
     import { toast } from 'svelte-sonner';
-    import { notificationStore, notifications, unreadCount } from '$stores/notificationStore';
-    import { get } from 'svelte/store';
+    import { notificationStore } from '$stores/notificationStore.svelte';
     import { fly } from 'svelte/transition';
     import Spinner from '$components/Spinner.svelte';
     import type { NotificationResponse } from '$lib/api';
@@ -18,30 +15,9 @@
     
     
     onMount(async () => {
-        // Check cached auth state first
-        const currentAuthState = get(isAuthenticated);
-
-        if (currentAuthState === false) {
-            goto('/login');
-            return;
-        }
-
-        // Load data immediately using shared store
         loading = true;
         await notificationStore.load(100);
         loading = false;
-
-        // Verify auth in background
-        verifyAuth().then(isValid => {
-            if (!isValid) {
-                goto('/login');
-            }
-        }).catch(err => {
-            console.error('Auth verification failed:', err);
-            if (!get(isAuthenticated)) {
-                goto('/login');
-            }
-        });
     });
     
     async function deleteNotification(id: string): Promise<void> {
@@ -146,7 +122,7 @@
         </div>
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
-            {#if $notifications.length > 0 && $unreadCount > 0}
+            {#if notificationStore.notifications.length > 0 && notificationStore.unreadCount > 0}
                 <button
                     onclick={markAllAsRead}
                     class="btn btn-secondary-outline btn-sm"
@@ -160,7 +136,7 @@
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>
-        {:else if $notifications.length === 0}
+        {:else if notificationStore.notifications.length === 0}
             <div class="card">
                 <div class="p-12 text-center">
                     <div class="w-20 h-20 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle flex items-center justify-center">
@@ -176,7 +152,7 @@
             </div>
         {:else}
             <div class="space-y-3">
-                {#each $notifications as notification (notification.notification_id)}
+                {#each notificationStore.notifications as notification (notification.notification_id)}
                     {@const NotifIcon = getNotificationIcon(notification.tags)}
                     <div
                         in:fly={{ y: 20, duration: 300 }}

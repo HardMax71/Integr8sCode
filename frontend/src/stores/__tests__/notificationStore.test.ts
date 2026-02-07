@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { get } from 'svelte/store';
 
 // Mock the API functions
 const mockGetNotifications = vi.fn();
@@ -12,6 +11,28 @@ vi.mock('../../lib/api', () => ({
   markNotificationReadApiV1NotificationsNotificationIdReadPut: (...args: unknown[]) => mockMarkRead(...args),
   markAllReadApiV1NotificationsMarkAllReadPost: (...args: unknown[]) => mockMarkAllRead(...args),
   deleteNotificationApiV1NotificationsNotificationIdDelete: (...args: unknown[]) => mockDeleteNotification(...args),
+}));
+
+vi.mock('../../lib/api-interceptors', () => ({
+  getErrorMessage: (err: unknown, fallback = 'An error occurred') => {
+    if (!err) return fallback;
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    if (typeof err !== 'object') return fallback;
+    const obj = err as Record<string, unknown>;
+    if (typeof obj.detail === 'string') return obj.detail;
+    if (typeof obj.message === 'string') return obj.message;
+    if (Array.isArray(obj.detail)) {
+      return (obj.detail as Array<{ loc?: unknown[]; msg?: string }>)
+        .map(e => {
+          const msg = e.msg ?? String(e);
+          if (!e.loc?.length) return msg;
+          return `${e.loc[e.loc.length - 1] ?? 'field'}: ${msg}`;
+        })
+        .join(', ');
+    }
+    return fallback;
+  },
 }));
 
 const createMockNotification = (overrides: Record<string, unknown> = {}) => ({
@@ -43,18 +64,18 @@ describe('notificationStore', () => {
 
   describe('initial state', () => {
     it('has empty notifications array', async () => {
-      const { notificationStore } = await import('$stores/notificationStore');
-      expect(get(notificationStore).notifications).toEqual([]);
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
+      expect(notificationStore.notifications).toEqual([]);
     });
 
     it('has loading false', async () => {
-      const { notificationStore } = await import('$stores/notificationStore');
-      expect(get(notificationStore).loading).toBe(false);
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
+      expect(notificationStore.loading).toBe(false);
     });
 
     it('has null error', async () => {
-      const { notificationStore } = await import('$stores/notificationStore');
-      expect(get(notificationStore).error).toBe(null);
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
+      expect(notificationStore.error).toBe(null);
     });
   });
 
@@ -67,10 +88,10 @@ describe('notificationStore', () => {
         });
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       const loadPromise = notificationStore.load();
 
-      capturedLoading = get(notificationStore).loading;
+      capturedLoading = notificationStore.loading;
       await loadPromise;
 
       expect(capturedLoading).toBe(true);
@@ -86,11 +107,11 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
-      expect(get(notificationStore).notifications).toHaveLength(2);
-      expect(get(notificationStore).notifications[0].subject).toBe('First');
+      expect(notificationStore.notifications).toHaveLength(2);
+      expect(notificationStore.notifications[0].subject).toBe('First');
     });
 
     it('sets loading false after success', async () => {
@@ -99,10 +120,10 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
-      expect(get(notificationStore).loading).toBe(false);
+      expect(notificationStore.loading).toBe(false);
     });
 
     it('returns fetched notifications', async () => {
@@ -112,7 +133,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       const result = await notificationStore.load();
 
       expect(result).toEqual(notifications);
@@ -124,10 +145,10 @@ describe('notificationStore', () => {
         error: { detail: [{ msg: 'Failed to fetch' }] },
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
-      expect(get(notificationStore).error).toBe('Failed to fetch');
+      expect(notificationStore.error).toBe('Failed to fetch');
     });
 
     it('returns empty array on failure', async () => {
@@ -136,7 +157,7 @@ describe('notificationStore', () => {
         error: { detail: [{ msg: 'Error' }] },
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       const result = await notificationStore.load();
 
       expect(result).toEqual([]);
@@ -148,7 +169,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load(50);
 
       expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -162,7 +183,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load(20, {
         include_tags: ['important'],
         exclude_tags: ['spam'],
@@ -187,33 +208,31 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const newNotification = createMockNotification({ notification_id: 'new', subject: 'New' });
       notificationStore.add(newNotification);
 
-      const notifications = get(notificationStore).notifications;
-      expect(notifications[0].notification_id).toBe('new');
-      expect(notifications).toHaveLength(2);
+      expect(notificationStore.notifications[0].notification_id).toBe('new');
+      expect(notificationStore.notifications).toHaveLength(2);
     });
 
     it('caps notifications at 100', async () => {
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
 
       // Add 100 notifications
       for (let i = 0; i < 100; i++) {
         notificationStore.add(createMockNotification({ notification_id: `n${i}` }));
       }
 
-      expect(get(notificationStore).notifications).toHaveLength(100);
+      expect(notificationStore.notifications).toHaveLength(100);
 
       // Add one more
       notificationStore.add(createMockNotification({ notification_id: 'new' }));
 
-      const notifications = get(notificationStore).notifications;
-      expect(notifications).toHaveLength(100);
-      expect(notifications[0].notification_id).toBe('new');
+      expect(notificationStore.notifications).toHaveLength(100);
+      expect(notificationStore.notifications[0].notification_id).toBe('new');
     });
   });
 
@@ -229,13 +248,13 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const result = await notificationStore.markAsRead('n1');
 
       expect(result).toBe(true);
-      expect(get(notificationStore).notifications[0].status).toBe('read');
+      expect(notificationStore.notifications[0].status).toBe('read');
     });
 
     it('returns false on failure', async () => {
@@ -245,19 +264,19 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const result = await notificationStore.markAsRead('n1');
 
       expect(result).toBe(false);
-      expect(get(notificationStore).notifications[0].status).toBe('pending');
+      expect(notificationStore.notifications[0].status).toBe('pending');
     });
 
     it('calls API with correct notification ID', async () => {
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.markAsRead('test-id-123');
 
       expect(mockMarkRead).toHaveBeenCalledWith({
@@ -279,20 +298,19 @@ describe('notificationStore', () => {
       });
       mockMarkAllRead.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const result = await notificationStore.markAllAsRead();
 
       expect(result).toBe(true);
-      const notifications = get(notificationStore).notifications;
-      expect(notifications.every(n => n.status === 'read')).toBe(true);
+      expect(notificationStore.notifications.every(n => n.status === 'read')).toBe(true);
     });
 
     it('returns false on failure', async () => {
       mockMarkAllRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       const result = await notificationStore.markAllAsRead();
 
       expect(result).toBe(false);
@@ -312,15 +330,14 @@ describe('notificationStore', () => {
       });
       mockDeleteNotification.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const result = await notificationStore.delete('n1');
 
       expect(result).toBe(true);
-      const notifications = get(notificationStore).notifications;
-      expect(notifications).toHaveLength(1);
-      expect(notifications[0].notification_id).toBe('n2');
+      expect(notificationStore.notifications).toHaveLength(1);
+      expect(notificationStore.notifications[0].notification_id).toBe('n2');
     });
 
     it('returns false on failure', async () => {
@@ -330,19 +347,19 @@ describe('notificationStore', () => {
       });
       mockDeleteNotification.mockResolvedValue({ error: { detail: 'Failed' } });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
       const result = await notificationStore.delete('n1');
 
       expect(result).toBe(false);
-      expect(get(notificationStore).notifications).toHaveLength(1);
+      expect(notificationStore.notifications).toHaveLength(1);
     });
 
     it('calls API with correct notification ID', async () => {
       mockDeleteNotification.mockResolvedValue({ error: null });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.delete('delete-me-123');
 
       expect(mockDeleteNotification).toHaveBeenCalledWith({
@@ -363,13 +380,13 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
-      expect(get(notificationStore).notifications).toHaveLength(2);
+      expect(notificationStore.notifications).toHaveLength(2);
 
       notificationStore.clear();
 
-      expect(get(notificationStore).notifications).toEqual([]);
+      expect(notificationStore.notifications).toEqual([]);
     });
   });
 
@@ -380,7 +397,7 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.refresh();
 
       expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -389,7 +406,7 @@ describe('notificationStore', () => {
     });
   });
 
-  describe('unreadCount derived store', () => {
+  describe('unreadCount derived', () => {
     it('counts unread notifications', async () => {
       mockGetNotifications.mockResolvedValue({
         data: {
@@ -402,10 +419,10 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
-      expect(get(unreadCount)).toBe(2);
+      expect(notificationStore.unreadCount).toBe(2);
     });
 
     it('returns 0 when all are read', async () => {
@@ -418,10 +435,10 @@ describe('notificationStore', () => {
         error: null,
       });
 
-      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
 
-      expect(get(unreadCount)).toBe(0);
+      expect(notificationStore.unreadCount).toBe(0);
     });
 
     it('updates when notification is marked as read', async () => {
@@ -435,31 +452,12 @@ describe('notificationStore', () => {
       });
       mockMarkRead.mockResolvedValue({ error: null });
 
-      const { notificationStore, unreadCount } = await import('$stores/notificationStore');
+      const { notificationStore } = await import('$stores/notificationStore.svelte');
       await notificationStore.load();
-      expect(get(unreadCount)).toBe(1);
+      expect(notificationStore.unreadCount).toBe(1);
 
       await notificationStore.markAsRead('n1');
-      expect(get(unreadCount)).toBe(0);
-    });
-  });
-
-  describe('notifications derived store', () => {
-    it('exposes notifications array', async () => {
-      const notifs = [
-        createMockNotification({ notification_id: 'n1', subject: 'First' }),
-        createMockNotification({ notification_id: 'n2', subject: 'Second' }),
-      ];
-      mockGetNotifications.mockResolvedValue({
-        data: { notifications: notifs },
-        error: null,
-      });
-
-      const { notificationStore, notifications } = await import('$stores/notificationStore');
-      await notificationStore.load();
-
-      expect(get(notifications)).toHaveLength(2);
-      expect(get(notifications)[0].subject).toBe('First');
+      expect(notificationStore.unreadCount).toBe(0);
     });
   });
 });

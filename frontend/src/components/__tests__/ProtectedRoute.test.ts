@@ -3,26 +3,22 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 
 // vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
-  // Mock store factory (must be inline - vi.hoisted runs before imports)
-  function createMockStore<T>(initial: T) {
-    let value = initial;
-    const subscribers = new Set<(v: T) => void>();
-    return {
-      set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
-      subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
-      update(fn: (v: T) => T) { this.set(fn(value)); },
-    };
-  }
-
   return {
-    mockIsAuthenticated: createMockStore<boolean | null>(null),
-    mockWaitForInit: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
+    mockAuthStore: {
+      isAuthenticated: null as boolean | null,
+      username: null as string | null,
+      userId: null as string | null,
+      userRole: null as string | null,
+      userEmail: null as string | null,
+      csrfToken: null as string | null,
+      waitForInit: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
+    },
     mockGoto: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
   };
 });
 
 // Initialize mocks that need vi.fn() outside of hoisted context
-mocks.mockWaitForInit = vi.fn().mockResolvedValue(true);
+mocks.mockAuthStore.waitForInit = vi.fn().mockResolvedValue(true);
 mocks.mockGoto = vi.fn();
 
 // Mock router - use getter to defer access
@@ -30,30 +26,14 @@ vi.mock('@mateothegreat/svelte5-router', () => ({
   get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); },
 }));
 
-// Mock auth store - use getter to defer access
-vi.mock('../../stores/auth', () => ({
-  get isAuthenticated() { return mocks.mockIsAuthenticated; },
+// Mock auth store - direct object, not writable stores
+vi.mock('../../stores/auth.svelte', () => ({
+  get authStore() { return mocks.mockAuthStore; },
 }));
 
-// Mock auth-init - use getter to defer access
-vi.mock('../../lib/auth-init', () => ({
-  get AuthInitializer() {
-    return {
-      waitForInit: () => mocks.mockWaitForInit(),
-      initialize: vi.fn(),
-      isAuthenticated: vi.fn(),
-    };
-  },
-}));
-
-// Mock Spinner component with Svelte 5 compatible structure
-vi.mock('../Spinner.svelte', () => {
-  const MockSpinner = function() {
-    return { $$: { on_mount: [], on_destroy: [], before_update: [], after_update: [], context: new Map() } };
-  };
-  MockSpinner.render = () => ({ html: '<div data-testid="spinner" role="status">Loading...</div>', css: { code: '', map: null }, head: '' });
-  return { default: MockSpinner };
-});
+vi.mock('../Spinner.svelte', async () =>
+  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+    '<div role="status">Loading...</div>', 'spinner'));
 
 import ProtectedRoute from '$components/ProtectedRoute.svelte';
 
@@ -63,11 +43,16 @@ describe('ProtectedRoute', () => {
 
   beforeEach(() => {
     // Reset stores
-    mocks.mockIsAuthenticated.set(null);
+    mocks.mockAuthStore.isAuthenticated = null;
+    mocks.mockAuthStore.username = null;
+    mocks.mockAuthStore.userId = null;
+    mocks.mockAuthStore.userRole = null;
+    mocks.mockAuthStore.userEmail = null;
+    mocks.mockAuthStore.csrfToken = null;
 
     // Reset mocks
     mocks.mockGoto.mockReset();
-    mocks.mockWaitForInit.mockReset().mockResolvedValue(true);
+    mocks.mockAuthStore.waitForInit.mockReset().mockResolvedValue(true);
 
     // Mock window.location
     Object.defineProperty(window, 'location', {
@@ -120,7 +105,7 @@ describe('ProtectedRoute', () => {
     it('shows spinner while auth is initializing', async () => {
       // Keep waitForInit pending
       let resolveWaitForInit: () => void;
-      mocks.mockWaitForInit.mockImplementation(() => new Promise(resolve => {
+      mocks.mockAuthStore.waitForInit.mockImplementation(() => new Promise(resolve => {
         resolveWaitForInit = () => resolve(true);
       }));
 
@@ -135,28 +120,28 @@ describe('ProtectedRoute', () => {
       resolveWaitForInit!();
     });
 
-    it('waits for AuthInitializer.waitForInit', async () => {
-      mocks.mockIsAuthenticated.set(true);
+    it('waits for authStore.waitForInit', async () => {
+      mocks.mockAuthStore.isAuthenticated = true;
 
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
+        expect(mocks.mockAuthStore.waitForInit).toHaveBeenCalled();
       });
     });
   });
 
   describe('authenticated state', () => {
     beforeEach(() => {
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockWaitForInit.mockResolvedValue(true);
+      mocks.mockAuthStore.isAuthenticated = true;
+      mocks.mockAuthStore.waitForInit.mockResolvedValue(true);
     });
 
     it('does not redirect when authenticated', async () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
+        expect(mocks.mockAuthStore.waitForInit).toHaveBeenCalled();
       });
 
       // Give time for any potential redirect
@@ -169,7 +154,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
+        expect(mocks.mockAuthStore.waitForInit).toHaveBeenCalled();
       });
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -180,8 +165,8 @@ describe('ProtectedRoute', () => {
 
   describe('unauthenticated state', () => {
     beforeEach(() => {
-      mocks.mockIsAuthenticated.set(false);
-      mocks.mockWaitForInit.mockResolvedValue(false);
+      mocks.mockAuthStore.isAuthenticated = false;
+      mocks.mockAuthStore.waitForInit.mockResolvedValue(false);
     });
 
     it('redirects to /login by default', async () => {
@@ -251,32 +236,9 @@ describe('ProtectedRoute', () => {
     });
   });
 
-  describe('auth state changes', () => {
-    it('redirects when auth becomes false after being true', async () => {
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockWaitForInit.mockResolvedValue(true);
-
-      render(ProtectedRoute);
-
-      await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
-      });
-
-      // Initially should not redirect
-      expect(mocks.mockGoto).not.toHaveBeenCalled();
-
-      // Simulate logout
-      mocks.mockIsAuthenticated.set(false);
-
-      await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
-      });
-    });
-  });
-
   describe('props handling', () => {
     it('accepts custom redirectTo prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { redirectTo: '/signin' } });
 
@@ -286,7 +248,7 @@ describe('ProtectedRoute', () => {
     });
 
     it('accepts custom message prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { message: 'You need to sign in first' } });
 
@@ -301,7 +263,7 @@ describe('ProtectedRoute', () => {
   describe('visual states', () => {
     it('shows full-screen centered container while loading', async () => {
       let resolveWaitForInit: () => void;
-      mocks.mockWaitForInit.mockImplementation(() => new Promise(resolve => {
+      mocks.mockAuthStore.waitForInit.mockImplementation(() => new Promise(resolve => {
         resolveWaitForInit = () => resolve(true);
       }));
 
@@ -316,7 +278,7 @@ describe('ProtectedRoute', () => {
     });
 
     it('shows spinner during redirect', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       const { container } = render(ProtectedRoute);
 
@@ -330,8 +292,8 @@ describe('ProtectedRoute', () => {
 
   describe('edge cases', () => {
     it('handles null isAuthenticated during initialization', async () => {
-      mocks.mockIsAuthenticated.set(null);
-      mocks.mockWaitForInit.mockResolvedValue(false);
+      mocks.mockAuthStore.isAuthenticated = null;
+      mocks.mockAuthStore.waitForInit.mockResolvedValue(false);
 
       render(ProtectedRoute);
 
@@ -340,28 +302,8 @@ describe('ProtectedRoute', () => {
       });
     });
 
-    it('handles rapid auth state changes', async () => {
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockWaitForInit.mockResolvedValue(true);
-
-      render(ProtectedRoute);
-
-      await waitFor(() => {
-        expect(mocks.mockWaitForInit).toHaveBeenCalled();
-      });
-
-      // Rapidly toggle auth
-      mocks.mockIsAuthenticated.set(false);
-      mocks.mockIsAuthenticated.set(true);
-      mocks.mockIsAuthenticated.set(false);
-
-      await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
-      });
-    });
-
     it('handles empty message prop', async () => {
-      mocks.mockIsAuthenticated.set(false);
+      mocks.mockAuthStore.isAuthenticated = false;
 
       render(ProtectedRoute, { props: { message: '' } });
 

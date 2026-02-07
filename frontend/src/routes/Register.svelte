@@ -3,6 +3,7 @@
     import { toast } from 'svelte-sonner';
     import { fade, fly } from "svelte/transition";
     import { registerApiV1AuthRegisterPost } from "$lib/api";
+    import { getErrorMessage } from '$lib/api-interceptors';
     import { onMount } from 'svelte';
     import { updateMetaTags, pageMeta } from '$utils/meta';
     import Spinner from '$components/Spinner.svelte';
@@ -38,8 +39,7 @@
             toast.success("Registration successful! Please log in.");
             goto("/login");
         } catch (err: unknown) {
-            const errObj = err as { detail?: string; message?: string } | null;
-            error = errObj?.detail || errObj?.message || "Registration failed. Please try again.";
+            error = getErrorMessage(err, "Registration failed. Please try again.");
             toast.error(error);
         } finally {
             loading = false;

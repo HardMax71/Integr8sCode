@@ -2357,7 +2357,7 @@ export type ExecutionFailedEvent = {
      * Exit Code
      */
     exit_code?: number;
-    error_type?: ExecutionErrorType | null;
+    error_type?: ExecutionErrorType;
     /**
      * Error Message
      */
@@ -2848,7 +2848,7 @@ export type HourlyEventCountSchema = {
  *
  * Kafka topic names used throughout the system.
  */
-export type KafkaTopic = 'execution_events' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_requests' | 'execution_commands' | 'execution_tasks' | 'pod_events' | 'pod_status_updates' | 'pod_results' | 'execution_results' | 'user_events' | 'user_notifications' | 'user_settings_events' | 'script_events' | 'security_events' | 'resource_events' | 'notification_events' | 'system_events' | 'saga_events' | 'saga_commands' | 'dead_letter_queue' | 'dlq_events' | 'event_bus_stream' | 'websocket_events';
+export type KafkaTopic = 'execution_events' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_requests' | 'execution_commands' | 'execution_tasks' | 'pod_events' | 'pod_status_updates' | 'pod_results' | 'execution_results' | 'user_events' | 'user_notifications' | 'user_settings_events' | 'script_events' | 'security_events' | 'resource_events' | 'notification_events' | 'system_events' | 'saga_events' | 'saga_commands' | 'dead_letter_queue' | 'dlq_events' | 'websocket_events';
 
 /**
  * LanguageInfo
@@ -4779,7 +4779,7 @@ export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interva
  *
  * Control events for execution SSE streams (not from Kafka).
  */
-export type SseControlEvent = 'connected' | 'subscribed' | 'heartbeat' | 'shutdown' | 'status' | 'error';
+export type SseControlEvent = 'connected' | 'subscribed' | 'status';
 
 /**
  * SSEExecutionEventData
@@ -4824,21 +4824,9 @@ export type SseExecutionEventData = {
     /**
      * Message
      *
-     * Human-readable message (heartbeat, shutdown)
+     * Human-readable message (subscribed event)
      */
     message?: string | null;
-    /**
-     * Grace Period
-     *
-     * Shutdown grace period in seconds
-     */
-    grace_period?: number | null;
-    /**
-     * Error
-     *
-     * Error message (error event)
-     */
-    error?: string | null;
     /**
      * Current execution status
      */
@@ -4876,65 +4864,6 @@ export type SseExecutionEventData = {
      */
     result?: ExecutionResult | null;
 };
-
-/**
- * SSEHealthResponse
- *
- * Response model for SSE health check.
- */
-export type SseHealthResponse = {
-    /**
-     * Health status: healthy or draining
-     */
-    status: SseHealthStatus;
-    /**
-     * Kafka Enabled
-     *
-     * Whether Kafka features are enabled
-     */
-    kafka_enabled?: boolean;
-    /**
-     * Active Connections
-     *
-     * Total number of active SSE connections
-     */
-    active_connections: number;
-    /**
-     * Active Executions
-     *
-     * Number of executions being monitored
-     */
-    active_executions: number;
-    /**
-     * Active Consumers
-     *
-     * Number of active Kafka consumers
-     */
-    active_consumers: number;
-    /**
-     * Max Connections Per User
-     *
-     * Maximum connections allowed per user
-     */
-    max_connections_per_user: number;
-    /**
-     * Shutdown status information
-     */
-    shutdown: ShutdownStatusResponse;
-    /**
-     * Timestamp
-     *
-     * Health check timestamp
-     */
-    timestamp: string;
-};
-
-/**
- * SSEHealthStatus
- *
- * Health status for SSE service.
- */
-export type SseHealthStatus = 'healthy' | 'draining';
 
 /**
  * SagaCancellationResponse
@@ -5811,50 +5740,6 @@ export type SettingsHistoryResponse = {
 };
 
 /**
- * ShutdownStatusResponse
- *
- * Response model for shutdown status.
- */
-export type ShutdownStatusResponse = {
-    /**
-     * Phase
-     *
-     * Current shutdown phase
-     */
-    phase: string;
-    /**
-     * Initiated
-     *
-     * Whether shutdown has been initiated
-     */
-    initiated: boolean;
-    /**
-     * Complete
-     *
-     * Whether shutdown is complete
-     */
-    complete: boolean;
-    /**
-     * Active Connections
-     *
-     * Number of active connections
-     */
-    active_connections: number;
-    /**
-     * Draining Connections
-     *
-     * Number of connections being drained
-     */
-    draining_connections: number;
-    /**
-     * Duration
-     *
-     * Duration of shutdown in seconds
-     */
-    duration?: number | null;
-};
-
-/**
  * SortOrder
  *
  * Sort order for queries.
@@ -6538,6 +6423,7 @@ export type UserSettingsUpdatedEvent = {
      * Reason
      */
     reason?: string | null;
+    [key: string]: unknown | string | 'user_settings_updated' | string | null | EventMetadata | Array<string> | string | null | undefined;
 };
 
 /**
@@ -7861,22 +7747,6 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
 };
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
-
-export type SseHealthApiV1EventsHealthGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/health';
-};
-
-export type SseHealthApiV1EventsHealthGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: SseHealthResponse;
-};
-
-export type SseHealthApiV1EventsHealthGetResponse = SseHealthApiV1EventsHealthGetResponses[keyof SseHealthApiV1EventsHealthGetResponses];
 
 export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
     body?: never;

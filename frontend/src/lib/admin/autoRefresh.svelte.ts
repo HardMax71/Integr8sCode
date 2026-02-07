@@ -86,10 +86,10 @@ export function createAutoRefresh(options: AutoRefreshOptions): AutoRefreshState
 
     // Watch for changes to enabled/rate and restart
     $effect(() => {
-        if (enabled || rate) {
-            start();
-        }
-        return () => stop();
+        void enabled;
+        void rate;
+        start();
+        return () => { stop(); };
     });
 
     return {

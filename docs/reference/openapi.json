@@ -1859,28 +1859,6 @@
         }
       }
     },
-    "/api/v1/events/health": {
-      "get": {
-        "tags": [
-          "sse"
-        ],
-        "summary": "Sse Health",
-        "description": "Get SSE service health status.",
-        "operationId": "sse_health_api_v1_events_health_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SSEHealthResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/events/executions/{execution_id}/events": {
       "get": {
         "tags": [
@@ -9068,14 +9046,7 @@
             "title": "Exit Code"
           },
           "error_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionErrorType"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ExecutionErrorType"
           },
           "error_message": {
             "type": "string",
@@ -9896,7 +9867,6 @@
           "saga_commands",
           "dead_letter_queue",
           "dlq_events",
-          "event_bus_stream",
           "websocket_events"
         ],
         "title": "KafkaTopic",
@@ -13104,10 +13074,7 @@
         "enum": [
           "connected",
           "subscribed",
-          "heartbeat",
-          "shutdown",
-          "status",
-          "error"
+          "status"
         ],
         "title": "SSEControlEvent",
         "description": "Control events for execution SSE streams (not from Kafka)."
@@ -13178,31 +13145,7 @@
               }
             ],
             "title": "Message",
-            "description": "Human-readable message (heartbeat, shutdown)"
-          },
-          "grace_period": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grace Period",
-            "description": "Shutdown grace period in seconds"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error",
-            "description": "Error message (error event)"
+            "description": "Human-readable message (subscribed event)"
           },
           "status": {
             "anyOf": [
@@ -13293,71 +13236,6 @@
         ],
         "title": "SSEExecutionEventData",
         "description": "Typed model for SSE execution stream event payload.\n\nThis represents the JSON data sent inside each SSE message for execution streams.\nAll fields except event_type and execution_id are optional since different\nevent types carry different data."
-      },
-      "SSEHealthResponse": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/SSEHealthStatus",
-            "description": "Health status: healthy or draining"
-          },
-          "kafka_enabled": {
-            "type": "boolean",
-            "title": "Kafka Enabled",
-            "description": "Whether Kafka features are enabled",
-            "default": true
-          },
-          "active_connections": {
-            "type": "integer",
-            "title": "Active Connections",
-            "description": "Total number of active SSE connections"
-          },
-          "active_executions": {
-            "type": "integer",
-            "title": "Active Executions",
-            "description": "Number of executions being monitored"
-          },
-          "active_consumers": {
-            "type": "integer",
-            "title": "Active Consumers",
-            "description": "Number of active Kafka consumers"
-          },
-          "max_connections_per_user": {
-            "type": "integer",
-            "title": "Max Connections Per User",
-            "description": "Maximum connections allowed per user"
-          },
-          "shutdown": {
-            "$ref": "#/components/schemas/ShutdownStatusResponse",
-            "description": "Shutdown status information"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Timestamp",
-            "description": "Health check timestamp"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "active_connections",
-          "active_executions",
-          "active_consumers",
-          "max_connections_per_user",
-          "shutdown",
-          "timestamp"
-        ],
-        "title": "SSEHealthResponse",
-        "description": "Response model for SSE health check."
-      },
-      "SSEHealthStatus": {
-        "type": "string",
-        "enum": [
-          "healthy",
-          "draining"
-        ],
-        "title": "SSEHealthStatus",
-        "description": "Health status for SSE service."
       },
       "SagaCancellationResponse": {
         "properties": {
@@ -14782,57 +14660,6 @@
         "title": "SettingsHistoryResponse",
         "description": "Response model for settings history (limited snapshot of recent changes)"
       },
-      "ShutdownStatusResponse": {
-        "properties": {
-          "phase": {
-            "type": "string",
-            "title": "Phase",
-            "description": "Current shutdown phase"
-          },
-          "initiated": {
-            "type": "boolean",
-            "title": "Initiated",
-            "description": "Whether shutdown has been initiated"
-          },
-          "complete": {
-            "type": "boolean",
-            "title": "Complete",
-            "description": "Whether shutdown is complete"
-          },
-          "active_connections": {
-            "type": "integer",
-            "title": "Active Connections",
-            "description": "Number of active connections"
-          },
-          "draining_connections": {
-            "type": "integer",
-            "title": "Draining Connections",
-            "description": "Number of connections being drained"
-          },
-          "duration": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration",
-            "description": "Duration of shutdown in seconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "phase",
-          "initiated",
-          "complete",
-          "active_connections",
-          "draining_connections"
-        ],
-        "title": "ShutdownStatusResponse",
-        "description": "Response model for shutdown status."
-      },
       "SortOrder": {
         "type": "string",
         "enum": [
@@ -15984,6 +15811,7 @@
             "title": "Reason"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
           "event_id",

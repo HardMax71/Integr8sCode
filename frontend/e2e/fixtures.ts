@@ -204,7 +204,7 @@ async function waitForExecutionResult(page: Page, executionId: string, timeoutMs
 }
 
 export async function runExampleAndExecute(page: Page): Promise<ExecutionResult> {
-  await page.getByRole('button', { name: /Example/i }).click();
+  await page.getByRole('button', { name: 'Example', exact: true }).click();
   await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
 
   const executeResponsePromise = page.waitForResponse((response) =>
@@ -227,6 +227,28 @@ export async function runExampleAndExecute(page: Page): Promise<ExecutionResult>
   const result = await waitForExecutionResult(page, executeBody.execution_id);
   expect(result.status).toBe('completed');
   return result;
+}
+
+export async function loadExampleScript(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Example', exact: true }).click();
+  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
+}
+
+export async function openScriptOptions(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Toggle Script Options' }).click();
+}
+
+export async function saveScriptAs(page: Page, name: string): Promise<void> {
+  await loadExampleScript(page);
+  await page.locator('#scriptNameInput').fill(name);
+  await openScriptOptions(page);
+  await page.locator('button[title="Save current script"]').click();
+  await expectToastVisible(page);
+}
+
+export async function expandSavedScripts(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: /Show Saved Scripts/i });
+  await toggle.click();
 }
 
 export async function expectAuthRequired(page: Page, path: string): Promise<void> {

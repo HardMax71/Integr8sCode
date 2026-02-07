@@ -1,12 +1,13 @@
 <script lang="ts">
   import { goto, route } from "@mateothegreat/svelte5-router";
-  import { login } from "$stores/auth";
+  import { authStore } from "$stores/auth.svelte";
   import { toast } from 'svelte-sonner';
   import { fade, fly } from "svelte/transition";
   import Spinner from '$components/Spinner.svelte';
   import { onMount } from 'svelte';
   import { updateMetaTags, pageMeta } from '$utils/meta';
   import { loadUserSettings } from '$lib/user-settings';
+  import { getErrorMessage } from '$lib/api-interceptors';
 
   let username = $state("");
   let password = $state("");
@@ -28,23 +29,23 @@
     loading = true;
     error = null; // Clear previous error
     try {
-      await login(username, password);
+      await authStore.login(username, password);
 
       // Load user settings in background (non-blocking)
       loadUserSettings().catch(err => console.warn('Failed to load user settings:', err));
 
       toast.success("Login successful! Welcome back.");
 
-      // Check if there's a saved redirect path
+      // Check if there's a saved redirect path (validate to prevent open redirect)
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-      if (redirectPath) {
-        sessionStorage.removeItem('redirectAfterLogin');
+      sessionStorage.removeItem('redirectAfterLogin');
+      if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
         goto(redirectPath);
       } else {
-        goto("/editor"); // Default redirect to editor
+        goto("/editor");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed. Please check your credentials.";
+      const message = getErrorMessage(err, "Login failed. Please check your credentials.");
       error = message;
       toast.error(error);
     } finally {

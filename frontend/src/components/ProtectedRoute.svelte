@@ -1,8 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { goto } from '@mateothegreat/svelte5-router';
-    import { isAuthenticated } from '$stores/auth';
-    import { AuthInitializer } from '$lib/auth-init';
+    import { authStore } from '$stores/auth.svelte';
     import Spinner from '$components/Spinner.svelte';
     import type { Snippet } from 'svelte';
 
@@ -21,11 +20,11 @@
 
     onMount(async () => {
         // Wait for auth initialization
-        await AuthInitializer.waitForInit();
+        await authStore.waitForInit();
         authReady = true;
 
         // Check if user is authenticated
-        authorized = $isAuthenticated ?? false;
+        authorized = authStore.isAuthenticated ?? false;
 
         if (!authorized) {
             // Save current path for redirect after login
@@ -44,9 +43,9 @@
         }
     });
 
-    // React to auth changes
+    // React to auth revocation after initial load
     $effect(() => {
-        if (authReady && !$isAuthenticated) {
+        if (authReady && authorized && !authStore.isAuthenticated) {
             authorized = false;
             goto(redirectTo);
         }

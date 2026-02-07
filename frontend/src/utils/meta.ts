@@ -1,8 +1,3 @@
-interface PageMetaInfo {
-    title: string;
-    description: string;
-}
-
 export function updateMetaTags(title?: string, description?: string): void {
     if (title) {
         document.title = `${title} | Integr8sCode`;
@@ -19,7 +14,7 @@ export function updateMetaTags(title?: string, description?: string): void {
     }
 }
 
-export const pageMeta: Record<string, PageMetaInfo> = {
+export const pageMeta = {
     home: {
         title: 'Home',
         description: 'Integr8sCode - Write, compile, and manage code directly in your browser with our powerful online development environment'

@@ -1,16 +1,14 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount } from 'svelte';
     import { Router, goto } from "@mateothegreat/svelte5-router";
     import { Toaster } from 'svelte-sonner';
     import Header from "$components/Header.svelte";
     import Footer from "$components/Footer.svelte";
     import Spinner from "$components/Spinner.svelte";
     import ErrorDisplay from "$components/ErrorDisplay.svelte";
-    import { theme } from '$stores/theme';
-    import { initializeAuth, AuthInitializer } from '$lib/auth-init';
-    import { appError } from '$stores/errorStore';
-    import { isAuthenticated } from '$stores/auth';
-    import { get } from 'svelte/store';
+    import { themeStore } from '$stores/theme.svelte';
+    import { appError } from '$stores/errorStore.svelte';
+    import { authStore } from '$stores/auth.svelte';
 
     // Page components
     import Home from "$routes/Home.svelte";
@@ -25,25 +23,12 @@
     import AdminUsers from "$routes/admin/AdminUsers.svelte";
     import AdminSettings from "$routes/admin/AdminSettings.svelte";
 
-    // Theme value derived from store with proper cleanup
-    let themeValue = $state('auto');
-    const unsubscribeTheme = theme.subscribe(value => { themeValue = value; });
-
-    // Global error state
-    let globalError = $state<{ error: Error | string; title?: string } | null>(null);
-    const unsubscribeError = appError.subscribe(value => { globalError = value; });
-
-    onDestroy(() => {
-        unsubscribeTheme();
-        unsubscribeError();
-    });
-
     let authInitialized = $state(false);
 
     // Initialize auth before rendering routes
     onMount(async () => {
         try {
-            await initializeAuth();
+            await authStore.initialize();
             console.log('[App] Authentication initialized');
         } catch (err) {
             console.error('[App] Auth initialization failed:', err);
@@ -54,8 +39,8 @@
 
     // Auth hook for protected routes
     const requireAuth = async () => {
-        await AuthInitializer.waitForInit();
-        if (!get(isAuthenticated)) {
+        await authStore.waitForInit();
+        if (!authStore.isAuthenticated) {
             const currentPath = window.location.pathname + window.location.search;
             if (currentPath !== '/login' && currentPath !== '/register') {
                 sessionStorage.setItem('redirectAfterLogin', currentPath);
@@ -85,8 +70,8 @@
     ];
 </script>
 
-{#if globalError}
-    <ErrorDisplay error={globalError.error} title={globalError.title} />
+{#if appError.current}
+    <ErrorDisplay error={appError.current.error} title={appError.current.title} />
 {:else}
     <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
         <Header/>

@@ -35,35 +35,28 @@
 
     async function loadSettings(): Promise<void> {
         loading = true;
-        try {
-            const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
-            if (error) throw error;
-            if (data) settings = {
-                execution_limits: data.execution_limits ?? {},
-                security_settings: data.security_settings ?? {},
-                monitoring_settings: data.monitoring_settings ?? {}
-            };
-        } catch (err) {
-            console.error('Failed to load settings:', err);
-            const msg = (err as Error)?.message || 'Unknown error';
-            toast.error(`Failed to load settings: ${msg}`);
-        } finally {
+        const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
+        if (error) {
             loading = false;
+            return;
         }
+        if (data) settings = {
+            execution_limits: data.execution_limits ?? {},
+            security_settings: data.security_settings ?? {},
+            monitoring_settings: data.monitoring_settings ?? {}
+        };
+        loading = false;
     }
 
     async function saveSettings(): Promise<void> {
         saving = true;
-        try {
-            const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
-            if (error) throw error;
-            toast.success('Settings saved successfully');
-        } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            toast.error(`Failed to save settings: ${msg}`);
-        } finally {
+        const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
+        if (error) {
             saving = false;
+            return;
         }
+        toast.success('Settings saved successfully');
+        saving = false;
     }
 
     async function resetSettings(): Promise<void> {
@@ -72,21 +65,18 @@
         }
 
         resetting = true;
-        try {
-            const { data, error } = await resetSystemSettingsApiV1AdminSettingsResetPost({});
-            if (error) throw error;
-            if (data) settings = {
-                execution_limits: data.execution_limits ?? {},
-                security_settings: data.security_settings ?? {},
-                monitoring_settings: data.monitoring_settings ?? {}
-            };
-            toast.success('Settings reset to defaults');
-        } catch (err) {
-            const msg = (err as Error)?.message || 'Unknown error';
-            toast.error(`Failed to reset settings: ${msg}`);
-        } finally {
+        const { data, error } = await resetSystemSettingsApiV1AdminSettingsResetPost({});
+        if (error) {
             resetting = false;
+            return;
         }
+        if (data) settings = {
+            execution_limits: data.execution_limits ?? {},
+            security_settings: data.security_settings ?? {},
+            monitoring_settings: data.monitoring_settings ?? {}
+        };
+        toast.success('Settings reset to defaults');
+        resetting = false;
     }
 </script>
 

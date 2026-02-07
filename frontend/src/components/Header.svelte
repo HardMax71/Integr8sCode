@@ -1,7 +1,7 @@
 <script lang="ts">
   import { route, goto } from "@mateothegreat/svelte5-router";
-  import { isAuthenticated, username, userRole, logout as authLogout, userEmail } from "$stores/auth";
-  import { theme, toggleTheme } from "$stores/theme";
+  import { authStore } from "$stores/auth.svelte";
+  import { themeStore, toggleTheme } from "$stores/theme.svelte";
   import { fade } from 'svelte/transition';
   import { onMount, onDestroy } from 'svelte';
   import NotificationCenter from '$components/NotificationCenter.svelte';
@@ -24,7 +24,7 @@
   }
 
   async function handleLogout() {
-    await authLogout();
+    await authStore.logout();
     closeMenu();
     goto('/login');
   }
@@ -95,9 +95,9 @@
 
       <div class="flex items-center space-x-3">
         <button onclick={toggleTheme} title="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
-          {#if $theme === 'light'}
+          {#if themeStore.value === 'light'}
             <Sun class="w-5 h-5" />
-          {:else if $theme === 'dark'}
+          {:else if themeStore.value === 'dark'}
             <Moon class="w-5 h-5" />
           {:else}
             <MonitorCog class="w-5 h-5" />
@@ -105,7 +105,7 @@
         </button>
 
         <div class="hidden lg:flex items-center space-x-3">
-          {#if $isAuthenticated}
+          {#if authStore.isAuthenticated}
             <NotificationCenter />
             <!-- User dropdown for all authenticated users -->
             <div class="relative user-dropdown-container">
@@ -115,7 +115,7 @@
               >
                 <div class="flex items-center space-x-2">
                   <User class="w-5 h-5" />
-                  <span class="hidden xl:inline font-medium">{$username}</span>
+                  <span class="hidden xl:inline font-medium">{authStore.username}</span>
                   <span class="transition-transform duration-200" class:rotate-180={showUserDropdown}>
                     <ChevronDown class="w-4 h-4" />
                   </span>
@@ -130,24 +130,24 @@
                     <div class="flex items-center gap-3">
                       <div class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0">
                         <span class="text-xs font-semibold text-primary dark:text-primary-light">
-                          {$username?.charAt(0).toUpperCase() ?? '?'}
+                          {authStore.username?.charAt(0).toUpperCase() ?? '?'}
                         </span>
                       </div>
                       <div class="min-w-0">
                         <p class="text-sm font-medium text-fg-default dark:text-dark-fg-default truncate">
-                          {$username}
-                          {#if $userRole === 'admin'}
+                          {authStore.username}
+                          {#if authStore.userRole === 'admin'}
                             <span class="text-xs text-primary dark:text-primary-light font-medium ml-1">(Admin)</span>
                           {/if}
                         </p>
                         <p class="text-xs text-fg-muted dark:text-dark-fg-muted truncate">
-                          {$userEmail || 'No email set'}
+                          {authStore.userEmail || 'No email set'}
                         </p>
                       </div>
                       <div class="mx-1 sm:mx-2 h-6 w-px bg-border-default dark:bg-dark-border-default"></div>
                     </div>
                     <div class="mt-3 flex flex-col sm:flex-row gap-2">
-                      {#if $userRole === 'admin'}
+                      {#if authStore.userRole === 'admin'}
                         <button
                           onclick={() => {
                             showUserDropdown = false;
@@ -206,18 +206,18 @@
       <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
 
         <div class="pt-3 mt-2 border-t border-border-default dark:border-dark-border-default">
-          {#if $isAuthenticated}
+          {#if authStore.isAuthenticated}
             <div class="px-3 py-2">
-               <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">{$username}</div>
+               <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">{authStore.username}</div>
                <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
-                 {#if $userRole === 'admin'}
+                 {#if authStore.userRole === 'admin'}
                    Administrator
                  {:else}
                    Logged in
                  {/if}
                </div>
             </div>
-            {#if $userRole === 'admin'}
+            {#if authStore.userRole === 'admin'}
               <a href="/admin/events" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center">
                 <Settings class="w-5 h-5 mr-2 -ml-1" /> Admin Panel
               </a>

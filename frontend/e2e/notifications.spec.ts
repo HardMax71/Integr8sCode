@@ -1,4 +1,4 @@
-import { test, expect, describeAuthRequired } from './fixtures';
+import { test, expect, describeAuthRequired, expectToastVisible } from './fixtures';
 
 const PATH = '/notifications';
 const HEADING = 'Notifications';
@@ -47,10 +47,8 @@ test.describe('Notifications Page', () => {
     await gotoAndWaitForNotifications(userPage);
     const emptyState = userPage.getByText('No notifications yet');
     // Notification cards have aria-label="Mark notification as read"
-    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]');
-    const hasEmptyState = await emptyState.isVisible({ timeout: 3000 }).catch(() => false);
-    const hasNotifications = await notificationCard.first().isVisible({ timeout: 3000 }).catch(() => false);
-    expect(hasEmptyState || hasNotifications).toBe(true);
+    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
+    await expect(emptyState.or(notificationCard)).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -79,6 +77,43 @@ test.describe('Notifications Interaction', () => {
       if (hasTime) {
         await expect(timeIndicator).toBeVisible();
       }
+    }
+  });
+});
+
+test.describe('Notification Actions', () => {
+  test('can mark notification as read by clicking', async ({ userPage }) => {
+    await gotoAndWaitForNotifications(userPage);
+    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
+    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Check if it's unread (has blue background class)
+      const hasBlue = await notificationCard.evaluate(el => el.classList.toString().includes('bg-blue'));
+      await notificationCard.click();
+      // After clicking, check if styling changed or "Read" label appeared
+      if (hasBlue) {
+        await expect(notificationCard.locator('text=Read')).toBeVisible({ timeout: 3000 });
+      }
+    }
+  });
+
+  test('can delete a notification', async ({ userPage }) => {
+    await gotoAndWaitForNotifications(userPage);
+    const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
+    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const deleteBtn = notificationCard.locator('button').filter({ has: userPage.locator('svg') }).first();
+      if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await deleteBtn.click();
+        await expectToastVisible(userPage);
+      }
+    }
+  });
+
+  test('can mark all as read', async ({ userPage }) => {
+    await gotoAndWaitForNotifications(userPage);
+    const markAllBtn = userPage.getByRole('button', { name: /mark all as read/i });
+    if (await markAllBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await markAllBtn.click();
+      await expectToastVisible(userPage);
     }
   });
 });

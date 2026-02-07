@@ -85,16 +85,8 @@ export function createMockSvelteComponent(html: string, testId?: string): {
     ? html.replace('>', ` data-testid="${testId}">`)
     : html;
 
-  const MockComponent = function (this: object) {
-    return {
-      $$: {
-        on_mount: [],
-        on_destroy: [],
-        before_update: [],
-        after_update: [],
-        context: new Map(),
-      },
-    };
+  const MockComponent = function () {
+    return {};
   } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
 
   MockComponent.render = () => ({
@@ -185,6 +177,77 @@ function createMockStore<T>(initial: T) {
 `;
 
 // ============================================================================
+// Mock Module Factories (for use with async vi.mock() factories)
+// ============================================================================
+
+/**
+ * Creates a mock module with named Svelte 5 component exports.
+ * Each component has proper $$ structure for Svelte 5 compatibility.
+ *
+ * @param components - Record mapping export names to HTML strings
+ */
+export function createMockNamedComponents(components: Record<string, string>): Record<string, unknown> {
+  const module: Record<string, unknown> = {};
+  for (const [name, html] of Object.entries(components)) {
+    const Mock = function () {
+      return {};
+    } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
+    Mock.render = () => ({ html, css: { code: '', map: null }, head: '' });
+    module[name] = Mock;
+  }
+  return module;
+}
+
+/**
+ * Creates a mock @lucide/svelte module with given icon names.
+ * All icons render as `<svg></svg>`.
+ */
+export function createMockIconModule(...iconNames: string[]): Record<string, unknown> {
+  return createMockNamedComponents(
+    Object.fromEntries(iconNames.map(name => [name, '<svg></svg>']))
+  );
+}
+
+/**
+ * Creates a mock svelte-sonner module with toast methods that delegate to addToast.
+ * Usage: `vi.mock('svelte-sonner', async () => (await import('...')).createToastMock(mocks.addToast))`
+ */
+export function createToastMock(addToast: (...args: unknown[]) => void) {
+  return {
+    toast: {
+      success: (...args: unknown[]) => addToast('success', ...args),
+      error: (...args: unknown[]) => addToast('error', ...args),
+      warning: (...args: unknown[]) => addToast('warning', ...args),
+      info: (...args: unknown[]) => addToast('info', ...args),
+    },
+  };
+}
+
+/**
+ * Creates a mock @mateothegreat/svelte5-router module.
+ * If gotoFn is provided, goto calls are delegated to it for assertion tracking.
+ */
+export function createMockRouterModule(gotoFn?: (...args: unknown[]) => void) {
+  return {
+    goto: gotoFn ? (...args: unknown[]) => gotoFn(...args) : vi.fn(),
+    route: () => {},
+  };
+}
+
+/**
+ * Creates a mock $utils/meta module with updateMetaTags and pageMeta.
+ */
+export function createMetaMock(
+  updateMetaTagsFn: (...args: unknown[]) => void,
+  pageMeta: Record<string, { title: string; description: string }>,
+) {
+  return {
+    updateMetaTags: (...args: unknown[]) => updateMetaTagsFn(...args),
+    pageMeta,
+  };
+}
+
+// ============================================================================
 // Test Data Factories
 // ============================================================================
 
@@ -195,6 +258,7 @@ export function createMockNotification(overrides: Partial<{
   notification_id: string;
   subject: string;
   body: string;
+  channel: string;
   status: 'unread' | 'read';
   severity: 'low' | 'medium' | 'high' | 'urgent';
   tags: string[];
@@ -204,6 +268,7 @@ export function createMockNotification(overrides: Partial<{
   notification_id: string;
   subject: string;
   body: string;
+  channel: string;
   status: 'unread' | 'read';
   severity: 'low' | 'medium' | 'high' | 'urgent';
   tags: string[];
@@ -214,6 +279,7 @@ export function createMockNotification(overrides: Partial<{
     notification_id: 'notif-1',
     subject: 'Test Notification',
     body: 'This is a test notification body',
+    channel: 'in_app',
     status: 'unread',
     severity: 'medium',
     tags: [],

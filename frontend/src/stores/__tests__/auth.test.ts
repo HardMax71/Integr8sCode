@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { get } from 'svelte/store';
 import { suppressConsoleError, suppressConsoleWarn } from '../../__tests__/test-utils';
 
 // Mock the API functions
@@ -13,6 +12,20 @@ vi.mock('../../lib/api', () => ({
   logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
   verifyTokenApiV1AuthVerifyTokenGet: (...args: unknown[]) => mockVerifyTokenApi(...args),
   getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
+}));
+
+// Mock clearUserSettings (static import in auth.svelte.ts)
+const mockClearUserSettings = vi.fn();
+vi.mock('../userSettings.svelte', () => ({
+  clearUserSettings: () => mockClearUserSettings(),
+  setUserSettings: vi.fn(),
+  userSettingsStore: { settings: null, editorSettings: {} },
+}));
+
+// Mock loadUserSettings (dynamic import in auth.svelte.ts)
+const mockLoadUserSettings = vi.fn();
+vi.mock('../../lib/user-settings', () => ({
+  loadUserSettings: () => mockLoadUserSettings(),
 }));
 
 describe('auth store', () => {
@@ -34,6 +47,8 @@ describe('auth store', () => {
     mockLogoutApi.mockReset();
     mockVerifyTokenApi.mockReset();
     mockGetProfileApi.mockReset();
+    mockClearUserSettings.mockReset();
+    mockLoadUserSettings.mockReset().mockResolvedValue({});
 
     // Clear module cache to reset store state
     vi.resetModules();
@@ -45,18 +60,18 @@ describe('auth store', () => {
 
   describe('initial state', () => {
     it('has null authentication state initially', async () => {
-      const { isAuthenticated } = await import('$stores/auth');
-      expect(get(isAuthenticated)).toBe(null);
+      const { authStore } = await import('$stores/auth.svelte');
+      expect(authStore.isAuthenticated).toBe(null);
     });
 
     it('has null username initially', async () => {
-      const { username } = await import('$stores/auth');
-      expect(get(username)).toBe(null);
+      const { authStore } = await import('$stores/auth.svelte');
+      expect(authStore.username).toBe(null);
     });
 
     it('has null userRole initially', async () => {
-      const { userRole } = await import('$stores/auth');
-      expect(get(userRole)).toBe(null);
+      const { authStore } = await import('$stores/auth.svelte');
+      expect(authStore.userRole).toBe(null);
     });
 
     it('restores auth state from sessionStorage', async () => {
@@ -71,12 +86,12 @@ describe('auth store', () => {
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
 
-      const { isAuthenticated, username, userRole, csrfToken } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      expect(get(isAuthenticated)).toBe(true);
-      expect(get(username)).toBe('testuser');
-      expect(get(userRole)).toBe('user');
-      expect(get(csrfToken)).toBe('test-token');
+      expect(authStore.isAuthenticated).toBe(true);
+      expect(authStore.username).toBe('testuser');
+      expect(authStore.userRole).toBe('user');
+      expect(authStore.csrfToken).toBe('test-token');
     });
   });
 
@@ -95,15 +110,15 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login, isAuthenticated, username, userRole, csrfToken } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      const result = await login('testuser', 'password123');
+      const result = await authStore.login('testuser', 'password123');
 
       expect(result).toBe(true);
-      expect(get(isAuthenticated)).toBe(true);
-      expect(get(username)).toBe('testuser');
-      expect(get(userRole)).toBe('user');
-      expect(get(csrfToken)).toBe('new-csrf-token');
+      expect(authStore.isAuthenticated).toBe(true);
+      expect(authStore.username).toBe('testuser');
+      expect(authStore.userRole).toBe('user');
+      expect(authStore.csrfToken).toBe('new-csrf-token');
     });
 
     it('persists auth state to sessionStorage on login', async () => {
@@ -120,8 +135,8 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login } = await import('$stores/auth');
-      await login('testuser', 'password123');
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.login('testuser', 'password123');
 
       expect(sessionStorage.setItem).toHaveBeenCalledWith(
         'authState',
@@ -135,9 +150,9 @@ describe('auth store', () => {
         error: { detail: 'Invalid credentials' },
       });
 
-      const { login } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      await expect(login('baduser', 'badpass')).rejects.toBeDefined();
+      await expect(authStore.login('baduser', 'badpass')).rejects.toBeDefined();
     });
 
     it('calls API with correct parameters', async () => {
@@ -150,8 +165,8 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login } = await import('$stores/auth');
-      await login('testuser', 'mypassword');
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.login('testuser', 'mypassword');
 
       expect(mockLoginApi).toHaveBeenCalledWith({
         body: { username: 'testuser', password: 'mypassword', scope: '' },
@@ -172,22 +187,22 @@ describe('auth store', () => {
       });
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-      const { login, logout, isAuthenticated, username } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      await login('testuser', 'password');
-      expect(get(isAuthenticated)).toBe(true);
+      await authStore.login('testuser', 'password');
+      expect(authStore.isAuthenticated).toBe(true);
 
-      await logout();
+      await authStore.logout();
 
-      expect(get(isAuthenticated)).toBe(false);
-      expect(get(username)).toBe(null);
+      expect(authStore.isAuthenticated).toBe(false);
+      expect(authStore.username).toBe(null);
     });
 
     it('clears sessionStorage on logout', async () => {
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-      const { logout } = await import('$stores/auth');
-      await logout();
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.logout();
 
       expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
     });
@@ -205,12 +220,12 @@ describe('auth store', () => {
       });
       mockLogoutApi.mockRejectedValue(new Error('Network error'));
 
-      const { login, logout, isAuthenticated } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      await login('testuser', 'password');
-      await logout();
+      await authStore.login('testuser', 'password');
+      await authStore.logout();
 
-      expect(get(isAuthenticated)).toBe(false);
+      expect(authStore.isAuthenticated).toBe(false);
       restoreConsole();
     });
   });
@@ -226,8 +241,8 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('$stores/auth');
-      const result = await verifyAuth(true);
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.verifyAuth(true);
 
       expect(result).toBe(true);
     });
@@ -238,11 +253,11 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth, isAuthenticated } = await import('$stores/auth');
-      const result = await verifyAuth(true);
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.verifyAuth(true);
 
       expect(result).toBe(false);
-      expect(get(isAuthenticated)).toBe(false);
+      expect(authStore.isAuthenticated).toBe(false);
     });
 
     it('uses cache when not force refreshing', async () => {
@@ -255,14 +270,14 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
       // First call - should hit API
-      await verifyAuth(true);
+      await authStore.verifyAuth(true);
       expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
 
       // Second call without force - should use cache
-      await verifyAuth(false);
+      await authStore.verifyAuth(false);
       expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
     });
 
@@ -276,10 +291,10 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      await verifyAuth(true);
-      await verifyAuth(true);
+      await authStore.verifyAuth(true);
+      await authStore.verifyAuth(true);
 
       expect(mockVerifyTokenApi).toHaveBeenCalledTimes(2);
     });
@@ -297,15 +312,15 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { verifyAuth } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      const firstResult = await verifyAuth(true);
+      const firstResult = await authStore.verifyAuth(true);
       expect(firstResult).toBe(true);
 
       // Second call with network error
       mockVerifyTokenApi.mockRejectedValueOnce(new Error('Network error'));
 
-      const secondResult = await verifyAuth(true);
+      const secondResult = await authStore.verifyAuth(true);
       expect(secondResult).toBe(true); // Should return cached value
 
       restoreConsole();
@@ -323,11 +338,11 @@ describe('auth store', () => {
         error: null,
       });
 
-      const { login, userId, userEmail } = await import('$stores/auth');
-      await login('testuser', 'password');
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.login('testuser', 'password');
 
-      expect(get(userId)).toBe('user-456');
-      expect(get(userEmail)).toBe('newemail@example.com');
+      expect(authStore.userId).toBe('user-456');
+      expect(authStore.userEmail).toBe('newemail@example.com');
     });
 
     it('throws error on failed profile fetch', async () => {
@@ -336,9 +351,225 @@ describe('auth store', () => {
         error: { detail: 'Unauthorized' },
       });
 
-      const { fetchUserProfile } = await import('$stores/auth');
+      const { authStore } = await import('$stores/auth.svelte');
 
-      await expect(fetchUserProfile()).rejects.toBeDefined();
+      await expect(authStore.fetchUserProfile()).rejects.toBeDefined();
+    });
+  });
+
+  describe('initialize', () => {
+    it('returns false when no persisted auth and verification fails', async () => {
+      mockVerifyTokenApi.mockResolvedValue({ data: { valid: false }, error: null });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(false);
+    });
+
+    it('returns true when no persisted auth but verification succeeds', async () => {
+      mockVerifyTokenApi.mockResolvedValue({
+        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(true);
+      expect(mockLoadUserSettings).toHaveBeenCalled();
+    });
+
+    it('only initializes once', async () => {
+      mockVerifyTokenApi.mockResolvedValue({
+        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.initialize();
+      await authStore.initialize();
+      await authStore.initialize();
+
+      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+    });
+
+    it('handles concurrent initialization calls', async () => {
+      mockVerifyTokenApi.mockImplementation(() =>
+        new Promise(resolve => setTimeout(() => resolve({
+          data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+          error: null,
+        }), 50))
+      );
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const results = await Promise.all([
+        authStore.initialize(),
+        authStore.initialize(),
+        authStore.initialize(),
+      ]);
+
+      expect(results).toEqual([true, true, true]);
+      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores from persisted auth and verifies', async () => {
+      const authState = {
+        isAuthenticated: true,
+        username: 'testuser',
+        userId: 'user-123',
+        userRole: 'admin',
+        userEmail: 'test@example.com',
+        csrfToken: 'csrf-token',
+        timestamp: Date.now(),
+      };
+      sessionStorageData['authState'] = JSON.stringify(authState);
+
+      mockVerifyTokenApi.mockResolvedValue({
+        data: { valid: true, username: 'testuser', role: 'admin', csrf_token: 'csrf-token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(true);
+      expect(authStore.isAuthenticated).toBe(true);
+      expect(authStore.username).toBe('testuser');
+    });
+
+    it('clears auth when persisted auth verification fails', async () => {
+      const authState = {
+        isAuthenticated: true,
+        username: 'testuser',
+        userId: 'user-123',
+        userRole: 'user',
+        userEmail: 'test@example.com',
+        csrfToken: 'token',
+        timestamp: Date.now(),
+      };
+      sessionStorageData['authState'] = JSON.stringify(authState);
+
+      mockVerifyTokenApi.mockResolvedValue({ data: { valid: false }, error: null });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(false);
+      expect(authStore.isAuthenticated).toBe(false);
+      expect(mockClearUserSettings).toHaveBeenCalled();
+    });
+
+    it('keeps recent auth on network error (<5 min)', async () => {
+      const restoreConsole = suppressConsoleWarn();
+
+      const authState = {
+        isAuthenticated: true,
+        username: 'testuser',
+        userId: 'user-123',
+        userRole: 'user',
+        userEmail: 'test@example.com',
+        csrfToken: 'token',
+        timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
+      };
+      sessionStorageData['authState'] = JSON.stringify(authState);
+
+      mockVerifyTokenApi.mockRejectedValue(new Error('Network error'));
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(true);
+      restoreConsole();
+    });
+
+    it('clears stale auth on network error (>5 min)', async () => {
+      const restoreConsole = suppressConsoleWarn();
+
+      const authState = {
+        isAuthenticated: true,
+        username: 'testuser',
+        userId: 'user-123',
+        userRole: 'user',
+        userEmail: 'test@example.com',
+        csrfToken: 'token',
+        timestamp: Date.now() - 10 * 60 * 1000, // 10 minutes ago
+      };
+      sessionStorageData['authState'] = JSON.stringify(authState);
+
+      mockVerifyTokenApi.mockRejectedValue(new Error('Network error'));
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.initialize();
+
+      expect(result).toBe(false);
+      expect(authStore.isAuthenticated).toBe(false);
+      expect(mockClearUserSettings).toHaveBeenCalled();
+      restoreConsole();
+    });
+  });
+
+  describe('waitForInit', () => {
+    it('returns immediately if already initialized', async () => {
+      mockVerifyTokenApi.mockResolvedValue({
+        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.initialize();
+
+      const result = await authStore.waitForInit();
+      expect(result).toBe(true);
+      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+    });
+
+    it('initializes if not started', async () => {
+      mockVerifyTokenApi.mockResolvedValue({
+        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({
+        data: { user_id: 'user-123', email: 'test@example.com' },
+        error: null,
+      });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.waitForInit();
+
+      expect(result).toBe(true);
+      expect(mockVerifyTokenApi).toHaveBeenCalled();
+    });
+  });
+
+  describe('logout clears user settings', () => {
+    it('calls clearUserSettings on logout', async () => {
+      mockLogoutApi.mockResolvedValue({ data: {}, error: null });
+
+      const { authStore } = await import('$stores/auth.svelte');
+      await authStore.logout();
+
+      expect(mockClearUserSettings).toHaveBeenCalled();
     });
   });
 });

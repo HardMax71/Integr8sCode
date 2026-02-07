@@ -1,7 +1,7 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
 import ErrorDisplay from '$components/ErrorDisplay.svelte';
-import { appError } from '$stores/errorStore';
+import { appError } from '$stores/errorStore.svelte';
 import { initializeApiInterceptors } from '$lib/api-interceptors';
 import './app.css';
 
@@ -10,7 +10,7 @@ initializeApiInterceptors();
 // Global error handlers to catch unhandled errors
 window.onerror = (message, source, lineno, colno, error) => {
   console.error('[Global Error]', { message, source, lineno, colno, error });
-  appError.setError(error || String(message), 'Unexpected Error');
+  appError.setError(error ?? new Error(typeof message === 'string' ? message : 'Unknown error'), 'Unexpected Error');
   return true; // Prevent default browser error handling
 };
 

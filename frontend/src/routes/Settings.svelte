@@ -6,13 +6,13 @@
         restoreSettingsApiV1UserSettingsRestorePost,
         getSettingsHistoryApiV1UserSettingsHistoryGet,
         type SettingsHistoryEntry,
+        type UserSettings,
     } from '$lib/api';
-    import { isAuthenticated, username } from '$stores/auth';
-    import { theme as themeStore, setTheme } from '$stores/theme';
+    import { authStore } from '$stores/auth.svelte';
+    import { setTheme } from '$stores/theme.svelte';
     import { toast } from 'svelte-sonner';
-    import { get } from 'svelte/store';
     import { fly } from 'svelte/transition';
-    import { setUserSettings } from '$stores/userSettings';
+    import { setUserSettings } from '$stores/userSettings.svelte';
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
 
@@ -47,8 +47,7 @@
         }
     });
 
-    // Snapshot for change detection (JSON string - no reference issues)
-    let savedSnapshot = $state('');
+    let savedSnapshot = $state<typeof formData | null>(null);
     
     const tabs = [
         { id: 'general', label: 'General' },
@@ -69,9 +68,30 @@
         { value: 'github', label: 'GitHub' }
     ];
     
+    function mapApiToFormData(data: UserSettings) {
+        return {
+            theme: data.theme || 'auto',
+            notifications: {
+                execution_completed: data.notifications?.execution_completed ?? true,
+                execution_failed: data.notifications?.execution_failed ?? true,
+                system_updates: data.notifications?.system_updates ?? true,
+                security_alerts: data.notifications?.security_alerts ?? true,
+                channels: [...(data.notifications?.channels || ['in_app'])]
+            },
+            editor: {
+                theme: data.editor?.theme || 'auto',
+                font_size: data.editor?.font_size || 14,
+                tab_size: data.editor?.tab_size || 4,
+                use_tabs: data.editor?.use_tabs ?? false,
+                word_wrap: data.editor?.word_wrap ?? true,
+                show_line_numbers: data.editor?.show_line_numbers ?? true,
+            }
+        };
+    }
+
     onMount(() => {
         // First verify if user is authenticated
-        if (!get(isAuthenticated)) {
+        if (!authStore.isAuthenticated) {
             return;
         }
 
@@ -95,95 +115,44 @@
     
     async function loadSettings() {
         loading = true;
-        try {
-            const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
-            if (error) throw error;
-
-            setUserSettings(data ?? null);
-
-            if (data) {
-                formData = {
-                    theme: data.theme || 'auto',
-                    notifications: {
-                        execution_completed: data.notifications?.execution_completed ?? true,
-                        execution_failed: data.notifications?.execution_failed ?? true,
-                        system_updates: data.notifications?.system_updates ?? true,
-                        security_alerts: data.notifications?.security_alerts ?? true,
-                        channels: [...(data.notifications?.channels || ['in_app'])]
-                    },
-                    editor: {
-                        theme: data.editor?.theme || 'auto',
-                        font_size: data.editor?.font_size || 14,
-                        tab_size: data.editor?.tab_size || 4,
-                        use_tabs: data.editor?.use_tabs ?? false,
-                        word_wrap: data.editor?.word_wrap ?? true,
-                        show_line_numbers: data.editor?.show_line_numbers ?? true,
-                    }
-                };
-            }
-            savedSnapshot = JSON.stringify(formData);
-        } catch (err) {
-            console.error('Failed to load settings:', err);
-            toast.error('Failed to load settings. Using defaults.');
-        } finally {
+        const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
+        if (error) {
             loading = false;
+            return;
         }
+
+        setUserSettings(data ?? null);
+        if (data) formData = mapApiToFormData(data);
+        savedSnapshot = $state.snapshot(formData);
+        loading = false;
     }
     
     async function saveSettings() {
-        const currentState = JSON.stringify(formData);
-        if (currentState === savedSnapshot) {
+        const current = $state.snapshot(formData);
+        if (!savedSnapshot || JSON.stringify(current) === JSON.stringify(savedSnapshot)) {
             toast.info('No changes to save');
             return;
         }
 
         saving = true;
-        try {
-            const original = JSON.parse(savedSnapshot);
-            const updates: Record<string, any> = {};
+        const updates: Record<string, unknown> = {};
+        if (current.theme !== savedSnapshot.theme) updates.theme = current.theme;
+        if (JSON.stringify(current.notifications) !== JSON.stringify(savedSnapshot.notifications))
+            updates.notifications = current.notifications;
+        if (JSON.stringify(current.editor) !== JSON.stringify(savedSnapshot.editor))
+            updates.editor = current.editor;
 
-            if (formData.theme !== original.theme) {
-                updates.theme = formData.theme;
-            }
-            if (JSON.stringify(formData.notifications) !== JSON.stringify(original.notifications)) {
-                updates.notifications = formData.notifications;
-            }
-            if (JSON.stringify(formData.editor) !== JSON.stringify(original.editor)) {
-                updates.editor = formData.editor;
-            }
-
-            const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
-            if (error) throw error;
-
-            setUserSettings(data);
-
-            formData = {
-                theme: data.theme || 'auto',
-                notifications: {
-                    execution_completed: data.notifications?.execution_completed ?? true,
-                    execution_failed: data.notifications?.execution_failed ?? true,
-                    system_updates: data.notifications?.system_updates ?? true,
-                    security_alerts: data.notifications?.security_alerts ?? true,
-                    channels: [...(data.notifications?.channels || ['in_app'])]
-                },
-                editor: {
-                    theme: data.editor?.theme || 'auto',
-                    font_size: data.editor?.font_size || 14,
-                    tab_size: data.editor?.tab_size || 4,
-                    use_tabs: data.editor?.use_tabs ?? false,
-                    word_wrap: data.editor?.word_wrap ?? true,
-                    show_line_numbers: data.editor?.show_line_numbers ?? true,
-                }
-            };
-            savedSnapshot = JSON.stringify(formData);
-
-            toast.success('Settings saved successfully');
-        } catch (err) {
-            console.error('Settings save error:', err);
-            toast.error('Failed to save settings');
-        } finally {
+        const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
+        if (error) {
             saving = false;
+            return;
         }
+
+        setUserSettings(data);
+        formData = mapApiToFormData(data);
+        savedSnapshot = $state.snapshot(formData);
+        toast.success('Settings saved successfully');
+        saving = false;
     }
     
     // Cache for history data
@@ -203,22 +172,18 @@
         history = [];
         historyLoading = true;
 
-        try {
-            const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
-            if (error) throw error;
-
-            history = [...(data?.history || [])]
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-            historyCache = history;
-            historyCacheTime = Date.now();
-        } catch (err) {
-            console.error('Failed to load settings history:', err);
-            toast.error('Failed to load settings history');
-            history = [];
-        } finally {
+        const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
+        if (error) {
             historyLoading = false;
+            return;
         }
+
+        history = [...(data?.history || [])]
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        historyCache = history;
+        historyCacheTime = Date.now();
+        historyLoading = false;
     }
     
     async function restoreSettings(timestamp: string): Promise<void> {
@@ -226,27 +191,22 @@
             return;
         }
 
-        try {
-            const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
-                body: { timestamp, reason: 'User requested restore' }
-            });
-            if (error) throw error;
+        const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
+            body: { timestamp, reason: 'User requested restore' }
+        });
+        if (error) return;
 
-            historyCache = null;
-            historyCacheTime = 0;
+        historyCache = null;
+        historyCacheTime = 0;
 
-            await loadSettings();
+        await loadSettings();
 
-            if (data.theme) {
-                setTheme(data.theme);
-            }
-
-            showHistory = false;
-            toast.success('Settings restored successfully');
-        } catch (err) {
-            console.error('Failed to restore settings:', err);
-            toast.error('Failed to restore settings');
+        if (data.theme) {
+            setTheme(data.theme);
         }
+
+        showHistory = false;
+        toast.success('Settings restored successfully');
     }
     
     function formatTimestamp(ts: string | number): string {

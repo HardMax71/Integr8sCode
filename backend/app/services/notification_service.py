@@ -691,11 +691,12 @@ class NotificationService:
                     "delivery_time_ms": int(delivery_time * 1000),
                 },
             )
+            notification_type = notification.tags[0] if notification.tags else "unknown"
             self.metrics.record_notification_sent(
-                notification.severity, channel=notification.channel, severity=notification.severity
+                notification_type, channel=notification.channel, severity=notification.severity
             )
             self.metrics.record_notification_delivery_time(
-                delivery_time, notification.severity, channel=notification.channel
+                delivery_time, notification_type, channel=notification.channel
             )
             return True
         except Exception as last_error:

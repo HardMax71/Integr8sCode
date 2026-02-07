@@ -52,9 +52,9 @@ class AdaptiveSampler(Sampler):
         self._current_rate = base_rate
         self._last_adjustment = time.time()
 
-        # Sliding window for rate calculation (1 minute window)
-        self._request_window: deque[float] = deque(maxlen=60)
-        self._error_window: deque[float] = deque(maxlen=60)
+        # Sliding window for rate calculation (1 minute window, pruned by _calculate_metrics)
+        self._request_window: deque[float] = deque()
+        self._error_window: deque[float] = deque()
 
         logging.getLogger("integr8scode").info(f"Adaptive sampler initialized with base rate: {base_rate}")
 

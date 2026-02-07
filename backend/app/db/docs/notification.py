@@ -42,7 +42,7 @@ class NotificationDocument(Document):
 
     # Error handling
     retry_count: int = 0
-    max_retries: int = 3
+    max_retries: int = Field(3, ge=1)
     error_message: str | None = None
 
     # Context

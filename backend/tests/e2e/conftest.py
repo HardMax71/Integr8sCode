@@ -122,6 +122,17 @@ class EventWaiter:
             timeout=timeout,
         )
 
+    async def wait_for_notification_created(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
+        """Wait for NOTIFICATION_CREATED — notification is guaranteed in MongoDB after this."""
+        exec_tag = f"exec:{execution_id}"
+        return await self.wait_for(
+            lambda e: (
+                e.event_type == EventType.NOTIFICATION_CREATED
+                and exec_tag in e.tags
+            ),
+            timeout=timeout,
+        )
+
 
 @pytest_asyncio.fixture(scope="session")
 async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, None]:
@@ -132,6 +143,7 @@ async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, N
         f"{prefix}{KafkaTopic.EXECUTION_RESULTS}",
         f"{prefix}{KafkaTopic.SAGA_EVENTS}",
         f"{prefix}{KafkaTopic.SAGA_COMMANDS}",
+        f"{prefix}{KafkaTopic.NOTIFICATION_EVENTS}",
     ]
     waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics)
     await waiter.start()
@@ -256,17 +268,17 @@ async def execution_with_notification(
     event_waiter: EventWaiter,
     created_execution: ExecutionResponse,
 ) -> tuple[ExecutionResponse, NotificationResponse]:
-    """Execution with notification guaranteed in MongoDB.
+    """Execution with notification guaranteed in MongoDB (via NOTIFICATION_CREATED event).
 
-    Notification handler runs in-process and finishes before the external
-    result processor produces RESULT_STORED — so waiting for RESULT_STORED
-    guarantees the notification exists.
+    The notification service publishes NOTIFICATION_CREATED after persisting
+    the notification to MongoDB.  Once EventWaiter resolves the event, the
+    document is definitively in MongoDB.
     """
-    await event_waiter.wait_for_result(created_execution.execution_id)
+    await event_waiter.wait_for_notification_created(created_execution.execution_id)
     resp = await test_user.get("/api/v1/notifications", params={"limit": 10})
     assert resp.status_code == 200
     result = NotificationListResponse.model_validate(resp.json())
-    assert result.notifications, "No notification despite RESULT_STORED received"
+    assert result.notifications, "No notification despite NOTIFICATION_CREATED received"
     notification = result.notifications[0]
     assert created_execution.execution_id in (notification.subject + " ".join(notification.tags))
     return created_execution, notification

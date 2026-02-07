@@ -190,11 +190,11 @@ class EventReplayService:
         try:
             success = await self._replay_event(session, event)
         except Exception as e:
-            session.failed_events += 1
             session.errors.append(
                 ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
             )
             if not session.config.skip_errors:
+                session.failed_events += 1
                 await self._finalize_session(session, ReplayStatus.FAILED)
                 return
 

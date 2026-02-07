@@ -96,9 +96,9 @@ export function initializeApiInterceptors(): void {
         credentials: 'include',
     });
 
-    client.interceptors.error.use((error, response, request, _opts) => {
+    client.interceptors.error.use((error, response: Response | undefined, request, _opts) => {
         const status = response?.status;
-        const url = request?.url || '';
+        const url = request.url;
         const isAuthEndpoint = AUTH_ENDPOINTS.some(ep => url.includes(ep));
 
         console.error('[API Error]', { status, url, error });

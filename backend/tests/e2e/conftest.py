@@ -97,17 +97,27 @@ class EventWaiter:
         return await self.wait_for(
             lambda e: (
                 e.event_type in RESULT_EVENT_TYPES
-                and getattr(e, "execution_id", None) == execution_id
+                and e.execution_id == execution_id  # type: ignore[union-attr]
             ),
             timeout=timeout,
         )
 
     async def wait_for_saga_command(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
-        """Wait for CREATE_POD_COMMAND — saga is guaranteed in MongoDB after this."""
+        """Wait for CREATE_POD_COMMAND for *execution_id*."""
         return await self.wait_for(
             lambda e: (
                 e.event_type == EventType.CREATE_POD_COMMAND
-                and getattr(e, "execution_id", None) == execution_id
+                and e.execution_id == execution_id
+            ),
+            timeout=timeout,
+        )
+
+    async def wait_for_saga_started(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
+        """Wait for SAGA_STARTED — saga document is guaranteed in MongoDB after this."""
+        return await self.wait_for(
+            lambda e: (
+                e.event_type == EventType.SAGA_STARTED
+                and e.execution_id == execution_id
             ),
             timeout=timeout,
         )
@@ -221,15 +231,14 @@ async def execution_with_saga(
     event_waiter: EventWaiter,
     created_execution: ExecutionResponse,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Execution with saga guaranteed in MongoDB (via CREATE_POD_COMMAND event).
+    """Execution with saga guaranteed in MongoDB (via SAGA_STARTED event).
 
-    The saga orchestrator persists the saga document multiple times before
-    publishing CREATE_POD_COMMAND to Kafka.  Once EventWaiter resolves the
-    command, the document is definitively in MongoDB.  We query Beanie
-    directly (same DB, no HTTP round-trip) for a deterministic, sleep-free
-    lookup.
+    The saga orchestrator publishes SAGA_STARTED after persisting the saga
+    document to MongoDB.  Once EventWaiter resolves the event, the document
+    is definitively in MongoDB.  We query Beanie directly (same DB, no HTTP
+    round-trip) for a deterministic, sleep-free lookup.
     """
-    await event_waiter.wait_for_saga_command(created_execution.execution_id)
+    await event_waiter.wait_for_saga_started(created_execution.execution_id)
 
     doc = await SagaDocument.find_one(SagaDocument.execution_id == created_execution.execution_id)
     assert doc is not None, (

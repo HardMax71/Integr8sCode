@@ -201,7 +201,7 @@ class TestCancelSaga:
         assert exec_response.status_code == 200
 
         execution = ExecutionResponse.model_validate(exec_response.json())
-        await event_waiter.wait_for_saga_command(execution.execution_id)
+        await event_waiter.wait_for_saga_started(execution.execution_id)
 
         saga_resp = await test_user.get(f"/api/v1/sagas/execution/{execution.execution_id}")
         saga = SagaListResponse.model_validate(saga_resp.json()).sagas[0]
@@ -246,7 +246,7 @@ class TestCancelSaga:
         assert exec_response.status_code == 200
 
         execution = ExecutionResponse.model_validate(exec_response.json())
-        await event_waiter.wait_for_saga_command(execution.execution_id)
+        await event_waiter.wait_for_saga_started(execution.execution_id)
 
         saga_resp = await test_user.get(f"/api/v1/sagas/execution/{execution.execution_id}")
         saga = SagaListResponse.model_validate(saga_resp.json()).sagas[0]

@@ -17,6 +17,7 @@ from app.domain.events.typed import (
     ExecutionRequestedEvent,
     ExecutionTimeoutEvent,
     SagaCancelledEvent,
+    SagaStartedEvent,
 )
 from app.domain.saga.models import Saga, SagaConfig
 from app.events.core import UnifiedProducer
@@ -109,6 +110,9 @@ class SagaOrchestrator:
             return instance.saga_id
 
         self.logger.info(f"Started saga {_SAGA_NAME} (ID: {instance.saga_id}) for execution {execution_id}")
+
+        if self._producer and self.config.store_events:
+            await self._publish_saga_started_event(instance, trigger_event)
 
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
@@ -308,6 +312,28 @@ class SagaOrchestrator:
                 exc_info=True,
             )
             return False
+
+    async def _publish_saga_started_event(
+        self, instance: Saga, trigger_event: ExecutionRequestedEvent,
+    ) -> None:
+        """Publish saga started event after the document is persisted."""
+        try:
+            event = SagaStartedEvent(
+                saga_id=instance.saga_id,
+                saga_name=instance.saga_name,
+                execution_id=instance.execution_id,
+                initial_event_id=trigger_event.event_id,
+                metadata=EventMetadata(
+                    service_name="saga-orchestrator",
+                    service_version="1.0.0",
+                    user_id=trigger_event.metadata.user_id or "system",
+                    correlation_id=trigger_event.metadata.correlation_id,
+                ),
+            )
+            await self._producer.produce(event_to_produce=event, key=instance.execution_id)
+            self.logger.info(f"Published SagaStartedEvent for saga {instance.saga_id}")
+        except Exception as e:
+            self.logger.error(f"Failed to publish saga started event: {e}")
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event."""

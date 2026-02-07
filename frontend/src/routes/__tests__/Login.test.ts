@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   mockLogin: vi.fn(),
@@ -22,10 +22,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockRouterModule(mocks.mockGoto));
+  (await import('$test/test-utils')).createMockRouterModule(mocks.mockGoto));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/user-settings', () => ({
   loadUserSettings: (...args: unknown[]) => mocks.mockLoadUserSettings(...args),
@@ -36,11 +36,11 @@ vi.mock('$lib/api-interceptors', () => ({
 }));
 
 vi.mock('$utils/meta', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+  (await import('$test/test-utils')).createMetaMock(
     mocks.mockUpdateMetaTags, { login: { title: 'Login', description: 'Login desc' } }));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 describe('Login', () => {
   const user = userEvent.setup();

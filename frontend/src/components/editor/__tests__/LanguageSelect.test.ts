@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '../../../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('../../../__tests__/test-utils')).createMockIconModule('ChevronDown', 'ChevronRight'));
+  (await import('$test/test-utils')).createMockIconModule('ChevronDown', 'ChevronRight'));
 
 import LanguageSelect from '../LanguageSelect.svelte';
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, suppressConsoleError } from '../../__tests__/test-utils';
+import { setupAnimationMock, suppressConsoleError } from '$test/test-utils';
 
 // vi.hoisted must contain self-contained code - cannot import external modules
 const mocks = vi.hoisted(() => {
@@ -43,7 +43,7 @@ vi.mock('../../stores/theme.svelte', () => ({
   get toggleTheme() { return () => mocks.mockToggleTheme(); },
 }));
 vi.mock('../NotificationCenter.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent(
+  (await import('$test/test-utils')).createMockSvelteComponent(
     '<div>NotificationCenter</div>', 'notification-center'));
 
 import Header from '$components/Header.svelte';

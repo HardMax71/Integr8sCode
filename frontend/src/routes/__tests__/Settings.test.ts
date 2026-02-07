@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 function createMockSettings() {
   return {
@@ -56,13 +56,13 @@ vi.mock('$stores/userSettings.svelte', () => ({
 }));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule('ChevronDown'));
+  (await import('$test/test-utils')).createMockIconModule('ChevronDown'));
 
 describe('Settings', () => {
   const user = userEvent.setup();

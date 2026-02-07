@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, createMockNotification, createMockNotifications } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock, createMockNotification, createMockNotifications } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
@@ -20,13 +20,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('$stores/notificationStore.svelte', () => ({ notificationStore: mocks.mockNotificationStore }));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule(
+  (await import('$test/test-utils')).createMockIconModule(
     'Bell', 'Trash2', 'Clock', 'CircleCheck', 'AlertCircle', 'Info'));
 
 vi.mock('$lib/api', () => ({}));

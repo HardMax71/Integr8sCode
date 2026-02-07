@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   registerApiV1AuthRegisterPost: vi.fn(),
@@ -16,21 +16,21 @@ vi.mock('$lib/api', () => ({
 }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockRouterModule(mocks.mockGoto));
+  (await import('$test/test-utils')).createMockRouterModule(mocks.mockGoto));
 
 vi.mock('svelte-sonner', async () =>
-  (await import('$lib/../__tests__/test-utils')).createToastMock(mocks.addToast));
+  (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
   getErrorMessage: (...args: unknown[]) => mocks.mockGetErrorMessage(...args),
 }));
 
 vi.mock('$utils/meta', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+  (await import('$test/test-utils')).createMetaMock(
     mocks.mockUpdateMetaTags, { register: { title: 'Register', description: 'Register desc' } }));
 
 vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 describe('Register', () => {
   const user = userEvent.setup();

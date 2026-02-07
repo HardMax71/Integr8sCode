@@ -33,6 +33,7 @@ export default defineConfig({
       $routes: '/src/routes',
       $utils: '/src/utils',
       $styles: '/src/styles',
+      $test: '/src/__tests__',
     },
   },
 });

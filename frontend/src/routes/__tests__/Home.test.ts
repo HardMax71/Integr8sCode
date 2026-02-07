@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { setupAnimationMock } from '$lib/../__tests__/test-utils';
+import { setupAnimationMock } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   mockUpdateMetaTags: vi.fn(),
 }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockRouterModule());
+  (await import('$test/test-utils')).createMockRouterModule());
 
 vi.mock('$utils/meta', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMetaMock(
+  (await import('$test/test-utils')).createMetaMock(
     mocks.mockUpdateMetaTags, { home: { title: 'Home', description: 'Home desc' } }));
 
 vi.mock('@lucide/svelte', async () =>
-  (await import('$lib/../__tests__/test-utils')).createMockIconModule('Zap', 'ShieldCheck', 'Clock'));
+  (await import('$test/test-utils')).createMockIconModule('Zap', 'ShieldCheck', 'Clock'));
 
 describe('Home', () => {
   beforeEach(() => {

@@ -24,8 +24,8 @@ describe('EventStatsCards', () => {
 
   it('displays total_events with locale formatting and totalEvents denominator', () => {
     renderCards(createMockStats({ total_events: 1500 }), 10000);
-    expect(screen.getByText('1,500')).toBeInTheDocument();
-    expect(screen.getByText(/of 10,000 total/)).toBeInTheDocument();
+    expect(screen.getByText((1500).toLocaleString())).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`of ${(10000).toLocaleString()} total`))).toBeInTheDocument();
   });
 
   it.each([

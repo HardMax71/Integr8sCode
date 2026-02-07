@@ -101,9 +101,12 @@ describe('EventDetailsModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('shows "-" when correlation_id is null', () => {
+  it.each([
+    { case: 'null', value: null },
+    { case: 'undefined', value: undefined },
+  ])('shows "-" when correlation_id is $case', ({ value }) => {
     const detail = createMockEventDetail();
-    detail.event.metadata.correlation_id = undefined;
+    detail.event.metadata.correlation_id = value as undefined;
     renderModal({ event: detail });
     const cells = screen.getAllByText('-');
     expect(cells.length).toBeGreaterThanOrEqual(1);

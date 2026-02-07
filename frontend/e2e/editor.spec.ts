@@ -1,6 +1,6 @@
 import {
   test, expect, runExampleAndExecute, expectToastVisible, describeAuthRequired,
-  loadExampleScript, openScriptOptions, saveScriptAs,
+  loadExampleScript, openScriptOptions, saveScriptAs, expandSavedScripts,
 } from './fixtures';
 
 const PATH = '/editor';
@@ -133,6 +133,9 @@ test.describe('Editor Script Management', () => {
     await userPage.getByRole('button', { name: /New/i }).click();
     await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
 
+    // Expand the saved scripts list to find the saved script
+    await expandSavedScripts(userPage);
+
     const savedScript = userPage.locator(`text="${scriptName}"`).first();
     await expect(savedScript).toBeVisible({ timeout: 3000 });
     await savedScript.click();
@@ -144,6 +147,9 @@ test.describe('Editor Script Management', () => {
     await userPage.goto(PATH);
     const scriptName = `Delete Test ${Date.now()}`;
     await saveScriptAs(userPage, scriptName);
+
+    // Expand the saved scripts list to find the saved script
+    await expandSavedScripts(userPage);
 
     const scriptRow = userPage.locator(`text="${scriptName}"`).first();
     await expect(scriptRow).toBeVisible({ timeout: 3000 });

@@ -77,7 +77,7 @@ function handleErrorStatus(status: number | undefined, error: unknown, isAuthEnd
     if (status === 422 && typeof error === 'object' && error !== null) {
         const detail = (error as Record<string, unknown>).detail;
         if (Array.isArray(detail) && detail.length > 0) {
-            toast.error(`Validation error:\n${getErrorMessage(error)}`);
+            toast.error(`Validation error: ${getErrorMessage(error)}`);
             return true;
         }
     }

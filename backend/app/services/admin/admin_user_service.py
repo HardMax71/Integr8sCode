@@ -168,7 +168,7 @@ class AdminUserService:
             "Admin updating user",
             extra={"admin_username": admin_username, "target_user_id": user_id},
         )
-        if update.password:
+        if update.password is not None:
             update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
         return await self._users.update_user(user_id, update)
 

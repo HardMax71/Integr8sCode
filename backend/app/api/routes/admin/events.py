@@ -11,6 +11,7 @@ from app.core.correlation import CorrelationContext
 from app.domain.enums.events import EventType
 from app.domain.events.event_models import EventFilter
 from app.domain.replay import ReplayFilter
+from app.domain.user import User
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,
@@ -22,7 +23,6 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.common import ErrorResponse
-from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminEventsService
 
 router = APIRouter(
@@ -192,7 +192,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
 
 @router.delete("/{event_id}", responses={404: {"model": ErrorResponse}})
 async def delete_event(
-    event_id: str, admin: Annotated[UserResponse, Depends(admin_user)], service: FromDishka[AdminEventsService]
+    event_id: str, admin: Annotated[User, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
     """Delete and archive an event by ID."""
     deleted = await service.delete_event(event_id=event_id, deleted_by=admin.email)

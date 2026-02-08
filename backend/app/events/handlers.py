@@ -13,9 +13,8 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import extract_trace_context, get_tracer
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage, DLQMessageStatus
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import CONSUMER_GROUP_SUBSCRIPTIONS, GroupId, KafkaTopic
-from app.domain.events.typed import (
+from app.domain.enums import EventType, GroupId, KafkaTopic
+from app.domain.events import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     DomainEvent,
@@ -26,13 +25,14 @@ from app.domain.events.typed import (
     ExecutionTimeoutEvent,
 )
 from app.domain.idempotency import KeyStrategy
+from app.infrastructure.kafka.mappings import CONSUMER_GROUP_SUBSCRIPTIONS
 from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
 from app.services.result_processor.processor import ResultProcessor
 from app.services.saga import SagaOrchestrator
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 

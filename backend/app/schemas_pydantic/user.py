@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.domain.rate_limit import EndpointGroup, EndpointUsageStats, RateLimitAlgorithm
 
 

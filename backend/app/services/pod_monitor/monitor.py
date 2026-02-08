@@ -9,7 +9,7 @@ from kubernetes_asyncio import watch as k8s_watch
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper

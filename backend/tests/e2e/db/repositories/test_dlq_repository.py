@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 
 import pytest
 from app.db.docs import DLQMessageDocument
-from app.db.repositories.dlq_repository import DLQRepository
+from app.db.repositories import DLQRepository
 from app.dlq import DLQMessageStatus
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 
 pytestmark = pytest.mark.e2e
 

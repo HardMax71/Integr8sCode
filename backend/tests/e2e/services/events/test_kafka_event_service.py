@@ -1,7 +1,6 @@
 import pytest
 from app.db.repositories import EventRepository
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import EventType, ExecutionStatus
 from app.services.kafka_event_service import KafkaEventService
 from dishka import AsyncContainer
 

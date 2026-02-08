@@ -6,11 +6,7 @@ from beanie import Document, Indexed
 from pydantic import ConfigDict, Field, field_validator
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-    NotificationStatus,
-)
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 
 
 class NotificationDocument(Document):

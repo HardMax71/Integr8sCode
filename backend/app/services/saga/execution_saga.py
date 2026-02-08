@@ -1,8 +1,8 @@
 import logging
 from typing import Any
 
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.domain.events.typed import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
+from app.db.repositories import ResourceAllocationRepository
+from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 

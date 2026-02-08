@@ -9,6 +9,7 @@ from .replay_models import (
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
 )
+from .replay_updates import ReplaySessionUpdate
 from .settings_models import (
     AuditAction,
     AuditLogEntry,
@@ -37,4 +38,6 @@ __all__ = [
     "ReplaySessionData",
     "ReplaySessionStatusDetail",
     "ReplaySessionStatusInfo",
+    # Replay Updates
+    "ReplaySessionUpdate",
 ]

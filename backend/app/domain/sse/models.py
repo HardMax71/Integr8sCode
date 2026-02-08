@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import ExecutionStatus
 
 
 class SSEExecutionStatusDomain(BaseModel):

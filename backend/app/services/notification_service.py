@@ -9,14 +9,9 @@ import httpx
 
 from app.core.metrics import NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
-from app.db.repositories.notification_repository import NotificationRepository
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-    NotificationStatus,
-)
-from app.domain.enums.user import UserRole
-from app.domain.events.typed import (
+from app.db.repositories import NotificationRepository
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
+from app.domain.events import (
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -36,7 +31,7 @@ from app.domain.notification import (
 )
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.kafka_event_service import KafkaEventService
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 # Constants

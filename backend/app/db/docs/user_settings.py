@@ -4,8 +4,7 @@ from typing import Any
 from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain.enums.common import Theme
-from app.domain.enums.notification import NotificationChannel
+from app.domain.enums import NotificationChannel, Theme
 
 
 class NotificationSettings(BaseModel):

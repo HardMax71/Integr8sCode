@@ -1,6 +1,6 @@
 import pytest
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
-from app.domain.replay.exceptions import ReplaySessionNotFoundError
+from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplaySessionNotFoundError
 from app.services.event_replay import EventReplayService, ReplayConfig, ReplayFilter
 from dishka import AsyncContainer
 

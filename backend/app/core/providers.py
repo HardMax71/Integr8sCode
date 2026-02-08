@@ -29,26 +29,26 @@ from app.core.metrics import (
 from app.core.security import SecurityService
 from app.core.tracing import TracerManager
 from app.db.repositories import (
+    AdminEventsRepository,
+    AdminSettingsRepository,
+    AdminUserRepository,
+    DLQRepository,
     EventRepository,
     ExecutionRepository,
     NotificationRepository,
+    ReplayRepository,
+    ResourceAllocationRepository,
     SagaRepository,
     SavedScriptRepository,
     SSERepository,
     UserRepository,
+    UserSettingsRepository,
 )
-from app.db.repositories.admin.admin_events_repository import AdminEventsRepository
-from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
-from app.db.repositories.admin.admin_user_repository import AdminUserRepository
-from app.db.repositories.dlq_repository import DLQRepository
-from app.db.repositories.replay_repository import ReplayRepository
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 from app.domain.rate_limit import RateLimitConfig
-from app.domain.saga.models import SagaConfig
+from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
@@ -72,8 +72,7 @@ from app.services.result_processor.resource_cleaner import ResourceCleaner
 from app.services.saga import SagaOrchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse.redis_bus import SSERedisBus
-from app.services.sse.sse_service import SSEService
+from app.services.sse import SSERedisBus, SSEService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 

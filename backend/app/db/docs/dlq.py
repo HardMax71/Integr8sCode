@@ -5,7 +5,7 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.dlq.models import DLQMessageStatus
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 
 
 class DLQMessageDocument(Document):

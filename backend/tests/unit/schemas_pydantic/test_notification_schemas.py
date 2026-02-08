@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from app.domain.enums.notification import NotificationChannel, NotificationSeverity, NotificationStatus
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.notification import Notification, NotificationBatch
 
 

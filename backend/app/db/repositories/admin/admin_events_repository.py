@@ -11,10 +11,8 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail
-from app.domain.admin.replay_updates import ReplaySessionUpdate
-from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus
+from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
+from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,
@@ -28,7 +26,7 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
-from app.domain.replay.models import ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
 class AdminEventsRepository:

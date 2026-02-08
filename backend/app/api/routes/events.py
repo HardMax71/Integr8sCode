@@ -9,11 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.core.utils import get_client_ip
-from app.domain.enums.common import SortOrder
-from app.domain.enums.events import EventType
-from app.domain.enums.user import UserRole
-from app.domain.events.event_models import EventFilter
-from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
+from app.domain.enums import EventType, SortOrder, UserRole
+from app.domain.events import BaseEvent, DomainEvent, EventFilter, EventMetadata
 from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.events import (

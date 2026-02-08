@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.user import (
     DeleteUserResponse,

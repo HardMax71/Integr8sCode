@@ -1,4 +1,4 @@
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 
 from .exceptions import (
     AdminAccessRequiredError,

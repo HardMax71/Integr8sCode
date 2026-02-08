@@ -1,6 +1,6 @@
 import logging
 
-from app.db.repositories.notification_repository import NotificationRepository
+from app.db.repositories import NotificationRepository
 from app.services.notification_service import NotificationService
 
 

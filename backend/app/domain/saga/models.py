@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 
 
 class Saga(BaseModel):

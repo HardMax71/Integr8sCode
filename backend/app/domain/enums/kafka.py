@@ -1,5 +1,4 @@
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
 
 
 class KafkaTopic(StringEnum):
@@ -62,89 +61,4 @@ class GroupId(StringEnum):
     EVENT_STORE_CONSUMER = "event-store-consumer"
     WEBSOCKET_GATEWAY = "websocket-gateway"
     NOTIFICATION_SERVICE = "notification-service"
-    DLQ_PROCESSOR = "dlq-processor"
     DLQ_MANAGER = "dlq-manager"
-
-
-# Consumer group topic subscriptions
-CONSUMER_GROUP_SUBSCRIPTIONS: dict[GroupId, set[KafkaTopic]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        KafkaTopic.EXECUTION_EVENTS,
-        KafkaTopic.EXECUTION_RESULTS,
-    },
-    GroupId.K8S_WORKER: {
-        KafkaTopic.SAGA_COMMANDS,  # Receives CreatePodCommand/DeletePodCommand from coordinator
-    },
-    GroupId.POD_MONITOR: {
-        KafkaTopic.POD_EVENTS,
-        KafkaTopic.POD_STATUS_UPDATES,
-    },
-    GroupId.RESULT_PROCESSOR: {
-        KafkaTopic.EXECUTION_EVENTS,  # Listens for COMPLETED/FAILED/TIMEOUT, publishes to EXECUTION_RESULTS
-    },
-    GroupId.SAGA_ORCHESTRATOR: {
-        # Orchestrator is triggered by domain events, specifically EXECUTION_REQUESTED,
-        # and emits commands on SAGA_COMMANDS.
-        KafkaTopic.EXECUTION_EVENTS,
-        KafkaTopic.SAGA_COMMANDS,
-    },
-    GroupId.WEBSOCKET_GATEWAY: {
-        KafkaTopic.EXECUTION_EVENTS,
-        KafkaTopic.EXECUTION_RESULTS,
-        KafkaTopic.POD_EVENTS,
-        KafkaTopic.POD_STATUS_UPDATES,
-    },
-    GroupId.NOTIFICATION_SERVICE: {
-        KafkaTopic.NOTIFICATION_EVENTS,
-        KafkaTopic.EXECUTION_EVENTS,
-    },
-    GroupId.DLQ_PROCESSOR: {
-        KafkaTopic.DEAD_LETTER_QUEUE,
-    },
-}
-
-# Consumer group event filters
-CONSUMER_GROUP_EVENTS: dict[GroupId, set[EventType]] = {
-    GroupId.EXECUTION_COORDINATOR: {
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_CANCELLED,
-    },
-    GroupId.K8S_WORKER: {
-        EventType.EXECUTION_STARTED,
-    },
-    GroupId.POD_MONITOR: {
-        EventType.POD_CREATED,
-        EventType.POD_RUNNING,
-        EventType.POD_SUCCEEDED,
-        EventType.POD_FAILED,
-    },
-    GroupId.RESULT_PROCESSOR: {
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_TIMEOUT,
-    },
-    GroupId.SAGA_ORCHESTRATOR: {
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_TIMEOUT,
-    },
-    GroupId.WEBSOCKET_GATEWAY: {
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_STARTED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.POD_CREATED,
-        EventType.POD_RUNNING,
-        EventType.RESULT_STORED,
-    },
-    GroupId.NOTIFICATION_SERVICE: {
-        EventType.NOTIFICATION_CREATED,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_TIMEOUT,
-    },
-    GroupId.DLQ_PROCESSOR: set(),
-}

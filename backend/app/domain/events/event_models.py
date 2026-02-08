@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]

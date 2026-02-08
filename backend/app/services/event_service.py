@@ -1,9 +1,8 @@
 from datetime import datetime
 from typing import Any
 
-from app.db.repositories.event_repository import EventRepository
-from app.domain.enums.events import EventType
-from app.domain.enums.user import UserRole
+from app.db.repositories import EventRepository
+from app.domain.enums import EventType, UserRole
 from app.domain.events import (
     ArchivedEvent,
     DomainEvent,

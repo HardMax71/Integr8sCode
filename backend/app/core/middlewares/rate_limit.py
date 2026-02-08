@@ -7,7 +7,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.utils import get_client_ip
 from app.domain.rate_limit import RateLimitStatus
-from app.domain.user.user_models import User
+from app.domain.user import User
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 

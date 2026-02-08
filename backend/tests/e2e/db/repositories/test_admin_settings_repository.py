@@ -1,6 +1,6 @@
 import pytest
 from app.db.docs import AuditLogDocument
-from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
+from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from dishka import AsyncContainer
 

@@ -5,7 +5,7 @@ from uuid import uuid4
 import jwt
 import pytest
 from app.core.security import SecurityService
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.domain.user import InvalidCredentialsError
 from app.settings import Settings
 from jwt.exceptions import InvalidTokenError

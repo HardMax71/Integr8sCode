@@ -1,5 +1,5 @@
 import pytest
-from app.domain.events.typed import SystemErrorEvent
+from app.domain.events import SystemErrorEvent
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 pytestmark = pytest.mark.unit

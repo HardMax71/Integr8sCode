@@ -1,6 +1,6 @@
 import pytest
 from app.db.docs import UserDocument
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.services.admin import AdminUserService
 from dishka import AsyncContainer
 

@@ -1,8 +1,7 @@
 from functools import lru_cache
 from typing import get_args, get_origin
 
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import EventType, GroupId, KafkaTopic
 
 # EventType -> KafkaTopic routing
 EVENT_TYPE_TO_TOPIC: dict[EventType, KafkaTopic] = {
@@ -102,3 +101,38 @@ def get_topic_for_event(event_type: EventType) -> KafkaTopic:
 def get_event_types_for_topic(topic: KafkaTopic) -> list[EventType]:
     """Get all event types that publish to a given topic."""
     return [et for et, t in EVENT_TYPE_TO_TOPIC.items() if t == topic]
+
+
+CONSUMER_GROUP_SUBSCRIPTIONS: dict[GroupId, set[KafkaTopic]] = {
+    GroupId.EXECUTION_COORDINATOR: {
+        KafkaTopic.EXECUTION_EVENTS,
+        KafkaTopic.EXECUTION_RESULTS,
+    },
+    GroupId.K8S_WORKER: {
+        KafkaTopic.SAGA_COMMANDS,
+    },
+    GroupId.POD_MONITOR: {
+        KafkaTopic.POD_EVENTS,
+        KafkaTopic.POD_STATUS_UPDATES,
+    },
+    GroupId.RESULT_PROCESSOR: {
+        KafkaTopic.EXECUTION_EVENTS,
+    },
+    GroupId.SAGA_ORCHESTRATOR: {
+        KafkaTopic.EXECUTION_EVENTS,
+        KafkaTopic.SAGA_COMMANDS,
+    },
+    GroupId.WEBSOCKET_GATEWAY: {
+        KafkaTopic.EXECUTION_EVENTS,
+        KafkaTopic.EXECUTION_RESULTS,
+        KafkaTopic.POD_EVENTS,
+        KafkaTopic.POD_STATUS_UPDATES,
+    },
+    GroupId.NOTIFICATION_SERVICE: {
+        KafkaTopic.NOTIFICATION_EVENTS,
+        KafkaTopic.EXECUTION_EVENTS,
+    },
+    GroupId.DLQ_MANAGER: {
+        KafkaTopic.DEAD_LETTER_QUEUE,
+    },
+}

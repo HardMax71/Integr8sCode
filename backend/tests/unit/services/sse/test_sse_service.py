@@ -7,14 +7,12 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.core.metrics import ConnectionMetrics
-from app.db.repositories.sse_repository import SSERepository
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.db.repositories import SSERepository
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import DomainExecution
 from app.domain.sse import SSEExecutionStatusDomain
-from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
-from app.services.sse.sse_service import SSEService
+from app.services.sse import SSERedisBus, SSERedisSubscription, SSEService
 from app.settings import Settings
 from pydantic import BaseModel
 

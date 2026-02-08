@@ -3,10 +3,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.notification import NotificationSeverity, NotificationStatus
-from app.domain.enums.sse import SSEControlEvent
+from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, SSEControlEvent
 from app.schemas_pydantic.execution import ExecutionResult, ResourceUsage
 
 # Type variable for generic Redis message parsing

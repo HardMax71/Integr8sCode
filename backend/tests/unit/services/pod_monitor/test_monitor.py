@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.metrics import EventMetrics, KubernetesMetrics
-from app.domain.events.typed import (
+from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,

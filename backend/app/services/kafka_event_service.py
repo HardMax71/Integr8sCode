@@ -8,9 +8,8 @@ from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import EventMetrics
-from app.domain.enums.events import EventType
-from app.domain.events import DomainEventAdapter
-from app.domain.events.typed import DomainEvent, EventMetadata
+from app.domain.enums import EventType
+from app.domain.events import DomainEvent, DomainEventAdapter, EventMetadata
 from app.events.core import UnifiedProducer
 from app.settings import Settings
 

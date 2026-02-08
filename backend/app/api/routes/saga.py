@@ -4,7 +4,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
 
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,

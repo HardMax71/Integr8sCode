@@ -9,10 +9,8 @@ import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer
 from app.db.docs.saga import SagaDocument
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
-from app.domain.enums.user import UserRole
-from app.domain.events.typed import DomainEvent, DomainEventAdapter
+from app.domain.enums import EventType, KafkaTopic, UserRole
+from app.domain.events import DomainEvent, DomainEventAdapter
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse

@@ -1,4 +1,4 @@
-from app.domain.enums.execution import QueuePriority
+from app.domain.enums import QueuePriority
 from app.services.coordinator.coordinator import ExecutionCoordinator, QueueRejectError
 
 __all__ = [

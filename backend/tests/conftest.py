@@ -7,8 +7,8 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from app.domain.enums.execution import QueuePriority
-from app.domain.events.typed import EventMetadata, ExecutionRequestedEvent
+from app.domain.enums import QueuePriority
+from app.domain.events import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer

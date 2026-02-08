@@ -3,8 +3,7 @@
 import logging
 from typing import Any
 
-from app.domain.enums.notification import NotificationSeverity
-from app.domain.enums.user import UserRole
+from app.domain.enums import NotificationSeverity, UserRole
 from app.schemas_pydantic.grafana import GrafanaAlertItem, GrafanaWebhook
 from app.services.notification_service import NotificationService
 

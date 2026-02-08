@@ -10,7 +10,7 @@ from app.dlq import (
     RetryStrategy,
     TopicStatistic,
 )
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 
 
 class DLQStats(BaseModel):

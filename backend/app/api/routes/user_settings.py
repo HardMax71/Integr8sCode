@@ -5,11 +5,11 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import current_user
-from app.domain.user import User
-from app.domain.user.settings_models import (
+from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
     DomainUserSettingsUpdate,
+    User,
 )
 from app.schemas_pydantic.user_settings import (
     EditorSettings,

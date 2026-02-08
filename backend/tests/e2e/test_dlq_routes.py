@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 from app.db.docs.dlq import DLQMessageDocument
 from app.dlq.models import DLQMessageStatus, RetryStrategy
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,

@@ -2,10 +2,7 @@ import uuid
 
 import pytest
 from app.db.repositories import NotificationRepository
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-)
+from app.domain.enums import NotificationChannel, NotificationSeverity
 from app.domain.notification import (
     DomainNotificationListResult,
     NotificationNotFoundError,

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics import DatabaseMetrics
-from app.domain.events.typed import BaseEvent
+from app.domain.events import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 

@@ -5,8 +5,7 @@ from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.storage import ExecutionErrorType
+from app.domain.enums import ExecutionErrorType, ExecutionStatus
 
 
 # Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.

@@ -6,10 +6,9 @@ from opentelemetry.trace import SpanKind
 
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.db.repositories.saga_repository import SagaRepository
-from app.domain.enums.saga import SagaState
-from app.domain.events.typed import (
+from app.db.repositories import ResourceAllocationRepository, SagaRepository
+from app.domain.enums import SagaState
+from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
@@ -19,7 +18,7 @@ from app.domain.events.typed import (
     SagaCancelledEvent,
     SagaStartedEvent,
 )
-from app.domain.saga.models import Saga, SagaConfig
+from app.domain.saga import Saga, SagaConfig
 from app.events.core import UnifiedProducer
 
 from .execution_saga import ExecutionSaga

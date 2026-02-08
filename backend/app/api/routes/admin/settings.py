@@ -16,6 +16,7 @@ from app.domain.admin import (
     SystemSettings as DomainSystemSettings,
 )
 from app.schemas_pydantic.admin_settings import SystemSettings
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminSettingsService
 
@@ -46,11 +47,12 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=SystemSettings)
+@router.get("/", response_model=SystemSettings, responses={500: {"model": ErrorResponse}})
 async def get_system_settings(
     admin: Annotated[UserResponse, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
+    """Get the current system-wide settings."""
     try:
         domain_settings = await service.get_system_settings(admin.username)
         return _domain_to_pydantic(domain_settings)
@@ -59,12 +61,17 @@ async def get_system_settings(
         raise HTTPException(status_code=500, detail="Failed to retrieve settings")
 
 
-@router.put("/", response_model=SystemSettings)
+@router.put(
+    "/",
+    response_model=SystemSettings,
+    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
 async def update_system_settings(
     admin: Annotated[UserResponse, Depends(admin_user)],
     settings: SystemSettings,
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
+    """Replace system-wide settings."""
     try:
         domain_settings = _pydantic_to_domain(settings)
     except (ValueError, ValidationError, KeyError) as e:
@@ -86,11 +93,12 @@ async def update_system_settings(
         raise HTTPException(status_code=500, detail="Failed to update settings")
 
 
-@router.post("/reset", response_model=SystemSettings)
+@router.post("/reset", response_model=SystemSettings, responses={500: {"model": ErrorResponse}})
 async def reset_system_settings(
     admin: Annotated[UserResponse, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettings:
+    """Reset system-wide settings to defaults."""
     try:
         reset_domain_settings = await service.reset_system_settings(admin.username, admin.user_id)
         return _domain_to_pydantic(reset_domain_settings)

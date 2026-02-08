@@ -5,6 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
 
 from app.domain.enums.saga import SagaState
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,
     SagaListResponse,
@@ -21,7 +22,11 @@ router = APIRouter(
 )
 
 
-@router.get("/{saga_id}", response_model=SagaStatusResponse)
+@router.get(
+    "/{saga_id}",
+    response_model=SagaStatusResponse,
+    responses={403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
 async def get_saga_status(
     saga_id: str,
     request: Request,
@@ -48,7 +53,11 @@ async def get_saga_status(
     return SagaStatusResponse.model_validate(saga)
 
 
-@router.get("/execution/{execution_id}", response_model=SagaListResponse)
+@router.get(
+    "/execution/{execution_id}",
+    response_model=SagaListResponse,
+    responses={403: {"model": ErrorResponse}},
+)
 async def get_execution_sagas(
     execution_id: str,
     request: Request,
@@ -123,7 +132,11 @@ async def list_sagas(
     )
 
 
-@router.post("/{saga_id}/cancel", response_model=SagaCancellationResponse)
+@router.post(
+    "/{saga_id}/cancel",
+    response_model=SagaCancellationResponse,
+    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
 async def cancel_saga(
     saga_id: str,
     request: Request,

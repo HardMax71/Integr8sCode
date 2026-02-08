@@ -1300,6 +1300,24 @@ export type EndpointUsageStats = {
 export type Environment = 'development' | 'staging' | 'production' | 'test';
 
 /**
+ * ErrorResponse
+ */
+export type ErrorResponse = {
+    /**
+     * Detail
+     *
+     * Human-readable error message
+     */
+    detail: string;
+    /**
+     * Type
+     *
+     * Error type identifier
+     */
+    type?: string | null;
+};
+
+/**
  * EventAggregationRequest
  *
  * Request model for event aggregation queries.
@@ -3321,7 +3339,7 @@ export type NotificationResponse = {
     /**
      * Action Url
      */
-    action_url: string | null;
+    action_url: string;
     /**
      * Created At
      */
@@ -3329,7 +3347,7 @@ export type NotificationResponse = {
     /**
      * Read At
      */
-    read_at: string | null;
+    read_at?: string | null;
     severity: NotificationSeverity;
     /**
      * Tags
@@ -6620,6 +6638,10 @@ export type LoginApiV1AuthLoginPostData = {
 
 export type LoginApiV1AuthLoginPostErrors = {
     /**
+     * Unauthorized
+     */
+    401: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -6645,9 +6667,21 @@ export type RegisterApiV1AuthRegisterPostData = {
 
 export type RegisterApiV1AuthRegisterPostErrors = {
     /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Conflict
+     */
+    409: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type RegisterApiV1AuthRegisterPostError = RegisterApiV1AuthRegisterPostErrors[keyof RegisterApiV1AuthRegisterPostErrors];
@@ -6683,6 +6717,15 @@ export type VerifyTokenApiV1AuthVerifyTokenGetData = {
     query?: never;
     url: '/api/v1/auth/verify-token';
 };
+
+export type VerifyTokenApiV1AuthVerifyTokenGetErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ErrorResponse;
+};
+
+export type VerifyTokenApiV1AuthVerifyTokenGetError = VerifyTokenApiV1AuthVerifyTokenGetErrors[keyof VerifyTokenApiV1AuthVerifyTokenGetErrors];
 
 export type VerifyTokenApiV1AuthVerifyTokenGetResponses = {
     /**
@@ -6727,6 +6770,10 @@ export type CreateExecutionApiV1ExecutePostErrors = {
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type CreateExecutionApiV1ExecutePostError = CreateExecutionApiV1ExecutePostErrors[keyof CreateExecutionApiV1ExecutePostErrors];
@@ -6753,6 +6800,10 @@ export type GetResultApiV1ExecutionsExecutionIdResultGetData = {
 };
 
 export type GetResultApiV1ExecutionsExecutionIdResultGetErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
     /**
      * Validation Error
      */
@@ -6784,6 +6835,14 @@ export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostData = {
 
 export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors = {
     /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -6813,6 +6872,14 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostData = {
 };
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
     /**
      * Validation Error
      */
@@ -6854,6 +6921,10 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData = {
 };
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
     /**
      * Validation Error
      */
@@ -6993,18 +7064,26 @@ export type GetUserExecutionsApiV1UserExecutionsGetData = {
     query?: {
         /**
          * Status
+         *
+         * Filter by execution status
          */
         status?: ExecutionStatus | null;
         /**
          * Lang
+         *
+         * Filter by programming language
          */
         lang?: string | null;
         /**
          * Start Time
+         *
+         * Filter executions created after this time
          */
         start_time?: string | null;
         /**
          * End Time
+         *
+         * Filter executions created before this time
          */
         end_time?: string | null;
         /**
@@ -7059,6 +7138,15 @@ export type GetK8sResourceLimitsApiV1K8sLimitsGetData = {
     query?: never;
     url: '/api/v1/k8s-limits';
 };
+
+export type GetK8sResourceLimitsApiV1K8sLimitsGetErrors = {
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type GetK8sResourceLimitsApiV1K8sLimitsGetError = GetK8sResourceLimitsApiV1K8sLimitsGetErrors[keyof GetK8sResourceLimitsApiV1K8sLimitsGetErrors];
 
 export type GetK8sResourceLimitsApiV1K8sLimitsGetResponses = {
     /**
@@ -7156,6 +7244,10 @@ export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteData = {
 
 export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -7185,6 +7277,10 @@ export type GetSavedScriptApiV1ScriptsScriptIdGetData = {
 };
 
 export type GetSavedScriptApiV1ScriptsScriptIdGetErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -7216,6 +7312,10 @@ export type UpdateSavedScriptApiV1ScriptsScriptIdPutData = {
 
 export type UpdateSavedScriptApiV1ScriptsScriptIdPutErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -7238,6 +7338,8 @@ export type ListReplaySessionsApiV1ReplaySessionsGetData = {
     query?: {
         /**
          * Status
+         *
+         * Filter by replay session status
          */
         status?: ReplayStatus | null;
         /**
@@ -7449,6 +7551,8 @@ export type CleanupOldSessionsApiV1ReplayCleanupPostData = {
     query?: {
         /**
          * Older Than Hours
+         *
+         * Delete sessions older than this many hours
          */
         older_than_hours?: number;
     };
@@ -7527,14 +7631,20 @@ export type GetDlqMessagesApiV1DlqMessagesGetData = {
     query?: {
         /**
          * Status
+         *
+         * Filter by message status
          */
         status?: DlqMessageStatus | null;
         /**
          * Topic
+         *
+         * Filter by source Kafka topic
          */
         topic?: string | null;
         /**
          * Event Type
+         *
+         * Filter by event type
          */
         event_type?: EventType | null;
         /**
@@ -7588,6 +7698,10 @@ export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteData = {
 
 export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -7617,6 +7731,10 @@ export type GetDlqMessageApiV1DlqMessagesEventIdGetData = {
 };
 
 export type GetDlqMessageApiV1DlqMessagesEventIdGetErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -7777,6 +7895,10 @@ export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
 
 export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetErrors = {
     /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -7799,14 +7921,20 @@ export type GetUserEventsApiV1EventsUserGetData = {
     query?: {
         /**
          * Event Types
+         *
+         * Filter by event types
          */
         event_types?: Array<EventType> | null;
         /**
          * Start Time
+         *
+         * Filter events after this time
          */
         start_time?: string | null;
         /**
          * End Time
+         *
+         * Filter events before this time
          */
         end_time?: string | null;
         /**
@@ -7817,6 +7945,9 @@ export type GetUserEventsApiV1EventsUserGetData = {
          * Skip
          */
         skip?: number;
+        /**
+         * Sort order by timestamp
+         */
         sort_order?: SortOrder;
     };
     url: '/api/v1/events/user';
@@ -7848,6 +7979,10 @@ export type QueryEventsApiV1EventsQueryPostData = {
 };
 
 export type QueryEventsApiV1EventsQueryPostErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8002,6 +8137,10 @@ export type DeleteEventApiV1EventsEventIdDeleteData = {
 
 export type DeleteEventApiV1EventsEventIdDeleteErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -8031,6 +8170,10 @@ export type GetEventApiV1EventsEventIdGetData = {
 };
 
 export type GetEventApiV1EventsEventIdGetErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8263,6 +8406,10 @@ export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostData = {
 
 export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -8310,6 +8457,8 @@ export type GetEventStatsApiV1AdminEventsStatsGetData = {
     query?: {
         /**
          * Hours
+         *
+         * Lookback window in hours (max 168)
          */
         hours?: number;
     };
@@ -8467,6 +8616,10 @@ export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type DeleteEventApiV1AdminEventsEventIdDeleteError = DeleteEventApiV1AdminEventsEventIdDeleteErrors[keyof DeleteEventApiV1AdminEventsEventIdDeleteErrors];
@@ -8494,6 +8647,10 @@ export type GetEventDetailApiV1AdminEventsEventIdGetData = {
 
 export type GetEventDetailApiV1AdminEventsEventIdGetErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -8518,6 +8675,14 @@ export type ReplayEventsApiV1AdminEventsReplayPostData = {
 };
 
 export type ReplayEventsApiV1AdminEventsReplayPostErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8549,6 +8714,10 @@ export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
 
 export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -8572,6 +8741,15 @@ export type GetSystemSettingsApiV1AdminSettingsGetData = {
     url: '/api/v1/admin/settings/';
 };
 
+export type GetSystemSettingsApiV1AdminSettingsGetErrors = {
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type GetSystemSettingsApiV1AdminSettingsGetError = GetSystemSettingsApiV1AdminSettingsGetErrors[keyof GetSystemSettingsApiV1AdminSettingsGetErrors];
+
 export type GetSystemSettingsApiV1AdminSettingsGetResponses = {
     /**
      * Successful Response
@@ -8590,9 +8768,17 @@ export type UpdateSystemSettingsApiV1AdminSettingsPutData = {
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutErrors = {
     /**
-     * Validation Error
+     * Bad Request
      */
-    422: HttpValidationError;
+    400: ErrorResponse;
+    /**
+     * Unprocessable Entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutError = UpdateSystemSettingsApiV1AdminSettingsPutErrors[keyof UpdateSystemSettingsApiV1AdminSettingsPutErrors];
@@ -8612,6 +8798,15 @@ export type ResetSystemSettingsApiV1AdminSettingsResetPostData = {
     query?: never;
     url: '/api/v1/admin/settings/reset';
 };
+
+export type ResetSystemSettingsApiV1AdminSettingsResetPostErrors = {
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type ResetSystemSettingsApiV1AdminSettingsResetPostError = ResetSystemSettingsApiV1AdminSettingsResetPostErrors[keyof ResetSystemSettingsApiV1AdminSettingsResetPostErrors];
 
 export type ResetSystemSettingsApiV1AdminSettingsResetPostResponses = {
     /**
@@ -8636,10 +8831,14 @@ export type ListUsersApiV1AdminUsersGetData = {
         offset?: number;
         /**
          * Search
+         *
+         * Search by username or email
          */
         search?: string | null;
         /**
          * Role
+         *
+         * Filter by user role
          */
         role?: UserRole | null;
     };
@@ -8672,6 +8871,10 @@ export type CreateUserApiV1AdminUsersPostData = {
 };
 
 export type CreateUserApiV1AdminUsersPostErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8710,6 +8913,10 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteData = {
 
 export type DeleteUserApiV1AdminUsersUserIdDeleteErrors = {
     /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -8739,6 +8946,10 @@ export type GetUserApiV1AdminUsersUserIdGetData = {
 };
 
 export type GetUserApiV1AdminUsersUserIdGetErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8770,9 +8981,17 @@ export type UpdateUserApiV1AdminUsersUserIdPutData = {
 
 export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type UpdateUserApiV1AdminUsersUserIdPutError = UpdateUserApiV1AdminUsersUserIdPutErrors[keyof UpdateUserApiV1AdminUsersUserIdPutErrors];
@@ -8799,6 +9018,10 @@ export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetData = {
 };
 
 export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8833,6 +9056,10 @@ export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors = {
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
 };
 
 export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostError = ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors[keyof ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors];
@@ -9058,6 +9285,8 @@ export type GetSettingsHistoryApiV1UserSettingsHistoryGetData = {
     query?: {
         /**
          * Limit
+         *
+         * Maximum number of history entries
          */
         limit?: number;
     };
@@ -9347,6 +9576,14 @@ export type GetSagaStatusApiV1SagasSagaIdGetData = {
 
 export type GetSagaStatusApiV1SagasSagaIdGetErrors = {
     /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -9391,6 +9628,10 @@ export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetData = {
 };
 
 export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
     /**
      * Validation Error
      */
@@ -9461,6 +9702,18 @@ export type CancelSagaApiV1SagasSagaIdCancelPostData = {
 };
 
 export type CancelSagaApiV1SagasSagaIdCancelPostErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */

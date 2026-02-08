@@ -15,6 +15,7 @@ from app.domain.enums.user import UserRole
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
 from app.domain.idempotency import KeyStrategy
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -52,7 +53,7 @@ async def get_execution_with_access(
     return ExecutionInDB.model_validate(domain_exec)
 
 
-@router.post("/execute", response_model=ExecutionResponse)
+@router.post("/execute", response_model=ExecutionResponse, responses={500: {"model": ErrorResponse}})
 async def create_execution(
         request: Request,
         current_user: Annotated[UserResponse, Depends(current_user)],
@@ -61,6 +62,7 @@ async def create_execution(
         idempotency_manager: FromDishka[IdempotencyManager],
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExecutionResponse:
+    """Submit a script for execution in an isolated Kubernetes pod."""
     add_span_attributes(
         **{
             "http.method": "POST",
@@ -148,14 +150,23 @@ async def create_execution(
         raise HTTPException(status_code=500, detail="Internal server error during script execution") from e
 
 
-@router.get("/executions/{execution_id}/result", response_model=ExecutionResult)
+@router.get(
+    "/executions/{execution_id}/result",
+    response_model=ExecutionResult,
+    responses={403: {"model": ErrorResponse}},
+)
 async def get_result(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
 ) -> ExecutionResult:
+    """Retrieve the result of a specific execution."""
     return ExecutionResult.model_validate(execution)
 
 
-@router.post("/executions/{execution_id}/cancel", response_model=CancelResponse)
+@router.post(
+    "/executions/{execution_id}/cancel",
+    response_model=CancelResponse,
+    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
 async def cancel_execution(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         current_user: Annotated[UserResponse, Depends(current_user)],
@@ -163,6 +174,7 @@ async def cancel_execution(
         event_service: FromDishka[KafkaEventService],
         settings: FromDishka[Settings],
 ) -> CancelResponse:
+    """Cancel a running or queued execution."""
     # Handle terminal states
     terminal_states = [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT]
 
@@ -204,7 +216,11 @@ async def cancel_execution(
     )
 
 
-@router.post("/executions/{execution_id}/retry", response_model=ExecutionResponse)
+@router.post(
+    "/executions/{execution_id}/retry",
+    response_model=ExecutionResponse,
+    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
 async def retry_execution(
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         current_user: Annotated[UserResponse, Depends(current_user)],
@@ -231,7 +247,11 @@ async def retry_execution(
     return ExecutionResponse.model_validate(new_result)
 
 
-@router.get("/executions/{execution_id}/events", response_model=list[DomainEvent])
+@router.get(
+    "/executions/{execution_id}/events",
+    response_model=list[DomainEvent],
+    responses={403: {"model": ErrorResponse}},
+)
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         event_service: FromDishka[EventService],
@@ -249,10 +269,10 @@ async def get_execution_events(
 async def get_user_executions(
         current_user: Annotated[UserResponse, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
-        status: Annotated[ExecutionStatus | None, Query()] = None,
-        lang: Annotated[str | None, Query()] = None,
-        start_time: Annotated[datetime | None, Query()] = None,
-        end_time: Annotated[datetime | None, Query()] = None,
+        status: Annotated[ExecutionStatus | None, Query(description="Filter by execution status")] = None,
+        lang: Annotated[str | None, Query(description="Filter by programming language")] = None,
+        start_time: Annotated[datetime | None, Query(description="Filter executions created after this time")] = None,
+        end_time: Annotated[datetime | None, Query(description="Filter executions created before this time")] = None,
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         skip: Annotated[int, Query(ge=0)] = 0,
 ) -> ExecutionListResponse:
@@ -283,14 +303,16 @@ async def get_user_executions(
 async def get_example_scripts(
         execution_service: FromDishka[ExecutionService],
 ) -> ExampleScripts:
+    """Get example scripts for the code editor."""
     scripts = await execution_service.get_example_scripts()
     return ExampleScripts(scripts=scripts)
 
 
-@router.get("/k8s-limits", response_model=ResourceLimits)
+@router.get("/k8s-limits", response_model=ResourceLimits, responses={500: {"model": ErrorResponse}})
 async def get_k8s_resource_limits(
         execution_service: FromDishka[ExecutionService],
 ) -> ResourceLimits:
+    """Get Kubernetes resource limits for script execution."""
     try:
         limits = await execution_service.get_k8s_resource_limits()
         return ResourceLimits.model_validate(limits)

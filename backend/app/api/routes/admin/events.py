@@ -21,6 +21,7 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import UserResponse
 from app.services.admin import AdminEventsService
 
@@ -31,6 +32,7 @@ router = APIRouter(
 
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
+    """Browse events with filtering, sorting, and pagination."""
     event_filter = EventFilter(**request.filters.model_dump())
 
     result = await service.browse_events(
@@ -52,8 +54,9 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
 @router.get("/stats")
 async def get_event_stats(
     service: FromDishka[AdminEventsService],
-    hours: Annotated[int, Query(le=168)] = 24,
+    hours: Annotated[int, Query(le=168, description="Lookback window in hours (max 168)")] = 24,
 ) -> EventStatsResponse:
+    """Get event statistics for a given lookback window."""
     stats = await service.get_event_stats(hours=hours)
     return EventStatsResponse.model_validate(stats)
 
@@ -66,6 +69,7 @@ async def export_events_csv(
     end_time: Annotated[datetime | None, Query(description="End time")] = None,
     limit: Annotated[int, Query(le=50000)] = 10000,
 ) -> StreamingResponse:
+    """Export filtered events as a downloadable CSV file."""
     export_filter = EventFilter(
         event_types=event_types,
         start_time=start_time,
@@ -109,8 +113,9 @@ async def export_events_json(
     )
 
 
-@router.get("/{event_id}")
+@router.get("/{event_id}", responses={404: {"model": ErrorResponse}})
 async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService]) -> EventDetailResponse:
+    """Get detailed information about a single event, including related events and timeline."""
     result = await service.get_event_detail(event_id)
 
     if not result:
@@ -123,10 +128,11 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
     )
 
 
-@router.post("/replay")
+@router.post("/replay", responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
 async def replay_events(
     request: EventReplayRequest, background_tasks: BackgroundTasks, service: FromDishka[AdminEventsService]
 ) -> EventReplayResponse:
+    """Replay events by filter criteria, with optional dry-run mode."""
     replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
     replay_filter = ReplayFilter(
         event_ids=request.event_ids,
@@ -163,8 +169,9 @@ async def replay_events(
     )
 
 
-@router.get("/replay/{session_id}/status")
+@router.get("/replay/{session_id}/status", responses={404: {"model": ErrorResponse}})
 async def get_replay_status(session_id: str, service: FromDishka[AdminEventsService]) -> EventReplayStatusResponse:
+    """Get the status and progress of a replay session."""
     status = await service.get_replay_status(session_id)
 
     if not status:
@@ -183,10 +190,11 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
     )
 
 
-@router.delete("/{event_id}")
+@router.delete("/{event_id}", responses={500: {"model": ErrorResponse}})
 async def delete_event(
     event_id: str, admin: Annotated[UserResponse, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
+    """Delete and archive an event by ID."""
     deleted = await service.delete_event(event_id=event_id, deleted_by=admin.email)
     if not deleted:
         raise HTTPException(status_code=500, detail="Failed to delete event")

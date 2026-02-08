@@ -6,6 +6,7 @@ import jwt
 import pytest
 from app.core.security import SecurityService
 from app.domain.enums.user import UserRole
+from app.domain.user import InvalidCredentialsError
 from app.settings import Settings
 from jwt.exceptions import InvalidTokenError
 
@@ -304,3 +305,51 @@ class TestSecurityService:
         header = jwt.get_unverified_header(token)
         assert header["alg"] == security_service.settings.ALGORITHM
         assert header["typ"] == "JWT"
+
+
+class TestDecodeToken:
+    """Test SecurityService.decode_token method."""
+
+    @pytest.fixture
+    def security_service(self, test_settings: Settings) -> SecurityService:
+        return SecurityService(test_settings)
+
+    def test_valid_token_returns_username(self, security_service: SecurityService) -> None:
+        token = security_service.create_access_token(
+            {"sub": "testuser"}, expires_delta=timedelta(minutes=15)
+        )
+
+        result = security_service.decode_token(token)
+
+        assert result == "testuser"
+
+    def test_expired_token_raises(self, security_service: SecurityService) -> None:
+        token = security_service.create_access_token(
+            {"sub": "testuser"}, expires_delta=timedelta(seconds=-1)
+        )
+
+        with pytest.raises(InvalidCredentialsError):
+            security_service.decode_token(token)
+
+    def test_missing_sub_raises(self, security_service: SecurityService) -> None:
+        token = security_service.create_access_token(
+            {"user_id": str(uuid4())}, expires_delta=timedelta(minutes=15)
+        )
+
+        with pytest.raises(InvalidCredentialsError):
+            security_service.decode_token(token)
+
+    def test_invalid_signature_raises(self, security_service: SecurityService) -> None:
+        token = jwt.encode(
+            {"sub": "testuser", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)},
+            "wrong-secret-key",
+            algorithm=security_service.settings.ALGORITHM,
+        )
+
+        with pytest.raises(InvalidCredentialsError):
+            security_service.decode_token(token)
+
+    @pytest.mark.parametrize("bad_token", ["not.a.token", "invalid_base64", ""])
+    def test_malformed_token_raises(self, security_service: SecurityService, bad_token: str) -> None:
+        with pytest.raises(InvalidCredentialsError):
+            security_service.decode_token(bad_token)

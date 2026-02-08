@@ -168,6 +168,8 @@ class AdminUserService:
             "Admin updating user",
             extra={"admin_username": admin_username, "target_user_id": user_id},
         )
+        if update.password is not None:
+            update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
         return await self._users.update_user(user_id, update)
 
     async def delete_user(self, *, admin_username: str, user_id: str, cascade: bool) -> UserDeleteResult:
@@ -186,7 +188,8 @@ class AdminUserService:
         self.logger.info(
             "Admin resetting user password", extra={"admin_username": admin_username, "target_user_id": user_id}
         )
-        pr = PasswordReset(user_id=user_id, new_password=new_password)
+        hashed = self._security.get_password_hash(new_password)
+        pr = PasswordReset(user_id=user_id, new_password=hashed)
         ok = await self._users.reset_user_password(pr)
         if ok:
             self.logger.info("User password reset successfully", extra={"target_user_id": user_id})

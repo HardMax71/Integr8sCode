@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, Or, RegEx
 
-from app.core.security import SecurityService
 from app.db.docs import (
     EventDocument,
     ExecutionDocument,
@@ -27,8 +26,6 @@ from app.domain.user import (
 
 
 class AdminUserRepository:
-    def __init__(self, security_service: SecurityService) -> None:
-        self.security_service = security_service
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
         doc = UserDocument(**create_data.model_dump())
@@ -68,9 +65,8 @@ class AdminUserRepository:
             return None
 
         update_dict = update_data.model_dump(exclude_none=True)
-        # Handle password hashing
         if "password" in update_dict:
-            update_dict["hashed_password"] = self.security_service.get_password_hash(update_dict.pop("password"))
+            update_dict["hashed_password"] = update_dict.pop("password")
 
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
@@ -110,7 +106,7 @@ class AdminUserRepository:
         if not doc:
             return False
 
-        doc.hashed_password = self.security_service.get_password_hash(reset_data.new_password)
+        doc.hashed_password = reset_data.new_password
         doc.updated_at = datetime.now(timezone.utc)
         await doc.save()
         return True

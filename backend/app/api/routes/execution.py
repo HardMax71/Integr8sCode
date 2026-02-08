@@ -15,6 +15,7 @@ from app.domain.enums.user import UserRole
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
 from app.domain.idempotency import KeyStrategy
+from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
@@ -29,7 +30,6 @@ from app.schemas_pydantic.execution import (
     ResourceLimits,
     RetryExecutionRequest,
 )
-from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyManager
@@ -42,7 +42,7 @@ router = APIRouter(route_class=DishkaRoute, tags=["execution"])
 @inject
 async def get_execution_with_access(
         execution_id: Annotated[str, Path()],
-        current_user: Annotated[UserResponse, Depends(current_user)],
+        current_user: Annotated[User, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
 ) -> ExecutionInDB:
     domain_exec = await execution_service.get_execution_result(execution_id)
@@ -56,7 +56,7 @@ async def get_execution_with_access(
 @router.post("/execute", response_model=ExecutionResponse, responses={500: {"model": ErrorResponse}})
 async def create_execution(
         request: Request,
-        current_user: Annotated[UserResponse, Depends(current_user)],
+        current_user: Annotated[User, Depends(current_user)],
         execution: ExecutionRequest,
         execution_service: FromDishka[ExecutionService],
         idempotency_manager: FromDishka[IdempotencyManager],
@@ -169,7 +169,7 @@ async def get_result(
 )
 async def cancel_execution(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        current_user: Annotated[UserResponse, Depends(current_user)],
+        current_user: Annotated[User, Depends(current_user)],
         cancel_request: CancelExecutionRequest,
         event_service: FromDishka[KafkaEventService],
         settings: FromDishka[Settings],
@@ -223,7 +223,7 @@ async def cancel_execution(
 )
 async def retry_execution(
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        current_user: Annotated[UserResponse, Depends(current_user)],
+        current_user: Annotated[User, Depends(current_user)],
         retry_request: RetryExecutionRequest,
         request: Request,
         execution_service: FromDishka[ExecutionService],
@@ -267,7 +267,7 @@ async def get_execution_events(
 
 @router.get("/user/executions", response_model=ExecutionListResponse)
 async def get_user_executions(
-        current_user: Annotated[UserResponse, Depends(current_user)],
+        current_user: Annotated[User, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
         status: Annotated[ExecutionStatus | None, Query(description="Filter by execution status")] = None,
         lang: Annotated[str | None, Query(description="Filter by programming language")] = None,
@@ -323,7 +323,7 @@ async def get_k8s_resource_limits(
 @router.delete("/executions/{execution_id}", response_model=DeleteResponse)
 async def delete_execution(
         execution_id: str,
-        admin: Annotated[UserResponse, Depends(admin_user)],
+        admin: Annotated[User, Depends(admin_user)],
         execution_service: FromDishka[ExecutionService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""

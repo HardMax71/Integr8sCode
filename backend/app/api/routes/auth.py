@@ -91,7 +91,7 @@ async def login(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security_service.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
-    csrf_token = security_service.generate_csrf_token()
+    csrf_token = security_service.generate_csrf_token(access_token)
 
     response.set_cookie(
         key="access_token",
@@ -237,7 +237,7 @@ async def get_current_user_profile(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
 
-    return current_user
+    return UserResponse.model_validate(current_user, from_attributes=True)
 
 
 @router.get("/verify-token", response_model=TokenValidationResponse, responses={401: {"model": ErrorResponse}})

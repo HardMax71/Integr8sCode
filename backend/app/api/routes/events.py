@@ -14,6 +14,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
+from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
@@ -25,7 +26,6 @@ from app.schemas_pydantic.events import (
     PublishEventResponse,
     ReplayAggregateResponse,
 )
-from app.schemas_pydantic.user import UserResponse
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.kafka_event_service import KafkaEventService
@@ -41,7 +41,7 @@ router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 )
 async def get_execution_events(
     execution_id: str,
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     event_service: FromDishka[EventService],
     execution_service: FromDishka[ExecutionService],
     include_system_events: Annotated[bool, Query(description="Include system-generated events")] = False,
@@ -77,7 +77,7 @@ async def get_execution_events(
 
 @router.get("/user", response_model=EventListResponse)
 async def get_user_events(
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     event_service: FromDishka[EventService],
     event_types: Annotated[list[EventType] | None, Query(description="Filter by event types")] = None,
     start_time: Annotated[datetime | None, Query(description="Filter events after this time")] = None,
@@ -108,7 +108,7 @@ async def get_user_events(
 
 @router.post("/query", response_model=EventListResponse, responses={403: {"model": ErrorResponse}})
 async def query_events(
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     filter_request: EventFilterRequest,
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
@@ -147,7 +147,7 @@ async def query_events(
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
 async def get_events_by_correlation(
     correlation_id: str,
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     event_service: FromDishka[EventService],
     include_all_users: Annotated[bool, Query(description="Include events from all users (admin only)")] = False,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
@@ -174,7 +174,7 @@ async def get_events_by_correlation(
 
 @router.get("/current-request", response_model=EventListResponse)
 async def get_current_request_events(
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     event_service: FromDishka[EventService],
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     skip: Annotated[int, Query(ge=0)] = 0,
@@ -204,7 +204,7 @@ async def get_current_request_events(
 
 @router.get("/statistics", response_model=EventStatistics)
 async def get_event_statistics(
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     event_service: FromDishka[EventService],
     start_time: Annotated[
         datetime | None, Query(description="Start time for statistics (defaults to 24 hours ago)")
@@ -231,7 +231,7 @@ async def get_event_statistics(
 
 @router.get("/{event_id}", response_model=DomainEvent, responses={404: {"model": ErrorResponse}})
 async def get_event(
-    event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
+    event_id: str, current_user: Annotated[User, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> DomainEvent:
     """Get a specific event by ID."""
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
@@ -242,7 +242,7 @@ async def get_event(
 
 @router.post("/publish", response_model=PublishEventResponse)
 async def publish_custom_event(
-    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin: Annotated[User, Depends(admin_user)],
     event_request: PublishEventRequest,
     request: Request,
     event_service: FromDishka[KafkaEventService],
@@ -273,7 +273,7 @@ async def publish_custom_event(
 
 @router.post("/aggregate", response_model=list[dict[str, Any]])
 async def aggregate_events(
-    current_user: Annotated[UserResponse, Depends(current_user)],
+    current_user: Annotated[User, Depends(current_user)],
     aggregation: EventAggregationRequest,
     event_service: FromDishka[EventService],
 ) -> list[dict[str, Any]]:
@@ -290,7 +290,7 @@ async def aggregate_events(
 
 @router.get("/types/list", response_model=list[str])
 async def list_event_types(
-    current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
+    current_user: Annotated[User, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> list[str]:
     """List all distinct event types in the store."""
     event_types = await event_service.list_event_types(user_id=current_user.user_id, user_role=current_user.role)
@@ -300,7 +300,7 @@ async def list_event_types(
 @router.delete("/{event_id}", response_model=DeleteEventResponse, responses={404: {"model": ErrorResponse}})
 async def delete_event(
     event_id: str,
-    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin: Annotated[User, Depends(admin_user)],
     event_service: FromDishka[EventService],
     logger: FromDishka[logging.Logger],
 ) -> DeleteEventResponse:
@@ -333,7 +333,7 @@ async def delete_event(
 )
 async def replay_aggregate_events(
     aggregate_id: str,
-    admin: Annotated[UserResponse, Depends(admin_user)],
+    admin: Annotated[User, Depends(admin_user)],
     event_service: FromDishka[EventService],
     kafka_event_service: FromDishka[KafkaEventService],
     settings: FromDishka[Settings],

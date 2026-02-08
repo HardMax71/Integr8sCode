@@ -134,15 +134,22 @@ class TestMarkAllRead:
             execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
     ) -> None:
         """Mark all notifications as read returns 204."""
-        response = await test_user.post("/api/v1/notifications/mark-all-read")
+        _, notification = execution_with_notification
 
+        response = await test_user.post("/api/v1/notifications/mark-all-read")
         assert response.status_code == 204
 
-        # Verify unread count is now zero
-        count_resp = await test_user.get("/api/v1/notifications/unread-count")
-        assert count_resp.status_code == 200
-        count_result = UnreadCountResponse.model_validate(count_resp.json())
-        assert count_result.unread_count == 0
+        # Verify the specific notification was marked as read.
+        # We assert on the individual notification rather than global unread_count
+        # because other tests create executions (via created_execution without
+        # waiting for notifications) whose async notifications can arrive between
+        # mark-all-read and any subsequent count query.
+        resp = await test_user.get("/api/v1/notifications")
+        assert resp.status_code == 200
+        result = NotificationListResponse.model_validate(resp.json())
+        target = [n for n in result.notifications if n.notification_id == notification.notification_id]
+        assert len(target) == 1
+        assert target[0].read_at is not None
 
     @pytest.mark.asyncio
     async def test_mark_all_read_idempotent(

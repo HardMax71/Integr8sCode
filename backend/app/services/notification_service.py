@@ -128,10 +128,10 @@ class NotificationService:
         subject: str,
         body: str,
         tags: list[str],
+        action_url: str,
         severity: NotificationSeverity = NotificationSeverity.MEDIUM,
         channel: NotificationChannel = NotificationChannel.IN_APP,
         scheduled_for: datetime | None = None,
-        action_url: str | None = None,
         metadata: NotificationContext | None = None,
     ) -> DomainNotification:
         if not tags:
@@ -304,8 +304,9 @@ class NotificationService:
                 user_id=user_id,
                 subject=title,
                 body=str(base_context.get("message", "Alert")),
-                severity=cfg.severity,
                 tags=tags,
+                action_url="/api/v1/notifications",
+                severity=cfg.severity,
                 channel=NotificationChannel.IN_APP,
                 metadata=base_context,
             )
@@ -407,7 +408,7 @@ class NotificationService:
             "Sending Slack notification",
             extra={
                 "notification_id": str(notification.notification_id),
-                "has_action": notification.action_url is not None,
+                "has_action": bool(notification.action_url),
                 "priority_color": self._get_slack_color(notification.severity),
             },
         )
@@ -450,6 +451,7 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.HIGH,
             tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
+            action_url=f"/api/v1/executions/{event.execution_id}/result",
             metadata=event.model_dump(
                 exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
             ),
@@ -471,6 +473,7 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.MEDIUM,
             tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
+            action_url=f"/api/v1/executions/{event.execution_id}/result",
             metadata=event.model_dump(
                 exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
             ),
@@ -500,6 +503,7 @@ class NotificationService:
             body=body,
             severity=NotificationSeverity.HIGH,
             tags=["execution", "failed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
+            action_url=f"/api/v1/executions/{event.execution_id}/result",
             metadata=event_data,
         )
 
@@ -610,7 +614,7 @@ class NotificationService:
             tags=list(notification.tags or []),
             subject=notification.subject,
             body=notification.body,
-            action_url=notification.action_url or "",
+            action_url=notification.action_url,
             created_at=notification.created_at,
         )
         await self.sse_bus.publish_notification(notification.user_id, message)

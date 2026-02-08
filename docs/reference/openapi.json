@@ -11,6 +11,7 @@
           "authentication"
         ],
         "summary": "Login",
+        "description": "Authenticate and receive session cookies.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -29,6 +30,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -52,6 +63,7 @@
           "authentication"
         ],
         "summary": "Register",
+        "description": "Register a new user account.",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -70,6 +82,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -93,6 +135,7 @@
           "authentication"
         ],
         "summary": "Get Current User Profile",
+        "description": "Get the authenticated user's profile.",
         "operationId": "get_current_user_profile_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -114,6 +157,7 @@
           "authentication"
         ],
         "summary": "Verify Token",
+        "description": "Verify the current access token.",
         "operationId": "verify_token_api_v1_auth_verify_token_get",
         "responses": {
           "200": {
@@ -122,6 +166,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TokenValidationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -135,6 +189,7 @@
           "authentication"
         ],
         "summary": "Logout",
+        "description": "Log out and clear session cookies.",
         "operationId": "logout_api_v1_auth_logout_post",
         "responses": {
           "200": {
@@ -156,6 +211,7 @@
           "execution"
         ],
         "summary": "Create Execution",
+        "description": "Submit a script for execution in an isolated Kubernetes pod.",
         "operationId": "create_execution_api_v1_execute_post",
         "parameters": [
           {
@@ -196,6 +252,16 @@
               }
             }
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -215,6 +281,7 @@
           "execution"
         ],
         "summary": "Get Result",
+        "description": "Retrieve the result of a specific execution.",
         "operationId": "get_result_api_v1_executions__execution_id__result_get",
         "parameters": [
           {
@@ -238,6 +305,16 @@
               }
             }
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -257,6 +334,7 @@
           "execution"
         ],
         "summary": "Cancel Execution",
+        "description": "Cancel a running or queued execution.",
         "operationId": "cancel_execution_api_v1_executions__execution_id__cancel_post",
         "parameters": [
           {
@@ -289,6 +367,26 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "422": {
             "description": "Validation Error",
@@ -342,6 +440,26 @@
                 }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "422": {
             "description": "Validation Error",
@@ -657,6 +775,16 @@
               }
             }
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -692,8 +820,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by execution status",
               "title": "Status"
-            }
+            },
+            "description": "Filter by execution status"
           },
           {
             "name": "lang",
@@ -708,8 +838,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by programming language",
               "title": "Lang"
-            }
+            },
+            "description": "Filter by programming language"
           },
           {
             "name": "start_time",
@@ -725,8 +857,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter executions created after this time",
               "title": "Start Time"
-            }
+            },
+            "description": "Filter executions created after this time"
           },
           {
             "name": "end_time",
@@ -742,8 +876,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter executions created before this time",
               "title": "End Time"
-            }
+            },
+            "description": "Filter executions created before this time"
           },
           {
             "name": "limit",
@@ -799,6 +935,7 @@
           "execution"
         ],
         "summary": "Get Example Scripts",
+        "description": "Get example scripts for the code editor.",
         "operationId": "get_example_scripts_api_v1_example_scripts_get",
         "responses": {
           "200": {
@@ -820,6 +957,7 @@
           "execution"
         ],
         "summary": "Get K8S Resource Limits",
+        "description": "Get Kubernetes resource limits for script execution.",
         "operationId": "get_k8s_resource_limits_api_v1_k8s_limits_get",
         "responses": {
           "200": {
@@ -828,6 +966,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceLimits"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -884,6 +1032,7 @@
           "scripts"
         ],
         "summary": "List Saved Scripts",
+        "description": "List all saved scripts for the authenticated user.",
         "operationId": "list_saved_scripts_api_v1_scripts_get",
         "responses": {
           "200": {
@@ -907,6 +1056,7 @@
           "scripts"
         ],
         "summary": "Create Saved Script",
+        "description": "Save a new script to the user's collection.",
         "operationId": "create_saved_script_api_v1_scripts_post",
         "requestBody": {
           "content": {
@@ -948,6 +1098,7 @@
           "scripts"
         ],
         "summary": "Get Saved Script",
+        "description": "Get a saved script by ID.",
         "operationId": "get_saved_script_api_v1_scripts__script_id__get",
         "parameters": [
           {
@@ -971,6 +1122,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -988,6 +1149,7 @@
           "scripts"
         ],
         "summary": "Update Saved Script",
+        "description": "Update an existing saved script.",
         "operationId": "update_saved_script_api_v1_scripts__script_id__put",
         "parameters": [
           {
@@ -1021,6 +1183,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1038,6 +1210,7 @@
           "scripts"
         ],
         "summary": "Delete Saved Script",
+        "description": "Delete a saved script.",
         "operationId": "delete_saved_script_api_v1_scripts__script_id__delete",
         "parameters": [
           {
@@ -1053,6 +1226,16 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -1073,6 +1256,7 @@
           "Event Replay"
         ],
         "summary": "Create Replay Session",
+        "description": "Create a new event replay session from a configuration.",
         "operationId": "create_replay_session_api_v1_replay_sessions_post",
         "requestBody": {
           "required": true,
@@ -1112,6 +1296,7 @@
           "Event Replay"
         ],
         "summary": "List Replay Sessions",
+        "description": "List replay sessions with optional status filtering.",
         "operationId": "list_replay_sessions_api_v1_replay_sessions_get",
         "parameters": [
           {
@@ -1127,8 +1312,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by replay session status",
               "title": "Status"
-            }
+            },
+            "description": "Filter by replay session status"
           },
           {
             "name": "limit",
@@ -1177,6 +1364,7 @@
           "Event Replay"
         ],
         "summary": "Start Replay Session",
+        "description": "Start a previously created replay session.",
         "operationId": "start_replay_session_api_v1_replay_sessions__session_id__start_post",
         "parameters": [
           {
@@ -1219,6 +1407,7 @@
           "Event Replay"
         ],
         "summary": "Pause Replay Session",
+        "description": "Pause a running replay session.",
         "operationId": "pause_replay_session_api_v1_replay_sessions__session_id__pause_post",
         "parameters": [
           {
@@ -1261,6 +1450,7 @@
           "Event Replay"
         ],
         "summary": "Resume Replay Session",
+        "description": "Resume a paused replay session.",
         "operationId": "resume_replay_session_api_v1_replay_sessions__session_id__resume_post",
         "parameters": [
           {
@@ -1303,6 +1493,7 @@
           "Event Replay"
         ],
         "summary": "Cancel Replay Session",
+        "description": "Cancel and stop a replay session.",
         "operationId": "cancel_replay_session_api_v1_replay_sessions__session_id__cancel_post",
         "parameters": [
           {
@@ -1345,6 +1536,7 @@
           "Event Replay"
         ],
         "summary": "Get Replay Session",
+        "description": "Get full details of a replay session.",
         "operationId": "get_replay_session_api_v1_replay_sessions__session_id__get",
         "parameters": [
           {
@@ -1387,6 +1579,7 @@
           "Event Replay"
         ],
         "summary": "Cleanup Old Sessions",
+        "description": "Remove replay sessions older than the specified threshold.",
         "operationId": "cleanup_old_sessions_api_v1_replay_cleanup_post",
         "parameters": [
           {
@@ -1396,9 +1589,11 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
+              "description": "Delete sessions older than this many hours",
               "default": 24,
               "title": "Older Than Hours"
-            }
+            },
+            "description": "Delete sessions older than this many hours"
           }
         ],
         "responses": {
@@ -1475,6 +1670,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Get Dlq Statistics",
+        "description": "Get summary statistics for the dead letter queue.",
         "operationId": "get_dlq_statistics_api_v1_dlq_stats_get",
         "responses": {
           "200": {
@@ -1496,6 +1692,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Get Dlq Messages",
+        "description": "List DLQ messages with optional filtering.",
         "operationId": "get_dlq_messages_api_v1_dlq_messages_get",
         "parameters": [
           {
@@ -1511,8 +1708,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by message status",
               "title": "Status"
-            }
+            },
+            "description": "Filter by message status"
           },
           {
             "name": "topic",
@@ -1527,8 +1726,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by source Kafka topic",
               "title": "Topic"
-            }
+            },
+            "description": "Filter by source Kafka topic"
           },
           {
             "name": "event_type",
@@ -1543,8 +1744,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by event type",
               "title": "Event Type"
-            }
+            },
+            "description": "Filter by event type"
           },
           {
             "name": "limit",
@@ -1600,6 +1803,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Get Dlq Message",
+        "description": "Get details of a specific DLQ message.",
         "operationId": "get_dlq_message_api_v1_dlq_messages__event_id__get",
         "parameters": [
           {
@@ -1623,6 +1827,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1640,6 +1854,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Discard Dlq Message",
+        "description": "Permanently discard a DLQ message with a reason.",
         "operationId": "discard_dlq_message_api_v1_dlq_messages__event_id__delete",
         "parameters": [
           {
@@ -1674,6 +1889,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1693,6 +1918,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Retry Dlq Messages",
+        "description": "Retry a batch of DLQ messages by their event IDs.",
         "operationId": "retry_dlq_messages_api_v1_dlq_retry_post",
         "requestBody": {
           "content": {
@@ -1734,6 +1960,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Set Retry Policy",
+        "description": "Configure a retry policy for a specific Kafka topic.",
         "operationId": "set_retry_policy_api_v1_dlq_retry_policy_post",
         "requestBody": {
           "content": {
@@ -1775,6 +2002,7 @@
           "Dead Letter Queue"
         ],
         "summary": "Get Dlq Topics",
+        "description": "Get a per-topic summary of DLQ message counts.",
         "operationId": "get_dlq_topics_api_v1_dlq_topics_get",
         "responses": {
           "200": {
@@ -1865,6 +2093,7 @@
           "events"
         ],
         "summary": "Get Execution Events",
+        "description": "Get events for a specific execution.",
         "operationId": "get_execution_events_api_v1_events_executions__execution_id__events_get",
         "parameters": [
           {
@@ -1923,6 +2152,16 @@
               }
             }
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1942,7 +2181,7 @@
           "events"
         ],
         "summary": "Get User Events",
-        "description": "Get events for the current user",
+        "description": "Get events for the current user.",
         "operationId": "get_user_events_api_v1_events_user_get",
         "parameters": [
           {
@@ -1961,8 +2200,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by event types",
               "title": "Event Types"
-            }
+            },
+            "description": "Filter by event types"
           },
           {
             "name": "start_time",
@@ -1978,8 +2219,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter events after this time",
               "title": "Start Time"
-            }
+            },
+            "description": "Filter events after this time"
           },
           {
             "name": "end_time",
@@ -1995,8 +2238,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter events before this time",
               "title": "End Time"
-            }
+            },
+            "description": "Filter events before this time"
           },
           {
             "name": "limit",
@@ -2027,8 +2272,10 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/SortOrder",
+              "description": "Sort order by timestamp",
               "default": "desc"
-            }
+            },
+            "description": "Sort order by timestamp"
           }
         ],
         "responses": {
@@ -2061,6 +2308,7 @@
           "events"
         ],
         "summary": "Query Events",
+        "description": "Query events with advanced filters.",
         "operationId": "query_events_api_v1_events_query_post",
         "requestBody": {
           "content": {
@@ -2079,6 +2327,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2102,6 +2360,7 @@
           "events"
         ],
         "summary": "Get Events By Correlation",
+        "description": "Get all events sharing a correlation ID.",
         "operationId": "get_events_by_correlation_api_v1_events_correlation__correlation_id__get",
         "parameters": [
           {
@@ -2179,6 +2438,7 @@
           "events"
         ],
         "summary": "Get Current Request Events",
+        "description": "Get events associated with the current HTTP request's correlation ID.",
         "operationId": "get_current_request_events_api_v1_events_current_request_get",
         "parameters": [
           {
@@ -2235,6 +2495,7 @@
           "events"
         ],
         "summary": "Get Event Statistics",
+        "description": "Get aggregated event statistics for a time range.",
         "operationId": "get_event_statistics_api_v1_events_statistics_get",
         "parameters": [
           {
@@ -2318,7 +2579,7 @@
           "events"
         ],
         "summary": "Get Event",
-        "description": "Get a specific event by ID",
+        "description": "Get a specific event by ID.",
         "operationId": "get_event_api_v1_events__event_id__get",
         "parameters": [
           {
@@ -2577,6 +2838,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2594,6 +2865,7 @@
           "events"
         ],
         "summary": "Delete Event",
+        "description": "Delete and archive an event (admin only).",
         "operationId": "delete_event_api_v1_events__event_id__delete",
         "parameters": [
           {
@@ -2617,6 +2889,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2636,6 +2918,7 @@
           "events"
         ],
         "summary": "Publish Custom Event",
+        "description": "Publish a custom event to Kafka (admin only).",
         "operationId": "publish_custom_event_api_v1_events_publish_post",
         "requestBody": {
           "content": {
@@ -2677,6 +2960,7 @@
           "events"
         ],
         "summary": "Aggregate Events",
+        "description": "Run a custom aggregation pipeline on the event store.",
         "operationId": "aggregate_events_api_v1_events_aggregate_post",
         "requestBody": {
           "content": {
@@ -2722,6 +3006,7 @@
           "events"
         ],
         "summary": "List Event Types",
+        "description": "List all distinct event types in the store.",
         "operationId": "list_event_types_api_v1_events_types_list_get",
         "responses": {
           "200": {
@@ -2747,6 +3032,7 @@
           "events"
         ],
         "summary": "Replay Aggregate Events",
+        "description": "Replay all events for an aggregate (admin only).",
         "operationId": "replay_aggregate_events_api_v1_events_replay__aggregate_id__post",
         "parameters": [
           {
@@ -2800,6 +3086,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2819,6 +3115,7 @@
           "admin-events"
         ],
         "summary": "Browse Events",
+        "description": "Browse events with filtering, sorting, and pagination.",
         "operationId": "browse_events_api_v1_admin_events_browse_post",
         "requestBody": {
           "content": {
@@ -2860,6 +3157,7 @@
           "admin-events"
         ],
         "summary": "Get Event Stats",
+        "description": "Get event statistics for a given lookback window.",
         "operationId": "get_event_stats_api_v1_admin_events_stats_get",
         "parameters": [
           {
@@ -2869,9 +3167,12 @@
             "schema": {
               "type": "integer",
               "maximum": 168,
+              "minimum": 1,
+              "description": "Lookback window in hours (max 168)",
               "default": 24,
               "title": "Hours"
-            }
+            },
+            "description": "Lookback window in hours (max 168)"
           }
         ],
         "responses": {
@@ -2904,6 +3205,7 @@
           "admin-events"
         ],
         "summary": "Export Events Csv",
+        "description": "Export filtered events as a downloadable CSV file.",
         "operationId": "export_events_csv_api_v1_admin_events_export_csv_get",
         "parameters": [
           {
@@ -2972,6 +3274,7 @@
             "schema": {
               "type": "integer",
               "maximum": 50000,
+              "minimum": 1,
               "default": 10000,
               "title": "Limit"
             }
@@ -3146,6 +3449,7 @@
             "schema": {
               "type": "integer",
               "maximum": 50000,
+              "minimum": 1,
               "default": 10000,
               "title": "Limit"
             }
@@ -3179,6 +3483,7 @@
           "admin-events"
         ],
         "summary": "Get Event Detail",
+        "description": "Get detailed information about a single event, including related events and timeline.",
         "operationId": "get_event_detail_api_v1_admin_events__event_id__get",
         "parameters": [
           {
@@ -3202,6 +3507,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3219,6 +3534,7 @@
           "admin-events"
         ],
         "summary": "Delete Event",
+        "description": "Delete and archive an event by ID.",
         "operationId": "delete_event_api_v1_admin_events__event_id__delete",
         "parameters": [
           {
@@ -3242,6 +3558,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3261,6 +3587,7 @@
           "admin-events"
         ],
         "summary": "Replay Events",
+        "description": "Replay events by filter criteria, with optional dry-run mode.",
         "operationId": "replay_events_api_v1_admin_events_replay_post",
         "requestBody": {
           "content": {
@@ -3279,6 +3606,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventReplayResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3302,6 +3649,7 @@
           "admin-events"
         ],
         "summary": "Get Replay Status",
+        "description": "Get the status and progress of a replay session.",
         "operationId": "get_replay_status_api_v1_admin_events_replay__session_id__status_get",
         "parameters": [
           {
@@ -3325,6 +3673,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3345,6 +3703,7 @@
           "settings"
         ],
         "summary": "Get System Settings",
+        "description": "Get the current system-wide settings.",
         "operationId": "get_system_settings_api_v1_admin_settings__get",
         "responses": {
           "200": {
@@ -3353,6 +3712,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SystemSettings"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3365,6 +3734,7 @@
           "settings"
         ],
         "summary": "Update System Settings",
+        "description": "Replace system-wide settings.",
         "operationId": "update_system_settings_api_v1_admin_settings__put",
         "requestBody": {
           "content": {
@@ -3387,12 +3757,32 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3407,6 +3797,7 @@
           "settings"
         ],
         "summary": "Reset System Settings",
+        "description": "Reset system-wide settings to defaults.",
         "operationId": "reset_system_settings_api_v1_admin_settings_reset_post",
         "responses": {
           "200": {
@@ -3415,6 +3806,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SystemSettings"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3429,6 +3830,7 @@
           "users"
         ],
         "summary": "List Users",
+        "description": "List all users with optional search and role filtering.",
         "operationId": "list_users_api_v1_admin_users__get",
         "parameters": [
           {
@@ -3438,6 +3840,7 @@
             "schema": {
               "type": "integer",
               "maximum": 1000,
+              "minimum": 1,
               "default": 100,
               "title": "Limit"
             }
@@ -3466,8 +3869,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Search by username or email",
               "title": "Search"
-            }
+            },
+            "description": "Search by username or email"
           },
           {
             "name": "role",
@@ -3482,8 +3887,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by user role",
               "title": "Role"
-            }
+            },
+            "description": "Filter by user role"
           }
         ],
         "responses": {
@@ -3538,6 +3945,16 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3558,6 +3975,7 @@
           "users"
         ],
         "summary": "Get User",
+        "description": "Get a user by ID.",
         "operationId": "get_user_api_v1_admin_users__user_id__get",
         "parameters": [
           {
@@ -3581,6 +3999,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3599,6 +4027,7 @@
           "users"
         ],
         "summary": "Update User",
+        "description": "Update a user's profile fields.",
         "operationId": "update_user_api_v1_admin_users__user_id__put",
         "parameters": [
           {
@@ -3632,6 +4061,26 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3650,6 +4099,7 @@
           "users"
         ],
         "summary": "Delete User",
+        "description": "Delete a user and optionally cascade-delete their data.",
         "operationId": "delete_user_api_v1_admin_users__user_id__delete",
         "parameters": [
           {
@@ -3685,6 +4135,16 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3705,6 +4165,7 @@
           "users"
         ],
         "summary": "Get User Overview",
+        "description": "Get a comprehensive overview of a user including stats and rate limits.",
         "operationId": "get_user_overview_api_v1_admin_users__user_id__overview_get",
         "parameters": [
           {
@@ -3728,6 +4189,16 @@
               }
             }
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3748,6 +4219,7 @@
           "users"
         ],
         "summary": "Reset User Password",
+        "description": "Reset a user's password.",
         "operationId": "reset_user_password_api_v1_admin_users__user_id__reset_password_post",
         "parameters": [
           {
@@ -3781,6 +4253,16 @@
               }
             }
           },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3801,6 +4283,7 @@
           "users"
         ],
         "summary": "Get User Rate Limits",
+        "description": "Get rate limit configuration for a user.",
         "operationId": "get_user_rate_limits_api_v1_admin_users__user_id__rate_limits_get",
         "parameters": [
           {
@@ -3842,6 +4325,7 @@
           "users"
         ],
         "summary": "Update User Rate Limits",
+        "description": "Update rate limit rules for a user.",
         "operationId": "update_user_rate_limits_api_v1_admin_users__user_id__rate_limits_put",
         "parameters": [
           {
@@ -3895,6 +4379,7 @@
           "users"
         ],
         "summary": "Reset User Rate Limits",
+        "description": "Reset a user's rate limits to defaults.",
         "operationId": "reset_user_rate_limits_api_v1_admin_users__user_id__rate_limits_reset_post",
         "parameters": [
           {
@@ -3937,6 +4422,7 @@
           "user-settings"
         ],
         "summary": "Get User Settings",
+        "description": "Get the authenticated user's settings.",
         "operationId": "get_user_settings_api_v1_user_settings__get",
         "responses": {
           "200": {
@@ -3956,6 +4442,7 @@
           "user-settings"
         ],
         "summary": "Update User Settings",
+        "description": "Update the authenticated user's settings.",
         "operationId": "update_user_settings_api_v1_user_settings__put",
         "requestBody": {
           "content": {
@@ -3997,6 +4484,7 @@
           "user-settings"
         ],
         "summary": "Update Theme",
+        "description": "Update the user's theme preference.",
         "operationId": "update_theme_api_v1_user_settings_theme_put",
         "requestBody": {
           "content": {
@@ -4038,6 +4526,7 @@
           "user-settings"
         ],
         "summary": "Update Notification Settings",
+        "description": "Update notification preferences.",
         "operationId": "update_notification_settings_api_v1_user_settings_notifications_put",
         "requestBody": {
           "content": {
@@ -4079,6 +4568,7 @@
           "user-settings"
         ],
         "summary": "Update Editor Settings",
+        "description": "Update code editor preferences.",
         "operationId": "update_editor_settings_api_v1_user_settings_editor_put",
         "requestBody": {
           "content": {
@@ -4120,6 +4610,7 @@
           "user-settings"
         ],
         "summary": "Get Settings History",
+        "description": "Get the change history for the user's settings.",
         "operationId": "get_settings_history_api_v1_user_settings_history_get",
         "parameters": [
           {
@@ -4128,9 +4619,13 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Maximum number of history entries",
               "default": 50,
               "title": "Limit"
-            }
+            },
+            "description": "Maximum number of history entries"
           }
         ],
         "responses": {
@@ -4163,6 +4658,7 @@
           "user-settings"
         ],
         "summary": "Restore Settings",
+        "description": "Restore settings to a previous point in time.",
         "operationId": "restore_settings_api_v1_user_settings_restore_post",
         "requestBody": {
           "content": {
@@ -4204,6 +4700,7 @@
           "user-settings"
         ],
         "summary": "Update Custom Setting",
+        "description": "Set or update a single custom setting by key.",
         "operationId": "update_custom_setting_api_v1_user_settings_custom__key__put",
         "parameters": [
           {
@@ -4257,6 +4754,7 @@
           "notifications"
         ],
         "summary": "Get Notifications",
+        "description": "List notifications for the authenticated user.",
         "operationId": "get_notifications_api_v1_notifications_get",
         "parameters": [
           {
@@ -4389,6 +4887,7 @@
           "notifications"
         ],
         "summary": "Mark Notification Read",
+        "description": "Mark a single notification as read.",
         "operationId": "mark_notification_read_api_v1_notifications__notification_id__read_put",
         "parameters": [
           {
@@ -4424,6 +4923,7 @@
           "notifications"
         ],
         "summary": "Mark All Read",
+        "description": "Mark all notifications as read.",
         "operationId": "mark_all_read_api_v1_notifications_mark_all_read_post",
         "responses": {
           "204": {
@@ -4438,6 +4938,7 @@
           "notifications"
         ],
         "summary": "Get Subscriptions",
+        "description": "Get all notification channel subscriptions for the authenticated user.",
         "operationId": "get_subscriptions_api_v1_notifications_subscriptions_get",
         "responses": {
           "200": {
@@ -4459,6 +4960,7 @@
           "notifications"
         ],
         "summary": "Update Subscription",
+        "description": "Update subscription settings for a notification channel.",
         "operationId": "update_subscription_api_v1_notifications_subscriptions__channel__put",
         "parameters": [
           {
@@ -4510,6 +5012,7 @@
           "notifications"
         ],
         "summary": "Get Unread Count",
+        "description": "Get the count of unread notifications.",
         "operationId": "get_unread_count_api_v1_notifications_unread_count_get",
         "responses": {
           "200": {
@@ -4531,6 +5034,7 @@
           "notifications"
         ],
         "summary": "Delete Notification",
+        "description": "Delete a notification.",
         "operationId": "delete_notification_api_v1_notifications__notification_id__delete",
         "parameters": [
           {
@@ -4596,6 +5100,26 @@
                 }
               }
             }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -4680,6 +5204,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "422": {
             "description": "Validation Error",
@@ -4799,6 +5333,36 @@
               }
             }
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -4818,6 +5382,7 @@
           "alerts"
         ],
         "summary": "Receive Grafana Alerts",
+        "description": "Receive and process a Grafana alerting webhook payload.",
         "operationId": "receive_grafana_alerts_api_v1_alerts_grafana_post",
         "requestBody": {
           "content": {
@@ -4859,6 +5424,7 @@
           "alerts"
         ],
         "summary": "Test Grafana Alert Endpoint",
+        "description": "Verify the Grafana webhook endpoint is reachable.",
         "operationId": "test_grafana_alert_endpoint_api_v1_alerts_grafana_test_get",
         "responses": {
           "200": {
@@ -7031,6 +7597,32 @@
         ],
         "title": "Environment",
         "description": "Deployment environments."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable error message"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type",
+            "description": "Error type identifier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
       },
       "EventAggregationRequest": {
         "properties": {
@@ -10567,14 +11159,7 @@
             "title": "Body"
           },
           "action_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Action Url"
           },
           "created_at": {
@@ -10614,7 +11199,6 @@
           "body",
           "action_url",
           "created_at",
-          "read_at",
           "severity",
           "tags"
         ],

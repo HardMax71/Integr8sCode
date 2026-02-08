@@ -11,6 +11,7 @@ from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
 from app.domain.user import DomainUserCreate
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
     LoginResponse,
     MessageResponse,
@@ -24,7 +25,7 @@ from app.settings import Settings
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, responses={401: {"model": ErrorResponse}})
 async def login(
     request: Request,
     response: Response,
@@ -34,6 +35,7 @@ async def login(
     logger: FromDishka[logging.Logger],
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
+    """Authenticate and receive session cookies."""
     logger.info(
         "Login attempt",
         extra={
@@ -122,7 +124,11 @@ async def login(
     )
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
 async def register(
     request: Request,
     user: UserCreate,
@@ -130,6 +136,7 @@ async def register(
     security_service: FromDishka[SecurityService],
     logger: FromDishka[logging.Logger],
 ) -> UserResponse:
+    """Register a new user account."""
     logger.info(
         "Registration attempt",
         extra={
@@ -214,6 +221,7 @@ async def get_current_user_profile(
     auth_service: FromDishka[AuthService],
     logger: FromDishka[logging.Logger],
 ) -> UserResponse:
+    """Get the authenticated user's profile."""
     current_user = await auth_service.get_current_user(request)
 
     logger.info(
@@ -232,12 +240,13 @@ async def get_current_user_profile(
     return current_user
 
 
-@router.get("/verify-token", response_model=TokenValidationResponse)
+@router.get("/verify-token", response_model=TokenValidationResponse, responses={401: {"model": ErrorResponse}})
 async def verify_token(
     request: Request,
     auth_service: FromDishka[AuthService],
     logger: FromDishka[logging.Logger],
 ) -> TokenValidationResponse:
+    """Verify the current access token."""
     current_user = await auth_service.get_current_user(request)
     logger.info(
         "Token verification attempt",
@@ -290,6 +299,7 @@ async def logout(
     response: Response,
     logger: FromDishka[logging.Logger],
 ) -> MessageResponse:
+    """Log out and clear session cookies."""
     logger.info(
         "Logout attempt",
         extra={

@@ -2,7 +2,7 @@ from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import current_user
 from app.domain.user.settings_models import (
@@ -31,6 +31,7 @@ async def get_user_settings(
     current_user: Annotated[UserResponse, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Get the authenticated user's settings."""
     domain = await settings_service.get_user_settings(current_user.user_id)
     return UserSettings.model_validate(domain)
 
@@ -41,6 +42,7 @@ async def update_user_settings(
     updates: UserSettingsUpdate,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Update the authenticated user's settings."""
     domain_updates = DomainUserSettingsUpdate(
         theme=updates.theme,
         timezone=updates.timezone,
@@ -62,6 +64,7 @@ async def update_theme(
     update_request: ThemeUpdateRequest,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Update the user's theme preference."""
     domain = await settings_service.update_theme(current_user.user_id, update_request.theme)
     return UserSettings.model_validate(domain)
 
@@ -72,6 +75,7 @@ async def update_notification_settings(
     notifications: NotificationSettings,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Update notification preferences."""
     domain = await settings_service.update_notification_settings(
         current_user.user_id,
         DomainNotificationSettings(**notifications.model_dump()),
@@ -85,6 +89,7 @@ async def update_editor_settings(
     editor: EditorSettings,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Update code editor preferences."""
     domain = await settings_service.update_editor_settings(
         current_user.user_id,
         DomainEditorSettings(**editor.model_dump()),
@@ -96,8 +101,9 @@ async def update_editor_settings(
 async def get_settings_history(
     current_user: Annotated[UserResponse, Depends(current_user)],
     settings_service: FromDishka[UserSettingsService],
-    limit: int = 50,
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of history entries")] = 50,
 ) -> SettingsHistoryResponse:
+    """Get the change history for the user's settings."""
     history = await settings_service.get_settings_history(current_user.user_id, limit=limit)
     entries = [SettingsHistoryEntry.model_validate(entry) for entry in history]
     return SettingsHistoryResponse(history=entries, limit=limit)
@@ -109,6 +115,7 @@ async def restore_settings(
     restore_request: RestoreSettingsRequest,
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Restore settings to a previous point in time."""
     domain = await settings_service.restore_settings_to_point(current_user.user_id, restore_request.timestamp)
     return UserSettings.model_validate(domain)
 
@@ -120,5 +127,6 @@ async def update_custom_setting(
     value: dict[str, object],
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
+    """Set or update a single custom setting by key."""
     domain = await settings_service.update_custom_setting(current_user.user_id, key, value)
     return UserSettings.model_validate(domain)

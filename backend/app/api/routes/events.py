@@ -14,6 +14,7 @@ from app.domain.enums.events import EventType
 from app.domain.enums.user import UserRole
 from app.domain.events.event_models import EventFilter
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
+from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventAggregationRequest,
@@ -33,16 +34,21 @@ from app.settings import Settings
 router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 
 
-@router.get("/executions/{execution_id}/events", response_model=EventListResponse)
+@router.get(
+    "/executions/{execution_id}/events",
+    response_model=EventListResponse,
+    responses={403: {"model": ErrorResponse}},
+)
 async def get_execution_events(
     execution_id: str,
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     execution_service: FromDishka[ExecutionService],
-    include_system_events: bool = Query(False, description="Include system-generated events"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    include_system_events: Annotated[bool, Query(description="Include system-generated events")] = False,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
+    """Get events for a specific execution."""
     # Check execution ownership first (before checking events)
     execution = await execution_service.get_execution_result(execution_id)
     if execution.user_id and execution.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
@@ -73,14 +79,14 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: list[EventType] | None = Query(None),
-    start_time: datetime | None = Query(None),
-    end_time: datetime | None = Query(None),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
-    sort_order: SortOrder = Query(SortOrder.DESC),
+    event_types: Annotated[list[EventType] | None, Query(description="Filter by event types")] = None,
+    start_time: Annotated[datetime | None, Query(description="Filter events after this time")] = None,
+    end_time: Annotated[datetime | None, Query(description="Filter events before this time")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    sort_order: Annotated[SortOrder, Query(description="Sort order by timestamp")] = SortOrder.DESC,
 ) -> EventListResponse:
-    """Get events for the current user"""
+    """Get events for the current user."""
     result = await event_service.get_user_events_paginated(
         user_id=current_user.user_id,
         event_types=event_types,
@@ -100,12 +106,13 @@ async def get_user_events(
     )
 
 
-@router.post("/query", response_model=EventListResponse)
+@router.post("/query", response_model=EventListResponse, responses={403: {"model": ErrorResponse}})
 async def query_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     filter_request: EventFilterRequest,
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
+    """Query events with advanced filters."""
     event_filter = EventFilter(
         event_types=filter_request.event_types,
         aggregate_id=filter_request.aggregate_id,
@@ -142,10 +149,11 @@ async def get_events_by_correlation(
     correlation_id: str,
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    include_all_users: bool = Query(False, description="Include events from all users (admin only)"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    include_all_users: Annotated[bool, Query(description="Include events from all users (admin only)")] = False,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
+    """Get all events sharing a correlation ID."""
     result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
         user_id=current_user.user_id,
@@ -168,9 +176,10 @@ async def get_events_by_correlation(
 async def get_current_request_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
+    """Get events associated with the current HTTP request's correlation ID."""
     correlation_id = CorrelationContext.get_correlation_id()
     if not correlation_id:
         return EventListResponse(events=[], total=0, limit=limit, skip=skip, has_more=False)
@@ -197,10 +206,13 @@ async def get_current_request_events(
 async def get_event_statistics(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    start_time: datetime | None = Query(None, description="Start time for statistics (defaults to 24 hours ago)"),
-    end_time: datetime | None = Query(None, description="End time for statistics (defaults to now)"),
-    include_all_users: bool = Query(False, description="Include stats from all users (admin only)"),
+    start_time: Annotated[
+        datetime | None, Query(description="Start time for statistics (defaults to 24 hours ago)")
+    ] = None,
+    end_time: Annotated[datetime | None, Query(description="End time for statistics (defaults to now)")] = None,
+    include_all_users: Annotated[bool, Query(description="Include stats from all users (admin only)")] = False,
 ) -> EventStatistics:
+    """Get aggregated event statistics for a time range."""
     if not start_time:
         start_time = datetime.now(timezone.utc) - timedelta(days=1)  # 24 hours ago
     if not end_time:
@@ -217,11 +229,11 @@ async def get_event_statistics(
     return EventStatistics.model_validate(stats)
 
 
-@router.get("/{event_id}", response_model=DomainEvent)
+@router.get("/{event_id}", response_model=DomainEvent, responses={404: {"model": ErrorResponse}})
 async def get_event(
     event_id: str, current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> DomainEvent:
-    """Get a specific event by ID"""
+    """Get a specific event by ID."""
     event = await event_service.get_event(event_id=event_id, user_id=current_user.user_id, user_role=current_user.role)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -236,6 +248,7 @@ async def publish_custom_event(
     event_service: FromDishka[KafkaEventService],
     settings: FromDishka[Settings],
 ) -> PublishEventResponse:
+    """Publish a custom event to Kafka (admin only)."""
     base_meta = EventMetadata(
         service_name=settings.SERVICE_NAME,
         service_version=settings.SERVICE_VERSION,
@@ -264,6 +277,7 @@ async def aggregate_events(
     aggregation: EventAggregationRequest,
     event_service: FromDishka[EventService],
 ) -> list[dict[str, Any]]:
+    """Run a custom aggregation pipeline on the event store."""
     result = await event_service.aggregate_events(
         user_id=current_user.user_id,
         user_role=current_user.role,
@@ -278,17 +292,19 @@ async def aggregate_events(
 async def list_event_types(
     current_user: Annotated[UserResponse, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> list[str]:
+    """List all distinct event types in the store."""
     event_types = await event_service.list_event_types(user_id=current_user.user_id, user_role=current_user.role)
     return event_types
 
 
-@router.delete("/{event_id}", response_model=DeleteEventResponse)
+@router.delete("/{event_id}", response_model=DeleteEventResponse, responses={404: {"model": ErrorResponse}})
 async def delete_event(
     event_id: str,
     admin: Annotated[UserResponse, Depends(admin_user)],
     event_service: FromDishka[EventService],
     logger: FromDishka[logging.Logger],
 ) -> DeleteEventResponse:
+    """Delete and archive an event (admin only)."""
     result = await event_service.delete_event_with_archival(event_id=event_id, deleted_by=str(admin.email))
 
     if result is None:
@@ -310,7 +326,11 @@ async def delete_event(
     )
 
 
-@router.post("/replay/{aggregate_id}", response_model=ReplayAggregateResponse)
+@router.post(
+    "/replay/{aggregate_id}",
+    response_model=ReplayAggregateResponse,
+    responses={404: {"model": ErrorResponse}},
+)
 async def replay_aggregate_events(
     aggregate_id: str,
     admin: Annotated[UserResponse, Depends(admin_user)],
@@ -318,9 +338,10 @@ async def replay_aggregate_events(
     kafka_event_service: FromDishka[KafkaEventService],
     settings: FromDishka[Settings],
     logger: FromDishka[logging.Logger],
-    target_service: str | None = Query(None, description="Service to replay events to"),
-    dry_run: bool = Query(True, description="If true, only show what would be replayed"),
+    target_service: Annotated[str | None, Query(description="Service to replay events to")] = None,
+    dry_run: Annotated[bool, Query(description="If true, only show what would be replayed")] = True,
 ) -> ReplayAggregateResponse:
+    """Replay all events for an aggregate (admin only)."""
     replay_info = await event_service.get_aggregate_replay_info(aggregate_id)
     if not replay_info:
         raise HTTPException(status_code=404, detail=f"No events found for aggregate {aggregate_id}")

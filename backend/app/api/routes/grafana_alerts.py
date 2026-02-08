@@ -14,6 +14,7 @@ async def receive_grafana_alerts(
     webhook_payload: GrafanaWebhook,
     processor: FromDishka[GrafanaAlertProcessor],
 ) -> AlertResponse:
+    """Receive and process a Grafana alerting webhook payload."""
     correlation_id = CorrelationContext.get_correlation_id()
 
     processed_count, errors = await processor.process_webhook(webhook_payload, correlation_id)
@@ -30,6 +31,7 @@ async def receive_grafana_alerts(
 
 @router.get("/grafana/test")
 async def test_grafana_alert_endpoint() -> dict[str, str]:
+    """Verify the Grafana webhook endpoint is reachable."""
     return {
         "status": "ok",
         "message": "Grafana webhook endpoint is ready",

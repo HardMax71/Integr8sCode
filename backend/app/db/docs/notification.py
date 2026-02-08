@@ -28,7 +28,7 @@ class NotificationDocument(Document):
     # Content
     subject: str
     body: str
-    action_url: str | None = None
+    action_url: str = ""
     tags: list[str] = Field(default_factory=list)
 
     # Tracking

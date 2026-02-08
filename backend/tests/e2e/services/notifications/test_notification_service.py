@@ -17,6 +17,9 @@ from dishka import AsyncContainer
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 
 
+_TEST_ACTION_URL = "/api/v1/notifications"
+
+
 def _unique_user_id() -> str:
     return f"notif_user_{uuid.uuid4().hex[:8]}"
 
@@ -35,6 +38,7 @@ class TestCreateNotification:
             subject="Test Subject",
             body="Test body content",
             tags=["test", "basic"],
+            action_url=_TEST_ACTION_URL,
             severity=NotificationSeverity.MEDIUM,
             channel=NotificationChannel.IN_APP,
         )
@@ -61,6 +65,7 @@ class TestCreateNotification:
             subject="With Metadata",
             body="Body",
             tags=["meta"],
+            action_url="/api/v1/executions/exec-123/result",
             metadata={"execution_id": "exec-123", "duration": 45.5},
         )
 
@@ -81,10 +86,10 @@ class TestCreateNotification:
             subject="Action Required",
             body="Click to view",
             tags=["action"],
-            action_url="/executions/exec-123",
+            action_url="/api/v1/executions/exec-123/result",
         )
 
-        assert notification.action_url == "/executions/exec-123"
+        assert notification.action_url == "/api/v1/executions/exec-123/result"
 
     @pytest.mark.asyncio
     async def test_create_notification_all_severities(
@@ -107,6 +112,7 @@ class TestCreateNotification:
                 subject=f"Severity {severity}",
                 body="Body",
                 tags=["severity-test"],
+                action_url=_TEST_ACTION_URL,
                 severity=severity,
             )
             assert notification.severity == severity
@@ -125,6 +131,7 @@ class TestCreateNotification:
                 subject="No Tags",
                 body="Body",
                 tags=[],
+                action_url=_TEST_ACTION_URL,
             )
 
 
@@ -143,6 +150,7 @@ class TestMarkAsRead:
             subject="To Read",
             body="Body",
             tags=["read-test"],
+            action_url=_TEST_ACTION_URL,
         )
 
         # Mark as read
@@ -177,6 +185,7 @@ class TestMarkAllAsRead:
                 subject=f"Notification {i}",
                 body="Body",
                 tags=["bulk-read"],
+                action_url=_TEST_ACTION_URL,
             )
 
         # Mark all as read
@@ -208,6 +217,7 @@ class TestGetUnreadCount:
                 subject="Unread",
                 body="Body",
                 tags=["count-test"],
+                action_url=_TEST_ACTION_URL,
             )
 
         # Count should increase
@@ -231,6 +241,7 @@ class TestListNotifications:
                 subject=f"List Test {i}",
                 body="Body",
                 tags=["list-test"],
+                action_url=_TEST_ACTION_URL,
             )
 
         # List with pagination
@@ -254,12 +265,14 @@ class TestListNotifications:
             subject="Tagged A",
             body="Body",
             tags=["filter-a"],
+            action_url=_TEST_ACTION_URL,
         )
         await svc.create_notification(
             user_id=user_id,
             subject="Tagged B",
             body="Body",
             tags=["filter-b"],
+            action_url=_TEST_ACTION_URL,
         )
 
         # Filter by tag
@@ -285,12 +298,14 @@ class TestListNotifications:
             subject="Include Me",
             body="Body",
             tags=["include"],
+            action_url=_TEST_ACTION_URL,
         )
         await svc.create_notification(
             user_id=user_id,
             subject="Exclude Me",
             body="Body",
             tags=["exclude"],
+            action_url=_TEST_ACTION_URL,
         )
 
         # List excluding 'exclude' tag
@@ -318,6 +333,7 @@ class TestDeleteNotification:
             subject="To Delete",
             body="Body",
             tags=["delete-test"],
+            action_url=_TEST_ACTION_URL,
         )
 
         # Delete it
@@ -509,6 +525,7 @@ class TestNotificationIntegration:
             subject="Lifecycle Test",
             body="Testing full lifecycle",
             tags=["lifecycle"],
+            action_url=_TEST_ACTION_URL,
         )
         assert notification.notification_id is not None
 
@@ -545,6 +562,7 @@ class TestNotificationIntegration:
             subject="High Priority",
             body="Body",
             tags=["filter-test"],
+            action_url=_TEST_ACTION_URL,
             severity=NotificationSeverity.HIGH,
         )
         assert high_notif.notification_id is not None

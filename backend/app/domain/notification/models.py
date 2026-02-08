@@ -24,7 +24,7 @@ class DomainNotification(BaseModel):
 
     subject: str = ""
     body: str = ""
-    action_url: str | None = None
+    action_url: str = ""
     tags: list[str] = Field(default_factory=list)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -85,7 +85,7 @@ class DomainNotificationCreate(BaseModel):
     subject: str
     body: str
     severity: NotificationSeverity = NotificationSeverity.MEDIUM
-    action_url: str | None = None
+    action_url: str
     tags: list[str] = Field(default_factory=list)
     scheduled_for: datetime | None = None
     webhook_url: str | None = None

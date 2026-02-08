@@ -250,9 +250,6 @@ class SecurityMetrics(BaseMetrics):
             },
         )
 
-    def record_network_policy_created(self, policy_name: str, namespace: str) -> None:
-        self.network_policy_created.add(1, attributes={"policy_name": policy_name, "namespace": namespace})
-
     def record_privilege_escalation_attempt(self, user_id: str, target_privilege: str, blocked: bool) -> None:
         self.privilege_escalation_attempts.add(
             1, attributes={"user_id": user_id, "target_privilege": target_privilege, "blocked": str(blocked)}

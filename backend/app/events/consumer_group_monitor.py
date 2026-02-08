@@ -483,7 +483,3 @@ class NativeConsumerGroupMonitor:
         self._group_status_cache.clear()
 
 
-def create_consumer_group_monitor(
-    settings: Settings, logger: logging.Logger, **kwargs: Any
-) -> NativeConsumerGroupMonitor:
-    return NativeConsumerGroupMonitor(settings=settings, logger=logger, **kwargs)

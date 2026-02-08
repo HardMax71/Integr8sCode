@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from beanie.odm.enums import SortDirection
@@ -73,11 +73,6 @@ class SagaRepository:
         )
         return Saga.model_validate(doc, from_attributes=True) if doc else None
 
-    async def get_saga_by_execution_id(self, execution_id: str) -> Saga | None:
-        """Get the first saga for an execution (typically there's only one)."""
-        doc = await SagaDocument.find_one(SagaDocument.execution_id == execution_id)
-        return Saga.model_validate(doc, from_attributes=True) if doc else None
-
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         return Saga.model_validate(doc, from_attributes=True) if doc else None
@@ -111,28 +106,9 @@ class SagaRepository:
             limit=limit,
         )
 
-    async def update_saga_state(self, saga_id: str, state: SagaState, error_message: str | None = None) -> bool:
-        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
-        if not doc:
-            return False
-
-        doc.state = state
-        doc.updated_at = datetime.now(timezone.utc)
-        if error_message:
-            doc.error_message = error_message
-        await doc.save()
-        return True
-
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
         docs = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).to_list()
         return [doc.execution_id for doc in docs]
-
-    async def count_sagas_by_state(self) -> dict[str, int]:
-        pipeline = Pipeline().group(by=S.field(SagaDocument.state), query={"count": S.sum(1)})
-        result = {}
-        async for doc in SagaDocument.aggregate(pipeline.export()):
-            result[doc["_id"]] = doc["count"]
-        return result
 
     async def find_timed_out_sagas(
             self,

@@ -27,10 +27,6 @@ class CorrelationContext:
         request_metadata_context.set(metadata)
 
     @staticmethod
-    def get_request_metadata() -> dict[str, Any]:
-        return request_metadata_context.get() or {}
-
-    @staticmethod
     def clear() -> None:
         correlation_id_context.set(None)
         request_metadata_context.set(None)

@@ -65,9 +65,6 @@ class ReplayRepository:
         ).delete()
         return result.deleted_count if result else 0
 
-    async def count_sessions(self, *conditions: Any) -> int:
-        return await ReplaySessionDocument.find(*conditions).count()
-
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
         update_dict = updates.model_dump(exclude_none=True)
         if not update_dict:

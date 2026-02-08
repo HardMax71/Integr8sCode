@@ -38,15 +38,6 @@ class NotificationRepository:
             await doc.set(update_dict)
         return True
 
-    async def get_notification(self, notification_id: str, user_id: str) -> DomainNotification | None:
-        doc = await NotificationDocument.find_one(
-            NotificationDocument.notification_id == notification_id,
-            NotificationDocument.user_id == user_id,
-        )
-        if not doc:
-            return None
-        return DomainNotification.model_validate(doc, from_attributes=True)
-
     async def mark_as_read(self, notification_id: str, user_id: str) -> bool:
         doc = await NotificationDocument.find_one(
             NotificationDocument.notification_id == notification_id,

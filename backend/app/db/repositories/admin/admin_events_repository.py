@@ -353,17 +353,3 @@ class AdminEventsRepository:
             events_preview=events_preview,
         )
 
-    async def get_replay_events_preview(
-        self, event_ids: list[str] | None = None, correlation_id: str | None = None, aggregate_id: str | None = None
-    ) -> dict[str, Any]:
-        replay_filter = ReplayFilter(event_ids=event_ids, correlation_id=correlation_id, aggregate_id=aggregate_id)
-        query = replay_filter.to_mongo_query()
-
-        if not query:
-            return {"events": [], "total": 0}
-
-        total = await EventDocument.find(query).count()
-        docs = await EventDocument.find(query).sort([("timestamp", SortDirection.ASCENDING)]).limit(100).to_list()
-
-        events = [doc.model_dump() for doc in docs]
-        return {"events": events, "total": total}

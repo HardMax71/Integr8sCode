@@ -19,14 +19,9 @@ from app.core.tracing.models import (
 # Import utilities and decorators
 from app.core.tracing.utils import (
     add_span_attributes,
-    add_span_event,
     extract_trace_context,
-    get_current_span_id,
-    get_current_trace_id,
     get_tracer,
     inject_trace_context,
-    set_span_status,
-    trace_method,
     trace_span,
 )
 
@@ -43,14 +38,9 @@ __all__ = [
     "init_tracing",
     # Utilities and decorators
     "add_span_attributes",
-    "add_span_event",
     "extract_trace_context",
-    "get_current_span_id",
-    "get_current_trace_id",
     "get_tracer",
     "inject_trace_context",
-    "set_span_status",
-    "trace_method",
     "trace_span",
     # OpenTelemetry types
     "context",

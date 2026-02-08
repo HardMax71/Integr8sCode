@@ -51,7 +51,11 @@ async def get_execution_with_access(
     return ExecutionInDB.model_validate(domain_exec)
 
 
-@router.post("/execute", response_model=ExecutionResponse, responses={500: {"model": ErrorResponse}})
+@router.post(
+    "/execute",
+    response_model=ExecutionResponse,
+    responses={500: {"model": ErrorResponse, "description": "Script execution failed"}},
+)
 async def create_execution(
         request: Request,
         current_user: Annotated[User, Depends(current_user)],
@@ -151,7 +155,7 @@ async def create_execution(
 @router.get(
     "/executions/{execution_id}/result",
     response_model=ExecutionResult,
-    responses={403: {"model": ErrorResponse}},
+    responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
 )
 async def get_result(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
@@ -163,7 +167,10 @@ async def get_result(
 @router.post(
     "/executions/{execution_id}/cancel",
     response_model=CancelResponse,
-    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Execution is in a terminal state"},
+        403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+    },
 )
 async def cancel_execution(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
@@ -217,7 +224,10 @@ async def cancel_execution(
 @router.post(
     "/executions/{execution_id}/retry",
     response_model=ExecutionResponse,
-    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Execution is still running or queued"},
+        403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+    },
 )
 async def retry_execution(
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
@@ -248,7 +258,7 @@ async def retry_execution(
 @router.get(
     "/executions/{execution_id}/events",
     response_model=list[DomainEvent],
-    responses={403: {"model": ErrorResponse}},
+    responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
 )
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
@@ -306,16 +316,13 @@ async def get_example_scripts(
     return ExampleScripts(scripts=scripts)
 
 
-@router.get("/k8s-limits", response_model=ResourceLimits, responses={500: {"model": ErrorResponse}})
+@router.get("/k8s-limits", response_model=ResourceLimits)
 async def get_k8s_resource_limits(
         execution_service: FromDishka[ExecutionService],
 ) -> ResourceLimits:
     """Get Kubernetes resource limits for script execution."""
-    try:
-        limits = await execution_service.get_k8s_resource_limits()
-        return ResourceLimits.model_validate(limits)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve resource limits") from e
+    limits = await execution_service.get_k8s_resource_limits()
+    return ResourceLimits.model_validate(limits)
 
 
 @router.delete("/executions/{execution_id}", response_model=DeleteResponse)

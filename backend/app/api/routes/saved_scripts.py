@@ -41,7 +41,11 @@ async def list_saved_scripts(
     return [SavedScriptResponse.model_validate(item) for item in items]
 
 
-@router.get("/scripts/{script_id}", response_model=SavedScriptResponse, responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/scripts/{script_id}",
+    response_model=SavedScriptResponse,
+    responses={404: {"model": ErrorResponse, "description": "Script not found"}},
+)
 async def get_saved_script(
     request: Request,
     script_id: str,
@@ -55,7 +59,11 @@ async def get_saved_script(
     return SavedScriptResponse.model_validate(domain)
 
 
-@router.put("/scripts/{script_id}", response_model=SavedScriptResponse, responses={404: {"model": ErrorResponse}})
+@router.put(
+    "/scripts/{script_id}",
+    response_model=SavedScriptResponse,
+    responses={404: {"model": ErrorResponse, "description": "Script not found"}},
+)
 async def update_saved_script(
     request: Request,
     script_id: str,
@@ -71,7 +79,11 @@ async def update_saved_script(
     return SavedScriptResponse.model_validate(domain)
 
 
-@router.delete("/scripts/{script_id}", status_code=204, responses={404: {"model": ErrorResponse}})
+@router.delete(
+    "/scripts/{script_id}",
+    status_code=204,
+    responses={404: {"model": ErrorResponse, "description": "Script not found"}},
+)
 async def delete_saved_script(
     request: Request,
     script_id: str,

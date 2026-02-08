@@ -55,7 +55,11 @@ async def get_dlq_messages(
     return DLQMessagesResponse(messages=messages, total=result.total, offset=result.offset, limit=result.limit)
 
 
-@router.get("/messages/{event_id}", response_model=DLQMessageDetail, responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/messages/{event_id}",
+    response_model=DLQMessageDetail,
+    responses={404: {"model": ErrorResponse, "description": "DLQ message not found"}},
+)
 async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) -> DLQMessageDetail:
     """Get details of a specific DLQ message."""
     message = await repository.get_message_by_id(event_id)
@@ -90,7 +94,11 @@ async def set_retry_policy(policy_request: RetryPolicyRequest, dlq_manager: From
     return MessageResponse(message=f"Retry policy set for topic {policy_request.topic}")
 
 
-@router.delete("/messages/{event_id}", response_model=MessageResponse, responses={404: {"model": ErrorResponse}})
+@router.delete(
+    "/messages/{event_id}",
+    response_model=MessageResponse,
+    responses={404: {"model": ErrorResponse, "description": "Message not found or already in terminal state"}},
+)
 async def discard_dlq_message(
     event_id: str,
     dlq_manager: FromDishka[DLQManager],

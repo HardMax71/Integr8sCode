@@ -1,6 +1,7 @@
 import pytest
 from app.db.docs import UserDocument
 from app.domain.enums import UserRole
+from app.domain.exceptions import NotFoundError
 from app.services.admin import AdminUserService
 from dishka import AsyncContainer
 
@@ -25,5 +26,5 @@ async def test_get_user_overview_basic(scope: AsyncContainer) -> None:
 @pytest.mark.asyncio
 async def test_get_user_overview_user_not_found(scope: AsyncContainer) -> None:
     svc: AdminUserService = await scope.get(AdminUserService)
-    with pytest.raises(ValueError):
+    with pytest.raises(NotFoundError):
         await svc.get_user_overview("missing")

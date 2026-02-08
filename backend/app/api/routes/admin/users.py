@@ -61,22 +61,26 @@ async def list_users(
     )
 
 
-@router.post("/", response_model=UserResponse, responses={400: {"model": ErrorResponse}})
+@router.post(
+    "/",
+    response_model=UserResponse,
+    responses={409: {"model": ErrorResponse, "description": "Username already exists"}},
+)
 async def create_user(
     admin: Annotated[User, Depends(admin_user)],
     user_data: UserCreate,
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Create a new user (admin only)."""
-    # Delegate to service; map known validation error to 400
-    try:
-        domain_user = await admin_user_service.create_user(admin_username=admin.username, user_data=user_data)
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+    domain_user = await admin_user_service.create_user(admin_username=admin.username, user_data=user_data)
     return UserResponse.model_validate(domain_user)
 
 
-@router.get("/{user_id}", response_model=UserResponse, responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/{user_id}",
+    response_model=UserResponse,
+    responses={404: {"model": ErrorResponse, "description": "User not found"}},
+)
 async def get_user(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
@@ -90,18 +94,18 @@ async def get_user(
     return UserResponse.model_validate(user)
 
 
-@router.get("/{user_id}/overview", response_model=AdminUserOverview, responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/{user_id}/overview",
+    response_model=AdminUserOverview,
+    responses={404: {"model": ErrorResponse, "description": "User not found"}},
+)
 async def get_user_overview(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
 ) -> AdminUserOverview:
     """Get a comprehensive overview of a user including stats and rate limits."""
-    # Service raises ValueError if not found -> map to 404
-    try:
-        domain = await admin_user_service.get_user_overview(user_id=user_id, hours=24)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="User not found")
+    domain = await admin_user_service.get_user_overview(user_id=user_id, hours=24)
     return AdminUserOverview(
         user=UserResponse.model_validate(domain.user),
         stats=EventStatistics.model_validate(domain.stats),
@@ -114,7 +118,10 @@ async def get_user_overview(
 @router.put(
     "/{user_id}",
     response_model=UserResponse,
-    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        404: {"model": ErrorResponse, "description": "User not found"},
+        500: {"model": ErrorResponse, "description": "Failed to update user"},
+    },
 )
 async def update_user(
     admin: Annotated[User, Depends(admin_user)],
@@ -147,7 +154,11 @@ async def update_user(
     return UserResponse.model_validate(updated_user)
 
 
-@router.delete("/{user_id}", response_model=DeleteUserResponse, responses={400: {"model": ErrorResponse}})
+@router.delete(
+    "/{user_id}",
+    response_model=DeleteUserResponse,
+    responses={400: {"model": ErrorResponse, "description": "Cannot delete your own account"}},
+)
 async def delete_user(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
@@ -174,7 +185,11 @@ async def delete_user(
     )
 
 
-@router.post("/{user_id}/reset-password", response_model=MessageResponse, responses={500: {"model": ErrorResponse}})
+@router.post(
+    "/{user_id}/reset-password",
+    response_model=MessageResponse,
+    responses={500: {"model": ErrorResponse, "description": "Failed to reset password"}},
+)
 async def reset_user_password(
     admin: Annotated[User, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],

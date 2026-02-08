@@ -16,7 +16,11 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=SystemSettings, responses={500: {"model": ErrorResponse}})
+@router.get(
+    "/",
+    response_model=SystemSettings,
+    responses={500: {"model": ErrorResponse, "description": "Failed to load system settings"}},
+)
 async def get_system_settings(
     admin: Annotated[User, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
@@ -28,7 +32,11 @@ async def get_system_settings(
 
 @router.put(
     "/",
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid settings values"},
+        422: {"model": ErrorResponse, "description": "Settings validation failed"},
+        500: {"model": ErrorResponse, "description": "Failed to save settings"},
+    },
 )
 async def update_system_settings(
     admin: Annotated[User, Depends(admin_user)],
@@ -45,7 +53,11 @@ async def update_system_settings(
     return SystemSettings.model_validate(updated, from_attributes=True)
 
 
-@router.post("/reset", response_model=SystemSettings, responses={500: {"model": ErrorResponse}})
+@router.post(
+    "/reset",
+    response_model=SystemSettings,
+    responses={500: {"model": ErrorResponse, "description": "Failed to reset settings"}},
+)
 async def reset_system_settings(
     admin: Annotated[User, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],

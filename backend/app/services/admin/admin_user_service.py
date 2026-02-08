@@ -6,6 +6,7 @@ from app.core.security import SecurityService
 from app.db.repositories import AdminUserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
+from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult
 from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
 from app.schemas_pydantic.user import UserCreate
@@ -35,7 +36,7 @@ class AdminUserService:
         self.logger.info("Admin getting user overview", extra={"target_user_id": user_id, "hours": hours})
         user = await self._users.get_user_by_id(user_id)
         if not user:
-            raise ValueError("User not found")
+            raise NotFoundError("User", user_id)
 
         now = datetime.now(timezone.utc)
         start = now - timedelta(hours=hours)
@@ -137,7 +138,7 @@ class AdminUserService:
         search_result = await self._users.list_users(limit=1, offset=0, search=user_data.username)
         for user in search_result.users:
             if user.username == user_data.username:
-                raise ValueError("Username already exists")
+                raise ConflictError("Username already exists")
 
         hashed_password = self._security.get_password_hash(user_data.password)
 

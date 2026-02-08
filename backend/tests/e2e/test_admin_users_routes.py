@@ -178,7 +178,7 @@ class TestCreateUser:
             json=duplicate_user.model_dump(),
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 409
 
     @pytest.mark.asyncio
     async def test_create_user_invalid_password(

@@ -8613,13 +8613,13 @@ export type DeleteEventApiV1AdminEventsEventIdDeleteData = {
 
 export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
     /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
-    /**
-     * Internal Server Error
-     */
-    500: ErrorResponse;
 };
 
 export type DeleteEventApiV1AdminEventsEventIdDeleteError = DeleteEventApiV1AdminEventsEventIdDeleteErrors[keyof DeleteEventApiV1AdminEventsEventIdDeleteErrors];

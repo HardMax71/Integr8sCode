@@ -207,7 +207,7 @@ class AuthStore {
         this.#verifyPromise = (async () => {
             try {
                 const { data, error } = await verifyTokenApiV1AuthVerifyTokenGet({});
-                if (error || !data?.valid) {
+                if (error || !data.valid) {
                     this.clearAuth();
                     this.#authCache = { valid: false, timestamp: Date.now() };
                     return false;

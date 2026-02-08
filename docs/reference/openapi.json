@@ -3167,6 +3167,7 @@
             "schema": {
               "type": "integer",
               "maximum": 168,
+              "minimum": 1,
               "description": "Lookback window in hours (max 168)",
               "default": 24,
               "title": "Hours"
@@ -3273,6 +3274,7 @@
             "schema": {
               "type": "integer",
               "maximum": 50000,
+              "minimum": 1,
               "default": 10000,
               "title": "Limit"
             }
@@ -3447,6 +3449,7 @@
             "schema": {
               "type": "integer",
               "maximum": 50000,
+              "minimum": 1,
               "default": 10000,
               "title": "Limit"
             }
@@ -3555,7 +3558,7 @@
               }
             }
           },
-          "500": {
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3563,7 +3566,7 @@
                 }
               }
             },
-            "description": "Internal Server Error"
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -3837,6 +3840,7 @@
             "schema": {
               "type": "integer",
               "maximum": 1000,
+              "minimum": 1,
               "default": 100,
               "title": "Limit"
             }

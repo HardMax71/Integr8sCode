@@ -39,7 +39,7 @@ router = APIRouter(
 async def list_users(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
-    limit: Annotated[int, Query(le=1000)] = 100,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query(description="Search by username or email")] = None,
     role: Annotated[UserRole | None, Query(description="Filter by user role")] = None,

@@ -54,7 +54,7 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
 @router.get("/stats")
 async def get_event_stats(
     service: FromDishka[AdminEventsService],
-    hours: Annotated[int, Query(le=168, description="Lookback window in hours (max 168)")] = 24,
+    hours: Annotated[int, Query(ge=1, le=168, description="Lookback window in hours (max 168)")] = 24,
 ) -> EventStatsResponse:
     """Get event statistics for a given lookback window."""
     stats = await service.get_event_stats(hours=hours)
@@ -67,7 +67,7 @@ async def export_events_csv(
     event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
     start_time: Annotated[datetime | None, Query(description="Start time")] = None,
     end_time: Annotated[datetime | None, Query(description="End time")] = None,
-    limit: Annotated[int, Query(le=50000)] = 10000,
+    limit: Annotated[int, Query(ge=1, le=50000)] = 10000,
 ) -> StreamingResponse:
     """Export filtered events as a downloadable CSV file."""
     export_filter = EventFilter(
@@ -93,7 +93,7 @@ async def export_events_json(
     service_name: Annotated[str | None, Query(description="Service name filter")] = None,
     start_time: Annotated[datetime | None, Query(description="Start time")] = None,
     end_time: Annotated[datetime | None, Query(description="End time")] = None,
-    limit: Annotated[int, Query(le=50000)] = 10000,
+    limit: Annotated[int, Query(ge=1, le=50000)] = 10000,
 ) -> StreamingResponse:
     """Export events as JSON with comprehensive filtering."""
     export_filter = EventFilter(
@@ -190,13 +190,13 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
     )
 
 
-@router.delete("/{event_id}", responses={500: {"model": ErrorResponse}})
+@router.delete("/{event_id}", responses={404: {"model": ErrorResponse}})
 async def delete_event(
     event_id: str, admin: Annotated[UserResponse, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
     """Delete and archive an event by ID."""
     deleted = await service.delete_event(event_id=event_id, deleted_by=admin.email)
     if not deleted:
-        raise HTTPException(status_code=500, detail="Failed to delete event")
+        raise HTTPException(status_code=404, detail="Event not found")
 
     return EventDeleteResponse(message="Event deleted and archived", event_id=event_id)

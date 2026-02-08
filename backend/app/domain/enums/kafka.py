@@ -61,5 +61,4 @@ class GroupId(StringEnum):
     EVENT_STORE_CONSUMER = "event-store-consumer"
     WEBSOCKET_GATEWAY = "websocket-gateway"
     NOTIFICATION_SERVICE = "notification-service"
-    DLQ_PROCESSOR = "dlq-processor"
     DLQ_MANAGER = "dlq-manager"

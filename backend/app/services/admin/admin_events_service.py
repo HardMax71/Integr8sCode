@@ -19,6 +19,7 @@ from app.domain.events import (
     EventStatistics,
     EventSummary,
 )
+from app.domain.exceptions import ValidationError
 from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.event_replay import EventReplayService
 
@@ -103,7 +104,7 @@ class AdminEventsService:
         target_service: str | None,
     ) -> AdminReplayResult:
         if replay_filter.is_empty():
-            raise ValueError("Must specify at least one filter for replay")
+            raise ValidationError("Must specify at least one filter for replay")
 
         # Prepare and optionally preview
         self.logger.info(

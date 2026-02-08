@@ -34,7 +34,7 @@ router = APIRouter(prefix="/events", tags=["events"], route_class=DishkaRoute)
 @router.get(
     "/executions/{execution_id}/events",
     response_model=EventListResponse,
-    responses={403: {"model": ErrorResponse}},
+    responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
 )
 async def get_execution_events(
     execution_id: str,
@@ -103,7 +103,11 @@ async def get_user_events(
     )
 
 
-@router.post("/query", response_model=EventListResponse, responses={403: {"model": ErrorResponse}})
+@router.post(
+    "/query",
+    response_model=EventListResponse,
+    responses={403: {"model": ErrorResponse, "description": "Cannot query other users' events"}},
+)
 async def query_events(
     current_user: Annotated[User, Depends(current_user)],
     filter_request: EventFilterRequest,
@@ -226,7 +230,11 @@ async def get_event_statistics(
     return EventStatistics.model_validate(stats)
 
 
-@router.get("/{event_id}", response_model=DomainEvent, responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/{event_id}",
+    response_model=DomainEvent,
+    responses={404: {"model": ErrorResponse, "description": "Event not found"}},
+)
 async def get_event(
     event_id: str, current_user: Annotated[User, Depends(current_user)], event_service: FromDishka[EventService]
 ) -> DomainEvent:
@@ -294,7 +302,11 @@ async def list_event_types(
     return event_types
 
 
-@router.delete("/{event_id}", response_model=DeleteEventResponse, responses={404: {"model": ErrorResponse}})
+@router.delete(
+    "/{event_id}",
+    response_model=DeleteEventResponse,
+    responses={404: {"model": ErrorResponse, "description": "Event not found"}},
+)
 async def delete_event(
     event_id: str,
     admin: Annotated[User, Depends(admin_user)],
@@ -326,7 +338,7 @@ async def delete_event(
 @router.post(
     "/replay/{aggregate_id}",
     response_model=ReplayAggregateResponse,
-    responses={404: {"model": ErrorResponse}},
+    responses={404: {"model": ErrorResponse, "description": "No events found for the aggregate"}},
 )
 async def replay_aggregate_events(
     aggregate_id: str,

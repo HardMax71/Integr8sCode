@@ -6638,7 +6638,7 @@ export type LoginApiV1AuthLoginPostData = {
 
 export type LoginApiV1AuthLoginPostErrors = {
     /**
-     * Unauthorized
+     * Invalid username or password
      */
     401: ErrorResponse;
     /**
@@ -6667,21 +6667,17 @@ export type RegisterApiV1AuthRegisterPostData = {
 
 export type RegisterApiV1AuthRegisterPostErrors = {
     /**
-     * Bad Request
+     * Username already registered
      */
     400: ErrorResponse;
     /**
-     * Conflict
+     * Email already registered
      */
     409: ErrorResponse;
     /**
      * Validation Error
      */
     422: HttpValidationError;
-    /**
-     * Internal Server Error
-     */
-    500: ErrorResponse;
 };
 
 export type RegisterApiV1AuthRegisterPostError = RegisterApiV1AuthRegisterPostErrors[keyof RegisterApiV1AuthRegisterPostErrors];
@@ -6720,7 +6716,7 @@ export type VerifyTokenApiV1AuthVerifyTokenGetData = {
 
 export type VerifyTokenApiV1AuthVerifyTokenGetErrors = {
     /**
-     * Unauthorized
+     * Missing or invalid access token
      */
     401: ErrorResponse;
 };
@@ -6771,7 +6767,7 @@ export type CreateExecutionApiV1ExecutePostErrors = {
      */
     422: HttpValidationError;
     /**
-     * Internal Server Error
+     * Script execution failed
      */
     500: ErrorResponse;
 };
@@ -6801,7 +6797,7 @@ export type GetResultApiV1ExecutionsExecutionIdResultGetData = {
 
 export type GetResultApiV1ExecutionsExecutionIdResultGetErrors = {
     /**
-     * Forbidden
+     * Not the owner of this execution
      */
     403: ErrorResponse;
     /**
@@ -6835,11 +6831,11 @@ export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostData = {
 
 export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors = {
     /**
-     * Bad Request
+     * Execution is in a terminal state
      */
     400: ErrorResponse;
     /**
-     * Forbidden
+     * Not the owner of this execution
      */
     403: ErrorResponse;
     /**
@@ -6873,11 +6869,11 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostData = {
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
     /**
-     * Bad Request
+     * Execution is still running or queued
      */
     400: ErrorResponse;
     /**
-     * Forbidden
+     * Not the owner of this execution
      */
     403: ErrorResponse;
     /**
@@ -6922,7 +6918,7 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData = {
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors = {
     /**
-     * Forbidden
+     * Not the owner of this execution
      */
     403: ErrorResponse;
     /**
@@ -7139,15 +7135,6 @@ export type GetK8sResourceLimitsApiV1K8sLimitsGetData = {
     url: '/api/v1/k8s-limits';
 };
 
-export type GetK8sResourceLimitsApiV1K8sLimitsGetErrors = {
-    /**
-     * Internal Server Error
-     */
-    500: ErrorResponse;
-};
-
-export type GetK8sResourceLimitsApiV1K8sLimitsGetError = GetK8sResourceLimitsApiV1K8sLimitsGetErrors[keyof GetK8sResourceLimitsApiV1K8sLimitsGetErrors];
-
 export type GetK8sResourceLimitsApiV1K8sLimitsGetResponses = {
     /**
      * Successful Response
@@ -7244,7 +7231,7 @@ export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteData = {
 
 export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors = {
     /**
-     * Not Found
+     * Script not found
      */
     404: ErrorResponse;
     /**
@@ -7278,7 +7265,7 @@ export type GetSavedScriptApiV1ScriptsScriptIdGetData = {
 
 export type GetSavedScriptApiV1ScriptsScriptIdGetErrors = {
     /**
-     * Not Found
+     * Script not found
      */
     404: ErrorResponse;
     /**
@@ -7312,7 +7299,7 @@ export type UpdateSavedScriptApiV1ScriptsScriptIdPutData = {
 
 export type UpdateSavedScriptApiV1ScriptsScriptIdPutErrors = {
     /**
-     * Not Found
+     * Script not found
      */
     404: ErrorResponse;
     /**
@@ -7698,7 +7685,7 @@ export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteData = {
 
 export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteErrors = {
     /**
-     * Not Found
+     * Message not found or already in terminal state
      */
     404: ErrorResponse;
     /**
@@ -7732,7 +7719,7 @@ export type GetDlqMessageApiV1DlqMessagesEventIdGetData = {
 
 export type GetDlqMessageApiV1DlqMessagesEventIdGetErrors = {
     /**
-     * Not Found
+     * DLQ message not found
      */
     404: ErrorResponse;
     /**
@@ -7895,7 +7882,7 @@ export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
 
 export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetErrors = {
     /**
-     * Forbidden
+     * Not the owner of this execution
      */
     403: ErrorResponse;
     /**
@@ -7980,7 +7967,7 @@ export type QueryEventsApiV1EventsQueryPostData = {
 
 export type QueryEventsApiV1EventsQueryPostErrors = {
     /**
-     * Forbidden
+     * Cannot query other users' events
      */
     403: ErrorResponse;
     /**
@@ -8137,7 +8124,7 @@ export type DeleteEventApiV1EventsEventIdDeleteData = {
 
 export type DeleteEventApiV1EventsEventIdDeleteErrors = {
     /**
-     * Not Found
+     * Event not found
      */
     404: ErrorResponse;
     /**
@@ -8171,7 +8158,7 @@ export type GetEventApiV1EventsEventIdGetData = {
 
 export type GetEventApiV1EventsEventIdGetErrors = {
     /**
-     * Not Found
+     * Event not found
      */
     404: ErrorResponse;
     /**
@@ -8406,7 +8393,7 @@ export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostData = {
 
 export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostErrors = {
     /**
-     * Not Found
+     * No events found for the aggregate
      */
     404: ErrorResponse;
     /**
@@ -8613,7 +8600,7 @@ export type DeleteEventApiV1AdminEventsEventIdDeleteData = {
 
 export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
     /**
-     * Not Found
+     * Event not found
      */
     404: ErrorResponse;
     /**
@@ -8647,7 +8634,7 @@ export type GetEventDetailApiV1AdminEventsEventIdGetData = {
 
 export type GetEventDetailApiV1AdminEventsEventIdGetErrors = {
     /**
-     * Not Found
+     * Event not found
      */
     404: ErrorResponse;
     /**
@@ -8676,17 +8663,13 @@ export type ReplayEventsApiV1AdminEventsReplayPostData = {
 
 export type ReplayEventsApiV1AdminEventsReplayPostErrors = {
     /**
-     * Bad Request
-     */
-    400: ErrorResponse;
-    /**
-     * Not Found
+     * No events match the replay filter
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Empty filter or too many events to replay
      */
-    422: HttpValidationError;
+    422: ErrorResponse;
 };
 
 export type ReplayEventsApiV1AdminEventsReplayPostError = ReplayEventsApiV1AdminEventsReplayPostErrors[keyof ReplayEventsApiV1AdminEventsReplayPostErrors];
@@ -8714,7 +8697,7 @@ export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
 
 export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
     /**
-     * Not Found
+     * Replay session not found
      */
     404: ErrorResponse;
     /**
@@ -8743,7 +8726,7 @@ export type GetSystemSettingsApiV1AdminSettingsGetData = {
 
 export type GetSystemSettingsApiV1AdminSettingsGetErrors = {
     /**
-     * Internal Server Error
+     * Failed to load system settings
      */
     500: ErrorResponse;
 };
@@ -8768,15 +8751,15 @@ export type UpdateSystemSettingsApiV1AdminSettingsPutData = {
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutErrors = {
     /**
-     * Bad Request
+     * Invalid settings values
      */
     400: ErrorResponse;
     /**
-     * Unprocessable Entity
+     * Settings validation failed
      */
     422: ErrorResponse;
     /**
-     * Internal Server Error
+     * Failed to save settings
      */
     500: ErrorResponse;
 };
@@ -8801,7 +8784,7 @@ export type ResetSystemSettingsApiV1AdminSettingsResetPostData = {
 
 export type ResetSystemSettingsApiV1AdminSettingsResetPostErrors = {
     /**
-     * Internal Server Error
+     * Failed to reset settings
      */
     500: ErrorResponse;
 };
@@ -8872,9 +8855,9 @@ export type CreateUserApiV1AdminUsersPostData = {
 
 export type CreateUserApiV1AdminUsersPostErrors = {
     /**
-     * Bad Request
+     * Username already exists
      */
-    400: ErrorResponse;
+    409: ErrorResponse;
     /**
      * Validation Error
      */
@@ -8913,7 +8896,7 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteData = {
 
 export type DeleteUserApiV1AdminUsersUserIdDeleteErrors = {
     /**
-     * Bad Request
+     * Cannot delete your own account
      */
     400: ErrorResponse;
     /**
@@ -8947,7 +8930,7 @@ export type GetUserApiV1AdminUsersUserIdGetData = {
 
 export type GetUserApiV1AdminUsersUserIdGetErrors = {
     /**
-     * Not Found
+     * User not found
      */
     404: ErrorResponse;
     /**
@@ -8981,7 +8964,7 @@ export type UpdateUserApiV1AdminUsersUserIdPutData = {
 
 export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
     /**
-     * Not Found
+     * User not found
      */
     404: ErrorResponse;
     /**
@@ -8989,7 +8972,7 @@ export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
      */
     422: HttpValidationError;
     /**
-     * Internal Server Error
+     * Failed to update user
      */
     500: ErrorResponse;
 };
@@ -9019,7 +9002,7 @@ export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetData = {
 
 export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors = {
     /**
-     * Not Found
+     * User not found
      */
     404: ErrorResponse;
     /**
@@ -9057,7 +9040,7 @@ export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors = {
      */
     422: HttpValidationError;
     /**
-     * Internal Server Error
+     * Failed to reset password
      */
     500: ErrorResponse;
 };
@@ -9576,11 +9559,11 @@ export type GetSagaStatusApiV1SagasSagaIdGetData = {
 
 export type GetSagaStatusApiV1SagasSagaIdGetErrors = {
     /**
-     * Forbidden
+     * Access denied
      */
     403: ErrorResponse;
     /**
-     * Not Found
+     * Saga not found
      */
     404: ErrorResponse;
     /**
@@ -9629,7 +9612,7 @@ export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetData = {
 
 export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors = {
     /**
-     * Forbidden
+     * Access denied
      */
     403: ErrorResponse;
     /**
@@ -9703,15 +9686,15 @@ export type CancelSagaApiV1SagasSagaIdCancelPostData = {
 
 export type CancelSagaApiV1SagasSagaIdCancelPostErrors = {
     /**
-     * Bad Request
+     * Saga is not in a cancellable state
      */
     400: ErrorResponse;
     /**
-     * Forbidden
+     * Access denied
      */
     403: ErrorResponse;
     /**
-     * Not Found
+     * Saga not found
      */
     404: ErrorResponse;
     /**

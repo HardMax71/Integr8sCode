@@ -113,7 +113,7 @@ async def export_events_json(
     )
 
 
-@router.get("/{event_id}", responses={404: {"model": ErrorResponse}})
+@router.get("/{event_id}", responses={404: {"model": ErrorResponse, "description": "Event not found"}})
 async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService]) -> EventDetailResponse:
     """Get detailed information about a single event, including related events and timeline."""
     result = await service.get_event_detail(event_id)
@@ -128,7 +128,13 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
     )
 
 
-@router.post("/replay", responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
+@router.post(
+    "/replay",
+    responses={
+        404: {"model": ErrorResponse, "description": "No events match the replay filter"},
+        422: {"model": ErrorResponse, "description": "Empty filter or too many events to replay"},
+    },
+)
 async def replay_events(
     request: EventReplayRequest, background_tasks: BackgroundTasks, service: FromDishka[AdminEventsService]
 ) -> EventReplayResponse:
@@ -141,20 +147,12 @@ async def replay_events(
         start_time=request.start_time,
         end_time=request.end_time,
     )
-    try:
-        result = await service.prepare_or_schedule_replay(
-            replay_filter=replay_filter,
-            dry_run=request.dry_run,
-            replay_correlation_id=replay_correlation_id,
-            target_service=request.target_service,
-        )
-    except ValueError as e:
-        msg = str(e)
-        if "No events found" in msg:
-            raise HTTPException(status_code=404, detail=msg)
-        if "Too many events" in msg:
-            raise HTTPException(status_code=400, detail=msg)
-        raise
+    result = await service.prepare_or_schedule_replay(
+        replay_filter=replay_filter,
+        dry_run=request.dry_run,
+        replay_correlation_id=replay_correlation_id,
+        target_service=request.target_service,
+    )
 
     if not result.dry_run and result.session_id:
         background_tasks.add_task(service.start_replay_session, result.session_id)
@@ -169,7 +167,10 @@ async def replay_events(
     )
 
 
-@router.get("/replay/{session_id}/status", responses={404: {"model": ErrorResponse}})
+@router.get(
+    "/replay/{session_id}/status",
+    responses={404: {"model": ErrorResponse, "description": "Replay session not found"}},
+)
 async def get_replay_status(session_id: str, service: FromDishka[AdminEventsService]) -> EventReplayStatusResponse:
     """Get the status and progress of a replay session."""
     status = await service.get_replay_status(session_id)
@@ -190,7 +191,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
     )
 
 
-@router.delete("/{event_id}", responses={404: {"model": ErrorResponse}})
+@router.delete("/{event_id}", responses={404: {"model": ErrorResponse, "description": "Event not found"}})
 async def delete_event(
     event_id: str, admin: Annotated[User, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:

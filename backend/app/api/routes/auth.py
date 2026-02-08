@@ -10,6 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
+from app.domain.exceptions import ConflictError
 from app.domain.user import DomainUserCreate
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
@@ -25,7 +26,11 @@ from app.settings import Settings
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
 
-@router.post("/login", response_model=LoginResponse, responses={401: {"model": ErrorResponse}})
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    responses={401: {"model": ErrorResponse, "description": "Invalid username or password"}},
+)
 async def login(
     request: Request,
     response: Response,
@@ -127,7 +132,10 @@ async def login(
 @router.post(
     "/register",
     response_model=UserResponse,
-    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Username already registered"},
+        409: {"model": ErrorResponse, "description": "Email already registered"},
+    },
 )
 async def register(
     request: Request,
@@ -170,26 +178,6 @@ async def register(
             is_superuser=False,
         )
         created_user = await user_repo.create_user(create_data)
-
-        logger.info(
-            "Registration successful",
-            extra={
-                "username": created_user.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-            },
-        )
-
-        return UserResponse(
-            user_id=created_user.user_id,
-            username=created_user.username,
-            email=created_user.email,
-            role=created_user.role,
-            is_superuser=created_user.is_superuser,
-            created_at=created_user.created_at,
-            updated_at=created_user.updated_at,
-        )
-
     except DuplicateKeyError as e:
         logger.warning(
             "Registration failed - duplicate email",
@@ -198,20 +186,26 @@ async def register(
                 "client_ip": get_client_ip(request),
             },
         )
-        raise HTTPException(status_code=409, detail="Email already registered") from e
-    except Exception as e:
-        logger.error(
-            f"Registration failed - database error: {str(e)}",
-            extra={
-                "username": user.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail="Error creating user") from e
+        raise ConflictError("Email already registered") from e
+
+    logger.info(
+        "Registration successful",
+        extra={
+            "username": created_user.username,
+            "client_ip": get_client_ip(request),
+            "user_agent": request.headers.get("user-agent"),
+        },
+    )
+
+    return UserResponse(
+        user_id=created_user.user_id,
+        username=created_user.username,
+        email=created_user.email,
+        role=created_user.role,
+        is_superuser=created_user.is_superuser,
+        created_at=created_user.created_at,
+        updated_at=created_user.updated_at,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -240,7 +234,11 @@ async def get_current_user_profile(
     return UserResponse.model_validate(current_user, from_attributes=True)
 
 
-@router.get("/verify-token", response_model=TokenValidationResponse, responses={401: {"model": ErrorResponse}})
+@router.get(
+    "/verify-token",
+    response_model=TokenValidationResponse,
+    responses={401: {"model": ErrorResponse, "description": "Missing or invalid access token"}},
+)
 async def verify_token(
     request: Request,
     auth_service: FromDishka[AuthService],
@@ -258,39 +256,22 @@ async def verify_token(
         },
     )
 
-    try:
-        logger.info(
-            "Token verification successful",
-            extra={
-                "username": current_user.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-            },
-        )
-        csrf_token = request.cookies.get("csrf_token", "")
+    logger.info(
+        "Token verification successful",
+        extra={
+            "username": current_user.username,
+            "client_ip": get_client_ip(request),
+            "user_agent": request.headers.get("user-agent"),
+        },
+    )
+    csrf_token = request.cookies.get("csrf_token", "")
 
-        return TokenValidationResponse(
-            valid=True,
-            username=current_user.username,
-            role="admin" if current_user.is_superuser else "user",
-            csrf_token=csrf_token,
-        )
-
-    except Exception as e:
-        logger.error(
-            "Token verification failed",
-            extra={
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-                "error_type": type(e).__name__,
-                "error_detail": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from e
+    return TokenValidationResponse(
+        valid=True,
+        username=current_user.username,
+        role="admin" if current_user.is_superuser else "user",
+        csrf_token=csrf_token,
+    )
 
 
 @router.post("/logout", response_model=MessageResponse)

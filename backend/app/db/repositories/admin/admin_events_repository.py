@@ -26,6 +26,7 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
+from app.domain.exceptions import NotFoundError, ValidationError
 from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
@@ -336,9 +337,9 @@ class AdminEventsRepository:
     ) -> ReplaySessionData:
         event_count = await self.count_events_for_replay(replay_filter)
         if event_count == 0:
-            raise ValueError("No events found matching the criteria")
+            raise NotFoundError("Events", "matching criteria")
         if event_count > max_events and not dry_run:
-            raise ValueError(f"Too many events to replay ({event_count}). Maximum is {max_events}.")
+            raise ValidationError(f"Too many events to replay ({event_count}). Maximum is {max_events}.")
 
         events_preview: list[EventSummary] = []
         if dry_run:

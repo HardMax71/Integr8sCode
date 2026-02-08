@@ -35,7 +35,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Invalid username or password",
             "content": {
               "application/json": {
                 "schema": {
@@ -87,7 +87,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Username already registered",
             "content": {
               "application/json": {
                 "schema": {
@@ -97,17 +97,7 @@
             }
           },
           "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
+            "description": "Email already registered",
             "content": {
               "application/json": {
                 "schema": {
@@ -171,7 +161,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Missing or invalid access token",
             "content": {
               "application/json": {
                 "schema": {
@@ -253,14 +243,14 @@
             }
           },
           "500": {
+            "description": "Script execution failed",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -306,14 +296,14 @@
             }
           },
           "403": {
+            "description": "Not the owner of this execution",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -369,24 +359,24 @@
             }
           },
           "400": {
+            "description": "Execution is in a terminal state",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "403": {
+            "description": "Not the owner of this execution",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -442,24 +432,24 @@
             }
           },
           "400": {
+            "description": "Execution is still running or queued",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "403": {
+            "description": "Not the owner of this execution",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -776,14 +766,14 @@
             }
           },
           "403": {
+            "description": "Not the owner of this execution",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -969,16 +959,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -1123,14 +1103,14 @@
             }
           },
           "404": {
+            "description": "Script not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1184,14 +1164,14 @@
             }
           },
           "404": {
+            "description": "Script not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1228,14 +1208,14 @@
             "description": "Successful Response"
           },
           "404": {
+            "description": "Script not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1828,14 +1808,14 @@
             }
           },
           "404": {
+            "description": "DLQ message not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -1890,14 +1870,14 @@
             }
           },
           "404": {
+            "description": "Message not found or already in terminal state",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2153,14 +2133,14 @@
             }
           },
           "403": {
+            "description": "Not the owner of this execution",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2332,7 +2312,7 @@
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Cannot query other users' events",
             "content": {
               "application/json": {
                 "schema": {
@@ -2839,14 +2819,14 @@
             }
           },
           "404": {
+            "description": "Event not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2890,14 +2870,14 @@
             }
           },
           "404": {
+            "description": "Event not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3087,14 +3067,14 @@
             }
           },
           "404": {
+            "description": "No events found for the aggregate",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3508,14 +3488,14 @@
             }
           },
           "404": {
+            "description": "Event not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3559,14 +3539,14 @@
             }
           },
           "404": {
+            "description": "Event not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3610,18 +3590,8 @@
               }
             }
           },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "404": {
-            "description": "Not Found",
+            "description": "No events match the replay filter",
             "content": {
               "application/json": {
                 "schema": {
@@ -3631,11 +3601,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Empty filter or too many events to replay",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -3674,14 +3644,14 @@
             }
           },
           "404": {
+            "description": "Replay session not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -3717,7 +3687,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error",
+            "description": "Failed to load system settings",
             "content": {
               "application/json": {
                 "schema": {
@@ -3758,7 +3728,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Invalid settings values",
             "content": {
               "application/json": {
                 "schema": {
@@ -3768,7 +3738,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Settings validation failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -3778,7 +3748,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error",
+            "description": "Failed to save settings",
             "content": {
               "application/json": {
                 "schema": {
@@ -3811,7 +3781,7 @@
             }
           },
           "500": {
-            "description": "Internal Server Error",
+            "description": "Failed to reset settings",
             "content": {
               "application/json": {
                 "schema": {
@@ -3945,15 +3915,15 @@
               }
             }
           },
-          "400": {
+          "409": {
+            "description": "Username already exists",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4000,14 +3970,14 @@
             }
           },
           "404": {
+            "description": "User not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4062,24 +4032,24 @@
             }
           },
           "404": {
+            "description": "User not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "500": {
+            "description": "Failed to update user",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4136,14 +4106,14 @@
             }
           },
           "400": {
+            "description": "Cannot delete your own account",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4190,14 +4160,14 @@
             }
           },
           "404": {
+            "description": "User not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4254,14 +4224,14 @@
             }
           },
           "500": {
+            "description": "Failed to reset password",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Internal Server Error"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5102,24 +5072,24 @@
             }
           },
           "403": {
+            "description": "Access denied",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "Saga not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5206,14 +5176,14 @@
             }
           },
           "403": {
+            "description": "Access denied",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5334,34 +5304,34 @@
             }
           },
           "400": {
+            "description": "Saga is not in a cancellable state",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Bad Request"
+            }
           },
           "403": {
+            "description": "Access denied",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Forbidden"
+            }
           },
           "404": {
+            "description": "Saga not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
-            },
-            "description": "Not Found"
+            }
           },
           "422": {
             "description": "Validation Error",

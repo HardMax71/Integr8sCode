@@ -25,7 +25,10 @@ router = APIRouter(
 @router.get(
     "/{saga_id}",
     response_model=SagaStatusResponse,
-    responses={403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={
+        403: {"model": ErrorResponse, "description": "Access denied"},
+        404: {"model": ErrorResponse, "description": "Saga not found"},
+    },
 )
 async def get_saga_status(
     saga_id: str,
@@ -56,7 +59,7 @@ async def get_saga_status(
 @router.get(
     "/execution/{execution_id}",
     response_model=SagaListResponse,
-    responses={403: {"model": ErrorResponse}},
+    responses={403: {"model": ErrorResponse, "description": "Access denied"}},
 )
 async def get_execution_sagas(
     execution_id: str,
@@ -135,7 +138,11 @@ async def list_sagas(
 @router.post(
     "/{saga_id}/cancel",
     response_model=SagaCancellationResponse,
-    responses={400: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Saga is not in a cancellable state"},
+        403: {"model": ErrorResponse, "description": "Access denied"},
+        404: {"model": ErrorResponse, "description": "Saga not found"},
+    },
 )
 async def cancel_saga(
     saga_id: str,

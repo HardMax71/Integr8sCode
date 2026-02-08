@@ -128,7 +128,7 @@ async def _create_authenticated_client(
         raise
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Authenticated user client. CSRF header is set automatically."""
     uid = uuid.uuid4().hex[:8]
@@ -143,7 +143,7 @@ async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     await c.aclose()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Authenticated admin client. CSRF header is set automatically."""
     uid = uuid.uuid4().hex[:8]

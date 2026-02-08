@@ -18,9 +18,9 @@ class TestGetNotifications:
     """Tests for GET /api/v1/notifications."""
 
     @pytest.mark.asyncio
-    async def test_get_notifications_empty(self, another_user: AsyncClient) -> None:
+    async def test_get_notifications_empty(self, test_user: AsyncClient) -> None:
         """New user has empty or minimal notifications."""
-        response = await another_user.get("/api/v1/notifications")
+        response = await test_user.get("/api/v1/notifications")
 
         assert response.status_code == 200
         result = NotificationListResponse.model_validate(response.json())

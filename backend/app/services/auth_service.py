@@ -5,7 +5,7 @@ from fastapi import Request
 from app.core.security import SecurityService
 from app.db.repositories.user_repository import UserRepository
 from app.domain.enums.user import UserRole
-from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredError
+from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredError, InvalidCredentialsError
 from app.schemas_pydantic.user import UserResponse
 
 
@@ -20,7 +20,10 @@ class AuthService:
         if not token:
             raise AuthenticationRequiredError()
 
-        user = await self.security_service.get_current_user(token, self.user_repo)
+        username = self.security_service.decode_token(token)
+        user = await self.user_repo.get_user(username)
+        if user is None:
+            raise InvalidCredentialsError()
 
         return UserResponse(
             user_id=user.user_id,

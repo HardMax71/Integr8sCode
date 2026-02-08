@@ -461,8 +461,8 @@ class RepositoryProvider(Provider):
         return AdminSettingsRepository(logger)
 
     @provide
-    def get_admin_user_repository(self, security_service: SecurityService) -> AdminUserRepository:
-        return AdminUserRepository(security_service)
+    def get_admin_user_repository(self) -> AdminUserRepository:
+        return AdminUserRepository()
 
     @provide
     def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:

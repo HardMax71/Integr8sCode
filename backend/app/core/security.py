@@ -1,3 +1,5 @@
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -6,18 +8,10 @@ from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
-from app.domain.user import AuthenticationRequiredError, CSRFValidationError, InvalidCredentialsError
-from app.domain.user import User as DomainAdminUser
+from app.domain.user import CSRFValidationError, InvalidCredentialsError
 from app.settings import Settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
-
-
-def get_token_from_cookie(request: Request) -> str:
-    token = request.cookies.get("access_token")
-    if not token:
-        raise AuthenticationRequiredError("Authentication token not found")
-    return token
 
 
 class SecurityService:
@@ -42,43 +36,53 @@ class SecurityService:
         encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return encoded_jwt
 
-    async def get_current_user(
-        self,
-        token: str,
-        user_repo: Any,  # Avoid circular import by using Any
-    ) -> DomainAdminUser:
+    def decode_token(self, token: str) -> str:
+        """Decode JWT and return the username (sub claim)."""
         try:
             payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
-            username: str = payload.get("sub")
+            username: str | None = payload.get("sub")
             if username is None:
                 raise InvalidCredentialsError()
         except jwt.PyJWTError as e:
             raise InvalidCredentialsError() from e
-        user = await user_repo.get_user(username)
-        if user is None:
-            raise InvalidCredentialsError()
-        return user  # type: ignore[no-any-return]
+        return username
 
-    def generate_csrf_token(self) -> str:
-        """Generate a CSRF token using secure random"""
-        import secrets
+    def generate_csrf_token(self, session_id: str) -> str:
+        """Generate a signed CSRF token bound to the given session (access_token).
 
-        return secrets.token_urlsafe(32)
+        Returns a token in the format ``{nonce}.{hmac_hex}`` so the server can
+        later verify it was issued for the same session.
+        """
+        nonce = secrets.token_urlsafe(16)
+        signature = self._sign_csrf(nonce, session_id)
+        return f"{nonce}.{signature}"
+
+    def _sign_csrf(self, nonce: str, session_id: str) -> str:
+        return hmac.new(
+            self.settings.SECRET_KEY.encode(),
+            f"{nonce}:{session_id}".encode(),
+            "sha256",
+        ).hexdigest()
+
+    def _verify_csrf_signature(self, token: str, session_id: str) -> bool:
+        parts = token.split(".", 1)
+        if len(parts) != 2:
+            return False
+        nonce, signature = parts
+        expected = self._sign_csrf(nonce, session_id)
+        return hmac.compare_digest(signature, expected)
 
     def validate_csrf_token(self, header_token: str, cookie_token: str) -> bool:
         """Validate CSRF token using double-submit cookie pattern"""
         if not header_token or not cookie_token:
             return False
         # Constant-time comparison to prevent timing attacks
-        import hmac
-
         return hmac.compare_digest(header_token, cookie_token)
 
     # Paths exempt from CSRF validation (auth handles its own security)
     CSRF_EXEMPT_PATHS: frozenset[str] = frozenset({
         "/api/v1/auth/login",
         "/api/v1/auth/register",
-        "/api/v1/auth/logout",
     })
 
     def validate_csrf_from_request(self, request: Request) -> str:
@@ -118,5 +122,8 @@ class SecurityService:
 
         if not self.validate_csrf_token(header_token, cookie_token):
             raise CSRFValidationError("CSRF token invalid or does not match cookie")
+
+        if not self._verify_csrf_signature(header_token, access_token):
+            raise CSRFValidationError("CSRF token signature invalid")
 
         return header_token

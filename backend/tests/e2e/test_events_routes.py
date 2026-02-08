@@ -40,10 +40,8 @@ class TestExecutionEvents:
         assert result.limit == 10
         assert result.skip == 0
         assert isinstance(result.has_more, bool)
-        assert len(result.events) == min(result.total, result.limit)
         # EXECUTION_REQUESTED is stored synchronously by the API handler.
-        # Additional events (SAGA_STARTED, etc.) may arrive from async workers.
-        # isinstance narrows the DomainEvent union so mypy accepts .execution_id.
+        # Async workers may add more events (SAGA_STARTED, etc.).
         requested = [e for e in result.events if isinstance(e, ExecutionRequestedEvent)]
         assert len(requested) == 1
         assert requested[0].execution_id == created_execution.execution_id

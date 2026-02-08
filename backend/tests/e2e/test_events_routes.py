@@ -1,6 +1,6 @@
 import pytest
 from app.domain.enums.events import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventListResponse,
@@ -37,13 +37,14 @@ class TestExecutionEvents:
 
         assert response.status_code == 200
         result = EventListResponse.model_validate(response.json())
-        assert result.total == 1
         assert result.limit == 10
         assert result.skip == 0
         assert isinstance(result.has_more, bool)
-        assert len(result.events) == 1
-        assert result.events[0].event_type == EventType.EXECUTION_REQUESTED
-        assert result.events[0].execution_id == created_execution.execution_id
+        # EXECUTION_REQUESTED is stored synchronously by the API handler.
+        # Async workers may add more events (SAGA_STARTED, etc.).
+        requested = [e for e in result.events if isinstance(e, ExecutionRequestedEvent)]
+        assert len(requested) == 1
+        assert requested[0].execution_id == created_execution.execution_id
 
     @pytest.mark.asyncio
     async def test_get_execution_events_pagination(

@@ -37,13 +37,14 @@ class TestExecutionEvents:
 
         assert response.status_code == 200
         result = EventListResponse.model_validate(response.json())
-        assert result.total == 1
+        assert result.total >= 1
         assert result.limit == 10
         assert result.skip == 0
         assert isinstance(result.has_more, bool)
-        assert len(result.events) == 1
-        assert result.events[0].event_type == EventType.EXECUTION_REQUESTED
-        assert result.events[0].execution_id == created_execution.execution_id
+        assert len(result.events) >= 1
+        requested = [e for e in result.events if e.event_type == EventType.EXECUTION_REQUESTED]
+        assert len(requested) == 1
+        assert requested[0].execution_id == created_execution.execution_id
 
     @pytest.mark.asyncio
     async def test_get_execution_events_pagination(

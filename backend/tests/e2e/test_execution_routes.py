@@ -488,7 +488,6 @@ class TestExecutionConcurrency:
 
     @pytest.mark.asyncio
     @pytest.mark.xdist_group("execution_concurrency")
-    @pytest.mark.xfail(reason="Flaky: K8s pod scheduling may timeout under resource pressure", strict=False)
     async def test_concurrent_executions(self, test_user: AsyncClient, event_waiter: EventWaiter) -> None:
         """Multiple concurrent executions work correctly."""
         tasks = []

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 
 
 class DLQMessageStatus(StringEnum):

@@ -3,7 +3,7 @@ from typing import Any, Generic, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 
 T = TypeVar("T", bound=DomainEvent)
 

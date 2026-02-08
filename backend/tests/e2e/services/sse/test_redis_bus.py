@@ -6,9 +6,9 @@ from typing import Any, cast
 import pytest
 import redis.asyncio as redis_async
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus
-from app.domain.events.typed import EventMetadata, ExecutionCompletedEvent
+from app.domain.events import EventMetadata, ExecutionCompletedEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 
 pytestmark = pytest.mark.e2e
 

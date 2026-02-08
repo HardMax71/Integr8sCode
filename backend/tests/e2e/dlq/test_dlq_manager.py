@@ -8,11 +8,11 @@ import pytest
 from aiokafka import AIOKafkaConsumer
 from app.core.metrics import DLQMetrics
 from app.core.providers import _default_retry_policies, _default_retry_policy
-from app.db.repositories.dlq_repository import DLQRepository
+from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage
 from app.domain.enums import EventType, KafkaTopic
-from app.domain.events.typed import DLQMessageReceivedEvent, DomainEventAdapter
+from app.domain.events import DLQMessageReceivedEvent, DomainEventAdapter
 from app.settings import Settings
 from dishka import AsyncContainer
 from faststream.kafka import KafkaBroker

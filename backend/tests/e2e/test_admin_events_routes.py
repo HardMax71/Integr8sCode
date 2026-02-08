@@ -2,9 +2,9 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from app.db.repositories.event_repository import EventRepository
+from app.db.repositories import EventRepository
 from app.domain.enums import EventType, ReplayStatus
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 from app.schemas_pydantic.admin_events import (
     EventBrowseRequest,
     EventBrowseResponse,

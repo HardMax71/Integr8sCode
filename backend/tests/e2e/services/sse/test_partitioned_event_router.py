@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 from app.schemas_pydantic.sse import RedisSSEMessage
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 from tests.conftest import make_execution_requested_event

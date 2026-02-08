@@ -7,7 +7,7 @@ from beanie.operators import GT, LTE, Eq, In
 
 from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
 from app.domain.enums import EventType
-from app.domain.user.settings_models import DomainUserSettings, DomainUserSettingsChangedEvent
+from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
 
 
 class UserSettingsRepository:

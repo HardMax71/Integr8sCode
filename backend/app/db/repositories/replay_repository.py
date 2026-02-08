@@ -6,9 +6,9 @@ from beanie.odm.enums import SortDirection
 from beanie.operators import LT, In
 
 from app.db.docs import EventDocument, ReplaySessionDocument
-from app.domain.admin.replay_updates import ReplaySessionUpdate
+from app.domain.admin import ReplaySessionUpdate
 from app.domain.enums import ReplayStatus
-from app.domain.replay.models import ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
 class ReplayRepository:

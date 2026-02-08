@@ -1,9 +1,9 @@
 import logging
 
 from app.core.metrics import ExecutionMetrics
-from app.db.repositories.execution_repository import ExecutionRepository
+from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, GroupId, StorageType
-from app.domain.events.typed import (
+from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,

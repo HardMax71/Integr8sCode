@@ -3,7 +3,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
 from app.core.security import SecurityService
-from app.db.repositories.admin.admin_user_repository import AdminUserRepository
+from app.db.repositories import AdminUserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult

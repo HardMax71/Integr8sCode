@@ -6,7 +6,7 @@ import pytest
 from kubernetes_asyncio.client import V1Pod, V1PodCondition
 
 from app.domain.enums import EventType, ExecutionErrorType
-from app.domain.events.typed import (
+from app.domain.events import (
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,

@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums import Environment, EventType, SortOrder
-from app.domain.events.typed import ContainerStatusInfo, DomainEvent
+from app.domain.events import ContainerStatusInfo, DomainEvent
 
 
 class EventTypeCountSchema(BaseModel):

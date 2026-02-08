@@ -2,14 +2,13 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime
 from time import time
-from typing import Any, Generator, TypeAlias
+from typing import Any, Generator
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
-from app.db.repositories.event_repository import EventRepository
-from app.db.repositories.execution_repository import ExecutionRepository
+from app.db.repositories import EventRepository, ExecutionRepository
 from app.domain.enums import EventType, ExecutionStatus, QueuePriority
-from app.domain.events.typed import (
+from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCancelledEvent,
@@ -26,13 +25,6 @@ from app.domain.execution import (
 from app.events.core import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
-
-# Type aliases for better readability
-UserId: TypeAlias = str
-EventFilter: TypeAlias = list[EventType] | None
-TimeRange: TypeAlias = tuple[datetime | None, datetime | None]
-ExecutionQuery: TypeAlias = dict[str, Any]
-ExecutionStats: TypeAlias = dict[str, Any]
 
 
 class ExecutionService:
@@ -288,7 +280,7 @@ class ExecutionService:
     async def get_execution_events(
         self,
         execution_id: str,
-        event_types: EventFilter = None,
+        event_types: list[EventType] | None = None,
         limit: int = 100,
     ) -> list[DomainEvent]:
         """
@@ -320,7 +312,7 @@ class ExecutionService:
 
     async def get_user_executions(
         self,
-        user_id: UserId,
+        user_id: str,
         status: ExecutionStatus | None = None,
         lang: str | None = None,
         start_time: datetime | None = None,
@@ -363,7 +355,7 @@ class ExecutionService:
 
     async def count_user_executions(
         self,
-        user_id: UserId,
+        user_id: str,
         status: ExecutionStatus | None = None,
         lang: str | None = None,
         start_time: datetime | None = None,
@@ -387,12 +379,12 @@ class ExecutionService:
 
     def _build_user_query(
         self,
-        user_id: UserId,
+        user_id: str,
         status: ExecutionStatus | None = None,
         lang: str | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-    ) -> ExecutionQuery:
+    ) -> dict[str, Any]:
         """
         Build MongoDB query for user executions.
 
@@ -406,7 +398,7 @@ class ExecutionService:
         Returns:
             MongoDB query dictionary.
         """
-        query: ExecutionQuery = {"user_id": str(user_id)}
+        query: dict[str, Any] = {"user_id": str(user_id)}
 
         if status:
             query["status"] = status
@@ -471,8 +463,8 @@ class ExecutionService:
         )
 
     async def get_execution_stats(
-        self, user_id: UserId | None = None, time_range: TimeRange = (None, None)
-    ) -> ExecutionStats:
+        self, user_id: str | None = None, time_range: tuple[datetime | None, datetime | None] = (None, None)
+    ) -> dict[str, Any]:
         """
         Get execution statistics.
 
@@ -493,7 +485,9 @@ class ExecutionService:
 
         return self._calculate_stats(executions)
 
-    def _build_stats_query(self, user_id: UserId | None, time_range: TimeRange) -> ExecutionQuery:
+    def _build_stats_query(
+        self, user_id: str | None, time_range: tuple[datetime | None, datetime | None]
+    ) -> dict[str, Any]:
         """
         Build query for statistics.
 
@@ -504,7 +498,7 @@ class ExecutionService:
         Returns:
             MongoDB query dictionary.
         """
-        query: ExecutionQuery = {}
+        query: dict[str, Any] = {}
 
         if user_id:
             query["user_id"] = str(user_id)
@@ -520,7 +514,7 @@ class ExecutionService:
 
         return query
 
-    def _calculate_stats(self, executions: list[DomainExecution]) -> ExecutionStats:
+    def _calculate_stats(self, executions: list[DomainExecution]) -> dict[str, Any]:
         """
         Calculate statistics from executions.
 
@@ -530,7 +524,7 @@ class ExecutionService:
         Returns:
             Statistics dictionary.
         """
-        stats: ExecutionStats = {
+        stats: dict[str, Any] = {
             "total": len(executions),
             "by_status": {},
             "by_language": {},

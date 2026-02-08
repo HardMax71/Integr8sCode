@@ -5,7 +5,7 @@ import pytest
 from app.domain.enums import NotificationChannel, NotificationSeverity
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]

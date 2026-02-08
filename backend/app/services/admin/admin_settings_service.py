@@ -1,6 +1,6 @@
 import logging
 
-from app.db.repositories.admin.admin_settings_repository import AdminSettingsRepository
+from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 
 

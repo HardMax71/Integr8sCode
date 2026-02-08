@@ -5,7 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import current_user
-from app.db.repositories.dlq_repository import DLQRepository
+from app.db.repositories import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessageStatus

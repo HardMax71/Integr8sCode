@@ -5,7 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
-from app.db.repositories.admin.admin_user_repository import AdminUserRepository
+from app.db.repositories import AdminUserRepository
 from app.domain.enums import UserRole
 from app.domain.rate_limit import RateLimitRule, UserRateLimit
 from app.domain.user import User

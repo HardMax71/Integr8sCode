@@ -9,7 +9,7 @@ from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
 from app.domain.enums import ExecutionErrorType
-from app.domain.events.typed import (
+from app.domain.events import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     ExecutionFailedEvent,

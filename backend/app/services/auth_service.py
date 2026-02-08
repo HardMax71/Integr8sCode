@@ -3,7 +3,7 @@ import logging
 from fastapi import Request
 
 from app.core.security import SecurityService
-from app.db.repositories.user_repository import UserRepository
+from app.db.repositories import UserRepository
 from app.domain.enums import UserRole
 from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredError, InvalidCredentialsError, User
 

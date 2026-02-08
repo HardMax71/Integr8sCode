@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from kubernetes_asyncio import client as k8s_client
 
 from app.domain.enums import ExecutionErrorType, GroupId
-from app.domain.events.typed import (
+from app.domain.events import (
     ContainerStatusInfo,
     DomainEvent,
     EventMetadata,

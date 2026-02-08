@@ -1,6 +1,6 @@
 import pytest
-from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
-from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
+from app.db.repositories import ResourceAllocationRepository
+from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
 from app.services.saga.execution_saga import (

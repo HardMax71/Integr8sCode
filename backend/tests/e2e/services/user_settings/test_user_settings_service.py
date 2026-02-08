@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from app.domain.enums import Theme
-from app.domain.user.settings_models import (
+from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
     DomainSettingsHistoryEntry,

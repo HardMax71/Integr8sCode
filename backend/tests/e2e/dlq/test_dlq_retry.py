@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 from app.db.docs import DLQMessageDocument
-from app.db.repositories.dlq_repository import DLQRepository
+from app.db.repositories import DLQRepository
 from app.dlq.models import DLQMessageStatus
 from app.domain.enums import KafkaTopic
 from dishka import AsyncContainer

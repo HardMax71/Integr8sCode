@@ -6,7 +6,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import SSEExecutionEventData
 from app.services.auth_service import AuthService
-from app.services.sse.sse_service import SSEService
+from app.services.sse import SSEService
 
 router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
 

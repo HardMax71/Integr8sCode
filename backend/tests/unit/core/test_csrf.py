@@ -1,6 +1,6 @@
 import pytest
 from app.core.security import SecurityService
-from app.domain.user.exceptions import CSRFValidationError
+from app.domain.user import CSRFValidationError
 from app.settings import Settings
 from starlette.requests import Request
 

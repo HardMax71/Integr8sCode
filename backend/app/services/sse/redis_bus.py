@@ -7,7 +7,7 @@ import redis.asyncio as redis
 from pydantic import BaseModel
 
 from app.domain.enums import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 
 T = TypeVar("T", bound=BaseModel)

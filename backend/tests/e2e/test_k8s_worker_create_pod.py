@@ -4,7 +4,7 @@ import uuid
 import pytest
 from app.core.metrics import EventMetrics
 from app.domain.enums import QueuePriority
-from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
+from app.domain.events import CreatePodCommandEvent, EventMetadata
 from app.events.core import UnifiedProducer
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings

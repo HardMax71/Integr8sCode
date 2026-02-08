@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.core.metrics import ExecutionMetrics
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
-from app.domain.events.typed import (
+from app.domain.events import (
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,

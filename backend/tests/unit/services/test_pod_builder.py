@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 from app.domain.enums import QueuePriority
-from app.domain.events.typed import CreatePodCommandEvent, EventMetadata
+from app.domain.events import CreatePodCommandEvent, EventMetadata
 from app.services.k8s_worker import PodBuilder
 from kubernetes_asyncio import client as k8s_client
 

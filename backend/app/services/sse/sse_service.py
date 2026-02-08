@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.metrics import ConnectionMetrics
-from app.db.repositories.sse_repository import SSERepository
+from app.db.repositories import SSERepository
 from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.notification import NotificationResponse

@@ -1,8 +1,8 @@
 import logging
 
 import pytest
-from app.domain.events.typed import DomainEvent, EventMetadata, ExecutionStartedEvent
-from app.services.sse.redis_bus import SSERedisBus
+from app.domain.events import DomainEvent, EventMetadata, ExecutionStartedEvent
+from app.services.sse import SSERedisBus
 
 pytestmark = pytest.mark.unit
 

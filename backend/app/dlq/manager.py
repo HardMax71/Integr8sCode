@@ -6,7 +6,7 @@ from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
 from app.core.tracing.utils import inject_trace_context
-from app.db.repositories.dlq_repository import DLQRepository
+from app.db.repositories import DLQRepository
 from app.dlq.models import (
     DLQBatchRetryResult,
     DLQMessage,
@@ -17,7 +17,7 @@ from app.dlq.models import (
     RetryStrategy,
 )
 from app.domain.enums import KafkaTopic
-from app.domain.events.typed import (
+from app.domain.events import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
     DLQMessageRetriedEvent,

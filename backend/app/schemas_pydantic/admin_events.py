@@ -3,8 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.domain.enums import EventType
-from app.domain.events.event_models import EventSummary
-from app.domain.events.typed import DomainEvent
+from app.domain.events import DomainEvent, EventSummary
 from app.domain.replay import ReplayError
 from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
 from app.schemas_pydantic.execution import ExecutionResult

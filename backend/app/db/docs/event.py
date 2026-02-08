@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.domain.enums import EventType
-from app.domain.events.typed import EventMetadata
+from app.domain.events import EventMetadata
 
 
 class EventDocument(Document):

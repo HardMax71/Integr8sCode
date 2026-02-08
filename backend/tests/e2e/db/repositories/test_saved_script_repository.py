@@ -1,5 +1,5 @@
 import pytest
-from app.db.repositories.saved_script_repository import SavedScriptRepository
+from app.db.repositories import SavedScriptRepository
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
 from dishka import AsyncContainer
 

@@ -3,7 +3,7 @@ from importlib import import_module
 import pytest
 import redis.asyncio as aioredis
 from app.db.docs import UserDocument
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSERedisBus
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI

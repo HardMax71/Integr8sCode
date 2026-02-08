@@ -4,7 +4,7 @@ from typing import Any
 
 from cachetools import TTLCache
 
-from app.db.repositories.user_settings_repository import UserSettingsRepository
+from app.db.repositories import UserSettingsRepository
 from app.domain.enums import EventType, Theme
 from app.domain.user import (
     DomainEditorSettings,

@@ -28,6 +28,10 @@ from app.domain.events.typed import (
     ContainerStatusInfo,
     CreatePodCommandEvent,
     DeletePodCommandEvent,
+    # DLQ Events
+    DLQMessageDiscardedEvent,
+    DLQMessageReceivedEvent,
+    DLQMessageRetriedEvent,
     DomainEvent,
     DomainEventAdapter,
     EventMetadata,
@@ -35,6 +39,8 @@ from app.domain.events.typed import (
     ExecutionAcceptedEvent,
     ExecutionCancelledEvent,
     ExecutionCompletedEvent,
+    # Type aliases
+    ExecutionDomainEvent,
     ExecutionFailedEvent,
     ExecutionQueuedEvent,
     ExecutionRequestedEvent,
@@ -181,8 +187,14 @@ __all__ = [
     # Resource Events
     "ResourceLimitExceededEvent",
     "QuotaExceededEvent",
+    # DLQ Events
+    "DLQMessageReceivedEvent",
+    "DLQMessageRetriedEvent",
+    "DLQMessageDiscardedEvent",
     # System Events
     "SystemErrorEvent",
     "ServiceUnhealthyEvent",
     "ServiceRecoveredEvent",
+    # Type aliases
+    "ExecutionDomainEvent",
 ]

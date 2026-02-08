@@ -12,7 +12,7 @@ Run this test to catch missing event implementations early.
 from typing import get_args
 
 from app.domain.enums import EventType
-from app.domain.events.typed import BaseEvent, DomainEvent, DomainEventAdapter
+from app.domain.events import BaseEvent, DomainEvent, DomainEventAdapter
 
 
 def get_domain_event_classes() -> dict[EventType, type]:

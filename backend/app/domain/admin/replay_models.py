@@ -5,8 +5,8 @@ from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.domain.enums import ExecutionStatus, ReplayStatus
-from app.domain.events.event_models import EventSummary
-from app.domain.replay.models import ReplayFilter, ReplaySessionState
+from app.domain.events import EventSummary
+from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
 @dataclass(config=ConfigDict(from_attributes=True))

@@ -9,7 +9,7 @@ import asyncio
 
 import pytest
 from app.domain.enums import EventType, ExecutionStatus
-from app.domain.events.typed import ExecutionDomainEvent
+from app.domain.events import ExecutionDomainEvent
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,

@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
 from app.domain.enums import EventType
-from app.domain.events.event_models import EventFilter
+from app.domain.events import EventFilter
 from app.domain.replay import ReplayFilter
 from app.domain.user import User
 from app.schemas_pydantic.admin_events import (

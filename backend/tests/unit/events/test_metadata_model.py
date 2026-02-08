@@ -1,4 +1,4 @@
-from app.domain.events.typed import EventMetadata
+from app.domain.events import EventMetadata
 
 
 def test_metadata_creation() -> None:

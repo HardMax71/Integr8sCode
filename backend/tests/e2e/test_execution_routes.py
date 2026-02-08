@@ -8,8 +8,7 @@ enabling complete end-to-end validation of execution creation through completion
 import asyncio
 
 import pytest
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events.typed import ExecutionDomainEvent
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,

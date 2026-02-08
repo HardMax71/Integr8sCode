@@ -9,9 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Requ
 from app.api.dependencies import admin_user, current_user
 from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.user import UserRole
+from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.events.typed import BaseEvent, DomainEvent, EventMetadata
 from app.domain.exceptions import DomainError
 from app.domain.idempotency import KeyStrategy

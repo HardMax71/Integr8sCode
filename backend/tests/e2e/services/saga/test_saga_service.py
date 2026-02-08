@@ -3,8 +3,7 @@ from uuid import uuid4
 
 import pytest
 from app.db.repositories import ExecutionRepository, SagaRepository
-from app.domain.enums import SagaState
-from app.domain.enums.user import UserRole
+from app.domain.enums import SagaState, UserRole
 from app.domain.execution import DomainExecutionCreate
 from app.domain.saga.exceptions import SagaAccessDeniedError, SagaNotFoundError
 from app.domain.saga.models import Saga, SagaListResult

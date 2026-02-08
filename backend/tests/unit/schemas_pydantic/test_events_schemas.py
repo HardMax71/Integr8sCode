@@ -1,5 +1,5 @@
 import pytest
-from app.domain.enums.common import SortOrder
+from app.domain.enums import SortOrder
 from app.schemas_pydantic.events import EventFilterRequest
 
 

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums.health import AlertSeverity
+from app.domain.enums import AlertSeverity
 
 
 class HealthAlert(BaseModel):

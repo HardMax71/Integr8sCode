@@ -1,5 +1,5 @@
 import pytest
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.schemas_pydantic.events import (
     DeleteEventResponse,

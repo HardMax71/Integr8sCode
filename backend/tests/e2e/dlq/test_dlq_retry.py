@@ -6,7 +6,7 @@ import pytest
 from app.db.docs import DLQMessageDocument
 from app.db.repositories.dlq_repository import DLQRepository
 from app.dlq.models import DLQMessageStatus
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 from dishka import AsyncContainer
 
 from tests.conftest import make_execution_requested_event

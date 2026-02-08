@@ -5,8 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.storage import ExecutionErrorType
+from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.events.typed import EventMetadata, ResourceUsageDomain
 
 

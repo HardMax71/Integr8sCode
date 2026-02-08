@@ -5,8 +5,7 @@ from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, ElemMatch, In, NotIn, Or
 
 from app.db.docs import NotificationDocument, NotificationSubscriptionDocument, UserDocument
-from app.domain.enums.notification import NotificationChannel, NotificationStatus
-from app.domain.enums.user import UserRole
+from app.domain.enums import NotificationChannel, NotificationStatus, UserRole
 from app.domain.notification import (
     DomainNotification,
     DomainNotificationCreate,

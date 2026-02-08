@@ -2,9 +2,7 @@ import logging
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.kafka import GroupId
-from app.domain.enums.storage import ExecutionErrorType, StorageType
+from app.domain.enums import ExecutionErrorType, ExecutionStatus, GroupId, StorageType
 from app.domain.events.typed import (
     DomainEvent,
     EventMetadata,

@@ -11,7 +11,7 @@ from beanie.odm.enums import SortDirection
 from app.db.repositories.admin import AdminEventsRepository
 from app.domain.admin import ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events.event_models import (
     EventBrowseResult,
     EventDetail,

@@ -5,7 +5,7 @@ from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, Or, RegEx
 
 from app.db.docs import UserDocument
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListResult
 
 

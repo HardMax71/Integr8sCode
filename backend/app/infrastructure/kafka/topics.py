@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 
 
 def get_all_topics() -> set[KafkaTopic]:

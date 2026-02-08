@@ -6,9 +6,7 @@ from typing import Any
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
-from app.domain.enums.events import EventType
-from app.domain.enums.notification import NotificationChannel
-from app.domain.enums.sse import SSEControlEvent
+from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
 from app.schemas_pydantic.execution import ExecutionResult
 from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import (

@@ -4,7 +4,7 @@ from uuid import uuid4
 from beanie import Document, Indexed
 from pydantic import ConfigDict, EmailStr, Field
 
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 
 
 class UserDocument(Document):

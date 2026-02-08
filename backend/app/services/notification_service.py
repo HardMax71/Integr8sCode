@@ -10,12 +10,7 @@ import httpx
 from app.core.metrics import NotificationMetrics
 from app.core.tracing.utils import add_span_attributes
 from app.db.repositories.notification_repository import NotificationRepository
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-    NotificationStatus,
-)
-from app.domain.enums.user import UserRole
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events.typed import (
     EventMetadata,
     ExecutionCompletedEvent,

@@ -4,12 +4,16 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter
 
-from app.domain.enums.auth import LoginMethod
-from app.domain.enums.common import Environment
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import QueuePriority
-from app.domain.enums.notification import NotificationChannel, NotificationSeverity
-from app.domain.enums.storage import ExecutionErrorType, StorageType
+from app.domain.enums import (
+    Environment,
+    EventType,
+    ExecutionErrorType,
+    LoginMethod,
+    NotificationChannel,
+    NotificationSeverity,
+    QueuePriority,
+    StorageType,
+)
 
 
 class ResourceUsageDomain(BaseModel):

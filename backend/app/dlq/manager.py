@@ -16,7 +16,7 @@ from app.dlq.models import (
     RetryPolicy,
     RetryStrategy,
 )
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 from app.domain.events.typed import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,

@@ -2,7 +2,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from app.domain.enums.notification import NotificationChannel, NotificationSeverity
+from app.domain.enums import NotificationChannel, NotificationSeverity
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse.redis_bus import SSERedisBus

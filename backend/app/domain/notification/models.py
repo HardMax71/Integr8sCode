@@ -6,11 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-    NotificationStatus,
-)
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 
 
 class DomainNotification(BaseModel):

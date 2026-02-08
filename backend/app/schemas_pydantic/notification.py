@@ -4,11 +4,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain.enums.notification import (
-    NotificationChannel,
-    NotificationSeverity,
-    NotificationStatus,
-)
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 
 # Templates are removed in the unified model
 

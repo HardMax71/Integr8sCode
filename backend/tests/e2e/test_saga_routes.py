@@ -1,5 +1,5 @@
 import pytest
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.saga import (
     SagaCancellationResponse,

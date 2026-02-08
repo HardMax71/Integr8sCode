@@ -8,7 +8,7 @@ from app.core.tracing import EventAttributes
 from app.core.tracing.utils import get_tracer
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.domain.events.typed import (
     DomainEvent,
     EventMetadata,

@@ -11,7 +11,7 @@ from pymongo.errors import DuplicateKeyError
 from app.core.tracing import EventAttributes
 from app.core.tracing.utils import add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events import (
     ArchivedEvent,
     DomainEvent,

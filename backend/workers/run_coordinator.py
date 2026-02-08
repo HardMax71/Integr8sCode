@@ -5,7 +5,7 @@ from app.core.container import create_coordinator_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.domain.enums.kafka import GroupId
+from app.domain.enums import GroupId
 from app.events.handlers import register_coordinator_subscriber
 from app.settings import Settings
 from beanie import init_beanie

@@ -9,7 +9,7 @@ from app.core.metrics import EventMetrics
 from app.core.tracing.utils import inject_trace_context
 from app.db.repositories.event_repository import EventRepository
 from app.dlq.models import DLQMessageStatus
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 from app.domain.events.typed import DomainEvent
 from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
 from app.settings import Settings

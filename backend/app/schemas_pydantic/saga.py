@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 
 
 class SagaStatusResponse(BaseModel):

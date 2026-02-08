@@ -4,7 +4,7 @@ import pytest
 from app.core.metrics import ExecutionMetrics
 from app.db.docs import ExecutionDocument
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import ExecutionStatus
 from app.domain.events.typed import (
     EventMetadata,
     ExecutionCompletedEvent,

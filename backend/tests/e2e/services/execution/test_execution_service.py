@@ -1,8 +1,7 @@
 import uuid
 
 import pytest
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.execution import ResourceLimitsDomain
 from app.domain.execution.exceptions import ExecutionNotFoundError
 from app.services.execution_service import ExecutionService

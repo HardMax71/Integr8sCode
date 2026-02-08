@@ -11,7 +11,7 @@ Run this test to catch missing event implementations early.
 
 from typing import get_args
 
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events.typed import BaseEvent, DomainEvent, DomainEventAdapter
 
 

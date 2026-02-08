@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent
 
 

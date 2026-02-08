@@ -1,5 +1,4 @@
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import EventType, KafkaTopic
 from app.infrastructure.kafka.mappings import (
     get_event_class_for_type,
     get_event_types_for_topic,

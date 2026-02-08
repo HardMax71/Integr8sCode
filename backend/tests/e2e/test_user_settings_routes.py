@@ -1,5 +1,5 @@
 import pytest
-from app.domain.enums.common import Theme
+from app.domain.enums import Theme
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
     NotificationSettings,

@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.infrastructure.kafka import get_topic_for_event
 from app.services.pod_monitor.event_mapper import PodPhase
 

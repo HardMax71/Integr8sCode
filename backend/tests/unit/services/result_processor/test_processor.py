@@ -3,8 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.metrics import ExecutionMetrics
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.storage import ExecutionErrorType
+from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.events.typed import (
     EventMetadata,
     ExecutionCompletedEvent,

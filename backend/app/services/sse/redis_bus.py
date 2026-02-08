@@ -6,7 +6,7 @@ from typing import ClassVar, Type, TypeVar
 import redis.asyncio as redis
 from pydantic import BaseModel
 
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent
 from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
 

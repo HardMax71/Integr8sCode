@@ -1,5 +1,5 @@
 from app.core.metrics.base import BaseMetrics
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import ExecutionStatus
 
 
 class ExecutionMetrics(BaseMetrics):

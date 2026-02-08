@@ -6,8 +6,7 @@ from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 
 
 class ReplayFilter(BaseModel):

@@ -1,6 +1,6 @@
 import pytest
 from app.core.metrics import EventMetrics, ExecutionMetrics
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import ExecutionStatus
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

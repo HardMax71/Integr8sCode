@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
 from app.db.repositories.admin.admin_user_repository import AdminUserRepository
-from app.domain.enums.user import UserRole
+from app.domain.enums import UserRole
 from app.domain.rate_limit import RateLimitRule, UserRateLimit
 from app.domain.user import User
 from app.domain.user import UserUpdate as DomainUserUpdate

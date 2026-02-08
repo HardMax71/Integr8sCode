@@ -1,6 +1,5 @@
 import pytest
-from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayFilter
 from app.schemas_pydantic.replay import (
     CleanupResponse,

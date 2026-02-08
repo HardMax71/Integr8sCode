@@ -6,7 +6,7 @@ by integration tests under tests/integration/saga/.
 """
 
 import pytest
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.domain.events.typed import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga.models import Saga
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep

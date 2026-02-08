@@ -18,7 +18,7 @@ from app.dlq import (
     EventTypeStatistic,
     TopicStatistic,
 )
-from app.domain.enums.events import EventType
+from app.domain.enums import EventType
 
 
 class DLQRepository:

@@ -46,7 +46,7 @@ from app.db.repositories.resource_allocation_repository import ResourceAllocatio
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums.kafka import KafkaTopic
+from app.domain.enums import KafkaTopic
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga.models import SagaConfig
 from app.events.core import UnifiedProducer

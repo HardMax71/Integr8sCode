@@ -8,8 +8,7 @@ from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories.event_repository import EventRepository
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus, QueuePriority
+from app.domain.enums import EventType, ExecutionStatus, QueuePriority
 from app.domain.events.typed import (
     DomainEvent,
     EventMetadata,

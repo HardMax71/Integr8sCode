@@ -5,7 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
-from app.domain.enums.replay import ReplayStatus
+from app.domain.enums import ReplayStatus
 from app.domain.replay import ReplayConfig
 from app.schemas_pydantic.replay import (
     CleanupResponse,

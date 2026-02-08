@@ -1,4 +1,4 @@
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.event_replay.replay_service import EventReplayService
 

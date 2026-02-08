@@ -1,4 +1,4 @@
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.domain.saga.models import SagaConfig, SagaInstance
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,

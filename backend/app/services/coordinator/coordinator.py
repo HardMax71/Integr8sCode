@@ -7,8 +7,7 @@ from uuid import uuid4
 
 from app.core.metrics import CoordinatorMetrics
 from app.db.repositories.execution_repository import ExecutionRepository
-from app.domain.enums.execution import QueuePriority
-from app.domain.enums.storage import ExecutionErrorType
+from app.domain.enums import ExecutionErrorType, QueuePriority
 from app.domain.events.typed import (
     CreatePodCommandEvent,
     EventMetadata,

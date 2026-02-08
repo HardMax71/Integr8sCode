@@ -13,8 +13,7 @@ from app.db.docs import (
 )
 from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail
 from app.domain.admin.replay_updates import ReplaySessionUpdate
-from app.domain.enums.events import EventType
-from app.domain.enums.replay import ReplayStatus
+from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,

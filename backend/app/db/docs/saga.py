@@ -6,7 +6,7 @@ from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, IndexModel
 
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 
 
 class SagaDocument(Document):

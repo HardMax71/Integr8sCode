@@ -8,8 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories.sse_repository import SSERepository
-from app.domain.enums.events import EventType
-from app.domain.enums.execution import ExecutionStatus
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import DomainExecution
 from app.domain.sse import SSEExecutionStatusDomain

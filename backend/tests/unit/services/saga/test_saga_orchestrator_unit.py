@@ -3,7 +3,7 @@ import logging
 import pytest
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.domain.events.typed import DomainEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.domain.saga.models import Saga, SagaConfig

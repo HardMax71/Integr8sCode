@@ -8,7 +8,7 @@ from beanie.operators import GT, LT, NE, Eq, In
 from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
-from app.domain.enums.saga import SagaState
+from app.domain.enums import SagaState
 from app.domain.saga import Saga, SagaFilter, SagaListResult
 
 

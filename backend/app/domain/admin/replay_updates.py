@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.enums.replay import ReplayStatus
+from app.domain.enums import ReplayStatus
 
 
 class ReplaySessionUpdate(BaseModel):

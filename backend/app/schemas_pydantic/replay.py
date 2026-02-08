@@ -2,9 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums.events import EventType
-from app.domain.enums.kafka import KafkaTopic
-from app.domain.enums.replay import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayFilter
 
 

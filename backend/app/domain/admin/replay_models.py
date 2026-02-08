@@ -4,8 +4,7 @@ from datetime import datetime
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
-from app.domain.enums.execution import ExecutionStatus
-from app.domain.enums.replay import ReplayStatus
+from app.domain.enums import ExecutionStatus, ReplayStatus
 from app.domain.events.event_models import EventSummary
 from app.domain.replay.models import ReplayFilter, ReplaySessionState
 

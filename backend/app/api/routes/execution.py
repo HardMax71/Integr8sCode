@@ -235,8 +235,8 @@ async def retry_execution(
 async def get_execution_events(
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         event_service: FromDishka[EventService],
-        event_types: list[EventType] | None = Query(None, description="Event types to filter"),
-        limit: int = Query(100, ge=1, le=1000),
+        event_types: Annotated[list[EventType] | None, Query(description="Event types to filter")] = None,
+        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[DomainEvent]:
     """Get all events for an execution."""
     events = await event_service.get_events_by_aggregate(
@@ -249,12 +249,12 @@ async def get_execution_events(
 async def get_user_executions(
         current_user: Annotated[UserResponse, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
-        status: ExecutionStatus | None = Query(None),
-        lang: str | None = Query(None),
-        start_time: datetime | None = Query(None),
-        end_time: datetime | None = Query(None),
-        limit: int = Query(50, ge=1, le=200),
-        skip: int = Query(0, ge=0),
+        status: Annotated[ExecutionStatus | None, Query()] = None,
+        lang: Annotated[str | None, Query()] = None,
+        start_time: Annotated[datetime | None, Query()] = None,
+        end_time: Annotated[datetime | None, Query()] = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        skip: Annotated[int, Query(ge=0)] = 0,
 ) -> ExecutionListResponse:
     """Get executions for the current user."""
 

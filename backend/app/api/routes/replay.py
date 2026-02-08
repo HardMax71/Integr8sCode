@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, Query
@@ -59,8 +61,8 @@ async def cancel_replay_session(session_id: str, service: FromDishka[EventReplay
 @router.get("/sessions", response_model=list[SessionSummary])
 async def list_replay_sessions(
     service: FromDishka[EventReplayService],
-    status: ReplayStatus | None = Query(None),
-    limit: int = Query(100, ge=1, le=1000),
+    status: Annotated[ReplayStatus | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[SessionSummary]:
     return [
         SessionSummary(**{**s.model_dump(), **s.config.model_dump()})
@@ -76,7 +78,7 @@ async def get_replay_session(session_id: str, service: FromDishka[EventReplaySer
 @router.post("/cleanup", response_model=CleanupResponse)
 async def cleanup_old_sessions(
     service: FromDishka[EventReplayService],
-    older_than_hours: int = Query(24, ge=1),
+    older_than_hours: Annotated[int, Query(ge=1)] = 24,
 ) -> CleanupResponse:
     result = await service.cleanup_old_sessions(older_than_hours)
     return CleanupResponse(**result.model_dump())

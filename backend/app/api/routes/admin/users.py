@@ -38,8 +38,8 @@ router = APIRouter(
 async def list_users(
     admin: Annotated[UserResponse, Depends(admin_user)],
     admin_user_service: FromDishka[AdminUserService],
-    limit: int = Query(default=100, le=1000),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(le=1000)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
     search: str | None = None,
     role: UserRole | None = None,
 ) -> UserListResponse:
@@ -142,7 +142,7 @@ async def delete_user(
     admin: Annotated[UserResponse, Depends(admin_user)],
     user_id: str,
     admin_user_service: FromDishka[AdminUserService],
-    cascade: bool = Query(default=True, description="Cascade delete user's data"),
+    cascade: Annotated[bool, Query(description="Cascade delete user's data")] = True,
 ) -> DeleteUserResponse:
     # Prevent self-deletion; delegate to service
     if admin.user_id == user_id:

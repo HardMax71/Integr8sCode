@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request
@@ -52,9 +54,9 @@ async def get_execution_sagas(
     request: Request,
     saga_service: FromDishka[SagaService],
     auth_service: FromDishka[AuthService],
-    state: SagaState | None = Query(None, description="Filter by saga state"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    state: Annotated[SagaState | None, Query(description="Filter by saga state")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> SagaListResponse:
     """Get all sagas for an execution.
 
@@ -91,9 +93,9 @@ async def list_sagas(
     request: Request,
     saga_service: FromDishka[SagaService],
     auth_service: FromDishka[AuthService],
-    state: SagaState | None = Query(None, description="Filter by saga state"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    state: Annotated[SagaState | None, Query(description="Filter by saga state")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> SagaListResponse:
     """List sagas accessible by the current user.
 

@@ -52,7 +52,7 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
 @router.get("/stats")
 async def get_event_stats(
     service: FromDishka[AdminEventsService],
-    hours: int = Query(default=24, le=168),
+    hours: Annotated[int, Query(le=168)] = 24,
 ) -> EventStatsResponse:
     stats = await service.get_event_stats(hours=hours)
     return EventStatsResponse.model_validate(stats)
@@ -61,10 +61,10 @@ async def get_event_stats(
 @router.get("/export/csv")
 async def export_events_csv(
     service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
-    start_time: datetime | None = Query(None, description="Start time"),
-    end_time: datetime | None = Query(None, description="End time"),
-    limit: int = Query(default=10000, le=50000),
+    event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
+    start_time: Annotated[datetime | None, Query(description="Start time")] = None,
+    end_time: Annotated[datetime | None, Query(description="End time")] = None,
+    limit: Annotated[int, Query(le=50000)] = 10000,
 ) -> StreamingResponse:
     export_filter = EventFilter(
         event_types=event_types,
@@ -82,14 +82,14 @@ async def export_events_csv(
 @router.get("/export/json")
 async def export_events_json(
     service: FromDishka[AdminEventsService],
-    event_types: list[EventType] | None = Query(None, description="Event types (repeat param for multiple)"),
-    aggregate_id: str | None = Query(None, description="Aggregate ID filter"),
-    correlation_id: str | None = Query(None, description="Correlation ID filter"),
-    user_id: str | None = Query(None, description="User ID filter"),
-    service_name: str | None = Query(None, description="Service name filter"),
-    start_time: datetime | None = Query(None, description="Start time"),
-    end_time: datetime | None = Query(None, description="End time"),
-    limit: int = Query(default=10000, le=50000),
+    event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
+    aggregate_id: Annotated[str | None, Query(description="Aggregate ID filter")] = None,
+    correlation_id: Annotated[str | None, Query(description="Correlation ID filter")] = None,
+    user_id: Annotated[str | None, Query(description="User ID filter")] = None,
+    service_name: Annotated[str | None, Query(description="Service name filter")] = None,
+    start_time: Annotated[datetime | None, Query(description="Start time")] = None,
+    end_time: Annotated[datetime | None, Query(description="End time")] = None,
+    limit: Annotated[int, Query(le=50000)] = 10000,
 ) -> StreamingResponse:
     """Export events as JSON with comprehensive filtering."""
     export_filter = EventFilter(

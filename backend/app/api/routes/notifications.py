@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Query, Request, Response
@@ -23,12 +25,14 @@ async def get_notifications(
     request: Request,
     notification_service: FromDishka[NotificationService],
     auth_service: FromDishka[AuthService],
-    status: NotificationStatus | None = Query(None),
-    include_tags: list[str] | None = Query(None, description="Only notifications with any of these tags"),
-    exclude_tags: list[str] | None = Query(None, description="Exclude notifications with any of these tags"),
-    tag_prefix: str | None = Query(None, description="Only notifications having a tag starting with this prefix"),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    status: Annotated[NotificationStatus | None, Query()] = None,
+    include_tags: Annotated[list[str] | None, Query(description="Only notifications with any of these tags")] = None,
+    exclude_tags: Annotated[list[str] | None, Query(description="Exclude notifications with any of these tags")] = None,
+    tag_prefix: Annotated[
+        str | None, Query(description="Only notifications having a tag starting with this prefix")
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> NotificationListResponse:
     current_user = await auth_service.get_current_user(request)
     result = await notification_service.list_notifications(

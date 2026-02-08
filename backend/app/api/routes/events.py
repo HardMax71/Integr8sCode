@@ -39,9 +39,9 @@ async def get_execution_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
     execution_service: FromDishka[ExecutionService],
-    include_system_events: bool = Query(False, description="Include system-generated events"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    include_system_events: Annotated[bool, Query(description="Include system-generated events")] = False,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
     # Check execution ownership first (before checking events)
     execution = await execution_service.get_execution_result(execution_id)
@@ -73,12 +73,12 @@ async def get_execution_events(
 async def get_user_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    event_types: list[EventType] | None = Query(None),
-    start_time: datetime | None = Query(None),
-    end_time: datetime | None = Query(None),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
-    sort_order: SortOrder = Query(SortOrder.DESC),
+    event_types: Annotated[list[EventType] | None, Query()] = None,
+    start_time: Annotated[datetime | None, Query()] = None,
+    end_time: Annotated[datetime | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    sort_order: Annotated[SortOrder, Query()] = SortOrder.DESC,
 ) -> EventListResponse:
     """Get events for the current user"""
     result = await event_service.get_user_events_paginated(
@@ -142,9 +142,9 @@ async def get_events_by_correlation(
     correlation_id: str,
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    include_all_users: bool = Query(False, description="Include events from all users (admin only)"),
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    include_all_users: Annotated[bool, Query(description="Include events from all users (admin only)")] = False,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
     result = await event_service.get_events_by_correlation(
         correlation_id=correlation_id,
@@ -168,8 +168,8 @@ async def get_events_by_correlation(
 async def get_current_request_events(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    limit: int = Query(100, ge=1, le=1000),
-    skip: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> EventListResponse:
     correlation_id = CorrelationContext.get_correlation_id()
     if not correlation_id:
@@ -197,9 +197,11 @@ async def get_current_request_events(
 async def get_event_statistics(
     current_user: Annotated[UserResponse, Depends(current_user)],
     event_service: FromDishka[EventService],
-    start_time: datetime | None = Query(None, description="Start time for statistics (defaults to 24 hours ago)"),
-    end_time: datetime | None = Query(None, description="End time for statistics (defaults to now)"),
-    include_all_users: bool = Query(False, description="Include stats from all users (admin only)"),
+    start_time: Annotated[
+        datetime | None, Query(description="Start time for statistics (defaults to 24 hours ago)")
+    ] = None,
+    end_time: Annotated[datetime | None, Query(description="End time for statistics (defaults to now)")] = None,
+    include_all_users: Annotated[bool, Query(description="Include stats from all users (admin only)")] = False,
 ) -> EventStatistics:
     if not start_time:
         start_time = datetime.now(timezone.utc) - timedelta(days=1)  # 24 hours ago
@@ -318,8 +320,8 @@ async def replay_aggregate_events(
     kafka_event_service: FromDishka[KafkaEventService],
     settings: FromDishka[Settings],
     logger: FromDishka[logging.Logger],
-    target_service: str | None = Query(None, description="Service to replay events to"),
-    dry_run: bool = Query(True, description="If true, only show what would be replayed"),
+    target_service: Annotated[str | None, Query(description="Service to replay events to")] = None,
+    dry_run: Annotated[bool, Query(description="If true, only show what would be replayed")] = True,
 ) -> ReplayAggregateResponse:
     replay_info = await event_service.get_aggregate_replay_info(aggregate_id)
     if not replay_info:

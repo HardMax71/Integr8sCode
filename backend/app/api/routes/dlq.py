@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -34,11 +36,11 @@ async def get_dlq_statistics(repository: FromDishka[DLQRepository]) -> DLQStats:
 @router.get("/messages", response_model=DLQMessagesResponse)
 async def get_dlq_messages(
     repository: FromDishka[DLQRepository],
-    status: DLQMessageStatus | None = Query(None),
+    status: Annotated[DLQMessageStatus | None, Query()] = None,
     topic: str | None = None,
-    event_type: EventType | None = Query(None),
-    limit: int = Query(50, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
+    event_type: Annotated[EventType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> DLQMessagesResponse:
     result = await repository.get_messages(
         status=status, topic=topic, event_type=event_type, limit=limit, offset=offset
@@ -86,7 +88,7 @@ async def set_retry_policy(policy_request: RetryPolicyRequest, dlq_manager: From
 async def discard_dlq_message(
     event_id: str,
     dlq_manager: FromDishka[DLQManager],
-    reason: str = Query(..., description="Reason for discarding"),
+    reason: Annotated[str, Query(description="Reason for discarding")],
 ) -> MessageResponse:
     success = await dlq_manager.discard_message_manually(event_id, f"manual: {reason}")
     if not success:

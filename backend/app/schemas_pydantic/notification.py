@@ -25,7 +25,7 @@ class Notification(BaseModel):
     # Content
     subject: str
     body: str
-    action_url: str | None = None
+    action_url: str = ""
     tags: list[str] = Field(default_factory=list)
 
     # Tracking
@@ -152,9 +152,9 @@ class NotificationResponse(BaseModel):
     status: NotificationStatus
     subject: str
     body: str
-    action_url: str | None
+    action_url: str
     created_at: datetime
-    read_at: datetime | None
+    read_at: datetime | None = None
     severity: NotificationSeverity
     tags: list[str]
 

@@ -30,6 +30,7 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
         subject="Hello",
         body="World",
         tags=["test"],
+        action_url="/api/v1/notifications",
         severity=NotificationSeverity.MEDIUM,
         channel=NotificationChannel.IN_APP,
     )

@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.enums import Environment, EventType, SortOrder
-from app.domain.events import ContainerStatusInfo, DomainEvent
+from app.domain.events import DomainEvent
 
 
 class EventTypeCountSchema(BaseModel):
@@ -143,35 +143,6 @@ class EventBase(BaseModel):
             }
         }
     )
-
-
-class ExecutionEventPayload(BaseModel):
-    """Common payload for execution-related events in API responses."""
-
-    execution_id: str
-    user_id: str
-    status: str | None = None
-    script: str | None = None
-    language: str | None = None
-    language_version: str | None = None
-    output: str | None = None
-    errors: str | None = None
-    exit_code: int | None = None
-    duration_seconds: float | None = None
-
-
-class PodEventPayload(BaseModel):
-    """Common payload for pod-related events in API responses."""
-
-    pod_name: str
-    namespace: str
-    execution_id: str
-    phase: str | None = None
-    container_statuses: list[ContainerStatusInfo] | None = None
-    node_name: str | None = None
-    pod_ip: str | None = None
-    reason: str | None = None
-    message: str | None = None
 
 
 class EventInDB(EventBase):

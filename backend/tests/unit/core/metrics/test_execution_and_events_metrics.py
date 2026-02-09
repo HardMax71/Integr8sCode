@@ -20,7 +20,7 @@ def test_execution_metrics_methods(test_settings: Settings) -> None:
     m.record_queue_wait_time(0.1, "python-3.11")
     m.record_execution_assigned()
     m.record_execution_queued()
-    m.record_execution_scheduled("ok")
+    m.record_execution_scheduled()
     m.update_cpu_available(100.0)
     m.update_memory_available(512.0)
     m.update_gpu_available(1)

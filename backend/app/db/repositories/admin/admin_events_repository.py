@@ -12,7 +12,7 @@ from app.db.docs import (
     ReplaySessionDocument,
 )
 from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
-from app.domain.enums import EventType, ReplayStatus
+from app.domain.enums import EventType, ExecutionStatus, ReplayStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,
@@ -176,7 +176,7 @@ class AdminEventsRepository:
             Pipeline()
             .match({
                 ExecutionDocument.created_at: {"$gte": start_time},
-                ExecutionDocument.status: "completed",
+                ExecutionDocument.status: ExecutionStatus.COMPLETED,
                 ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},  # type: ignore[union-attr]
             })
             .group(by=None, query={"avg_duration": S.avg(exec_time_field)})

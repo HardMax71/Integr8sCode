@@ -97,7 +97,7 @@
             }
           },
           "409": {
-            "description": "Email already registered",
+            "description": "User already exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -134,38 +134,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/verify-token": {
-      "get": {
-        "tags": [
-          "authentication"
-        ],
-        "summary": "Verify Token",
-        "description": "Verify the current access token.",
-        "operationId": "verify_token_api_v1_auth_verify_token_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenValidationResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10506,8 +10474,7 @@
             "title": "Username"
           },
           "role": {
-            "type": "string",
-            "title": "Role"
+            "$ref": "#/components/schemas/UserRole"
           },
           "csrf_token": {
             "type": "string",
@@ -15457,35 +15424,6 @@
         "title": "ThemeUpdateRequest",
         "description": "Request model for theme update"
       },
-      "TokenValidationResponse": {
-        "properties": {
-          "valid": {
-            "type": "boolean",
-            "title": "Valid"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role"
-          },
-          "csrf_token": {
-            "type": "string",
-            "title": "Csrf Token"
-          }
-        },
-        "type": "object",
-        "required": [
-          "valid",
-          "username",
-          "role",
-          "csrf_token"
-        ],
-        "title": "TokenValidationResponse",
-        "description": "Response model for token validation"
-      },
       "TopicStatistic": {
         "properties": {
           "topic": {
@@ -16082,13 +16020,11 @@
             "title": "Email"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole",
-            "default": "user"
+            "$ref": "#/components/schemas/UserRole"
           },
           "is_active": {
             "type": "boolean",
-            "title": "Is Active",
-            "default": true
+            "title": "Is Active"
           },
           "user_id": {
             "type": "string",
@@ -16096,8 +16032,7 @@
           },
           "is_superuser": {
             "type": "boolean",
-            "title": "Is Superuser",
-            "default": false
+            "title": "Is Superuser"
           },
           "created_at": {
             "type": "string",
@@ -16147,7 +16082,10 @@
         "required": [
           "username",
           "email",
+          "role",
+          "is_active",
           "user_id",
+          "is_superuser",
           "created_at",
           "updated_at"
         ],

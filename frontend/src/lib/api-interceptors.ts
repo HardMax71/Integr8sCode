@@ -4,7 +4,7 @@ import { goto } from '@mateothegreat/svelte5-router';
 import { authStore } from '$stores/auth.svelte';
 
 let isHandling401 = false;
-const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/verify-token'];
+const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register'];
 
 const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warning' }> = {
     403: { message: 'Access denied.', type: 'error' },

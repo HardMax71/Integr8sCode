@@ -5,7 +5,6 @@ from app.domain.enums import UserRole
 from app.schemas_pydantic.user import (
     LoginResponse,
     MessageResponse,
-    TokenValidationResponse,
     UserCreate,
     UserResponse,
 )
@@ -136,7 +135,7 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 409
-        assert response.json()["detail"] == "Email already registered"
+        assert response.json()["detail"] == "User already exists"
 
     @pytest.mark.asyncio
     async def test_register_invalid_email_format(self, client: AsyncClient) -> None:
@@ -177,30 +176,6 @@ class TestAuthMe:
     async def test_get_profile_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/auth/me")
-
-        assert response.status_code == 401
-
-
-class TestAuthVerifyToken:
-    """Tests for GET /api/v1/auth/verify-token."""
-
-    @pytest.mark.asyncio
-    async def test_verify_valid_token(self, test_user: AsyncClient) -> None:
-        """Valid token returns TokenValidationResponse with valid=True."""
-        response = await test_user.get("/api/v1/auth/verify-token")
-
-        assert response.status_code == 200
-        result = TokenValidationResponse.model_validate(response.json())
-
-        assert result.valid is True
-        assert result.username
-        assert result.role in [UserRole.USER, UserRole.ADMIN]
-        assert result.csrf_token
-
-    @pytest.mark.asyncio
-    async def test_verify_invalid_token(self, client: AsyncClient) -> None:
-        """Invalid/missing token returns 401."""
-        response = await client.get("/api/v1/auth/verify-token")
 
         assert response.status_code == 401
 

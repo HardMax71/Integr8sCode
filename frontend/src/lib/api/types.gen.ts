@@ -2931,10 +2931,7 @@ export type LoginResponse = {
      * Username
      */
     username: string;
-    /**
-     * Role
-     */
-    role: string;
+    role: UserRole;
     /**
      * Csrf Token
      */
@@ -5906,30 +5903,6 @@ export type ThemeUpdateRequest = {
 };
 
 /**
- * TokenValidationResponse
- *
- * Response model for token validation
- */
-export type TokenValidationResponse = {
-    /**
-     * Valid
-     */
-    valid: boolean;
-    /**
-     * Username
-     */
-    username: string;
-    /**
-     * Role
-     */
-    role: string;
-    /**
-     * Csrf Token
-     */
-    csrf_token: string;
-};
-
-/**
  * TopicStatistic
  *
  * Statistics for a single topic.
@@ -6288,11 +6261,11 @@ export type UserResponse = {
      * Email
      */
     email: string;
-    role?: UserRole;
+    role: UserRole;
     /**
      * Is Active
      */
-    is_active?: boolean;
+    is_active: boolean;
     /**
      * User Id
      */
@@ -6300,7 +6273,7 @@ export type UserResponse = {
     /**
      * Is Superuser
      */
-    is_superuser?: boolean;
+    is_superuser: boolean;
     /**
      * Created At
      */
@@ -6671,7 +6644,7 @@ export type RegisterApiV1AuthRegisterPostErrors = {
      */
     400: ErrorResponse;
     /**
-     * Email already registered
+     * User already exists
      */
     409: ErrorResponse;
     /**
@@ -6706,31 +6679,6 @@ export type GetCurrentUserProfileApiV1AuthMeGetResponses = {
 };
 
 export type GetCurrentUserProfileApiV1AuthMeGetResponse = GetCurrentUserProfileApiV1AuthMeGetResponses[keyof GetCurrentUserProfileApiV1AuthMeGetResponses];
-
-export type VerifyTokenApiV1AuthVerifyTokenGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/auth/verify-token';
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetErrors = {
-    /**
-     * Missing or invalid access token
-     */
-    401: ErrorResponse;
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetError = VerifyTokenApiV1AuthVerifyTokenGetErrors[keyof VerifyTokenApiV1AuthVerifyTokenGetErrors];
-
-export type VerifyTokenApiV1AuthVerifyTokenGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: TokenValidationResponse;
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetResponse = VerifyTokenApiV1AuthVerifyTokenGetResponses[keyof VerifyTokenApiV1AuthVerifyTokenGetResponses];
 
 export type LogoutApiV1AuthLogoutPostData = {
     body?: never;

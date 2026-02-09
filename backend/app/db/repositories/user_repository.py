@@ -21,7 +21,7 @@ class UserRepository:
         try:
             await doc.insert()
         except DuplicateKeyError as e:
-            raise ConflictError("Email already registered") from e
+            raise ConflictError("User already exists") from e
         return User.model_validate(doc, from_attributes=True)
 
     async def get_user_by_id(self, user_id: str) -> User | None:

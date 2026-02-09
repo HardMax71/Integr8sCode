@@ -54,7 +54,9 @@ class UserResponse(UserBase):
     """User model for API responses (without password)"""
 
     user_id: str
-    is_superuser: bool = False
+    role: UserRole
+    is_active: bool
+    is_superuser: bool
     created_at: datetime
     updated_at: datetime
     # Rate limit summary fields (optional, populated by admin endpoints)
@@ -123,15 +125,6 @@ class LoginResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TokenValidationResponse(BaseModel):
-    """Response model for token validation"""
-
-    valid: bool
-    username: str
-    role: UserRole
-    csrf_token: str
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class DeleteUserResponse(BaseModel):

@@ -9,12 +9,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
+from app.domain.enums import UserRole
 from app.domain.user import DomainUserCreate
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
     LoginResponse,
     MessageResponse,
-    TokenValidationResponse,
     UserCreate,
     UserResponse,
 )
@@ -132,7 +132,7 @@ async def login(
     response_model=UserResponse,
     responses={
         400: {"model": ErrorResponse, "description": "Username already registered"},
-        409: {"model": ErrorResponse, "description": "Email already registered"},
+        409: {"model": ErrorResponse, "description": "User already exists"},
     },
 )
 async def register(
@@ -170,7 +170,7 @@ async def register(
         username=user.username,
         email=user.email,
         hashed_password=hashed_password,
-        role=user.role,
+        role=UserRole.USER,
         is_active=True,
         is_superuser=False,
     )
@@ -212,46 +212,6 @@ async def get_current_user_profile(
     response.headers["Pragma"] = "no-cache"
 
     return UserResponse.model_validate(current_user, from_attributes=True)
-
-
-@router.get(
-    "/verify-token",
-    response_model=TokenValidationResponse,
-    responses={401: {"model": ErrorResponse, "description": "Missing or invalid access token"}},
-)
-async def verify_token(
-    request: Request,
-    auth_service: FromDishka[AuthService],
-    logger: FromDishka[logging.Logger],
-) -> TokenValidationResponse:
-    """Verify the current access token."""
-    current_user = await auth_service.get_current_user(request)
-    logger.info(
-        "Token verification attempt",
-        extra={
-            "username": current_user.username,
-            "client_ip": get_client_ip(request),
-            "endpoint": "/verify-token",
-            "user_agent": request.headers.get("user-agent"),
-        },
-    )
-
-    logger.info(
-        "Token verification successful",
-        extra={
-            "username": current_user.username,
-            "client_ip": get_client_ip(request),
-            "user_agent": request.headers.get("user-agent"),
-        },
-    )
-    csrf_token = request.cookies.get("csrf_token", "")
-
-    return TokenValidationResponse(
-        valid=True,
-        username=current_user.username,
-        role=current_user.role,
-        csrf_token=csrf_token,
-    )
 
 
 @router.post("/logout", response_model=MessageResponse)

@@ -16,7 +16,6 @@ from app.schemas_pydantic.dlq import (
     DLQMessageDetail,
     DLQMessageResponse,
     DLQMessagesResponse,
-    DLQStats,
     DLQTopicSummaryResponse,
     ManualRetryRequest,
     RetryPolicyRequest,
@@ -26,13 +25,6 @@ from app.schemas_pydantic.user import MessageResponse
 router = APIRouter(
     prefix="/dlq", tags=["Dead Letter Queue"], route_class=DishkaRoute, dependencies=[Depends(current_user)]
 )
-
-
-@router.get("/stats", response_model=DLQStats)
-async def get_dlq_statistics(repository: FromDishka[DLQRepository]) -> DLQStats:
-    """Get summary statistics for the dead letter queue."""
-    stats = await repository.get_dlq_stats()
-    return DLQStats.model_validate(stats, from_attributes=True)
 
 
 @router.get("/messages", response_model=DLQMessagesResponse)

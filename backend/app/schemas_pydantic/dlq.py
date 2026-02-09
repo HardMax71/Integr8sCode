@@ -3,26 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.dlq import (
-    AgeStatistics,
     DLQMessageStatus,
     DLQRetryResult,
-    EventTypeStatistic,
     RetryStrategy,
-    TopicStatistic,
 )
 from app.domain.events import DomainEvent
-
-
-class DLQStats(BaseModel):
-    """Statistics for the Dead Letter Queue."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    by_status: dict[DLQMessageStatus, int]
-    by_topic: list[TopicStatistic]
-    by_event_type: list[EventTypeStatistic]
-    age_stats: AgeStatistics
-    timestamp: datetime
 
 
 class DLQMessageResponse(BaseModel):

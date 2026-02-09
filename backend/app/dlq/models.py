@@ -115,48 +115,6 @@ class RetryPolicy:
         return datetime.now(timezone.utc) + timedelta(seconds=delay)
 
 
-# Statistics models
-class TopicStatistic(BaseModel):
-    """Statistics for a single topic."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    topic: str
-    count: int
-    avg_retry_count: float
-
-
-class EventTypeStatistic(BaseModel):
-    """Statistics for a single event type."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    event_type: str
-    count: int
-
-
-class AgeStatistics(BaseModel):
-    """Age statistics for DLQ messages."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    min_age_seconds: float = 0.0
-    max_age_seconds: float = 0.0
-    avg_age_seconds: float = 0.0
-
-
-class DLQStatistics(BaseModel):
-    """Comprehensive DLQ statistics."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    by_status: dict[DLQMessageStatus, int]
-    by_topic: list[TopicStatistic]
-    by_event_type: list[EventTypeStatistic]
-    age_stats: AgeStatistics
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
 @dataclass
 class DLQRetryResult:
     """Result of a single retry operation."""

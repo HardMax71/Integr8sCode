@@ -7,7 +7,6 @@ from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
     DLQMessagesResponse,
-    DLQStats,
     DLQTopicSummaryResponse,
 )
 from app.schemas_pydantic.user import MessageResponse
@@ -32,29 +31,6 @@ async def stored_dlq_message() -> DLQMessageDocument:
     )
     await doc.insert()
     return doc
-
-
-class TestGetDLQStats:
-    """Tests for GET /api/v1/dlq/stats."""
-
-    @pytest.mark.asyncio
-    async def test_get_dlq_stats(self, test_user: AsyncClient) -> None:
-        """Get DLQ statistics."""
-        response = await test_user.get("/api/v1/dlq/stats")
-
-        assert response.status_code == 200
-        stats = DLQStats.model_validate(response.json())
-
-        assert stats.age_stats is not None
-        assert stats.timestamp is not None
-
-    @pytest.mark.asyncio
-    async def test_get_dlq_stats_unauthenticated(
-            self, client: AsyncClient
-    ) -> None:
-        """Unauthenticated request returns 401."""
-        response = await client.get("/api/v1/dlq/stats")
-        assert response.status_code == 401
 
 
 class TestGetDLQMessages:

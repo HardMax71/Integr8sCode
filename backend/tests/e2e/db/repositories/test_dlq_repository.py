@@ -74,11 +74,8 @@ async def insert_test_dlq_docs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stats_list_get_and_updates(repo: DLQRepository) -> None:
+async def test_list_get_and_updates(repo: DLQRepository) -> None:
     await insert_test_dlq_docs()
-
-    stats = await repo.get_dlq_stats()
-    assert isinstance(stats.by_status, dict) and len(stats.by_topic) >= 1
 
     res = await repo.get_messages(limit=2)
     assert res.total >= 3 and len(res.messages) <= 2

@@ -10,7 +10,7 @@ dependencies = [
     "aiosmtplib==3.0.2",
     "annotated-doc==0.0.4",
     "annotated-types==0.7.0",
-    "anyio==4.9.0",
+    "anyio==4.12.1",
     "asgiref==3.11.0",
     "async-timeout==5.0.1",
     "attrs==25.3.0",

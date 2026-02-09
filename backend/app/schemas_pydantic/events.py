@@ -95,13 +95,6 @@ class EventFilterRequest(BaseModel):
         return v
 
 
-class EventAggregationRequest(BaseModel):
-    """Request model for event aggregation queries."""
-
-    pipeline: list[dict[str, Any]] = Field(..., description="MongoDB aggregation pipeline")
-    limit: int = Field(100, ge=1, le=1000)
-
-
 class PublishEventRequest(BaseModel):
     """Request model for publishing events."""
 

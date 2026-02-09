@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any
+from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -15,7 +15,6 @@ from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.events import (
     DeleteEventResponse,
-    EventAggregationRequest,
     EventFilterRequest,
     EventListResponse,
     EventStatistics,
@@ -63,13 +62,7 @@ async def get_execution_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    return EventListResponse(
-        events=result.events,
-        total=result.total,
-        limit=limit,
-        skip=skip,
-        has_more=result.has_more,
-    )
+    return EventListResponse.model_validate(result, from_attributes=True)
 
 
 @router.get("/user", response_model=EventListResponse)
@@ -94,13 +87,7 @@ async def get_user_events(
         sort_order=sort_order,
     )
 
-    return EventListResponse(
-        events=result.events,
-        total=result.total,
-        limit=limit,
-        skip=skip,
-        has_more=result.has_more,
-    )
+    return EventListResponse.model_validate(result, from_attributes=True)
 
 
 @router.post(
@@ -114,16 +101,7 @@ async def query_events(
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
     """Query events with advanced filters."""
-    event_filter = EventFilter(
-        event_types=filter_request.event_types,
-        aggregate_id=filter_request.aggregate_id,
-        correlation_id=filter_request.correlation_id,
-        user_id=filter_request.user_id,
-        service_name=filter_request.service_name,
-        start_time=filter_request.start_time,
-        end_time=filter_request.end_time,
-        search_text=filter_request.search_text,
-    )
+    event_filter = EventFilter.model_validate(filter_request, from_attributes=True)
 
     result = await event_service.query_events_advanced(
         user_id=current_user.user_id,
@@ -136,13 +114,7 @@ async def query_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
-    return EventListResponse(
-        events=result.events,
-        total=result.total,
-        limit=result.limit,
-        skip=result.skip,
-        has_more=result.has_more,
-    )
+    return EventListResponse.model_validate(result, from_attributes=True)
 
 
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
@@ -164,13 +136,7 @@ async def get_events_by_correlation(
         skip=skip,
     )
 
-    return EventListResponse(
-        events=result.events,
-        total=result.total,
-        limit=limit,
-        skip=skip,
-        has_more=result.has_more,
-    )
+    return EventListResponse.model_validate(result, from_attributes=True)
 
 
 @router.get("/current-request", response_model=EventListResponse)
@@ -194,13 +160,7 @@ async def get_current_request_events(
         skip=skip,
     )
 
-    return EventListResponse(
-        events=result.events,
-        total=result.total,
-        limit=limit,
-        skip=skip,
-        has_more=result.has_more,
-    )
+    return EventListResponse.model_validate(result, from_attributes=True)
 
 
 @router.get("/statistics", response_model=EventStatistics)
@@ -274,32 +234,6 @@ async def publish_custom_event(
     )
 
     return PublishEventResponse(event_id=event_id, status="published", timestamp=datetime.now(timezone.utc))
-
-
-@router.post("/aggregate", response_model=list[dict[str, Any]])
-async def aggregate_events(
-    current_user: Annotated[User, Depends(current_user)],
-    aggregation: EventAggregationRequest,
-    event_service: FromDishka[EventService],
-) -> list[dict[str, Any]]:
-    """Run a custom aggregation pipeline on the event store."""
-    result = await event_service.aggregate_events(
-        user_id=current_user.user_id,
-        user_role=current_user.role,
-        pipeline=aggregation.pipeline,
-        limit=aggregation.limit,
-    )
-
-    return result.results
-
-
-@router.get("/types/list", response_model=list[str])
-async def list_event_types(
-    current_user: Annotated[User, Depends(current_user)], event_service: FromDishka[EventService]
-) -> list[str]:
-    """List all distinct event types in the store."""
-    event_types = await event_service.list_event_types(user_id=current_user.user_id, user_role=current_user.role)
-    return event_types
 
 
 @router.delete(

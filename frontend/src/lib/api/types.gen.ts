@@ -133,26 +133,6 @@ export type AdminUserOverview = {
 };
 
 /**
- * AgeStatistics
- *
- * Age statistics for DLQ messages.
- */
-export type AgeStatistics = {
-    /**
-     * Min Age Seconds
-     */
-    min_age_seconds?: number;
-    /**
-     * Max Age Seconds
-     */
-    max_age_seconds?: number;
-    /**
-     * Avg Age Seconds
-     */
-    avg_age_seconds?: number;
-};
-
-/**
  * AlertResponse
  */
 export type AlertResponse = {
@@ -1017,33 +997,6 @@ export type DlqRetryResult = {
 };
 
 /**
- * DLQStats
- *
- * Statistics for the Dead Letter Queue.
- */
-export type DlqStats = {
-    /**
-     * By Status
-     */
-    by_status: {
-        [key: string]: number;
-    };
-    /**
-     * By Topic
-     */
-    by_topic: Array<TopicStatistic>;
-    /**
-     * By Event Type
-     */
-    by_event_type: Array<EventTypeStatistic>;
-    age_stats: AgeStatistics;
-    /**
-     * Timestamp
-     */
-    timestamp: string;
-};
-
-/**
  * DLQTopicSummaryResponse
  *
  * Response model for topic summary.
@@ -1315,26 +1268,6 @@ export type ErrorResponse = {
      * Error type identifier
      */
     type?: string | null;
-};
-
-/**
- * EventAggregationRequest
- *
- * Request model for event aggregation queries.
- */
-export type EventAggregationRequest = {
-    /**
-     * Pipeline
-     *
-     * MongoDB aggregation pipeline
-     */
-    pipeline: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Limit
-     */
-    limit?: number;
 };
 
 /**
@@ -2172,22 +2105,6 @@ export type EventType = 'execution_requested' | 'execution_accepted' | 'executio
  */
 export type EventTypeCountSchema = {
     event_type: EventType;
-    /**
-     * Count
-     */
-    count: number;
-};
-
-/**
- * EventTypeStatistic
- *
- * Statistics for a single event type.
- */
-export type EventTypeStatistic = {
-    /**
-     * Event Type
-     */
-    event_type: string;
     /**
      * Count
      */
@@ -5903,26 +5820,6 @@ export type ThemeUpdateRequest = {
 };
 
 /**
- * TopicStatistic
- *
- * Statistics for a single topic.
- */
-export type TopicStatistic = {
-    /**
-     * Topic
-     */
-    topic: string;
-    /**
-     * Count
-     */
-    count: number;
-    /**
-     * Avg Retry Count
-     */
-    avg_retry_count: number;
-};
-
-/**
  * UnreadCountResponse
  *
  * Response schema for unread notification count
@@ -7544,22 +7441,6 @@ export type ReadinessApiV1HealthReadyGetResponses = {
 
 export type ReadinessApiV1HealthReadyGetResponse = ReadinessApiV1HealthReadyGetResponses[keyof ReadinessApiV1HealthReadyGetResponses];
 
-export type GetDlqStatisticsApiV1DlqStatsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dlq/stats';
-};
-
-export type GetDlqStatisticsApiV1DlqStatsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: DlqStats;
-};
-
-export type GetDlqStatisticsApiV1DlqStatsGetResponse = GetDlqStatisticsApiV1DlqStatsGetResponses[keyof GetDlqStatisticsApiV1DlqStatsGetResponses];
-
 export type GetDlqMessagesApiV1DlqMessagesGetData = {
     body?: never;
     path?: never;
@@ -8266,53 +8147,6 @@ export type PublishCustomEventApiV1EventsPublishPostResponses = {
 };
 
 export type PublishCustomEventApiV1EventsPublishPostResponse = PublishCustomEventApiV1EventsPublishPostResponses[keyof PublishCustomEventApiV1EventsPublishPostResponses];
-
-export type AggregateEventsApiV1EventsAggregatePostData = {
-    body: EventAggregationRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/aggregate';
-};
-
-export type AggregateEventsApiV1EventsAggregatePostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AggregateEventsApiV1EventsAggregatePostError = AggregateEventsApiV1EventsAggregatePostErrors[keyof AggregateEventsApiV1EventsAggregatePostErrors];
-
-export type AggregateEventsApiV1EventsAggregatePostResponses = {
-    /**
-     * Response Aggregate Events Api V1 Events Aggregate Post
-     *
-     * Successful Response
-     */
-    200: Array<{
-        [key: string]: unknown;
-    }>;
-};
-
-export type AggregateEventsApiV1EventsAggregatePostResponse = AggregateEventsApiV1EventsAggregatePostResponses[keyof AggregateEventsApiV1EventsAggregatePostResponses];
-
-export type ListEventTypesApiV1EventsTypesListGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/types/list';
-};
-
-export type ListEventTypesApiV1EventsTypesListGetResponses = {
-    /**
-     * Response List Event Types Api V1 Events Types List Get
-     *
-     * Successful Response
-     */
-    200: Array<string>;
-};
-
-export type ListEventTypesApiV1EventsTypesListGetResponse = ListEventTypesApiV1EventsTypesListGetResponses[keyof ListEventTypesApiV1EventsTypesListGetResponses];
 
 export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostData = {
     body?: never;

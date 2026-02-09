@@ -1612,28 +1612,6 @@
         }
       }
     },
-    "/api/v1/dlq/stats": {
-      "get": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Get Dlq Statistics",
-        "description": "Get summary statistics for the dead letter queue.",
-        "operationId": "get_dlq_statistics_api_v1_dlq_stats_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DLQStats"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/dlq/messages": {
       "get": {
         "tags": [
@@ -2895,78 +2873,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/events/aggregate": {
-      "post": {
-        "tags": [
-          "events"
-        ],
-        "summary": "Aggregate Events",
-        "description": "Run a custom aggregation pipeline on the event store.",
-        "operationId": "aggregate_events_api_v1_events_aggregate_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EventAggregationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "title": "Response Aggregate Events Api V1 Events Aggregate Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/events/types/list": {
-      "get": {
-        "tags": [
-          "events"
-        ],
-        "summary": "List Event Types",
-        "description": "List all distinct event types in the store.",
-        "operationId": "list_event_types_api_v1_events_types_list_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "title": "Response List Event Types Api V1 Events Types List Get"
                 }
               }
             }
@@ -5651,28 +5557,6 @@
         ],
         "title": "AdminUserOverview"
       },
-      "AgeStatistics": {
-        "properties": {
-          "min_age_seconds": {
-            "type": "number",
-            "title": "Min Age Seconds",
-            "default": 0.0
-          },
-          "max_age_seconds": {
-            "type": "number",
-            "title": "Max Age Seconds",
-            "default": 0.0
-          },
-          "avg_age_seconds": {
-            "type": "number",
-            "title": "Avg Age Seconds",
-            "default": 0.0
-          }
-        },
-        "type": "object",
-        "title": "AgeStatistics",
-        "description": "Age statistics for DLQ messages."
-      },
       "AlertResponse": {
         "properties": {
           "message": {
@@ -7143,49 +7027,6 @@
         ],
         "title": "DLQRetryResult"
       },
-      "DLQStats": {
-        "properties": {
-          "by_status": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "By Status"
-          },
-          "by_topic": {
-            "items": {
-              "$ref": "#/components/schemas/TopicStatistic"
-            },
-            "type": "array",
-            "title": "By Topic"
-          },
-          "by_event_type": {
-            "items": {
-              "$ref": "#/components/schemas/EventTypeStatistic"
-            },
-            "type": "array",
-            "title": "By Event Type"
-          },
-          "age_stats": {
-            "$ref": "#/components/schemas/AgeStatistics"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Timestamp"
-          }
-        },
-        "type": "object",
-        "required": [
-          "by_status",
-          "by_topic",
-          "by_event_type",
-          "age_stats",
-          "timestamp"
-        ],
-        "title": "DLQStats",
-        "description": "Statistics for the Dead Letter Queue."
-      },
       "DLQTopicSummaryResponse": {
         "properties": {
           "topic": {
@@ -7561,31 +7402,6 @@
           "detail"
         ],
         "title": "ErrorResponse"
-      },
-      "EventAggregationRequest": {
-        "properties": {
-          "pipeline": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Pipeline",
-            "description": "MongoDB aggregation pipeline"
-          },
-          "limit": {
-            "type": "integer",
-            "maximum": 1000.0,
-            "minimum": 1.0,
-            "title": "Limit",
-            "default": 100
-          }
-        },
-        "type": "object",
-        "required": [
-          "pipeline"
-        ],
-        "title": "EventAggregationRequest",
-        "description": "Request model for event aggregation queries."
       },
       "EventBrowseRequest": {
         "properties": {
@@ -9254,25 +9070,6 @@
         ],
         "title": "EventTypeCountSchema",
         "description": "Event count by type."
-      },
-      "EventTypeStatistic": {
-        "properties": {
-          "event_type": {
-            "type": "string",
-            "title": "Event Type"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_type",
-          "count"
-        ],
-        "title": "EventTypeStatistic",
-        "description": "Statistics for a single event type."
       },
       "ExampleScripts": {
         "properties": {
@@ -15423,30 +15220,6 @@
         ],
         "title": "ThemeUpdateRequest",
         "description": "Request model for theme update"
-      },
-      "TopicStatistic": {
-        "properties": {
-          "topic": {
-            "type": "string",
-            "title": "Topic"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "avg_retry_count": {
-            "type": "number",
-            "title": "Avg Retry Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "topic",
-          "count",
-          "avg_retry_count"
-        ],
-        "title": "TopicStatistic",
-        "description": "Statistics for a single topic."
       },
       "UnreadCountResponse": {
         "properties": {

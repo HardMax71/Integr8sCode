@@ -210,10 +210,3 @@ class EventExportRow(BaseModel):
     error: str
 
 
-@dataclass
-class EventAggregationResult:
-    """Result of event aggregation."""
-
-    results: list[dict[str, Any]]
-    pipeline: list[dict[str, Any]]
-    execution_time_ms: float | None = None

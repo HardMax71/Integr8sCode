@@ -16,7 +16,6 @@ from app.domain.events import (
     ArchivedEvent,
     DomainEvent,
     DomainEventAdapter,
-    EventAggregationResult,
     EventListResult,
     EventReplayInfo,
     EventStatistics,
@@ -273,26 +272,6 @@ class EventRepository:
         return EventListResult(
             events=events, total=total_count, skip=skip, limit=limit, has_more=(skip + limit) < total_count
         )
-
-    async def aggregate_events(self, pipeline: list[dict[str, Any]], limit: int = 100) -> EventAggregationResult:
-        """Run aggregation pipeline on events."""
-        pipeline_with_limit = [*pipeline, {"$limit": limit}]
-        results = await EventDocument.aggregate(pipeline_with_limit).to_list()
-        return EventAggregationResult(results=results, pipeline=pipeline_with_limit)
-
-    async def list_event_types(self, match: dict[str, object] | None = None) -> list[str]:
-        """List distinct event types, optionally filtered."""
-        pipeline: list[dict[str, object]] = []
-        if match:
-            pipeline.append({"$match": match})
-        pipeline.extend(
-            [
-                {"$group": {"_id": S.field(EventDocument.event_type)}},
-                {"$sort": {"_id": 1}},
-            ]
-        )
-        results: list[dict[str, str]] = await EventDocument.aggregate(pipeline).to_list()
-        return [doc["_id"] for doc in results if doc.get("_id")]
 
     async def delete_event_with_archival(
             self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"

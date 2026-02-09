@@ -27,7 +27,7 @@ dependencies = [
     "cycler==0.12.1",
     "Deprecated==1.2.14",
     "dishka==1.7.2",
-    "dnspython==2.7.0",
+    "dnspython==2.8.0",
     "durationpy==0.9",
     "email-validator==2.3.0",
     "exceptiongroup==1.2.2",

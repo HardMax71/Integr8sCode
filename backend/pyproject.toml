@@ -90,7 +90,7 @@ dependencies = [
     "Pygments==2.19.2",
     "PyJWT==2.9.0",
     "pymongo==4.12.1",
-    "pyparsing==3.2.3",
+    "pyparsing==3.3.2",
     "python-dateutil==2.9.0.post0",
     "python-json-logger==2.0.7",
     "python-multipart==0.0.22",

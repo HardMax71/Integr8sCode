@@ -124,7 +124,7 @@ async def login(
     return LoginResponse(
         message="Login successful",
         username=user.username,
-        role="admin" if user.is_superuser else "user",
+        role=user.role,
         csrf_token=csrf_token,
     )
 
@@ -269,7 +269,7 @@ async def verify_token(
     return TokenValidationResponse(
         valid=True,
         username=current_user.username,
-        role="admin" if current_user.is_superuser else "user",
+        role=current_user.role,
         csrf_token=csrf_token,
     )
 

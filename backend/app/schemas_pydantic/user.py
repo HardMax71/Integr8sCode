@@ -117,7 +117,7 @@ class LoginResponse(BaseModel):
 
     message: str
     username: str
-    role: str
+    role: UserRole
     csrf_token: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -128,7 +128,7 @@ class TokenValidationResponse(BaseModel):
 
     valid: bool
     username: str
-    role: str
+    role: UserRole
     csrf_token: str
 
     model_config = ConfigDict(from_attributes=True)

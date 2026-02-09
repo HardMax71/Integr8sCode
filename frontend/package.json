@@ -75,7 +75,7 @@
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
     "express": "^5.2.1",
-    "globals": "^17.0.0",
+    "globals": "^17.3.0",
     "http-proxy": "^1.18.1",
     "jsdom": "^27.4.0",
     "monocart-reporter": "^2.9.23",

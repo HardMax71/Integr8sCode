@@ -87,7 +87,7 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
 
 
 async def _create_authenticated_client(
-    app: FastAPI, username: str, email: str, password: str, role: str
+    app: FastAPI, username: str, email: str, password: str, role: UserRole
 ) -> httpx.AsyncClient:
     """Create and return an authenticated client with CSRF header set."""
     c = httpx.AsyncClient(
@@ -107,9 +107,9 @@ async def _create_authenticated_client(
             pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
 
         # Register always creates UserRole.USER; promote via DB if needed
-        if role == "admin":
+        if role != UserRole.USER:
             await UserDocument.find_one(UserDocument.username == username).set(
-                {UserDocument.role: UserRole.ADMIN}
+                {UserDocument.role: role}
             )
 
         login_resp = await c.post("/api/v1/auth/login", data={
@@ -143,7 +143,7 @@ async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"test_user_{uid}",
         email=f"test_user_{uid}@example.com",
         password="TestPass123!",
-        role="user",
+        role=UserRole.USER,
     )
     yield c
     await c.aclose()
@@ -158,7 +158,7 @@ async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"admin_user_{uid}",
         email=f"admin_user_{uid}@example.com",
         password="AdminPass123!",
-        role="admin",
+        role=UserRole.ADMIN,
     )
     yield c
     await c.aclose()
@@ -173,7 +173,7 @@ async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"test_user_{uid}",
         email=f"test_user_{uid}@example.com",
         password="TestPass123!",
-        role="user",
+        role=UserRole.USER,
     )
     yield c
     await c.aclose()

@@ -5,12 +5,10 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from pymongo.errors import DuplicateKeyError
 
 from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.db.repositories import UserRepository
-from app.domain.exceptions import ConflictError
 from app.domain.user import DomainUserCreate
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
@@ -167,26 +165,16 @@ async def register(
         )
         raise HTTPException(status_code=400, detail="Username already registered")
 
-    try:
-        hashed_password = security_service.get_password_hash(user.password)
-        create_data = DomainUserCreate(
-            username=user.username,
-            email=str(user.email),
-            hashed_password=hashed_password,
-            role=user.role,
-            is_active=True,
-            is_superuser=False,
-        )
-        created_user = await user_repo.create_user(create_data)
-    except DuplicateKeyError as e:
-        logger.warning(
-            "Registration failed - duplicate email",
-            extra={
-                "username": user.username,
-                "client_ip": get_client_ip(request),
-            },
-        )
-        raise ConflictError("Email already registered") from e
+    hashed_password = security_service.get_password_hash(user.password)
+    create_data = DomainUserCreate(
+        username=user.username,
+        email=user.email,
+        hashed_password=hashed_password,
+        role=user.role,
+        is_active=True,
+        is_superuser=False,
+    )
+    created_user = await user_repo.create_user(create_data)
 
     logger.info(
         "Registration successful",
@@ -197,15 +185,7 @@ async def register(
         },
     )
 
-    return UserResponse(
-        user_id=created_user.user_id,
-        username=created_user.username,
-        email=created_user.email,
-        role=created_user.role,
-        is_superuser=created_user.is_superuser,
-        created_at=created_user.created_at,
-        updated_at=created_user.updated_at,
-    )
+    return UserResponse.model_validate(created_user, from_attributes=True)
 
 
 @router.get("/me", response_model=UserResponse)

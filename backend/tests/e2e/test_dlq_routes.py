@@ -37,9 +37,9 @@ class TestGetDLQMessages:
     """Tests for GET /api/v1/dlq/messages."""
 
     @pytest.mark.asyncio
-    async def test_get_dlq_messages(self, test_user: AsyncClient) -> None:
+    async def test_get_dlq_messages(self, test_admin: AsyncClient) -> None:
         """Get DLQ messages list."""
-        response = await test_user.get("/api/v1/dlq/messages")
+        response = await test_admin.get("/api/v1/dlq/messages")
 
         assert response.status_code == 200
         result = DLQMessagesResponse.model_validate(response.json())
@@ -49,10 +49,10 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_with_pagination(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Pagination parameters work correctly."""
-        response = await test_user.get(
+        response = await test_admin.get(
             "/api/v1/dlq/messages",
             params={"limit": 10, "offset": 0},
         )
@@ -64,10 +64,10 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_status(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Filter DLQ messages by status."""
-        response = await test_user.get(
+        response = await test_admin.get(
             "/api/v1/dlq/messages",
             params={"status": DLQMessageStatus.PENDING},
         )
@@ -80,10 +80,10 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_topic(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Filter DLQ messages by topic."""
-        response = await test_user.get(
+        response = await test_admin.get(
             "/api/v1/dlq/messages",
             params={"topic": "execution-events"},
         )
@@ -93,10 +93,10 @@ class TestGetDLQMessages:
 
     @pytest.mark.asyncio
     async def test_get_dlq_messages_by_event_type(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Filter DLQ messages by event type."""
-        response = await test_user.get(
+        response = await test_admin.get(
             "/api/v1/dlq/messages",
             params={"event_type": EventType.EXECUTION_REQUESTED},
         )
@@ -110,22 +110,22 @@ class TestGetDLQMessage:
 
     @pytest.mark.asyncio
     async def test_get_dlq_message_not_found(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Get nonexistent DLQ message returns 404."""
-        response = await test_user.get(
+        response = await test_admin.get(
             "/api/v1/dlq/messages/nonexistent-event-id"
         )
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_dlq_message_detail(
-            self, test_user: AsyncClient, stored_dlq_message: DLQMessageDocument
+            self, test_admin: AsyncClient, stored_dlq_message: DLQMessageDocument
     ) -> None:
         """Get DLQ message detail by event_id."""
         event_id = stored_dlq_message.event.event_id
 
-        response = await test_user.get(
+        response = await test_admin.get(
             f"/api/v1/dlq/messages/{event_id}"
         )
         assert response.status_code == 200
@@ -141,12 +141,12 @@ class TestRetryDLQMessages:
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages(
-            self, test_user: AsyncClient, stored_dlq_message: DLQMessageDocument
+            self, test_admin: AsyncClient, stored_dlq_message: DLQMessageDocument
     ) -> None:
         """Retry a known DLQ message."""
         event_ids = [stored_dlq_message.event.event_id]
 
-        response = await test_user.post(
+        response = await test_admin.post(
             "/api/v1/dlq/retry",
             json={"event_ids": event_ids},
         )
@@ -160,10 +160,10 @@ class TestRetryDLQMessages:
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_empty_list(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Retry with empty event IDs list."""
-        response = await test_user.post(
+        response = await test_admin.post(
             "/api/v1/dlq/retry",
             json={"event_ids": []},
         )
@@ -174,10 +174,10 @@ class TestRetryDLQMessages:
 
     @pytest.mark.asyncio
     async def test_retry_dlq_messages_nonexistent(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Retry nonexistent messages."""
-        response = await test_user.post(
+        response = await test_admin.post(
             "/api/v1/dlq/retry",
             json={"event_ids": ["nonexistent-1", "nonexistent-2"]},
         )
@@ -203,10 +203,10 @@ class TestSetRetryPolicy:
         ids=lambda v: v if isinstance(v, str) else v.value,
     )
     async def test_set_retry_policy(
-        self, test_user: AsyncClient, strategy: RetryStrategy, topic: str
+        self, test_admin: AsyncClient, strategy: RetryStrategy, topic: str
     ) -> None:
         """Set retry policy for each strategy type."""
-        response = await test_user.post(
+        response = await test_admin.post(
             "/api/v1/dlq/retry-policy",
             json={
                 "topic": topic,
@@ -228,10 +228,10 @@ class TestDiscardDLQMessage:
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message_not_found(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Discard nonexistent message returns 404."""
-        response = await test_user.delete(
+        response = await test_admin.delete(
             "/api/v1/dlq/messages/nonexistent-event-id",
             params={"reason": "Test discard"},
         )
@@ -239,12 +239,12 @@ class TestDiscardDLQMessage:
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message(
-            self, test_user: AsyncClient, stored_dlq_message: DLQMessageDocument
+            self, test_admin: AsyncClient, stored_dlq_message: DLQMessageDocument
     ) -> None:
         """Discard a known DLQ message."""
         event_id = stored_dlq_message.event.event_id
 
-        response = await test_user.delete(
+        response = await test_admin.delete(
             f"/api/v1/dlq/messages/{event_id}",
             params={"reason": "Test discard for E2E testing"},
         )
@@ -256,17 +256,17 @@ class TestDiscardDLQMessage:
         assert "discarded" in msg_result.message.lower()
 
         # Verify message is actually gone or marked discarded
-        get_resp = await test_user.get(f"/api/v1/dlq/messages/{event_id}")
+        get_resp = await test_admin.get(f"/api/v1/dlq/messages/{event_id}")
         if get_resp.status_code == 200:
             detail = DLQMessageDetail.model_validate(get_resp.json())
             assert detail.status == DLQMessageStatus.DISCARDED
 
     @pytest.mark.asyncio
     async def test_discard_dlq_message_requires_reason(
-            self, test_user: AsyncClient
+            self, test_admin: AsyncClient
     ) -> None:
         """Discard requires reason parameter."""
-        response = await test_user.delete(
+        response = await test_admin.delete(
             "/api/v1/dlq/messages/some-event-id"
         )
         assert response.status_code == 422
@@ -276,9 +276,9 @@ class TestGetDLQTopics:
     """Tests for GET /api/v1/dlq/topics."""
 
     @pytest.mark.asyncio
-    async def test_get_dlq_topics(self, test_user: AsyncClient) -> None:
+    async def test_get_dlq_topics(self, test_admin: AsyncClient) -> None:
         """Get DLQ topics summary."""
-        response = await test_user.get("/api/v1/dlq/topics")
+        response = await test_admin.get("/api/v1/dlq/topics")
 
         assert response.status_code == 200
         topics = [

@@ -4,7 +4,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import current_user
+from app.api.dependencies import admin_user
 from app.db.repositories import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
@@ -23,7 +23,7 @@ from app.schemas_pydantic.dlq import (
 from app.schemas_pydantic.user import MessageResponse
 
 router = APIRouter(
-    prefix="/dlq", tags=["Dead Letter Queue"], route_class=DishkaRoute, dependencies=[Depends(current_user)]
+    prefix="/dlq", tags=["Dead Letter Queue"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
 
 
@@ -72,14 +72,7 @@ async def retry_dlq_messages(
 @router.post("/retry-policy", response_model=MessageResponse)
 async def set_retry_policy(policy_request: RetryPolicyRequest, dlq_manager: FromDishka[DLQManager]) -> MessageResponse:
     """Configure a retry policy for a specific Kafka topic."""
-    policy = RetryPolicy(
-        topic=policy_request.topic,
-        strategy=policy_request.strategy,
-        max_retries=policy_request.max_retries,
-        base_delay_seconds=policy_request.base_delay_seconds,
-        max_delay_seconds=policy_request.max_delay_seconds,
-        retry_multiplier=policy_request.retry_multiplier,
-    )
+    policy = RetryPolicy(**policy_request.model_dump())
 
     dlq_manager.set_retry_policy(policy_request.topic, policy)
 

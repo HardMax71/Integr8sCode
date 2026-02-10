@@ -6,7 +6,7 @@ from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
 from app.domain.execution import DomainExecutionCreate
 from app.domain.saga import Saga, SagaAccessDeniedError, SagaListResult, SagaNotFoundError
-from app.schemas_pydantic.user import User
+from app.domain.user import User
 from app.services.execution_service import ExecutionService
 from app.services.saga.saga_service import SagaService
 from dishka import AsyncContainer
@@ -26,6 +26,7 @@ def make_test_user(
         role=role,
         is_active=True,
         is_superuser=role == UserRole.ADMIN,
+        hashed_password="unused",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )

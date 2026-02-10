@@ -21,9 +21,9 @@ from app.schemas_pydantic.admin_events import (
     EventReplayResponse,
     EventReplayStatusResponse,
     EventStatsResponse,
-    ExecutionResultSummarySchema,
 )
 from app.schemas_pydantic.common import ErrorResponse
+from app.schemas_pydantic.execution import ExecutionResult
 from app.services.admin import AdminEventsService
 
 router = APIRouter(
@@ -158,7 +158,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
         **status.session.model_dump(),
         estimated_completion=status.estimated_completion,
         execution_results=[
-            ExecutionResultSummarySchema.model_validate(er)
+            ExecutionResult.model_validate(er)
             for er in status.execution_results
         ],
     )

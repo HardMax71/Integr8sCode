@@ -2,10 +2,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums import EventType, ExecutionStatus
+from app.domain.enums import EventType
 from app.domain.events import DomainEvent, EventSummary
 from app.domain.replay import ReplayError
 from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
+from app.schemas_pydantic.execution import ExecutionResult
 
 
 class EventFilter(BaseModel):
@@ -77,22 +78,6 @@ class EventReplayResponse(BaseModel):
     events_preview: list[EventSummary] | None = None
 
 
-class ExecutionResultSummarySchema(BaseModel):
-    """Schema for execution result summary in replay status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_id: str
-    status: ExecutionStatus | None = None
-    stdout: str | None = None
-    stderr: str | None = None
-    exit_code: int | None = None
-    lang: str
-    lang_version: str
-    created_at: datetime
-    updated_at: datetime
-
-
 class EventReplayStatusResponse(BaseModel):
     """Response model for replay status"""
 
@@ -110,7 +95,7 @@ class EventReplayStatusResponse(BaseModel):
     completed_at: datetime | None = None
     errors: list[ReplayError] | None = None
     estimated_completion: datetime | None = None
-    execution_results: list[ExecutionResultSummarySchema] | None = None
+    execution_results: list[ExecutionResult] | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

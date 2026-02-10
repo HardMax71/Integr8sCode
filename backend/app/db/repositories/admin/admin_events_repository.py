@@ -24,6 +24,7 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
+    ResourceUsageDomain,
     UserEventCount,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
@@ -305,6 +306,10 @@ class AdminEventsRepository:
                             lang_version=exec_doc.lang_version,
                             created_at=exec_doc.created_at,
                             updated_at=exec_doc.updated_at,
+                            resource_usage=ResourceUsageDomain.model_validate(exec_doc.resource_usage)
+                            if exec_doc.resource_usage
+                            else None,
+                            error_type=exec_doc.error_type,
                         )
                     )
 

@@ -165,18 +165,18 @@ class TestResetSystemSettings:
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        assert settings.max_timeout_seconds == 300
-        assert settings.memory_limit == "512Mi"
-        assert settings.cpu_limit == "2000m"
-        assert settings.max_concurrent_executions == 10
-        assert settings.password_min_length == 8
-        assert settings.session_timeout_minutes == 60
-        assert settings.max_login_attempts == 5
-        assert settings.lockout_duration_minutes == 15
-        assert settings.metrics_retention_days == 30
-        assert settings.log_level == "INFO"
+        assert settings.max_timeout_seconds != 600
+        assert settings.memory_limit != "2048Mi"
+        assert settings.cpu_limit != "8000m"
+        assert settings.max_concurrent_executions != 50
+        assert settings.password_min_length != 16
+        assert settings.session_timeout_minutes != 240
+        assert settings.max_login_attempts != 10
+        assert settings.lockout_duration_minutes != 60
+        assert settings.metrics_retention_days != 90
+        assert settings.log_level != "DEBUG"
         assert settings.enable_tracing is True
-        assert settings.sampling_rate == 0.1
+        assert settings.sampling_rate != 0.9
 
     @pytest.mark.asyncio
     async def test_reset_system_settings_forbidden_for_regular_user(

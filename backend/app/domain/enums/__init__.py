@@ -2,7 +2,6 @@ from app.domain.enums.auth import LoginMethod, SettingsType
 from app.domain.enums.common import Environment, ErrorType, SortOrder, Theme
 from app.domain.enums.events import EventType
 from app.domain.enums.execution import CancelStatus, ExecutionStatus, QueuePriority
-from app.domain.enums.health import AlertSeverity, AlertStatus, ComponentStatus
 from app.domain.enums.kafka import GroupId, KafkaTopic
 from app.domain.enums.notification import (
     NotificationChannel,
@@ -30,10 +29,6 @@ __all__ = [
     "CancelStatus",
     "ExecutionStatus",
     "QueuePriority",
-    # Health
-    "AlertSeverity",
-    "AlertStatus",
-    "ComponentStatus",
     # Kafka
     "GroupId",
     "KafkaTopic",

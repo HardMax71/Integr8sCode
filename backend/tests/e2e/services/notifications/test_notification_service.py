@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 from app.db.repositories import NotificationRepository
-from app.domain.enums import NotificationChannel, NotificationSeverity
+from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.domain.notification import (
     DomainNotificationListResult,
     NotificationNotFoundError,
@@ -151,8 +151,12 @@ class TestMarkAsRead:
         )
 
         # Mark as read
-        result = await svc.mark_as_read(user_id, notification.notification_id)
-        assert result is True
+        await svc.mark_as_read(user_id, notification.notification_id)
+
+        # Verify status changed to READ
+        result = await svc.list_notifications(user_id=user_id, status=NotificationStatus.READ)
+        read_ids = [n.notification_id for n in result.notifications]
+        assert notification.notification_id in read_ids
 
     @pytest.mark.asyncio
     async def test_mark_as_read_nonexistent_raises(
@@ -334,8 +338,12 @@ class TestDeleteNotification:
         )
 
         # Delete it
-        result = await svc.delete_notification(user_id, notification.notification_id)
-        assert result is True
+        await svc.delete_notification(user_id, notification.notification_id)
+
+        # Verify it's gone
+        result = await svc.list_notifications(user_id=user_id)
+        remaining_ids = [n.notification_id for n in result.notifications]
+        assert notification.notification_id not in remaining_ids
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent_notification_raises(
@@ -530,12 +538,16 @@ class TestNotificationIntegration:
         unread = await svc.get_unread_count(user_id)
         assert unread >= 1
 
-        # Mark as read
+        # Mark as read and verify unread count drops
         await svc.mark_as_read(user_id, notification.notification_id)
+        unread_after_read = await svc.get_unread_count(user_id)
+        assert unread_after_read < unread
 
-        # Delete
-        deleted = await svc.delete_notification(user_id, notification.notification_id)
-        assert deleted is True
+        # Delete and verify it's gone
+        await svc.delete_notification(user_id, notification.notification_id)
+        result = await svc.list_notifications(user_id=user_id)
+        remaining_ids = [n.notification_id for n in result.notifications]
+        assert notification.notification_id not in remaining_ids
 
     @pytest.mark.asyncio
     async def test_notification_with_subscription_filter(

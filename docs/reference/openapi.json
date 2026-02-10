@@ -1936,7 +1936,105 @@
         "operationId": "notification_stream_api_v1_events_notifications_stream_get",
         "responses": {
           "200": {
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "properties": {
+                    "notification_id": {
+                      "type": "string",
+                      "title": "Notification Id"
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "in_app",
+                        "webhook",
+                        "slack"
+                      ],
+                      "title": "NotificationChannel",
+                      "description": "Notification delivery channels."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "queued",
+                        "sending",
+                        "delivered",
+                        "failed",
+                        "skipped",
+                        "read",
+                        "clicked"
+                      ],
+                      "title": "NotificationStatus",
+                      "description": "Notification delivery status."
+                    },
+                    "subject": {
+                      "type": "string",
+                      "title": "Subject"
+                    },
+                    "body": {
+                      "type": "string",
+                      "title": "Body"
+                    },
+                    "action_url": {
+                      "type": "string",
+                      "title": "Action Url"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "title": "Created At"
+                    },
+                    "read_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Read At"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "urgent"
+                      ],
+                      "title": "NotificationSeverity",
+                      "description": "Notification severity levels."
+                    },
+                    "tags": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "title": "Tags"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "notification_id",
+                    "channel",
+                    "status",
+                    "subject",
+                    "body",
+                    "action_url",
+                    "created_at",
+                    "severity",
+                    "tags"
+                  ],
+                  "title": "NotificationResponse",
+                  "description": "Response schema for notification endpoints"
+                }
+              }
+            }
           }
         }
       }
@@ -1962,7 +2060,396 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "description": "Typed model for SSE execution stream event payload.\n\nThis represents the JSON data sent inside each SSE message for execution streams.\nAll fields except event_type and execution_id are optional since different\nevent types carry different data.",
+                  "properties": {
+                    "event_type": {
+                      "anyOf": [
+                        {
+                          "description": "Event types used throughout the system.",
+                          "enum": [
+                            "execution_requested",
+                            "execution_accepted",
+                            "execution_queued",
+                            "execution_started",
+                            "execution_running",
+                            "execution_completed",
+                            "execution_failed",
+                            "execution_timeout",
+                            "execution_cancelled",
+                            "pod_created",
+                            "pod_scheduled",
+                            "pod_running",
+                            "pod_succeeded",
+                            "pod_failed",
+                            "pod_terminated",
+                            "pod_deleted",
+                            "user_registered",
+                            "user_login",
+                            "user_logged_in",
+                            "user_logged_out",
+                            "user_updated",
+                            "user_deleted",
+                            "user_settings_updated",
+                            "notification_created",
+                            "notification_sent",
+                            "notification_delivered",
+                            "notification_failed",
+                            "notification_read",
+                            "notification_all_read",
+                            "notification_clicked",
+                            "notification_preferences_updated",
+                            "script_saved",
+                            "script_deleted",
+                            "script_shared",
+                            "security_violation",
+                            "rate_limit_exceeded",
+                            "auth_failed",
+                            "resource_limit_exceeded",
+                            "quota_exceeded",
+                            "system_error",
+                            "service_unhealthy",
+                            "service_recovered",
+                            "result_stored",
+                            "result_failed",
+                            "saga_started",
+                            "saga_completed",
+                            "saga_failed",
+                            "saga_cancelled",
+                            "saga_compensating",
+                            "saga_compensated",
+                            "create_pod_command",
+                            "delete_pod_command",
+                            "allocate_resources_command",
+                            "release_resources_command",
+                            "dlq_message_received",
+                            "dlq_message_retried",
+                            "dlq_message_discarded"
+                          ],
+                          "title": "EventType",
+                          "type": "string"
+                        },
+                        {
+                          "description": "Control events for execution SSE streams (not from Kafka).",
+                          "enum": [
+                            "connected",
+                            "subscribed",
+                            "status"
+                          ],
+                          "title": "SSEControlEvent",
+                          "type": "string"
+                        }
+                      ],
+                      "description": "Event type identifier (business event or control event)",
+                      "title": "Event Type"
+                    },
+                    "execution_id": {
+                      "description": "Execution ID this event relates to",
+                      "title": "Execution Id",
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Event timestamp",
+                      "title": "Timestamp"
+                    },
+                    "event_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Unique event identifier",
+                      "title": "Event Id"
+                    },
+                    "connection_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "SSE connection ID (connected event)",
+                      "title": "Connection Id"
+                    },
+                    "message": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Human-readable message (subscribed event)",
+                      "title": "Message"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "description": "Status of an execution.",
+                          "enum": [
+                            "queued",
+                            "scheduled",
+                            "running",
+                            "completed",
+                            "failed",
+                            "timeout",
+                            "cancelled",
+                            "error"
+                          ],
+                          "title": "ExecutionStatus",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Current execution status"
+                    },
+                    "stdout": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Standard output from execution",
+                      "title": "Stdout"
+                    },
+                    "stderr": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Standard error from execution",
+                      "title": "Stderr"
+                    },
+                    "exit_code": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Process exit code",
+                      "title": "Exit Code"
+                    },
+                    "timeout_seconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Timeout duration in seconds",
+                      "title": "Timeout Seconds"
+                    },
+                    "resource_usage": {
+                      "anyOf": [
+                        {
+                          "description": "Model for execution resource usage.",
+                          "properties": {
+                            "execution_time_wall_seconds": {
+                              "default": 0.0,
+                              "title": "Execution Time Wall Seconds",
+                              "type": "number"
+                            },
+                            "cpu_time_jiffies": {
+                              "default": 0,
+                              "title": "Cpu Time Jiffies",
+                              "type": "integer"
+                            },
+                            "clk_tck_hertz": {
+                              "default": 0,
+                              "title": "Clk Tck Hertz",
+                              "type": "integer"
+                            },
+                            "peak_memory_kb": {
+                              "default": 0,
+                              "title": "Peak Memory Kb",
+                              "type": "integer"
+                            }
+                          },
+                          "title": "ResourceUsage",
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "CPU/memory usage metrics"
+                    },
+                    "result": {
+                      "anyOf": [
+                        {
+                          "description": "Model for execution result.",
+                          "properties": {
+                            "execution_id": {
+                              "title": "Execution Id",
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "Status of an execution.",
+                              "enum": [
+                                "queued",
+                                "scheduled",
+                                "running",
+                                "completed",
+                                "failed",
+                                "timeout",
+                                "cancelled",
+                                "error"
+                              ],
+                              "title": "ExecutionStatus",
+                              "type": "string"
+                            },
+                            "stdout": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Stdout"
+                            },
+                            "stderr": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Stderr"
+                            },
+                            "lang": {
+                              "title": "Lang",
+                              "type": "string"
+                            },
+                            "lang_version": {
+                              "title": "Lang Version",
+                              "type": "string"
+                            },
+                            "resource_usage": {
+                              "anyOf": [
+                                {
+                                  "description": "Model for execution resource usage.",
+                                  "properties": {
+                                    "execution_time_wall_seconds": {
+                                      "default": 0.0,
+                                      "title": "Execution Time Wall Seconds",
+                                      "type": "number"
+                                    },
+                                    "cpu_time_jiffies": {
+                                      "default": 0,
+                                      "title": "Cpu Time Jiffies",
+                                      "type": "integer"
+                                    },
+                                    "clk_tck_hertz": {
+                                      "default": 0,
+                                      "title": "Clk Tck Hertz",
+                                      "type": "integer"
+                                    },
+                                    "peak_memory_kb": {
+                                      "default": 0,
+                                      "title": "Peak Memory Kb",
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "title": "ResourceUsage",
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "exit_code": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Exit Code"
+                            },
+                            "error_type": {
+                              "anyOf": [
+                                {
+                                  "description": "Types of execution errors.",
+                                  "enum": [
+                                    "system_error",
+                                    "timeout",
+                                    "resource_limit",
+                                    "script_error",
+                                    "permission_denied"
+                                  ],
+                                  "title": "ExecutionErrorType",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "execution_id",
+                            "status",
+                            "lang",
+                            "lang_version"
+                          ],
+                          "title": "ExecutionResult",
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Complete execution result"
+                    }
+                  },
+                  "required": [
+                    "event_type",
+                    "execution_id"
+                  ],
+                  "title": "SSEExecutionEventData",
+                  "type": "object"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",

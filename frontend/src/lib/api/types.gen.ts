@@ -7442,10 +7442,61 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetData = {
 
 export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
-     * Successful Response
+     * NotificationResponse
+     *
+     * Response schema for notification endpoints
      */
-    200: unknown;
+    200: {
+        /**
+         * Notification Id
+         */
+        notification_id: string;
+        /**
+         * NotificationChannel
+         *
+         * Notification delivery channels.
+         */
+        channel: 'in_app' | 'webhook' | 'slack';
+        /**
+         * NotificationStatus
+         *
+         * Notification delivery status.
+         */
+        status: 'pending' | 'queued' | 'sending' | 'delivered' | 'failed' | 'skipped' | 'read' | 'clicked';
+        /**
+         * Subject
+         */
+        subject: string;
+        /**
+         * Body
+         */
+        body: string;
+        /**
+         * Action Url
+         */
+        action_url: string;
+        /**
+         * Created At
+         */
+        created_at: string;
+        /**
+         * Read At
+         */
+        read_at?: string | null;
+        /**
+         * NotificationSeverity
+         *
+         * Notification severity levels.
+         */
+        severity: 'low' | 'medium' | 'high' | 'urgent';
+        /**
+         * Tags
+         */
+        tags: Array<string>;
+    };
 };
+
+export type NotificationStreamApiV1EventsNotificationsStreamGetResponse = NotificationStreamApiV1EventsNotificationsStreamGetResponses[keyof NotificationStreamApiV1EventsNotificationsStreamGetResponses];
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetData = {
     body?: never;
@@ -7470,10 +7521,158 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetError = ExecutionE
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
-     * Successful Response
+     * SSEExecutionEventData
+     *
+     * Typed model for SSE execution stream event payload.
+     *
+     * This represents the JSON data sent inside each SSE message for execution streams.
+     * All fields except event_type and execution_id are optional since different
+     * event types carry different data.
      */
-    200: unknown;
+    200: {
+        /**
+         * Event Type
+         *
+         * Event type identifier (business event or control event)
+         */
+        event_type: 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_all_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded' | 'connected' | 'subscribed' | 'status';
+        /**
+         * Execution Id
+         *
+         * Execution ID this event relates to
+         */
+        execution_id: string;
+        /**
+         * Timestamp
+         *
+         * Event timestamp
+         */
+        timestamp?: string | null;
+        /**
+         * Event Id
+         *
+         * Unique event identifier
+         */
+        event_id?: string | null;
+        /**
+         * Connection Id
+         *
+         * SSE connection ID (connected event)
+         */
+        connection_id?: string | null;
+        /**
+         * Message
+         *
+         * Human-readable message (subscribed event)
+         */
+        message?: string | null;
+        /**
+         * Current execution status
+         */
+        status?: 'queued' | 'scheduled' | 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'error' | null;
+        /**
+         * Stdout
+         *
+         * Standard output from execution
+         */
+        stdout?: string | null;
+        /**
+         * Stderr
+         *
+         * Standard error from execution
+         */
+        stderr?: string | null;
+        /**
+         * Exit Code
+         *
+         * Process exit code
+         */
+        exit_code?: number | null;
+        /**
+         * Timeout Seconds
+         *
+         * Timeout duration in seconds
+         */
+        timeout_seconds?: number | null;
+        /**
+         * CPU/memory usage metrics
+         */
+        resource_usage?: {
+            /**
+             * Execution Time Wall Seconds
+             */
+            execution_time_wall_seconds?: number;
+            /**
+             * Cpu Time Jiffies
+             */
+            cpu_time_jiffies?: number;
+            /**
+             * Clk Tck Hertz
+             */
+            clk_tck_hertz?: number;
+            /**
+             * Peak Memory Kb
+             */
+            peak_memory_kb?: number;
+        } | null;
+        /**
+         * Complete execution result
+         */
+        result?: {
+            /**
+             * Execution Id
+             */
+            execution_id: string;
+            /**
+             * ExecutionStatus
+             *
+             * Status of an execution.
+             */
+            status: 'queued' | 'scheduled' | 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'error';
+            /**
+             * Stdout
+             */
+            stdout?: string | null;
+            /**
+             * Stderr
+             */
+            stderr?: string | null;
+            /**
+             * Lang
+             */
+            lang: string;
+            /**
+             * Lang Version
+             */
+            lang_version: string;
+            resource_usage?: {
+                /**
+                 * Execution Time Wall Seconds
+                 */
+                execution_time_wall_seconds?: number;
+                /**
+                 * Cpu Time Jiffies
+                 */
+                cpu_time_jiffies?: number;
+                /**
+                 * Clk Tck Hertz
+                 */
+                clk_tck_hertz?: number;
+                /**
+                 * Peak Memory Kb
+                 */
+                peak_memory_kb?: number;
+            } | null;
+            /**
+             * Exit Code
+             */
+            exit_code?: number | null;
+            error_type?: 'system_error' | 'timeout' | 'resource_limit' | 'script_error' | 'permission_denied' | null;
+        } | null;
+    };
 };
+
+export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
 
 export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
     body?: never;

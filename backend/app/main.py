@@ -8,7 +8,6 @@ from app.api.routes import (
     dlq,
     events,
     execution,
-    grafana_alerts,
     health,
     notifications,
     replay,
@@ -124,7 +123,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(user_settings.router, prefix=settings.API_V1_STR)
     app.include_router(notifications.router, prefix=settings.API_V1_STR)
     app.include_router(saga.router, prefix=settings.API_V1_STR)
-    app.include_router(grafana_alerts.router, prefix=settings.API_V1_STR)
 
     logger.info("All routers configured")
 

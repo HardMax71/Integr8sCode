@@ -28,6 +28,8 @@ class ReplayRequest(BaseModel):
 class ReplayResponse(BaseModel):
     """Response schema for replay operations"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     status: ReplayStatus
     message: str
@@ -75,6 +77,8 @@ class SessionSummary(BaseModel):
 
 class CleanupResponse(BaseModel):
     """Response schema for cleanup operations"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     removed_sessions: int
     message: str

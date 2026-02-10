@@ -8,6 +8,7 @@ const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register'];
 
 const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warning' }> = {
     403: { message: 'Access denied.', type: 'error' },
+    423: { message: 'Your account has been temporarily locked due to too many failed login attempts. Please try again later.', type: 'warning' },
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 

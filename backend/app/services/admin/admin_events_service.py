@@ -197,10 +197,6 @@ class AdminEventsService:
             return None
 
         now = datetime.now(timezone.utc)
-        changed = self._advance_replay_state(doc, now)
-        if changed:
-            await doc.save()
-
         estimated_completion = self._estimate_completion(doc, now)
         session = ReplaySessionState.model_validate(doc)
         execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
@@ -210,24 +206,6 @@ class AdminEventsService:
             estimated_completion=estimated_completion,
             execution_results=execution_results,
         )
-
-    def _advance_replay_state(self, doc: ReplaySessionDocument, now: datetime) -> bool:
-        """Advance replay state machine. Returns True if doc was mutated."""
-        if doc.status == ReplayStatus.SCHEDULED and doc.created_at:
-            if (now - doc.created_at).total_seconds() > 2:
-                doc.status = ReplayStatus.RUNNING
-                doc.started_at = now
-                return True
-
-        if not doc.is_running or not doc.started_at:
-            return False
-
-        elapsed = (now - doc.started_at).total_seconds()
-        doc.replayed_events = min(int(elapsed * 10), doc.total_events)
-        if doc.replayed_events >= doc.total_events:
-            doc.status = ReplayStatus.COMPLETED
-            doc.completed_at = now
-        return True
 
     def _estimate_completion(self, doc: ReplaySessionDocument, now: datetime) -> datetime | None:
         if not doc.is_running or not doc.started_at or doc.replayed_events <= 0:

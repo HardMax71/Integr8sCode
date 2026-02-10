@@ -18,9 +18,9 @@ class TestGetSystemSettings:
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        assert settings.max_timeout_seconds >= 10
+        assert settings.max_timeout_seconds >= 1
         assert settings.max_concurrent_executions >= 1
-        assert settings.password_min_length >= 4
+        assert settings.password_min_length >= 8
         assert settings.session_timeout_minutes >= 5
         assert settings.max_login_attempts >= 3
         assert settings.lockout_duration_minutes >= 5

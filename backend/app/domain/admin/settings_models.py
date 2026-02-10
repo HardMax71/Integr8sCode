@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
 
-K8S_MEMORY_PATTERN = r"^\d+(Ki|Mi|Gi)$"
-K8S_CPU_PATTERN = r"^\d+m$"
+K8S_MEMORY_PATTERN = r"^[1-9]\d*(Ki|Mi|Gi)$"
+K8S_CPU_PATTERN = r"^[1-9]\d*m$"
 
 
 class AuditAction(StringEnum):
@@ -31,12 +31,12 @@ class SystemSettings(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, extra="ignore", use_enum_values=True)
 
-    max_timeout_seconds: int = Field(300, ge=10, le=3600)
+    max_timeout_seconds: int = Field(300, ge=1, le=3600)
     memory_limit: str = Field("512Mi", pattern=K8S_MEMORY_PATTERN)
     cpu_limit: str = Field("2000m", pattern=K8S_CPU_PATTERN)
     max_concurrent_executions: int = Field(10, ge=1, le=100)
 
-    password_min_length: int = Field(8, ge=4, le=32)
+    password_min_length: int = Field(8, ge=8, le=32)
     session_timeout_minutes: int = Field(60, ge=5, le=1440)
     max_login_attempts: int = Field(5, ge=3, le=10)
     lockout_duration_minutes: int = Field(15, ge=5, le=60)

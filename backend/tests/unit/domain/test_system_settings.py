@@ -49,9 +49,9 @@ class TestBoundaryValidation:
     @pytest.mark.parametrize(
         "field, too_low, too_high",
         [
-            ("max_timeout_seconds", 9, 3601),
+            ("max_timeout_seconds", 0, 3601),
             ("max_concurrent_executions", 0, 101),
-            ("password_min_length", 3, 33),
+            ("password_min_length", 7, 33),
             ("session_timeout_minutes", 4, 1441),
             ("max_login_attempts", 2, 11),
             ("lockout_duration_minutes", 4, 61),

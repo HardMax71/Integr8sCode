@@ -21,7 +21,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Model for creating a new user"""
 
-    password: str = Field(..., min_length=4)
+    password: str = Field(..., min_length=8)
 
     model_config = ConfigDict(from_attributes=True)
 

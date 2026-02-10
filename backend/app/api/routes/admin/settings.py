@@ -5,6 +5,7 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import admin_user
+from app.domain.admin import SystemSettings
 from app.domain.user import User
 from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 from app.schemas_pydantic.common import ErrorResponse
@@ -44,8 +45,9 @@ async def update_system_settings(
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Replace system-wide settings."""
+    domain_settings = SystemSettings.model_validate(settings)
     result = await service.update_system_settings(
-        settings,
+        domain_settings,
         updated_by=admin.username,
         user_id=admin.user_id,
     )

@@ -36,9 +36,7 @@ class LoginLockoutService:
 
         attempts_key = self._attempts_key(username)
         attempts = await self._redis.incr(attempts_key)
-
-        if attempts == 1:
-            await self._redis.expire(attempts_key, ttl)
+        await self._redis.expire(attempts_key, ttl)
 
         if attempts >= effective.max_login_attempts:
             await self._redis.set(self._locked_key(username), "1", ex=ttl)

@@ -21,7 +21,6 @@ from app.schemas_pydantic.user import (
 from app.services.auth_service import AuthService
 from app.services.login_lockout import LoginLockoutService
 from app.services.runtime_settings import RuntimeSettingsLoader
-from app.settings import Settings
 
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
@@ -39,7 +38,6 @@ async def login(
     response: Response,
     user_repo: FromDishka[UserRepository],
     security_service: FromDishka[SecurityService],
-    settings: FromDishka[Settings],
     runtime_settings: FromDishka[RuntimeSettingsLoader],
     lockout_service: FromDishka[LoginLockoutService],
     logger: FromDishka[logging.Logger],
@@ -73,7 +71,12 @@ async def login(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        await lockout_service.record_failed_attempt(form_data.username)
+        locked = await lockout_service.record_failed_attempt(form_data.username)
+        if locked:
+            raise HTTPException(
+                status_code=423,
+                detail="Account locked due to too many failed attempts",
+            )
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials",
@@ -156,7 +159,7 @@ async def login(
     "/register",
     response_model=UserResponse,
     responses={
-        400: {"model": ErrorResponse, "description": "Username already registered or password too short"},
+        400: {"model": ErrorResponse, "description": "Password too short"},
         409: {"model": ErrorResponse, "description": "User already exists"},
     },
 )
@@ -194,7 +197,7 @@ async def register(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=409, detail="Username already registered")
 
     hashed_password = security_service.get_password_hash(user.password)
     create_data = DomainUserCreate(

@@ -5,20 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
-from app.domain.events.typed import DomainEvent
+from app.domain.events.typed import DomainEvent, EventMetadata
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
-
-
-class EventSortOrder(StringEnum):
-    ASC = "asc"
-    DESC = "desc"
-
-
-class SortDirection:
-    ASCENDING = 1
-    DESCENDING = -1
 
 
 class CollectionNames(StringEnum):
@@ -64,21 +54,6 @@ class EventFilter(BaseModel):
     end_time: datetime | None = None
     search_text: str | None = None
     status: str | None = None
-
-
-class EventQuery(BaseModel):
-    """Query parameters for event search."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    filter: EventFilter
-    sort_by: str = "timestamp"
-    sort_order: EventSortOrder = EventSortOrder.DESC
-    limit: int = 100
-    skip: int = 0
-
-    def get_sort_direction(self) -> int:
-        return SortDirection.DESCENDING if self.sort_order == EventSortOrder.DESC else SortDirection.ASCENDING
 
 
 class EventListResult(BaseModel):
@@ -213,9 +188,5 @@ class EventExportRow(BaseModel):
     event_id: str
     event_type: EventType
     timestamp: datetime
-    correlation_id: str
-    aggregate_id: str
-    user_id: str
-    service: str
-    status: str
-    error: str
+    aggregate_id: str | None = None
+    metadata: EventMetadata

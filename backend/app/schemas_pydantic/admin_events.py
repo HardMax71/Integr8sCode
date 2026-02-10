@@ -28,8 +28,6 @@ class EventBrowseRequest(BaseModel):
     filters: EventFilter
     skip: int = 0
     limit: int = Field(default=50, le=500)
-    sort_by: str = "timestamp"
-    sort_order: int = -1
 
 
 class EventReplayRequest(BaseModel):

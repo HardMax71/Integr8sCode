@@ -11,14 +11,13 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionUpdate
+from app.domain.admin import ExecutionResultSummary, ReplaySessionUpdate
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,
     EventBrowseResult,
     EventDetail,
-    EventExportRow,
     EventFilter,
     EventStatistics,
     EventSummary,
@@ -26,7 +25,6 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
-from app.domain.exceptions import NotFoundError, ValidationError
 from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
@@ -45,21 +43,33 @@ class AdminEventsRepository:
         ]
         return [c for c in conditions if c is not None]
 
-    async def browse_events(
+    async def get_events(
         self,
         event_filter: EventFilter,
         skip: int = 0,
         limit: int = 50,
-        sort_by: str = "timestamp",
-        sort_order: SortDirection = SortDirection.DESCENDING,
+    ) -> list[DomainEvent]:
+        conditions = self._event_filter_conditions(event_filter)
+        docs = (
+            await EventDocument.find(*conditions)
+            .sort([("timestamp", SortDirection.DESCENDING)])
+            .skip(skip)
+            .limit(limit)
+            .to_list()
+        )
+        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+
+    async def get_events_page(
+        self,
+        event_filter: EventFilter,
+        skip: int = 0,
+        limit: int = 50,
     ) -> EventBrowseResult:
         conditions = self._event_filter_conditions(event_filter)
         query = EventDocument.find(*conditions)
         total = await query.count()
-
-        docs = await query.sort([(sort_by, sort_order)]).skip(skip).limit(limit).to_list()
+        docs = await query.sort([("timestamp", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
-
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
@@ -88,81 +98,86 @@ class AdminEventsRepository:
     async def get_event_stats(self, hours: int = 24) -> EventStatistics:
         start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        # Overview stats pipeline
-        # Note: monggregate doesn't have S.add_to_set - use raw dict syntax
-        overview_pipeline = (
-            Pipeline()
-            .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(
-                by=None,
-                query={
-                    "total_events": S.sum(1),
-                    "event_types": {"$addToSet": S.field(EventDocument.event_type)},
-                    "unique_users": {"$addToSet": S.field(EventDocument.metadata.user_id)},
-                    "services": {"$addToSet": S.field(EventDocument.metadata.service_name)},
-                },
-            )
-            .project(
-                _id=0,
-                total_events=1,
-                event_type_count={"$size": "$event_types"},
-                unique_user_count={"$size": "$unique_users"},
-                service_count={"$size": "$services"},
-            )
-        )
-        overview_result = await EventDocument.aggregate(overview_pipeline.export()).to_list()
-        stats = (
-            overview_result[0]
-            if overview_result
+        event_pipeline: list[dict[str, Any]] = [
+            {"$match": {"timestamp": {"$gte": start_time}}},
+            {
+                "$facet": {
+                    "overview": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total_events": {"$sum": 1},
+                                "event_types": {"$addToSet": S.field(EventDocument.event_type)},
+                                "unique_users": {"$addToSet": S.field(EventDocument.metadata.user_id)},
+                                "services": {"$addToSet": S.field(EventDocument.metadata.service_name)},
+                            }
+                        },
+                        {
+                            "$project": {
+                                "_id": 0,
+                                "total_events": 1,
+                                "event_type_count": {"$size": "$event_types"},
+                                "unique_user_count": {"$size": "$unique_users"},
+                                "service_count": {"$size": "$services"},
+                            }
+                        },
+                    ],
+                    "error_count": [
+                        {"$match": {"event_type": {"$regex": "failed|error|timeout", "$options": "i"}}},
+                        {"$count": "count"},
+                    ],
+                    "by_type": [
+                        {"$group": {"_id": S.field(EventDocument.event_type), "count": {"$sum": 1}}},
+                        {"$sort": {"count": -1}},
+                        {"$limit": 10},
+                    ],
+                    "by_hour": [
+                        {
+                            "$group": {
+                                "_id": {
+                                    "$dateToString": {
+                                        "format": "%Y-%m-%d-%H",
+                                        "date": S.field(EventDocument.timestamp),
+                                    }
+                                },
+                                "count": {"$sum": 1},
+                            }
+                        },
+                        {"$sort": {"_id": 1}},
+                        {"$project": {"_id": 0, "hour": "$_id", "count": 1}},
+                    ],
+                    "by_user": [
+                        {"$group": {"_id": S.field(EventDocument.metadata.user_id), "count": {"$sum": 1}}},
+                        {"$sort": {"count": -1}},
+                        {"$limit": 10},
+                        {"$project": {"_id": 0, "user_id": "$_id", "event_count": "$count"}},
+                    ],
+                }
+            },
+        ]
+        event_results = await EventDocument.aggregate(event_pipeline).to_list()
+
+        facet = event_results[0] if event_results else {}
+        overview = (
+            facet["overview"][0]
+            if facet.get("overview")
             else {"total_events": 0, "event_type_count": 0, "unique_user_count": 0, "service_count": 0}
         )
+        error_list = facet.get("error_count", [])
+        error_count = error_list[0]["count"] if error_list else 0
+        total = overview["total_events"]
+        error_rate = (error_count / total * 100) if total > 0 else 0
 
-        error_count = await EventDocument.find(
-            {
-                EventDocument.timestamp: {"$gte": start_time},
-                EventDocument.event_type: {"$regex": "failed|error|timeout", "$options": "i"},
-            }
-        ).count()
-        error_rate = (error_count / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
+        events_by_type = [
+            EventTypeCount(event_type=EventType(t["_id"]), count=t["count"])
+            for t in facet.get("by_type", [])
+        ]
+        events_by_hour = [HourlyEventCount.model_validate(doc) for doc in facet.get("by_hour", [])]
+        top_users = [
+            UserEventCount.model_validate(doc) for doc in facet.get("by_user", []) if doc["user_id"]
+        ]
 
-        # Event types pipeline
-        type_pipeline = (
-            Pipeline()
-            .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(by=S.field(EventDocument.event_type), query={"count": S.sum(1)})
-            .sort(by="count", descending=True)
-            .limit(10)
-        )
-        top_types = await EventDocument.aggregate(type_pipeline.export()).to_list()
-        events_by_type = [EventTypeCount(event_type=EventType(t["_id"]), count=t["count"]) for t in top_types]
-
-        # Hourly events pipeline - project renames _id->hour
-        hourly_pipeline = (
-            Pipeline()
-            .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(
-                by={"$dateToString": {"format": "%Y-%m-%d-%H", "date": S.field(EventDocument.timestamp)}},
-                query={"count": S.sum(1)},
-            )
-            .sort(by="_id")
-            .project(_id=0, hour="$_id", count=1)
-        )
-        hourly_result = await EventDocument.aggregate(hourly_pipeline.export()).to_list()
-        events_by_hour = [HourlyEventCount.model_validate(doc) for doc in hourly_result]
-
-        # Top users pipeline - project renames _id->user_id, count->event_count
-        user_pipeline = (
-            Pipeline()
-            .match({EventDocument.timestamp: {"$gte": start_time}})
-            .group(by=S.field(EventDocument.metadata.user_id), query={"count": S.sum(1)})
-            .sort(by="count", descending=True)
-            .limit(10)
-            .project(_id=0, user_id="$_id", event_count="$count")
-        )
-        top_users_result = await EventDocument.aggregate(user_pipeline.export()).to_list()
-        top_users = [UserEventCount.model_validate(doc) for doc in top_users_result if doc["user_id"]]
-
-        # Execution duration pipeline
+        # Separate collection — must be a separate query
         exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)  # type: ignore[union-attr]
         exec_pipeline = (
             Pipeline()
@@ -179,34 +194,13 @@ class AdminEventsRepository:
         )
 
         return EventStatistics(
-            total_events=stats["total_events"],
+            total_events=total,
             events_by_type=events_by_type,
             events_by_hour=events_by_hour,
             top_users=top_users,
             error_rate=round(error_rate, 2),
             avg_processing_time=round(avg_processing_time, 2),
         )
-
-    async def export_events_csv(self, event_filter: EventFilter) -> list[EventExportRow]:
-        conditions = self._event_filter_conditions(event_filter)
-        docs = await (
-            EventDocument.find(*conditions).sort([("timestamp", SortDirection.DESCENDING)]).limit(10000).to_list()
-        )
-
-        return [
-            EventExportRow(
-                event_id=doc.event_id,
-                event_type=doc.event_type,
-                timestamp=doc.timestamp,
-                correlation_id=doc.metadata.correlation_id or "",
-                aggregate_id=doc.aggregate_id or "",
-                user_id=doc.metadata.user_id or "",
-                service=doc.metadata.service_name,
-                status="",
-                error="",
-            )
-            for doc in docs
-        ]
 
     async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
         archive_doc = EventArchiveDocument(
@@ -263,24 +257,4 @@ class AdminEventsRepository:
         docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
         return [EventSummary.model_validate(doc) for doc in docs]
 
-    async def prepare_replay_session(
-        self, replay_filter: ReplayFilter, dry_run: bool, replay_correlation_id: str, max_events: int = 1000
-    ) -> ReplaySessionData:
-        event_count = await self.count_events_for_replay(replay_filter)
-        if event_count == 0:
-            raise NotFoundError("Events", "matching criteria")
-        if event_count > max_events and not dry_run:
-            raise ValidationError(f"Too many events to replay ({event_count}). Maximum is {max_events}.")
-
-        events_preview: list[EventSummary] = []
-        if dry_run:
-            events_preview = await self.get_events_preview_for_replay(replay_filter, limit=100)
-
-        return ReplaySessionData(
-            total_events=event_count,
-            replay_correlation_id=replay_correlation_id,
-            dry_run=dry_run,
-            filter=replay_filter,
-            events_preview=events_preview,
-        )
 

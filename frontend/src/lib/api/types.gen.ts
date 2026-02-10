@@ -1259,14 +1259,6 @@ export type EventBrowseRequest = {
      * Limit
      */
     limit?: number;
-    /**
-     * Sort By
-     */
-    sort_by?: string;
-    /**
-     * Sort Order
-     */
-    sort_order?: number;
 };
 
 /**

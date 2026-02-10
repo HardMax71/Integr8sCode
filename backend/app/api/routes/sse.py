@@ -14,7 +14,11 @@ from app.services.sse import SSEService
 router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
 
 
-@router.get("/notifications/stream", responses={200: {"model": NotificationResponse}})
+@router.get(
+    "/notifications/stream",
+    response_class=EventSourceResponse,
+    responses={200: {"model": NotificationResponse}},
+)
 async def notification_stream(
     user: Annotated[User, Depends(current_user)],
     sse_service: FromDishka[SSEService],
@@ -26,7 +30,11 @@ async def notification_stream(
     )
 
 
-@router.get("/executions/{execution_id}", responses={200: {"model": SSEExecutionEventData}})
+@router.get(
+    "/executions/{execution_id}",
+    response_class=EventSourceResponse,
+    responses={200: {"model": SSEExecutionEventData}},
+)
 async def execution_events(
     execution_id: str,
     user: Annotated[User, Depends(current_user)],

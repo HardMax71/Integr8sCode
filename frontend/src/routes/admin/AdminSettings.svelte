@@ -83,7 +83,7 @@
                                 <div>
                                     <label for="max-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Timeout (seconds)</label>
                                     <input id="max-timeout" type="number" bind:value={settings.max_timeout_seconds}
-                                        class="form-input-standard" min="10" max="3600"/>
+                                        class="form-input-standard" min="1" max="3600"/>
                                 </div>
                                 <div>
                                     <label for="memory-limit" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Memory Limit (e.g. 512Mi)</label>
@@ -110,7 +110,7 @@
                                 <div>
                                     <label for="min-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Min Password Length</label>
                                     <input id="min-password" type="number" bind:value={settings.password_min_length}
-                                        class="form-input-standard" min="4" max="32"/>
+                                        class="form-input-standard" min="8" max="32"/>
                                 </div>
                                 <div>
                                     <label for="session-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Session Timeout (minutes)</label>

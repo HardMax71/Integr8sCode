@@ -3,7 +3,7 @@ import { test, expect, describeAdminCommonTests, describeAdminAccessControl, exp
 const PATH = '/admin/settings' as const;
 
 const SETTINGS_SECTIONS = [
-  { name: 'Execution Limits', inputs: ['#max-timeout', '#max-memory', '#max-cpu', '#max-concurrent'] },
+  { name: 'Execution Limits', inputs: ['#max-timeout', '#memory-limit', '#cpu-limit', '#max-concurrent'] },
   { name: 'Security Settings', inputs: ['#min-password', '#session-timeout', '#max-login', '#lockout-duration'] },
   { name: 'Monitoring Settings', inputs: ['#metrics-retention', '#log-level', '#enable-tracing', '#sampling-rate'] },
 ] as const;

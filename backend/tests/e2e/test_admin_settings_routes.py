@@ -2,6 +2,7 @@
 
 import pytest
 from app.domain.admin import SystemSettings
+from app.settings import Settings
 from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
@@ -137,7 +138,7 @@ class TestResetSystemSettings:
 
     @pytest.mark.asyncio
     async def test_reset_system_settings(
-        self, test_admin: AsyncClient
+        self, test_admin: AsyncClient, test_settings: Settings
     ) -> None:
         """Admin can reset system settings to defaults."""
         # First modify settings
@@ -165,18 +166,16 @@ class TestResetSystemSettings:
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        assert settings.max_timeout_seconds != 600
-        assert settings.memory_limit != "2048Mi"
-        assert settings.cpu_limit != "8000m"
-        assert settings.max_concurrent_executions != 50
-        assert settings.password_min_length != 16
-        assert settings.session_timeout_minutes != 240
-        assert settings.max_login_attempts != 10
-        assert settings.lockout_duration_minutes != 60
-        assert settings.metrics_retention_days != 90
-        assert settings.log_level != "DEBUG"
-        assert settings.enable_tracing is True
-        assert settings.sampling_rate != 0.9
+        # Reset returns TOML-derived defaults for fields mapped from Settings,
+        # and SystemSettings() model defaults for the rest.
+        expected = SystemSettings(
+            max_timeout_seconds=test_settings.K8S_POD_EXECUTION_TIMEOUT,
+            memory_limit=test_settings.K8S_POD_MEMORY_LIMIT,
+            cpu_limit=test_settings.K8S_POD_CPU_LIMIT,
+            max_concurrent_executions=test_settings.K8S_MAX_CONCURRENT_PODS,
+            session_timeout_minutes=test_settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        )
+        assert settings == expected
 
     @pytest.mark.asyncio
     async def test_reset_system_settings_forbidden_for_regular_user(

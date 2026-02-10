@@ -8,7 +8,6 @@ class CacheControlMiddleware:
         self.cache_policies: dict[str, str] = {
             "/api/v1/k8s-limits": "public, max-age=300",  # 5 minutes
             "/api/v1/example-scripts": "public, max-age=600",  # 10 minutes
-            "/api/v1/auth/verify-token": "private, no-cache",  # 30 seconds
             "/api/v1/notifications": "private, no-cache",  # Always revalidate
             "/api/v1/notifications/unread-count": "private, no-cache",  # Always revalidate
         }

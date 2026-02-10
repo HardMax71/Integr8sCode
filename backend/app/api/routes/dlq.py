@@ -4,7 +4,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import current_user
+from app.api.dependencies import admin_user
 from app.db.repositories import DLQRepository
 from app.dlq import RetryPolicy
 from app.dlq.manager import DLQManager
@@ -16,7 +16,6 @@ from app.schemas_pydantic.dlq import (
     DLQMessageDetail,
     DLQMessageResponse,
     DLQMessagesResponse,
-    DLQStats,
     DLQTopicSummaryResponse,
     ManualRetryRequest,
     RetryPolicyRequest,
@@ -24,15 +23,8 @@ from app.schemas_pydantic.dlq import (
 from app.schemas_pydantic.user import MessageResponse
 
 router = APIRouter(
-    prefix="/dlq", tags=["Dead Letter Queue"], route_class=DishkaRoute, dependencies=[Depends(current_user)]
+    prefix="/dlq", tags=["Dead Letter Queue"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
-
-
-@router.get("/stats", response_model=DLQStats)
-async def get_dlq_statistics(repository: FromDishka[DLQRepository]) -> DLQStats:
-    """Get summary statistics for the dead letter queue."""
-    stats = await repository.get_dlq_stats()
-    return DLQStats.model_validate(stats, from_attributes=True)
 
 
 @router.get("/messages", response_model=DLQMessagesResponse)
@@ -65,7 +57,7 @@ async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) 
     message = await repository.get_message_by_id(event_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    return DLQMessageDetail.model_validate(message, from_attributes=True)
+    return DLQMessageDetail.model_validate(message)
 
 
 @router.post("/retry", response_model=DLQBatchRetryResponse)
@@ -74,20 +66,13 @@ async def retry_dlq_messages(
 ) -> DLQBatchRetryResponse:
     """Retry a batch of DLQ messages by their event IDs."""
     result = await dlq_manager.retry_messages_batch(retry_request.event_ids)
-    return DLQBatchRetryResponse.model_validate(result, from_attributes=True)
+    return DLQBatchRetryResponse.model_validate(result)
 
 
 @router.post("/retry-policy", response_model=MessageResponse)
 async def set_retry_policy(policy_request: RetryPolicyRequest, dlq_manager: FromDishka[DLQManager]) -> MessageResponse:
     """Configure a retry policy for a specific Kafka topic."""
-    policy = RetryPolicy(
-        topic=policy_request.topic,
-        strategy=policy_request.strategy,
-        max_retries=policy_request.max_retries,
-        base_delay_seconds=policy_request.base_delay_seconds,
-        max_delay_seconds=policy_request.max_delay_seconds,
-        retry_multiplier=policy_request.retry_multiplier,
-    )
+    policy = RetryPolicy(**policy_request.model_dump())
 
     dlq_manager.set_retry_policy(policy_request.topic, policy)
 

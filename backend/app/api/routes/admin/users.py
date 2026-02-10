@@ -10,13 +10,8 @@ from app.domain.enums import UserRole
 from app.domain.rate_limit import RateLimitRule, UserRateLimit
 from app.domain.user import User
 from app.domain.user import UserUpdate as DomainUserUpdate
-from app.schemas_pydantic.admin_user_overview import (
-    AdminUserOverview,
-    DerivedCounts,
-    RateLimitSummary,
-)
+from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.common import ErrorResponse
-from app.schemas_pydantic.events import EventStatistics
 from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
@@ -53,12 +48,7 @@ async def list_users(
         search=search,
         role=role,
     )
-    return UserListResponse(
-        users=[UserResponse.model_validate(u) for u in result.users],
-        total=result.total,
-        offset=result.offset,
-        limit=result.limit,
-    )
+    return UserListResponse.model_validate(result)
 
 
 @router.post(
@@ -106,13 +96,7 @@ async def get_user_overview(
 ) -> AdminUserOverview:
     """Get a comprehensive overview of a user including stats and rate limits."""
     domain = await admin_user_service.get_user_overview(user_id=user_id, hours=24)
-    return AdminUserOverview(
-        user=UserResponse.model_validate(domain.user),
-        stats=EventStatistics.model_validate(domain.stats),
-        derived_counts=DerivedCounts.model_validate(domain.derived_counts),
-        rate_limit_summary=RateLimitSummary.model_validate(domain.rate_limit_summary),
-        recent_events=domain.recent_events,
-    )
+    return AdminUserOverview.model_validate(domain)
 
 
 @router.put(
@@ -136,14 +120,7 @@ async def update_user(
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    update_dict = user_update.model_dump(exclude_unset=True)
-    domain_update = DomainUserUpdate(
-        username=update_dict.get("username"),
-        email=update_dict.get("email"),
-        role=UserRole(update_dict["role"]) if "role" in update_dict else None,
-        is_active=update_dict.get("is_active"),
-        password=update_dict.get("password"),
-    )
+    domain_update = DomainUserUpdate.model_validate(user_update)
 
     updated_user = await admin_user_service.update_user(
         admin_username=admin.username, user_id=user_id, update=domain_update
@@ -173,16 +150,7 @@ async def delete_user(
     result = await admin_user_service.delete_user(
         admin_username=admin.username, user_id=user_id, cascade=cascade
     )
-    return DeleteUserResponse(
-        message=f"User {user_id} deleted successfully",
-        user_deleted=result.user_deleted,
-        executions=result.executions,
-        saved_scripts=result.saved_scripts,
-        notifications=result.notifications,
-        user_settings=result.user_settings,
-        events=result.events,
-        sagas=result.sagas,
-    )
+    return DeleteUserResponse.model_validate(result)
 
 
 @router.post(

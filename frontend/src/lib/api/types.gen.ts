@@ -133,48 +133,6 @@ export type AdminUserOverview = {
 };
 
 /**
- * AgeStatistics
- *
- * Age statistics for DLQ messages.
- */
-export type AgeStatistics = {
-    /**
-     * Min Age Seconds
-     */
-    min_age_seconds?: number;
-    /**
-     * Max Age Seconds
-     */
-    max_age_seconds?: number;
-    /**
-     * Avg Age Seconds
-     */
-    avg_age_seconds?: number;
-};
-
-/**
- * AlertResponse
- */
-export type AlertResponse = {
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Alerts Received
-     */
-    alerts_received: number;
-    /**
-     * Alerts Processed
-     */
-    alerts_processed: number;
-    /**
-     * Errors
-     */
-    errors?: Array<string>;
-};
-
-/**
  * AllocateResourcesCommandEvent
  */
 export type AllocateResourcesCommandEvent = {
@@ -293,7 +251,7 @@ export type CancelExecutionRequest = {
      *
      * Reason for cancellation
      */
-    reason?: string | null;
+    reason?: string;
 };
 
 /**
@@ -1017,33 +975,6 @@ export type DlqRetryResult = {
 };
 
 /**
- * DLQStats
- *
- * Statistics for the Dead Letter Queue.
- */
-export type DlqStats = {
-    /**
-     * By Status
-     */
-    by_status: {
-        [key: string]: number;
-    };
-    /**
-     * By Topic
-     */
-    by_topic: Array<TopicStatistic>;
-    /**
-     * By Event Type
-     */
-    by_event_type: Array<EventTypeStatistic>;
-    age_stats: AgeStatistics;
-    /**
-     * Timestamp
-     */
-    timestamp: string;
-};
-
-/**
  * DLQTopicSummaryResponse
  *
  * Response model for topic summary.
@@ -1183,10 +1114,6 @@ export type DeleteResponse = {
  */
 export type DeleteUserResponse = {
     /**
-     * Message
-     */
-    message: string;
-    /**
      * User Deleted
      */
     user_deleted: boolean;
@@ -1315,26 +1242,6 @@ export type ErrorResponse = {
      * Error type identifier
      */
     type?: string | null;
-};
-
-/**
- * EventAggregationRequest
- *
- * Request model for event aggregation queries.
- */
-export type EventAggregationRequest = {
-    /**
-     * Pipeline
-     *
-     * MongoDB aggregation pipeline
-     */
-    pipeline: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Limit
-     */
-    limit?: number;
 };
 
 /**
@@ -2179,22 +2086,6 @@ export type EventTypeCountSchema = {
 };
 
 /**
- * EventTypeStatistic
- *
- * Statistics for a single event type.
- */
-export type EventTypeStatistic = {
-    /**
-     * Event Type
-     */
-    event_type: string;
-    /**
-     * Count
-     */
-    count: number;
-};
-
-/**
  * ExampleScripts
  *
  * Model for example scripts.
@@ -2615,7 +2506,7 @@ export type ExecutionResult = {
      * Execution Id
      */
     execution_id: string;
-    status: ExecutionStatus;
+    status?: ExecutionStatus | null;
     /**
      * Stdout
      */
@@ -2774,68 +2665,6 @@ export type ExecutionTimeoutEvent = {
 };
 
 /**
- * GrafanaAlertItem
- */
-export type GrafanaAlertItem = {
-    /**
-     * Status
-     */
-    status?: string | null;
-    /**
-     * Labels
-     */
-    labels?: {
-        [key: string]: string;
-    };
-    /**
-     * Annotations
-     */
-    annotations?: {
-        [key: string]: string;
-    };
-    /**
-     * Valuestring
-     */
-    valueString?: string | null;
-};
-
-/**
- * GrafanaWebhook
- */
-export type GrafanaWebhook = {
-    /**
-     * Status
-     */
-    status?: string | null;
-    /**
-     * Receiver
-     */
-    receiver?: string | null;
-    /**
-     * Alerts
-     */
-    alerts?: Array<GrafanaAlertItem>;
-    /**
-     * Grouplabels
-     */
-    groupLabels?: {
-        [key: string]: string;
-    };
-    /**
-     * Commonlabels
-     */
-    commonLabels?: {
-        [key: string]: string;
-    };
-    /**
-     * Commonannotations
-     */
-    commonAnnotations?: {
-        [key: string]: string;
-    };
-};
-
-/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -2931,10 +2760,7 @@ export type LoginResponse = {
      * Username
      */
     username: string;
-    /**
-     * Role
-     */
-    role: string;
+    role: UserRole;
     /**
      * Csrf Token
      */
@@ -4110,26 +3936,6 @@ export type RateLimitUpdateResponse = {
      */
     updated: boolean;
     config: UserRateLimitConfigResponse;
-};
-
-/**
- * ReadinessResponse
- *
- * Response model for readiness probe.
- */
-export type ReadinessResponse = {
-    /**
-     * Status
-     *
-     * Readiness status
-     */
-    status: string;
-    /**
-     * Uptime Seconds
-     *
-     * Server uptime in seconds
-     */
-    uptime_seconds: number;
 };
 
 /**
@@ -5658,6 +5464,16 @@ export type ServiceUnhealthyEvent = {
 };
 
 /**
+ * SessionConfigSummary
+ *
+ * Lightweight config included in session listings.
+ */
+export type SessionConfigSummary = {
+    replay_type: ReplayType;
+    target: ReplayTarget;
+};
+
+/**
  * SessionSummary
  *
  * Summary information for replay sessions
@@ -5667,8 +5483,7 @@ export type SessionSummary = {
      * Session Id
      */
     session_id: string;
-    replay_type: ReplayType;
-    target: ReplayTarget;
+    config: SessionConfigSummary;
     status: ReplayStatus;
     /**
      * Total Events
@@ -5903,50 +5718,6 @@ export type Theme = 'light' | 'dark' | 'auto';
  */
 export type ThemeUpdateRequest = {
     theme: Theme;
-};
-
-/**
- * TokenValidationResponse
- *
- * Response model for token validation
- */
-export type TokenValidationResponse = {
-    /**
-     * Valid
-     */
-    valid: boolean;
-    /**
-     * Username
-     */
-    username: string;
-    /**
-     * Role
-     */
-    role: string;
-    /**
-     * Csrf Token
-     */
-    csrf_token: string;
-};
-
-/**
- * TopicStatistic
- *
- * Statistics for a single topic.
- */
-export type TopicStatistic = {
-    /**
-     * Topic
-     */
-    topic: string;
-    /**
-     * Count
-     */
-    count: number;
-    /**
-     * Avg Retry Count
-     */
-    avg_retry_count: number;
 };
 
 /**
@@ -6288,11 +6059,11 @@ export type UserResponse = {
      * Email
      */
     email: string;
-    role?: UserRole;
+    role: UserRole;
     /**
      * Is Active
      */
-    is_active?: boolean;
+    is_active: boolean;
     /**
      * User Id
      */
@@ -6300,7 +6071,7 @@ export type UserResponse = {
     /**
      * Is Superuser
      */
-    is_superuser?: boolean;
+    is_superuser: boolean;
     /**
      * Created At
      */
@@ -6596,8 +6367,7 @@ export type SessionSummaryWritable = {
      * Session Id
      */
     session_id: string;
-    replay_type: ReplayType;
-    target: ReplayTarget;
+    config: SessionConfigSummary;
     status: ReplayStatus;
     /**
      * Total Events
@@ -6671,7 +6441,7 @@ export type RegisterApiV1AuthRegisterPostErrors = {
      */
     400: ErrorResponse;
     /**
-     * Email already registered
+     * User already exists
      */
     409: ErrorResponse;
     /**
@@ -6706,31 +6476,6 @@ export type GetCurrentUserProfileApiV1AuthMeGetResponses = {
 };
 
 export type GetCurrentUserProfileApiV1AuthMeGetResponse = GetCurrentUserProfileApiV1AuthMeGetResponses[keyof GetCurrentUserProfileApiV1AuthMeGetResponses];
-
-export type VerifyTokenApiV1AuthVerifyTokenGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/auth/verify-token';
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetErrors = {
-    /**
-     * Missing or invalid access token
-     */
-    401: ErrorResponse;
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetError = VerifyTokenApiV1AuthVerifyTokenGetErrors[keyof VerifyTokenApiV1AuthVerifyTokenGetErrors];
-
-export type VerifyTokenApiV1AuthVerifyTokenGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: TokenValidationResponse;
-};
-
-export type VerifyTokenApiV1AuthVerifyTokenGetResponse = VerifyTokenApiV1AuthVerifyTokenGetResponses[keyof VerifyTokenApiV1AuthVerifyTokenGetResponses];
 
 export type LogoutApiV1AuthLogoutPostData = {
     body?: never;
@@ -7580,38 +7325,6 @@ export type LivenessApiV1HealthLiveGetResponses = {
 
 export type LivenessApiV1HealthLiveGetResponse = LivenessApiV1HealthLiveGetResponses[keyof LivenessApiV1HealthLiveGetResponses];
 
-export type ReadinessApiV1HealthReadyGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/health/ready';
-};
-
-export type ReadinessApiV1HealthReadyGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReadinessResponse;
-};
-
-export type ReadinessApiV1HealthReadyGetResponse = ReadinessApiV1HealthReadyGetResponses[keyof ReadinessApiV1HealthReadyGetResponses];
-
-export type GetDlqStatisticsApiV1DlqStatsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dlq/stats';
-};
-
-export type GetDlqStatisticsApiV1DlqStatsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: DlqStats;
-};
-
-export type GetDlqStatisticsApiV1DlqStatsGetResponse = GetDlqStatisticsApiV1DlqStatsGetResponses[keyof GetDlqStatisticsApiV1DlqStatsGetResponses];
-
 export type GetDlqMessagesApiV1DlqMessagesGetData = {
     body?: never;
     path?: never;
@@ -8318,53 +8031,6 @@ export type PublishCustomEventApiV1EventsPublishPostResponses = {
 };
 
 export type PublishCustomEventApiV1EventsPublishPostResponse = PublishCustomEventApiV1EventsPublishPostResponses[keyof PublishCustomEventApiV1EventsPublishPostResponses];
-
-export type AggregateEventsApiV1EventsAggregatePostData = {
-    body: EventAggregationRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/aggregate';
-};
-
-export type AggregateEventsApiV1EventsAggregatePostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AggregateEventsApiV1EventsAggregatePostError = AggregateEventsApiV1EventsAggregatePostErrors[keyof AggregateEventsApiV1EventsAggregatePostErrors];
-
-export type AggregateEventsApiV1EventsAggregatePostResponses = {
-    /**
-     * Response Aggregate Events Api V1 Events Aggregate Post
-     *
-     * Successful Response
-     */
-    200: Array<{
-        [key: string]: unknown;
-    }>;
-};
-
-export type AggregateEventsApiV1EventsAggregatePostResponse = AggregateEventsApiV1EventsAggregatePostResponses[keyof AggregateEventsApiV1EventsAggregatePostResponses];
-
-export type ListEventTypesApiV1EventsTypesListGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/types/list';
-};
-
-export type ListEventTypesApiV1EventsTypesListGetResponses = {
-    /**
-     * Response List Event Types Api V1 Events Types List Get
-     *
-     * Successful Response
-     */
-    200: Array<string>;
-};
-
-export type ListEventTypesApiV1EventsTypesListGetResponse = ListEventTypesApiV1EventsTypesListGetResponses[keyof ListEventTypesApiV1EventsTypesListGetResponses];
 
 export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostData = {
     body?: never;
@@ -9713,48 +9379,3 @@ export type CancelSagaApiV1SagasSagaIdCancelPostResponses = {
 };
 
 export type CancelSagaApiV1SagasSagaIdCancelPostResponse = CancelSagaApiV1SagasSagaIdCancelPostResponses[keyof CancelSagaApiV1SagasSagaIdCancelPostResponses];
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostData = {
-    body: GrafanaWebhook;
-    path?: never;
-    query?: never;
-    url: '/api/v1/alerts/grafana';
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostError = ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors[keyof ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors];
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: AlertResponse;
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponse = ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses[keyof ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses];
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/alerts/grafana/test';
-};
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses = {
-    /**
-     * Response Test Grafana Alert Endpoint Api V1 Alerts Grafana Test Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: string;
-    };
-};
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponse = TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses[keyof TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses];

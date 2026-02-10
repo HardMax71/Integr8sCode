@@ -438,7 +438,6 @@ class TestDeleteUser:
 
         assert response.status_code == 200
         result = DeleteUserResponse.model_validate(response.json())
-        assert user_id in result.message
         assert result.user_deleted is True
 
         # Verify deleted

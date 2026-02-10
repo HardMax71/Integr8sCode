@@ -10,7 +10,7 @@ from app.domain.saga import (
     SagaListResult,
     SagaNotFoundError,
 )
-from app.schemas_pydantic.user import User
+from app.domain.user import User
 from app.services.saga import SagaOrchestrator
 
 

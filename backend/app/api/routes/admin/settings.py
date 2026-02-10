@@ -27,7 +27,7 @@ async def get_system_settings(
 ) -> SystemSettings:
     """Get the current system-wide settings."""
     domain_settings = await service.get_system_settings(admin.username)
-    return SystemSettings.model_validate(domain_settings, from_attributes=True)
+    return SystemSettings.model_validate(domain_settings)
 
 
 @router.put(
@@ -50,7 +50,7 @@ async def update_system_settings(
         updated_by=admin.username,
         user_id=admin.user_id,
     )
-    return SystemSettings.model_validate(updated, from_attributes=True)
+    return SystemSettings.model_validate(updated)
 
 
 @router.post(
@@ -64,4 +64,4 @@ async def reset_system_settings(
 ) -> SystemSettings:
     """Reset system-wide settings to defaults."""
     reset = await service.reset_system_settings(admin.username, admin.user_id)
-    return SystemSettings.model_validate(reset, from_attributes=True)
+    return SystemSettings.model_validate(reset)

@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, Or, RegEx
+from pymongo.errors import DuplicateKeyError
 
 from app.db.docs import UserDocument
 from app.domain.enums import UserRole
+from app.domain.exceptions import ConflictError
 from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListResult
 
 
@@ -16,7 +18,10 @@ class UserRepository:
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
         doc = UserDocument(**create_data.model_dump())
-        await doc.insert()
+        try:
+            await doc.insert()
+        except DuplicateKeyError as e:
+            raise ConflictError("User already exists") from e
         return User.model_validate(doc, from_attributes=True)
 
     async def get_user_by_id(self, user_id: str) -> User | None:

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 from hypothesis import strategies as st
 
 # Type alias for JSON values
@@ -41,45 +39,5 @@ user_create = st.fixed_dictionaries(
         "username": username,
         "email": email,
         "password": password,
-    }
-)
-
-
-# Grafana webhook strategy (approximate schema)
-severity = st.sampled_from(["info", "warning", "error", "critical"])  # common values
-label_key = st.text(min_size=1, max_size=24)
-label_val = st.text(min_size=0, max_size=64)
-label_dict = st.dictionaries(label_key, label_val, max_size=8)
-annotation_dict = st.dictionaries(label_key, label_val, max_size=8)
-
-def _iso_time() -> st.SearchStrategy[str]:
-    base = datetime(2024, 1, 1)
-    return st.integers(min_value=0, max_value=86_400).map(
-        lambda sec: (base + timedelta(seconds=int(sec))).isoformat() + "Z"
-    )
-
-alert = st.fixed_dictionaries(
-    {
-        "status": st.sampled_from(["firing", "resolved"]),
-        "labels": label_dict,
-        "annotations": annotation_dict,
-        "startsAt": _iso_time(),
-        "endsAt": _iso_time(),
-        "generatorURL": st.text(min_size=0, max_size=120),
-        "fingerprint": st.text(min_size=1, max_size=64),
-    }
-)
-
-grafana_webhook = st.fixed_dictionaries(
-    {
-        "receiver": st.text(min_size=1, max_size=64),
-        "status": st.sampled_from(["firing", "resolved"]),
-        "alerts": st.lists(alert, min_size=1, max_size=5),
-        "groupKey": st.text(min_size=0, max_size=64),
-        "groupLabels": label_dict,
-        "commonLabels": label_dict,
-        "commonAnnotations": annotation_dict,
-        "externalURL": st.text(min_size=0, max_size=120),
-        "version": st.text(min_size=1, max_size=16),
     }
 )

@@ -23,6 +23,7 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.common import ErrorResponse
+from app.schemas_pydantic.execution import ExecutionResult
 from app.services.admin import AdminEventsService
 
 router = APIRouter(
@@ -33,22 +34,15 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     """Browse events with filtering, sorting, and pagination."""
-    event_filter = EventFilter(**request.filters.model_dump())
-
     result = await service.browse_events(
-        event_filter=event_filter,
+        event_filter=EventFilter.model_validate(request.filters),
         skip=request.skip,
         limit=request.limit,
         sort_by=request.sort_by,
         sort_order=request.sort_order,
     )
 
-    return EventBrowseResponse(
-        events=result.events,
-        total=result.total,
-        skip=result.skip,
-        limit=result.limit,
-    )
+    return EventBrowseResponse.model_validate(result)
 
 
 @router.get("/stats")
@@ -121,11 +115,7 @@ async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService
     if not result:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return EventDetailResponse(
-        event=result.event,
-        related_events=result.related_events,
-        timeline=result.timeline,
-    )
+    return EventDetailResponse.model_validate(result)
 
 
 @router.post(
@@ -140,15 +130,8 @@ async def replay_events(
 ) -> EventReplayResponse:
     """Replay events by filter criteria, with optional dry-run mode."""
     replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
-    replay_filter = ReplayFilter(
-        event_ids=request.event_ids,
-        correlation_id=request.correlation_id,
-        aggregate_id=request.aggregate_id,
-        start_time=request.start_time,
-        end_time=request.end_time,
-    )
     result = await service.prepare_or_schedule_replay(
-        replay_filter=replay_filter,
+        replay_filter=ReplayFilter.model_validate(request),
         dry_run=request.dry_run,
         replay_correlation_id=replay_correlation_id,
         target_service=request.target_service,
@@ -157,14 +140,7 @@ async def replay_events(
     if not result.dry_run and result.session_id:
         background_tasks.add_task(service.start_replay_session, result.session_id)
 
-    return EventReplayResponse(
-        dry_run=result.dry_run,
-        total_events=result.total_events,
-        replay_correlation_id=result.replay_correlation_id,
-        session_id=result.session_id,
-        status=result.status,
-        events_preview=result.events_preview,
-    )
+    return EventReplayResponse.model_validate(result)
 
 
 @router.get(
@@ -178,16 +154,13 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
     if not status:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
-    session = status.session
-    estimated_completion = status.estimated_completion
-    execution_results = status.execution_results
     return EventReplayStatusResponse(
-        **{
-            **session.model_dump(),
-            "status": session.status,
-            "estimated_completion": estimated_completion,
-            "execution_results": execution_results,
-        }
+        **status.session.model_dump(),
+        estimated_completion=status.estimated_completion,
+        execution_results=[
+            ExecutionResult.model_validate(er)
+            for er in status.execution_results
+        ],
     )
 
 

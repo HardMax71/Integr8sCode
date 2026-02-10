@@ -92,7 +92,7 @@ class ExecutionMetrics(BaseMetrics):
     def record_execution_queued(self) -> None:
         self.executions_queued.add(1)
 
-    def record_execution_scheduled(self, status: str) -> None:
+    def record_execution_scheduled(self) -> None:
         self.executions_assigned.add(1)
 
     def update_cpu_available(self, cores: float) -> None:

@@ -309,8 +309,8 @@ class TestListReplaySessions:
 
         for session in sessions:
             assert session.session_id is not None
-            assert session.replay_type in list(ReplayType)
-            assert session.target in list(ReplayTarget)
+            assert session.config.replay_type in list(ReplayType)
+            assert session.config.target in list(ReplayTarget)
             assert session.status in list(ReplayStatus)
             assert session.total_events >= 0
             assert session.replayed_events >= 0

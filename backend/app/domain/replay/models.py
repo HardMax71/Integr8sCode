@@ -28,6 +28,8 @@ class ReplayError(BaseModel):
 
 
 class ReplayFilter(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     # Event selection filters
     event_ids: list[str] | None = None
     execution_id: str | None = None
@@ -108,6 +110,8 @@ class ReplayFilter(BaseModel):
 
 
 class ReplayConfig(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
     filter: ReplayFilter = Field(default_factory=ReplayFilter)

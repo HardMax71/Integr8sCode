@@ -97,7 +97,7 @@
             }
           },
           "409": {
-            "description": "Email already registered",
+            "description": "User already exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -134,38 +134,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/verify-token": {
-      "get": {
-        "tags": [
-          "authentication"
-        ],
-        "summary": "Verify Token",
-        "description": "Verify the current access token.",
-        "operationId": "verify_token_api_v1_auth_verify_token_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenValidationResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1622,50 +1590,6 @@
         }
       }
     },
-    "/api/v1/health/ready": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Readiness",
-        "description": "Simple readiness probe. Extend with dependency checks if needed.",
-        "operationId": "readiness_api_v1_health_ready_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dlq/stats": {
-      "get": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Get Dlq Statistics",
-        "description": "Get summary statistics for the dead letter queue.",
-        "operationId": "get_dlq_statistics_api_v1_dlq_stats_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DLQStats"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/dlq/messages": {
       "get": {
         "tags": [
@@ -2927,78 +2851,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/events/aggregate": {
-      "post": {
-        "tags": [
-          "events"
-        ],
-        "summary": "Aggregate Events",
-        "description": "Run a custom aggregation pipeline on the event store.",
-        "operationId": "aggregate_events_api_v1_events_aggregate_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EventAggregationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "title": "Response Aggregate Events Api V1 Events Aggregate Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/events/types/list": {
-      "get": {
-        "tags": [
-          "events"
-        ],
-        "summary": "List Event Types",
-        "description": "List all distinct event types in the store.",
-        "operationId": "list_event_types_api_v1_events_types_list_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array",
-                  "title": "Response List Event Types Api V1 Events Types List Get"
                 }
               }
             }
@@ -5047,7 +4899,7 @@
           "sagas"
         ],
         "summary": "Get Saga Status",
-        "description": "Get saga status by ID.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Saga status response\n\nRaises:\n    HTTPException: 404 if saga not found, 403 if access denied",
+        "description": "Get saga status by ID.",
         "operationId": "get_saga_status_api_v1_sagas__saga_id__get",
         "parameters": [
           {
@@ -5110,7 +4962,7 @@
           "sagas"
         ],
         "summary": "Get Execution Sagas",
-        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas for the execution\n\nRaises:\n    HTTPException: 403 if access denied",
+        "description": "Get all sagas for an execution.",
         "operationId": "get_execution_sagas_api_v1_sagas_execution__execution_id__get",
         "parameters": [
           {
@@ -5204,7 +5056,7 @@
           "sagas"
         ],
         "summary": "List Sagas",
-        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas",
+        "description": "List sagas accessible by the current user.",
         "operationId": "list_sagas_api_v1_sagas__get",
         "parameters": [
           {
@@ -5279,7 +5131,7 @@
           "sagas"
         ],
         "summary": "Cancel Saga",
-        "description": "Cancel a running saga.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Cancellation response with success status\n\nRaises:\n    HTTPException: 404 if not found, 403 if denied, 400 if invalid state",
+        "description": "Cancel a running saga.",
         "operationId": "cancel_saga_api_v1_sagas__saga_id__cancel_post",
         "parameters": [
           {
@@ -5339,74 +5191,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/alerts/grafana": {
-      "post": {
-        "tags": [
-          "alerts"
-        ],
-        "summary": "Receive Grafana Alerts",
-        "description": "Receive and process a Grafana alerting webhook payload.",
-        "operationId": "receive_grafana_alerts_api_v1_alerts_grafana_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GrafanaWebhook"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AlertResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/alerts/grafana/test": {
-      "get": {
-        "tags": [
-          "alerts"
-        ],
-        "summary": "Test Grafana Alert Endpoint",
-        "description": "Verify the Grafana webhook endpoint is reachable.",
-        "operationId": "test_grafana_alert_endpoint_api_v1_alerts_grafana_test_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Test Grafana Alert Endpoint Api V1 Alerts Grafana Test Get"
                 }
               }
             }
@@ -5683,58 +5467,6 @@
         ],
         "title": "AdminUserOverview"
       },
-      "AgeStatistics": {
-        "properties": {
-          "min_age_seconds": {
-            "type": "number",
-            "title": "Min Age Seconds",
-            "default": 0.0
-          },
-          "max_age_seconds": {
-            "type": "number",
-            "title": "Max Age Seconds",
-            "default": 0.0
-          },
-          "avg_age_seconds": {
-            "type": "number",
-            "title": "Avg Age Seconds",
-            "default": 0.0
-          }
-        },
-        "type": "object",
-        "title": "AgeStatistics",
-        "description": "Age statistics for DLQ messages."
-      },
-      "AlertResponse": {
-        "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "alerts_received": {
-            "type": "integer",
-            "title": "Alerts Received"
-          },
-          "alerts_processed": {
-            "type": "integer",
-            "title": "Alerts Processed"
-          },
-          "errors": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Errors"
-          }
-        },
-        "type": "object",
-        "required": [
-          "message",
-          "alerts_received",
-          "alerts_processed"
-        ],
-        "title": "AlertResponse"
-      },
       "AllocateResourcesCommandEvent": {
         "properties": {
           "event_id": {
@@ -5935,16 +5667,10 @@
       "CancelExecutionRequest": {
         "properties": {
           "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Reason",
-            "description": "Reason for cancellation"
+            "description": "Reason for cancellation",
+            "default": "User requested cancellation"
           }
         },
         "type": "object",
@@ -7175,49 +6901,6 @@
         ],
         "title": "DLQRetryResult"
       },
-      "DLQStats": {
-        "properties": {
-          "by_status": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "By Status"
-          },
-          "by_topic": {
-            "items": {
-              "$ref": "#/components/schemas/TopicStatistic"
-            },
-            "type": "array",
-            "title": "By Topic"
-          },
-          "by_event_type": {
-            "items": {
-              "$ref": "#/components/schemas/EventTypeStatistic"
-            },
-            "type": "array",
-            "title": "By Event Type"
-          },
-          "age_stats": {
-            "$ref": "#/components/schemas/AgeStatistics"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Timestamp"
-          }
-        },
-        "type": "object",
-        "required": [
-          "by_status",
-          "by_topic",
-          "by_event_type",
-          "age_stats",
-          "timestamp"
-        ],
-        "title": "DLQStats",
-        "description": "Statistics for the Dead Letter Queue."
-      },
       "DLQTopicSummaryResponse": {
         "properties": {
           "topic": {
@@ -7411,10 +7094,6 @@
       },
       "DeleteUserResponse": {
         "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
           "user_deleted": {
             "type": "boolean",
             "title": "User Deleted"
@@ -7452,7 +7131,6 @@
         },
         "type": "object",
         "required": [
-          "message",
           "user_deleted"
         ],
         "title": "DeleteUserResponse",
@@ -7593,31 +7271,6 @@
           "detail"
         ],
         "title": "ErrorResponse"
-      },
-      "EventAggregationRequest": {
-        "properties": {
-          "pipeline": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Pipeline",
-            "description": "MongoDB aggregation pipeline"
-          },
-          "limit": {
-            "type": "integer",
-            "maximum": 1000.0,
-            "minimum": 1.0,
-            "title": "Limit",
-            "default": 100
-          }
-        },
-        "type": "object",
-        "required": [
-          "pipeline"
-        ],
-        "title": "EventAggregationRequest",
-        "description": "Request model for event aggregation queries."
       },
       "EventBrowseRequest": {
         "properties": {
@@ -9287,25 +8940,6 @@
         "title": "EventTypeCountSchema",
         "description": "Event count by type."
       },
-      "EventTypeStatistic": {
-        "properties": {
-          "event_type": {
-            "type": "string",
-            "title": "Event Type"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_type",
-          "count"
-        ],
-        "title": "EventTypeStatistic",
-        "description": "Statistics for a single event type."
-      },
       "ExampleScripts": {
         "properties": {
           "scripts": {
@@ -9957,7 +9591,14 @@
             "title": "Execution Id"
           },
           "status": {
-            "$ref": "#/components/schemas/ExecutionStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stdout": {
             "anyOf": [
@@ -10024,7 +9665,6 @@
         "type": "object",
         "required": [
           "execution_id",
-          "status",
           "lang",
           "lang_version"
         ],
@@ -10273,104 +9913,6 @@
         ],
         "title": "ExecutionTimeoutEvent"
       },
-      "GrafanaAlertItem": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Labels"
-          },
-          "annotations": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Annotations"
-          },
-          "valueString": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valuestring"
-          }
-        },
-        "type": "object",
-        "title": "GrafanaAlertItem"
-      },
-      "GrafanaWebhook": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "receiver": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receiver"
-          },
-          "alerts": {
-            "items": {
-              "$ref": "#/components/schemas/GrafanaAlertItem"
-            },
-            "type": "array",
-            "title": "Alerts"
-          },
-          "groupLabels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Grouplabels"
-          },
-          "commonLabels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Commonlabels"
-          },
-          "commonAnnotations": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Commonannotations"
-          }
-        },
-        "type": "object",
-        "title": "GrafanaWebhook"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -10506,8 +10048,7 @@
             "title": "Username"
           },
           "role": {
-            "type": "string",
-            "title": "Role"
+            "$ref": "#/components/schemas/UserRole"
           },
           "csrf_token": {
             "type": "string",
@@ -12415,27 +11956,6 @@
         ],
         "title": "RateLimitUpdateResponse",
         "description": "Response model for rate limit update."
-      },
-      "ReadinessResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "description": "Readiness status"
-          },
-          "uptime_seconds": {
-            "type": "integer",
-            "title": "Uptime Seconds",
-            "description": "Server uptime in seconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "uptime_seconds"
-        ],
-        "title": "ReadinessResponse",
-        "description": "Response model for readiness probe."
       },
       "ReleaseResourcesCommandEvent": {
         "properties": {
@@ -15034,17 +14554,31 @@
         ],
         "title": "ServiceUnhealthyEvent"
       },
+      "SessionConfigSummary": {
+        "properties": {
+          "replay_type": {
+            "$ref": "#/components/schemas/ReplayType"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ReplayTarget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "replay_type",
+          "target"
+        ],
+        "title": "SessionConfigSummary",
+        "description": "Lightweight config included in session listings."
+      },
       "SessionSummary": {
         "properties": {
           "session_id": {
             "type": "string",
             "title": "Session Id"
           },
-          "replay_type": {
-            "$ref": "#/components/schemas/ReplayType"
-          },
-          "target": {
-            "$ref": "#/components/schemas/ReplayTarget"
+          "config": {
+            "$ref": "#/components/schemas/SessionConfigSummary"
           },
           "status": {
             "$ref": "#/components/schemas/ReplayStatus"
@@ -15122,8 +14656,7 @@
         "type": "object",
         "required": [
           "session_id",
-          "replay_type",
-          "target",
+          "config",
           "status",
           "total_events",
           "replayed_events",
@@ -15456,59 +14989,6 @@
         ],
         "title": "ThemeUpdateRequest",
         "description": "Request model for theme update"
-      },
-      "TokenValidationResponse": {
-        "properties": {
-          "valid": {
-            "type": "boolean",
-            "title": "Valid"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
-          },
-          "role": {
-            "type": "string",
-            "title": "Role"
-          },
-          "csrf_token": {
-            "type": "string",
-            "title": "Csrf Token"
-          }
-        },
-        "type": "object",
-        "required": [
-          "valid",
-          "username",
-          "role",
-          "csrf_token"
-        ],
-        "title": "TokenValidationResponse",
-        "description": "Response model for token validation"
-      },
-      "TopicStatistic": {
-        "properties": {
-          "topic": {
-            "type": "string",
-            "title": "Topic"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "avg_retry_count": {
-            "type": "number",
-            "title": "Avg Retry Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "topic",
-          "count",
-          "avg_retry_count"
-        ],
-        "title": "TopicStatistic",
-        "description": "Statistics for a single topic."
       },
       "UnreadCountResponse": {
         "properties": {
@@ -16082,13 +15562,11 @@
             "title": "Email"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole",
-            "default": "user"
+            "$ref": "#/components/schemas/UserRole"
           },
           "is_active": {
             "type": "boolean",
-            "title": "Is Active",
-            "default": true
+            "title": "Is Active"
           },
           "user_id": {
             "type": "string",
@@ -16096,8 +15574,7 @@
           },
           "is_superuser": {
             "type": "boolean",
-            "title": "Is Superuser",
-            "default": false
+            "title": "Is Superuser"
           },
           "created_at": {
             "type": "string",
@@ -16147,7 +15624,10 @@
         "required": [
           "username",
           "email",
+          "role",
+          "is_active",
           "user_id",
+          "is_superuser",
           "created_at",
           "updated_at"
         ],

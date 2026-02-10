@@ -1,120 +1,122 @@
 # Grafana Integration
 
-The platform accepts Grafana alert webhooks and converts them into in-app notifications. This allows operators to
-receive Grafana alerts directly in the application UI without leaving the platform.
+Grafana connects to Victoria Metrics to visualize platform metrics and to Jaeger for trace exploration. Alerting uses
+Grafana's built-in unified alerting engine with provisioned contact points and alert rules — no custom backend endpoints
+involved.
 
-## Webhook Endpoint
+## Dashboards
 
-Configure Grafana to send webhooks to `POST /api/v1/alerts/grafana`. A test endpoint is available to verify connectivity.
+Grafana is available at `http://localhost:3000` when the stack is running (anonymous viewer access enabled by default).
+Victoria Metrics serves as the Prometheus-compatible data source. See [Metrics Reference](metrics-reference.md) for the
+full metric catalog and example PromQL queries.
 
-<swagger-ui src="../reference/openapi.json" filter="alerts" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
+## Alerting Architecture
 
-## Webhook Payload
-
-The endpoint expects Grafana's standard webhook format:
-
-```python
---8<-- "backend/app/schemas_pydantic/grafana.py:8:22"
+```mermaid
+flowchart LR
+    VM["Victoria Metrics"] --> Grafana
+    Grafana -->|"evaluate rules"| Grafana
+    Grafana -->|"notify"| Slack["Slack"]
+    Grafana -->|"notify"| Email["Email"]
+    Grafana -->|"notify"| PagerDuty["PagerDuty / etc."]
 ```
 
-Example payload:
+Grafana's unified alerting engine evaluates rules on a schedule, queries Victoria Metrics, and sends notifications
+directly to configured contact points (Slack, email, PagerDuty, OpsGenie, webhooks, etc.). This is the standard
+Grafana approach — no intermediate backend service is needed.
 
-```json
-{
-  "status": "firing",
-  "receiver": "integr8scode",
-  "alerts": [
-    {
-      "status": "firing",
-      "labels": {
-        "alertname": "HighMemoryUsage",
-        "severity": "warning",
-        "instance": "backend:8000"
-      },
-      "annotations": {
-        "summary": "Memory usage above 80%",
-        "description": "Backend instance memory usage is 85%"
-      }
-    }
-  ],
-  "commonLabels": {
-    "env": "production"
-  }
-}
+## Provisioning
+
+Alert configuration is managed via YAML files in `backend/grafana/provisioning/alerting/`. Grafana loads these on
+startup, so alert rules, contact points, and notification policies are version-controlled and reproducible.
+
+The provisioning file ships with commented-out examples for common setups:
+
+### Contact Points
+
+Contact points define where notifications go. Uncomment and configure in `alerting.yml`:
+
+```yaml
+contactPoints:
+  - orgId: 1
+    name: slack-notifications
+    receivers:
+      - uid: slack-receiver
+        type: slack
+        settings:
+          url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+          recipient: "#alerts"
 ```
 
-## Severity Mapping
+Grafana supports 20+ contact point types out of the box: Slack, email, PagerDuty, OpsGenie, Microsoft Teams, generic
+webhooks, and more. See the
+[Grafana contact points documentation](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/)
+for the full list.
 
-Grafana severity labels are mapped to notification severity levels:
+### Notification Policies
 
-```python
---8<-- "backend/app/services/grafana_alert_processor.py:14:19"
+Policies route alerts to the right contact point based on labels:
+
+```yaml
+policies:
+  - orgId: 1
+    receiver: slack-notifications
+    group_by: ["alertname", "namespace"]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
 ```
 
-| Grafana Severity | Notification Severity |
-|------------------|-----------------------|
-| `critical`       | HIGH                  |
-| `error`          | HIGH                  |
-| `warning`        | MEDIUM                |
-| `info`           | LOW                   |
+### Alert Rules
 
-Resolved alerts (status `ok` or `resolved`) are always mapped to LOW severity regardless of the original severity label.
+Rules query Victoria Metrics and fire when thresholds are breached. Example for HTTP 5xx error rate:
 
-## Processing Flow
-
-The `GrafanaAlertProcessor` processes each alert in the webhook:
-
-1. Extract severity from alert labels or common labels
-2. Map severity to notification level
-3. Extract title from `alertname` label or `title` annotation
-4. Build message from `summary` and `description` annotations
-5. Create system notification with metadata
-
-```python
---8<-- "backend/app/services/grafana_alert_processor.py:73:102"
+```yaml
+groups:
+  - orgId: 1
+    name: backend-alerts
+    folder: Integr8sCode
+    interval: 1m
+    rules:
+      - uid: high-error-rate
+        title: High HTTP 5xx Error Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: >
+                sum(rate(http_requests_total{status=~"5.."}[5m]))
+                / sum(rate(http_requests_total[5m])) * 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx error rate is above 5%"
 ```
 
-## Notification Content
+## Configuration
 
-The processor builds notification content as follows:
+Unified alerting is enabled in `backend/grafana/grafana.ini`:
 
-- **Title**: `labels.alertname` or `annotations.title` or "Grafana Alert"
-- **Message**: `annotations.summary` and `annotations.description` joined by newlines
-- **Tags**: `["external_alert", "grafana", "entity:external_alert"]`
-- **Metadata**: Alert labels, common labels, and status
+```ini
+[unified_alerting]
+enabled = true
 
-## Response Format
-
-The endpoint returns processing status:
-
-```json
-{
-  "message": "Webhook received and processed",
-  "alerts_received": 3,
-  "alerts_processed": 3,
-  "errors": []
-}
+[alerting]
+enabled = false
 ```
 
-If any alerts fail to process, the error messages are included in the `errors` array but the endpoint still returns 200
-for successfully processed alerts.
-
-## Grafana Configuration
-
-To configure Grafana to send alerts:
-
-1. Navigate to **Alerting > Contact points**
-2. Create a new contact point with type **Webhook**
-3. Set URL to `https://your-domain/api/v1/alerts/grafana`
-4. For authenticated environments, configure appropriate headers
-
-The webhook URL should be accessible from your Grafana instance. If using network policies, ensure Grafana can reach the
-backend service.
+The `[alerting]` section controls the legacy alerting engine (Grafana < 9) and stays disabled. `[unified_alerting]`
+is the modern engine used for all provisioned rules.
 
 ## Key Files
 
-| File                                                                                                                                         | Purpose                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| [`services/grafana_alert_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/grafana_alert_processor.py) | Alert processing logic  |
-| [`api/routes/grafana_alerts.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/grafana_alerts.py)               | Webhook endpoint        |
-| [`schemas_pydantic/grafana.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/schemas_pydantic/grafana.py)                 | Request/response models |
+| File                                                                                                                                                           | Purpose                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|
+| [`grafana/grafana.ini`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/grafana.ini)                                                       | Grafana server configuration      |
+| [`grafana/provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/alerting/alerting.yml)           | Alert rules and contact points    |
+| [`grafana/provisioning/datasources/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana/provisioning/datasources)                             | Victoria Metrics data source      |

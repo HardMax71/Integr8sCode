@@ -56,7 +56,6 @@ from app.services.coordinator.coordinator import ExecutionCoordinator
 from app.services.event_replay.replay_service import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
-from app.services.grafana_alert_processor import GrafanaAlertProcessor
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
@@ -623,14 +622,6 @@ class AdminServicesProvider(Provider):
             apscheduler.shutdown(wait=False)
             logger.info("NotificationScheduler stopped")
 
-    @provide
-    def get_grafana_alert_processor(
-            self,
-            notification_service: NotificationService,
-            logger: logging.Logger,
-    ) -> GrafanaAlertProcessor:
-        return GrafanaAlertProcessor(notification_service, logger)
-
 
 def _create_default_saga_config() -> SagaConfig:
     """Factory for default SagaConfig used by orchestrators.
@@ -673,18 +664,18 @@ class BusinessServicesProvider(Provider):
             self,
             execution_repository: ExecutionRepository,
             kafka_producer: UnifiedProducer,
-            event_repository: EventRepository,
             settings: Settings,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
+            idempotency_manager: IdempotencyManager,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
             producer=kafka_producer,
-            event_repository=event_repository,
             settings=settings,
             logger=logger,
             execution_metrics=execution_metrics,
+            idempotency_manager=idempotency_manager,
         )
 
     @provide

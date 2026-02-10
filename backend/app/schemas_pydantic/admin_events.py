@@ -47,6 +47,8 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     events: list[DomainEvent]
     total: int
     skip: int
@@ -56,6 +58,8 @@ class EventBrowseResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     event: DomainEvent
     related_events: list[EventSummary]
     timeline: list[EventSummary]
@@ -63,6 +67,8 @@ class EventDetailResponse(BaseModel):
 
 class EventReplayResponse(BaseModel):
     """Response model for event replay"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     dry_run: bool
     total_events: int
@@ -99,6 +105,8 @@ class EventReplayStatusResponse(BaseModel):
 
 class EventDeleteResponse(BaseModel):
     """Response model for event deletion"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     message: str
     event_id: str

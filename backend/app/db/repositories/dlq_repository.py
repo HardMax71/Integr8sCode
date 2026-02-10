@@ -8,15 +8,11 @@ from monggregate import Pipeline, S
 
 from app.db.docs import DLQMessageDocument
 from app.dlq import (
-    AgeStatistics,
     DLQMessage,
     DLQMessageListResult,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQStatistics,
     DLQTopicSummary,
-    EventTypeStatistic,
-    TopicStatistic,
 )
 from app.domain.enums import EventType
 
@@ -24,73 +20,6 @@ from app.domain.enums import EventType
 class DLQRepository:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
-
-    async def get_dlq_stats(self) -> DLQStatistics:
-        # Counts by status
-        status_pipeline = Pipeline().group(by=S.field(DLQMessageDocument.status), query={"count": S.sum(1)})
-        status_results = await DLQMessageDocument.aggregate(status_pipeline.export()).to_list()
-        by_status = {doc["_id"]: doc["count"] for doc in status_results if doc["_id"]}
-
-        # Counts by topic (top 10) - project renames _id->topic and rounds avg_retry_count
-        topic_pipeline = (
-            Pipeline()
-            .group(
-                by=S.field(DLQMessageDocument.original_topic),
-                query={"count": S.sum(1), "avg_retry_count": S.avg(S.field(DLQMessageDocument.retry_count))},
-            )
-            .sort(by="count", descending=True)
-            .limit(10)
-            .project(_id=0, topic="$_id", count=1, avg_retry_count={"$round": ["$avg_retry_count", 2]})
-        )
-        topic_results = await DLQMessageDocument.aggregate(topic_pipeline.export()).to_list()
-        by_topic = [TopicStatistic.model_validate(doc) for doc in topic_results]
-
-        # Counts by event type (top 10) - project renames _id->event_type
-        event_type_pipeline = (
-            Pipeline()
-            .group(by=S.field(DLQMessageDocument.event.event_type), query={"count": S.sum(1)})
-            .sort(by="count", descending=True)
-            .limit(10)
-            .project(_id=0, event_type="$_id", count=1)
-        )
-        event_type_results = await DLQMessageDocument.aggregate(event_type_pipeline.export()).to_list()
-        by_event_type = [EventTypeStatistic.model_validate(doc) for doc in event_type_results if doc["event_type"]]
-
-        # Age statistics - use $toLong to convert Date to milliseconds for $avg
-        time_pipeline = Pipeline().group(
-            by=None,
-            query={
-                "oldest": S.min(S.field(DLQMessageDocument.failed_at)),
-                "newest": S.max(S.field(DLQMessageDocument.failed_at)),
-                "avg_failed_at_ms": {"$avg": {"$toLong": S.field(DLQMessageDocument.failed_at)}},
-            },
-        )
-        time_results = await DLQMessageDocument.aggregate(time_pipeline.export()).to_list()
-        now = datetime.now(timezone.utc)
-        if time_results and time_results[0].get("oldest"):
-            r = time_results[0]
-            oldest, newest = r["oldest"], r["newest"]
-            # MongoDB returns naive datetimes (implicitly UTC), make them aware
-            if oldest.tzinfo is None:
-                oldest = oldest.replace(tzinfo=timezone.utc)
-            if newest.tzinfo is None:
-                newest = newest.replace(tzinfo=timezone.utc)
-            # Convert average timestamp (ms) back to datetime for age calculation
-            avg_failed_at_ms = r.get("avg_failed_at_ms")
-            if avg_failed_at_ms:
-                avg_failed_at = datetime.fromtimestamp(avg_failed_at_ms / 1000, tz=timezone.utc)
-                avg_age_seconds = (now - avg_failed_at).total_seconds()
-            else:
-                avg_age_seconds = 0.0
-            age_stats = AgeStatistics(
-                min_age_seconds=(now - newest).total_seconds(),
-                max_age_seconds=(now - oldest).total_seconds(),
-                avg_age_seconds=avg_age_seconds,
-            )
-        else:
-            age_stats = AgeStatistics()
-
-        return DLQStatistics(by_status=by_status, by_topic=by_topic, by_event_type=by_event_type, age_stats=age_stats)
 
     async def get_messages(
             self,

@@ -5,7 +5,6 @@ from app.schemas_pydantic.events import (
     DeleteEventResponse,
     EventListResponse,
     EventStatistics,
-    PublishEventRequest,
     PublishEventResponse,
     ReplayAggregateResponse,
 )
@@ -306,60 +305,6 @@ class TestPublishEvent:
         )
 
         assert response.status_code == 403
-
-
-class TestAggregateEvents:
-    """Tests for POST /api/v1/events/aggregate."""
-
-    @pytest.mark.asyncio
-    async def test_aggregate_events(
-            self, test_user: AsyncClient, created_execution: ExecutionResponse
-    ) -> None:
-        """Aggregate events with MongoDB pipeline."""
-        response = await test_user.post(
-            "/api/v1/events/aggregate",
-            json={
-                "pipeline": [
-                    {"$group": {"_id": "$event_type", "count": {"$sum": 1}}}
-                ],
-                "limit": 100,
-            },
-        )
-
-        assert response.status_code == 200
-        result = response.json()
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        for item in result:
-            assert "_id" in item and "count" in item and item["count"] > 0
-
-
-class TestListEventTypes:
-    """Tests for GET /api/v1/events/types/list."""
-
-    @pytest.mark.asyncio
-    async def test_list_event_types(self, test_admin: AsyncClient) -> None:
-        """List available event types."""
-        # First create an event so there's at least one type (requires admin)
-        request = PublishEventRequest(
-            event_type=EventType.SCRIPT_SAVED,
-            payload={
-                "script_id": "test-script",
-                "user_id": "test-user",
-                "title": "Test Script",
-                "language": "python",
-            },
-        )
-        await test_admin.post("/api/v1/events/publish", json=request.model_dump())
-
-        # Query with admin (admins can see all events, users only see their own)
-        response = await test_admin.get("/api/v1/events/types/list")
-
-        assert response.status_code == 200
-        result = response.json()
-        assert isinstance(result, list)
-        assert len(result) > 0
-        assert EventType.SCRIPT_SAVED in result
 
 
 class TestDeleteEvent:

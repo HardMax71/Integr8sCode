@@ -7,7 +7,8 @@ import httpx
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
-from app.domain.enums import QueuePriority
+from app.db.docs.user import UserDocument
+from app.domain.enums import QueuePriority, UserRole
 from app.domain.events import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
 from app.settings import Settings
@@ -86,7 +87,7 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
 
 
 async def _create_authenticated_client(
-    app: FastAPI, username: str, email: str, password: str, role: str
+    app: FastAPI, username: str, email: str, password: str, role: UserRole
 ) -> httpx.AsyncClient:
     """Create and return an authenticated client with CSRF header set."""
     c = httpx.AsyncClient(
@@ -100,11 +101,16 @@ async def _create_authenticated_client(
             "username": username,
             "email": email,
             "password": password,
-            "role": role,
         })
         # 200: created, 400: username exists, 409: email exists - all OK to proceed to login
         if r.status_code not in (200, 400, 409):
             pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
+
+        # Register always creates UserRole.USER; promote via DB if needed
+        if role != UserRole.USER:
+            await UserDocument.find_one(UserDocument.username == username).set(
+                {UserDocument.role: role}
+            )
 
         login_resp = await c.post("/api/v1/auth/login", data={
             "username": username,
@@ -137,7 +143,7 @@ async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"test_user_{uid}",
         email=f"test_user_{uid}@example.com",
         password="TestPass123!",
-        role="user",
+        role=UserRole.USER,
     )
     yield c
     await c.aclose()
@@ -152,7 +158,7 @@ async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"admin_user_{uid}",
         email=f"admin_user_{uid}@example.com",
         password="AdminPass123!",
-        role="admin",
+        role=UserRole.ADMIN,
     )
     yield c
     await c.aclose()
@@ -167,7 +173,7 @@ async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
         username=f"test_user_{uid}",
         email=f"test_user_{uid}@example.com",
         password="TestPass123!",
-        role="user",
+        role=UserRole.USER,
     )
     yield c
     await c.aclose()

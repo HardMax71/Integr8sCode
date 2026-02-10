@@ -12,7 +12,7 @@ from app.db.docs import (
     ReplaySessionDocument,
 )
 from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
-from app.domain.enums import EventType, ReplayStatus
+from app.domain.enums import EventType, ExecutionStatus, ReplayStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,
@@ -24,6 +24,7 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
+    ResourceUsageDomain,
     UserEventCount,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
@@ -176,7 +177,7 @@ class AdminEventsRepository:
             Pipeline()
             .match({
                 ExecutionDocument.created_at: {"$gte": start_time},
-                ExecutionDocument.status: "completed",
+                ExecutionDocument.status: ExecutionStatus.COMPLETED,
                 ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},  # type: ignore[union-attr]
             })
             .group(by=None, query={"avg_duration": S.avg(exec_time_field)})
@@ -305,12 +306,14 @@ class AdminEventsRepository:
                             lang_version=exec_doc.lang_version,
                             created_at=exec_doc.created_at,
                             updated_at=exec_doc.updated_at,
+                            resource_usage=ResourceUsageDomain.model_validate(exec_doc.resource_usage)
+                            if exec_doc.resource_usage
+                            else None,
+                            error_type=exec_doc.error_type,
                         )
                     )
 
-        # Convert document to domain
         session = ReplaySessionState.model_validate(doc, from_attributes=True)
-
         return ReplaySessionStatusDetail(
             session=session,
             estimated_completion=estimated_completion,

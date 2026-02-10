@@ -36,7 +36,7 @@ Producers include structured tags for filtering, UI actions, and correlation.
 
 | Tag type  | Purpose                        | Examples                         |
 |-----------|--------------------------------|----------------------------------|
-| Category  | What the notification is about | `execution`, `external_alert`    |
+| Category  | What the notification is about | `execution`                      |
 | Entity    | Entity type                    | `entity:execution`               |
 | Reference | Link to specific resource      | `exec:<execution_id>`            |
 | Outcome   | What happened                  | `completed`, `failed`, `timeout` |
@@ -53,12 +53,6 @@ Execution failed:
 
 ```json
 ["execution", "failed", "entity:execution", "exec:2c1b...e8"]
-```
-
-Grafana alert:
-
-```json
-["external_alert", "grafana", "entity:external_alert"]
 ```
 
 ## Throttling

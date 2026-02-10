@@ -502,12 +502,11 @@ class NotificationService:
             metadata=event_data,
         )
 
-    async def mark_as_read(self, user_id: str, notification_id: str) -> bool:
+    async def mark_as_read(self, user_id: str, notification_id: str) -> None:
         """Mark notification as read."""
         success = await self.repository.mark_as_read(notification_id, user_id)
         if not success:
             raise NotificationNotFoundError(notification_id)
-        return True
 
     async def get_unread_count(self, user_id: str) -> int:
         """Get count of unread notifications."""
@@ -593,12 +592,11 @@ class NotificationService:
         """Get all notification subscriptions for a user."""
         return await self.repository.get_all_subscriptions(user_id)
 
-    async def delete_notification(self, user_id: str, notification_id: str) -> bool:
+    async def delete_notification(self, user_id: str, notification_id: str) -> None:
         """Delete a notification."""
         deleted = await self.repository.delete_notification(str(notification_id), user_id)
         if not deleted:
             raise NotificationNotFoundError(notification_id)
-        return deleted
 
     async def _publish_notification_sse(self, notification: DomainNotification) -> None:
         """Publish an in-app notification to the SSE bus for realtime delivery."""

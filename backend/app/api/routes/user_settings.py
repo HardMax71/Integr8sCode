@@ -43,17 +43,7 @@ async def update_user_settings(
     settings_service: FromDishka[UserSettingsService],
 ) -> UserSettings:
     """Update the authenticated user's settings."""
-    domain_updates = DomainUserSettingsUpdate(
-        theme=updates.theme,
-        timezone=updates.timezone,
-        date_format=updates.date_format,
-        time_format=updates.time_format,
-        notifications=(
-            DomainNotificationSettings(**updates.notifications.model_dump()) if updates.notifications else None
-        ),
-        editor=DomainEditorSettings(**updates.editor.model_dump()) if updates.editor else None,
-        custom_settings=updates.custom_settings,
-    )
+    domain_updates = DomainUserSettingsUpdate.model_validate(updates)
     domain = await settings_service.update_user_settings(current_user.user_id, domain_updates)
     return UserSettings.model_validate(domain)
 
@@ -78,7 +68,7 @@ async def update_notification_settings(
     """Update notification preferences."""
     domain = await settings_service.update_notification_settings(
         current_user.user_id,
-        DomainNotificationSettings(**notifications.model_dump()),
+        DomainNotificationSettings.model_validate(notifications),
     )
     return UserSettings.model_validate(domain)
 
@@ -92,7 +82,7 @@ async def update_editor_settings(
     """Update code editor preferences."""
     domain = await settings_service.update_editor_settings(
         current_user.user_id,
-        DomainEditorSettings(**editor.model_dump()),
+        DomainEditorSettings.model_validate(editor),
     )
     return UserSettings.model_validate(domain)
 

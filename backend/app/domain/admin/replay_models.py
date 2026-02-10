@@ -4,8 +4,8 @@ from datetime import datetime
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
-from app.domain.enums import ExecutionStatus, ReplayStatus
-from app.domain.events import EventSummary
+from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
+from app.domain.events import EventSummary, ResourceUsageDomain
 from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
@@ -22,6 +22,8 @@ class ExecutionResultSummary:
     lang_version: str
     created_at: datetime
     updated_at: datetime
+    resource_usage: ResourceUsageDomain | None = None
+    error_type: ExecutionErrorType | None = None
 
 
 @dataclass

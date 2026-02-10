@@ -4,13 +4,11 @@ import { suppressConsoleError, suppressConsoleWarn } from '$test/test-utils';
 // Mock the API functions
 const mockLoginApi = vi.fn();
 const mockLogoutApi = vi.fn();
-const mockVerifyTokenApi = vi.fn();
 const mockGetProfileApi = vi.fn();
 
 vi.mock('../../lib/api', () => ({
   loginApiV1AuthLoginPost: (...args: unknown[]) => mockLoginApi(...args),
   logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
-  verifyTokenApiV1AuthVerifyTokenGet: (...args: unknown[]) => mockVerifyTokenApi(...args),
   getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
 }));
 
@@ -27,6 +25,17 @@ const mockLoadUserSettings = vi.fn();
 vi.mock('../../lib/user-settings', () => ({
   loadUserSettings: () => mockLoadUserSettings(),
 }));
+
+const PROFILE_RESPONSE = {
+  user_id: 'user-123',
+  username: 'testuser',
+  email: 'test@example.com',
+  role: 'user',
+  is_active: true,
+  is_superuser: false,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+};
 
 describe('auth store', () => {
   let sessionStorageData: Record<string, string> = {};
@@ -45,7 +54,6 @@ describe('auth store', () => {
     // Reset all mocks
     mockLoginApi.mockReset();
     mockLogoutApi.mockReset();
-    mockVerifyTokenApi.mockReset();
     mockGetProfileApi.mockReset();
     mockClearUserSettings.mockReset();
     mockLoadUserSettings.mockReset().mockResolvedValue({});
@@ -232,14 +240,7 @@ describe('auth store', () => {
 
   describe('verifyAuth', () => {
     it('returns true when verification succeeds', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.verifyAuth(true);
@@ -248,10 +249,7 @@ describe('auth store', () => {
     });
 
     it('returns false and clears state when verification fails', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: false },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: null, error: { detail: 'Unauthorized' } });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.verifyAuth(true);
@@ -261,56 +259,35 @@ describe('auth store', () => {
     });
 
     it('uses cache when not force refreshing', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
 
       // First call - should hit API
       await authStore.verifyAuth(true);
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
 
       // Second call without force - should use cache
       await authStore.verifyAuth(false);
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
     });
 
     it('bypasses cache when force refreshing', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
 
       await authStore.verifyAuth(true);
       await authStore.verifyAuth(true);
 
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(2);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(2);
     });
 
     it('returns cached value on network error (offline-first)', async () => {
       const restoreConsole = suppressConsoleWarn();
 
       // First successful verification
-      mockVerifyTokenApi.mockResolvedValueOnce({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValueOnce({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
 
@@ -318,7 +295,7 @@ describe('auth store', () => {
       expect(firstResult).toBe(true);
 
       // Second call with network error
-      mockVerifyTokenApi.mockRejectedValueOnce(new Error('Network error'));
+      mockGetProfileApi.mockRejectedValueOnce(new Error('Network error'));
 
       const secondResult = await authStore.verifyAuth(true);
       expect(secondResult).toBe(true); // Should return cached value
@@ -359,7 +336,7 @@ describe('auth store', () => {
 
   describe('initialize', () => {
     it('returns false when no persisted auth and verification fails', async () => {
-      mockVerifyTokenApi.mockResolvedValue({ data: { valid: false }, error: null });
+      mockGetProfileApi.mockResolvedValue({ data: null, error: { detail: 'Unauthorized' } });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.initialize();
@@ -368,14 +345,7 @@ describe('auth store', () => {
     });
 
     it('returns true when no persisted auth but verification succeeds', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.initialize();
@@ -385,34 +355,23 @@ describe('auth store', () => {
     });
 
     it('only initializes once', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
       await authStore.initialize();
       await authStore.initialize();
       await authStore.initialize();
 
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
     });
 
     it('handles concurrent initialization calls', async () => {
-      mockVerifyTokenApi.mockImplementation(() =>
+      mockGetProfileApi.mockImplementation(() =>
         new Promise(resolve => setTimeout(() => resolve({
-          data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
+          data: PROFILE_RESPONSE,
           error: null,
         }), 50))
       );
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
 
       const { authStore } = await import('$stores/auth.svelte');
       const results = await Promise.all([
@@ -422,7 +381,7 @@ describe('auth store', () => {
       ]);
 
       expect(results).toEqual([true, true, true]);
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
     });
 
     it('restores from persisted auth and verifies', async () => {
@@ -437,12 +396,8 @@ describe('auth store', () => {
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
 
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'admin', csrf_token: 'csrf-token' },
-        error: null,
-      });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: { ...PROFILE_RESPONSE, role: 'admin' },
         error: null,
       });
 
@@ -466,7 +421,7 @@ describe('auth store', () => {
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
 
-      mockVerifyTokenApi.mockResolvedValue({ data: { valid: false }, error: null });
+      mockGetProfileApi.mockResolvedValue({ data: null, error: { detail: 'Unauthorized' } });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.initialize();
@@ -490,7 +445,7 @@ describe('auth store', () => {
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
 
-      mockVerifyTokenApi.mockRejectedValue(new Error('Network error'));
+      mockGetProfileApi.mockRejectedValue(new Error('Network error'));
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.initialize();
@@ -513,7 +468,7 @@ describe('auth store', () => {
       };
       sessionStorageData['authState'] = JSON.stringify(authState);
 
-      mockVerifyTokenApi.mockRejectedValue(new Error('Network error'));
+      mockGetProfileApi.mockRejectedValue(new Error('Network error'));
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.initialize();
@@ -527,38 +482,24 @@ describe('auth store', () => {
 
   describe('waitForInit', () => {
     it('returns immediately if already initialized', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
       await authStore.initialize();
 
       const result = await authStore.waitForInit();
       expect(result).toBe(true);
-      expect(mockVerifyTokenApi).toHaveBeenCalledTimes(1);
+      expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
     });
 
     it('initializes if not started', async () => {
-      mockVerifyTokenApi.mockResolvedValue({
-        data: { valid: true, username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
-        error: null,
-      });
+      mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
       const { authStore } = await import('$stores/auth.svelte');
       const result = await authStore.waitForInit();
 
       expect(result).toBe(true);
-      expect(mockVerifyTokenApi).toHaveBeenCalled();
+      expect(mockGetProfileApi).toHaveBeenCalled();
     });
   });
 

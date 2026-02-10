@@ -4,6 +4,7 @@ import pytest
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.execution import ResourceLimitsDomain
 from app.domain.execution.exceptions import ExecutionNotFoundError
+from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from dishka import AsyncContainer
 
@@ -163,16 +164,16 @@ class TestGetExecutionResult:
 
 
 class TestGetExecutionEvents:
-    """Tests for get_execution_events method."""
+    """Tests for get_events_by_aggregate via EventService."""
 
     @pytest.mark.asyncio
     async def test_get_execution_events(self, scope: AsyncContainer) -> None:
         """Get events for execution returns list."""
-        svc: ExecutionService = await scope.get(ExecutionService)
+        exec_svc: ExecutionService = await scope.get(ExecutionService)
+        event_svc: EventService = await scope.get(EventService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        # Create execution
-        exec_result = await svc.execute_script(
+        exec_result = await exec_svc.execute_script(
             script="print('events test')",
             user_id=user_id,
             client_ip="127.0.0.1",
@@ -181,11 +182,11 @@ class TestGetExecutionEvents:
             lang_version="3.11",
         )
 
-        # Get events
-        events = await svc.get_execution_events(exec_result.execution_id)
+        events = await event_svc.get_events_by_aggregate(
+            aggregate_id=exec_result.execution_id,
+        )
 
         assert isinstance(events, list)
-        # Should have at least EXECUTION_REQUESTED event
         if events:
             event_types = {e.event_type for e in events}
             assert EventType.EXECUTION_REQUESTED in event_types
@@ -195,10 +196,11 @@ class TestGetExecutionEvents:
         self, scope: AsyncContainer
     ) -> None:
         """Get events filtered by type."""
-        svc: ExecutionService = await scope.get(ExecutionService)
+        exec_svc: ExecutionService = await scope.get(ExecutionService)
+        event_svc: EventService = await scope.get(EventService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        exec_result = await svc.execute_script(
+        exec_result = await exec_svc.execute_script(
             script="print('filter test')",
             user_id=user_id,
             client_ip="127.0.0.1",
@@ -207,8 +209,8 @@ class TestGetExecutionEvents:
             lang_version="3.11",
         )
 
-        events = await svc.get_execution_events(
-            exec_result.execution_id,
+        events = await event_svc.get_events_by_aggregate(
+            aggregate_id=exec_result.execution_id,
             event_types=[EventType.EXECUTION_REQUESTED],
         )
 

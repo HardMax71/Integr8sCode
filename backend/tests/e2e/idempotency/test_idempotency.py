@@ -217,10 +217,10 @@ class TestIdempotencyManager:
 
     @pytest.mark.asyncio
     async def test_get_cached_json_non_existing(self, manager: IdempotencyManager) -> None:
-        """Test retrieving non-existing cached result raises assertion"""
+        """Test retrieving non-existing cached result returns None"""
         real_event = make_execution_requested_event(execution_id="cache-miss-1")
-        with pytest.raises(AssertionError, match="cached result must exist"):
-            await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
+        result = await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_cleanup_expired_keys(self, manager: IdempotencyManager) -> None:

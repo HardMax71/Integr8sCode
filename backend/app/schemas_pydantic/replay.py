@@ -28,9 +28,20 @@ class ReplayRequest(BaseModel):
 class ReplayResponse(BaseModel):
     """Response schema for replay operations"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     session_id: str
     status: ReplayStatus
     message: str
+
+
+class SessionConfigSummary(BaseModel):
+    """Lightweight config included in session listings."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    replay_type: ReplayType
+    target: ReplayTarget
 
 
 class SessionSummary(BaseModel):
@@ -39,8 +50,7 @@ class SessionSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     session_id: str
-    replay_type: ReplayType
-    target: ReplayTarget
+    config: SessionConfigSummary
     status: ReplayStatus
     total_events: int
     replayed_events: int
@@ -67,6 +77,8 @@ class SessionSummary(BaseModel):
 
 class CleanupResponse(BaseModel):
     """Response schema for cleanup operations"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     removed_sessions: int
     message: str

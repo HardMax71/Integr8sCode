@@ -6,7 +6,6 @@ from app.domain.enums import EventType, UserRole
 from app.domain.events import (
     ArchivedEvent,
     DomainEvent,
-    EventAggregationResult,
     EventFilter,
     EventListResult,
     EventReplayInfo,
@@ -181,30 +180,6 @@ class EventService:
         if event_user_id != user_id and user_role != UserRole.ADMIN:
             return None
         return event
-
-    async def aggregate_events(
-        self,
-        user_id: str,
-        user_role: UserRole,
-        pipeline: list[dict[str, Any]],
-        limit: int = 100,
-    ) -> EventAggregationResult:
-        user_filter = self._build_user_filter(user_id, user_role)
-        new_pipeline = list(pipeline)
-        if user_filter:
-            if new_pipeline and "$match" in new_pipeline[0]:
-                new_pipeline[0]["$match"] = {"$and": [new_pipeline[0]["$match"], user_filter]}
-            else:
-                new_pipeline.insert(0, {"$match": user_filter})
-        return await self.repository.aggregate_events(new_pipeline, limit=limit)
-
-    async def list_event_types(
-        self,
-        user_id: str,
-        user_role: UserRole,
-    ) -> list[str]:
-        match = self._build_user_filter(user_id, user_role)
-        return await self.repository.list_event_types(match=match)
 
     async def delete_event_with_archival(
         self,

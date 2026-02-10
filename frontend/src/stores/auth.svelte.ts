@@ -1,7 +1,6 @@
 import {
     loginApiV1AuthLoginPost,
     logoutApiV1AuthLogoutPost,
-    verifyTokenApiV1AuthVerifyTokenGet,
     getCurrentUserProfileApiV1AuthMeGet,
 } from '$lib/api';
 import { clearUserSettings } from '$stores/userSettings.svelte';
@@ -206,8 +205,8 @@ class AuthStore {
 
         this.#verifyPromise = (async () => {
             try {
-                const { data, error } = await verifyTokenApiV1AuthVerifyTokenGet({});
-                if (error || !data.valid) {
+                const { data, error } = await getCurrentUserProfileApiV1AuthMeGet({});
+                if (error || !data) {
                     this.clearAuth();
                     this.#authCache = { valid: false, timestamp: Date.now() };
                     return false;
@@ -215,22 +214,18 @@ class AuthStore {
                 this.isAuthenticated = true;
                 this.username = data.username;
                 this.userRole = data.role;
-                this.csrfToken = data.csrf_token;
-                const current = getPersistedAuthState();
+                this.userId = data.user_id;
+                this.userEmail = data.email;
+                this.csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1] ?? null;
                 persistAuthState({
                     isAuthenticated: true,
                     username: data.username,
                     userRole: data.role,
-                    csrfToken: data.csrf_token,
-                    userId: current?.userId ?? null,
-                    userEmail: current?.userEmail ?? null
+                    csrfToken: this.csrfToken,
+                    userId: data.user_id,
+                    userEmail: data.email,
                 });
                 this.#authCache = { valid: true, timestamp: Date.now() };
-                try {
-                    await this.fetchUserProfile();
-                } catch (err) {
-                    console.warn('Failed to fetch user profile during verification:', err);
-                }
                 return true;
             } catch (err) {
                 // Network error - use cached state if available (offline-first)

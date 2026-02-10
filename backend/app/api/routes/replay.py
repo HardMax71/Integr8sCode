@@ -25,8 +25,8 @@ async def create_replay_session(
     service: FromDishka[EventReplayService],
 ) -> ReplayResponse:
     """Create a new event replay session from a configuration."""
-    result = await service.create_session_from_config(ReplayConfig(**replay_request.model_dump()))
-    return ReplayResponse(**result.model_dump())
+    result = await service.create_session_from_config(ReplayConfig.model_validate(replay_request))
+    return ReplayResponse.model_validate(result)
 
 
 @router.post("/sessions/{session_id}/start", response_model=ReplayResponse)
@@ -36,7 +36,7 @@ async def start_replay_session(
 ) -> ReplayResponse:
     """Start a previously created replay session."""
     result = await service.start_session(session_id)
-    return ReplayResponse(**result.model_dump())
+    return ReplayResponse.model_validate(result)
 
 
 @router.post("/sessions/{session_id}/pause", response_model=ReplayResponse)
@@ -46,21 +46,21 @@ async def pause_replay_session(
 ) -> ReplayResponse:
     """Pause a running replay session."""
     result = await service.pause_session(session_id)
-    return ReplayResponse(**result.model_dump())
+    return ReplayResponse.model_validate(result)
 
 
 @router.post("/sessions/{session_id}/resume", response_model=ReplayResponse)
 async def resume_replay_session(session_id: str, service: FromDishka[EventReplayService]) -> ReplayResponse:
     """Resume a paused replay session."""
     result = await service.resume_session(session_id)
-    return ReplayResponse(**result.model_dump())
+    return ReplayResponse.model_validate(result)
 
 
 @router.post("/sessions/{session_id}/cancel", response_model=ReplayResponse)
 async def cancel_replay_session(session_id: str, service: FromDishka[EventReplayService]) -> ReplayResponse:
     """Cancel and stop a replay session."""
     result = await service.cancel_session(session_id)
-    return ReplayResponse(**result.model_dump())
+    return ReplayResponse.model_validate(result)
 
 
 @router.get("/sessions", response_model=list[SessionSummary])
@@ -70,10 +70,7 @@ async def list_replay_sessions(
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[SessionSummary]:
     """List replay sessions with optional status filtering."""
-    return [
-        SessionSummary(**{**s.model_dump(), **s.config.model_dump()})
-        for s in service.list_sessions(status=status, limit=limit)
-    ]
+    return [SessionSummary.model_validate(s) for s in service.list_sessions(status=status, limit=limit)]
 
 
 @router.get("/sessions/{session_id}", response_model=ReplaySession)
@@ -89,4 +86,4 @@ async def cleanup_old_sessions(
 ) -> CleanupResponse:
     """Remove replay sessions older than the specified threshold."""
     result = await service.cleanup_old_sessions(older_than_hours)
-    return CleanupResponse(**result.model_dump())
+    return CleanupResponse.model_validate(result)

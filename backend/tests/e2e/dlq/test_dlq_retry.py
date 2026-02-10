@@ -118,26 +118,6 @@ async def test_dlq_retry_from_pending_status(scope: AsyncContainer) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dlq_stats_reflect_retried_messages(scope: AsyncContainer) -> None:
-    """Test that DLQ statistics correctly count retried messages."""
-    repository: DLQRepository = await scope.get(DLQRepository)
-
-    # Capture count before to ensure our retry is what increments the stat
-    stats_before = await repository.get_dlq_stats()
-    count_before = stats_before.by_status.get(DLQMessageStatus.RETRIED, 0)
-
-    # Create and retry a message
-    event_id = f"dlq-stats-retry-{uuid.uuid4().hex[:8]}"
-    await _create_dlq_document(event_id=event_id, status=DLQMessageStatus.SCHEDULED)
-    await repository.mark_message_retried(event_id)
-
-    # Get stats after - verify the count incremented by exactly 1
-    stats_after = await repository.get_dlq_stats()
-    count_after = stats_after.by_status.get(DLQMessageStatus.RETRIED, 0)
-    assert count_after == count_before + 1
-
-
-@pytest.mark.asyncio
 async def test_dlq_retry_already_retried_message(scope: AsyncContainer) -> None:
     """Test that retrying an already RETRIED message still succeeds at repository level.
 

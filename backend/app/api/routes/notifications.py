@@ -61,8 +61,7 @@ async def mark_notification_read(
 ) -> Response:
     """Mark a single notification as read."""
     current_user = await auth_service.get_current_user(request)
-    _ = await notification_service.mark_as_read(notification_id=notification_id, user_id=current_user.user_id)
-
+    await notification_service.mark_as_read(notification_id=notification_id, user_id=current_user.user_id)
     return Response(status_code=204)
 
 
@@ -131,5 +130,5 @@ async def delete_notification(
 ) -> DeleteNotificationResponse:
     """Delete a notification."""
     current_user = await auth_service.get_current_user(request)
-    _ = await notification_service.delete_notification(user_id=current_user.user_id, notification_id=notification_id)
+    await notification_service.delete_notification(user_id=current_user.user_id, notification_id=notification_id)
     return DeleteNotificationResponse(message="Notification deleted")

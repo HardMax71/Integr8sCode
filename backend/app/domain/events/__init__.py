@@ -1,5 +1,4 @@
 from app.domain.events.event_models import (
-    EventAggregationResult,
     EventBrowseResult,
     EventDetail,
     EventExportRow,
@@ -101,7 +100,6 @@ from app.domain.events.typed import (
 
 __all__ = [
     # Query/filter/result types
-    "EventAggregationResult",
     "EventBrowseResult",
     "EventDetail",
     "EventExportRow",

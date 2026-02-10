@@ -8,7 +8,7 @@ from opentelemetry import trace
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import EventMetrics
-from app.domain.enums import EventType
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent, DomainEventAdapter, EventMetadata
 from app.events.core import UnifiedProducer
 from app.settings import Settings
@@ -85,7 +85,7 @@ class KafkaEventService:
         self,
         event_type: EventType,
         execution_id: str,
-        status: str,
+        status: ExecutionStatus,
         metadata: EventMetadata | None = None,
         error_message: str | None = None,
     ) -> str:

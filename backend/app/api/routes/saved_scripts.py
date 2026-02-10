@@ -1,15 +1,18 @@
+from typing import Annotated
+
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends
 
+from app.api.dependencies import current_user
 from app.domain.saved_script import DomainSavedScriptCreate, DomainSavedScriptUpdate
+from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
     SavedScriptResponse,
     SavedScriptUpdate,
 )
-from app.services.auth_service import AuthService
 from app.services.saved_script_service import SavedScriptService
 
 router = APIRouter(route_class=DishkaRoute, tags=["scripts"])
@@ -17,27 +20,23 @@ router = APIRouter(route_class=DishkaRoute, tags=["scripts"])
 
 @router.post("/scripts", response_model=SavedScriptResponse)
 async def create_saved_script(
-    request: Request,
+    user: Annotated[User, Depends(current_user)],
     saved_script: SavedScriptCreateRequest,
     saved_script_service: FromDishka[SavedScriptService],
-    auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
     """Save a new script to the user's collection."""
-    current_user = await auth_service.get_current_user(request)
-    create = DomainSavedScriptCreate(**saved_script.model_dump())
-    domain = await saved_script_service.create_saved_script(create, current_user.user_id)
+    create = DomainSavedScriptCreate.model_validate(saved_script)
+    domain = await saved_script_service.create_saved_script(create, user.user_id)
     return SavedScriptResponse.model_validate(domain)
 
 
 @router.get("/scripts", response_model=list[SavedScriptResponse])
 async def list_saved_scripts(
-    request: Request,
+    user: Annotated[User, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
-    auth_service: FromDishka[AuthService],
 ) -> list[SavedScriptResponse]:
     """List all saved scripts for the authenticated user."""
-    current_user = await auth_service.get_current_user(request)
-    items = await saved_script_service.list_saved_scripts(current_user.user_id)
+    items = await saved_script_service.list_saved_scripts(user.user_id)
     return [SavedScriptResponse.model_validate(item) for item in items]
 
 
@@ -47,15 +46,12 @@ async def list_saved_scripts(
     responses={404: {"model": ErrorResponse, "description": "Script not found"}},
 )
 async def get_saved_script(
-    request: Request,
     script_id: str,
+    user: Annotated[User, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
-    auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
     """Get a saved script by ID."""
-    current_user = await auth_service.get_current_user(request)
-
-    domain = await saved_script_service.get_saved_script(script_id, current_user.user_id)
+    domain = await saved_script_service.get_saved_script(script_id, user.user_id)
     return SavedScriptResponse.model_validate(domain)
 
 
@@ -65,17 +61,14 @@ async def get_saved_script(
     responses={404: {"model": ErrorResponse, "description": "Script not found"}},
 )
 async def update_saved_script(
-    request: Request,
     script_id: str,
     script_update: SavedScriptUpdate,
+    user: Annotated[User, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
-    auth_service: FromDishka[AuthService],
 ) -> SavedScriptResponse:
     """Update an existing saved script."""
-    current_user = await auth_service.get_current_user(request)
-
-    update_data = DomainSavedScriptUpdate(**script_update.model_dump())
-    domain = await saved_script_service.update_saved_script(script_id, current_user.user_id, update_data)
+    update_data = DomainSavedScriptUpdate.model_validate(script_update)
+    domain = await saved_script_service.update_saved_script(script_id, user.user_id, update_data)
     return SavedScriptResponse.model_validate(domain)
 
 
@@ -85,13 +78,9 @@ async def update_saved_script(
     responses={404: {"model": ErrorResponse, "description": "Script not found"}},
 )
 async def delete_saved_script(
-    request: Request,
     script_id: str,
+    user: Annotated[User, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
-    auth_service: FromDishka[AuthService],
 ) -> None:
     """Delete a saved script."""
-    current_user = await auth_service.get_current_user(request)
-
-    await saved_script_service.delete_saved_script(script_id, current_user.user_id)
-    return None
+    await saved_script_service.delete_saved_script(script_id, user.user_id)

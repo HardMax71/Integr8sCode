@@ -325,14 +325,14 @@ export const getDlqTopicsApiV1DlqTopicsGet = <ThrowOnError extends boolean = fal
  *
  * Stream notifications for authenticated user.
  */
-export const notificationStreamApiV1EventsNotificationsStreamGet = <ThrowOnError extends boolean = false>(options?: Options<NotificationStreamApiV1EventsNotificationsStreamGetData, ThrowOnError>) => (options?.client ?? client).sse.get<NotificationStreamApiV1EventsNotificationsStreamGetResponses, unknown, ThrowOnError>({ url: '/api/v1/events/notifications/stream', ...options });
+export const notificationStreamApiV1EventsNotificationsStreamGet = <ThrowOnError extends boolean = false>(options?: Options<NotificationStreamApiV1EventsNotificationsStreamGetData, ThrowOnError>) => (options?.client ?? client).get<NotificationStreamApiV1EventsNotificationsStreamGetResponses, unknown, ThrowOnError>({ url: '/api/v1/events/notifications/stream', ...options });
 
 /**
  * Execution Events
  *
  * Stream events for specific execution.
  */
-export const executionEventsApiV1EventsExecutionsExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ThrowOnError>) => (options.client ?? client).sse.get<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ThrowOnError>({ url: '/api/v1/events/executions/{execution_id}', ...options });
+export const executionEventsApiV1EventsExecutionsExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ThrowOnError>) => (options.client ?? client).get<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ThrowOnError>({ url: '/api/v1/events/executions/{execution_id}', ...options });
 
 /**
  * Get Execution Events

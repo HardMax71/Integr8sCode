@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import ExecutionErrorType, ExecutionStatus
+from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus
 from app.domain.events import EventMetadata, ResourceUsageDomain
+
+
+@dataclass
+class CancelResult:
+    execution_id: str
+    status: CancelStatus
+    message: str
+    event_id: str | None
 
 
 class DomainExecution(BaseModel):

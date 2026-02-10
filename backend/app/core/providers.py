@@ -673,18 +673,18 @@ class BusinessServicesProvider(Provider):
             self,
             execution_repository: ExecutionRepository,
             kafka_producer: UnifiedProducer,
-            event_repository: EventRepository,
             settings: Settings,
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
+            idempotency_manager: IdempotencyManager,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
             producer=kafka_producer,
-            event_repository=event_repository,
             settings=settings,
             logger=logger,
             execution_metrics=execution_metrics,
+            idempotency_manager=idempotency_manager,
         )
 
     @provide

@@ -1,29 +1,34 @@
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from time import time
 from typing import Any, Generator
+from uuid import uuid4
 
 from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
-from app.db.repositories import EventRepository, ExecutionRepository
-from app.domain.enums import EventType, ExecutionStatus, QueuePriority
+from app.db.repositories import ExecutionRepository
+from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
 from app.domain.events import (
-    DomainEvent,
+    BaseEvent,
     EventMetadata,
     ExecutionCancelledEvent,
     ExecutionRequestedEvent,
 )
 from app.domain.exceptions import InfrastructureError
 from app.domain.execution import (
+    CancelResult,
     DomainExecution,
     DomainExecutionCreate,
     ExecutionNotFoundError,
     ExecutionResultDomain,
+    ExecutionTerminalError,
     ResourceLimitsDomain,
 )
+from app.domain.idempotency import KeyStrategy
 from app.events.core import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
+from app.services.idempotency import IdempotencyManager
 from app.settings import Settings
 
 
@@ -40,10 +45,10 @@ class ExecutionService:
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
-        event_repository: EventRepository,
         settings: Settings,
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
+        idempotency_manager: IdempotencyManager,
     ) -> None:
         """
         Initialize execution service.
@@ -51,17 +56,17 @@ class ExecutionService:
         Args:
             execution_repo: Repository for execution data persistence.
             producer: Kafka producer for publishing events.
-            event_repository: Repository for event queries.
             settings: Application settings.
             logger: Logger instance.
             execution_metrics: Metrics for tracking execution operations.
+            idempotency_manager: Manager for HTTP idempotency.
         """
         self.execution_repo = execution_repo
         self.producer = producer
-        self.event_repository = event_repository
         self.settings = settings
         self.logger = logger
         self.metrics = execution_metrics
+        self.idempotency_manager = idempotency_manager
 
     @contextmanager
     def _track_active_execution(self) -> Generator[None, None, None]:  # noqa: D401
@@ -173,7 +178,7 @@ class ExecutionService:
             self.logger.info(
                 "Created execution record",
                 extra={
-                    "execution_id": str(created_execution.execution_id),
+                    "execution_id": created_execution.execution_id,
                     "lang": lang,
                     "lang_version": lang_version,
                     "user_id": user_id,
@@ -210,7 +215,7 @@ class ExecutionService:
                 self.metrics.record_error(type(e).__name__)
                 await self._update_execution_error(
                     created_execution.execution_id,
-                    f"Failed to submit execution: {str(e)}",
+                    f"Failed to submit execution: {e}",
                 )
                 raise InfrastructureError("Failed to submit execution request") from e
 
@@ -221,12 +226,161 @@ class ExecutionService:
             self.logger.info(
                 "Script execution submitted successfully",
                 extra={
-                    "execution_id": str(created_execution.execution_id),
+                    "execution_id": created_execution.execution_id,
                     "status": created_execution.status,
                     "duration_seconds": duration,
                 },
             )
             return created_execution
+
+    async def cancel_execution(
+        self,
+        execution_id: str,
+        current_status: ExecutionStatus,
+        user_id: str,
+        reason: str = "User requested cancellation",
+    ) -> CancelResult:
+        """
+        Cancel a running or queued execution.
+
+        Args:
+            execution_id: UUID of the execution.
+            current_status: Current status of the execution.
+            user_id: User requesting cancellation.
+            reason: Cancellation reason.
+
+        Returns:
+            CancelResult with status and event info.
+
+        Raises:
+            ExecutionTerminalError: If execution is in a terminal state.
+        """
+        terminal_states = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT}
+
+        if current_status in terminal_states:
+            raise ExecutionTerminalError(execution_id, current_status)
+
+        if current_status == ExecutionStatus.CANCELLED:
+            return CancelResult(
+                execution_id=execution_id,
+                status=CancelStatus.ALREADY_CANCELLED,
+                message="Execution was already cancelled",
+                event_id=None,
+            )
+
+        metadata = self._create_event_metadata(user_id=user_id)
+        event = ExecutionCancelledEvent(
+            execution_id=execution_id,
+            reason=reason,
+            cancelled_by=user_id,
+            metadata=metadata,
+        )
+
+        await self.producer.produce(event_to_produce=event, key=execution_id)
+
+        self.logger.info(
+            "Published cancellation event",
+            extra={"execution_id": execution_id, "event_id": event.event_id},
+        )
+
+        return CancelResult(
+            execution_id=execution_id,
+            status=CancelStatus.CANCELLATION_REQUESTED,
+            message="Cancellation request submitted",
+            event_id=event.event_id,
+        )
+
+    async def execute_script_idempotent(
+        self,
+        script: str,
+        user_id: str,
+        *,
+        client_ip: str | None,
+        user_agent: str | None,
+        lang: str = "python",
+        lang_version: str = "3.11",
+        idempotency_key: str | None = None,
+    ) -> DomainExecution:
+        """
+        Execute a script with optional idempotency support.
+
+        Args:
+            script: The code to execute.
+            user_id: ID of the user requesting execution.
+            client_ip: Client IP address.
+            user_agent: User agent string.
+            lang: Programming language.
+            lang_version: Language version.
+            idempotency_key: Optional HTTP idempotency key.
+
+        Returns:
+            DomainExecution record.
+        """
+        if not idempotency_key:
+            return await self.execute_script(
+                script=script,
+                lang=lang,
+                lang_version=lang_version,
+                user_id=user_id,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
+
+        pseudo_event = BaseEvent(
+            event_id=str(uuid4()),
+            event_type=EventType.EXECUTION_REQUESTED,
+            timestamp=datetime.now(timezone.utc),
+            metadata=EventMetadata(
+                user_id=user_id,
+                correlation_id=str(uuid4()),
+                service_name="api",
+                service_version="1.0.0",
+            ),
+        )
+        custom_key = f"http:{user_id}:{idempotency_key}"
+
+        idempotency_result = await self.idempotency_manager.check_and_reserve(
+            event=pseudo_event,
+            key_strategy=KeyStrategy.CUSTOM,
+            custom_key=custom_key,
+            ttl_seconds=86400,
+        )
+
+        if idempotency_result.is_duplicate:
+            cached_json = await self.idempotency_manager.get_cached_json(
+                event=pseudo_event,
+                key_strategy=KeyStrategy.CUSTOM,
+                custom_key=custom_key,
+            )
+            return DomainExecution.model_validate_json(cached_json)
+
+        try:
+            exec_result = await self.execute_script(
+                script=script,
+                lang=lang,
+                lang_version=lang_version,
+                user_id=user_id,
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
+
+            await self.idempotency_manager.mark_completed_with_json(
+                event=pseudo_event,
+                cached_json=exec_result.model_dump_json(),
+                key_strategy=KeyStrategy.CUSTOM,
+                custom_key=custom_key,
+            )
+
+            return exec_result
+
+        except Exception as e:
+            await self.idempotency_manager.mark_failed(
+                event=pseudo_event,
+                error=str(e),
+                key_strategy=KeyStrategy.CUSTOM,
+                custom_key=custom_key,
+            )
+            raise
 
     async def _update_execution_error(self, execution_id: str, error_message: str) -> None:
         result = ExecutionResultDomain(
@@ -277,39 +431,6 @@ class ExecutionService:
 
         return execution
 
-    async def get_execution_events(
-        self,
-        execution_id: str,
-        event_types: list[EventType] | None = None,
-        limit: int = 100,
-    ) -> list[DomainEvent]:
-        """
-        Get all events for an execution from the event store.
-
-        Args:
-            execution_id: UUID of the execution.
-            event_types: Filter by specific event types.
-            limit: Maximum number of events to return.
-
-        Returns:
-            List of events for the execution.
-        """
-        result = await self.event_repository.get_execution_events(
-            execution_id=execution_id, event_types=event_types, limit=limit,
-        )
-        events = result.events
-
-        self.logger.debug(
-            f"Retrieved {len(events)} events for execution {execution_id}",
-            extra={
-                "execution_id": execution_id,
-                "event_count": len(events),
-                "event_types": event_types,
-            },
-        )
-
-        return events
-
     async def get_user_executions(
         self,
         user_id: str,
@@ -344,7 +465,7 @@ class ExecutionService:
         self.logger.debug(
             f"Retrieved {len(executions)} executions for user",
             extra={
-                "user_id": str(user_id),
+                "user_id": user_id,
                 "filters": {k: v for k, v in query.items() if k != "user_id"},
                 "limit": limit,
                 "skip": skip,
@@ -398,7 +519,7 @@ class ExecutionService:
         Returns:
             MongoDB query dictionary.
         """
-        query: dict[str, Any] = {"user_id": str(user_id)}
+        query: dict[str, Any] = {"user_id": user_id}
 
         if status:
             query["status"] = status
@@ -458,7 +579,7 @@ class ExecutionService:
             "Published cancellation event",
             extra={
                 "execution_id": execution_id,
-                "event_id": str(event.event_id),
+                "event_id": event.event_id,
             },
         )
 
@@ -501,7 +622,7 @@ class ExecutionService:
         query: dict[str, Any] = {}
 
         if user_id:
-            query["user_id"] = str(user_id)
+            query["user_id"] = user_id
 
         start_time, end_time = time_range
         if start_time or end_time:

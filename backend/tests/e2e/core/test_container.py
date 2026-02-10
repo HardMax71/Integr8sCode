@@ -160,7 +160,6 @@ class TestServiceDependencies:
         # Check that key dependencies are present
         assert service.settings is not None
         assert service.execution_repo is not None
-        assert service.event_repository is not None
 
     @pytest.mark.asyncio
     async def test_security_service_uses_settings(

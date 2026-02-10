@@ -22,3 +22,10 @@ class ExecutionStatus(StringEnum):
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
     ERROR = "error"
+
+
+class CancelStatus(StringEnum):
+    """Outcome of a cancel request."""
+
+    ALREADY_CANCELLED = "already_cancelled"
+    CANCELLATION_REQUESTED = "cancellation_requested"

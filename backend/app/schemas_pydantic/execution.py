@@ -136,7 +136,7 @@ class ExampleScripts(BaseModel):
 class CancelExecutionRequest(BaseModel):
     """Model for cancelling an execution."""
 
-    reason: str | None = Field(None, description="Reason for cancellation")
+    reason: str = Field("User requested cancellation", description="Reason for cancellation")
 
 
 class RetryExecutionRequest(BaseModel):
@@ -163,6 +163,8 @@ class CancelResponse(BaseModel):
     status: str
     message: str
     event_id: str | None = Field(None, description="Event ID for the cancellation event, if published")
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeleteResponse(BaseModel):

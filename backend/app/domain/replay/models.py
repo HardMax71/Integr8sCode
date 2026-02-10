@@ -108,6 +108,8 @@ class ReplayFilter(BaseModel):
 
 
 class ReplayConfig(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
     filter: ReplayFilter = Field(default_factory=ReplayFilter)

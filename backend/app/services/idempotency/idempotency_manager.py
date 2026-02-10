@@ -235,8 +235,9 @@ class IdempotencyManager:
 
     async def get_cached_json(
         self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None, fields: set[str] | None = None
-    ) -> str:
+    ) -> str | None:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
-        assert existing and existing.result_json is not None, "Invariant: cached result must exist when requested"
+        if not existing or existing.result_json is None:
+            return None
         return existing.result_json

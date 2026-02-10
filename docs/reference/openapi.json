@@ -1590,28 +1590,6 @@
         }
       }
     },
-    "/api/v1/health/ready": {
-      "get": {
-        "tags": [
-          "Health"
-        ],
-        "summary": "Readiness",
-        "description": "Simple readiness probe. Extend with dependency checks if needed.",
-        "operationId": "readiness_api_v1_health_ready_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadinessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/dlq/messages": {
       "get": {
         "tags": [
@@ -1958,14 +1936,7 @@
         "operationId": "notification_stream_api_v1_events_notifications_stream_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationResponse"
-                }
-              }
-            }
+            "description": "Successful Response"
           }
         }
       }
@@ -1991,14 +1962,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SSEExecutionEventData"
-                }
-              }
-            }
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -4921,7 +4885,7 @@
           "sagas"
         ],
         "summary": "Get Saga Status",
-        "description": "Get saga status by ID.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Saga status response\n\nRaises:\n    HTTPException: 404 if saga not found, 403 if access denied",
+        "description": "Get saga status by ID.",
         "operationId": "get_saga_status_api_v1_sagas__saga_id__get",
         "parameters": [
           {
@@ -4984,7 +4948,7 @@
           "sagas"
         ],
         "summary": "Get Execution Sagas",
-        "description": "Get all sagas for an execution.\n\nArgs:\n    execution_id: The execution identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas for the execution\n\nRaises:\n    HTTPException: 403 if access denied",
+        "description": "Get all sagas for an execution.",
         "operationId": "get_execution_sagas_api_v1_sagas_execution__execution_id__get",
         "parameters": [
           {
@@ -5078,7 +5042,7 @@
           "sagas"
         ],
         "summary": "List Sagas",
-        "description": "List sagas accessible by the current user.\n\nArgs:\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n    state: Optional state filter\n    limit: Maximum number of results\n    skip: Number of results to skip\n\nReturns:\n    Paginated list of sagas",
+        "description": "List sagas accessible by the current user.",
         "operationId": "list_sagas_api_v1_sagas__get",
         "parameters": [
           {
@@ -5153,7 +5117,7 @@
           "sagas"
         ],
         "summary": "Cancel Saga",
-        "description": "Cancel a running saga.\n\nArgs:\n    saga_id: The saga identifier\n    request: FastAPI request object\n    saga_service: Saga service from DI\n    auth_service: Auth service from DI\n\nReturns:\n    Cancellation response with success status\n\nRaises:\n    HTTPException: 404 if not found, 403 if denied, 400 if invalid state",
+        "description": "Cancel a running saga.",
         "operationId": "cancel_saga_api_v1_sagas__saga_id__cancel_post",
         "parameters": [
           {
@@ -5213,74 +5177,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/alerts/grafana": {
-      "post": {
-        "tags": [
-          "alerts"
-        ],
-        "summary": "Receive Grafana Alerts",
-        "description": "Receive and process a Grafana alerting webhook payload.",
-        "operationId": "receive_grafana_alerts_api_v1_alerts_grafana_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GrafanaWebhook"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AlertResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/alerts/grafana/test": {
-      "get": {
-        "tags": [
-          "alerts"
-        ],
-        "summary": "Test Grafana Alert Endpoint",
-        "description": "Verify the Grafana webhook endpoint is reachable.",
-        "operationId": "test_grafana_alert_endpoint_api_v1_alerts_grafana_test_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Test Grafana Alert Endpoint Api V1 Alerts Grafana Test Get"
                 }
               }
             }
@@ -5557,36 +5453,6 @@
         ],
         "title": "AdminUserOverview"
       },
-      "AlertResponse": {
-        "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "alerts_received": {
-            "type": "integer",
-            "title": "Alerts Received"
-          },
-          "alerts_processed": {
-            "type": "integer",
-            "title": "Alerts Processed"
-          },
-          "errors": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Errors"
-          }
-        },
-        "type": "object",
-        "required": [
-          "message",
-          "alerts_received",
-          "alerts_processed"
-        ],
-        "title": "AlertResponse"
-      },
       "AllocateResourcesCommandEvent": {
         "properties": {
           "event_id": {
@@ -5787,16 +5653,10 @@
       "CancelExecutionRequest": {
         "properties": {
           "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Reason",
-            "description": "Reason for cancellation"
+            "description": "Reason for cancellation",
+            "default": "User requested cancellation"
           }
         },
         "type": "object",
@@ -10038,104 +9898,6 @@
         ],
         "title": "ExecutionTimeoutEvent"
       },
-      "GrafanaAlertItem": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "labels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Labels"
-          },
-          "annotations": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Annotations"
-          },
-          "valueString": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Valuestring"
-          }
-        },
-        "type": "object",
-        "title": "GrafanaAlertItem"
-      },
-      "GrafanaWebhook": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "receiver": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receiver"
-          },
-          "alerts": {
-            "items": {
-              "$ref": "#/components/schemas/GrafanaAlertItem"
-            },
-            "type": "array",
-            "title": "Alerts"
-          },
-          "groupLabels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Grouplabels"
-          },
-          "commonLabels": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Commonlabels"
-          },
-          "commonAnnotations": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Commonannotations"
-          }
-        },
-        "type": "object",
-        "title": "GrafanaWebhook"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -12180,27 +11942,6 @@
         "title": "RateLimitUpdateResponse",
         "description": "Response model for rate limit update."
       },
-      "ReadinessResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "description": "Readiness status"
-          },
-          "uptime_seconds": {
-            "type": "integer",
-            "title": "Uptime Seconds",
-            "description": "Server uptime in seconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "uptime_seconds"
-        ],
-        "title": "ReadinessResponse",
-        "description": "Response model for readiness probe."
-      },
       "ReleaseResourcesCommandEvent": {
         "properties": {
           "event_id": {
@@ -13386,174 +13127,6 @@
         ],
         "title": "RetryStrategy",
         "description": "Retry strategies for DLQ messages."
-      },
-      "SSEControlEvent": {
-        "type": "string",
-        "enum": [
-          "connected",
-          "subscribed",
-          "status"
-        ],
-        "title": "SSEControlEvent",
-        "description": "Control events for execution SSE streams (not from Kafka)."
-      },
-      "SSEExecutionEventData": {
-        "properties": {
-          "event_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EventType"
-              },
-              {
-                "$ref": "#/components/schemas/SSEControlEvent"
-              }
-            ],
-            "title": "Event Type",
-            "description": "Event type identifier (business event or control event)"
-          },
-          "execution_id": {
-            "type": "string",
-            "title": "Execution Id",
-            "description": "Execution ID this event relates to"
-          },
-          "timestamp": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timestamp",
-            "description": "Event timestamp"
-          },
-          "event_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Id",
-            "description": "Unique event identifier"
-          },
-          "connection_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Connection Id",
-            "description": "SSE connection ID (connected event)"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message",
-            "description": "Human-readable message (subscribed event)"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionStatus"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Current execution status"
-          },
-          "stdout": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stdout",
-            "description": "Standard output from execution"
-          },
-          "stderr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stderr",
-            "description": "Standard error from execution"
-          },
-          "exit_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exit Code",
-            "description": "Process exit code"
-          },
-          "timeout_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timeout Seconds",
-            "description": "Timeout duration in seconds"
-          },
-          "resource_usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResourceUsage"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "CPU/memory usage metrics"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionResult"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Complete execution result"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_type",
-          "execution_id"
-        ],
-        "title": "SSEExecutionEventData",
-        "description": "Typed model for SSE execution stream event payload.\n\nThis represents the JSON data sent inside each SSE message for execution streams.\nAll fields except event_type and execution_id are optional since different\nevent types carry different data."
       },
       "SagaCancellationResponse": {
         "properties": {
@@ -14798,17 +14371,31 @@
         ],
         "title": "ServiceUnhealthyEvent"
       },
+      "SessionConfigSummary": {
+        "properties": {
+          "replay_type": {
+            "$ref": "#/components/schemas/ReplayType"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ReplayTarget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "replay_type",
+          "target"
+        ],
+        "title": "SessionConfigSummary",
+        "description": "Lightweight config included in session listings."
+      },
       "SessionSummary": {
         "properties": {
           "session_id": {
             "type": "string",
             "title": "Session Id"
           },
-          "replay_type": {
-            "$ref": "#/components/schemas/ReplayType"
-          },
-          "target": {
-            "$ref": "#/components/schemas/ReplayTarget"
+          "config": {
+            "$ref": "#/components/schemas/SessionConfigSummary"
           },
           "status": {
             "$ref": "#/components/schemas/ReplayStatus"
@@ -14886,8 +14473,7 @@
         "type": "object",
         "required": [
           "session_id",
-          "replay_type",
-          "target",
+          "config",
           "status",
           "total_events",
           "replayed_events",

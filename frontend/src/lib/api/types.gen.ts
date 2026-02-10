@@ -133,28 +133,6 @@ export type AdminUserOverview = {
 };
 
 /**
- * AlertResponse
- */
-export type AlertResponse = {
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Alerts Received
-     */
-    alerts_received: number;
-    /**
-     * Alerts Processed
-     */
-    alerts_processed: number;
-    /**
-     * Errors
-     */
-    errors?: Array<string>;
-};
-
-/**
  * AllocateResourcesCommandEvent
  */
 export type AllocateResourcesCommandEvent = {
@@ -273,7 +251,7 @@ export type CancelExecutionRequest = {
      *
      * Reason for cancellation
      */
-    reason?: string | null;
+    reason?: string;
 };
 
 /**
@@ -2691,68 +2669,6 @@ export type ExecutionTimeoutEvent = {
 };
 
 /**
- * GrafanaAlertItem
- */
-export type GrafanaAlertItem = {
-    /**
-     * Status
-     */
-    status?: string | null;
-    /**
-     * Labels
-     */
-    labels?: {
-        [key: string]: string;
-    };
-    /**
-     * Annotations
-     */
-    annotations?: {
-        [key: string]: string;
-    };
-    /**
-     * Valuestring
-     */
-    valueString?: string | null;
-};
-
-/**
- * GrafanaWebhook
- */
-export type GrafanaWebhook = {
-    /**
-     * Status
-     */
-    status?: string | null;
-    /**
-     * Receiver
-     */
-    receiver?: string | null;
-    /**
-     * Alerts
-     */
-    alerts?: Array<GrafanaAlertItem>;
-    /**
-     * Grouplabels
-     */
-    groupLabels?: {
-        [key: string]: string;
-    };
-    /**
-     * Commonlabels
-     */
-    commonLabels?: {
-        [key: string]: string;
-    };
-    /**
-     * Commonannotations
-     */
-    commonAnnotations?: {
-        [key: string]: string;
-    };
-};
-
-/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -4027,26 +3943,6 @@ export type RateLimitUpdateResponse = {
 };
 
 /**
- * ReadinessResponse
- *
- * Response model for readiness probe.
- */
-export type ReadinessResponse = {
-    /**
-     * Status
-     *
-     * Readiness status
-     */
-    status: string;
-    /**
-     * Uptime Seconds
-     *
-     * Server uptime in seconds
-     */
-    uptime_seconds: number;
-};
-
-/**
  * ReleaseResourcesCommandEvent
  */
 export type ReleaseResourcesCommandEvent = {
@@ -4705,97 +4601,6 @@ export type RetryPolicyRequest = {
  * Retry strategies for DLQ messages.
  */
 export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interval' | 'scheduled' | 'manual';
-
-/**
- * SSEControlEvent
- *
- * Control events for execution SSE streams (not from Kafka).
- */
-export type SseControlEvent = 'connected' | 'subscribed' | 'status';
-
-/**
- * SSEExecutionEventData
- *
- * Typed model for SSE execution stream event payload.
- *
- * This represents the JSON data sent inside each SSE message for execution streams.
- * All fields except event_type and execution_id are optional since different
- * event types carry different data.
- */
-export type SseExecutionEventData = {
-    /**
-     * Event Type
-     *
-     * Event type identifier (business event or control event)
-     */
-    event_type: EventType | SseControlEvent;
-    /**
-     * Execution Id
-     *
-     * Execution ID this event relates to
-     */
-    execution_id: string;
-    /**
-     * Timestamp
-     *
-     * Event timestamp
-     */
-    timestamp?: string | null;
-    /**
-     * Event Id
-     *
-     * Unique event identifier
-     */
-    event_id?: string | null;
-    /**
-     * Connection Id
-     *
-     * SSE connection ID (connected event)
-     */
-    connection_id?: string | null;
-    /**
-     * Message
-     *
-     * Human-readable message (subscribed event)
-     */
-    message?: string | null;
-    /**
-     * Current execution status
-     */
-    status?: ExecutionStatus | null;
-    /**
-     * Stdout
-     *
-     * Standard output from execution
-     */
-    stdout?: string | null;
-    /**
-     * Stderr
-     *
-     * Standard error from execution
-     */
-    stderr?: string | null;
-    /**
-     * Exit Code
-     *
-     * Process exit code
-     */
-    exit_code?: number | null;
-    /**
-     * Timeout Seconds
-     *
-     * Timeout duration in seconds
-     */
-    timeout_seconds?: number | null;
-    /**
-     * CPU/memory usage metrics
-     */
-    resource_usage?: ResourceUsage | null;
-    /**
-     * Complete execution result
-     */
-    result?: ExecutionResult | null;
-};
 
 /**
  * SagaCancellationResponse
@@ -5572,6 +5377,16 @@ export type ServiceUnhealthyEvent = {
 };
 
 /**
+ * SessionConfigSummary
+ *
+ * Lightweight config included in session listings.
+ */
+export type SessionConfigSummary = {
+    replay_type: ReplayType;
+    target: ReplayTarget;
+};
+
+/**
  * SessionSummary
  *
  * Summary information for replay sessions
@@ -5581,8 +5396,7 @@ export type SessionSummary = {
      * Session Id
      */
     session_id: string;
-    replay_type: ReplayType;
-    target: ReplayTarget;
+    config: SessionConfigSummary;
     status: ReplayStatus;
     /**
      * Total Events
@@ -6466,8 +6280,7 @@ export type SessionSummaryWritable = {
      * Session Id
      */
     session_id: string;
-    replay_type: ReplayType;
-    target: ReplayTarget;
+    config: SessionConfigSummary;
     status: ReplayStatus;
     /**
      * Total Events
@@ -7425,22 +7238,6 @@ export type LivenessApiV1HealthLiveGetResponses = {
 
 export type LivenessApiV1HealthLiveGetResponse = LivenessApiV1HealthLiveGetResponses[keyof LivenessApiV1HealthLiveGetResponses];
 
-export type ReadinessApiV1HealthReadyGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/health/ready';
-};
-
-export type ReadinessApiV1HealthReadyGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReadinessResponse;
-};
-
-export type ReadinessApiV1HealthReadyGetResponse = ReadinessApiV1HealthReadyGetResponses[keyof ReadinessApiV1HealthReadyGetResponses];
-
 export type GetDlqMessagesApiV1DlqMessagesGetData = {
     body?: never;
     path?: never;
@@ -7647,10 +7444,8 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
      * Successful Response
      */
-    200: NotificationResponse;
+    200: unknown;
 };
-
-export type NotificationStreamApiV1EventsNotificationsStreamGetResponse = NotificationStreamApiV1EventsNotificationsStreamGetResponses[keyof NotificationStreamApiV1EventsNotificationsStreamGetResponses];
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetData = {
     body?: never;
@@ -7677,10 +7472,8 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
      * Successful Response
      */
-    200: SseExecutionEventData;
+    200: unknown;
 };
-
-export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
 
 export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
     body?: never;
@@ -9495,48 +9288,3 @@ export type CancelSagaApiV1SagasSagaIdCancelPostResponses = {
 };
 
 export type CancelSagaApiV1SagasSagaIdCancelPostResponse = CancelSagaApiV1SagasSagaIdCancelPostResponses[keyof CancelSagaApiV1SagasSagaIdCancelPostResponses];
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostData = {
-    body: GrafanaWebhook;
-    path?: never;
-    query?: never;
-    url: '/api/v1/alerts/grafana';
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostError = ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors[keyof ReceiveGrafanaAlertsApiV1AlertsGrafanaPostErrors];
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: AlertResponse;
-};
-
-export type ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponse = ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses[keyof ReceiveGrafanaAlertsApiV1AlertsGrafanaPostResponses];
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/alerts/grafana/test';
-};
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses = {
-    /**
-     * Response Test Grafana Alert Endpoint Api V1 Alerts Grafana Test Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: string;
-    };
-};
-
-export type TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponse = TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses[keyof TestGrafanaAlertEndpointApiV1AlertsGrafanaTestGetResponses];

@@ -15,7 +15,7 @@ from app.domain.events import (
     ExecutionCancelledEvent,
     ExecutionRequestedEvent,
 )
-from app.domain.exceptions import InfrastructureError
+from app.domain.exceptions import ConflictError, InfrastructureError
 from app.domain.execution import (
     CancelResult,
     DomainExecution,
@@ -25,7 +25,7 @@ from app.domain.execution import (
     ExecutionTerminalError,
     ResourceLimitsDomain,
 )
-from app.domain.idempotency import KeyStrategy
+from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.events.core import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
@@ -255,7 +255,12 @@ class ExecutionService:
         Raises:
             ExecutionTerminalError: If execution is in a terminal state.
         """
-        terminal_states = {ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT}
+        terminal_states = {
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.TIMEOUT,
+            ExecutionStatus.ERROR,
+        }
 
         if current_status in terminal_states:
             raise ExecutionTerminalError(execution_id, current_status)
@@ -271,6 +276,7 @@ class ExecutionService:
         metadata = self._create_event_metadata(user_id=user_id)
         event = ExecutionCancelledEvent(
             execution_id=execution_id,
+            aggregate_id=execution_id,
             reason=reason,
             cancelled_by=user_id,
             metadata=metadata,
@@ -347,11 +353,19 @@ class ExecutionService:
         )
 
         if idempotency_result.is_duplicate:
+            if not idempotency_result.has_cached_result:
+                raise ConflictError(
+                    f"Duplicate request '{idempotency_key}' is still being processed"
+                    if idempotency_result.status == IdempotencyStatus.PROCESSING
+                    else f"Previous request '{idempotency_key}' failed"
+                )
             cached_json = await self.idempotency_manager.get_cached_json(
                 event=pseudo_event,
                 key_strategy=KeyStrategy.CUSTOM,
                 custom_key=custom_key,
             )
+            if not cached_json:
+                raise ConflictError(f"Cached result for '{idempotency_key}' is no longer available")
             return DomainExecution.model_validate_json(cached_json)
 
         try:
@@ -570,7 +584,11 @@ class ExecutionService:
         metadata = self._create_event_metadata()
 
         event = ExecutionCancelledEvent(
-            execution_id=execution_id, reason="user_requested", cancelled_by=metadata.user_id, metadata=metadata
+            execution_id=execution_id,
+            aggregate_id=execution_id,
+            reason="user_requested",
+            cancelled_by=metadata.user_id,
+            metadata=metadata,
         )
 
         await self.producer.produce(event_to_produce=event, key=execution_id)

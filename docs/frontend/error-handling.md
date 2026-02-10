@@ -82,6 +82,6 @@ The pattern is: await the call, do cleanup, then unwrap. This keeps the loading 
 
 ## What happens on error
 
-The error interceptor in `api-interceptors.ts` handles user feedback. When an API call fails, it shows an appropriate toast based on the status code (401 redirects to login, 403 shows access denied, 422 formats validation errors, 429 warns about rate limits, 5xx shows server error). By the time your component code sees the error, the user has already been notified.
+The error interceptor in `api-interceptors.ts` handles user feedback. When an API call fails, it shows an appropriate toast based on the status code (401 redirects to login, 403 shows access denied, 422 formats validation errors, 423 warns about account lockout, 429 warns about rate limits, 5xx shows server error). By the time your component code sees the error, the user has already been notified.
 
 The `unwrap` throw becomes an unhandled promise rejection. The global handler in `main.ts` logs it to console and suppresses the default browser error. No error page, no duplicate notifications - just a clean exit from the function.

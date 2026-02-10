@@ -27,7 +27,8 @@ and monitoring parameters.
 ## Event Management
 
 The `/api/v1/admin/events` router provides event browsing, export, and replay capabilities. Events can be filtered by
-type, time range, user, or correlation ID. Export supports CSV and JSON formats.
+type, time range, user, or correlation ID. Results are always sorted by timestamp descending (most recent first).
+Export supports CSV and JSON formats.
 
 <swagger-ui src="../reference/openapi.json" filter="admin-events" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
 

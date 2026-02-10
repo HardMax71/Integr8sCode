@@ -58,13 +58,13 @@ async def test_record_first_attempt_sets_ttl() -> None:
 
 
 @pytest.mark.asyncio
-async def test_subsequent_attempt_does_not_reset_ttl() -> None:
-    service, redis_mock = _make_service()
+async def test_subsequent_attempt_refreshes_ttl() -> None:
+    service, redis_mock = _make_service(lockout_duration_minutes=15)
     redis_mock.incr.return_value = 3
 
     await service.record_failed_attempt("alice")
 
-    redis_mock.expire.assert_not_called()
+    redis_mock.expire.assert_called_once_with("login_lockout:attempts:alice", 900)
 
 
 @pytest.mark.asyncio

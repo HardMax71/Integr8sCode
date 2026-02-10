@@ -6390,7 +6390,7 @@ export type RegisterApiV1AuthRegisterPostData = {
 
 export type RegisterApiV1AuthRegisterPostErrors = {
     /**
-     * Username already registered or password too short
+     * Password too short
      */
     400: ErrorResponse;
     /**

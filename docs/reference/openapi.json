@@ -97,7 +97,7 @@
             }
           },
           "400": {
-            "description": "Username already registered or password too short",
+            "description": "Password too short",
             "content": {
               "application/json": {
                 "schema": {
@@ -14886,19 +14886,19 @@
           "max_timeout_seconds": {
             "type": "integer",
             "maximum": 3600.0,
-            "minimum": 10.0,
+            "minimum": 1.0,
             "title": "Max Timeout Seconds",
             "default": 300
           },
           "memory_limit": {
             "type": "string",
-            "pattern": "^\\d+(Ki|Mi|Gi)$",
+            "pattern": "^[1-9]\\d*(Ki|Mi|Gi)$",
             "title": "Memory Limit",
             "default": "512Mi"
           },
           "cpu_limit": {
             "type": "string",
-            "pattern": "^\\d+m$",
+            "pattern": "^[1-9]\\d*m$",
             "title": "Cpu Limit",
             "default": "2000m"
           },
@@ -14912,7 +14912,7 @@
           "password_min_length": {
             "type": "integer",
             "maximum": 32.0,
-            "minimum": 4.0,
+            "minimum": 8.0,
             "title": "Password Min Length",
             "default": 8
           },
@@ -15043,7 +15043,7 @@
           },
           "password": {
             "type": "string",
-            "minLength": 4,
+            "minLength": 8,
             "title": "Password"
           }
         },

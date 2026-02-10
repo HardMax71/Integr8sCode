@@ -105,7 +105,7 @@ class TestUpdateSystemSettings:
         """Invalid setting values are rejected."""
         response = await test_admin.put(
             "/api/v1/admin/settings/",
-            json={"max_timeout_seconds": 1},  # minimum is 10
+            json={"max_timeout_seconds": 0},  # minimum is 1
         )
         assert response.status_code == 422
 

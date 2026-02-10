@@ -2283,38 +2283,6 @@ export type ExecutionFailedEvent = {
 };
 
 /**
- * ExecutionLimitsSchema
- *
- * Execution resource limits schema.
- */
-export type ExecutionLimitsSchema = {
-    /**
-     * Max Timeout Seconds
-     *
-     * Maximum execution timeout
-     */
-    max_timeout_seconds?: number;
-    /**
-     * Max Memory Mb
-     *
-     * Maximum memory in MB
-     */
-    max_memory_mb?: number;
-    /**
-     * Max Cpu Cores
-     *
-     * Maximum CPU cores
-     */
-    max_cpu_cores?: number;
-    /**
-     * Max Concurrent Executions
-     *
-     * Maximum concurrent executions
-     */
-    max_concurrent_executions?: number;
-};
-
-/**
  * ExecutionListResponse
  *
  * Model for paginated execution list.
@@ -2740,6 +2708,13 @@ export type LivenessResponse = {
 };
 
 /**
+ * LogLevel
+ *
+ * Log level options.
+ */
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+
+/**
  * LoginMethod
  *
  * User login methods.
@@ -2789,38 +2764,6 @@ export type MessageResponse = {
      * Message
      */
     message: string;
-};
-
-/**
- * MonitoringSettingsSchema
- *
- * Monitoring and observability schema.
- */
-export type MonitoringSettingsSchema = {
-    /**
-     * Metrics Retention Days
-     *
-     * Metrics retention in days
-     */
-    metrics_retention_days?: number;
-    /**
-     * Log Level
-     *
-     * Log level
-     */
-    log_level?: string;
-    /**
-     * Enable Tracing
-     *
-     * Enable distributed tracing
-     */
-    enable_tracing?: boolean;
-    /**
-     * Sampling Rate
-     *
-     * Trace sampling rate
-     */
-    sampling_rate?: number;
 };
 
 /**
@@ -5295,38 +5238,6 @@ export type ScriptSharedEvent = {
 };
 
 /**
- * SecuritySettingsSchema
- *
- * Security configuration schema.
- */
-export type SecuritySettingsSchema = {
-    /**
-     * Password Min Length
-     *
-     * Minimum password length
-     */
-    password_min_length?: number;
-    /**
-     * Session Timeout Minutes
-     *
-     * Session timeout in minutes
-     */
-    session_timeout_minutes?: number;
-    /**
-     * Max Login Attempts
-     *
-     * Maximum login attempts
-     */
-    max_login_attempts?: number;
-    /**
-     * Lockout Duration Minutes
-     *
-     * Account lockout duration
-     */
-    lockout_duration_minutes?: number;
-};
-
-/**
  * SecurityViolationEvent
  */
 export type SecurityViolationEvent = {
@@ -5694,14 +5605,56 @@ export type SystemErrorEvent = {
 };
 
 /**
- * SystemSettings
+ * SystemSettingsSchema
  *
- * System-wide settings model.
+ * API schema for system settings — inherits all fields from domain model.
  */
-export type SystemSettings = {
-    execution_limits?: ExecutionLimitsSchema;
-    security_settings?: SecuritySettingsSchema;
-    monitoring_settings?: MonitoringSettingsSchema;
+export type SystemSettingsSchema = {
+    /**
+     * Max Timeout Seconds
+     */
+    max_timeout_seconds?: number;
+    /**
+     * Memory Limit
+     */
+    memory_limit?: string;
+    /**
+     * Cpu Limit
+     */
+    cpu_limit?: string;
+    /**
+     * Max Concurrent Executions
+     */
+    max_concurrent_executions?: number;
+    /**
+     * Password Min Length
+     */
+    password_min_length?: number;
+    /**
+     * Session Timeout Minutes
+     */
+    session_timeout_minutes?: number;
+    /**
+     * Max Login Attempts
+     */
+    max_login_attempts?: number;
+    /**
+     * Lockout Duration Minutes
+     */
+    lockout_duration_minutes?: number;
+    /**
+     * Metrics Retention Days
+     */
+    metrics_retention_days?: number;
+    log_level?: LogLevel;
+    /**
+     * Enable Tracing
+     */
+    enable_tracing?: boolean;
+    /**
+     * Sampling Rate
+     */
+    sampling_rate?: number;
 };
 
 /**
@@ -5718,6 +5671,22 @@ export type Theme = 'light' | 'dark' | 'auto';
  */
 export type ThemeUpdateRequest = {
     theme: Theme;
+};
+
+/**
+ * UnlockResponse
+ *
+ * Response model for account unlock.
+ */
+export type UnlockResponse = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Message
+     */
+    message: string;
 };
 
 /**
@@ -6415,6 +6384,10 @@ export type LoginApiV1AuthLoginPostErrors = {
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Account temporarily locked
+     */
+    423: ErrorResponse;
 };
 
 export type LoginApiV1AuthLoginPostError = LoginApiV1AuthLoginPostErrors[keyof LoginApiV1AuthLoginPostErrors];
@@ -6437,7 +6410,7 @@ export type RegisterApiV1AuthRegisterPostData = {
 
 export type RegisterApiV1AuthRegisterPostErrors = {
     /**
-     * Username already registered
+     * Username already registered or password too short
      */
     400: ErrorResponse;
     /**
@@ -8403,13 +8376,13 @@ export type GetSystemSettingsApiV1AdminSettingsGetResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettings;
+    200: SystemSettingsSchema;
 };
 
 export type GetSystemSettingsApiV1AdminSettingsGetResponse = GetSystemSettingsApiV1AdminSettingsGetResponses[keyof GetSystemSettingsApiV1AdminSettingsGetResponses];
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutData = {
-    body: SystemSettings;
+    body: SystemSettingsSchema;
     path?: never;
     query?: never;
     url: '/api/v1/admin/settings/';
@@ -8436,7 +8409,7 @@ export type UpdateSystemSettingsApiV1AdminSettingsPutResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettings;
+    200: SystemSettingsSchema;
 };
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutResponse = UpdateSystemSettingsApiV1AdminSettingsPutResponses[keyof UpdateSystemSettingsApiV1AdminSettingsPutResponses];
@@ -8461,7 +8434,7 @@ export type ResetSystemSettingsApiV1AdminSettingsResetPostResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettings;
+    200: SystemSettingsSchema;
 };
 
 export type ResetSystemSettingsApiV1AdminSettingsResetPostResponse = ResetSystemSettingsApiV1AdminSettingsResetPostResponses[keyof ResetSystemSettingsApiV1AdminSettingsResetPostResponses];
@@ -8811,6 +8784,40 @@ export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses
 };
 
 export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponse = ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses[keyof ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses];
+
+export type UnlockUserApiV1AdminUsersUserIdUnlockPostData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/users/{user_id}/unlock';
+};
+
+export type UnlockUserApiV1AdminUsersUserIdUnlockPostErrors = {
+    /**
+     * User not found
+     */
+    404: ErrorResponse;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnlockUserApiV1AdminUsersUserIdUnlockPostError = UnlockUserApiV1AdminUsersUserIdUnlockPostErrors[keyof UnlockUserApiV1AdminUsersUserIdUnlockPostErrors];
+
+export type UnlockUserApiV1AdminUsersUserIdUnlockPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: UnlockResponse;
+};
+
+export type UnlockUserApiV1AdminUsersUserIdUnlockPostResponse = UnlockUserApiV1AdminUsersUserIdUnlockPostResponses[keyof UnlockUserApiV1AdminUsersUserIdUnlockPostResponses];
 
 export type GetUserSettingsApiV1UserSettingsGetData = {
     body?: never;

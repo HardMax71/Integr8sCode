@@ -4,27 +4,13 @@
         getSystemSettingsApiV1AdminSettingsGet,
         updateSystemSettingsApiV1AdminSettingsPut,
         resetSystemSettingsApiV1AdminSettingsResetPost,
-        type SystemSettings,
-        type ExecutionLimitsSchema,
-        type SecuritySettingsSchema,
-        type MonitoringSettingsSchema,
+        type SystemSettingsSchema,
     } from '$lib/api';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
 
-    // Required version of SystemSettings for local state
-    interface RequiredSettings {
-        execution_limits: ExecutionLimitsSchema;
-        security_settings: SecuritySettingsSchema;
-        monitoring_settings: MonitoringSettingsSchema;
-    }
-
-    let settings = $state<RequiredSettings>({
-        execution_limits: {},
-        security_settings: {},
-        monitoring_settings: {}
-    });
+    let settings = $state<SystemSettingsSchema>({});
     let loading = $state(false);
     let saving = $state(false);
     let resetting = $state(false);
@@ -40,11 +26,7 @@
             loading = false;
             return;
         }
-        if (data) settings = {
-            execution_limits: data.execution_limits ?? {},
-            security_settings: data.security_settings ?? {},
-            monitoring_settings: data.monitoring_settings ?? {}
-        };
+        if (data) settings = data;
         loading = false;
     }
 
@@ -70,11 +52,7 @@
             resetting = false;
             return;
         }
-        if (data) settings = {
-            execution_limits: data.execution_limits ?? {},
-            security_settings: data.security_settings ?? {},
-            monitoring_settings: data.monitoring_settings ?? {}
-        };
+        if (data) settings = data;
         toast.success('Settings reset to defaults');
         resetting = false;
     }
@@ -85,13 +63,13 @@
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">System Settings</h1>
         </div>
-        
+
         <div class="card">
             <div class="p-6">
                 <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Configuration
                 </h3>
-                
+
                 {#if loading}
                     <div class="flex justify-center items-center h-64">
                         <Spinner size="xlarge" />
@@ -104,23 +82,23 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="max-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Timeout (seconds)</label>
-                                    <input id="max-timeout" type="number" bind:value={settings.execution_limits.max_timeout_seconds}
-                                        class="form-input-standard" min="10" max="600"/>
+                                    <input id="max-timeout" type="number" bind:value={settings.max_timeout_seconds}
+                                        class="form-input-standard" min="10" max="3600"/>
                                 </div>
                                 <div>
-                                    <label for="max-memory" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Memory (MB)</label>
-                                    <input id="max-memory" type="number" bind:value={settings.execution_limits.max_memory_mb}
-                                        class="form-input-standard" min="128" max="2048"/>
+                                    <label for="memory-limit" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Memory Limit (e.g. 512Mi)</label>
+                                    <input id="memory-limit" type="text" bind:value={settings.memory_limit}
+                                        class="form-input-standard" placeholder="512Mi"/>
                                 </div>
                                 <div>
-                                    <label for="max-cpu" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max CPU Cores</label>
-                                    <input id="max-cpu" type="number" bind:value={settings.execution_limits.max_cpu_cores}
-                                        class="form-input-standard" min="0.5" max="4" step="0.5"/>
+                                    <label for="cpu-limit" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">CPU Limit (e.g. 2000m)</label>
+                                    <input id="cpu-limit" type="text" bind:value={settings.cpu_limit}
+                                        class="form-input-standard" placeholder="2000m"/>
                                 </div>
                                 <div>
                                     <label for="max-concurrent" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Concurrent Executions</label>
-                                    <input id="max-concurrent" type="number" bind:value={settings.execution_limits.max_concurrent_executions}
-                                        class="form-input-standard" min="1" max="50"/>
+                                    <input id="max-concurrent" type="number" bind:value={settings.max_concurrent_executions}
+                                        class="form-input-standard" min="1" max="100"/>
                                 </div>
                             </div>
                         </div>
@@ -131,22 +109,22 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="min-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Min Password Length</label>
-                                    <input id="min-password" type="number" bind:value={settings.security_settings.password_min_length}
-                                        class="form-input-standard" min="6" max="32"/>
+                                    <input id="min-password" type="number" bind:value={settings.password_min_length}
+                                        class="form-input-standard" min="4" max="32"/>
                                 </div>
                                 <div>
                                     <label for="session-timeout" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Session Timeout (minutes)</label>
-                                    <input id="session-timeout" type="number" bind:value={settings.security_settings.session_timeout_minutes}
+                                    <input id="session-timeout" type="number" bind:value={settings.session_timeout_minutes}
                                         class="form-input-standard" min="5" max="1440"/>
                                 </div>
                                 <div>
                                     <label for="max-login" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Max Login Attempts</label>
-                                    <input id="max-login" type="number" bind:value={settings.security_settings.max_login_attempts}
+                                    <input id="max-login" type="number" bind:value={settings.max_login_attempts}
                                         class="form-input-standard" min="3" max="10"/>
                                 </div>
                                 <div>
                                     <label for="lockout-duration" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Lockout Duration (minutes)</label>
-                                    <input id="lockout-duration" type="number" bind:value={settings.security_settings.lockout_duration_minutes}
+                                    <input id="lockout-duration" type="number" bind:value={settings.lockout_duration_minutes}
                                         class="form-input-standard" min="5" max="60"/>
                                 </div>
                             </div>
@@ -158,12 +136,12 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="metrics-retention" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Metrics Retention Days</label>
-                                    <input id="metrics-retention" type="number" bind:value={settings.monitoring_settings.metrics_retention_days}
-                                        class="form-input-standard" min="1" max="90"/>
+                                    <input id="metrics-retention" type="number" bind:value={settings.metrics_retention_days}
+                                        class="form-input-standard" min="7" max="90"/>
                                 </div>
                                 <div>
                                     <label for="log-level" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Log Level</label>
-                                    <select id="log-level" bind:value={settings.monitoring_settings.log_level} class="form-select-standard">
+                                    <select id="log-level" bind:value={settings.log_level} class="form-select-standard">
                                         <option value="DEBUG">DEBUG</option>
                                         <option value="INFO">INFO</option>
                                         <option value="WARNING">WARNING</option>
@@ -172,14 +150,14 @@
                                 </div>
                                 <div>
                                     <label for="enable-tracing" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Enable Tracing</label>
-                                    <select id="enable-tracing" bind:value={settings.monitoring_settings.enable_tracing} class="form-select-standard">
+                                    <select id="enable-tracing" bind:value={settings.enable_tracing} class="form-select-standard">
                                         <option value={true}>Enabled</option>
                                         <option value={false}>Disabled</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label for="sampling-rate" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Sampling Rate</label>
-                                    <input id="sampling-rate" type="number" bind:value={settings.monitoring_settings.sampling_rate}
+                                    <input id="sampling-rate" type="number" bind:value={settings.sampling_rate}
                                         class="form-input-standard" min="0" max="1" step="0.1"/>
                                 </div>
                             </div>

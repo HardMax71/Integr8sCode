@@ -44,6 +44,16 @@
               }
             }
           },
+          "423": {
+            "description": "Account temporarily locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -87,7 +97,7 @@
             }
           },
           "400": {
-            "description": "Username already registered",
+            "description": "Username already registered or password too short",
             "content": {
               "application/json": {
                 "schema": {
@@ -3533,7 +3543,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettings"
+                  "$ref": "#/components/schemas/SystemSettingsSchema"
                 }
               }
             }
@@ -3562,7 +3572,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SystemSettings"
+                "$ref": "#/components/schemas/SystemSettingsSchema"
               }
             }
           },
@@ -3574,7 +3584,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettings"
+                  "$ref": "#/components/schemas/SystemSettingsSchema"
                 }
               }
             }
@@ -3627,7 +3637,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettings"
+                  "$ref": "#/components/schemas/SystemSettingsSchema"
                 }
               }
             }
@@ -4221,6 +4231,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{user_id}/unlock": {
+      "post": {
+        "tags": [
+          "admin",
+          "users"
+        ],
+        "summary": "Unlock User",
+        "description": "Unlock a user account that was locked due to failed login attempts.",
+        "operationId": "unlock_user_api_v1_admin_users__user_id__unlock_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnlockResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9280,45 +9344,6 @@
         ],
         "title": "ExecutionFailedEvent"
       },
-      "ExecutionLimitsSchema": {
-        "properties": {
-          "max_timeout_seconds": {
-            "type": "integer",
-            "maximum": 3600.0,
-            "minimum": 10.0,
-            "title": "Max Timeout Seconds",
-            "description": "Maximum execution timeout",
-            "default": 300
-          },
-          "max_memory_mb": {
-            "type": "integer",
-            "maximum": 4096.0,
-            "minimum": 128.0,
-            "title": "Max Memory Mb",
-            "description": "Maximum memory in MB",
-            "default": 512
-          },
-          "max_cpu_cores": {
-            "type": "integer",
-            "maximum": 8.0,
-            "minimum": 1.0,
-            "title": "Max Cpu Cores",
-            "description": "Maximum CPU cores",
-            "default": 2
-          },
-          "max_concurrent_executions": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
-            "title": "Max Concurrent Executions",
-            "description": "Maximum concurrent executions",
-            "default": 10
-          }
-        },
-        "type": "object",
-        "title": "ExecutionLimitsSchema",
-        "description": "Execution resource limits schema."
-      },
       "ExecutionListResponse": {
         "properties": {
           "executions": {
@@ -10026,6 +10051,18 @@
         "title": "LivenessResponse",
         "description": "Response model for liveness probe."
       },
+      "LogLevel": {
+        "type": "string",
+        "enum": [
+          "DEBUG",
+          "INFO",
+          "WARNING",
+          "ERROR",
+          "CRITICAL"
+        ],
+        "title": "LogLevel",
+        "description": "Log level options."
+      },
       "LoginMethod": {
         "type": "string",
         "enum": [
@@ -10095,42 +10132,6 @@
         ],
         "title": "MessageResponse",
         "description": "Generic message response"
-      },
-      "MonitoringSettingsSchema": {
-        "properties": {
-          "metrics_retention_days": {
-            "type": "integer",
-            "maximum": 90.0,
-            "minimum": 7.0,
-            "title": "Metrics Retention Days",
-            "description": "Metrics retention in days",
-            "default": 30
-          },
-          "log_level": {
-            "type": "string",
-            "pattern": "^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$",
-            "title": "Log Level",
-            "description": "Log level",
-            "default": "INFO"
-          },
-          "enable_tracing": {
-            "type": "boolean",
-            "title": "Enable Tracing",
-            "description": "Enable distributed tracing",
-            "default": true
-          },
-          "sampling_rate": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Sampling Rate",
-            "description": "Trace sampling rate",
-            "default": 0.1
-          }
-        },
-        "type": "object",
-        "title": "MonitoringSettingsSchema",
-        "description": "Monitoring and observability schema."
       },
       "NotificationAllReadEvent": {
         "properties": {
@@ -14292,45 +14293,6 @@
         ],
         "title": "ScriptSharedEvent"
       },
-      "SecuritySettingsSchema": {
-        "properties": {
-          "password_min_length": {
-            "type": "integer",
-            "maximum": 32.0,
-            "minimum": 6.0,
-            "title": "Password Min Length",
-            "description": "Minimum password length",
-            "default": 8
-          },
-          "session_timeout_minutes": {
-            "type": "integer",
-            "maximum": 1440.0,
-            "minimum": 5.0,
-            "title": "Session Timeout Minutes",
-            "description": "Session timeout in minutes",
-            "default": 60
-          },
-          "max_login_attempts": {
-            "type": "integer",
-            "maximum": 10.0,
-            "minimum": 3.0,
-            "title": "Max Login Attempts",
-            "description": "Maximum login attempts",
-            "default": 5
-          },
-          "lockout_duration_minutes": {
-            "type": "integer",
-            "maximum": 60.0,
-            "minimum": 5.0,
-            "title": "Lockout Duration Minutes",
-            "description": "Account lockout duration",
-            "default": 15
-          }
-        },
-        "type": "object",
-        "title": "SecuritySettingsSchema",
-        "description": "Security configuration schema."
-      },
       "SecurityViolationEvent": {
         "properties": {
           "event_id": {
@@ -14951,21 +14913,89 @@
         ],
         "title": "SystemErrorEvent"
       },
-      "SystemSettings": {
+      "SystemSettingsSchema": {
         "properties": {
-          "execution_limits": {
-            "$ref": "#/components/schemas/ExecutionLimitsSchema"
+          "max_timeout_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 10.0,
+            "title": "Max Timeout Seconds",
+            "default": 300
           },
-          "security_settings": {
-            "$ref": "#/components/schemas/SecuritySettingsSchema"
+          "memory_limit": {
+            "type": "string",
+            "pattern": "^\\d+(Ki|Mi|Gi)$",
+            "title": "Memory Limit",
+            "default": "512Mi"
           },
-          "monitoring_settings": {
-            "$ref": "#/components/schemas/MonitoringSettingsSchema"
+          "cpu_limit": {
+            "type": "string",
+            "pattern": "^\\d+m$",
+            "title": "Cpu Limit",
+            "default": "2000m"
+          },
+          "max_concurrent_executions": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Max Concurrent Executions",
+            "default": 10
+          },
+          "password_min_length": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 4.0,
+            "title": "Password Min Length",
+            "default": 8
+          },
+          "session_timeout_minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 5.0,
+            "title": "Session Timeout Minutes",
+            "default": 60
+          },
+          "max_login_attempts": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 3.0,
+            "title": "Max Login Attempts",
+            "default": 5
+          },
+          "lockout_duration_minutes": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 5.0,
+            "title": "Lockout Duration Minutes",
+            "default": 15
+          },
+          "metrics_retention_days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 7.0,
+            "title": "Metrics Retention Days",
+            "default": 30
+          },
+          "log_level": {
+            "$ref": "#/components/schemas/LogLevel",
+            "default": "INFO"
+          },
+          "enable_tracing": {
+            "type": "boolean",
+            "title": "Enable Tracing",
+            "default": true
+          },
+          "sampling_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Sampling Rate",
+            "default": 0.1
           }
         },
         "type": "object",
-        "title": "SystemSettings",
-        "description": "System-wide settings model."
+        "title": "SystemSettingsSchema",
+        "description": "API schema for system settings \u2014 inherits all fields from domain model."
       },
       "Theme": {
         "type": "string",
@@ -14989,6 +15019,25 @@
         ],
         "title": "ThemeUpdateRequest",
         "description": "Request model for theme update"
+      },
+      "UnlockResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "message"
+        ],
+        "title": "UnlockResponse",
+        "description": "Response model for account unlock."
       },
       "UnreadCountResponse": {
         "properties": {
@@ -15026,7 +15075,7 @@
           },
           "password": {
             "type": "string",
-            "minLength": 8,
+            "minLength": 4,
             "title": "Password"
           }
         },

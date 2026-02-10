@@ -1,12 +1,7 @@
 """E2E tests for admin settings routes."""
 
 import pytest
-from app.schemas_pydantic.admin_settings import (
-    ExecutionLimitsSchema,
-    MonitoringSettingsSchema,
-    SecuritySettingsSchema,
-    SystemSettings,
-)
+from app.domain.admin import SystemSettings
 from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
@@ -23,24 +18,15 @@ class TestGetSystemSettings:
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        # Validate execution limits
-        assert settings.execution_limits.max_timeout_seconds >= 10
-        assert settings.execution_limits.max_memory_mb >= 128
-        assert settings.execution_limits.max_cpu_cores >= 1
-        assert settings.execution_limits.max_concurrent_executions >= 1
-
-        # Validate security settings
-        assert settings.security_settings.password_min_length >= 6
-        assert settings.security_settings.session_timeout_minutes >= 5
-        assert settings.security_settings.max_login_attempts >= 3
-        assert settings.security_settings.lockout_duration_minutes >= 5
-
-        # Validate monitoring settings
-        assert settings.monitoring_settings.metrics_retention_days >= 7
-        assert settings.monitoring_settings.log_level in [
-            "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-        ]
-        assert 0.0 <= settings.monitoring_settings.sampling_rate <= 1.0
+        assert settings.max_timeout_seconds >= 10
+        assert settings.max_concurrent_executions >= 1
+        assert settings.password_min_length >= 4
+        assert settings.session_timeout_minutes >= 5
+        assert settings.max_login_attempts >= 3
+        assert settings.lockout_duration_minutes >= 5
+        assert settings.metrics_retention_days >= 7
+        assert settings.log_level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        assert 0.0 <= settings.sampling_rate <= 1.0
 
     @pytest.mark.asyncio
     async def test_get_system_settings_forbidden_for_regular_user(
@@ -67,161 +53,60 @@ class TestUpdateSystemSettings:
         self, test_admin: AsyncClient
     ) -> None:
         """Admin can update all system settings."""
-        request = SystemSettings(
-            execution_limits=ExecutionLimitsSchema(
-                max_timeout_seconds=600,
-                max_memory_mb=1024,
-                max_cpu_cores=4,
-                max_concurrent_executions=20,
-            ),
-            security_settings=SecuritySettingsSchema(
-                password_min_length=10,
-                session_timeout_minutes=120,
-                max_login_attempts=5,
-                lockout_duration_minutes=30,
-            ),
-            monitoring_settings=MonitoringSettingsSchema(
-                metrics_retention_days=60,
-                log_level="WARNING",
-                enable_tracing=True,
-                sampling_rate=0.2,
-            ),
-        )
-        response = await test_admin.put(
-            "/api/v1/admin/settings/", json=request.model_dump()
-        )
+        request_body = {
+            "max_timeout_seconds": 600,
+            "memory_limit": "1024Mi",
+            "cpu_limit": "4000m",
+            "max_concurrent_executions": 20,
+            "password_min_length": 10,
+            "session_timeout_minutes": 120,
+            "max_login_attempts": 5,
+            "lockout_duration_minutes": 30,
+            "metrics_retention_days": 60,
+            "log_level": "WARNING",
+            "enable_tracing": True,
+            "sampling_rate": 0.2,
+        }
+        response = await test_admin.put("/api/v1/admin/settings/", json=request_body)
 
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        assert settings.execution_limits.max_timeout_seconds == 600
-        assert settings.execution_limits.max_memory_mb == 1024
-        assert settings.execution_limits.max_cpu_cores == 4
-        assert settings.execution_limits.max_concurrent_executions == 20
-
-        assert settings.security_settings.password_min_length == 10
-        assert settings.security_settings.session_timeout_minutes == 120
-
-        assert settings.monitoring_settings.metrics_retention_days == 60
-        assert settings.monitoring_settings.log_level == "WARNING"
-        assert settings.monitoring_settings.sampling_rate == 0.2
+        assert settings.max_timeout_seconds == 600
+        assert settings.memory_limit == "1024Mi"
+        assert settings.cpu_limit == "4000m"
+        assert settings.max_concurrent_executions == 20
+        assert settings.password_min_length == 10
+        assert settings.session_timeout_minutes == 120
+        assert settings.metrics_retention_days == 60
+        assert settings.log_level == "WARNING"
+        assert settings.sampling_rate == 0.2
 
     @pytest.mark.asyncio
-    async def test_update_execution_limits_only(
+    async def test_update_partial_fields(
         self, test_admin: AsyncClient
     ) -> None:
-        """Admin can update only execution limits."""
-        # Get current settings first
-        get_response = await test_admin.get("/api/v1/admin/settings/")
-        current = SystemSettings.model_validate(get_response.json())
-
-        # Update only execution limits
-        new_execution_limits = ExecutionLimitsSchema(
-            max_timeout_seconds=300,
-            max_memory_mb=512,
-            max_cpu_cores=2,
-            max_concurrent_executions=15,
-        )
-        request = SystemSettings(
-            execution_limits=new_execution_limits,
-            security_settings=current.security_settings,
-            monitoring_settings=current.monitoring_settings,
-        )
-        response = await test_admin.put(
-            "/api/v1/admin/settings/", json=request.model_dump()
-        )
+        """Admin can update a subset of fields (others keep defaults)."""
+        request_body = {
+            "max_timeout_seconds": 120,
+            "max_concurrent_executions": 15,
+        }
+        response = await test_admin.put("/api/v1/admin/settings/", json=request_body)
 
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
-        assert settings.execution_limits.max_timeout_seconds == 300
-        assert settings.execution_limits.max_concurrent_executions == 15
-
-    @pytest.mark.asyncio
-    async def test_update_security_settings_only(
-        self, test_admin: AsyncClient
-    ) -> None:
-        """Admin can update only security settings."""
-        # Get current settings
-        get_response = await test_admin.get("/api/v1/admin/settings/")
-        current = SystemSettings.model_validate(get_response.json())
-
-        # Update only security settings
-        new_security = SecuritySettingsSchema(
-            password_min_length=12,
-            session_timeout_minutes=90,
-            max_login_attempts=3,
-            lockout_duration_minutes=20,
-        )
-        request = SystemSettings(
-            execution_limits=current.execution_limits,
-            security_settings=new_security,
-            monitoring_settings=current.monitoring_settings,
-        )
-        response = await test_admin.put(
-            "/api/v1/admin/settings/", json=request.model_dump()
-        )
-
-        assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
-        assert settings.security_settings.password_min_length == 12
-        assert settings.security_settings.session_timeout_minutes == 90
-
-    @pytest.mark.asyncio
-    async def test_update_monitoring_settings_only(
-        self, test_admin: AsyncClient
-    ) -> None:
-        """Admin can update only monitoring settings."""
-        # Get current settings
-        get_response = await test_admin.get("/api/v1/admin/settings/")
-        current = SystemSettings.model_validate(get_response.json())
-
-        # Update only monitoring settings
-        new_monitoring = MonitoringSettingsSchema(
-            metrics_retention_days=45,
-            log_level="DEBUG",
-            enable_tracing=False,
-            sampling_rate=0.5,
-        )
-        request = SystemSettings(
-            execution_limits=current.execution_limits,
-            security_settings=current.security_settings,
-            monitoring_settings=new_monitoring,
-        )
-        response = await test_admin.put(
-            "/api/v1/admin/settings/", json=request.model_dump()
-        )
-
-        assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
-        assert settings.monitoring_settings.metrics_retention_days == 45
-        assert settings.monitoring_settings.log_level == "DEBUG"
-        assert settings.monitoring_settings.enable_tracing is False
-        assert settings.monitoring_settings.sampling_rate == 0.5
+        assert settings.max_timeout_seconds == 120
+        assert settings.max_concurrent_executions == 15
 
     @pytest.mark.asyncio
     async def test_update_system_settings_invalid_values(
         self, test_admin: AsyncClient
     ) -> None:
         """Invalid setting values are rejected."""
-        # Get current settings for partial update
-        get_response = await test_admin.get("/api/v1/admin/settings/")
-        current = SystemSettings.model_validate(get_response.json())
-
-        # Try with invalid timeout (too low)
         response = await test_admin.put(
             "/api/v1/admin/settings/",
-            json={
-                "execution_limits": {
-                    "max_timeout_seconds": 1,  # minimum is 10
-                    "max_memory_mb": 512,
-                    "max_cpu_cores": 2,
-                    "max_concurrent_executions": 10,
-                },
-                "security_settings": current.security_settings.model_dump(),
-                "monitoring_settings": current.monitoring_settings.model_dump(),
-            },
+            json={"max_timeout_seconds": 1},  # minimum is 10
         )
-
         assert response.status_code == 422
 
     @pytest.mark.asyncio
@@ -229,24 +114,10 @@ class TestUpdateSystemSettings:
         self, test_admin: AsyncClient
     ) -> None:
         """Invalid log level is rejected."""
-        # Get current settings
-        get_response = await test_admin.get("/api/v1/admin/settings/")
-        current = SystemSettings.model_validate(get_response.json())
-
         response = await test_admin.put(
             "/api/v1/admin/settings/",
-            json={
-                "execution_limits": current.execution_limits.model_dump(),
-                "security_settings": current.security_settings.model_dump(),
-                "monitoring_settings": {
-                    "metrics_retention_days": 30,
-                    "log_level": "INVALID_LEVEL",  # invalid
-                    "enable_tracing": True,
-                    "sampling_rate": 0.1,
-                },
-            },
+            json={"log_level": "INVALID_LEVEL"},
         )
-
         assert response.status_code == 422
 
     @pytest.mark.asyncio
@@ -256,26 +127,7 @@ class TestUpdateSystemSettings:
         """Regular user cannot update system settings."""
         response = await test_user.put(
             "/api/v1/admin/settings/",
-            json={
-                "execution_limits": {
-                    "max_timeout_seconds": 300,
-                    "max_memory_mb": 512,
-                    "max_cpu_cores": 2,
-                    "max_concurrent_executions": 10,
-                },
-                "security_settings": {
-                    "password_min_length": 8,
-                    "session_timeout_minutes": 60,
-                    "max_login_attempts": 5,
-                    "lockout_duration_minutes": 15,
-                },
-                "monitoring_settings": {
-                    "metrics_retention_days": 30,
-                    "log_level": "INFO",
-                    "enable_tracing": True,
-                    "sampling_rate": 0.1,
-                },
-            },
+            json={"max_timeout_seconds": 300},
         )
         assert response.status_code == 403
 
@@ -292,24 +144,18 @@ class TestResetSystemSettings:
         await test_admin.put(
             "/api/v1/admin/settings/",
             json={
-                "execution_limits": {
-                    "max_timeout_seconds": 600,
-                    "max_memory_mb": 2048,
-                    "max_cpu_cores": 8,
-                    "max_concurrent_executions": 50,
-                },
-                "security_settings": {
-                    "password_min_length": 16,
-                    "session_timeout_minutes": 240,
-                    "max_login_attempts": 10,
-                    "lockout_duration_minutes": 60,
-                },
-                "monitoring_settings": {
-                    "metrics_retention_days": 90,
-                    "log_level": "DEBUG",
-                    "enable_tracing": False,
-                    "sampling_rate": 0.9,
-                },
+                "max_timeout_seconds": 600,
+                "memory_limit": "2048Mi",
+                "cpu_limit": "8000m",
+                "max_concurrent_executions": 50,
+                "password_min_length": 16,
+                "session_timeout_minutes": 240,
+                "max_login_attempts": 10,
+                "lockout_duration_minutes": 60,
+                "metrics_retention_days": 90,
+                "log_level": "DEBUG",
+                "enable_tracing": False,
+                "sampling_rate": 0.9,
             },
         )
 
@@ -319,21 +165,18 @@ class TestResetSystemSettings:
         assert response.status_code == 200
         settings = SystemSettings.model_validate(response.json())
 
-        # Check that settings are reset to defaults
-        assert settings.execution_limits.max_timeout_seconds == 300
-        assert settings.execution_limits.max_memory_mb == 512
-        assert settings.execution_limits.max_cpu_cores == 2
-        assert settings.execution_limits.max_concurrent_executions == 10
-
-        assert settings.security_settings.password_min_length == 8
-        assert settings.security_settings.session_timeout_minutes == 60
-        assert settings.security_settings.max_login_attempts == 5
-        assert settings.security_settings.lockout_duration_minutes == 15
-
-        assert settings.monitoring_settings.metrics_retention_days == 30
-        assert settings.monitoring_settings.log_level == "INFO"
-        assert settings.monitoring_settings.enable_tracing is True
-        assert settings.monitoring_settings.sampling_rate == 0.1
+        assert settings.max_timeout_seconds == 300
+        assert settings.memory_limit == "512Mi"
+        assert settings.cpu_limit == "2000m"
+        assert settings.max_concurrent_executions == 10
+        assert settings.password_min_length == 8
+        assert settings.session_timeout_minutes == 60
+        assert settings.max_login_attempts == 5
+        assert settings.lockout_duration_minutes == 15
+        assert settings.metrics_retention_days == 30
+        assert settings.log_level == "INFO"
+        assert settings.enable_tracing is True
+        assert settings.sampling_rate == 0.1
 
     @pytest.mark.asyncio
     async def test_reset_system_settings_forbidden_for_regular_user(

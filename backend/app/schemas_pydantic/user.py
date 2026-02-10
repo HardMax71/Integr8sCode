@@ -21,7 +21,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Model for creating a new user"""
 
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=4)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -125,6 +125,15 @@ class LoginResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+
+
+class UnlockResponse(BaseModel):
+    """Response model for account unlock."""
+
+    user_id: str
+    message: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DeleteUserResponse(BaseModel):

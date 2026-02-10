@@ -29,6 +29,7 @@ from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.events.core import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
+from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
 
 
@@ -49,6 +50,7 @@ class ExecutionService:
         logger: logging.Logger,
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
+        runtime_settings: RuntimeSettingsLoader,
     ) -> None:
         """
         Initialize execution service.
@@ -60,6 +62,7 @@ class ExecutionService:
             logger: Logger instance.
             execution_metrics: Metrics for tracking execution operations.
             idempotency_manager: Manager for HTTP idempotency.
+            runtime_settings: Loader for admin-configurable runtime settings.
         """
         self.execution_repo = execution_repo
         self.producer = producer
@@ -67,6 +70,7 @@ class ExecutionService:
         self.logger = logger
         self.metrics = execution_metrics
         self.idempotency_manager = idempotency_manager
+        self._runtime_settings = runtime_settings
 
     @contextmanager
     def _track_active_execution(self) -> Generator[None, None, None]:  # noqa: D401
@@ -78,12 +82,13 @@ class ExecutionService:
             self.metrics.decrement_active_executions()
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
+        effective = await self._runtime_settings.get_effective_settings()
         return ResourceLimitsDomain(
-            cpu_limit=self.settings.K8S_POD_CPU_LIMIT,
-            memory_limit=self.settings.K8S_POD_MEMORY_LIMIT,
+            cpu_limit=effective.cpu_limit,
+            memory_limit=effective.memory_limit,
             cpu_request=self.settings.K8S_POD_CPU_REQUEST,
             memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
-            execution_timeout=self.settings.K8S_POD_EXECUTION_TIMEOUT,
+            execution_timeout=effective.max_timeout_seconds,
             supported_runtimes=self.settings.SUPPORTED_RUNTIMES,
         )
 
@@ -186,9 +191,10 @@ class ExecutionService:
                 },
             )
 
-            # Metadata and event
+            # Metadata and event — use admin-configurable limits
             metadata = self._create_event_metadata(user_id=user_id, client_ip=client_ip, user_agent=user_agent)
-            timeout = timeout_override or self.settings.K8S_POD_EXECUTION_TIMEOUT
+            effective = await self._runtime_settings.get_effective_settings()
+            timeout = timeout_override or effective.max_timeout_seconds
             event = ExecutionRequestedEvent(
                 execution_id=created_execution.execution_id,
                 aggregate_id=created_execution.execution_id,
@@ -199,8 +205,8 @@ class ExecutionService:
                 runtime_command=runtime_cfg.command,
                 runtime_filename=runtime_cfg.file_name,
                 timeout_seconds=timeout,
-                cpu_limit=self.settings.K8S_POD_CPU_LIMIT,
-                memory_limit=self.settings.K8S_POD_MEMORY_LIMIT,
+                cpu_limit=effective.cpu_limit,
+                memory_limit=effective.memory_limit,
                 cpu_request=self.settings.K8S_POD_CPU_REQUEST,
                 memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
                 priority=priority,

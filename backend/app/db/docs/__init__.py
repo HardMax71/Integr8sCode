@@ -1,8 +1,5 @@
 from app.db.docs.admin_settings import (
     AuditLogDocument,
-    ExecutionLimitsConfig,
-    MonitoringSettingsConfig,
-    SecuritySettingsConfig,
     SystemSettingsDocument,
 )
 from app.db.docs.dlq import DLQMessageDocument
@@ -82,9 +79,6 @@ __all__ = [
     # Admin Settings
     "SystemSettingsDocument",
     "AuditLogDocument",
-    "ExecutionLimitsConfig",
-    "SecuritySettingsConfig",
-    "MonitoringSettingsConfig",
     # All documents list for Beanie init
     "ALL_DOCUMENTS",
 ]

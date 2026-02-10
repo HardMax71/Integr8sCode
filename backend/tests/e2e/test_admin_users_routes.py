@@ -9,6 +9,7 @@ from app.schemas_pydantic.user import (
     PasswordResetRequest,
     RateLimitUpdateRequest,
     RateLimitUpdateResponse,
+    UnlockResponse,
     UserCreate,
     UserListResponse,
     UserRateLimitsResponse,
@@ -741,5 +742,51 @@ class TestResetUserRateLimits:
         # Try as regular user
         response = await test_user.post(
             f"/api/v1/admin/users/{user_id}/rate-limits/reset"
+        )
+        assert response.status_code == 403
+
+
+class TestUnlockUser:
+    """Tests for POST /api/v1/admin/users/{user_id}/unlock."""
+
+    @pytest.mark.asyncio
+    async def test_unlock_user(self, test_admin: AsyncClient) -> None:
+        """Admin can unlock a user account."""
+        request = make_user_create("locked")
+        create_response = await test_admin.post(
+            "/api/v1/admin/users/", json=request.model_dump()
+        )
+        user_id = create_response.json()["user_id"]
+
+        response = await test_admin.post(
+            f"/api/v1/admin/users/{user_id}/unlock"
+        )
+
+        assert response.status_code == 200
+        result = UnlockResponse.model_validate(response.json())
+        assert result.user_id == user_id
+        assert "unlocked" in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_unlock_user_not_found(self, test_admin: AsyncClient) -> None:
+        """Unlock nonexistent user returns 404."""
+        response = await test_admin.post(
+            "/api/v1/admin/users/nonexistent-user-id/unlock"
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_unlock_user_forbidden_for_regular_user(
+        self, test_user: AsyncClient, test_admin: AsyncClient
+    ) -> None:
+        """Regular user cannot unlock accounts."""
+        request = make_user_create("target")
+        create_response = await test_admin.post(
+            "/api/v1/admin/users/", json=request.model_dump()
+        )
+        user_id = create_response.json()["user_id"]
+
+        response = await test_user.post(
+            f"/api/v1/admin/users/{user_id}/unlock"
         )
         assert response.status_code == 403

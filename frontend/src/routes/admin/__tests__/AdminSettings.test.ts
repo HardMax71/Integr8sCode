@@ -5,24 +5,18 @@ import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 function createMockSystemSettings() {
   return {
-    execution_limits: {
-      max_timeout_seconds: 60,
-      max_memory_mb: 512,
-      max_cpu_cores: 2,
-      max_concurrent_executions: 10,
-    },
-    security_settings: {
-      password_min_length: 8,
-      session_timeout_minutes: 30,
-      max_login_attempts: 5,
-      lockout_duration_minutes: 15,
-    },
-    monitoring_settings: {
-      metrics_retention_days: 30,
-      log_level: 'INFO',
-      enable_tracing: true,
-      sampling_rate: 0.5,
-    },
+    max_timeout_seconds: 60,
+    memory_limit: '512Mi',
+    cpu_limit: '2000m',
+    max_concurrent_executions: 10,
+    password_min_length: 8,
+    session_timeout_minutes: 30,
+    max_login_attempts: 5,
+    lockout_duration_minutes: 15,
+    metrics_retention_days: 30,
+    log_level: 'INFO',
+    enable_tracing: true,
+    sampling_rate: 0.5,
   };
 }
 
@@ -104,8 +98,8 @@ describe('AdminSettings', () => {
   describe('Form population', () => {
     it.each([
       ['max-timeout', '60'],
-      ['max-memory', '512'],
-      ['max-cpu', '2'],
+      ['memory-limit', '512Mi'],
+      ['cpu-limit', '2000m'],
       ['max-concurrent', '10'],
       ['min-password', '8'],
       ['session-timeout', '30'],
@@ -144,9 +138,9 @@ describe('AdminSettings', () => {
         expect(mocks.updateSystemSettingsApiV1AdminSettingsPut).toHaveBeenCalled();
       });
       const callArgs = mocks.updateSystemSettingsApiV1AdminSettingsPut.mock.calls[0][0];
-      expect(callArgs.body).toHaveProperty('execution_limits');
-      expect(callArgs.body).toHaveProperty('security_settings');
-      expect(callArgs.body).toHaveProperty('monitoring_settings');
+      expect(callArgs.body).toHaveProperty('max_timeout_seconds');
+      expect(callArgs.body).toHaveProperty('password_min_length');
+      expect(callArgs.body).toHaveProperty('metrics_retention_days');
       expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings saved successfully');
     });
 
@@ -171,9 +165,18 @@ describe('AdminSettings', () => {
     it('calls confirm, resets on true, updates form, shows toast', async () => {
       mocks.mockConfirm.mockReturnValue(true);
       const resetData = {
-        execution_limits: { max_timeout_seconds: 30, max_memory_mb: 256, max_cpu_cores: 1, max_concurrent_executions: 5 },
-        security_settings: { password_min_length: 6, session_timeout_minutes: 60, max_login_attempts: 3, lockout_duration_minutes: 10 },
-        monitoring_settings: { metrics_retention_days: 7, log_level: 'WARNING', enable_tracing: false, sampling_rate: 1.0 },
+        max_timeout_seconds: 30,
+        memory_limit: '256Mi',
+        cpu_limit: '1000m',
+        max_concurrent_executions: 5,
+        password_min_length: 6,
+        session_timeout_minutes: 60,
+        max_login_attempts: 3,
+        lockout_duration_minutes: 10,
+        metrics_retention_days: 7,
+        log_level: 'WARNING',
+        enable_tracing: false,
+        sampling_rate: 1.0,
       };
       mocks.resetSystemSettingsApiV1AdminSettingsResetPost.mockResolvedValue({
         data: resetData,

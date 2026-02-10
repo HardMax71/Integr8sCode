@@ -1,10 +1,12 @@
-from dataclasses import field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
+
+K8S_MEMORY_PATTERN = r"^\d+(Ki|Mi|Gi)$"
+K8S_CPU_PATTERN = r"^\d+m$"
 
 
 class AuditAction(StringEnum):
@@ -24,46 +26,33 @@ class LogLevel(StringEnum):
     CRITICAL = "CRITICAL"
 
 
-@dataclass
-class ExecutionLimits:
-    max_timeout_seconds: int = 300
-    max_memory_mb: int = 512
-    max_cpu_cores: int = 2
-    max_concurrent_executions: int = 10
+class SystemSettings(BaseModel):
+    """Flat system-wide settings — execution, security, and monitoring."""
 
+    model_config = ConfigDict(from_attributes=True, extra="ignore", use_enum_values=True)
 
-@dataclass
-class SecuritySettings:
-    password_min_length: int = 8
-    session_timeout_minutes: int = 60
-    max_login_attempts: int = 5
-    lockout_duration_minutes: int = 15
+    max_timeout_seconds: int = Field(300, ge=10, le=3600)
+    memory_limit: str = Field("512Mi", pattern=K8S_MEMORY_PATTERN)
+    cpu_limit: str = Field("2000m", pattern=K8S_CPU_PATTERN)
+    max_concurrent_executions: int = Field(10, ge=1, le=100)
 
+    password_min_length: int = Field(8, ge=4, le=32)
+    session_timeout_minutes: int = Field(60, ge=5, le=1440)
+    max_login_attempts: int = Field(5, ge=3, le=10)
+    lockout_duration_minutes: int = Field(15, ge=5, le=60)
 
-@dataclass
-class MonitoringSettings:
-    metrics_retention_days: int = 30
+    metrics_retention_days: int = Field(30, ge=7, le=90)
     log_level: LogLevel = LogLevel.INFO
     enable_tracing: bool = True
-    sampling_rate: float = 0.1
+    sampling_rate: float = Field(0.1, ge=0.0, le=1.0)
 
 
-@dataclass
-class SystemSettings:
-    """Complete system settings configuration."""
+class AuditLogEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
-    execution_limits: ExecutionLimits = field(default_factory=ExecutionLimits)
-    security_settings: SecuritySettings = field(default_factory=SecuritySettings)
-    monitoring_settings: MonitoringSettings = field(default_factory=MonitoringSettings)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-@dataclass
-class AuditLogEntry:
     action: AuditAction
     user_id: str
     username: str
     timestamp: datetime
-    changes: dict[str, Any] = field(default_factory=dict)
+    changes: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""

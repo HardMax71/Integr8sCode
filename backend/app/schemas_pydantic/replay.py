@@ -33,14 +33,22 @@ class ReplayResponse(BaseModel):
     message: str
 
 
+class SessionConfigSummary(BaseModel):
+    """Lightweight config included in session listings."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    replay_type: ReplayType
+    target: ReplayTarget
+
+
 class SessionSummary(BaseModel):
     """Summary information for replay sessions"""
 
     model_config = ConfigDict(from_attributes=True)
 
     session_id: str
-    replay_type: ReplayType
-    target: ReplayTarget
+    config: SessionConfigSummary
     status: ReplayStatus
     total_events: int
     replayed_events: int

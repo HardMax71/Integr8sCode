@@ -115,7 +115,7 @@ async def cancel_execution(
         user_id=current_user.user_id,
         reason=cancel_request.reason,
     )
-    return CancelResponse.model_validate(result, from_attributes=True)
+    return CancelResponse.model_validate(result)
 
 
 @router.post(

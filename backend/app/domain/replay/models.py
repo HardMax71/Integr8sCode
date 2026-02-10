@@ -28,6 +28,8 @@ class ReplayError(BaseModel):
 
 
 class ReplayFilter(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     # Event selection filters
     event_ids: list[str] | None = None
     execution_id: str | None = None

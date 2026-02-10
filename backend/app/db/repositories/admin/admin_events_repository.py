@@ -308,9 +308,7 @@ class AdminEventsRepository:
                         )
                     )
 
-        # Convert document to domain
         session = ReplaySessionState.model_validate(doc, from_attributes=True)
-
         return ReplaySessionStatusDetail(
             session=session,
             estimated_completion=estimated_completion,

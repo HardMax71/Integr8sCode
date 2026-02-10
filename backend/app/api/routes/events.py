@@ -62,7 +62,7 @@ async def get_execution_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    return EventListResponse.model_validate(result, from_attributes=True)
+    return EventListResponse.model_validate(result)
 
 
 @router.get("/user", response_model=EventListResponse)
@@ -87,7 +87,7 @@ async def get_user_events(
         sort_order=sort_order,
     )
 
-    return EventListResponse.model_validate(result, from_attributes=True)
+    return EventListResponse.model_validate(result)
 
 
 @router.post(
@@ -101,7 +101,7 @@ async def query_events(
     event_service: FromDishka[EventService],
 ) -> EventListResponse:
     """Query events with advanced filters."""
-    event_filter = EventFilter.model_validate(filter_request, from_attributes=True)
+    event_filter = EventFilter.model_validate(filter_request)
 
     result = await event_service.query_events_advanced(
         user_id=current_user.user_id,
@@ -114,7 +114,7 @@ async def query_events(
     if result is None:
         raise HTTPException(status_code=403, detail="Cannot query other users' events")
 
-    return EventListResponse.model_validate(result, from_attributes=True)
+    return EventListResponse.model_validate(result)
 
 
 @router.get("/correlation/{correlation_id}", response_model=EventListResponse)
@@ -136,7 +136,7 @@ async def get_events_by_correlation(
         skip=skip,
     )
 
-    return EventListResponse.model_validate(result, from_attributes=True)
+    return EventListResponse.model_validate(result)
 
 
 @router.get("/current-request", response_model=EventListResponse)
@@ -160,7 +160,7 @@ async def get_current_request_events(
         skip=skip,
     )
 
-    return EventListResponse.model_validate(result, from_attributes=True)
+    return EventListResponse.model_validate(result)
 
 
 @router.get("/statistics", response_model=EventStatistics)

@@ -1114,10 +1114,6 @@ export type DeleteResponse = {
  */
 export type DeleteUserResponse = {
     /**
-     * Message
-     */
-    message: string;
-    /**
      * User Deleted
      */
     user_deleted: boolean;
@@ -1977,7 +1973,7 @@ export type EventReplayStatusResponse = {
     /**
      * Execution Results
      */
-    execution_results?: Array<ExecutionResult> | null;
+    execution_results?: Array<ExecutionResultSummarySchema> | null;
     /**
      * Progress Percentage
      */
@@ -2533,6 +2529,47 @@ export type ExecutionResult = {
      */
     exit_code?: number | null;
     error_type?: ExecutionErrorType | null;
+};
+
+/**
+ * ExecutionResultSummarySchema
+ *
+ * Schema for execution result summary in replay status.
+ */
+export type ExecutionResultSummarySchema = {
+    /**
+     * Execution Id
+     */
+    execution_id: string;
+    status?: ExecutionStatus | null;
+    /**
+     * Stdout
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     */
+    stderr?: string | null;
+    /**
+     * Exit Code
+     */
+    exit_code?: number | null;
+    /**
+     * Lang
+     */
+    lang: string;
+    /**
+     * Lang Version
+     */
+    lang_version: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
 };
 
 /**
@@ -6358,7 +6395,7 @@ export type EventReplayStatusResponseWritable = {
     /**
      * Execution Results
      */
-    execution_results?: Array<ExecutionResult> | null;
+    execution_results?: Array<ExecutionResultSummarySchema> | null;
 };
 
 /**

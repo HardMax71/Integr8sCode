@@ -185,7 +185,7 @@ async def register(
         },
     )
 
-    return UserResponse.model_validate(created_user, from_attributes=True)
+    return UserResponse.model_validate(created_user)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -211,7 +211,7 @@ async def get_current_user_profile(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
 
-    return UserResponse.model_validate(current_user, from_attributes=True)
+    return UserResponse.model_validate(current_user)
 
 
 @router.post("/logout", response_model=MessageResponse)

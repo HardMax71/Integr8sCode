@@ -57,7 +57,7 @@ async def get_dlq_message(event_id: str, repository: FromDishka[DLQRepository]) 
     message = await repository.get_message_by_id(event_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    return DLQMessageDetail.model_validate(message, from_attributes=True)
+    return DLQMessageDetail.model_validate(message)
 
 
 @router.post("/retry", response_model=DLQBatchRetryResponse)
@@ -66,7 +66,7 @@ async def retry_dlq_messages(
 ) -> DLQBatchRetryResponse:
     """Retry a batch of DLQ messages by their event IDs."""
     result = await dlq_manager.retry_messages_batch(retry_request.event_ids)
-    return DLQBatchRetryResponse.model_validate(result, from_attributes=True)
+    return DLQBatchRetryResponse.model_validate(result)
 
 
 @router.post("/retry-policy", response_model=MessageResponse)

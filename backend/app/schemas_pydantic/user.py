@@ -130,7 +130,6 @@ class LoginResponse(BaseModel):
 class DeleteUserResponse(BaseModel):
     """Response model for user deletion."""
 
-    message: str
     user_deleted: bool
     executions: int = 0
     saved_scripts: int = 0

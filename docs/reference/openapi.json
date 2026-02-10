@@ -7094,10 +7094,6 @@
       },
       "DeleteUserResponse": {
         "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
           "user_deleted": {
             "type": "boolean",
             "title": "User Deleted"
@@ -7135,7 +7131,6 @@
         },
         "type": "object",
         "required": [
-          "message",
           "user_deleted"
         ],
         "title": "DeleteUserResponse",
@@ -8650,7 +8645,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/ExecutionResult"
+                  "$ref": "#/components/schemas/ExecutionResultSummarySchema"
                 },
                 "type": "array"
               },
@@ -9669,6 +9664,85 @@
         ],
         "title": "ExecutionResult",
         "description": "Model for execution result."
+      },
+      "ExecutionResultSummarySchema": {
+        "properties": {
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stdout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stdout"
+          },
+          "stderr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stderr"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "lang": {
+            "type": "string",
+            "title": "Lang"
+          },
+          "lang_version": {
+            "type": "string",
+            "title": "Lang Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_id",
+          "lang",
+          "lang_version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExecutionResultSummarySchema",
+        "description": "Schema for execution result summary in replay status."
       },
       "ExecutionRunningEvent": {
         "properties": {

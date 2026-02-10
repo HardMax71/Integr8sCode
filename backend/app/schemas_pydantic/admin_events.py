@@ -2,11 +2,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums import EventType
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent, EventSummary
 from app.domain.replay import ReplayError
 from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
-from app.schemas_pydantic.execution import ExecutionResult
 
 
 class EventFilter(BaseModel):
@@ -47,6 +46,8 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     events: list[DomainEvent]
     total: int
     skip: int
@@ -56,6 +57,8 @@ class EventBrowseResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     event: DomainEvent
     related_events: list[EventSummary]
     timeline: list[EventSummary]
@@ -64,12 +67,30 @@ class EventDetailResponse(BaseModel):
 class EventReplayResponse(BaseModel):
     """Response model for event replay"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     dry_run: bool
     total_events: int
     replay_correlation_id: str
     session_id: str | None = None
     status: str
     events_preview: list[EventSummary] | None = None
+
+
+class ExecutionResultSummarySchema(BaseModel):
+    """Schema for execution result summary in replay status."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_id: str
+    status: ExecutionStatus | None = None
+    stdout: str | None = None
+    stderr: str | None = None
+    exit_code: int | None = None
+    lang: str
+    lang_version: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class EventReplayStatusResponse(BaseModel):
@@ -89,7 +110,7 @@ class EventReplayStatusResponse(BaseModel):
     completed_at: datetime | None = None
     errors: list[ReplayError] | None = None
     estimated_completion: datetime | None = None
-    execution_results: list[ExecutionResult] | None = None
+    execution_results: list[ExecutionResultSummarySchema] | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -99,6 +120,8 @@ class EventReplayStatusResponse(BaseModel):
 
 class EventDeleteResponse(BaseModel):
     """Response model for event deletion"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     message: str
     event_id: str

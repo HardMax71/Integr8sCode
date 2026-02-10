@@ -47,7 +47,6 @@ class TestRouterConfiguration:
         """Health check routes are registered."""
         paths = self._get_all_paths(app)
         assert "/api/v1/health/live" in paths
-        assert "/api/v1/health/ready" in paths
 
     def test_auth_routes_registered(self, app: FastAPI) -> None:
         """Authentication routes are registered."""

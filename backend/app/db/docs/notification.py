@@ -3,7 +3,7 @@ from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
@@ -47,13 +47,6 @@ class NotificationDocument(Document):
     # Webhook specific
     webhook_url: str | None = None
     webhook_headers: dict[str, str] | None = None
-
-    @field_validator("scheduled_for")
-    @classmethod
-    def validate_scheduled_for(cls, v: datetime | None) -> datetime | None:
-        if v and v < datetime.now(UTC):
-            raise ValueError("scheduled_for must be in the future")
-        return v
 
     model_config = ConfigDict(from_attributes=True)
 

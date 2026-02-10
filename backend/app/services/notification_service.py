@@ -132,6 +132,8 @@ class NotificationService:
         if not tags:
             raise NotificationValidationError("tags must be a non-empty list")
         if scheduled_for is not None:
+            if scheduled_for < datetime.now(UTC):
+                raise NotificationValidationError("scheduled_for must be in the future")
             max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
             max_schedule = datetime.now(UTC) + timedelta(days=max_days)
             if scheduled_for > max_schedule:

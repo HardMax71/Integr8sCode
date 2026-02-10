@@ -4087,12 +4087,6 @@ export type ReplayFilter = {
      * Service Name
      */
     service_name?: string | null;
-    /**
-     * Custom Query
-     */
-    custom_query?: {
-        [key: string]: unknown;
-    } | null;
 };
 
 /**
@@ -4123,12 +4117,6 @@ export type ReplayFilterSchema = {
      * Service Name
      */
     service_name?: string | null;
-    /**
-     * Custom Query
-     */
-    custom_query?: {
-        [key: string]: unknown;
-    } | null;
     /**
      * Exclude Event Types
      */

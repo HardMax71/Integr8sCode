@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,7 +16,6 @@ class ReplayFilterSchema(BaseModel):
     end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
-    custom_query: dict[str, Any] | None = None
     exclude_event_types: list[EventType] | None = None
 
 

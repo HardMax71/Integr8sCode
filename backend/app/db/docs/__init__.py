@@ -14,7 +14,6 @@ from app.db.docs.notification import (
 )
 from app.db.docs.replay import (
     ReplayConfig,
-    ReplayFilter,
     ReplaySessionDocument,
 )
 from app.db.docs.resource import ResourceAllocationDocument
@@ -73,7 +72,6 @@ __all__ = [
     # Replay
     "ReplaySessionDocument",
     "ReplayConfig",
-    "ReplayFilter",
     # Resource
     "ResourceAllocationDocument",
     # Admin Settings

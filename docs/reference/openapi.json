@@ -12369,17 +12369,6 @@
               }
             ],
             "title": "Service Name"
-          },
-          "custom_query": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Custom Query"
           }
         },
         "type": "object",
@@ -12457,17 +12446,6 @@
               }
             ],
             "title": "Service Name"
-          },
-          "custom_query": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Custom Query"
           },
           "exclude_event_types": {
             "anyOf": [

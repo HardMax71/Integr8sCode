@@ -2,12 +2,13 @@ import csv
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Any
 
 from beanie.odm.enums import SortDirection
 
+from app.db.docs.replay import ReplaySessionDocument
 from app.db.repositories import AdminEventsRepository
 from app.domain.admin import ReplaySessionStatusDetail, ReplaySessionUpdate
 from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
@@ -20,7 +21,7 @@ from app.domain.events import (
     EventSummary,
 )
 from app.domain.exceptions import ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter
+from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
 from app.services.event_replay import EventReplayService
 
 
@@ -185,8 +186,52 @@ class AdminEventsService:
         await self._replay_service.start_session(session_id)
 
     async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail | None:
-        status = await self._repo.get_replay_status_with_progress(session_id)
-        return status
+        doc = await self._repo.get_replay_session_doc(session_id)
+        if not doc:
+            return None
+
+        now = datetime.now(timezone.utc)
+        changed = self._advance_replay_state(doc, now)
+        if changed:
+            await doc.save()
+
+        estimated_completion = self._estimate_completion(doc, now)
+        session = ReplaySessionState.model_validate(doc)
+        execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
+
+        return ReplaySessionStatusDetail(
+            session=session,
+            estimated_completion=estimated_completion,
+            execution_results=execution_results,
+        )
+
+    def _advance_replay_state(self, doc: ReplaySessionDocument, now: datetime) -> bool:
+        """Advance replay state machine. Returns True if doc was mutated."""
+        if doc.status == ReplayStatus.SCHEDULED and doc.created_at:
+            if (now - doc.created_at).total_seconds() > 2:
+                doc.status = ReplayStatus.RUNNING
+                doc.started_at = now
+                return True
+
+        if not doc.is_running or not doc.started_at:
+            return False
+
+        elapsed = (now - doc.started_at).total_seconds()
+        doc.replayed_events = min(int(elapsed * 10), doc.total_events)
+        if doc.replayed_events >= doc.total_events:
+            doc.status = ReplayStatus.COMPLETED
+            doc.completed_at = now
+        return True
+
+    def _estimate_completion(self, doc: ReplaySessionDocument, now: datetime) -> datetime | None:
+        if not doc.is_running or not doc.started_at or doc.replayed_events <= 0:
+            return None
+        elapsed = (now - doc.started_at).total_seconds()
+        if elapsed <= 0:
+            return None
+        rate = doc.replayed_events / elapsed
+        remaining = doc.total_events - doc.replayed_events
+        return now + timedelta(seconds=remaining / rate) if rate > 0 else None
 
     async def export_events_csv(self, event_filter: EventFilter) -> list[EventExportRow]:
         rows = await self._repo.export_events_csv(event_filter)

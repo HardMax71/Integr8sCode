@@ -11,8 +11,8 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
-from app.domain.enums import EventType, ExecutionStatus, ReplayStatus
+from app.domain.admin import ExecutionResultSummary, ReplaySessionData, ReplaySessionUpdate
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import (
     DomainEvent,
     DomainEventAdapter,
@@ -24,7 +24,6 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
-    ResourceUsageDomain,
     UserEventCount,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
@@ -74,15 +73,7 @@ class AdminEventsRepository:
         related_docs = await (
             EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )
-        related_events = [
-            EventSummary(
-                event_id=d.event_id,
-                event_type=d.event_type,
-                timestamp=d.timestamp,
-                aggregate_id=d.aggregate_id,
-            )
-            for d in related_docs
-        ]
+        related_events = [EventSummary.model_validate(d) for d in related_docs]
         timeline = related_events[:5]
 
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
@@ -157,7 +148,7 @@ class AdminEventsRepository:
             .project(_id=0, hour="$_id", count=1)
         )
         hourly_result = await EventDocument.aggregate(hourly_pipeline.export()).to_list()
-        events_by_hour: list[HourlyEventCount | dict[str, Any]] = [HourlyEventCount(**doc) for doc in hourly_result]
+        events_by_hour = [HourlyEventCount.model_validate(doc) for doc in hourly_result]
 
         # Top users pipeline - project renames _id->user_id, count->event_count
         user_pipeline = (
@@ -169,7 +160,7 @@ class AdminEventsRepository:
             .project(_id=0, user_id="$_id", event_count="$count")
         )
         top_users_result = await EventDocument.aggregate(user_pipeline.export()).to_list()
-        top_users = [UserEventCount(**doc) for doc in top_users_result if doc["user_id"]]
+        top_users = [UserEventCount.model_validate(doc) for doc in top_users_result if doc["user_id"]]
 
         # Execution duration pipeline
         exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)  # type: ignore[union-attr]
@@ -235,7 +226,7 @@ class AdminEventsRepository:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
-        return ReplaySessionState.model_validate(doc, from_attributes=True)
+        return ReplaySessionState.model_validate(doc)
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
         update_dict = updates.model_dump(exclude_none=True)
@@ -247,93 +238,30 @@ class AdminEventsRepository:
         await doc.set(update_dict)
         return True
 
-    async def get_replay_status_with_progress(self, session_id: str) -> ReplaySessionStatusDetail | None:
-        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
-        if not doc:
-            return None
+    async def get_replay_session_doc(self, session_id: str) -> ReplaySessionDocument | None:
+        return await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
 
-        current_time = datetime.now(timezone.utc)
-
-        # Auto-transition from SCHEDULED to RUNNING after 2 seconds
-        if doc.status == ReplayStatus.SCHEDULED and doc.created_at:
-            time_since_created = current_time - doc.created_at
-            if time_since_created.total_seconds() > 2:
-                doc.status = ReplayStatus.RUNNING
-                doc.started_at = current_time
-                await doc.save()
-
-        # Update progress for running sessions
-        if doc.is_running and doc.started_at:
-            time_since_started = current_time - doc.started_at
-            estimated_progress = min(int(time_since_started.total_seconds() * 10), doc.total_events)
-            doc.replayed_events = estimated_progress
-
-            # Check if completed
-            if doc.replayed_events >= doc.total_events:
-                doc.status = ReplayStatus.COMPLETED
-                doc.completed_at = current_time
-            await doc.save()
-
-        # Calculate estimated completion time
-        estimated_completion = None
-        if doc.is_running and doc.replayed_events > 0 and doc.started_at:
-            elapsed = (current_time - doc.started_at).total_seconds()
-            if elapsed > 0:
-                rate = doc.replayed_events / elapsed
-                remaining = doc.total_events - doc.replayed_events
-                if rate > 0:
-                    estimated_completion = current_time + timedelta(seconds=remaining / rate)
-
-        # Fetch related execution results
-        execution_results: list[ExecutionResultSummary] = []
-        if doc.config and doc.config.filter and doc.config.filter.custom_query:
-            original_query = doc.config.filter.custom_query
-            original_events = await EventDocument.find(original_query).limit(10).to_list()
-
-            execution_ids = {event.execution_id for event in original_events if event.execution_id}
-
-            for exec_id in list(execution_ids)[:10]:
-                exec_doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == exec_id)
-                if exec_doc:
-                    execution_results.append(
-                        ExecutionResultSummary(
-                            execution_id=exec_doc.execution_id,
-                            status=exec_doc.status if exec_doc.status else None,
-                            stdout=exec_doc.stdout,
-                            stderr=exec_doc.stderr,
-                            exit_code=exec_doc.exit_code,
-                            lang=exec_doc.lang,
-                            lang_version=exec_doc.lang_version,
-                            created_at=exec_doc.created_at,
-                            updated_at=exec_doc.updated_at,
-                            resource_usage=ResourceUsageDomain.model_validate(exec_doc.resource_usage)
-                            if exec_doc.resource_usage
-                            else None,
-                            error_type=exec_doc.error_type,
-                        )
-                    )
-
-        session = ReplaySessionState.model_validate(doc, from_attributes=True)
-        return ReplaySessionStatusDetail(
-            session=session,
-            estimated_completion=estimated_completion,
-            execution_results=execution_results,
-        )
+    async def get_execution_results_for_filter(
+        self, replay_filter: ReplayFilter,
+    ) -> list[ExecutionResultSummary]:
+        mongo_query = replay_filter.to_mongo_query()
+        if not mongo_query:
+            return []
+        matched_events = await EventDocument.find(mongo_query).limit(100).to_list()
+        exec_ids = list({e.execution_id for e in matched_events if e.execution_id})[:10]
+        if not exec_ids:
+            return []
+        exec_docs = await ExecutionDocument.find(
+            In(ExecutionDocument.execution_id, exec_ids)
+        ).to_list()
+        return [ExecutionResultSummary.model_validate(d) for d in exec_docs]
 
     async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
         return await EventDocument.find(replay_filter.to_mongo_query()).count()
 
     async def get_events_preview_for_replay(self, replay_filter: ReplayFilter, limit: int = 100) -> list[EventSummary]:
         docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
-        return [
-            EventSummary(
-                event_id=doc.event_id,
-                event_type=doc.event_type,
-                timestamp=doc.timestamp,
-                aggregate_id=doc.aggregate_id,
-            )
-            for doc in docs
-        ]
+        return [EventSummary.model_validate(doc) for doc in docs]
 
     async def prepare_replay_session(
         self, replay_filter: ReplayFilter, dry_run: bool, replay_correlation_id: str, max_events: int = 1000

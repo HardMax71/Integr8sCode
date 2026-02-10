@@ -6,25 +6,8 @@ from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
-
-
-class ReplayFilter(BaseModel):
-    """Replay filter configuration (embedded document).
-
-    Copied from domain/replay/models.py ReplayFilter.
-    """
-
-    execution_id: str | None = None
-    event_types: list[EventType] | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    user_id: str | None = None
-    service_name: str | None = None
-    custom_query: dict[str, Any] | None = None
-    exclude_event_types: list[EventType] | None = None
-
-    model_config = ConfigDict(from_attributes=True)
+from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.replay import ReplayFilter
 
 
 class ReplayConfig(BaseModel):
@@ -35,7 +18,7 @@ class ReplayConfig(BaseModel):
 
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter
+    filter: ReplayFilter = Field(default_factory=ReplayFilter)
 
     speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
     preserve_timestamps: bool = False

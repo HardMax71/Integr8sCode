@@ -21,7 +21,7 @@ class SagaRepository:
         if saga_filter.execution_ids:
             conditions.append(In(SagaDocument.execution_id, saga_filter.execution_ids))
         if saga_filter.user_id:
-            conditions.append(Eq(SagaDocument.context_data["user_id"], saga_filter.user_id))
+            conditions.append(Eq(SagaDocument.context_data.user_id, saga_filter.user_id))
         if saga_filter.saga_name:
             conditions.append(Eq(SagaDocument.saga_name, saga_filter.saga_name))
         if saga_filter.created_after:

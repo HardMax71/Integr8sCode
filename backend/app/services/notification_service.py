@@ -449,9 +449,7 @@ class NotificationService:
             severity=NotificationSeverity.HIGH,
             tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             action_url=f"/api/v1/executions/{event.execution_id}/result",
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
+            metadata=event.model_dump(),
         )
 
     async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
@@ -471,9 +469,7 @@ class NotificationService:
             severity=NotificationSeverity.MEDIUM,
             tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             action_url=f"/api/v1/executions/{event.execution_id}/result",
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
+            metadata=event.model_dump(),
         )
 
     async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
@@ -483,10 +479,7 @@ class NotificationService:
             self.logger.error("No user_id in event metadata")
             return
 
-        # Use model_dump to get all event data
-        event_data = event.model_dump(
-            exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-        )
+        event_data = event.model_dump()
 
         # Truncate stdout/stderr for notification context
         event_data["stdout"] = event_data["stdout"][:200]

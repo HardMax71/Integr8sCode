@@ -1,10 +1,26 @@
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import SagaState
+
+
+class SagaContextData(BaseModel):
+    """Typed saga execution context. Populated incrementally by saga steps."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    execution_id: str = ""
+    language: str = ""
+    language_version: str | None = None
+    script: str = ""
+    timeout_seconds: int | None = None
+    allocation_id: str | None = None
+    resources_allocated: bool = False
+    correlation_id: str = ""
+    pod_creation_triggered: bool = False
+    user_id: str | None = None
 
 
 class Saga(BaseModel):
@@ -19,7 +35,7 @@ class Saga(BaseModel):
     current_step: str | None = None
     completed_steps: list[str] = Field(default_factory=list)
     compensated_steps: list[str] = Field(default_factory=list)
-    context_data: dict[str, Any] = Field(default_factory=dict)
+    context_data: SagaContextData = Field(default_factory=SagaContextData)
     error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -69,16 +85,6 @@ class SagaListResult(BaseModel):
         return (self.skip + len(self.sagas)) < self.total
 
 
-class SagaDetail(BaseModel):
-    """Detailed saga information."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    saga: Saga
-    execution_details: dict[str, Any] | None = None
-    step_details: list[dict[str, Any]] = Field(default_factory=list)
-
-
 class SagaStatistics(BaseModel):
     """Saga statistics."""
 
@@ -122,7 +128,7 @@ class SagaInstance(BaseModel):
     current_step: str | None = None
     completed_steps: list[str] = Field(default_factory=list)
     compensated_steps: list[str] = Field(default_factory=list)
-    context_data: dict[str, Any] = Field(default_factory=dict)
+    context_data: SagaContextData = Field(default_factory=SagaContextData)
     error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -17,7 +17,7 @@ from app.domain.events import (
     SagaCancelledEvent,
     SagaStartedEvent,
 )
-from app.domain.saga import Saga, SagaConfig
+from app.domain.saga import Saga, SagaConfig, SagaContextData
 from app.events.core import UnifiedProducer
 
 from .execution_saga import ExecutionSaga
@@ -162,7 +162,7 @@ class SagaOrchestrator:
 
                 if success:
                     instance.completed_steps.append(step.name)
-                    instance.context_data = context.to_public_dict()
+                    instance.context_data = SagaContextData.model_validate(context.data)
                     await self._save_saga(instance)
 
                     compensation = step.get_compensation()
@@ -269,7 +269,7 @@ class SagaOrchestrator:
             saga_instance.error_message = "Saga cancelled by user request"
             saga_instance.completed_at = datetime.now(UTC)
 
-            user_id = saga_instance.context_data.get("user_id")
+            user_id = saga_instance.context_data.user_id
             self.logger.info(
                 "Saga cancellation initiated",
                 extra={
@@ -288,7 +288,7 @@ class SagaOrchestrator:
                 saga = self._create_saga_instance()
                 context = SagaContext(saga_instance.saga_id, saga_instance.execution_id)
 
-                for key, value in saga_instance.context_data.items():
+                for key, value in saga_instance.context_data.model_dump().items():
                     context.set(key, value)
 
                 steps = saga.get_steps()
@@ -336,8 +336,8 @@ class SagaOrchestrator:
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event."""
         try:
-            cancelled_by = saga_instance.context_data.get("user_id")
-            correlation_id = saga_instance.context_data.get("correlation_id", "")
+            cancelled_by = saga_instance.context_data.user_id
+            correlation_id = saga_instance.context_data.correlation_id
             metadata = EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",

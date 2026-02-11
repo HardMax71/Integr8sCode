@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -7,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
 from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
-from app.domain.replay import ReplayFilter
+from app.domain.replay import ReplayError, ReplayFilter
 
 
 class ReplayConfig(BaseModel):
@@ -58,7 +57,7 @@ class ReplaySessionDocument(Document):
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: list[dict[str, Any]] = Field(default_factory=list)
+    errors: list[ReplayError] = Field(default_factory=list)
 
     # Tracking and admin fields
     correlation_id: str = Field(default_factory=lambda: str(uuid4()))

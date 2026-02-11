@@ -5,10 +5,7 @@ import pytest
 from app.core.metrics import DatabaseMetrics
 from app.domain.events import BaseEvent
 from app.domain.idempotency import KeyStrategy
-from app.services.idempotency.idempotency_manager import (
-    IdempotencyConfig,
-    IdempotencyManager,
-)
+from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 
 pytestmark = pytest.mark.unit
 

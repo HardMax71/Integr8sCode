@@ -26,7 +26,7 @@ class ReplayRepository:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
-        return ReplaySessionState.model_validate(doc, from_attributes=True)
+        return ReplaySessionState.model_validate(doc)
 
     async def list_sessions(
         self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
@@ -43,7 +43,7 @@ class ReplayRepository:
             .limit(limit)
             .to_list()
         )
-        return [ReplaySessionState.model_validate(doc, from_attributes=True) for doc in docs]
+        return [ReplaySessionState.model_validate(doc) for doc in docs]
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)

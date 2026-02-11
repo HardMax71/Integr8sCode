@@ -18,7 +18,7 @@ class UserSettingsRepository:
         doc = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == user_id)
         if not doc:
             return None
-        return DomainUserSettings.model_validate(doc, from_attributes=True)
+        return DomainUserSettings.model_validate(doc)
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         existing = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == settings.user_id)
@@ -40,7 +40,7 @@ class UserSettingsRepository:
         aggregate_id = f"user_settings_{user_id}"
         conditions: list[BaseFindOperator] = [
             Eq(EventDocument.aggregate_id, aggregate_id),
-            In(EventDocument.event_type, [str(et) for et in event_types]),
+            In(EventDocument.event_type, event_types),
         ]
         if since:
             conditions.append(GT(EventDocument.timestamp, since))
@@ -53,7 +53,7 @@ class UserSettingsRepository:
 
         docs = await find_query.to_list()
         return [
-            DomainUserSettingsChangedEvent.model_validate(e, from_attributes=True).model_copy(
+            DomainUserSettingsChangedEvent.model_validate(e).model_copy(
                 update={"correlation_id": e.metadata.correlation_id}
             )
             for e in docs

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import redis.asyncio as redis
+from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.services.idempotency.redis_repository import (
     RedisIdempotencyRepository,
@@ -56,7 +57,7 @@ def sample_record() -> IdempotencyRecord:
     return IdempotencyRecord(
         key="test-key",
         status=IdempotencyStatus.PROCESSING,
-        event_type="test.event",
+        event_type=EventType.EXECUTION_REQUESTED,
         event_id="event-123",
         created_at=datetime(2025, 1, 15, 10, 30, 45, tzinfo=timezone.utc),
         ttl_seconds=5,
@@ -76,7 +77,7 @@ def test_doc_record_roundtrip(repository: RedisIdempotencyRepository) -> None:
     rec = IdempotencyRecord(
         key="k",
         status=IdempotencyStatus.COMPLETED,
-        event_type="e.t",
+        event_type=EventType.EXECUTION_STARTED,
         event_id="e-1",
         created_at=datetime(2025, 1, 15, tzinfo=timezone.utc),
         ttl_seconds=60,

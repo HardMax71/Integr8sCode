@@ -90,7 +90,7 @@ class SSEService:
 
                 self.logger.info(
                     "Received Redis message for execution",
-                    extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+                    extra={"execution_id": execution_id, "event_type": msg.event_type},
                 )
                 try:
                     sse_event = await self._build_sse_event_from_redis(execution_id, msg)
@@ -99,13 +99,13 @@ class SSEService:
                     if msg.event_type in self.TERMINAL_EVENT_TYPES:
                         self.logger.info(
                             "Terminal event for execution",
-                            extra={"execution_id": execution_id, "event_type": str(msg.event_type)},
+                            extra={"execution_id": execution_id, "event_type": msg.event_type},
                         )
                         return
                 except Exception as e:
                     self.logger.warning(
                         "Failed to process SSE message",
-                        extra={"execution_id": execution_id, "event_type": str(msg.event_type), "error": str(e)},
+                        extra={"execution_id": execution_id, "event_type": msg.event_type, "error": str(e)},
                     )
         finally:
             if subscription is not None:

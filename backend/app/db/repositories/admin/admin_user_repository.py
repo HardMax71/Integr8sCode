@@ -30,7 +30,7 @@ class AdminUserRepository:
     async def create_user(self, create_data: DomainUserCreate) -> User:
         doc = UserDocument(**create_data.model_dump())
         await doc.insert()
-        return User.model_validate(doc, from_attributes=True)
+        return User.model_validate(doc)
 
     async def list_users(
             self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
@@ -52,12 +52,12 @@ class AdminUserRepository:
         query = UserDocument.find(*conditions)
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
-        users = [User.model_validate(doc, from_attributes=True) for doc in docs]
+        users = [User.model_validate(doc) for doc in docs]
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
-        return User.model_validate(doc, from_attributes=True) if doc else None
+        return User.model_validate(doc) if doc else None
 
     async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
@@ -71,7 +71,7 @@ class AdminUserRepository:
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return User.model_validate(doc, from_attributes=True)
+        return User.model_validate(doc)
 
     async def delete_user(self, user_id: str, cascade: bool = True) -> UserDeleteResult:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
@@ -89,7 +89,7 @@ class AdminUserRepository:
         notif_result = await NotificationDocument.find(NotificationDocument.user_id == user_id).delete()
         settings_result = await UserSettingsDocument.find(UserSettingsDocument.user_id == user_id).delete()
         events_result = await EventDocument.find(EventDocument.metadata.user_id == user_id).delete()
-        sagas_result = await SagaDocument.find(SagaDocument.context_data["user_id"] == user_id).delete()
+        sagas_result = await SagaDocument.find(SagaDocument.context_data.user_id == user_id).delete()
 
         return UserDeleteResult(
             user_deleted=True,

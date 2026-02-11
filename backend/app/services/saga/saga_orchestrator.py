@@ -4,8 +4,7 @@ from uuid import uuid4
 
 from opentelemetry.trace import SpanKind
 
-from app.core.tracing import EventAttributes
-from app.core.tracing.utils import get_tracer
+from app.core.tracing import EventAttributes, get_tracer
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import (
@@ -18,7 +17,7 @@ from app.domain.events import (
     SagaCancelledEvent,
     SagaStartedEvent,
 )
-from app.domain.saga import Saga, SagaConfig
+from app.domain.saga import Saga, SagaConfig, SagaContextData
 from app.events.core import UnifiedProducer
 
 from .execution_saga import ExecutionSaga
@@ -116,6 +115,7 @@ class SagaOrchestrator:
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
         context.set("correlation_id", trigger_event.metadata.correlation_id)
+        context.set("user_id", trigger_event.metadata.user_id)
 
         await self._execute_saga(saga, instance, context, trigger_event)
 
@@ -163,7 +163,7 @@ class SagaOrchestrator:
 
                 if success:
                     instance.completed_steps.append(step.name)
-                    instance.context_data = context.to_public_dict()
+                    instance.context_data = SagaContextData.model_validate(context.data)
                     await self._save_saga(instance)
 
                     compensation = step.get_compensation()
@@ -270,7 +270,7 @@ class SagaOrchestrator:
             saga_instance.error_message = "Saga cancelled by user request"
             saga_instance.completed_at = datetime.now(UTC)
 
-            user_id = saga_instance.context_data.get("user_id")
+            user_id = saga_instance.context_data.user_id
             self.logger.info(
                 "Saga cancellation initiated",
                 extra={
@@ -289,7 +289,7 @@ class SagaOrchestrator:
                 saga = self._create_saga_instance()
                 context = SagaContext(saga_instance.saga_id, saga_instance.execution_id)
 
-                for key, value in saga_instance.context_data.items():
+                for key, value in saga_instance.context_data.model_dump().items():
                     context.set(key, value)
 
                 steps = saga.get_steps()
@@ -325,7 +325,7 @@ class SagaOrchestrator:
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
-                    user_id=trigger_event.metadata.user_id or "system",
+                    user_id=trigger_event.metadata.user_id,
                     correlation_id=trigger_event.metadata.correlation_id,
                 ),
             )
@@ -337,13 +337,12 @@ class SagaOrchestrator:
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event."""
         try:
-            cancelled_by = saga_instance.context_data.get("user_id")
-            correlation_id = saga_instance.context_data.get("correlation_id", "")
+            cancelled_by = saga_instance.context_data.user_id
             metadata = EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
-                user_id=cancelled_by or "system",
-                correlation_id=correlation_id,
+                user_id=cancelled_by,
+                correlation_id=saga_instance.context_data.correlation_id,
             )
 
             event = SagaCancelledEvent(

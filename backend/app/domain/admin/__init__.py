@@ -12,7 +12,6 @@ from .replay_models import (
 from .replay_updates import ReplaySessionUpdate
 from .settings_models import (
     AuditAction,
-    AuditLogEntry,
     LogLevel,
     SystemSettings,
 )
@@ -26,7 +25,6 @@ __all__ = [
     "AuditAction",
     "LogLevel",
     "SystemSettings",
-    "AuditLogEntry",
     # Replay
     "ExecutionResultSummary",
     "ReplaySessionData",

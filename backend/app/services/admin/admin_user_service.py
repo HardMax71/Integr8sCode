@@ -51,7 +51,7 @@ class AdminUserService:
         by_status = exec_stats.get("by_status", {}) or {}
 
         def _count(status: ExecutionStatus) -> int:
-            return int(by_status.get(status, 0) or by_status.get(status.value, 0) or 0)
+            return int(by_status.get(status, 0) or 0)
 
         succeeded = _count(ExecutionStatus.COMPLETED)
         failed = _count(ExecutionStatus.FAILED)

@@ -15,13 +15,13 @@ class DomainNotificationSettings(BaseModel):
     execution_failed: bool = True
     system_updates: bool = True
     security_alerts: bool = True
-    channels: list[NotificationChannel] = Field(default_factory=list)
+    channels: list[NotificationChannel] = Field(default_factory=lambda: [NotificationChannel.IN_APP])
 
 
 class DomainEditorSettings(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    theme: str = "auto"
+    theme: Theme = Theme.AUTO
     font_size: int = 14
     tab_size: int = 4
     use_tabs: bool = False

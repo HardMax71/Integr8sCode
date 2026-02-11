@@ -52,26 +52,21 @@ from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.auth_service import AuthService
-from app.services.coordinator.coordinator import ExecutionCoordinator
-from app.services.event_replay.replay_service import EventReplayService
+from app.services.coordinator import ExecutionCoordinator
+from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
-from app.services.idempotency import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
 from app.services.login_lockout import LoginLockoutService
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
-from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.services.pod_monitor.monitor import ErrorType, PodMonitor
+from app.services.pod_monitor import ErrorType, PodEventMapper, PodMonitor, PodMonitorConfig
 from app.services.rate_limit_service import RateLimitService
-from app.services.result_processor.processor import ResultProcessor
-from app.services.result_processor.resource_cleaner import ResourceCleaner
+from app.services.result_processor import ResourceCleaner, ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
-from app.services.saga import SagaOrchestrator
-from app.services.saga.saga_service import SagaService
+from app.services.saga import SagaOrchestrator, SagaService
 from app.services.saved_script_service import SavedScriptService
 from app.services.sse import SSERedisBus, SSEService
 from app.services.user_settings_service import UserSettingsService

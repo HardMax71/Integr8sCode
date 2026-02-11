@@ -93,7 +93,7 @@ class TestUpdateTheme:
     """Tests for PUT /api/v1/user/settings/theme."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("theme", list(Theme), ids=lambda t: t.value)
+    @pytest.mark.parametrize("theme", list(Theme), ids=str)
     async def test_update_theme(
         self, test_user: AsyncClient, theme: Theme
     ) -> None:

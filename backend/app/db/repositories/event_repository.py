@@ -8,8 +8,7 @@ from beanie.operators import GTE, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
 from pymongo.errors import DuplicateKeyError
 
-from app.core.tracing import EventAttributes
-from app.core.tracing.utils import add_span_attributes
+from app.core.tracing import EventAttributes, add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums import EventType
 from app.domain.events import (
@@ -47,7 +46,7 @@ class EventRepository:
         doc = EventDocument(**data)
         add_span_attributes(
             **{
-                str(EventAttributes.EVENT_TYPE): str(event.event_type),
+                str(EventAttributes.EVENT_TYPE): event.event_type,
                 str(EventAttributes.EVENT_ID): event.event_id,
                 str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
             }
@@ -64,18 +63,18 @@ class EventRepository:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
             return None
-        return DomainEventAdapter.validate_python(doc, from_attributes=True)
+        return DomainEventAdapter.validate_python(doc)
 
     async def get_events_by_aggregate(
             self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[DomainEvent]:
         conditions: list[BaseFindOperator] = [Eq(EventDocument.aggregate_id, aggregate_id)]
         if event_types:
-            conditions.append(In(EventDocument.event_type, list(event_types)))
+            conditions.append(In(EventDocument.event_type, event_types))
         docs = (
             await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
         )
-        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        return [DomainEventAdapter.validate_python(d) for d in docs]
 
     async def get_events_by_correlation(
         self, correlation_id: str, limit: int = 100, skip: int = 0, user_id: str | None = None,
@@ -89,7 +88,7 @@ class EventRepository:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(condition).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -124,7 +123,7 @@ class EventRepository:
             .sort([("timestamp", SortDirection.ASCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -239,7 +238,7 @@ class EventRepository:
             .sort([("timestamp", sort_direction)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -266,7 +265,7 @@ class EventRepository:
             .sort([(sort_field, SortDirection.DESCENDING)])
             .skip(skip).limit(limit).to_list()
         )
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(query).count()
         total_count = max(total_count, skip + len(events))
         return EventListResult(
@@ -282,10 +281,10 @@ class EventRepository:
 
         deleted_at = datetime.now(timezone.utc)
         archive_fields = {"deleted_at": deleted_at, "deleted_by": deleted_by, "deletion_reason": deletion_reason}
-        archived_doc = EventArchiveDocument.model_validate(doc, from_attributes=True).model_copy(update=archive_fields)
+        archived_doc = EventArchiveDocument.model_validate(doc).model_copy(update=archive_fields)
         await archived_doc.insert()
         await doc.delete()
-        return ArchivedEvent.model_validate(doc, from_attributes=True).model_copy(update=archive_fields)
+        return ArchivedEvent.model_validate(doc).model_copy(update=archive_fields)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
         # Match on both aggregate_id and execution_id (consistent with get_execution_events)

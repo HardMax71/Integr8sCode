@@ -12,19 +12,11 @@ from app.core.utils import StringEnum
 from app.domain.events import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper
+from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
 
 # Type aliases
 type ResourceVersion = str
 type KubeEvent = dict[str, Any]
-
-
-class WatchEventType(StringEnum):
-    """Kubernetes watch event types."""
-
-    ADDED = "ADDED"
-    MODIFIED = "MODIFIED"
-    DELETED = "DELETED"
 
 
 class ErrorType(StringEnum):

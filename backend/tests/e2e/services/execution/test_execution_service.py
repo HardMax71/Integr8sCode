@@ -354,7 +354,7 @@ class TestDeleteExecution:
         )
 
         # Delete it
-        deleted = await svc.delete_execution(exec_result.execution_id)
+        deleted = await svc.delete_execution(exec_result.execution_id, "test-admin")
         assert deleted is True
 
         # Verify it's gone
@@ -369,7 +369,7 @@ class TestDeleteExecution:
         svc: ExecutionService = await scope.get(ExecutionService)
 
         with pytest.raises(ExecutionNotFoundError):
-            await svc.delete_execution("nonexistent-id")
+            await svc.delete_execution("nonexistent-id", "test-admin")
 
 
 class TestGetExecutionStats:

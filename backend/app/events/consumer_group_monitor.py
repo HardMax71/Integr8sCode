@@ -433,7 +433,7 @@ class NativeConsumerGroupMonitor:
 
         # Check for rebalancing issues
         if status.state in (ConsumerGroupState.PREPARING_REBALANCE, ConsumerGroupState.COMPLETING_REBALANCE):
-            return ConsumerGroupHealth.DEGRADED, f"Group is rebalancing: {status.state.value}"
+            return ConsumerGroupHealth.DEGRADED, f"Group is rebalancing: {status.state}"
 
         # Check for empty group
         if status.state == ConsumerGroupState.EMPTY:
@@ -461,15 +461,15 @@ class NativeConsumerGroupMonitor:
             return ConsumerGroupHealth.HEALTHY, f"Group is stable with {status.member_count} members"
 
         # Default case
-        return ConsumerGroupHealth.UNKNOWN, f"Group state: {status.state.value}"
+        return ConsumerGroupHealth.UNKNOWN, f"Group state: {status.state}"
 
     def get_health_summary(self, status: ConsumerGroupStatus) -> dict[str, Any]:
         """Get a health summary for a consumer group."""
         return {
             "group_id": status.group_id,
-            "health": status.health.value,
+            "health": status.health,
             "health_message": status.health_message,
-            "state": status.state.value,
+            "state": status.state,
             "members": status.member_count,
             "assigned_partitions": status.assigned_partitions,
             "total_lag": status.total_lag,

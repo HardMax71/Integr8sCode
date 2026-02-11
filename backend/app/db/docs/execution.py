@@ -42,7 +42,7 @@ class ExecutionDocument(Document):
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
 
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
     class Settings:
         name = "executions"

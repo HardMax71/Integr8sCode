@@ -18,7 +18,7 @@ class ResourceAllocationRepository:
             **create_data.model_dump(),
         )
         await doc.insert()
-        return DomainResourceAllocation.model_validate(doc, from_attributes=True)
+        return DomainResourceAllocation.model_validate(doc)
 
     async def release_allocation(self, allocation_id: str) -> bool:
         doc = await ResourceAllocationDocument.find_one(ResourceAllocationDocument.allocation_id == allocation_id)

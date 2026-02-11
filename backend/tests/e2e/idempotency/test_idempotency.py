@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import redis.asyncio as redis
 from app.core.metrics import DatabaseMetrics
+from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
-from app.services.idempotency.idempotency_manager import IdempotencyConfig, IdempotencyManager
-from app.services.idempotency.redis_repository import RedisIdempotencyRepository
+from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.settings import Settings
 
 from tests.conftest import make_execution_requested_event
@@ -229,7 +229,7 @@ class TestIdempotencyManager:
         expired_record = IdempotencyRecord(
             key=expired_key,
             status=IdempotencyStatus.COMPLETED,
-            event_type="test",
+            event_type=EventType.EXECUTION_REQUESTED,
             event_id="expired-1",
             created_at=datetime.now(timezone.utc) - timedelta(hours=2),
             ttl_seconds=3600,

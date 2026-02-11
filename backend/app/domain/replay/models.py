@@ -68,7 +68,7 @@ class ReplayFilter(BaseModel):
             query["event_id"] = {"$in": self.event_ids}
 
         if self.execution_id:
-            query["execution_id"] = str(self.execution_id)
+            query["execution_id"] = self.execution_id
 
         if self.correlation_id:
             query["metadata.correlation_id"] = self.correlation_id
@@ -77,13 +77,13 @@ class ReplayFilter(BaseModel):
             query["aggregate_id"] = self.aggregate_id
 
         if self.event_types:
-            query["event_type"] = {"$in": [str(et) for et in self.event_types]}
+            query["event_type"] = {"$in": list(self.event_types)}
 
         if self.exclude_event_types:
             if "event_type" in query:
-                query["event_type"]["$nin"] = [str(et) for et in self.exclude_event_types]
+                query["event_type"]["$nin"] = list(self.exclude_event_types)
             else:
-                query["event_type"] = {"$nin": [str(et) for et in self.exclude_event_types]}
+                query["event_type"] = {"$nin": list(self.exclude_event_types)}
 
         if self.start_time or self.end_time:
             time_query: dict[str, Any] = {}

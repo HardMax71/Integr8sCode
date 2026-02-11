@@ -13,7 +13,7 @@ from app.domain.events import (
 )
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
-from app.services.result_processor.processor import ResultProcessor
+from app.services.result_processor import ResultProcessor
 
 pytestmark = pytest.mark.unit
 

@@ -9,8 +9,7 @@ from faststream import AckPolicy, StreamMessage
 from faststream.kafka import KafkaBroker, KafkaMessage
 from opentelemetry.trace import SpanKind
 
-from app.core.tracing import EventAttributes
-from app.core.tracing.utils import extract_trace_context, get_tracer
+from app.core.tracing import EventAttributes, extract_trace_context, get_tracer
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums import EventType, GroupId, KafkaTopic
@@ -26,11 +25,11 @@ from app.domain.events import (
 )
 from app.domain.idempotency import KeyStrategy
 from app.infrastructure.kafka.mappings import CONSUMER_GROUP_SUBSCRIPTIONS
-from app.services.coordinator.coordinator import ExecutionCoordinator
+from app.services.coordinator import ExecutionCoordinator
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
-from app.services.result_processor.processor import ResultProcessor
+from app.services.result_processor import ResultProcessor
 from app.services.saga import SagaOrchestrator
 from app.services.sse import SSERedisBus
 from app.settings import Settings
@@ -385,7 +384,7 @@ def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
             context=ctx,
             kind=SpanKind.CONSUMER,
             attributes={
-                EventAttributes.KAFKA_TOPIC: str(manager.dlq_topic),
+                EventAttributes.KAFKA_TOPIC: manager.dlq_topic,
                 EventAttributes.EVENT_TYPE: body.event_type,
                 EventAttributes.EVENT_ID: body.event_id,
             },

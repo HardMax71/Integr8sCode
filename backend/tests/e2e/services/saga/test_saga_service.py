@@ -5,10 +5,10 @@ import pytest
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
 from app.domain.execution import DomainExecutionCreate
-from app.domain.saga import Saga, SagaAccessDeniedError, SagaListResult, SagaNotFoundError
+from app.domain.saga import Saga, SagaAccessDeniedError, SagaContextData, SagaListResult, SagaNotFoundError
 from app.domain.user import User
 from app.services.execution_service import ExecutionService
-from app.services.saga.saga_service import SagaService
+from app.services.saga import SagaService
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
@@ -63,7 +63,7 @@ async def create_saga_for_execution(
         current_step="step1",
         completed_steps=[],
         compensated_steps=[],
-        context_data={},
+        context_data=SagaContextData(),
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )

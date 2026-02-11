@@ -8,7 +8,7 @@ import backoff
 import httpx
 
 from app.core.metrics import NotificationMetrics
-from app.core.tracing.utils import add_span_attributes
+from app.core.tracing import add_span_attributes
 from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
@@ -146,7 +146,7 @@ class NotificationService:
                 "user_id": user_id,
                 "channel": channel,
                 "severity": str(severity),
-                "tags": list(tags),
+                "tags": tags,
                 "scheduled": scheduled_for is not None,
             },
         )
@@ -333,7 +333,7 @@ class NotificationService:
 
         payload = {
             "notification_id": str(notification.notification_id),
-            "severity": str(notification.severity),
+            "severity": notification.severity,
             "tags": list(notification.tags or []),
             "subject": notification.subject,
             "body": notification.body,
@@ -436,9 +436,6 @@ class NotificationService:
     async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Handle execution timeout event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
         title = f"Execution Timeout: {event.execution_id}"
         body = f"Your execution timed out after {event.timeout_seconds}s."
@@ -449,17 +446,12 @@ class NotificationService:
             severity=NotificationSeverity.HIGH,
             tags=["execution", "timeout", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             action_url=f"/api/v1/executions/{event.execution_id}/result",
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
+            metadata=event.model_dump(),
         )
 
     async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
         title = f"Execution Completed: {event.execution_id}"
         duration = event.resource_usage.execution_time_wall_seconds if event.resource_usage else 0.0
@@ -471,22 +463,14 @@ class NotificationService:
             severity=NotificationSeverity.MEDIUM,
             tags=["execution", "completed", ENTITY_EXECUTION_TAG, f"exec:{event.execution_id}"],
             action_url=f"/api/v1/executions/{event.execution_id}/result",
-            metadata=event.model_dump(
-                exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-            ),
+            metadata=event.model_dump(),
         )
 
     async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
-        # Use model_dump to get all event data
-        event_data = event.model_dump(
-            exclude={"metadata", "event_type", "event_version", "timestamp", "aggregate_id", "topic"}
-        )
+        event_data = event.model_dump()
 
         # Truncate stdout/stderr for notification context
         event_data["stdout"] = event_data["stdout"][:200]

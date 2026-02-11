@@ -1,4 +1,4 @@
-from app.domain.enums import ExecutionStatus
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.exceptions import InfrastructureError, InvalidStateError, NotFoundError, ValidationError
 
 
@@ -30,6 +30,6 @@ class ExecutionTerminalError(InvalidStateError):
 class EventPublishError(InfrastructureError):
     """Raised when event publishing fails."""
 
-    def __init__(self, event_type: str, reason: str) -> None:
+    def __init__(self, event_type: EventType, reason: str) -> None:
         self.event_type = event_type
         super().__init__(f"Failed to publish {event_type}: {reason}")

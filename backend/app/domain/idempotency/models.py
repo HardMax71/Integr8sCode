@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
+from app.domain.enums import EventType
 
 
 class IdempotencyStatus(StringEnum):
@@ -25,7 +26,7 @@ class KeyStrategy(StringEnum):
 class IdempotencyRecord:
     key: str
     status: IdempotencyStatus
-    event_type: str
+    event_type: EventType
     event_id: str
     created_at: datetime
     ttl_seconds: int

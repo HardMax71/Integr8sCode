@@ -129,7 +129,7 @@ class SagaService:
                 "user_id": user.user_id,
                 "count": len(result.sagas),
                 "total": result.total,
-                "state_filter": str(state) if state else None,
+                "state_filter": state,
             },
         )
         return result
@@ -145,7 +145,7 @@ class SagaService:
 
         # Check if saga can be cancelled
         if saga.state not in [SagaState.RUNNING, SagaState.CREATED]:
-            raise SagaInvalidStateError(saga_id, str(saga.state), "cancel")
+            raise SagaInvalidStateError(saga_id, saga.state, "cancel")
 
         # Use orchestrator to cancel
         success = await self.orchestrator.cancel_saga(saga_id)

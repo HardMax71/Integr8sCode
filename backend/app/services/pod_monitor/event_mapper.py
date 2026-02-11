@@ -2,9 +2,11 @@ import ast
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from uuid import uuid4
 
 from kubernetes_asyncio import client as k8s_client
 
+from app.core.utils import StringEnum
 from app.domain.enums import ExecutionErrorType, GroupId
 from app.domain.events import (
     ContainerStatusInfo,
@@ -25,6 +27,14 @@ type EventList = list[DomainEvent]
 type AsyncMapper = Callable[["PodContext"], Awaitable[DomainEvent | None]]
 
 
+class WatchEventType(StringEnum):
+    """Kubernetes watch event types."""
+
+    ADDED = "ADDED"
+    MODIFIED = "MODIFIED"
+    DELETED = "DELETED"
+
+
 @dataclass(frozen=True)
 class PodContext:
     """Immutable context for pod event processing"""
@@ -33,7 +43,7 @@ class PodContext:
     execution_id: str
     metadata: EventMetadata
     phase: PodPhase
-    event_type: str
+    event_type: WatchEventType
 
 
 @dataclass(frozen=True)
@@ -67,7 +77,7 @@ class PodEventMapper:
             "DELETED": [self._map_terminated],
         }
 
-    async def map_pod_event(self, pod: k8s_client.V1Pod, event_type: str) -> EventList:
+    async def map_pod_event(self, pod: k8s_client.V1Pod, event_type: WatchEventType) -> EventList:
         """Map a Kubernetes pod to application events"""
         self.logger.info(
             f"POD-EVENT: type={event_type} name={getattr(pod.metadata, 'name', None)} "
@@ -177,7 +187,7 @@ class PodEventMapper:
         correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
-            user_id=labels.get("user-id"),
+            user_id=labels.get("user-id", str(uuid4())),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
             correlation_id=correlation_id,

@@ -108,7 +108,7 @@ class TestGetExecutionSagas:
 
         response = await test_user.get(
             f"/api/v1/sagas/execution/{execution.execution_id}",
-            params={"state": saga.state.value},
+            params={"state": saga.state},
         )
 
         assert response.status_code == 200
@@ -149,7 +149,7 @@ class TestListSagas:
 
         response = await test_user.get(
             "/api/v1/sagas/",
-            params={"state": saga.state.value},
+            params={"state": saga.state},
         )
 
         assert response.status_code == 200

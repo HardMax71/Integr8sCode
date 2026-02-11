@@ -6,7 +6,7 @@ from app.core.container import create_event_replay_container
 from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.services.event_replay.replay_service import EventReplayService
+from app.services.event_replay import EventReplayService
 from app.settings import Settings
 from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka

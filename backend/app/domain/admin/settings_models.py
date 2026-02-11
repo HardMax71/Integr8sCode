@@ -1,6 +1,3 @@
-from datetime import datetime
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.utils import StringEnum
@@ -45,14 +42,3 @@ class SystemSettings(BaseModel):
     log_level: LogLevel = LogLevel.INFO
     enable_tracing: bool = True
     sampling_rate: float = Field(0.1, ge=0.0, le=1.0)
-
-
-class AuditLogEntry(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    action: AuditAction
-    user_id: str
-    username: str
-    timestamp: datetime
-    changes: dict[str, Any] = Field(default_factory=dict)
-    reason: str = ""

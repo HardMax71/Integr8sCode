@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 from beanie import Document, Indexed
@@ -7,6 +6,7 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, IndexModel
 
 from app.domain.enums import SagaState
+from app.domain.saga.models import SagaContextData
 
 
 class SagaDocument(Document):
@@ -22,7 +22,7 @@ class SagaDocument(Document):
     current_step: str | None = None
     completed_steps: list[str] = Field(default_factory=list)
     compensated_steps: list[str] = Field(default_factory=list)
-    context_data: dict[str, Any] = Field(default_factory=dict)
+    context_data: SagaContextData = Field(default_factory=SagaContextData)
     error_message: str | None = None
     created_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

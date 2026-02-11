@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from uuid import uuid4
 
 from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
@@ -112,7 +113,7 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
             metadata=EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
-                user_id=event.metadata.user_id or "system",
+                user_id=event.metadata.user_id,
                 correlation_id=event.metadata.correlation_id,
             ),
         )
@@ -171,7 +172,7 @@ class DeletePodCompensation(CompensationStep):
             metadata=EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
-                user_id=context.get("user_id", "system"),
+                user_id=context.get("user_id") or str(uuid4()),
                 correlation_id=context.get("correlation_id", ""),
             ),
         )

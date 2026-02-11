@@ -6,7 +6,7 @@ from app.core.logging import setup_logger
 from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.domain.enums import GroupId
-from app.services.pod_monitor.monitor import PodMonitor
+from app.services.pod_monitor import PodMonitor
 from app.settings import Settings
 from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka

@@ -12,7 +12,7 @@ from app.domain.events import (
 )
 from app.domain.execution import DomainExecutionCreate
 from app.events.core import UnifiedProducer
-from app.services.result_processor.processor import ResultProcessor
+from app.services.result_processor import ResultProcessor
 from app.settings import Settings
 from dishka import AsyncContainer
 

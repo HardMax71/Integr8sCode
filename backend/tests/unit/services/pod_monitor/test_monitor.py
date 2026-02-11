@@ -14,13 +14,8 @@ from app.domain.events import (
 )
 from app.events.core import UnifiedProducer
 from app.services.kafka_event_service import KafkaEventService
-from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper
-from app.services.pod_monitor.monitor import (
-    PodEvent,
-    PodMonitor,
-    WatchEventType,
-)
+from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig, WatchEventType
+from app.services.pod_monitor.monitor import PodEvent
 from app.settings import Settings
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client import V1Pod

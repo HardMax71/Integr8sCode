@@ -199,7 +199,7 @@ def make_execution_requested_event(
     priority: QueuePriority = QueuePriority.NORMAL,
     service_name: str = "tests",
     service_version: str = "1.0.0",
-    user_id: str | None = None,
+    user_id: str = "test-user",
 ) -> ExecutionRequestedEvent:
     """Factory for ExecutionRequestedEvent with sensible defaults.
 

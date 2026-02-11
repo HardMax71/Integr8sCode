@@ -86,7 +86,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)
         dlq_msg = DLQMessage(
             event=ev,
-            original_topic=f"{prefix}{str(KafkaTopic.EXECUTION_EVENTS)}",
+            original_topic=f"{prefix}{KafkaTopic.EXECUTION_EVENTS}",
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),
@@ -99,7 +99,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         received = await asyncio.wait_for(received_future, timeout=5.0)
         assert received.dlq_event_id == ev.event_id
         assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-        assert received.original_event_type == str(EventType.EXECUTION_REQUESTED)
+        assert received.original_event_type == EventType.EXECUTION_REQUESTED
         assert received.error == "handler failed"
     finally:
         consume_task.cancel()

@@ -212,7 +212,7 @@ class NotificationService:
                     user_id=notification.user_id,
                 ),
             )
-            await self.event_service.publish_domain_event(event, key=notification.user_id)
+            await self.event_service.publish_event(event, key=notification.user_id)
         except Exception as e:
             self.logger.error(f"Failed to publish notification created event: {e}")
 

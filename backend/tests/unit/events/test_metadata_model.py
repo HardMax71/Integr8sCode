@@ -5,7 +5,7 @@ def test_metadata_creation() -> None:
     m = EventMetadata(service_name="svc", service_version="1")
     assert m.service_name == "svc"
     assert m.service_version == "1"
-    assert m.correlation_id  # auto-generated
+    assert m.correlation_id == ""  # empty until filled by publish_event
 
 
 def test_metadata_with_user() -> None:

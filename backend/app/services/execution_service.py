@@ -4,7 +4,6 @@ from time import time
 from typing import Any
 from uuid import uuid4
 
-from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
@@ -85,23 +84,9 @@ class ExecutionService:
     async def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS
 
-    def _create_event_metadata(
-        self,
-        user_id: str,
-    ) -> EventMetadata:
-        """
-        Create standardized event metadata.
-
-        Args:
-            user_id: User identifier.
-
-        Returns:
-            EventMetadata instance.
-        """
-        correlation_id = CorrelationContext.get_correlation_id()
-
+    def _create_event_metadata(self, user_id: str) -> EventMetadata:
+        """Create standardized event metadata."""
         return EventMetadata(
-            correlation_id=correlation_id,
             service_name="execution-service",
             service_version="2.0.0",
             user_id=user_id,

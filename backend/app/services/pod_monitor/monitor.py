@@ -199,7 +199,7 @@ class PodMonitor:
             execution_id = getattr(event, "execution_id", None) or event.aggregate_id
             key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 
-            await self._kafka_event_service.publish_domain_event(event=event, key=key)
+            await self._kafka_event_service.publish_event(event=event, key=key)
 
             phase = pod.status.phase if pod.status else "Unknown"
             self._metrics.record_pod_monitor_event_published(event.event_type, phase)

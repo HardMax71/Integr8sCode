@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -9,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
 from app.domain.enums import EventType, SortOrder, UserRole
-from app.domain.events import BaseEvent, DomainEvent, EventFilter, EventMetadata
+from app.domain.events import DomainEvent, DomainEventAdapter, EventFilter, EventMetadata
 from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.events import (
@@ -217,17 +218,20 @@ async def publish_custom_event(
         service_version=settings.SERVICE_VERSION,
         user_id=admin.user_id,
     )
-    # Merge any additional metadata provided in request (extra allowed)
-    if event_request.metadata:
-        base_meta = base_meta.model_copy(update=event_request.metadata)
+    meta_updates = {**(event_request.metadata or {})}
+    if event_request.correlation_id:
+        meta_updates["correlation_id"] = event_request.correlation_id
+    if meta_updates:
+        base_meta = base_meta.model_copy(update=meta_updates)
 
-    event_id = await event_service.publish_event(
-        event_type=event_request.event_type,
-        payload=event_request.payload,
-        aggregate_id=event_request.aggregate_id,
-        correlation_id=event_request.correlation_id,
-        metadata=base_meta,
-    )
+    event_data = {
+        "event_type": event_request.event_type,
+        "aggregate_id": event_request.aggregate_id,
+        "metadata": base_meta,
+        **event_request.payload,
+    }
+    domain_event = DomainEventAdapter.validate_python(event_data)
+    event_id = await event_service.publish_event(domain_event, key=domain_event.aggregate_id or domain_event.event_id)
 
     return PublishEventResponse(event_id=event_id, status="published", timestamp=datetime.now(timezone.utc))
 
@@ -301,21 +305,19 @@ async def replay_aggregate_events(
 
     for event in replay_info.events:
         try:
-            meta = EventMetadata(
+            replay_meta = EventMetadata(
                 service_name=settings.SERVICE_NAME,
                 service_version=settings.SERVICE_VERSION,
                 user_id=admin.user_id,
-            )
-            # Extract payload fields (exclude base event fields + event_type discriminator)
-            base_fields = set(BaseEvent.model_fields.keys()) | {"event_type"}
-            extra_fields = {k: v for k, v in event.model_dump().items() if k not in base_fields}
-            await kafka_event_service.publish_event(
-                event_type=event.event_type,
-                payload=extra_fields,
-                aggregate_id=aggregate_id,
                 correlation_id=replay_correlation_id,
-                metadata=meta,
             )
+            replayed_event = event.model_copy(update={
+                "event_id": str(uuid4()),
+                "timestamp": datetime.now(timezone.utc),
+                "aggregate_id": aggregate_id,
+                "metadata": replay_meta,
+            })
+            await kafka_event_service.publish_event(replayed_event, key=aggregate_id)
             replayed_count += 1
         except Exception as e:
             logger.error(f"Failed to replay event {event.event_id}: {e}")

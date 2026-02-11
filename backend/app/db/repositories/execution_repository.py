@@ -22,7 +22,7 @@ class ExecutionRepository:
         self.logger.info("Inserting execution into MongoDB", extra={"execution_id": doc.execution_id})
         await doc.insert()
         self.logger.info("Inserted execution", extra={"execution_id": doc.execution_id})
-        return DomainExecution.model_validate(doc, from_attributes=True)
+        return DomainExecution.model_validate(doc)
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         self.logger.info("Searching for execution in MongoDB", extra={"execution_id": execution_id})
@@ -32,7 +32,7 @@ class ExecutionRepository:
             return None
 
         self.logger.info("Found execution in MongoDB", extra={"execution_id": execution_id})
-        return DomainExecution.model_validate(doc, from_attributes=True)
+        return DomainExecution.model_validate(doc)
 
     async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
@@ -75,7 +75,7 @@ class ExecutionRepository:
             ]
             find_query = find_query.sort(beanie_sort)
         docs = await find_query.skip(skip).limit(limit).to_list()
-        return [DomainExecution.model_validate(doc, from_attributes=True) for doc in docs]
+        return [DomainExecution.model_validate(doc) for doc in docs]
 
     async def count_executions(self, query: dict[str, Any]) -> int:
         return await ExecutionDocument.find(query).count()

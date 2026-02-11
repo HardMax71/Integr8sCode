@@ -57,7 +57,7 @@ class AdminEventsRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        return [DomainEventAdapter.validate_python(d) for d in docs]
 
     async def get_events_page(
         self,
@@ -69,7 +69,7 @@ class AdminEventsRepository:
         query = EventDocument.find(*conditions)
         total = await query.count()
         docs = await query.sort([("timestamp", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
-        events = [DomainEventAdapter.validate_python(d, from_attributes=True) for d in docs]
+        events = [DomainEventAdapter.validate_python(d) for d in docs]
         return EventBrowseResult(events=events, total=total, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
@@ -77,7 +77,7 @@ class AdminEventsRepository:
         if not doc:
             return None
 
-        event = DomainEventAdapter.validate_python(doc, from_attributes=True)
+        event = DomainEventAdapter.validate_python(doc)
 
         related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
         related_docs = await (

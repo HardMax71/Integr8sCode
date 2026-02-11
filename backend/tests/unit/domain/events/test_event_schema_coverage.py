@@ -174,10 +174,9 @@ class TestEventSchemaConsistency:
         """All EventType values should be lowercase snake_case."""
         violations: list[str] = []
         for et in EventType:
-            value = et.value
-            if value != value.lower():
-                violations.append(f"  - {et.name}: '{value}' contains uppercase")
-            if " " in value or "-" in value:
-                violations.append(f"  - {et.name}: '{value}' contains spaces or hyphens")
+            if et != et.lower():
+                violations.append(f"  - {et.name}: '{et}' contains uppercase")
+            if " " in et or "-" in et:
+                violations.append(f"  - {et.name}: '{et}' contains spaces or hyphens")
 
         assert not violations, "EventType naming violations:\n" + "\n".join(violations)

@@ -245,7 +245,7 @@ exec "$@"
             init_containers = []
             all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
 
-            for i, image_ref in enumerate(sorted(list(all_images))):
+            for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
                 self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
                 container_name = f"pull-{i}-{sanitized_image_ref}"

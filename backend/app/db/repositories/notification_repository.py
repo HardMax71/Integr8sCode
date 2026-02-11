@@ -22,7 +22,7 @@ class NotificationRepository:
     async def create_notification(self, create_data: DomainNotificationCreate) -> DomainNotification:
         doc = NotificationDocument(**create_data.model_dump())
         await doc.insert()
-        return DomainNotification.model_validate(doc, from_attributes=True)
+        return DomainNotification.model_validate(doc)
 
     async def update_notification(
         self, notification_id: str, user_id: str, update_data: DomainNotificationUpdate
@@ -90,7 +90,7 @@ class NotificationRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
+        return [DomainNotification.model_validate(doc) for doc in docs]
 
     async def count_notifications(
         self,
@@ -129,7 +129,7 @@ class NotificationRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainNotification.model_validate(doc, from_attributes=True) for doc in docs]
+        return [DomainNotification.model_validate(doc) for doc in docs]
 
     async def try_claim_pending(self, notification_id: str) -> bool:
         now = datetime.now(UTC)
@@ -158,7 +158,7 @@ class NotificationRepository:
         if not doc:
             # Default: enabled=True for new users (consistent with get_all_subscriptions)
             return DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
-        return DomainNotificationSubscription.model_validate(doc, from_attributes=True)
+        return DomainNotificationSubscription.model_validate(doc)
 
     async def upsert_subscription(
         self, user_id: str, channel: NotificationChannel, update_data: DomainSubscriptionUpdate
@@ -172,7 +172,7 @@ class NotificationRepository:
 
         if existing:
             await existing.set(update_dict)
-            return DomainNotificationSubscription.model_validate(existing, from_attributes=True)
+            return DomainNotificationSubscription.model_validate(existing)
         else:
             doc = NotificationSubscriptionDocument(
                 user_id=user_id,
@@ -180,7 +180,7 @@ class NotificationRepository:
                 **update_dict,
             )
             await doc.insert()
-            return DomainNotificationSubscription.model_validate(doc, from_attributes=True)
+            return DomainNotificationSubscription.model_validate(doc)
 
     async def get_all_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
         subs: dict[NotificationChannel, DomainNotificationSubscription] = {}
@@ -190,7 +190,7 @@ class NotificationRepository:
                 NotificationSubscriptionDocument.channel == channel,
             )
             if doc:
-                subs[channel] = DomainNotificationSubscription.model_validate(doc, from_attributes=True)
+                subs[channel] = DomainNotificationSubscription.model_validate(doc)
             else:
                 subs[channel] = DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
         return subs
@@ -202,7 +202,7 @@ class NotificationRepository:
             UserDocument.is_active == True,  # noqa: E712
         ).to_list()
         user_ids = [doc.user_id for doc in docs if doc.user_id]
-        self.logger.info(f"Found {len(user_ids)} users with roles {list(roles)}")
+        self.logger.info(f"Found {len(user_ids)} users with roles {roles}")
         return user_ids
 
     async def get_active_users(self, days: int = 30) -> list[str]:

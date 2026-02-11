@@ -64,18 +64,18 @@ class SagaRepository:
         )
         assert doc is not None
         created = doc.saga_id == saga.saga_id
-        return Saga.model_validate(doc, from_attributes=True), created
+        return Saga.model_validate(doc), created
 
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         doc = await SagaDocument.find_one(
             SagaDocument.execution_id == execution_id,
             SagaDocument.saga_name == saga_name,
         )
-        return Saga.model_validate(doc, from_attributes=True) if doc else None
+        return Saga.model_validate(doc) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
-        return Saga.model_validate(doc, from_attributes=True) if doc else None
+        return Saga.model_validate(doc) if doc else None
 
     async def get_sagas_by_execution(
             self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -88,7 +88,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga.model_validate(d, from_attributes=True) for d in docs],
+            sagas=[Saga.model_validate(d) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -100,7 +100,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga.model_validate(d, from_attributes=True) for d in docs],
+            sagas=[Saga.model_validate(d) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -125,7 +125,7 @@ class SagaRepository:
             .limit(limit)
             .to_list()
         )
-        return [Saga.model_validate(d, from_attributes=True) for d in docs]
+        return [Saga.model_validate(d) for d in docs]
 
     async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, Any]:
         conditions = self._filter_conditions(saga_filter) if saga_filter else []

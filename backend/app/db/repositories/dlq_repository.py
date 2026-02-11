@@ -41,7 +41,7 @@ class DLQRepository:
         docs = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
         return DLQMessageListResult(
-            messages=[DLQMessage.model_validate(d, from_attributes=True) for d in docs],
+            messages=[DLQMessage.model_validate(d) for d in docs],
             total=total_count,
             offset=offset,
             limit=limit,
@@ -49,7 +49,7 @@ class DLQRepository:
 
     async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        return DLQMessage.model_validate(doc, from_attributes=True) if doc else None
+        return DLQMessage.model_validate(doc) if doc else None
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
@@ -136,7 +136,7 @@ class DLQRepository:
             .limit(limit)
             .to_list()
         )
-        return [DLQMessage.model_validate(doc, from_attributes=True) for doc in docs]
+        return [DLQMessage.model_validate(doc) for doc in docs]
 
     async def get_queue_sizes_by_topic(self) -> dict[str, int]:
         """Get message counts per topic for active (pending/scheduled) messages."""

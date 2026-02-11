@@ -102,7 +102,7 @@ class ExecutionMetrics(BaseMetrics):
         self.memory_usage.record(memory_mb, attributes={"lang_and_version": "resource_manager"})
 
     def update_gpu_available(self, count: int) -> None:
-        self.cpu_utilization.record(float(count), attributes={"resource": "gpu"})
+        self.cpu_utilization.record(count, attributes={"resource": "gpu"})
 
     def update_allocations_active(self, count: int) -> None:
-        self.memory_utilization_percent.record(float(count), attributes={"metric": "allocations"})
+        self.memory_utilization_percent.record(count, attributes={"metric": "allocations"})

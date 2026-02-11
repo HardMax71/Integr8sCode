@@ -146,7 +146,7 @@ class NotificationService:
                 "user_id": user_id,
                 "channel": channel,
                 "severity": str(severity),
-                "tags": list(tags),
+                "tags": tags,
                 "scheduled": scheduled_for is not None,
             },
         )

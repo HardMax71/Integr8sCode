@@ -129,7 +129,7 @@ class SagaService:
                 "user_id": user.user_id,
                 "count": len(result.sagas),
                 "total": result.total,
-                "state_filter": str(state) if state else None,
+                "state_filter": state,
             },
         )
         return result

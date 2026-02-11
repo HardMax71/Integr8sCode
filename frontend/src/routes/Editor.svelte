@@ -71,7 +71,7 @@
     let exampleScripts: Record<string, string> = {};
     let savedScripts = $state<SavedScript[]>([]);
     let showOptions = $state(false);
-    let editorSettings = $derived({ ...{ theme: 'auto', font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true }, ...userSettingsStore.editorSettings });
+    let editorSettings = $derived({ ...{ theme: 'auto' as const, font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true }, ...userSettingsStore.editorSettings });
     let fileInput: HTMLInputElement;
     let editorRef: CodeMirrorEditor;
     let nameEditedByUser = false;

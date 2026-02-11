@@ -48,7 +48,7 @@ The `csrf_token` cookie is readable by JavaScript so the frontend can include it
 Passwords are hashed using bcrypt via passlib:
 
 ```python
---8 < -- "backend/app/core/security.py:23:32"
+--8<-- "backend/app/core/security.py:23:32"
 ```
 
 ### JWT Creation
@@ -56,7 +56,7 @@ Passwords are hashed using bcrypt via passlib:
 JWTs are signed with HS256 using a secret key from settings:
 
 ```python
---8 < -- "backend/app/core/security.py:34:39"
+--8<-- "backend/app/core/security.py:34:39"
 ```
 
 The token payload contains the username in the `sub` claim and an expiration time. Token lifetime is configured via
@@ -69,7 +69,7 @@ The double-submit pattern requires the CSRF token to be sent in both a cookie an
 validates this for all authenticated POST/PUT/DELETE requests:
 
 ```python
---8 < -- "backend/app/core/security.py:77:107"
+--8<-- "backend/app/core/security.py:77:107"
 ```
 
 Safe methods (GET, HEAD, OPTIONS) and auth endpoints (login, register, logout) skip CSRF validation.
@@ -79,7 +79,7 @@ Safe methods (GET, HEAD, OPTIONS) and auth endpoints (login, register, logout) s
 Login sets cookies with security best practices:
 
 ```python
---8 < -- "backend/app/api/routes/auth.py:94:112"
+--8<-- "backend/app/api/routes/auth.py:94:112"
 ```
 
 | Setting    | Value  | Purpose                                     |
@@ -96,13 +96,13 @@ Login sets cookies with security best practices:
 The frontend maintains authentication state in a Svelte store with sessionStorage persistence:
 
 ```typescript
---8 < --"frontend/src/stores/auth.ts:9:17"
+--8<-- "frontend/src/stores/auth.ts:9:17"
 ```
 
 The store caches verification results for 30 seconds to reduce server load:
 
 ```typescript
---8 < --"frontend/src/stores/auth.ts:45:47"
+--8<-- "frontend/src/stores/auth.ts:45:47"
 ```
 
 ### CSRF Injection
@@ -110,7 +110,7 @@ The store caches verification results for 30 seconds to reduce server load:
 The API interceptor automatically adds the CSRF token header to all non-GET requests:
 
 ```typescript
---8 < --"frontend/src/lib/api-interceptors.ts:137:145"
+--8<-- "frontend/src/lib/api-interceptors.ts:137:145"
 ```
 
 ### Session Handling
@@ -119,7 +119,7 @@ On 401 responses, the interceptor clears auth state and redirects to login, pres
 post-login redirect:
 
 ```typescript
---8 < --"frontend/src/lib/api-interceptors.ts:64:81"
+--8<-- "frontend/src/lib/api-interceptors.ts:64:81"
 ```
 
 ## Login Lockout

@@ -2,14 +2,13 @@ import csv
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Any
 
-from beanie.odm.enums import SortDirection
-
+from app.db.docs.replay import ReplaySessionDocument
 from app.db.repositories import AdminEventsRepository
-from app.domain.admin import ReplaySessionStatusDetail, ReplaySessionUpdate
+from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
 from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events import (
     EventBrowseResult,
@@ -19,25 +18,25 @@ from app.domain.events import (
     EventStatistics,
     EventSummary,
 )
-from app.domain.exceptions import ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter
+from app.domain.exceptions import NotFoundError, ValidationError
+from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
 from app.services.event_replay import EventReplayService
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
-    """Convert EventExportRow to dict with display names."""
-    # Use mode="json" to auto-convert datetime to ISO string
+    """Convert EventExportRow to dict with CSV column names."""
     data = row.model_dump(mode="json")
+    meta = data.get("metadata", {})
     return {
         "Event ID": data["event_id"],
         "Event Type": data["event_type"],
         "Timestamp": data["timestamp"],
-        "Correlation ID": data["correlation_id"],
-        "Aggregate ID": data["aggregate_id"],
-        "User ID": data["user_id"],
-        "Service": data["service"],
-        "Status": data["status"],
-        "Error": data["error"],
+        "Correlation ID": meta.get("correlation_id") or "",
+        "Aggregate ID": data.get("aggregate_id") or "",
+        "User ID": meta.get("user_id") or "",
+        "Service": meta.get("service_name", ""),
+        "Status": "",
+        "Error": "",
     }
 
 
@@ -81,13 +80,8 @@ class AdminEventsService:
         event_filter: EventFilter,
         skip: int,
         limit: int,
-        sort_by: str,
-        sort_order: int,
     ) -> EventBrowseResult:
-        direction = SortDirection.DESCENDING if sort_order == -1 else SortDirection.ASCENDING
-        return await self._repo.browse_events(
-            event_filter=event_filter, skip=skip, limit=limit, sort_by=sort_by, sort_order=direction
-        )
+        return await self._repo.get_events_page(event_filter, skip=skip, limit=limit)
 
     async def get_event_detail(self, event_id: str) -> EventDetail | None:
         return await self._repo.get_event_detail(event_id)
@@ -106,7 +100,6 @@ class AdminEventsService:
         if replay_filter.is_empty():
             raise ValidationError("Must specify at least one filter for replay")
 
-        # Prepare and optionally preview
         self.logger.info(
             "Preparing replay session",
             extra={
@@ -114,11 +107,25 @@ class AdminEventsService:
                 "replay_correlation_id": replay_correlation_id,
             },
         )
-        session_data = await self._repo.prepare_replay_session(
-            replay_filter=replay_filter,
-            dry_run=dry_run,
+
+        event_count = await self._repo.count_events_for_replay(replay_filter)
+        if event_count == 0:
+            raise NotFoundError("Events", "matching criteria")
+
+        max_events = 1000
+        if event_count > max_events and not dry_run:
+            raise ValidationError(f"Too many events to replay ({event_count}). Maximum is {max_events}.")
+
+        events_preview: list[EventSummary] = []
+        if dry_run:
+            events_preview = await self._repo.get_events_preview_for_replay(replay_filter, limit=100)
+
+        session_data = ReplaySessionData(
+            total_events=event_count,
             replay_correlation_id=replay_correlation_id,
-            max_events=1000,
+            dry_run=dry_run,
+            filter=replay_filter,
+            events_preview=events_preview,
         )
 
         if dry_run:
@@ -185,15 +192,34 @@ class AdminEventsService:
         await self._replay_service.start_session(session_id)
 
     async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail | None:
-        status = await self._repo.get_replay_status_with_progress(session_id)
-        return status
+        doc = await self._repo.get_replay_session_doc(session_id)
+        if not doc:
+            return None
 
-    async def export_events_csv(self, event_filter: EventFilter) -> list[EventExportRow]:
-        rows = await self._repo.export_events_csv(event_filter)
-        return rows
+        now = datetime.now(timezone.utc)
+        estimated_completion = self._estimate_completion(doc, now)
+        session = ReplaySessionState.model_validate(doc)
+        execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
+
+        return ReplaySessionStatusDetail(
+            session=session,
+            estimated_completion=estimated_completion,
+            execution_results=execution_results,
+        )
+
+    def _estimate_completion(self, doc: ReplaySessionDocument, now: datetime) -> datetime | None:
+        if not doc.is_running or not doc.started_at or doc.replayed_events <= 0:
+            return None
+        elapsed = (now - doc.started_at).total_seconds()
+        if elapsed <= 0:
+            return None
+        rate = doc.replayed_events / elapsed
+        remaining = doc.total_events - doc.replayed_events
+        return now + timedelta(seconds=remaining / rate) if rate > 0 else None
 
     async def export_events_csv_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
-        rows = await self._repo.export_events_csv(event_filter)
+        events = await self._repo.get_events(event_filter, skip=0, limit=limit)
+        rows = [EventExportRow.model_validate(e, from_attributes=True) for e in events]
         output = StringIO()
         writer = csv.DictWriter(
             output,
@@ -210,7 +236,7 @@ class AdminEventsService:
             ],
         )
         writer.writeheader()
-        for row in rows[:limit]:
+        for row in rows:
             writer.writerow(_export_row_to_dict(row))
         output.seek(0)
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -224,11 +250,9 @@ class AdminEventsService:
         return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
     async def export_events_json_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
-        result = await self._repo.browse_events(
-            event_filter=event_filter, skip=0, limit=limit, sort_by="timestamp", sort_order=SortDirection.DESCENDING
-        )
+        events = await self._repo.get_events(event_filter, skip=0, limit=limit)
         # mode="json" auto-converts datetime fields to ISO strings
-        events_data = [event.model_dump(mode="json") for event in result.events]
+        events_data = [event.model_dump(mode="json") for event in events]
 
         export_data: dict[str, Any] = {
             "export_metadata": {

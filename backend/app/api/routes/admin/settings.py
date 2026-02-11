@@ -5,9 +5,9 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import admin_user
-from app.domain.admin import SystemSettings as DomainSystemSettings
+from app.domain.admin import SystemSettings
 from app.domain.user import User
-from app.schemas_pydantic.admin_settings import SystemSettings
+from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 from app.schemas_pydantic.common import ErrorResponse
 from app.services.admin import AdminSettingsService
 
@@ -18,20 +18,21 @@ router = APIRouter(
 
 @router.get(
     "/",
-    response_model=SystemSettings,
+    response_model=SystemSettingsSchema,
     responses={500: {"model": ErrorResponse, "description": "Failed to load system settings"}},
 )
 async def get_system_settings(
     admin: Annotated[User, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
-) -> SystemSettings:
+) -> SystemSettingsSchema:
     """Get the current system-wide settings."""
-    domain_settings = await service.get_system_settings(admin.username)
-    return SystemSettings.model_validate(domain_settings)
+    result = await service.get_system_settings(admin.username)
+    return SystemSettingsSchema.model_validate(result)
 
 
 @router.put(
     "/",
+    response_model=SystemSettingsSchema,
     responses={
         400: {"model": ErrorResponse, "description": "Invalid settings values"},
         422: {"model": ErrorResponse, "description": "Settings validation failed"},
@@ -40,28 +41,28 @@ async def get_system_settings(
 )
 async def update_system_settings(
     admin: Annotated[User, Depends(admin_user)],
-    settings: SystemSettings,
+    settings: SystemSettingsSchema,
     service: FromDishka[AdminSettingsService],
-) -> SystemSettings:
+) -> SystemSettingsSchema:
     """Replace system-wide settings."""
-    domain_settings = DomainSystemSettings(**settings.model_dump())
-    updated = await service.update_system_settings(
+    domain_settings = SystemSettings.model_validate(settings)
+    result = await service.update_system_settings(
         domain_settings,
         updated_by=admin.username,
         user_id=admin.user_id,
     )
-    return SystemSettings.model_validate(updated)
+    return SystemSettingsSchema.model_validate(result)
 
 
 @router.post(
     "/reset",
-    response_model=SystemSettings,
+    response_model=SystemSettingsSchema,
     responses={500: {"model": ErrorResponse, "description": "Failed to reset settings"}},
 )
 async def reset_system_settings(
     admin: Annotated[User, Depends(admin_user)],
     service: FromDishka[AdminSettingsService],
-) -> SystemSettings:
+) -> SystemSettingsSchema:
     """Reset system-wide settings to defaults."""
-    reset = await service.reset_system_settings(admin.username, admin.user_id)
-    return SystemSettings.model_validate(reset)
+    result = await service.reset_system_settings(admin.username, admin.user_id)
+    return SystemSettingsSchema.model_validate(result)

@@ -38,8 +38,6 @@ async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEv
         event_filter=EventFilter.model_validate(request.filters),
         skip=request.skip,
         limit=request.limit,
-        sort_by=request.sort_by,
-        sort_order=request.sort_order,
     )
 
     return EventBrowseResponse.model_validate(result)

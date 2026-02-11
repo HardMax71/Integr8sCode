@@ -46,9 +46,6 @@ class ReplayFilter(BaseModel):
     user_id: str | None = None
     service_name: str | None = None
 
-    # Escape hatch for complex queries
-    custom_query: dict[str, Any] | None = None
-
     def is_empty(self) -> bool:
         return not any(
             [
@@ -61,7 +58,6 @@ class ReplayFilter(BaseModel):
                 self.end_time,
                 self.user_id,
                 self.service_name,
-                self.custom_query,
             ]
         )
 
@@ -102,9 +98,6 @@ class ReplayFilter(BaseModel):
 
         if self.service_name:
             query["metadata.service_name"] = self.service_name
-
-        if self.custom_query:
-            query.update(self.custom_query)
 
         return query
 

@@ -18,6 +18,7 @@ from app.schemas_pydantic.user import (
     PasswordResetRequest,
     RateLimitUpdateRequest,
     RateLimitUpdateResponse,
+    UnlockResponse,
     UserCreate,
     UserListResponse,
     UserRateLimitsResponse,
@@ -25,6 +26,7 @@ from app.schemas_pydantic.user import (
     UserUpdate,
 )
 from app.services.admin import AdminUserService
+from app.services.login_lockout import LoginLockoutService
 
 router = APIRouter(
     prefix="/admin/users", tags=["admin", "users"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -212,3 +214,22 @@ async def reset_user_rate_limits(
     """Reset a user's rate limits to defaults."""
     await admin_user_service.reset_user_rate_limits(admin_username=admin.username, user_id=user_id)
     return MessageResponse(message=f"Rate limits reset successfully for user {user_id}")
+
+
+@router.post(
+    "/{user_id}/unlock",
+    response_model=UnlockResponse,
+    responses={404: {"model": ErrorResponse, "description": "User not found"}},
+)
+async def unlock_user(
+    admin: Annotated[User, Depends(admin_user)],
+    user_id: str,
+    admin_user_service: FromDishka[AdminUserService],
+    lockout_service: FromDishka[LoginLockoutService],
+) -> UnlockResponse:
+    """Unlock a user account that was locked due to failed login attempts."""
+    user = await admin_user_service.get_user(admin_username=admin.username, user_id=user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    await lockout_service.unlock_user(user.username)
+    return UnlockResponse(user_id=user_id, message="Account unlocked")

@@ -2,11 +2,18 @@ import logging
 
 from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
+from app.services.runtime_settings import RuntimeSettingsLoader
 
 
 class AdminSettingsService:
-    def __init__(self, repository: AdminSettingsRepository, logger: logging.Logger):
+    def __init__(
+        self,
+        repository: AdminSettingsRepository,
+        runtime_settings: RuntimeSettingsLoader,
+        logger: logging.Logger,
+    ):
         self._repo = repository
+        self._runtime_settings = runtime_settings
         self.logger = logger
 
     async def get_system_settings(self, admin_username: str) -> SystemSettings:
@@ -14,8 +21,7 @@ class AdminSettingsService:
             "Admin retrieving system settings",
             extra={"admin_username": admin_username},
         )
-        settings = await self._repo.get_system_settings()
-        return settings
+        return await self._runtime_settings.get_effective_settings()
 
     async def update_system_settings(
         self,
@@ -28,16 +34,16 @@ class AdminSettingsService:
             extra={"admin_username": updated_by},
         )
         updated = await self._repo.update_system_settings(settings=settings, updated_by=updated_by, user_id=user_id)
+        self._runtime_settings.invalidate_cache()
         self.logger.info("System settings updated successfully")
         return updated
 
     async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
-        # Reset (with audit) and return fresh defaults persisted via get
         self.logger.info(
             "Admin resetting system settings to defaults",
             extra={"admin_username": username},
         )
         await self._repo.reset_system_settings(username=username, user_id=user_id)
-        settings = await self._repo.get_system_settings()
+        self._runtime_settings.invalidate_cache()
         self.logger.info("System settings reset to defaults")
-        return settings
+        return await self._runtime_settings.get_effective_settings()

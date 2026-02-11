@@ -60,6 +60,7 @@ from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
 from app.services.kafka_event_service import KafkaEventService
+from app.services.login_lockout import LoginLockoutService
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor.config import PodMonitorConfig
@@ -68,6 +69,7 @@ from app.services.pod_monitor.monitor import ErrorType, PodMonitor
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor.processor import ResultProcessor
 from app.services.result_processor.resource_cleaner import ResourceCleaner
+from app.services.runtime_settings import RuntimeSettingsLoader
 from app.services.saga import SagaOrchestrator
 from app.services.saga.saga_service import SagaService
 from app.services.saved_script_service import SavedScriptService
@@ -554,6 +556,24 @@ class UserServicesProvider(Provider):
 class AdminServicesProvider(Provider):
     scope = Scope.APP
 
+    @provide
+    def get_runtime_settings_loader(
+            self,
+            admin_settings_repository: AdminSettingsRepository,
+            settings: Settings,
+            logger: logging.Logger,
+    ) -> RuntimeSettingsLoader:
+        return RuntimeSettingsLoader(admin_settings_repository, settings, logger)
+
+    @provide
+    def get_login_lockout_service(
+            self,
+            redis_client: redis.Redis,
+            runtime_settings: RuntimeSettingsLoader,
+            logger: logging.Logger,
+    ) -> LoginLockoutService:
+        return LoginLockoutService(redis_client, runtime_settings, logger)
+
     @provide(scope=Scope.REQUEST)
     def get_admin_events_service(
             self,
@@ -567,9 +587,10 @@ class AdminServicesProvider(Provider):
     def get_admin_settings_service(
             self,
             admin_settings_repository: AdminSettingsRepository,
+            runtime_settings: RuntimeSettingsLoader,
             logger: logging.Logger,
     ) -> AdminSettingsService:
-        return AdminSettingsService(admin_settings_repository, logger)
+        return AdminSettingsService(admin_settings_repository, runtime_settings, logger)
 
     @provide
     def get_notification_service(
@@ -668,6 +689,7 @@ class BusinessServicesProvider(Provider):
             logger: logging.Logger,
             execution_metrics: ExecutionMetrics,
             idempotency_manager: IdempotencyManager,
+            runtime_settings: RuntimeSettingsLoader,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
@@ -676,6 +698,7 @@ class BusinessServicesProvider(Provider):
             logger=logger,
             execution_metrics=execution_metrics,
             idempotency_manager=idempotency_manager,
+            runtime_settings=runtime_settings,
         )
 
     @provide

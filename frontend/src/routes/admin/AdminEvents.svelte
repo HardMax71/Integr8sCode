@@ -102,9 +102,7 @@
                     end_time: filters.end_time ? new Date(filters.end_time).toISOString() : null
                 },
                 skip,
-                limit: pageSize,
-                sort_by: 'timestamp',
-                sort_order: -1
+                limit: pageSize
             }
         }), null);
         loading = false;

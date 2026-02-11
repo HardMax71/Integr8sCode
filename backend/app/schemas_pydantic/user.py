@@ -127,6 +127,15 @@ class LoginResponse(BaseModel):
 
 
 
+class UnlockResponse(BaseModel):
+    """Response model for account unlock."""
+
+    user_id: str
+    message: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DeleteUserResponse(BaseModel):
     """Response model for user deletion."""
 

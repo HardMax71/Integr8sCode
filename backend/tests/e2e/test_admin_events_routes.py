@@ -43,8 +43,6 @@ class TestBrowseEvents:
             filters=EventFilter(),
             skip=0,
             limit=50,
-            sort_by="timestamp",
-            sort_order=-1,
         )
         response = await test_admin.post(
             "/api/v1/admin/events/browse", json=request.model_dump()

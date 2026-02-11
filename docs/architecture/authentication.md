@@ -122,6 +122,37 @@ post-login redirect:
 --8<-- "frontend/src/lib/api-interceptors.ts:64:81"
 ```
 
+## Login Lockout
+
+After repeated failed login attempts, the account is temporarily locked to prevent brute-force attacks. The backend
+tracks attempts per username in Redis with a sliding-window TTL — each failed attempt resets the lockout timer.
+
+When the attempt threshold is reached, subsequent login attempts return **HTTP 423 (Locked)** with the detail
+`"Account locked due to too many failed attempts"`. The lockout applies identically whether the username exists or not,
+preventing username enumeration.
+
+The lockout parameters are configured via `SystemSettings`:
+
+| Setting                    | Default | Description                          |
+|----------------------------|---------|--------------------------------------|
+| `max_login_attempts`       | 5       | Failed attempts before lockout       |
+| `lockout_duration_minutes` | 15      | How long the lockout lasts (minutes) |
+
+The frontend displays a warning toast for 423 responses via the API interceptor.
+
+## Registration Errors
+
+Registration distinguishes between conflict types:
+
+| Condition          | HTTP Status | Detail                                           |
+|--------------------|-------------|--------------------------------------------------|
+| Username taken     | 409         | `Username already registered`                    |
+| Email taken        | 409         | `User already exists`                            |
+| Password too short | 400         | `Password must be at least {min_len} characters` |
+
+The minimum password length is enforced at both the schema level (`min_length=8` on `UserCreate`) and at runtime
+from `SystemSettings.password_min_length` (default: 8, configurable by admins).
+
 ## Endpoints
 
 <swagger-ui src="../reference/openapi.json" filter="authentication" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
@@ -136,10 +167,11 @@ Security-critical operations should use `verifyAuth(forceRefresh=true)` to bypas
 
 ## Key Files
 
-| File                                                                                                                   | Purpose                        |
-|------------------------------------------------------------------------------------------------------------------------|--------------------------------|
-| [`core/security.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py)                 | JWT, password, CSRF utilities  |
-| [`services/auth_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/auth_service.py) | Auth service layer             |
-| [`api/routes/auth.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/auth.py)             | Auth endpoints                 |
-| [`stores/auth.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.ts)                    | Frontend auth state            |
-| [`api-interceptors.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/lib/api-interceptors.ts)      | CSRF injection, error handling |
+| File                                                                                                                     | Purpose                        |
+|--------------------------------------------------------------------------------------------------------------------------|--------------------------------|
+| [`core/security.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py)                   | JWT, password, CSRF utilities  |
+| [`services/auth_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/auth_service.py)   | Auth service layer             |
+| [`api/routes/auth.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/auth.py)               | Auth endpoints                 |
+| [`services/login_lockout.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/login_lockout.py) | Redis-backed login lockout     |
+| [`stores/auth.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.ts)                      | Frontend auth state            |
+| [`api-interceptors.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/lib/api-interceptors.ts)        | CSRF injection, error handling |

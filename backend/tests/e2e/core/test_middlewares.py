@@ -250,8 +250,8 @@ class TestRateLimitMiddleware:
                 "/api/v1/auth/login",
                 data={"username": "test", "password": "wrong"},
             )
-            # Should be 401 (auth failed), not 429 (rate limited)
-            assert response.status_code == 401
+            # Should never be 429 (rate limited) — auth endpoints are exempt
+            assert response.status_code != 429
 
 
 class TestMiddlewareOrder:

@@ -1,7 +1,7 @@
 from dataclasses import field
 from datetime import datetime
 
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict
 from pydantic.dataclasses import dataclass
 
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
@@ -9,9 +9,10 @@ from app.domain.events import EventSummary, ResourceUsageDomain
 from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
-class ExecutionResultSummary:
+class ExecutionResultSummary(BaseModel):
     """Summary of an execution result for replay status."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     execution_id: str
     status: ExecutionStatus | None

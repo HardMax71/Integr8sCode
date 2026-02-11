@@ -152,34 +152,6 @@ class EventInDB(EventBase):
     ttl_expires_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=30))
 
 
-class EventQuery(BaseModel):
-    """Query parameters for event search."""
-
-    event_types: list[EventType] | None = None
-    aggregate_id: str | None = None
-    correlation_id: str | None = None
-    user_id: str | None = None
-    service_name: str | None = None
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    search_text: str | None = None
-    limit: int = Field(default=100, ge=1, le=1000)
-    skip: int = Field(default=0, ge=0)
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "event_types": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED],
-                "user_id": "user-123",
-                "start_time": "2024-01-20T00:00:00Z",
-                "end_time": "2024-01-20T23:59:59Z",
-                "limit": 100,
-                "skip": 0,
-            }
-        }
-    )
-
-
 class EventStatistics(BaseModel):
     """Event statistics response."""
 

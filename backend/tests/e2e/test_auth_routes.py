@@ -113,7 +113,7 @@ class TestAuthRegister:
             "/api/v1/auth/register", json=second_request.model_dump()
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 409
         assert response.json()["detail"] == "Username already registered"
 
     @pytest.mark.asyncio

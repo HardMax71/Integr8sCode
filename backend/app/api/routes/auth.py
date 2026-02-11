@@ -19,7 +19,8 @@ from app.schemas_pydantic.user import (
     UserResponse,
 )
 from app.services.auth_service import AuthService
-from app.settings import Settings
+from app.services.login_lockout import LoginLockoutService
+from app.services.runtime_settings import RuntimeSettingsLoader
 
 router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRoute)
 
@@ -27,14 +28,18 @@ router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRo
 @router.post(
     "/login",
     response_model=LoginResponse,
-    responses={401: {"model": ErrorResponse, "description": "Invalid username or password"}},
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid username or password"},
+        423: {"model": ErrorResponse, "description": "Account temporarily locked"},
+    },
 )
 async def login(
     request: Request,
     response: Response,
     user_repo: FromDishka[UserRepository],
     security_service: FromDishka[SecurityService],
-    settings: FromDishka[Settings],
+    runtime_settings: FromDishka[RuntimeSettingsLoader],
+    lockout_service: FromDishka[LoginLockoutService],
     logger: FromDishka[logging.Logger],
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
@@ -49,6 +54,12 @@ async def login(
         },
     )
 
+    if await lockout_service.check_locked(form_data.username):
+        raise HTTPException(
+            status_code=423,
+            detail="Account temporarily locked due to too many failed attempts",
+        )
+
     user = await user_repo.get_user(form_data.username)
 
     if not user:
@@ -60,6 +71,12 @@ async def login(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
+        locked = await lockout_service.record_failed_attempt(form_data.username)
+        if locked:
+            raise HTTPException(
+                status_code=423,
+                detail="Account locked due to too many failed attempts",
+            )
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials",
@@ -75,11 +92,22 @@ async def login(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
+        locked = await lockout_service.record_failed_attempt(form_data.username)
+        if locked:
+            raise HTTPException(
+                status_code=423,
+                detail="Account locked due to too many failed attempts",
+            )
         raise HTTPException(
             status_code=401,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    await lockout_service.clear_attempts(form_data.username)
+
+    effective = await runtime_settings.get_effective_settings()
+    session_timeout = effective.session_timeout_minutes
 
     logger.info(
         "Login successful",
@@ -87,11 +115,11 @@ async def login(
             "username": user.username,
             "client_ip": get_client_ip(request),
             "user_agent": request.headers.get("user-agent"),
-            "token_expires_in_minutes": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+            "token_expires_in_minutes": session_timeout,
         },
     )
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=session_timeout)
     access_token = security_service.create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
     csrf_token = security_service.generate_csrf_token(access_token)
@@ -99,7 +127,7 @@ async def login(
     response.set_cookie(
         key="access_token",
         value=access_token,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+        max_age=session_timeout * 60,  # Convert to seconds
         httponly=True,
         secure=True,  # HTTPS only
         samesite="strict",  # CSRF protection
@@ -109,7 +137,7 @@ async def login(
     response.set_cookie(
         key="csrf_token",
         value=csrf_token,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=session_timeout * 60,
         httponly=False,  # JavaScript needs to read this
         secure=True,
         samesite="strict",
@@ -131,7 +159,7 @@ async def login(
     "/register",
     response_model=UserResponse,
     responses={
-        400: {"model": ErrorResponse, "description": "Username already registered"},
+        400: {"model": ErrorResponse, "description": "Password too short"},
         409: {"model": ErrorResponse, "description": "User already exists"},
     },
 )
@@ -140,6 +168,7 @@ async def register(
     user: UserCreate,
     user_repo: FromDishka[UserRepository],
     security_service: FromDishka[SecurityService],
+    runtime_settings: FromDishka[RuntimeSettingsLoader],
     logger: FromDishka[logging.Logger],
 ) -> UserResponse:
     """Register a new user account."""
@@ -153,6 +182,11 @@ async def register(
         },
     )
 
+    effective = await runtime_settings.get_effective_settings()
+    min_len = effective.password_min_length
+    if len(user.password) < min_len:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {min_len} characters")
+
     db_user = await user_repo.get_user(user.username)
     if db_user:
         logger.warning(
@@ -163,7 +197,7 @@ async def register(
                 "user_agent": request.headers.get("user-agent"),
             },
         )
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=409, detail="Username already registered")
 
     hashed_password = security_service.get_password_hash(user.password)
     create_data = DomainUserCreate(

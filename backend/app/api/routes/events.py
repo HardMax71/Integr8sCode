@@ -4,11 +4,10 @@ from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user, current_user
 from app.core.correlation import CorrelationContext
-from app.core.utils import get_client_ip
 from app.domain.enums import EventType, SortOrder, UserRole
 from app.domain.events import BaseEvent, DomainEvent, EventFilter, EventMetadata
 from app.domain.user import User
@@ -209,7 +208,6 @@ async def get_event(
 async def publish_custom_event(
     admin: Annotated[User, Depends(admin_user)],
     event_request: PublishEventRequest,
-    request: Request,
     event_service: FromDishka[KafkaEventService],
     settings: FromDishka[Settings],
 ) -> PublishEventResponse:
@@ -218,8 +216,6 @@ async def publish_custom_event(
         service_name=settings.SERVICE_NAME,
         service_version=settings.SERVICE_VERSION,
         user_id=admin.user_id,
-        ip_address=get_client_ip(request),
-        user_agent=request.headers.get("user-agent"),
     )
     # Merge any additional metadata provided in request (extra allowed)
     if event_request.metadata:

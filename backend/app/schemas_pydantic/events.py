@@ -44,8 +44,6 @@ class EventMetadataResponse(BaseModel):
     service_version: str
     correlation_id: str
     user_id: str | None = None
-    ip_address: str | None = None
-    user_agent: str | None = None
     environment: Environment = Environment.PRODUCTION
 
 
@@ -132,7 +130,6 @@ class EventBase(BaseModel):
                     "user_id": "user-789",
                     "service_name": "api-gateway",
                     "service_version": "1.0.0",
-                    "ip_address": "192.168.1.1",
                 },
                 "payload": {
                     "execution_id": "execution-123",

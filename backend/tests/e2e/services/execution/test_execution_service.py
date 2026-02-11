@@ -57,8 +57,7 @@ class TestExecuteScript:
         result = await svc.execute_script(
             script="print('hello world')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -83,11 +82,9 @@ class TestExecuteScript:
         result = await svc.execute_script(
             script="import time; time.sleep(1); print('done')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
-            timeout_override=30,
         )
 
         assert result.execution_id is not None
@@ -108,8 +105,7 @@ class TestExecuteScript:
         result1 = await svc.execute_script(
             script="print(1)",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -117,8 +113,7 @@ class TestExecuteScript:
         result2 = await svc.execute_script(
             script="print(2)",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -139,8 +134,7 @@ class TestGetExecutionResult:
         exec_result = await svc.execute_script(
             script="print('test')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -176,8 +170,7 @@ class TestGetExecutionEvents:
         exec_result = await exec_svc.execute_script(
             script="print('events test')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -203,8 +196,7 @@ class TestGetExecutionEvents:
         exec_result = await exec_svc.execute_script(
             script="print('filter test')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -233,8 +225,7 @@ class TestGetUserExecutions:
             await svc.execute_script(
                 script=f"print({i})",
                 user_id=user_id,
-                client_ip="127.0.0.1",
-                user_agent="pytest",
+
                 lang="python",
                 lang_version="3.11",
             )
@@ -260,8 +251,7 @@ class TestGetUserExecutions:
             await svc.execute_script(
                 script=f"print({i})",
                 user_id=user_id,
-                client_ip="127.0.0.1",
-                user_agent="pytest",
+
                 lang="python",
                 lang_version="3.11",
             )
@@ -290,8 +280,7 @@ class TestGetUserExecutions:
         await svc.execute_script(
             script="print('python')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -322,8 +311,7 @@ class TestCountUserExecutions:
             await svc.execute_script(
                 script="print('count')",
                 user_id=user_id,
-                client_ip="127.0.0.1",
-                user_agent="pytest",
+
                 lang="python",
                 lang_version="3.11",
             )
@@ -347,8 +335,7 @@ class TestDeleteExecution:
         exec_result = await svc.execute_script(
             script="print('to delete')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -386,8 +373,7 @@ class TestGetExecutionStats:
             await svc.execute_script(
                 script=f"print({i})",
                 user_id=user_id,
-                client_ip="127.0.0.1",
-                user_agent="pytest",
+
                 lang="python",
                 lang_version="3.11",
             )

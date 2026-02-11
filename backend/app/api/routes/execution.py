@@ -23,7 +23,6 @@ from app.schemas_pydantic.execution import (
     ExecutionResponse,
     ExecutionResult,
     ResourceLimits,
-    RetryExecutionRequest,
 )
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
@@ -75,8 +74,6 @@ async def create_execution(
         lang=execution.lang,
         lang_version=execution.lang_version,
         user_id=current_user.user_id,
-        client_ip=get_client_ip(request),
-        user_agent=request.headers.get("user-agent"),
         idempotency_key=idempotency_key,
     )
     return ExecutionResponse.model_validate(exec_result)
@@ -129,8 +126,6 @@ async def cancel_execution(
 async def retry_execution(
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         current_user: Annotated[User, Depends(current_user)],
-        retry_request: RetryExecutionRequest,
-        request: Request,
         execution_service: FromDishka[ExecutionService],
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
@@ -138,16 +133,11 @@ async def retry_execution(
     if original_execution.status in [ExecutionStatus.RUNNING, ExecutionStatus.QUEUED]:
         raise HTTPException(status_code=400, detail=f"Cannot retry execution in {original_execution.status} state")
 
-    # Convert UserResponse to User object
-    client_ip = get_client_ip(request)
-    user_agent = request.headers.get("user-agent")
     new_result = await execution_service.execute_script(
         script=original_execution.script,
         lang=original_execution.lang,
         lang_version=original_execution.lang_version,
         user_id=current_user.user_id,
-        client_ip=client_ip,
-        user_agent=user_agent,
     )
     return ExecutionResponse.model_validate(new_result)
 

@@ -65,7 +65,7 @@ class TestEventSchemaCoverage:
 
         assert not missing, (
             f"Missing domain event classes for {len(missing)} EventType(s):\n"
-            + "\n".join(f"  - {et.value}: needs a class in typed.py" for et in sorted(missing, key=lambda x: x.value))
+            + "\n".join(f"  - {et}: needs a class in typed.py" for et in sorted(missing))
         )
 
     def test_all_event_types_have_kafka_event_class(self) -> None:
@@ -78,8 +78,8 @@ class TestEventSchemaCoverage:
         assert not missing, (
             f"Missing Kafka event classes for {len(missing)} EventType(s):\n"
             + "\n".join(
-                f"  - {et.value}: needs a class in infrastructure/kafka/events/"
-                for et in sorted(missing, key=lambda x: x.value)
+                f"  - {et}: needs a class in infrastructure/kafka/events/"
+                for et in sorted(missing)
             )
         )
 
@@ -97,7 +97,7 @@ class TestEventSchemaCoverage:
                 # "validation error" means type IS recognized but fields are missing - that's fine
                 # "no match" or "discriminator" means type is NOT in union - that's a failure
                 if "no match" in error_str or "unable to extract" in error_str:
-                    errors.append(f"  - {et.value}: not in DomainEvent union")
+                    errors.append(f"  - {et}: not in DomainEvent union")
 
         assert not errors, f"DomainEventAdapter missing {len(errors)} type(s):\n" + "\n".join(errors)
 
@@ -154,7 +154,7 @@ class TestEventSchemaCoverage:
             if domain_cls and kafka_cls:
                 if domain_cls.__name__ != kafka_cls.__name__:
                     mismatches.append(
-                        f"  - {et.value}: domain={domain_cls.__name__}, kafka={kafka_cls.__name__}"
+                        f"  - {et}: domain={domain_cls.__name__}, kafka={kafka_cls.__name__}"
                     )
 
         assert not mismatches, (

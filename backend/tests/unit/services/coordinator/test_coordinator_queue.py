@@ -5,7 +5,7 @@ import pytest
 from app.core.metrics import CoordinatorMetrics
 from app.domain.enums import QueuePriority
 from app.domain.events import ExecutionRequestedEvent
-from app.services.coordinator.coordinator import ExecutionCoordinator, QueueRejectError
+from app.services.coordinator import ExecutionCoordinator, QueueRejectError
 
 from tests.conftest import make_execution_requested_event
 

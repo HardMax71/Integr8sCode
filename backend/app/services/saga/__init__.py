@@ -9,10 +9,12 @@ from app.services.saga.execution_saga import (
     ValidateExecutionStep,
 )
 from app.services.saga.saga_orchestrator import SagaOrchestrator
+from app.services.saga.saga_service import SagaService
 from app.services.saga.saga_step import CompensationStep, SagaContext, SagaStep
 
 __all__ = [
     "SagaOrchestrator",
+    "SagaService",
     "SagaConfig",
     "SagaState",
     "SagaInstance",

@@ -32,7 +32,7 @@ async def _create_dlq_document(
 
     doc = DLQMessageDocument(
         event=event_dict,
-        original_topic=str(KafkaTopic.EXECUTION_EVENTS),
+        original_topic=KafkaTopic.EXECUTION_EVENTS,
         error="Test error",
         retry_count=0,
         failed_at=now,

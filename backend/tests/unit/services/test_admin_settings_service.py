@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.domain.admin import SystemSettings
-from app.services.admin.admin_settings_service import AdminSettingsService
+from app.services.admin import AdminSettingsService
 
 pytestmark = pytest.mark.unit
 

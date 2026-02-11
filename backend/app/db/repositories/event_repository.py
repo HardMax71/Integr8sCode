@@ -8,8 +8,7 @@ from beanie.operators import GTE, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
 from pymongo.errors import DuplicateKeyError
 
-from app.core.tracing import EventAttributes
-from app.core.tracing.utils import add_span_attributes
+from app.core.tracing import EventAttributes, add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums import EventType
 from app.domain.events import (
@@ -47,7 +46,7 @@ class EventRepository:
         doc = EventDocument(**data)
         add_span_attributes(
             **{
-                str(EventAttributes.EVENT_TYPE): str(event.event_type),
+                str(EventAttributes.EVENT_TYPE): event.event_type,
                 str(EventAttributes.EVENT_ID): event.event_id,
                 str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
             }

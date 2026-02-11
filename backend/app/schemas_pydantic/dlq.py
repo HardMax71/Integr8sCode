@@ -74,7 +74,7 @@ class DLQTopicSummaryResponse(BaseModel):
 
     topic: str
     total_messages: int
-    status_breakdown: dict[str, int]
+    status_breakdown: dict[DLQMessageStatus, int]
     oldest_message: datetime
     newest_message: datetime
     avg_retry_count: float

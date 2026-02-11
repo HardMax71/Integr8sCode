@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics import DatabaseMetrics
+from app.domain.enums import EventType
 from app.domain.events import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
@@ -88,7 +89,7 @@ class IdempotencyManager:
         self,
         existing: IdempotencyRecord,
         full_key: str,
-        event_type: str,
+        event_type: EventType,
     ) -> IdempotencyResult:
         status = existing.status
         if status == IdempotencyStatus.PROCESSING:
@@ -111,7 +112,7 @@ class IdempotencyManager:
         self,
         existing: IdempotencyRecord,
         full_key: str,
-        event_type: str,
+        event_type: EventType,
     ) -> IdempotencyResult:
         created_at = existing.created_at
         now = datetime.now(timezone.utc)
@@ -141,7 +142,7 @@ class IdempotencyManager:
                 key=full_key,
                 status=IdempotencyStatus.PROCESSING,
                 event_type=event.event_type,
-                event_id=str(event.event_id),
+                event_id=event.event_id,
                 created_at=created_at,
                 ttl_seconds=ttl,
             )

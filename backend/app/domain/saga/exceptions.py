@@ -1,3 +1,4 @@
+from app.domain.enums import SagaState
 from app.domain.exceptions import ConflictError, ForbiddenError, InfrastructureError, InvalidStateError, NotFoundError
 
 
@@ -20,7 +21,7 @@ class SagaAccessDeniedError(ForbiddenError):
 class SagaInvalidStateError(InvalidStateError):
     """Raised when a saga operation is invalid for the current state."""
 
-    def __init__(self, saga_id: str, current_state: str, operation: str) -> None:
+    def __init__(self, saga_id: str, current_state: SagaState, operation: str) -> None:
         self.saga_id = saga_id
         self.current_state = current_state
         self.operation = operation

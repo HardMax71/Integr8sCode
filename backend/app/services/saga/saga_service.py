@@ -145,7 +145,7 @@ class SagaService:
 
         # Check if saga can be cancelled
         if saga.state not in [SagaState.RUNNING, SagaState.CREATED]:
-            raise SagaInvalidStateError(saga_id, str(saga.state), "cancel")
+            raise SagaInvalidStateError(saga_id, saga.state, "cancel")
 
         # Use orchestrator to cancel
         success = await self.orchestrator.cancel_saga(saga_id)

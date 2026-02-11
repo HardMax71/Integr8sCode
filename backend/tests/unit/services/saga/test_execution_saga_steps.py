@@ -3,15 +3,15 @@ from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 from app.events.core import UnifiedProducer
-from app.services.saga.execution_saga import (
+from app.services.saga import (
     AllocateResourcesStep,
     CreatePodStep,
     DeletePodCompensation,
     ExecutionSaga,
     ReleaseResourcesCompensation,
+    SagaContext,
     ValidateExecutionStep,
 )
-from app.services.saga.saga_step import SagaContext
 
 from tests.conftest import make_execution_requested_event
 

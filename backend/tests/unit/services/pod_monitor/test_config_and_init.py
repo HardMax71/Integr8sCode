@@ -1,7 +1,7 @@
 import importlib
 
 import pytest
-from app.services.pod_monitor.config import PodMonitorConfig
+from app.services.pod_monitor import PodMonitorConfig
 
 pytestmark = pytest.mark.unit
 
@@ -16,4 +16,11 @@ def test_pod_monitor_config_defaults() -> None:
 
 def test_package_exports() -> None:
     mod = importlib.import_module("app.services.pod_monitor")
-    assert set(mod.__all__) == {"PodMonitor", "PodMonitorConfig", "PodEventMapper"}
+    assert set(mod.__all__) == {
+        "ErrorType",
+        "PodContext",
+        "PodEventMapper",
+        "PodMonitor",
+        "PodMonitorConfig",
+        "WatchEventType",
+    }

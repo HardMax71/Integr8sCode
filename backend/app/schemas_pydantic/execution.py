@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums import ExecutionErrorType, ExecutionStatus
+from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus
 from app.runtime_registry import SUPPORTED_RUNTIMES
 
 
@@ -160,7 +160,7 @@ class CancelResponse(BaseModel):
     """Model for execution cancellation response."""
 
     execution_id: str
-    status: str
+    status: CancelStatus
     message: str
     event_id: str | None = Field(None, description="Event ID for the cancellation event, if published")
 

@@ -8,7 +8,7 @@ from app.domain.execution import DomainExecutionCreate
 from app.domain.saga import Saga, SagaAccessDeniedError, SagaListResult, SagaNotFoundError
 from app.domain.user import User
 from app.services.execution_service import ExecutionService
-from app.services.saga.saga_service import SagaService
+from app.services.saga import SagaService
 from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]

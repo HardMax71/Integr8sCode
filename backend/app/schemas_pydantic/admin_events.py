@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums import EventType
+from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import DomainEvent, EventSummary
 from app.domain.replay import ReplayError
 from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
@@ -72,7 +72,7 @@ class EventReplayResponse(BaseModel):
     total_events: int
     replay_correlation_id: str
     session_id: str | None = None
-    status: str
+    status: ReplayStatus
     events_preview: list[EventSummary] | None = None
 
 
@@ -82,7 +82,7 @@ class EventReplayStatusResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     session_id: str
-    status: str
+    status: ReplayStatus
     total_events: int
     replayed_events: int
     failed_events: int

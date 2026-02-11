@@ -565,7 +565,7 @@ class DLQMessageReceivedEvent(BaseEvent):
     event_type: Literal[EventType.DLQ_MESSAGE_RECEIVED] = EventType.DLQ_MESSAGE_RECEIVED
     dlq_event_id: str  # The event_id of the failed message
     original_topic: str
-    original_event_type: str
+    original_event_type: EventType
     error: str
     retry_count: int
     producer_id: str
@@ -578,7 +578,7 @@ class DLQMessageRetriedEvent(BaseEvent):
     event_type: Literal[EventType.DLQ_MESSAGE_RETRIED] = EventType.DLQ_MESSAGE_RETRIED
     dlq_event_id: str  # The event_id of the retried message
     original_topic: str
-    original_event_type: str
+    original_event_type: EventType
     retry_count: int  # New retry count after this retry
     retry_topic: str  # Topic the message was retried to
 
@@ -589,7 +589,7 @@ class DLQMessageDiscardedEvent(BaseEvent):
     event_type: Literal[EventType.DLQ_MESSAGE_DISCARDED] = EventType.DLQ_MESSAGE_DISCARDED
     dlq_event_id: str  # The event_id of the discarded message
     original_topic: str
-    original_event_type: str
+    original_event_type: EventType
     reason: str
     retry_count: int  # Final retry count when discarded
 

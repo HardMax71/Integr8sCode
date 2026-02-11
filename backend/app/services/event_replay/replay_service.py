@@ -271,7 +271,7 @@ class EventReplayService:
             "Replay session finished",
             extra={
                 "session_id": session.session_id,
-                "status": session.status.value if hasattr(session.status, "value") else session.status,
+                "status": session.status,
                 "replayed_events": session.replayed_events,
                 "failed_events": session.failed_events,
             },

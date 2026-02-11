@@ -200,7 +200,7 @@ class TestSetRetryPolicy:
             (RetryStrategy.FIXED_INTERVAL, "test-topic"),
             (RetryStrategy.SCHEDULED, "notifications-topic"),
         ],
-        ids=lambda v: v if isinstance(v, str) else v.value,
+        ids=str,
     )
     async def test_set_retry_policy(
         self, test_admin: AsyncClient, strategy: RetryStrategy, topic: str

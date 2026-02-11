@@ -5,7 +5,7 @@ from typing import Callable
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
-from app.core.tracing.utils import inject_trace_context
+from app.core.tracing import inject_trace_context
 from app.db.repositories import DLQRepository
 from app.dlq.models import (
     DLQBatchRetryResult,
@@ -92,7 +92,7 @@ class DLQManager:
             DLQMessageReceivedEvent(
                 dlq_event_id=message.event.event_id,
                 original_topic=message.original_topic,
-                original_event_type=str(message.event.event_type),
+                original_event_type=message.event.event_type,
                 error=message.error,
                 retry_count=message.retry_count,
                 producer_id=message.producer_id,
@@ -155,7 +155,7 @@ class DLQManager:
             DLQMessageRetriedEvent(
                 dlq_event_id=message.event.event_id,
                 original_topic=message.original_topic,
-                original_event_type=str(message.event.event_type),
+                original_event_type=message.event.event_type,
                 retry_count=new_retry_count,
                 retry_topic=message.original_topic,
                 metadata=EventMetadata(
@@ -185,7 +185,7 @@ class DLQManager:
             DLQMessageDiscardedEvent(
                 dlq_event_id=message.event.event_id,
                 original_topic=message.original_topic,
-                original_event_type=str(message.event.event_type),
+                original_event_type=message.event.event_type,
                 reason=reason,
                 retry_count=message.retry_count,
                 metadata=EventMetadata(

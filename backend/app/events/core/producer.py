@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
-from app.core.tracing.utils import inject_trace_context
+from app.core.tracing import inject_trace_context
 from app.db.repositories import EventRepository
 from app.dlq.models import DLQMessageStatus
 from app.domain.enums import KafkaTopic

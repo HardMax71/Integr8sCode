@@ -8,7 +8,7 @@ import backoff
 import httpx
 
 from app.core.metrics import NotificationMetrics
-from app.core.tracing.utils import add_span_attributes
+from app.core.tracing import add_span_attributes
 from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
@@ -333,7 +333,7 @@ class NotificationService:
 
         payload = {
             "notification_id": str(notification.notification_id),
-            "severity": str(notification.severity),
+            "severity": notification.severity,
             "tags": list(notification.tags or []),
             "subject": notification.subject,
             "body": notification.body,

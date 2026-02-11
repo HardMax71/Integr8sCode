@@ -142,7 +142,7 @@ class EventProjection(BaseModel):
     pipeline: list[dict[str, Any]]
     output_collection: str
     description: str | None = None
-    source_events: list[str] | None = None
+    source_events: list[EventType] | None = None
     refresh_interval_seconds: int = 300
     last_updated: datetime | None = None
 

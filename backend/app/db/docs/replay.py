@@ -6,7 +6,7 @@ from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayFilter
 
 
@@ -25,7 +25,7 @@ class ReplayConfig(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: dict[str, str] | None = None  # EventType -> topic mapping as strings
+    target_topics: dict[EventType, KafkaTopic] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True

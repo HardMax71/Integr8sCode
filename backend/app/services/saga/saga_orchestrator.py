@@ -4,8 +4,7 @@ from uuid import uuid4
 
 from opentelemetry.trace import SpanKind
 
-from app.core.tracing import EventAttributes
-from app.core.tracing.utils import get_tracer
+from app.core.tracing import EventAttributes, get_tracer
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import (

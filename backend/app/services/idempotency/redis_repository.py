@@ -7,6 +7,7 @@ from typing import Any
 import redis.asyncio as redis
 from pymongo.errors import DuplicateKeyError
 
+from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 
 
@@ -55,7 +56,7 @@ class RedisIdempotencyRepository:
         return IdempotencyRecord(
             key=str(doc.get("key", "")),
             status=IdempotencyStatus(doc.get("status", IdempotencyStatus.PROCESSING)),
-            event_type=str(doc.get("event_type", "")),
+            event_type=EventType(doc.get("event_type", "")),
             event_id=str(doc.get("event_id", "")),
             created_at=created_at,  # type: ignore[arg-type]
             ttl_seconds=int(doc.get("ttl_seconds", 0) or 0),

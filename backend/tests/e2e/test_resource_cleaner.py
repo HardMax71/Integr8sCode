@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 
 import pytest
-from app.services.result_processor.resource_cleaner import ResourceCleaner
+from app.services.result_processor import ResourceCleaner
 from app.settings import Settings
 from dishka import AsyncContainer
 from kubernetes_asyncio import client as k8s_client

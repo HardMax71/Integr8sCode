@@ -13,7 +13,7 @@ from app.schemas_pydantic.saga import (
     SagaListResponse,
     SagaStatusResponse,
 )
-from app.services.saga.saga_service import SagaService
+from app.services.saga import SagaService
 
 router = APIRouter(
     prefix="/sagas",

@@ -97,7 +97,7 @@ class ExecutionService:
 
     def _create_event_metadata(
         self,
-        user_id: str | None = None,
+        user_id: str,
         client_ip: str | None = None,
         user_agent: str | None = None,
     ) -> EventMetadata:
@@ -557,12 +557,13 @@ class ExecutionService:
 
         return query
 
-    async def delete_execution(self, execution_id: str) -> bool:
+    async def delete_execution(self, execution_id: str, user_id: str) -> bool:
         """
         Delete an execution and publish deletion event.
 
         Args:
             execution_id: UUID of execution to delete.
+            user_id: ID of user requesting deletion.
 
         Returns:
             True if deletion successful.
@@ -576,18 +577,19 @@ class ExecutionService:
 
         self.logger.info("Deleted execution", extra={"execution_id": execution_id})
 
-        await self._publish_deletion_event(execution_id)
+        await self._publish_deletion_event(execution_id, user_id)
 
         return True
 
-    async def _publish_deletion_event(self, execution_id: str) -> None:
+    async def _publish_deletion_event(self, execution_id: str, user_id: str) -> None:
         """
         Publish execution deletion/cancellation event.
 
         Args:
             execution_id: UUID of deleted execution.
+            user_id: ID of user who deleted it.
         """
-        metadata = self._create_event_metadata()
+        metadata = self._create_event_metadata(user_id=user_id)
 
         event = ExecutionCancelledEvent(
             execution_id=execution_id,

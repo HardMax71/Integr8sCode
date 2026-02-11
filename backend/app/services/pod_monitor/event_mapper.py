@@ -2,6 +2,7 @@ import ast
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from uuid import uuid4
 
 from kubernetes_asyncio import client as k8s_client
 
@@ -186,7 +187,7 @@ class PodEventMapper:
         correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
-            user_id=labels.get("user-id"),
+            user_id=labels.get("user-id", str(uuid4())),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
             correlation_id=correlation_id,

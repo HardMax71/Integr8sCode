@@ -174,7 +174,7 @@ class ExecutionCoordinator:
                 if len(self._queue) >= self._max_queue_size:
                     raise QueueRejectError("Queue is full")
 
-            user_id = event.metadata.user_id or "anonymous"
+            user_id = event.metadata.user_id
 
             if self._user_counts[user_id] >= self._max_per_user:
                 raise QueueRejectError(f"User execution limit exceeded ({self._max_per_user})")
@@ -267,14 +267,11 @@ class ExecutionCoordinator:
             self.logger.info(f"Swept {removed} stale executions from queue")
 
     async def _build_command_metadata(self, request: ExecutionRequestedEvent) -> EventMetadata:
-        """Build metadata for CreatePodCommandEvent with guaranteed user_id."""
-        exec_rec = await self.execution_repository.get_execution(request.execution_id)
-        user_id: str = exec_rec.user_id if exec_rec and exec_rec.user_id else "system"
-
+        """Build metadata for CreatePodCommandEvent."""
         return EventMetadata(
             service_name="execution-coordinator",
             service_version="1.0.0",
-            user_id=user_id,
+            user_id=request.metadata.user_id,
             correlation_id=request.metadata.correlation_id,
         )
 

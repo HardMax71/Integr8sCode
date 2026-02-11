@@ -115,6 +115,7 @@ class SagaOrchestrator:
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
         context.set("correlation_id", trigger_event.metadata.correlation_id)
+        context.set("user_id", trigger_event.metadata.user_id)
 
         await self._execute_saga(saga, instance, context, trigger_event)
 
@@ -324,7 +325,7 @@ class SagaOrchestrator:
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
-                    user_id=trigger_event.metadata.user_id or "system",
+                    user_id=trigger_event.metadata.user_id,
                     correlation_id=trigger_event.metadata.correlation_id,
                 ),
             )
@@ -337,12 +338,11 @@ class SagaOrchestrator:
         """Publish saga cancelled event."""
         try:
             cancelled_by = saga_instance.context_data.user_id
-            correlation_id = saga_instance.context_data.correlation_id
             metadata = EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
-                user_id=cancelled_by or "system",
-                correlation_id=correlation_id,
+                user_id=cancelled_by,
+                correlation_id=saga_instance.context_data.correlation_id,
             )
 
             event = SagaCancelledEvent(

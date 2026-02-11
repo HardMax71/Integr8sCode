@@ -149,7 +149,7 @@ class PodBuilder:
         self,
         name: str,
         execution_id: str,
-        user_id: str | None,
+        user_id: str,
         language: str,
         correlation_id: str | None = None,
         saga_id: str | None = None,
@@ -157,8 +157,7 @@ class PodBuilder:
         """Build pod metadata with correlation and saga tracking"""
         labels = {"app": "integr8s", "component": "executor", "execution-id": execution_id, "language": language}
 
-        if user_id:
-            labels["user-id"] = user_id[:63]  # K8s label value limit
+        labels["user-id"] = user_id[:63]  # K8s label value limit
 
         # Add correlation_id if provided (truncate to K8s label limit)
         if correlation_id:

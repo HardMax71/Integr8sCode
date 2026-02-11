@@ -436,9 +436,6 @@ class NotificationService:
     async def handle_execution_timeout(self, event: ExecutionTimeoutEvent) -> None:
         """Handle execution timeout event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
         title = f"Execution Timeout: {event.execution_id}"
         body = f"Your execution timed out after {event.timeout_seconds}s."
@@ -455,9 +452,6 @@ class NotificationService:
     async def handle_execution_completed(self, event: ExecutionCompletedEvent) -> None:
         """Handle execution completed event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
         title = f"Execution Completed: {event.execution_id}"
         duration = event.resource_usage.execution_time_wall_seconds if event.resource_usage else 0.0
@@ -475,9 +469,6 @@ class NotificationService:
     async def handle_execution_failed(self, event: ExecutionFailedEvent) -> None:
         """Handle execution failed event."""
         user_id = event.metadata.user_id
-        if not user_id:
-            self.logger.error("No user_id in event metadata")
-            return
 
         event_data = event.model_dump()
 

@@ -229,5 +229,5 @@ async def delete_execution(
         execution_service: FromDishka[ExecutionService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""
-    await execution_service.delete_execution(execution_id)
+    await execution_service.delete_execution(execution_id, admin.user_id)
     return DeleteResponse(message="Execution deleted successfully", execution_id=execution_id)

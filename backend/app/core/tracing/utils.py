@@ -2,7 +2,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
-from opentelemetry import context, propagate, trace
+from opentelemetry import trace
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 
@@ -44,33 +44,6 @@ def trace_span(
                 span.record_exception(e)
             raise
 
-
-def inject_trace_context(headers: dict[str, str]) -> dict[str, str]:
-    """
-    Inject current trace context into headers for propagation.
-
-    Args:
-        headers: Existing headers dictionary
-
-    Returns:
-        Headers with trace context injected
-    """
-    propagation_headers = headers.copy()
-    propagate.inject(propagation_headers)
-    return propagation_headers
-
-
-def extract_trace_context(headers: dict[str, str]) -> context.Context:
-    """
-    Extract trace context from headers.
-
-    Args:
-        headers: Headers containing trace context
-
-    Returns:
-        Extracted OpenTelemetry context
-    """
-    return propagate.extract(headers)
 
 
 def add_span_attributes(**attributes: Any) -> None:

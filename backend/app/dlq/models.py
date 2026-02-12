@@ -49,7 +49,6 @@ class DLQMessage(BaseModel):
     dlq_offset: int | None = None
     dlq_partition: int | None = None
     last_error: str | None = None
-    headers: dict[str, str] = Field(default_factory=dict)
 
 
 @dataclass

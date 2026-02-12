@@ -5,7 +5,6 @@ from typing import Callable
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
-from app.core.tracing import inject_trace_context
 from app.db.repositories import DLQRepository
 from app.dlq.models import (
     DLQBatchRetryResult,
@@ -127,17 +126,10 @@ class DLQManager:
 
         FastStream handles JSON serialization of Pydantic models natively.
         """
-        hdrs: dict[str, str] = {
-            "event_type": message.event.event_type,
-        }
-        hdrs = inject_trace_context(hdrs)
-
-        # Publish directly to original topic - FastStream serializes Pydantic to JSON
         await self._broker.publish(
             message=message.event,
             topic=message.original_topic,
             key=message.event.event_id.encode(),
-            headers=hdrs,
         )
 
         self.metrics.record_dlq_message_retried(message.original_topic, message.event.event_type, "success")

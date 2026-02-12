@@ -6,9 +6,8 @@ from datetime import datetime, timezone
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
-from app.core.tracing import inject_trace_context
 from app.db.repositories import EventRepository
-from app.dlq.models import DLQMessageStatus
+from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums import KafkaTopic
 from app.domain.events import DomainEvent
 from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
@@ -41,16 +40,10 @@ class UnifiedProducer:
         await self._event_repository.store_event(event_to_produce)
         topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
         try:
-            headers = inject_trace_context({
-                "event_type": event_to_produce.event_type,
-            })
-
-            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
                 message=event_to_produce,
                 topic=topic,
                 key=key.encode(),
-                headers=headers,
             )
 
             self._event_metrics.record_kafka_message_produced(topic)
@@ -72,23 +65,20 @@ class UnifiedProducer:
 
             dlq_topic = f"{self._topic_prefix}{KafkaTopic.DEAD_LETTER_QUEUE}"
 
-            headers = inject_trace_context({
-                "event_type": original_event.event_type,
-                "original_topic": original_topic,
-                "error_type": type(error).__name__,
-                "error": str(error),
-                "retry_count": str(retry_count),
-                "failed_at": datetime.now(timezone.utc).isoformat(),
-                "status": DLQMessageStatus.PENDING,
-                "producer_id": producer_id,
-            })
+            dlq_msg = DLQMessage(
+                event=original_event,
+                original_topic=original_topic,
+                error=str(error),
+                retry_count=retry_count,
+                failed_at=datetime.now(timezone.utc),
+                status=DLQMessageStatus.PENDING,
+                producer_id=producer_id,
+            )
 
-            # FastStream handles Pydantic → JSON serialization natively
             await self._broker.publish(
-                message=original_event,
+                message=dlq_msg,
                 topic=dlq_topic,
                 key=original_event.event_id.encode(),
-                headers=headers,
             )
 
             self._event_metrics.record_kafka_message_produced(dlq_topic)

@@ -6,6 +6,7 @@ from cachetools import TTLCache
 
 from app.db.repositories import UserSettingsRepository
 from app.domain.enums import EventType, Theme
+from app.domain.events import EventMetadata, UserSettingsUpdatedEvent
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
@@ -96,17 +97,19 @@ class UserSettingsService:
 
     async def _publish_settings_event(self, user_id: str, changes: dict[str, Any], reason: str | None) -> None:
         """Publish settings update event with typed payload fields."""
-        await self.event_service.publish_event(
-            event_type=EventType.USER_SETTINGS_UPDATED,
+        event = UserSettingsUpdatedEvent(
             aggregate_id=f"user_settings_{user_id}",
-            payload={
-                "user_id": user_id,
-                "changed_fields": list(changes.keys()),
-                "reason": reason,
-                **changes,
-            },
-            metadata=None,
+            user_id=user_id,
+            changed_fields=list(changes.keys()),
+            reason=reason,
+            metadata=EventMetadata(
+                service_name="integr8scode-user-settings",
+                service_version="1.0.0",
+                user_id=user_id,
+            ),
+            **changes,
         )
+        await self.event_service.publish_event(event, key=f"user_settings_{user_id}")
 
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
         """Update user's theme preference"""
@@ -171,16 +174,18 @@ class UserSettingsService:
         await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
 
-        await self.event_service.publish_event(
-            event_type=EventType.USER_SETTINGS_UPDATED,
+        restore_event = UserSettingsUpdatedEvent(
             aggregate_id=f"user_settings_{user_id}",
-            payload={
-                "user_id": user_id,
-                "changed_fields": [],
-                "reason": f"Settings restored to {timestamp.isoformat()}",
-            },
-            metadata=None,
+            user_id=user_id,
+            changed_fields=[],
+            reason=f"Settings restored to {timestamp.isoformat()}",
+            metadata=EventMetadata(
+                service_name="integr8scode-user-settings",
+                service_version="1.0.0",
+                user_id=user_id,
+            ),
         )
+        await self.event_service.publish_event(restore_event, key=f"user_settings_{user_id}")
 
         return settings
 

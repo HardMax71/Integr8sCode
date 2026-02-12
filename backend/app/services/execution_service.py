@@ -1,11 +1,9 @@
 import logging
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from time import time
-from typing import Any, Generator
+from typing import Any
 from uuid import uuid4
 
-from app.core.correlation import CorrelationContext
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
@@ -72,15 +70,6 @@ class ExecutionService:
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
 
-    @contextmanager
-    def _track_active_execution(self) -> Generator[None, None, None]:  # noqa: D401
-        """Increment active executions on enter and decrement on exit."""
-        self.metrics.increment_active_executions()
-        try:
-            yield
-        finally:
-            self.metrics.decrement_active_executions()
-
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
         return ResourceLimitsDomain(
@@ -95,32 +84,12 @@ class ExecutionService:
     async def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS
 
-    def _create_event_metadata(
-        self,
-        user_id: str,
-        client_ip: str | None = None,
-        user_agent: str | None = None,
-    ) -> EventMetadata:
-        """
-        Create standardized event metadata.
-
-        Args:
-            user_id: User identifier.
-            client_ip: Client IP address.
-            user_agent: User agent string.
-
-        Returns:
-            EventMetadata instance.
-        """
-        correlation_id = CorrelationContext.get_correlation_id()
-
+    def _create_event_metadata(self, user_id: str) -> EventMetadata:
+        """Create standardized event metadata."""
         return EventMetadata(
-            correlation_id=correlation_id,
             service_name="execution-service",
             service_version="2.0.0",
             user_id=user_id,
-            ip_address=client_ip,
-            user_agent=user_agent,
         )
 
     async def execute_script(
@@ -128,12 +97,9 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        client_ip: str | None,
-        user_agent: str | None,
         lang: str = "python",
         lang_version: str = "3.11",
         priority: QueuePriority = QueuePriority.NORMAL,
-        timeout_override: int | None = None,
     ) -> DomainExecution:
         """
         Execute a script by creating an execution record and publishing an event.
@@ -144,7 +110,6 @@ class ExecutionService:
             lang_version: Language version.
             user_id: ID of the user requesting execution.
             priority: Execution priority (1-10, lower is higher priority).
-            timeout_override: Override default timeout in seconds.
 
         Returns:
             DomainExecution record with queued status.
@@ -163,13 +128,13 @@ class ExecutionService:
                 "lang_version": lang_version,
                 "script_length": len(script),
                 "priority": priority,
-                "timeout_override": timeout_override,
             },
         )
 
         runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
 
-        with self._track_active_execution():
+        self.metrics.increment_active_executions()
+        try:
             # Create execution record
             created_execution = await self.execution_repo.create_execution(
                 DomainExecutionCreate(
@@ -192,9 +157,8 @@ class ExecutionService:
             )
 
             # Metadata and event — use admin-configurable limits
-            metadata = self._create_event_metadata(user_id=user_id, client_ip=client_ip, user_agent=user_agent)
+            metadata = self._create_event_metadata(user_id=user_id)
             effective = await self._runtime_settings.get_effective_settings()
-            timeout = timeout_override or effective.max_timeout_seconds
             event = ExecutionRequestedEvent(
                 execution_id=created_execution.execution_id,
                 aggregate_id=created_execution.execution_id,
@@ -204,7 +168,7 @@ class ExecutionService:
                 runtime_image=runtime_cfg.image,
                 runtime_command=runtime_cfg.command,
                 runtime_filename=runtime_cfg.file_name,
-                timeout_seconds=timeout,
+                timeout_seconds=effective.max_timeout_seconds,
                 cpu_limit=effective.cpu_limit,
                 memory_limit=effective.memory_limit,
                 cpu_request=self.settings.K8S_POD_CPU_REQUEST,
@@ -238,6 +202,8 @@ class ExecutionService:
                 },
             )
             return created_execution
+        finally:
+            self.metrics.decrement_active_executions()
 
     async def cancel_execution(
         self,
@@ -307,8 +273,6 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        client_ip: str | None,
-        user_agent: str | None,
         lang: str = "python",
         lang_version: str = "3.11",
         idempotency_key: str | None = None,
@@ -319,8 +283,6 @@ class ExecutionService:
         Args:
             script: The code to execute.
             user_id: ID of the user requesting execution.
-            client_ip: Client IP address.
-            user_agent: User agent string.
             lang: Programming language.
             lang_version: Language version.
             idempotency_key: Optional HTTP idempotency key.
@@ -334,8 +296,6 @@ class ExecutionService:
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
-                client_ip=client_ip,
-                user_agent=user_agent,
             )
 
         pseudo_event = BaseEvent(
@@ -380,8 +340,6 @@ class ExecutionService:
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
-                client_ip=client_ip,
-                user_agent=user_agent,
             )
 
             await self.idempotency_manager.mark_completed_with_json(

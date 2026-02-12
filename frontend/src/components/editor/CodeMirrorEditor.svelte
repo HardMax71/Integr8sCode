@@ -32,8 +32,8 @@
 
     function getThemeExtension() {
         // Only use dark theme if explicitly set OR auto + dark mode active
-        const useDark = settings.theme === 'one-dark' ||
-            (settings.theme !== 'github' && document.documentElement.classList.contains('dark'));
+        const useDark = settings.theme === 'dark' ||
+            (settings.theme !== 'light' && document.documentElement.classList.contains('dark'));
         return useDark ? oneDark : githubLight;
     }
 

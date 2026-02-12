@@ -116,8 +116,8 @@ describe('CodeMirrorEditor', () => {
 
   describe('theme selection', () => {
     it.each([
-      { theme: 'github', darkClass: false, expectedTheme: 'githubLight-theme' },
-      { theme: 'one-dark', darkClass: false, expectedTheme: 'oneDark-theme' },
+      { theme: 'light', darkClass: false, expectedTheme: 'githubLight-theme' },
+      { theme: 'dark', darkClass: false, expectedTheme: 'oneDark-theme' },
       { theme: 'auto', darkClass: true, expectedTheme: 'oneDark-theme' },
       { theme: 'auto', darkClass: false, expectedTheme: 'githubLight-theme' },
     ])('selects $expectedTheme for theme=$theme dark=$darkClass', async ({ theme, darkClass, expectedTheme }) => {

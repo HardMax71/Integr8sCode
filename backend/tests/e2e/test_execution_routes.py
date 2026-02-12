@@ -20,7 +20,6 @@ from app.schemas_pydantic.execution import (
     ExecutionResponse,
     ExecutionResult,
     ResourceLimits,
-    RetryExecutionRequest,
 )
 from httpx import AsyncClient
 from pydantic import TypeAdapter
@@ -250,10 +249,8 @@ class TestExecutionRetry:
         request = ExecutionRequest(script="print('original')", lang="python", lang_version="3.11")
         original, _ = await submit_and_wait(test_user, event_waiter, request)
 
-        retry_req = RetryExecutionRequest()
         retry_response = await test_user.post(
             f"/api/v1/executions/{original.execution_id}/retry",
-            json=retry_req.model_dump(),
         )
         assert retry_response.status_code == 200
 
@@ -279,10 +276,8 @@ class TestExecutionRetry:
 
         exec_response = ExecutionResponse.model_validate(response.json())
 
-        retry_req = RetryExecutionRequest()
         retry_response = await test_user.post(
             f"/api/v1/executions/{exec_response.execution_id}/retry",
-            json=retry_req.model_dump(),
         )
 
         assert retry_response.status_code == 400
@@ -296,10 +291,8 @@ class TestExecutionRetry:
         request = ExecutionRequest(script="print('owned')", lang="python", lang_version="3.11")
         original, _ = await submit_and_wait(test_user, event_waiter, request)
 
-        retry_req = RetryExecutionRequest()
         retry_response = await another_user.post(
             f"/api/v1/executions/{original.execution_id}/retry",
-            json=retry_req.model_dump(),
         )
 
         assert retry_response.status_code == 403

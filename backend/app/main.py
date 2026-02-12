@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     auth,
     dlq,
-    events,
     execution,
     health,
     notifications,
@@ -116,7 +115,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=settings.API_V1_STR)
     app.include_router(dlq.router, prefix=settings.API_V1_STR)
     app.include_router(sse.router, prefix=settings.API_V1_STR)
-    app.include_router(events.router, prefix=settings.API_V1_STR)
     app.include_router(admin_events_router, prefix=settings.API_V1_STR)
     app.include_router(admin_settings_router, prefix=settings.API_V1_STR)
     app.include_router(admin_users_router, prefix=settings.API_V1_STR)

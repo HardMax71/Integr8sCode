@@ -216,8 +216,7 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('admin access test')",
             user_id="other_user",
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -240,8 +239,7 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('owner access test')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -263,8 +261,7 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('no access test')",
             user_id="owner_user",
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -301,8 +298,7 @@ class TestGetExecutionSagas:
         exec_result = await exec_svc.execute_script(
             script="print('saga access denied')",
             user_id="owner_user",
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )
@@ -323,8 +319,7 @@ class TestGetExecutionSagas:
         exec_result = await exec_svc.execute_script(
             script="print('owner sagas')",
             user_id=user_id,
-            client_ip="127.0.0.1",
-            user_agent="pytest",
+
             lang="python",
             lang_version="3.11",
         )

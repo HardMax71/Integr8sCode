@@ -264,10 +264,7 @@ export type CancelResponse = {
      * Execution Id
      */
     execution_id: string;
-    /**
-     * Status
-     */
-    status: string;
+    status: CancelStatus;
     /**
      * Message
      */
@@ -279,6 +276,13 @@ export type CancelResponse = {
      */
     event_id?: string | null;
 };
+
+/**
+ * CancelStatus
+ *
+ * Outcome of a cancel request.
+ */
+export type CancelStatus = 'already_cancelled' | 'cancellation_requested';
 
 /**
  * CleanupResponse
@@ -642,10 +646,7 @@ export type DlqMessageDiscardedEvent = {
      * Original Topic
      */
     original_topic?: string;
-    /**
-     * Original Event Type
-     */
-    original_event_type?: string;
+    original_event_type?: EventType;
     /**
      * Reason
      */
@@ -691,10 +692,7 @@ export type DlqMessageReceivedEvent = {
      * Original Topic
      */
     original_topic?: string;
-    /**
-     * Original Event Type
-     */
-    original_event_type?: string;
+    original_event_type?: EventType;
     /**
      * Error
      */
@@ -911,10 +909,7 @@ export type DlqMessageRetriedEvent = {
      * Original Topic
      */
     original_topic?: string;
-    /**
-     * Original Event Type
-     */
-    original_event_type?: string;
+    original_event_type?: EventType;
     /**
      * Retry Count
      */
@@ -1010,26 +1005,6 @@ export type DlqTopicSummaryResponse = {
      * Max Retry Count
      */
     max_retry_count: number;
-};
-
-/**
- * DeleteEventResponse
- *
- * Response model for deleting events
- */
-export type DeleteEventResponse = {
-    /**
-     * Message
-     */
-    message: string;
-    /**
-     * Event Id
-     */
-    event_id: string;
-    /**
-     * Deleted At
-     */
-    deleted_at: string;
 };
 
 /**
@@ -1175,10 +1150,7 @@ export type DerivedCounts = {
  * Code editor preferences
  */
 export type EditorSettings = {
-    /**
-     * Theme
-     */
-    theme?: string;
+    theme?: Theme;
     /**
      * Font Size
      */
@@ -1590,224 +1562,6 @@ export type EventFilter = {
 };
 
 /**
- * EventFilterRequest
- *
- * Request model for filtering events.
- */
-export type EventFilterRequest = {
-    /**
-     * Event Types
-     *
-     * Filter by event types
-     */
-    event_types?: Array<EventType> | null;
-    /**
-     * Aggregate Id
-     *
-     * Filter by aggregate ID
-     */
-    aggregate_id?: string | null;
-    /**
-     * Correlation Id
-     *
-     * Filter by correlation ID
-     */
-    correlation_id?: string | null;
-    /**
-     * User Id
-     *
-     * Filter by user ID (admin only)
-     */
-    user_id?: string | null;
-    /**
-     * Service Name
-     *
-     * Filter by service name
-     */
-    service_name?: string | null;
-    /**
-     * Start Time
-     *
-     * Filter events after this time
-     */
-    start_time?: string | null;
-    /**
-     * End Time
-     *
-     * Filter events before this time
-     */
-    end_time?: string | null;
-    /**
-     * Search Text
-     *
-     * Full-text search in event data
-     */
-    search_text?: string | null;
-    /**
-     * Sort By
-     *
-     * Field to sort by
-     */
-    sort_by?: string;
-    /**
-     * Sort order
-     */
-    sort_order?: SortOrder;
-    /**
-     * Limit
-     *
-     * Maximum events to return
-     */
-    limit?: number;
-    /**
-     * Skip
-     *
-     * Number of events to skip
-     */
-    skip?: number;
-};
-
-/**
- * EventListResponse
- */
-export type EventListResponse = {
-    /**
-     * Events
-     */
-    events: Array<({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent)>;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Skip
-     */
-    skip: number;
-    /**
-     * Has More
-     */
-    has_more: boolean;
-};
-
-/**
  * EventMetadata
  *
  * Event metadata - embedded in all events.
@@ -1828,15 +1582,7 @@ export type EventMetadata = {
     /**
      * User Id
      */
-    user_id?: string | null;
-    /**
-     * Ip Address
-     */
-    ip_address?: string | null;
-    /**
-     * User Agent
-     */
-    user_agent?: string | null;
+    user_id?: string;
     environment?: Environment;
 };
 
@@ -1898,10 +1644,7 @@ export type EventReplayResponse = {
      * Session Id
      */
     session_id?: string | null;
-    /**
-     * Status
-     */
-    status: string;
+    status: ReplayStatus;
     /**
      * Events Preview
      */
@@ -1918,10 +1661,7 @@ export type EventReplayStatusResponse = {
      * Session Id
      */
     session_id: string;
-    /**
-     * Status
-     */
-    status: string;
+    status: ReplayStatus;
     /**
      * Total Events
      */
@@ -3583,72 +3323,6 @@ export type PodTerminatedEvent = {
 };
 
 /**
- * PublishEventRequest
- *
- * Request model for publishing events.
- */
-export type PublishEventRequest = {
-    /**
-     * Type of event to publish
-     */
-    event_type: EventType;
-    /**
-     * Payload
-     *
-     * Event payload data
-     */
-    payload: {
-        [key: string]: unknown;
-    };
-    /**
-     * Aggregate Id
-     *
-     * Aggregate root ID
-     */
-    aggregate_id?: string | null;
-    /**
-     * Correlation Id
-     *
-     * Correlation ID
-     */
-    correlation_id?: string | null;
-    /**
-     * Causation Id
-     *
-     * ID of causing event
-     */
-    causation_id?: string | null;
-    /**
-     * Metadata
-     *
-     * Additional metadata
-     */
-    metadata?: {
-        [key: string]: unknown;
-    } | null;
-};
-
-/**
- * PublishEventResponse
- *
- * Response model for publishing events
- */
-export type PublishEventResponse = {
-    /**
-     * Event Id
-     */
-    event_id: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Timestamp
-     */
-    timestamp: string;
-};
-
-/**
  * QueuePriority
  *
  * Execution priority, ordered highest to lowest.
@@ -3910,46 +3584,6 @@ export type ReleaseResourcesCommandEvent = {
      * Memory Request
      */
     memory_request?: string;
-};
-
-/**
- * ReplayAggregateResponse
- *
- * Response model for replaying aggregate events
- */
-export type ReplayAggregateResponse = {
-    /**
-     * Dry Run
-     */
-    dry_run: boolean;
-    /**
-     * Aggregate Id
-     */
-    aggregate_id: string;
-    /**
-     * Event Count
-     */
-    event_count?: number | null;
-    /**
-     * Event Types
-     */
-    event_types?: Array<EventType> | null;
-    /**
-     * Start Time
-     */
-    start_time?: string | null;
-    /**
-     * End Time
-     */
-    end_time?: string | null;
-    /**
-     * Replayed Count
-     */
-    replayed_count?: number | null;
-    /**
-     * Replay Correlation Id
-     */
-    replay_correlation_id?: string | null;
 };
 
 /**
@@ -4463,26 +4097,6 @@ export type ResultStoredEvent = {
      * Size Bytes
      */
     size_bytes?: number;
-};
-
-/**
- * RetryExecutionRequest
- *
- * Model for retrying an execution.
- */
-export type RetryExecutionRequest = {
-    /**
-     * Reason
-     *
-     * Reason for retry
-     */
-    reason?: string | null;
-    /**
-     * Preserve Output
-     *
-     * Keep output from previous attempt
-     */
-    preserve_output?: boolean;
 };
 
 /**
@@ -5464,13 +5078,6 @@ export type SettingsHistoryResponse = {
 };
 
 /**
- * SortOrder
- *
- * Sort order for queries.
- */
-export type SortOrder = 'asc' | 'desc';
-
-/**
  * StorageType
  *
  * Types of storage backends.
@@ -6256,10 +5863,7 @@ export type EventReplayStatusResponseWritable = {
      * Session Id
      */
     session_id: string;
-    /**
-     * Status
-     */
-    status: string;
+    status: ReplayStatus;
     /**
      * Total Events
      */
@@ -6554,7 +6158,7 @@ export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses = {
 export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponse = CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses[keyof CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses];
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostData = {
-    body: RetryExecutionRequest;
+    body?: never;
     path: {
         /**
          * Execution Id
@@ -7518,519 +7122,6 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
 };
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
-
-export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetData = {
-    body?: never;
-    path: {
-        /**
-         * Execution Id
-         */
-        execution_id: string;
-    };
-    query?: {
-        /**
-         * Include System Events
-         *
-         * Include system-generated events
-         */
-        include_system_events?: boolean;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Skip
-         */
-        skip?: number;
-    };
-    url: '/api/v1/events/executions/{execution_id}/events';
-};
-
-export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetErrors = {
-    /**
-     * Not the owner of this execution
-     */
-    403: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetError = GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetErrors[keyof GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetErrors];
-
-export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventListResponse;
-};
-
-export type GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetResponse = GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetResponses[keyof GetExecutionEventsApiV1EventsExecutionsExecutionIdEventsGetResponses];
-
-export type GetUserEventsApiV1EventsUserGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Event Types
-         *
-         * Filter by event types
-         */
-        event_types?: Array<EventType> | null;
-        /**
-         * Start Time
-         *
-         * Filter events after this time
-         */
-        start_time?: string | null;
-        /**
-         * End Time
-         *
-         * Filter events before this time
-         */
-        end_time?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Skip
-         */
-        skip?: number;
-        /**
-         * Sort order by timestamp
-         */
-        sort_order?: SortOrder;
-    };
-    url: '/api/v1/events/user';
-};
-
-export type GetUserEventsApiV1EventsUserGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetUserEventsApiV1EventsUserGetError = GetUserEventsApiV1EventsUserGetErrors[keyof GetUserEventsApiV1EventsUserGetErrors];
-
-export type GetUserEventsApiV1EventsUserGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventListResponse;
-};
-
-export type GetUserEventsApiV1EventsUserGetResponse = GetUserEventsApiV1EventsUserGetResponses[keyof GetUserEventsApiV1EventsUserGetResponses];
-
-export type QueryEventsApiV1EventsQueryPostData = {
-    body: EventFilterRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/query';
-};
-
-export type QueryEventsApiV1EventsQueryPostErrors = {
-    /**
-     * Cannot query other users' events
-     */
-    403: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type QueryEventsApiV1EventsQueryPostError = QueryEventsApiV1EventsQueryPostErrors[keyof QueryEventsApiV1EventsQueryPostErrors];
-
-export type QueryEventsApiV1EventsQueryPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventListResponse;
-};
-
-export type QueryEventsApiV1EventsQueryPostResponse = QueryEventsApiV1EventsQueryPostResponses[keyof QueryEventsApiV1EventsQueryPostResponses];
-
-export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Correlation Id
-         */
-        correlation_id: string;
-    };
-    query?: {
-        /**
-         * Include All Users
-         *
-         * Include events from all users (admin only)
-         */
-        include_all_users?: boolean;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Skip
-         */
-        skip?: number;
-    };
-    url: '/api/v1/events/correlation/{correlation_id}';
-};
-
-export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetError = GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetErrors[keyof GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetErrors];
-
-export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventListResponse;
-};
-
-export type GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetResponse = GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetResponses[keyof GetEventsByCorrelationApiV1EventsCorrelationCorrelationIdGetResponses];
-
-export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Skip
-         */
-        skip?: number;
-    };
-    url: '/api/v1/events/current-request';
-};
-
-export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetError = GetCurrentRequestEventsApiV1EventsCurrentRequestGetErrors[keyof GetCurrentRequestEventsApiV1EventsCurrentRequestGetErrors];
-
-export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventListResponse;
-};
-
-export type GetCurrentRequestEventsApiV1EventsCurrentRequestGetResponse = GetCurrentRequestEventsApiV1EventsCurrentRequestGetResponses[keyof GetCurrentRequestEventsApiV1EventsCurrentRequestGetResponses];
-
-export type GetEventStatisticsApiV1EventsStatisticsGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Start Time
-         *
-         * Start time for statistics (defaults to 24 hours ago)
-         */
-        start_time?: string | null;
-        /**
-         * End Time
-         *
-         * End time for statistics (defaults to now)
-         */
-        end_time?: string | null;
-        /**
-         * Include All Users
-         *
-         * Include stats from all users (admin only)
-         */
-        include_all_users?: boolean;
-    };
-    url: '/api/v1/events/statistics';
-};
-
-export type GetEventStatisticsApiV1EventsStatisticsGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetEventStatisticsApiV1EventsStatisticsGetError = GetEventStatisticsApiV1EventsStatisticsGetErrors[keyof GetEventStatisticsApiV1EventsStatisticsGetErrors];
-
-export type GetEventStatisticsApiV1EventsStatisticsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: EventStatistics;
-};
-
-export type GetEventStatisticsApiV1EventsStatisticsGetResponse = GetEventStatisticsApiV1EventsStatisticsGetResponses[keyof GetEventStatisticsApiV1EventsStatisticsGetResponses];
-
-export type DeleteEventApiV1EventsEventIdDeleteData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query?: never;
-    url: '/api/v1/events/{event_id}';
-};
-
-export type DeleteEventApiV1EventsEventIdDeleteErrors = {
-    /**
-     * Event not found
-     */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteEventApiV1EventsEventIdDeleteError = DeleteEventApiV1EventsEventIdDeleteErrors[keyof DeleteEventApiV1EventsEventIdDeleteErrors];
-
-export type DeleteEventApiV1EventsEventIdDeleteResponses = {
-    /**
-     * Successful Response
-     */
-    200: DeleteEventResponse;
-};
-
-export type DeleteEventApiV1EventsEventIdDeleteResponse = DeleteEventApiV1EventsEventIdDeleteResponses[keyof DeleteEventApiV1EventsEventIdDeleteResponses];
-
-export type GetEventApiV1EventsEventIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query?: never;
-    url: '/api/v1/events/{event_id}';
-};
-
-export type GetEventApiV1EventsEventIdGetErrors = {
-    /**
-     * Event not found
-     */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetEventApiV1EventsEventIdGetError = GetEventApiV1EventsEventIdGetErrors[keyof GetEventApiV1EventsEventIdGetErrors];
-
-export type GetEventApiV1EventsEventIdGetResponses = {
-    /**
-     * Response Get Event Api V1 Events  Event Id  Get
-     *
-     * Successful Response
-     */
-    200: ({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent);
-};
-
-export type GetEventApiV1EventsEventIdGetResponse = GetEventApiV1EventsEventIdGetResponses[keyof GetEventApiV1EventsEventIdGetResponses];
-
-export type PublishCustomEventApiV1EventsPublishPostData = {
-    body: PublishEventRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/events/publish';
-};
-
-export type PublishCustomEventApiV1EventsPublishPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type PublishCustomEventApiV1EventsPublishPostError = PublishCustomEventApiV1EventsPublishPostErrors[keyof PublishCustomEventApiV1EventsPublishPostErrors];
-
-export type PublishCustomEventApiV1EventsPublishPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: PublishEventResponse;
-};
-
-export type PublishCustomEventApiV1EventsPublishPostResponse = PublishCustomEventApiV1EventsPublishPostResponses[keyof PublishCustomEventApiV1EventsPublishPostResponses];
-
-export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostData = {
-    body?: never;
-    path: {
-        /**
-         * Aggregate Id
-         */
-        aggregate_id: string;
-    };
-    query?: {
-        /**
-         * Target Service
-         *
-         * Service to replay events to
-         */
-        target_service?: string | null;
-        /**
-         * Dry Run
-         *
-         * If true, only show what would be replayed
-         */
-        dry_run?: boolean;
-    };
-    url: '/api/v1/events/replay/{aggregate_id}';
-};
-
-export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostErrors = {
-    /**
-     * No events found for the aggregate
-     */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostError = ReplayAggregateEventsApiV1EventsReplayAggregateIdPostErrors[keyof ReplayAggregateEventsApiV1EventsReplayAggregateIdPostErrors];
-
-export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: ReplayAggregateResponse;
-};
-
-export type ReplayAggregateEventsApiV1EventsReplayAggregateIdPostResponse = ReplayAggregateEventsApiV1EventsReplayAggregateIdPostResponses[keyof ReplayAggregateEventsApiV1EventsReplayAggregateIdPostResponses];
 
 export type BrowseEventsApiV1AdminEventsBrowsePostData = {
     body: EventBrowseRequest;

@@ -41,13 +41,10 @@ def build_monkey_catalog(cfg: LoadConfig) -> list[tuple[str, str]]:
         ("POST", "/execute"),
         ("GET", "/k8s-limits"),
         ("GET", "/example-scripts"),
-        ("GET", "/events/types/list"),
         ("GET", "/notifications"),
         ("POST", "/notifications/mark-all-read"),
         ("GET", "/user/settings/"),
         ("PUT", "/user/settings/theme"),
-        ("GET", "/events/user"),
-        ("GET", "/events/statistics"),
         # Wrong/unsupported paths to test 404 handling
         ("GET", "/nope"),
         ("POST", "/does-not-exist"),

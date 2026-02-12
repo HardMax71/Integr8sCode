@@ -139,13 +139,6 @@ class CancelExecutionRequest(BaseModel):
     reason: str = Field("User requested cancellation", description="Reason for cancellation")
 
 
-class RetryExecutionRequest(BaseModel):
-    """Model for retrying an execution."""
-
-    reason: str | None = Field(None, description="Reason for retry")
-    preserve_output: bool = Field(False, description="Keep output from previous attempt")
-
-
 class ExecutionListResponse(BaseModel):
     """Model for paginated execution list."""
 

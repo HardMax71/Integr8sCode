@@ -988,11 +988,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SavedScriptResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Saved Scripts Api V1 Scripts Get"
+                  "$ref": "#/components/schemas/SavedScriptListResponse"
                 }
               }
             }
@@ -12310,6 +12306,22 @@
           "script"
         ],
         "title": "SavedScriptCreateRequest"
+      },
+      "SavedScriptListResponse": {
+        "properties": {
+          "scripts": {
+            "items": {
+              "$ref": "#/components/schemas/SavedScriptResponse"
+            },
+            "type": "array",
+            "title": "Scripts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scripts"
+        ],
+        "title": "SavedScriptListResponse"
       },
       "SavedScriptResponse": {
         "properties": {

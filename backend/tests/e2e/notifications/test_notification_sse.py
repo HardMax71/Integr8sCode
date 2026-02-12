@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 from app.domain.enums import NotificationChannel, NotificationSeverity
+from app.domain.notification import DomainSubscriptionUpdate
 from app.schemas_pydantic.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
@@ -21,7 +22,7 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
     sub = await bus.open_notification_subscription(user_id)
 
     # Enable IN_APP subscription for the user to allow delivery
-    await svc.update_subscription(user_id, NotificationChannel.IN_APP, True)
+    await svc.update_subscription(user_id, NotificationChannel.IN_APP, DomainSubscriptionUpdate(enabled=True))
 
     # Create notification via service (IN_APP channel triggers SSE publish)
     # Delivery is now awaited synchronously - message in Redis immediately

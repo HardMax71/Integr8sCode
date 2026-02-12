@@ -182,17 +182,17 @@ class NotificationRepository:
             await doc.insert()
             return DomainNotificationSubscription.model_validate(doc)
 
-    async def get_all_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
-        subs: dict[NotificationChannel, DomainNotificationSubscription] = {}
+    async def get_all_subscriptions(self, user_id: str) -> list[DomainNotificationSubscription]:
+        subs: list[DomainNotificationSubscription] = []
         for channel in NotificationChannel:
             doc = await NotificationSubscriptionDocument.find_one(
                 NotificationSubscriptionDocument.user_id == user_id,
                 NotificationSubscriptionDocument.channel == channel,
             )
             if doc:
-                subs[channel] = DomainNotificationSubscription.model_validate(doc)
+                subs.append(DomainNotificationSubscription.model_validate(doc))
             else:
-                subs[channel] = DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
+                subs.append(DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True))
         return subs
 
     # User query operations

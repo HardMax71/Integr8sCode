@@ -4639,6 +4639,16 @@ export type SavedScriptCreateRequest = {
 };
 
 /**
+ * SavedScriptListResponse
+ */
+export type SavedScriptListResponse = {
+    /**
+     * Scripts
+     */
+    scripts: Array<SavedScriptResponse>;
+};
+
+/**
  * SavedScriptResponse
  */
 export type SavedScriptResponse = {
@@ -6485,11 +6495,9 @@ export type ListSavedScriptsApiV1ScriptsGetData = {
 
 export type ListSavedScriptsApiV1ScriptsGetResponses = {
     /**
-     * Response List Saved Scripts Api V1 Scripts Get
-     *
      * Successful Response
      */
-    200: Array<SavedScriptResponse>;
+    200: SavedScriptListResponse;
 };
 
 export type ListSavedScriptsApiV1ScriptsGetResponse = ListSavedScriptsApiV1ScriptsGetResponses[keyof ListSavedScriptsApiV1ScriptsGetResponses];

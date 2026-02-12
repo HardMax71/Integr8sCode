@@ -28,6 +28,12 @@ class DomainSavedScript(DomainSavedScriptBase):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class DomainSavedScriptListResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    scripts: list[DomainSavedScript]
+
+
 class DomainSavedScriptUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

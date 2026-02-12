@@ -5,6 +5,7 @@ from app.domain.enums import SagaState, UserRole
 from app.domain.saga import (
     Saga,
     SagaAccessDeniedError,
+    SagaCancellationResult,
     SagaFilter,
     SagaInvalidStateError,
     SagaListResult,
@@ -134,7 +135,7 @@ class SagaService:
         )
         return result
 
-    async def cancel_saga(self, saga_id: str, user: User) -> bool:
+    async def cancel_saga(self, saga_id: str, user: User) -> SagaCancellationResult:
         """Cancel a saga with permission check."""
         self.logger.info(
             "User requesting saga cancellation",
@@ -156,7 +157,8 @@ class SagaService:
             )
         else:
             self.logger.error("Failed to cancel saga", extra={"saga_id": saga_id, "user_id": user.user_id})
-        return success
+        message = "Saga cancelled successfully" if success else "Failed to cancel saga"
+        return SagaCancellationResult(success=success, message=message, saga_id=saga_id)
 
     async def get_saga_statistics(self, user: User, include_all: bool = False) -> dict[str, object]:
         """Get saga statistics."""

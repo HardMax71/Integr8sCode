@@ -27,6 +27,8 @@ class SagaStatusResponse(BaseModel):
 class SagaListResponse(BaseModel):
     """Response schema for saga list"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     sagas: list[SagaStatusResponse]
     total: int
     skip: int
@@ -36,6 +38,8 @@ class SagaListResponse(BaseModel):
 
 class SagaCancellationResponse(BaseModel):
     """Response schema for saga cancellation"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     success: bool
     message: str

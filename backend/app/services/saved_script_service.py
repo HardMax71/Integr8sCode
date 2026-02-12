@@ -4,6 +4,7 @@ from app.db.repositories import SavedScriptRepository
 from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
+    DomainSavedScriptListResult,
     DomainSavedScriptUpdate,
     SavedScriptNotFoundError,
 )
@@ -107,7 +108,7 @@ class SavedScriptService:
             extra={"script_id": script_id, "user_id": user_id},
         )
 
-    async def list_saved_scripts(self, user_id: str) -> list[DomainSavedScript]:
+    async def list_saved_scripts(self, user_id: str) -> DomainSavedScriptListResult:
         self.logger.info(
             "Listing saved scripts",
             extra={
@@ -121,4 +122,4 @@ class SavedScriptService:
             "Successfully retrieved saved scripts",
             extra={"user_id": user_id, "script_count": len(scripts)},
         )
-        return scripts
+        return DomainSavedScriptListResult(scripts=scripts)

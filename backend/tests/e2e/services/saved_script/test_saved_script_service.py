@@ -118,15 +118,15 @@ if __name__ == '__main__':
         script2 = await service.create_saved_script(payload2, user2)
 
         # List each user's scripts
-        user1_scripts = await service.list_saved_scripts(user1)
-        user2_scripts = await service.list_saved_scripts(user2)
+        user1_result = await service.list_saved_scripts(user1)
+        user2_result = await service.list_saved_scripts(user2)
 
         # Should only see their own
-        assert any(s.script_id == script1.script_id for s in user1_scripts)
-        assert not any(s.script_id == script2.script_id for s in user1_scripts)
+        assert any(s.script_id == script1.script_id for s in user1_result.scripts)
+        assert not any(s.script_id == script2.script_id for s in user1_result.scripts)
 
-        assert any(s.script_id == script2.script_id for s in user2_scripts)
-        assert not any(s.script_id == script1.script_id for s in user2_scripts)
+        assert any(s.script_id == script2.script_id for s in user2_result.scripts)
+        assert not any(s.script_id == script1.script_id for s in user2_result.scripts)
 
 
 class TestGetSavedScript:
@@ -325,10 +325,10 @@ class TestListSavedScripts:
         service: SavedScriptService = await scope.get(SavedScriptService)
         user_id = _unique_user_id()
 
-        scripts = await service.list_saved_scripts(user_id)
+        result = await service.list_saved_scripts(user_id)
 
-        assert isinstance(scripts, list)
-        assert len(scripts) == 0
+        assert isinstance(result.scripts, list)
+        assert len(result.scripts) == 0
 
     @pytest.mark.asyncio
     async def test_list_saved_scripts_multiple(self, scope: AsyncContainer) -> None:
@@ -343,10 +343,10 @@ class TestListSavedScripts:
             await service.create_saved_script(payload, user_id)
 
         # List
-        scripts = await service.list_saved_scripts(user_id)
+        result = await service.list_saved_scripts(user_id)
 
-        assert len(scripts) >= 3
-        names = [s.name for s in scripts]
+        assert len(result.scripts) >= 3
+        names = [s.name for s in result.scripts]
         for expected_name in script_names:
             assert expected_name in names
 
@@ -370,15 +370,15 @@ class TestListSavedScripts:
             await service.create_saved_script(payload, user2)
 
         # List user1's scripts
-        user1_scripts = await service.list_saved_scripts(user1)
-        assert len(user1_scripts) >= 2
-        for script in user1_scripts:
+        user1_result = await service.list_saved_scripts(user1)
+        assert len(user1_result.scripts) >= 2
+        for script in user1_result.scripts:
             assert script.user_id == user1
 
         # List user2's scripts
-        user2_scripts = await service.list_saved_scripts(user2)
-        assert len(user2_scripts) >= 3
-        for script in user2_scripts:
+        user2_result = await service.list_saved_scripts(user2)
+        assert len(user2_result.scripts) >= 3
+        for script in user2_result.scripts:
             assert script.user_id == user2
 
 
@@ -415,8 +415,8 @@ class TestSavedScriptIntegration:
         assert updated.script == "print('v2')"
 
         # List - should include our script
-        scripts = await service.list_saved_scripts(user_id)
-        assert any(s.script_id == created.script_id for s in scripts)
+        result = await service.list_saved_scripts(user_id)
+        assert any(s.script_id == created.script_id for s in result.scripts)
 
         # Delete
         await service.delete_saved_script(script_id, user_id)

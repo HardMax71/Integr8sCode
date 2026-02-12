@@ -130,7 +130,7 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-        savedScripts = (data || []).map((s, i) => ({ ...s, id: s.script_id || `temp_${i}_${Date.now()}` }));
+        savedScripts = (data?.scripts || []).map((s, i) => ({ ...s, id: s.script_id || `temp_${i}_${Date.now()}` }));
     }
 
     function loadScript(s: SavedScript) {

@@ -2,6 +2,7 @@
 import pytest
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
+    SavedScriptListResponse,
     SavedScriptResponse,
     SavedScriptUpdate,
 )
@@ -74,12 +75,10 @@ class TestListSavedScripts:
         response = await test_user.get("/api/v1/scripts")
 
         assert response.status_code == 200
-        scripts = [
-            SavedScriptResponse.model_validate(s) for s in response.json()
-        ]
+        result = SavedScriptListResponse.model_validate(response.json())
 
-        assert len(scripts) >= 1
-        assert any(new_script_request.name in s.name for s in scripts)
+        assert len(result.scripts) >= 1
+        assert any(new_script_request.name in s.name for s in result.scripts)
 
     @pytest.mark.asyncio
     async def test_list_saved_scripts_only_own(
@@ -91,10 +90,10 @@ class TestListSavedScripts:
 
         response = await another_user.get("/api/v1/scripts")
         assert response.status_code == 200
-        scripts = response.json()
+        result = SavedScriptListResponse.model_validate(response.json())
 
         # Should not contain test_user's script
-        assert not any(new_script_request.name in s["name"] for s in scripts)
+        assert not any(new_script_request.name in s.name for s in result.scripts)
 
 
 class TestGetSavedScript:

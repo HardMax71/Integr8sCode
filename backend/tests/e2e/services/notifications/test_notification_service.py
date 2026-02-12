@@ -5,6 +5,7 @@ from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.domain.notification import (
     DomainNotificationListResult,
+    DomainSubscriptionUpdate,
     NotificationNotFoundError,
     NotificationValidationError,
 )
@@ -371,7 +372,7 @@ class TestSubscriptions:
         subscription = await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=True,
+            update_data=DomainSubscriptionUpdate(enabled=True),
         )
 
         assert subscription.channel == NotificationChannel.IN_APP
@@ -392,14 +393,14 @@ class TestSubscriptions:
         await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=True,
+            update_data=DomainSubscriptionUpdate(enabled=True),
         )
 
         # Then disable
         subscription = await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=False,
+            update_data=DomainSubscriptionUpdate(enabled=False),
         )
 
         assert subscription.enabled is False
@@ -415,8 +416,10 @@ class TestSubscriptions:
         subscription = await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=True,
-            severities=[NotificationSeverity.HIGH, NotificationSeverity.URGENT],
+            update_data=DomainSubscriptionUpdate(
+                enabled=True,
+                severities=[NotificationSeverity.HIGH, NotificationSeverity.URGENT],
+            ),
         )
 
         assert subscription.severities is not None
@@ -433,8 +436,7 @@ class TestSubscriptions:
             await svc.update_subscription(
                 user_id=user_id,
                 channel=NotificationChannel.WEBHOOK,
-                enabled=True,
-                # No webhook_url provided
+                update_data=DomainSubscriptionUpdate(enabled=True),
             )
 
     @pytest.mark.asyncio
@@ -446,8 +448,7 @@ class TestSubscriptions:
         subscription = await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.WEBHOOK,
-            enabled=True,
-            webhook_url="https://example.com/webhook",
+            update_data=DomainSubscriptionUpdate(enabled=True, webhook_url="https://example.com/webhook"),
         )
 
         assert subscription.enabled is True
@@ -463,14 +464,15 @@ class TestSubscriptions:
         await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=True,
+            update_data=DomainSubscriptionUpdate(enabled=True),
         )
 
         # Get all
-        subscriptions = await svc.get_subscriptions(user_id)
+        result = await svc.get_subscriptions(user_id)
 
-        assert isinstance(subscriptions, dict)
-        assert NotificationChannel.IN_APP in subscriptions
+        assert isinstance(result.subscriptions, list)
+        channels = [s.channel for s in result.subscriptions]
+        assert NotificationChannel.IN_APP in channels
 
 
 class TestSystemNotification:
@@ -561,8 +563,7 @@ class TestNotificationIntegration:
         await svc.update_subscription(
             user_id=user_id,
             channel=NotificationChannel.IN_APP,
-            enabled=True,
-            severities=[NotificationSeverity.HIGH],
+            update_data=DomainSubscriptionUpdate(enabled=True, severities=[NotificationSeverity.HIGH]),
         )
 
         # Create HIGH severity notification - should be delivered

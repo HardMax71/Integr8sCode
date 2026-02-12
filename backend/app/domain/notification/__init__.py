@@ -9,6 +9,7 @@ from .models import (
     DomainNotificationListResult,
     DomainNotificationSubscription,
     DomainNotificationUpdate,
+    DomainSubscriptionListResult,
     DomainSubscriptionUpdate,
 )
 
@@ -18,6 +19,7 @@ __all__ = [
     "DomainNotificationListResult",
     "DomainNotificationSubscription",
     "DomainNotificationUpdate",
+    "DomainSubscriptionListResult",
     "DomainSubscriptionUpdate",
     "NotificationNotFoundError",
     "NotificationThrottledError",

@@ -85,6 +85,16 @@ class SagaListResult(BaseModel):
         return (self.skip + len(self.sagas)) < self.total
 
 
+class SagaCancellationResult(BaseModel):
+    """Result of saga cancellation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    success: bool
+    message: str
+    saga_id: str
+
+
 class SagaStatistics(BaseModel):
     """Saga statistics."""
 

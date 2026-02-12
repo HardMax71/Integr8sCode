@@ -1,6 +1,6 @@
-import logging
 from datetime import timedelta
 
+import structlog
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -40,7 +40,7 @@ async def login(
     security_service: FromDishka[SecurityService],
     runtime_settings: FromDishka[RuntimeSettingsLoader],
     lockout_service: FromDishka[LoginLockoutService],
-    logger: FromDishka[logging.Logger],
+    logger: FromDishka[structlog.stdlib.BoundLogger],
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> LoginResponse:
     """Authenticate and receive session cookies."""
@@ -169,7 +169,7 @@ async def register(
     user_repo: FromDishka[UserRepository],
     security_service: FromDishka[SecurityService],
     runtime_settings: FromDishka[RuntimeSettingsLoader],
-    logger: FromDishka[logging.Logger],
+    logger: FromDishka[structlog.stdlib.BoundLogger],
 ) -> UserResponse:
     """Register a new user account."""
     logger.info(
@@ -227,7 +227,7 @@ async def get_current_user_profile(
     request: Request,
     response: Response,
     auth_service: FromDishka[AuthService],
-    logger: FromDishka[logging.Logger],
+    logger: FromDishka[structlog.stdlib.BoundLogger],
 ) -> UserResponse:
     """Get the authenticated user's profile."""
     current_user = await auth_service.get_current_user(request)
@@ -252,7 +252,7 @@ async def get_current_user_profile(
 async def logout(
     request: Request,
     response: Response,
-    logger: FromDishka[logging.Logger],
+    logger: FromDishka[structlog.stdlib.BoundLogger],
 ) -> MessageResponse:
     """Log out and clear session cookies."""
     logger.info(

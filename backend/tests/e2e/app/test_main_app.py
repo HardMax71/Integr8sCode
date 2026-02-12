@@ -1,4 +1,3 @@
-import logging
 from importlib import import_module
 from typing import Any
 
@@ -260,8 +259,10 @@ class TestDishkaContainer:
     @pytest.mark.asyncio
     async def test_container_resolves_logger(self, scope: AsyncContainer) -> None:
         """Container can resolve Logger."""
-        logger = await scope.get(logging.Logger)
-        assert isinstance(logger, logging.Logger)
+        import structlog
+
+        logger = await scope.get(structlog.stdlib.BoundLogger)
+        assert isinstance(logger, structlog.stdlib.BoundLogger)
 
 
 class TestExceptionHandlers:

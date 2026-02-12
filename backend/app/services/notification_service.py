@@ -546,13 +546,9 @@ class NotificationService:
         if channel == NotificationChannel.WEBHOOK and update_data.enabled:
             if not update_data.webhook_url:
                 raise NotificationValidationError("webhook_url is required when enabling WEBHOOK")
-            if not update_data.webhook_url.startswith("https://"):
-                raise NotificationValidationError("webhook_url must start with https://")
         if channel == NotificationChannel.SLACK and update_data.enabled:
             if not update_data.slack_webhook:
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
-            if not update_data.slack_webhook.startswith("https://hooks.slack.com/"):
-                raise NotificationValidationError("slack_webhook must be a valid Slack webhook URL")
 
         return await self.repository.upsert_subscription(user_id, channel, update_data)
 

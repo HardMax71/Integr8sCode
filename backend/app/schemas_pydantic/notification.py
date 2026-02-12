@@ -174,8 +174,8 @@ class SubscriptionUpdate(BaseModel):
     severities: list[NotificationSeverity] = Field(default_factory=list)
     include_tags: list[str] = Field(default_factory=list)
     exclude_tags: list[str] = Field(default_factory=list)
-    webhook_url: str | None = None
-    slack_webhook: str | None = None
+    webhook_url: str | None = Field(default=None, pattern=r"^https://")
+    slack_webhook: str | None = Field(default=None, pattern=r"^https://hooks\.slack\.com/")
     quiet_hours_enabled: bool = False
     quiet_hours_start: str | None = None
     quiet_hours_end: str | None = None

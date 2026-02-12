@@ -53,13 +53,17 @@ def get_kafka_event_classes() -> dict[EventType, type]:
     return get_domain_event_classes()
 
 
+# EventType values that represent topics, not domain events (no event class expected)
+TOPIC_ONLY_TYPES: set[EventType] = set()
+
+
 class TestEventSchemaCoverage:
     """Ensure complete correspondence between EventType and event classes."""
 
     def test_all_event_types_have_domain_event_class(self) -> None:
-        """Every EventType must have a corresponding domain event class."""
+        """Every EventType (except topic-only types) must have a corresponding domain event class."""
         domain_mapping = get_domain_event_classes()
-        all_types = set(EventType)
+        all_types = set(EventType) - TOPIC_ONLY_TYPES
         covered_types = set(domain_mapping.keys())
         missing = all_types - covered_types
 
@@ -69,9 +73,9 @@ class TestEventSchemaCoverage:
         )
 
     def test_all_event_types_have_kafka_event_class(self) -> None:
-        """Every EventType must have a corresponding Kafka event class."""
+        """Every EventType (except topic-only types) must have a corresponding Kafka event class."""
         kafka_mapping = get_kafka_event_classes()
-        all_types = set(EventType)
+        all_types = set(EventType) - TOPIC_ONLY_TYPES
         covered_types = set(kafka_mapping.keys())
         missing = all_types - covered_types
 
@@ -87,7 +91,7 @@ class TestEventSchemaCoverage:
         """The DomainEventAdapter TypeAdapter must handle all EventTypes."""
         errors: list[str] = []
 
-        for et in EventType:
+        for et in set(EventType) - TOPIC_ONLY_TYPES:
             try:
                 # Validation will fail due to missing required fields, but that's OK
                 # We just want to confirm the type IS in the union (not "unknown discriminator")
@@ -147,7 +151,7 @@ class TestEventSchemaCoverage:
         kafka_mapping = get_kafka_event_classes()
 
         mismatches: list[str] = []
-        for et in EventType:
+        for et in set(EventType) - TOPIC_ONLY_TYPES:
             domain_cls = domain_mapping.get(et)
             kafka_cls = kafka_mapping.get(et)
 

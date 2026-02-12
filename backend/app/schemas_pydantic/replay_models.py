@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayError
 
 
@@ -31,7 +31,6 @@ class ReplayConfigSchema(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: dict[EventType, KafkaTopic] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True

@@ -122,21 +122,6 @@ class LoggingProvider(Provider):
         return setup_logger(settings.LOG_LEVEL)
 
 
-class RequestScopedProvider(Provider):
-    """Provides REQUEST-scoped logger with correlation context bound from the request."""
-
-    scope = Scope.REQUEST
-
-    @provide
-    def get_request_logger(
-        self, base: structlog.stdlib.BoundLogger, request: Request,
-    ) -> structlog.stdlib.BoundLogger:
-        return base.bind(
-            correlation_id=request.state.correlation_id,
-            request_path=str(request.url.path),
-            request_method=request.method,
-        )
-
 
 class RedisProvider(Provider):
     scope = Scope.APP

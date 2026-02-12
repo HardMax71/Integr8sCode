@@ -206,8 +206,8 @@ class TestEventStats:
         assert response.status_code == 403
 
 
-class TestExportEventsCSV:
-    """Tests for GET /api/v1/admin/events/export/csv."""
+class TestExportEvents:
+    """Tests for GET /api/v1/admin/events/export/{format}."""
 
     @pytest.mark.asyncio
     async def test_export_events_csv(self, test_admin: AsyncClient) -> None:
@@ -224,34 +224,6 @@ class TestExportEventsCSV:
         body_csv = response.text
         assert "Event ID" in body_csv
         assert "Timestamp" in body_csv
-
-    @pytest.mark.asyncio
-    async def test_export_events_csv_with_filters(
-            self, test_admin: AsyncClient
-    ) -> None:
-        """Export CSV with event type filters."""
-        response = await test_admin.get(
-            "/api/v1/admin/events/export/csv",
-            params={
-                "event_types": [EventType.EXECUTION_REQUESTED],
-                "limit": 100,
-            },
-        )
-
-        assert response.status_code == 200
-
-    @pytest.mark.asyncio
-    async def test_export_events_csv_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
-        """Regular user cannot export events."""
-        response = await test_user.get("/api/v1/admin/events/export/csv")
-
-        assert response.status_code == 403
-
-
-class TestExportEventsJSON:
-    """Tests for GET /api/v1/admin/events/export/json."""
 
     @pytest.mark.asyncio
     async def test_export_events_json(self, test_admin: AsyncClient) -> None:
@@ -271,28 +243,37 @@ class TestExportEventsJSON:
         assert "exported_at" in data["export_metadata"]
 
     @pytest.mark.asyncio
-    async def test_export_events_json_with_filters(
-            self, test_admin: AsyncClient
+    @pytest.mark.parametrize("export_format", ["csv", "json"])
+    async def test_export_events_with_filters(
+            self, test_admin: AsyncClient, export_format: str
     ) -> None:
-        """Export JSON with comprehensive filters."""
+        """Export with event type filters works for both formats."""
         response = await test_admin.get(
-            "/api/v1/admin/events/export/json",
+            f"/api/v1/admin/events/export/{export_format}",
             params={
-                "event_types": [EventType.EXECUTION_REQUESTED, EventType.EXECUTION_STARTED],
-                "limit": 500,
+                "event_types": [EventType.EXECUTION_REQUESTED],
+                "limit": 100,
             },
         )
 
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_export_events_json_forbidden_for_regular_user(
-            self, test_user: AsyncClient
+    @pytest.mark.parametrize("export_format", ["csv", "json"])
+    async def test_export_events_forbidden_for_regular_user(
+            self, test_user: AsyncClient, export_format: str
     ) -> None:
         """Regular user cannot export events."""
-        response = await test_user.get("/api/v1/admin/events/export/json")
+        response = await test_user.get(f"/api/v1/admin/events/export/{export_format}")
 
         assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_export_events_invalid_format(self, test_admin: AsyncClient) -> None:
+        """Invalid export format returns 422."""
+        response = await test_admin.get("/api/v1/admin/events/export/xml")
+
+        assert response.status_code == 422
 
 
 class TestGetEventDetail:

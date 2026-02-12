@@ -25,7 +25,6 @@ class AuditLogDocument(Document):
     audit_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
     action: AuditAction
     user_id: Indexed(str)  # type: ignore[valid-type]
-    username: str
     timestamp: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
     changes: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""

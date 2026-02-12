@@ -20,12 +20,7 @@ class AdminSettingsRepository:
             await doc.insert()
         return doc.config
 
-    async def update_system_settings(
-        self,
-        settings: SystemSettings,
-        updated_by: str,
-        user_id: str,
-    ) -> SystemSettings:
+    async def update_system_settings(self, settings: SystemSettings, user_id: str) -> SystemSettings:
         doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
         if not doc:
             doc = SystemSettingsDocument()
@@ -37,14 +32,13 @@ class AdminSettingsRepository:
         audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_UPDATED,
             user_id=user_id,
-            username=updated_by,
             changes=settings.model_dump(),
         )
         await audit_entry.insert()
 
         return doc.config
 
-    async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
+    async def reset_system_settings(self, user_id: str) -> SystemSettings:
         doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
         if doc:
             await doc.delete()
@@ -52,7 +46,6 @@ class AdminSettingsRepository:
         audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_RESET,
             user_id=user_id,
-            username=username,
         )
         await audit_entry.insert()
 

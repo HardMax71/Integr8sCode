@@ -26,7 +26,7 @@ async def get_system_settings(
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Get the current system-wide settings."""
-    result = await service.get_system_settings(admin.username)
+    result = await service.get_system_settings(admin.user_id)
     return SystemSettingsSchema.model_validate(result)
 
 
@@ -46,11 +46,7 @@ async def update_system_settings(
 ) -> SystemSettingsSchema:
     """Replace system-wide settings."""
     domain_settings = SystemSettings.model_validate(settings)
-    result = await service.update_system_settings(
-        domain_settings,
-        updated_by=admin.username,
-        user_id=admin.user_id,
-    )
+    result = await service.update_system_settings(domain_settings, admin.user_id)
     return SystemSettingsSchema.model_validate(result)
 
 
@@ -64,5 +60,5 @@ async def reset_system_settings(
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Reset system-wide settings to defaults."""
-    result = await service.reset_system_settings(admin.username, admin.user_id)
+    result = await service.reset_system_settings(admin.user_id)
     return SystemSettingsSchema.model_validate(result)

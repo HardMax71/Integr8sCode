@@ -16,34 +16,29 @@ class AdminSettingsService:
         self._runtime_settings = runtime_settings
         self.logger = logger
 
-    async def get_system_settings(self, admin_username: str) -> SystemSettings:
+    async def get_system_settings(self, user_id: str) -> SystemSettings:
         self.logger.info(
             "Admin retrieving system settings",
-            extra={"admin_username": admin_username},
+            extra={"user_id": user_id},
         )
         return await self._runtime_settings.get_effective_settings()
 
-    async def update_system_settings(
-        self,
-        settings: SystemSettings,
-        updated_by: str,
-        user_id: str,
-    ) -> SystemSettings:
+    async def update_system_settings(self, settings: SystemSettings, user_id: str) -> SystemSettings:
         self.logger.info(
             "Admin updating system settings",
-            extra={"admin_username": updated_by},
+            extra={"user_id": user_id},
         )
-        updated = await self._repo.update_system_settings(settings=settings, updated_by=updated_by, user_id=user_id)
+        updated = await self._repo.update_system_settings(settings=settings, user_id=user_id)
         self._runtime_settings.invalidate_cache()
         self.logger.info("System settings updated successfully")
         return updated
 
-    async def reset_system_settings(self, username: str, user_id: str) -> SystemSettings:
+    async def reset_system_settings(self, user_id: str) -> SystemSettings:
         self.logger.info(
             "Admin resetting system settings to defaults",
-            extra={"admin_username": username},
+            extra={"user_id": user_id},
         )
-        await self._repo.reset_system_settings(username=username, user_id=user_id)
+        await self._repo.reset_system_settings(user_id=user_id)
         self._runtime_settings.invalidate_cache()
         self.logger.info("System settings reset to defaults")
         return await self._runtime_settings.get_effective_settings()

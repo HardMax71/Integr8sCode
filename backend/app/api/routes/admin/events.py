@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
 from app.core.correlation import CorrelationContext
-from app.domain.enums import EventType
+from app.domain.enums import EventType, ExportFormat
 from app.domain.events import EventFilter
 from app.domain.replay import ReplayFilter
 from app.domain.user import User
@@ -23,7 +23,6 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.common import ErrorResponse
-from app.schemas_pydantic.execution import ExecutionResult
 from app.services.admin import AdminEventsService
 
 router = APIRouter(
@@ -53,30 +52,9 @@ async def get_event_stats(
     return EventStatsResponse.model_validate(stats)
 
 
-@router.get("/export/csv")
-async def export_events_csv(
-    service: FromDishka[AdminEventsService],
-    event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
-    start_time: Annotated[datetime | None, Query(description="Start time")] = None,
-    end_time: Annotated[datetime | None, Query(description="End time")] = None,
-    limit: Annotated[int, Query(ge=1, le=50000)] = 10000,
-) -> StreamingResponse:
-    """Export filtered events as a downloadable CSV file."""
-    export_filter = EventFilter(
-        event_types=event_types,
-        start_time=start_time,
-        end_time=end_time,
-    )
-    result = await service.export_events_csv_content(event_filter=export_filter, limit=limit)
-    return StreamingResponse(
-        iter([result.content]),
-        media_type=result.media_type,
-        headers={"Content-Disposition": f"attachment; filename={result.file_name}"},
-    )
-
-
-@router.get("/export/json")
-async def export_events_json(
+@router.get("/export/{export_format}")
+async def export_events(
+    export_format: ExportFormat,
     service: FromDishka[AdminEventsService],
     event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
     aggregate_id: Annotated[str | None, Query(description="Aggregate ID filter")] = None,
@@ -87,7 +65,7 @@ async def export_events_json(
     end_time: Annotated[datetime | None, Query(description="End time")] = None,
     limit: Annotated[int, Query(ge=1, le=50000)] = 10000,
 ) -> StreamingResponse:
-    """Export events as JSON with comprehensive filtering."""
+    """Export filtered events as a downloadable file."""
     export_filter = EventFilter(
         event_types=event_types,
         aggregate_id=aggregate_id,
@@ -97,7 +75,7 @@ async def export_events_json(
         start_time=start_time,
         end_time=end_time,
     )
-    result = await service.export_events_json_content(event_filter=export_filter, limit=limit)
+    result = await service.export_events(event_filter=export_filter, limit=limit, export_format=export_format)
     return StreamingResponse(
         iter([result.content]),
         media_type=result.media_type,
@@ -152,14 +130,7 @@ async def get_replay_status(session_id: str, service: FromDishka[AdminEventsServ
     if not status:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
-    return EventReplayStatusResponse(
-        **status.session.model_dump(),
-        estimated_completion=status.estimated_completion,
-        execution_results=[
-            ExecutionResult.model_validate(er)
-            for er in status.execution_results
-        ],
-    )
+    return EventReplayStatusResponse.model_validate(status)
 
 
 @router.delete("/{event_id}", responses={404: {"model": ErrorResponse, "description": "Event not found"}})

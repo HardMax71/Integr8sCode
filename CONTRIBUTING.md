@@ -32,6 +32,8 @@ pre-commit install
 
 - **ruff**: Python linting (style, imports, potential bugs)
 - **mypy --strict**: Static type checking
+- **eslint**: Frontend TypeScript/Svelte linting
+- **svelte-check**: Frontend type checking
 
 Run manually on all files:
 

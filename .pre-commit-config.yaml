@@ -21,3 +21,19 @@ repos:
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false
+
+      # ESLint - matches CI: cd frontend && npx eslint src
+      - id: eslint-frontend
+        name: eslint (frontend)
+        entry: bash -c 'cd frontend && npx eslint src'
+        language: system
+        files: ^frontend/src/.*\.(ts|svelte)$
+        pass_filenames: false
+
+      # Svelte Check - matches CI: cd frontend && npx svelte-check
+      - id: svelte-check-frontend
+        name: svelte-check (frontend)
+        entry: bash -c 'cd frontend && npx svelte-check --tsconfig ./tsconfig.json'
+        language: system
+        files: ^frontend/src/.*\.(ts|svelte)$
+        pass_filenames: false

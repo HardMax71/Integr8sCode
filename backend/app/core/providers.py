@@ -7,6 +7,7 @@ import redis.asyncio as redis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
+from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
 from kubernetes_asyncio.client.rest import ApiException
@@ -96,6 +97,7 @@ class BrokerProvider(Provider):
             logger=logger,
             client_id=f"integr8scode-{settings.SERVICE_NAME}",
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+            middlewares=(KafkaTelemetryMiddleware(),),
         )
         logger.info("Kafka broker created")
         try:

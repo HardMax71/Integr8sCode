@@ -1,5 +1,6 @@
-import logging
 from datetime import datetime, timedelta, timezone
+
+import structlog
 
 from app.core.security import SecurityService
 from app.db.repositories import AdminUserRepository
@@ -22,7 +23,7 @@ class AdminUserService:
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
         security_service: SecurityService,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._users = user_repository
         self._events = event_service

@@ -1,9 +1,9 @@
 import ast
-import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
+import structlog
 from kubernetes_asyncio import client as k8s_client
 
 from app.core.utils import StringEnum
@@ -59,7 +59,7 @@ class PodLogs:
 class PodEventMapper:
     """Maps Kubernetes pod objects to application events"""
 
-    def __init__(self, logger: logging.Logger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
         self.logger = logger
         self._event_cache: dict[str, PodPhase] = {}
         self._k8s_api = k8s_api

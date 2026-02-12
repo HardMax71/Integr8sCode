@@ -1,9 +1,9 @@
 import asyncio
-import logging
 import time
 from pathlib import Path
 from typing import Any
 
+import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
@@ -41,7 +41,7 @@ class KubernetesWorker:
             api_client: k8s_client.ApiClient,
             producer: UnifiedProducer,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             event_metrics: EventMetrics,
     ):
         self._event_metrics = event_metrics

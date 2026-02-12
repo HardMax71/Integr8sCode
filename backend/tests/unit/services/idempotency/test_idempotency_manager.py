@@ -1,4 +1,4 @@
-import logging
+import structlog
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,7 +10,7 @@ from app.services.idempotency import IdempotencyConfig, IdempotencyManager
 pytestmark = pytest.mark.unit
 
 # Test logger
-_test_logger = logging.getLogger("test.idempotency_manager")
+_test_logger = structlog.get_logger("test.idempotency_manager")
 
 
 class TestIdempotencyConfig:

@@ -3,9 +3,7 @@ from typing import Any
 
 from app.core.container import create_result_processor_container
 from app.core.logging import setup_logger
-from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
-from app.domain.enums import GroupId
 from app.events.handlers import register_result_processor_subscriber
 from app.settings import Settings
 from beanie import init_beanie
@@ -22,17 +20,6 @@ def main() -> None:
     logger = setup_logger(settings.LOG_LEVEL)
 
     logger.info("Starting ResultProcessor worker...")
-
-    if settings.ENABLE_TRACING:
-        init_tracing(
-            service_name=GroupId.RESULT_PROCESSOR,
-            settings=settings,
-            logger=logger,
-            service_version=settings.TRACING_SERVICE_VERSION,
-            enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE,
-        )
-        logger.info("Tracing initialized for ResultProcessor Service")
 
     async def run() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)

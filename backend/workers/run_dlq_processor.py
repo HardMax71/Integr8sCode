@@ -3,10 +3,8 @@ from typing import Any
 
 from app.core.container import create_dlq_processor_container
 from app.core.logging import setup_logger
-from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
-from app.domain.enums import GroupId
 from app.events.handlers import register_dlq_subscriber
 from app.settings import Settings
 from beanie import init_beanie
@@ -23,17 +21,6 @@ def main() -> None:
     logger = setup_logger(settings.LOG_LEVEL)
 
     logger.info("Starting DLQ Processor worker...")
-
-    if settings.ENABLE_TRACING:
-        init_tracing(
-            service_name=GroupId.DLQ_MANAGER,
-            settings=settings,
-            logger=logger,
-            service_version=settings.TRACING_SERVICE_VERSION,
-            enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE,
-        )
-        logger.info("Tracing initialized for DLQ Processor")
 
     async def run() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)

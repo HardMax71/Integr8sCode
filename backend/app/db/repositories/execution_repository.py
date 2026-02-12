@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from beanie.odm.enums import SortDirection
 
 from app.db.docs import ExecutionDocument
@@ -14,7 +14,7 @@ from app.domain.execution import (
 
 
 class ExecutionRepository:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
     async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:

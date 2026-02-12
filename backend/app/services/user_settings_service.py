@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from cachetools import TTLCache
 
 from app.db.repositories import UserSettingsRepository
@@ -25,7 +25,7 @@ class UserSettingsService:
         repository: UserSettingsRepository,
         event_service: KafkaEventService,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self.repository = repository
         self.event_service = event_service

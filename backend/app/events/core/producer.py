@@ -1,8 +1,8 @@
 import asyncio
-import logging
 import socket
 from datetime import datetime, timezone
 
+import structlog
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
@@ -25,7 +25,7 @@ class UnifiedProducer:
         self,
         broker: KafkaBroker,
         event_repository: EventRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         settings: Settings,
         event_metrics: EventMetrics,
     ):

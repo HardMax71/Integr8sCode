@@ -1,4 +1,4 @@
-import logging
+import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,7 +17,7 @@ from app.services.result_processor import ResultProcessor
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.result_processor.processor")
+_test_logger = structlog.get_logger("test.services.result_processor.processor")
 
 _METADATA = EventMetadata(service_name="tests", service_version="1.0.0")
 

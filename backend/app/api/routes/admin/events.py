@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Annotated
+from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -7,7 +8,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
-from app.core.correlation import CorrelationContext
 from app.domain.enums import EventType, ExportFormat
 from app.domain.events import EventFilter
 from app.domain.replay import ReplayFilter
@@ -105,7 +105,7 @@ async def replay_events(
     request: EventReplayRequest, background_tasks: BackgroundTasks, service: FromDishka[AdminEventsService]
 ) -> EventReplayResponse:
     """Replay events by filter criteria, with optional dry-run mode."""
-    replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
+    replay_correlation_id = f"replay-{uuid4().hex}"
     result = await service.prepare_or_schedule_replay(
         replay_filter=ReplayFilter.model_validate(request),
         dry_run=request.dry_run,

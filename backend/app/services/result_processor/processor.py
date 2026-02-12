@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
@@ -25,7 +25,7 @@ class ResultProcessor:
             execution_repo: ExecutionRepository,
             producer: UnifiedProducer,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             execution_metrics: ExecutionMetrics,
     ) -> None:
         self._execution_repo = execution_repo

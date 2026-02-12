@@ -1,46 +1,64 @@
-# Re-export commonly used OpenTelemetry types for convenience
-from opentelemetry import context
-from opentelemetry.trace import SpanKind, Status, StatusCode
+import os
 
-# Import configuration and initialization
-from app.core.tracing.config import (
-    TracingConfiguration,
-    TracingInitializer,
-    init_tracing,
-)
-from app.core.tracing.models import (
-    EventAttributes,
-    InstrumentationReport,
-    InstrumentationResult,
-    InstrumentationStatus,
-    TracerManager,
-)
+import structlog
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
+from opentelemetry.propagate import set_global_textmap
+from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF, ALWAYS_ON, ParentBased, Sampler, TraceIdRatioBased
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
-# Import utilities and decorators
-from app.core.tracing.utils import (
-    add_span_attributes,
-    get_tracer,
-    trace_span,
-)
+from app.settings import Settings
 
-__all__ = [
-    # Models and enums
-    "EventAttributes",
-    "InstrumentationReport",
-    "InstrumentationResult",
-    "InstrumentationStatus",
-    "TracerManager",
-    # Configuration and initialization
-    "TracingConfiguration",
-    "TracingInitializer",
-    "init_tracing",
-    # Utilities and decorators
-    "add_span_attributes",
-    "get_tracer",
-    "trace_span",
-    # OpenTelemetry types
-    "context",
-    "SpanKind",
-    "Status",
-    "StatusCode",
-]
+
+class Tracer:
+    """DI-managed OpenTelemetry tracer. Initialization happens on construction."""
+
+    def __init__(self, settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
+        name = settings.TRACING_SERVICE_NAME
+        rate = settings.TRACING_SAMPLING_RATE
+
+        resource = Resource.create({
+            SERVICE_NAME: name,
+            SERVICE_VERSION: settings.TRACING_SERVICE_VERSION,
+            "deployment.environment": "test" if settings.TESTING else "production",
+            "service.namespace": "integr8scode",
+            "service.instance.id": os.environ.get("HOSTNAME", "unknown"),
+        })
+
+        sampler: Sampler
+        if rate <= 0:
+            sampler = ALWAYS_OFF
+        elif rate >= 1.0:
+            sampler = ALWAYS_ON
+        else:
+            sampler = ParentBased(root=TraceIdRatioBased(rate))
+
+        provider = TracerProvider(resource=resource, sampler=sampler)
+
+        if settings.OTLP_TRACES_ENDPOINT:
+            provider.add_span_processor(
+                BatchSpanProcessor(OTLPSpanExporter(
+                    endpoint=settings.OTLP_TRACES_ENDPOINT,
+                    insecure=True,
+                ))
+            )
+
+        trace.set_tracer_provider(provider)
+        set_global_textmap(TraceContextTextMapPropagator())
+
+        tp = trace.get_tracer_provider()
+        FastAPIInstrumentor().instrument(
+            tracer_provider=tp, excluded_urls="health,metrics,docs,openapi.json",
+        )
+        HTTPXClientInstrumentor().instrument(tracer_provider=tp)
+        PymongoInstrumentor().instrument(tracer_provider=tp)
+        LoggingInstrumentor().instrument(set_logging_format=True, log_level="INFO")
+
+        logger.info(f"Tracing initialized for {name}")

@@ -1,14 +1,14 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GTE, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
+from opentelemetry import trace
 from pymongo.errors import DuplicateKeyError
 
-from app.core.tracing import EventAttributes, add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums import EventType
 from app.domain.events import (
@@ -24,7 +24,7 @@ from app.domain.events import (
 
 
 class EventRepository:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
     def _time_conditions(self, start_time: datetime | None, end_time: datetime | None) -> list[Any]:
@@ -44,13 +44,11 @@ class EventRepository:
         data = event.model_dump(exclude_none=True)
         data.setdefault("stored_at", datetime.now(timezone.utc))
         doc = EventDocument(**data)
-        add_span_attributes(
-            **{
-                str(EventAttributes.EVENT_TYPE): event.event_type,
-                str(EventAttributes.EVENT_ID): event.event_id,
-                str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
-            }
-        )
+        trace.get_current_span().set_attributes({
+            "event.type": event.event_type,
+            "event.id": event.event_id,
+            "execution.id": event.aggregate_id or "",
+        })
         try:
             await doc.insert()
         except DuplicateKeyError:

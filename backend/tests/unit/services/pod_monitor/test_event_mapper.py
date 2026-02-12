@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,7 +18,7 @@ from tests.unit.conftest import make_container_status, make_pod
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.pod_monitor.event_mapper")
+_test_logger = structlog.get_logger("test.services.pod_monitor.event_mapper")
 
 
 def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodContext:

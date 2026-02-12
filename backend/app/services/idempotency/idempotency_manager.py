@@ -1,8 +1,8 @@
 import hashlib
 import json
-import logging
 from datetime import datetime, timedelta, timezone
 
+import structlog
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
@@ -37,7 +37,7 @@ class IdempotencyManager:
         self,
         config: IdempotencyConfig,
         repository: RedisIdempotencyRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         database_metrics: DatabaseMetrics,
     ) -> None:
         self.config = config

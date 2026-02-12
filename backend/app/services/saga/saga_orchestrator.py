@@ -1,10 +1,10 @@
-import logging
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import structlog
+from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
-from app.core.tracing import EventAttributes, get_tracer
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import (
@@ -35,7 +35,7 @@ class SagaOrchestrator:
         saga_repository: SagaRepository,
         producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self.config = config
         self._producer = producer
@@ -139,7 +139,7 @@ class SagaOrchestrator:
         trigger_event: DomainEvent,
     ) -> None:
         """Execute saga steps."""
-        tracer = get_tracer()
+        tracer = trace.get_tracer(__name__)
         try:
             steps = saga.get_steps()
 
@@ -153,10 +153,10 @@ class SagaOrchestrator:
                     name="saga.step",
                     kind=SpanKind.INTERNAL,
                     attributes={
-                        str(EventAttributes.SAGA_NAME): instance.saga_name,
-                        str(EventAttributes.SAGA_ID): instance.saga_id,
-                        str(EventAttributes.SAGA_STEP): step.name,
-                        str(EventAttributes.EXECUTION_ID): instance.execution_id,
+                        "saga.name": instance.saga_name,
+                        "saga.id": instance.saga_id,
+                        "saga.step": step.name,
+                        "execution.id": instance.execution_id,
                     },
                 ):
                     success = await step.execute(context, trigger_event)

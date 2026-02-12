@@ -101,7 +101,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-Requested-With",
             "X-CSRF-Token",
             "X-Correlation-ID",
-            "X-Request-ID",
         ],
         expose_headers=["Content-Length", "Content-Range", "X-Correlation-ID"],
     )

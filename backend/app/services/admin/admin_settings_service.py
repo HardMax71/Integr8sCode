@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
@@ -10,7 +10,7 @@ class AdminSettingsService:
         self,
         repository: AdminSettingsRepository,
         runtime_settings: RuntimeSettingsLoader,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self._repo = repository
         self._runtime_settings = runtime_settings

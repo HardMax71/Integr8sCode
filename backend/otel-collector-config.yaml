@@ -28,6 +28,23 @@ processors:
     check_interval: 1s
     limit_mib: 512
     spike_limit_mib: 128
+
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    policies:
+      - name: error-traces
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: slow-traces
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: base-rate
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
   
   resource:
     attributes:
@@ -82,7 +99,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource, attributes]
+      processors: [memory_limiter, tail_sampling, batch, resource, attributes]
       exporters: [otlp/jaeger, logging]
     
     metrics:

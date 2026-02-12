@@ -16,7 +16,7 @@ class TestCorrelationMiddleware:
         assert response.status_code == 200
         assert "X-Correlation-ID" in response.headers
         correlation_id = response.headers["X-Correlation-ID"]
-        assert correlation_id.startswith("req_")
+        assert correlation_id.startswith("req-")
 
     @pytest.mark.asyncio
     async def test_passes_through_correlation_id(
@@ -32,22 +32,6 @@ class TestCorrelationMiddleware:
 
         assert response.status_code == 200
         assert response.headers["X-Correlation-ID"] == custom_id
-
-    @pytest.mark.asyncio
-    async def test_accepts_request_id_header(
-        self, client: httpx.AsyncClient
-    ) -> None:
-        """Middleware accepts X-Request-ID as alternative header."""
-        request_id = "request-id-67890"
-
-        response = await client.get(
-            "/api/v1/health/live",
-            headers={"X-Request-ID": request_id},
-        )
-
-        assert response.status_code == 200
-        # Should use request ID as correlation ID
-        assert response.headers["X-Correlation-ID"] == request_id
 
 
 class TestCSRFMiddleware:

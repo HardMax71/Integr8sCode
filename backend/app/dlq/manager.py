@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timezone
 from typing import Callable
 
+import structlog
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
@@ -37,7 +37,7 @@ class DLQManager:
         self,
         settings: Settings,
         broker: KafkaBroker,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
         default_retry_policy: RetryPolicy,

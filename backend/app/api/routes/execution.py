@@ -4,9 +4,9 @@ from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute, inject
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from opentelemetry import trace
 
 from app.api.dependencies import admin_user, current_user
-from app.core.tracing import EventAttributes, add_span_attributes
 from app.core.utils import get_client_ip
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.events import DomainEvent
@@ -57,17 +57,15 @@ async def create_execution(
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExecutionResponse:
     """Submit a script for execution in an isolated Kubernetes pod."""
-    add_span_attributes(
-        **{
-            "http.method": "POST",
-            "http.route": "/api/v1/execute",
-            "execution.language": execution.lang,
-            "execution.language_version": execution.lang_version,
-            "execution.script_length": len(execution.script),
-            EventAttributes.USER_ID: current_user.user_id,
-            "client.address": get_client_ip(request),
-        }
-    )
+    trace.get_current_span().set_attributes({
+        "http.method": "POST",
+        "http.route": "/api/v1/execute",
+        "execution.language": execution.lang,
+        "execution.language_version": execution.lang_version,
+        "execution.script_length": len(execution.script),
+        "user.id": current_user.user_id,
+        "client.address": get_client_ip(request),
+    })
 
     exec_result = await execution_service.execute_script_idempotent(
         script=execution.script,

@@ -1,4 +1,4 @@
-import logging
+import structlog
 import uuid
 
 import pytest
@@ -14,7 +14,7 @@ from kubernetes_asyncio.client.rest import ApiException
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
-_test_logger = logging.getLogger("test.k8s.worker_create_pod")
+_test_logger = structlog.get_logger("test.k8s.worker_create_pod")
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 import pytest
 from app.core.metrics import ExecutionMetrics
@@ -23,7 +23,7 @@ pytestmark = [
     pytest.mark.xdist_group("kafka_consumers"),
 ]
 
-_test_logger = logging.getLogger("test.result_processor.processor")
+_test_logger = structlog.get_logger("test.result_processor.processor")
 
 
 @pytest.mark.asyncio

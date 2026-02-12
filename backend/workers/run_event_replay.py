@@ -4,7 +4,6 @@ from typing import Any
 
 from app.core.container import create_event_replay_container
 from app.core.logging import setup_logger
-from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.services.event_replay import EventReplayService
 from app.settings import Settings
@@ -60,17 +59,6 @@ def main() -> None:
     logger = setup_logger(settings.LOG_LEVEL)
 
     logger.info("Starting Event Replay Service...")
-
-    if settings.ENABLE_TRACING:
-        init_tracing(
-            service_name="event-replay",
-            settings=settings,
-            logger=logger,
-            service_version=settings.TRACING_SERVICE_VERSION,
-            enable_console_exporter=False,
-            sampling_rate=settings.TRACING_SAMPLING_RATE,
-        )
-        logger.info("Tracing initialized for Event Replay Service")
 
     asyncio.run(run_replay_service(settings))
 

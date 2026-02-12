@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 from uuid import uuid4
 
 import pytest
@@ -12,7 +12,7 @@ from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
-_test_logger = logging.getLogger("test.services.sse.partitioned_event_router_integration")
+_test_logger = structlog.get_logger("test.services.sse.partitioned_event_router_integration")
 
 
 @pytest.mark.asyncio

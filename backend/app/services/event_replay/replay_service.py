@@ -1,12 +1,12 @@
 import asyncio
 import json
-import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import aiofiles
 import backoff
+import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import ValidationError
 
@@ -33,7 +33,7 @@ class EventReplayService:
         repository: ReplayRepository,
         producer: UnifiedProducer,
         replay_metrics: ReplayMetrics,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._sessions: dict[str, ReplaySessionState] = {}
         self._schedulers: dict[str, AsyncIOScheduler] = {}

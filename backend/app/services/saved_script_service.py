@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.db.repositories import SavedScriptRepository
 from app.domain.saved_script import (
@@ -11,7 +11,7 @@ from app.domain.saved_script import (
 
 
 class SavedScriptService:
-    def __init__(self, saved_script_repo: SavedScriptRepository, logger: logging.Logger):
+    def __init__(self, saved_script_repo: SavedScriptRepository, logger: structlog.stdlib.BoundLogger):
         self.saved_script_repo = saved_script_repo
         self.logger = logger
 

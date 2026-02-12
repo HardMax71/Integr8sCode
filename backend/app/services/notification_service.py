@@ -1,14 +1,14 @@
 import asyncio
-import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Awaitable, Callable
 
 import backoff
 import httpx
+import structlog
+from opentelemetry import trace
 
 from app.core.metrics import NotificationMetrics
-from app.core.tracing import add_span_attributes
 from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
@@ -99,7 +99,7 @@ class NotificationService:
         event_service: KafkaEventService,
         sse_bus: SSERedisBus,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         notification_metrics: NotificationMetrics,
     ) -> None:
         self.repository = notification_repository
@@ -356,13 +356,11 @@ class NotificationService:
             },
         )
 
-        add_span_attributes(
-            **{
-                "notification.id": str(notification.notification_id),
-                "notification.channel": "webhook",
-                "notification.webhook_url": webhook_url,
-            }
-        )
+        trace.get_current_span().set_attributes({
+            "notification.id": str(notification.notification_id),
+            "notification.channel": "webhook",
+            "notification.webhook_url": webhook_url,
+        })
         async with httpx.AsyncClient() as client:
             response = await client.post(webhook_url, json=payload, headers=headers, timeout=30.0)
             response.raise_for_status()
@@ -411,12 +409,10 @@ class NotificationService:
             },
         )
 
-        add_span_attributes(
-            **{
-                "notification.id": str(notification.notification_id),
-                "notification.channel": "slack",
-            }
-        )
+        trace.get_current_span().set_attributes({
+            "notification.id": str(notification.notification_id),
+            "notification.channel": "slack",
+        })
         async with httpx.AsyncClient() as client:
             response = await client.post(subscription.slack_webhook, json=slack_message, timeout=30.0)
             response.raise_for_status()

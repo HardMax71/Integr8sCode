@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, TypeAdapter
 
-from app.core.correlation import CorrelationContext
 from app.domain.enums import (
     Environment,
     EventType,
@@ -35,7 +34,7 @@ class EventMetadata(BaseModel):
 
     service_name: str
     service_version: str
-    correlation_id: str = Field(default_factory=CorrelationContext.get_correlation_id)
+    correlation_id: str = ""
     user_id: str = Field(default_factory=lambda: str(uuid4()))
     environment: Environment = Environment.PRODUCTION
 

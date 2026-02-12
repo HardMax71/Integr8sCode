@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
@@ -23,7 +23,7 @@ class SagaService:
         saga_repo: SagaRepository,
         execution_repo: ExecutionRepository,
         orchestrator: SagaOrchestrator,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self.saga_repo = saga_repo
         self.execution_repo = execution_repo

@@ -1,9 +1,9 @@
-import logging
 import os
 import re
 import time
 
 import psutil
+import structlog
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.metrics import CallbackOptions, Observation
@@ -117,7 +117,7 @@ class MetricsMiddleware:
         return path
 
 
-def setup_metrics(settings: Settings, logger: logging.Logger) -> None:
+def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
     """Set up the global OpenTelemetry MeterProvider with OTLP exporter.
 
     This is the single initialization point for metrics export.  ``BaseMetrics``
@@ -127,9 +127,9 @@ def setup_metrics(settings: Settings, logger: logging.Logger) -> None:
     """
     if settings.TESTING or not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         logger.info(
-            "Metrics OTLP export disabled (testing=%s, endpoint=%s)",
-            settings.TESTING,
-            settings.OTEL_EXPORTER_OTLP_ENDPOINT,
+            "Metrics OTLP export disabled",
+            testing=settings.TESTING,
+            endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT,
         )
         return
 

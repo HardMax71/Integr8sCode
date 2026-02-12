@@ -1,4 +1,4 @@
-import logging
+import structlog
 import types
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -30,7 +30,7 @@ from tests.unit.conftest import (
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.pod_monitor")
+_test_logger = structlog.get_logger("test.pod_monitor")
 
 
 # ===== Test doubles for KafkaEventService dependencies =====

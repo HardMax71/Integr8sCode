@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.operators import Set
 from monggregate import Pipeline, S
@@ -18,7 +18,7 @@ from app.domain.enums import EventType
 
 
 class DLQRepository:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
     async def get_messages(

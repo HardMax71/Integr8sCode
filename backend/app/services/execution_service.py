@@ -1,8 +1,9 @@
-import logging
 from datetime import datetime, timezone
 from time import time
 from typing import Any
 from uuid import uuid4
+
+import structlog
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
@@ -45,23 +46,12 @@ class ExecutionService:
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
+        correlation_id: str,
     ) -> None:
-        """
-        Initialize execution service.
-
-        Args:
-            execution_repo: Repository for execution data persistence.
-            producer: Kafka producer for publishing events.
-            settings: Application settings.
-            logger: Logger instance.
-            execution_metrics: Metrics for tracking execution operations.
-            idempotency_manager: Manager for HTTP idempotency.
-            runtime_settings: Loader for admin-configurable runtime settings.
-        """
         self.execution_repo = execution_repo
         self.producer = producer
         self.settings = settings
@@ -69,6 +59,7 @@ class ExecutionService:
         self.metrics = execution_metrics
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
+        self._correlation_id = correlation_id
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
@@ -90,6 +81,7 @@ class ExecutionService:
             service_name="execution-service",
             service_version="2.0.0",
             user_id=user_id,
+            correlation_id=self._correlation_id,
         )
 
     async def execute_script(

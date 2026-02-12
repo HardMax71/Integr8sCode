@@ -1,6 +1,7 @@
-import logging
 from typing import Any
 from uuid import uuid4
+
+import structlog
 
 from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
@@ -9,7 +10,7 @@ from app.events.core import UnifiedProducer
 
 from .saga_step import CompensationStep, SagaContext, SagaStep
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):

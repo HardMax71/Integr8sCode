@@ -1,12 +1,13 @@
-import logging
 from datetime import datetime, timezone
+
+import structlog
 
 from app.db.docs.admin_settings import AuditLogDocument, SystemSettingsDocument
 from app.domain.admin import AuditAction, SystemSettings
 
 
 class AdminSettingsRepository:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
     async def get_system_settings(

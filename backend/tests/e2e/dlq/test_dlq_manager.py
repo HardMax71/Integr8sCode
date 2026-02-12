@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 import uuid
 from datetime import datetime, timezone
 
@@ -24,7 +24,7 @@ from tests.conftest import make_execution_requested_event
 # Serial execution ensures each test's manager processes only its own messages.
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka, pytest.mark.mongodb, pytest.mark.xdist_group("dlq")]
 
-_test_logger = logging.getLogger("test.dlq.manager")
+_test_logger = structlog.get_logger("test.dlq.manager")
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
-import logging
 import time
 
+import structlog
 from opentelemetry import trace
 
 from app.core.metrics import EventMetrics
@@ -16,7 +16,7 @@ class KafkaEventService:
         self,
         kafka_producer: UnifiedProducer,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         event_metrics: EventMetrics,
     ):
         self.kafka_producer = kafka_producer

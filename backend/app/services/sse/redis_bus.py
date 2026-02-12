@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import logging
 from typing import ClassVar, Type, TypeVar
 
 import redis.asyncio as redis
+import structlog
 from pydantic import BaseModel
 
 from app.domain.enums import EventType
@@ -16,7 +16,7 @@ T = TypeVar("T", bound=BaseModel)
 class SSERedisSubscription:
     """Subscription wrapper for Redis pubsub with typed message parsing."""
 
-    def __init__(self, pubsub: redis.client.PubSub, channel: str, logger: logging.Logger) -> None:
+    def __init__(self, pubsub: redis.client.PubSub, channel: str, logger: structlog.stdlib.BoundLogger) -> None:
         self._pubsub = pubsub
         self._channel = channel
         self.logger = logger
@@ -67,7 +67,7 @@ class SSERedisBus:
     def __init__(
         self,
         redis_client: redis.Redis,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         exec_prefix: str = "sse:exec:",
         notif_prefix: str = "sse:notif:",
     ) -> None:

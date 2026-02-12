@@ -1,8 +1,9 @@
 import asyncio
-import logging
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
+
+import structlog
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
@@ -40,7 +41,7 @@ class SSEService:
         repository: SSERepository,
         sse_bus: SSERedisBus,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         connection_metrics: ConnectionMetrics,
     ) -> None:
         self.repository = repository

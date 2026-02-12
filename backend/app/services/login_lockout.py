@@ -1,6 +1,5 @@
-import logging
-
 import redis.asyncio as redis
+import structlog
 
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -14,7 +13,7 @@ class LoginLockoutService:
         self,
         redis_client: redis.Redis,
         runtime_settings: RuntimeSettingsLoader,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._redis = redis_client
         self._runtime_settings = runtime_settings

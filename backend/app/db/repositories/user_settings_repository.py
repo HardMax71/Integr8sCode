@@ -1,6 +1,6 @@
-import logging
 from datetime import datetime
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GT, LTE, Eq, In
@@ -11,7 +11,7 @@ from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
 
 
 class UserSettingsRepository:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
     async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:

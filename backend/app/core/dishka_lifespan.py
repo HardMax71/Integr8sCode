@@ -11,7 +11,6 @@ from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
 
 from app.core.logging import setup_logger
-from app.core.tracing import init_tracing
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import (
     register_notification_subscriber,
@@ -52,34 +51,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "environment": "test" if settings.TESTING else "production",
         },
     )
-
-    # Initialize tracing only when enabled (avoid exporter retries in tests)
-    if settings.ENABLE_TRACING and not settings.TESTING:
-        instrumentation_report = init_tracing(
-            service_name=settings.TRACING_SERVICE_NAME,
-            settings=settings,
-            logger=logger,
-            service_version=settings.TRACING_SERVICE_VERSION,
-            sampling_rate=settings.TRACING_SAMPLING_RATE,
-            enable_console_exporter=settings.TESTING,
-            adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
-        )
-
-        if instrumentation_report.has_failures():
-            logger.warning(
-                "Some instrumentation libraries failed to initialize",
-                extra={"instrumentation_summary": instrumentation_report.get_summary()},
-            )
-        else:
-            logger.info(
-                "Distributed tracing initialized successfully",
-                extra={"instrumentation_summary": instrumentation_report.get_summary()},
-            )
-    else:
-        logger.info(
-            "Distributed tracing disabled",
-            extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
-        )
 
     # Get unstarted broker from DI (BrokerProvider yields without starting)
     broker: KafkaBroker = await container.get(KafkaBroker)

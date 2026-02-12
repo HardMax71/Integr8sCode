@@ -1,4 +1,4 @@
-import logging
+import structlog
 from uuid import uuid4
 
 import pytest
@@ -6,7 +6,7 @@ from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionStatus
 from app.domain.execution import DomainExecutionCreate, DomainExecutionUpdate
 
-_test_logger = logging.getLogger("test.db.repositories.execution_repository")
+_test_logger = structlog.get_logger("test.db.repositories.execution_repository")
 
 pytestmark = pytest.mark.e2e
 

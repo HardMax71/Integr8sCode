@@ -25,7 +25,7 @@ repos:
       # ESLint - matches CI: cd frontend && npx eslint src
       - id: eslint-frontend
         name: eslint (frontend)
-        entry: bash -c 'cd frontend && npx eslint src --ext .ts,.svelte'
+        entry: bash -c 'cd frontend && npx eslint src'
         language: system
         files: ^frontend/src/.*\.(ts|svelte)$
         pass_filenames: false

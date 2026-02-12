@@ -47,7 +47,7 @@ from app.db.repositories import (
 )
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums import KafkaTopic
+from app.domain.enums import EventType
 from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
@@ -222,74 +222,56 @@ def _default_retry_policies(prefix: str) -> dict[str, RetryPolicy]:
 
     Keys must match message.original_topic (full prefixed topic name).
     """
-    execution_events = f"{prefix}{KafkaTopic.EXECUTION_EVENTS}"
-    pod_events = f"{prefix}{KafkaTopic.POD_EVENTS}"
-    saga_commands = f"{prefix}{KafkaTopic.SAGA_COMMANDS}"
-    execution_results = f"{prefix}{KafkaTopic.EXECUTION_RESULTS}"
+    policies: dict[str, RetryPolicy] = {}
 
-    return {
-        execution_events: RetryPolicy(
-            topic=execution_events,
+    for et in (EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED,
+               EventType.EXECUTION_FAILED, EventType.EXECUTION_TIMEOUT,
+               EventType.EXECUTION_CANCELLED):
+        topic = f"{prefix}{et}"
+        policies[topic] = RetryPolicy(
+            topic=topic,
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=5,
             base_delay_seconds=30,
             max_delay_seconds=300,
             retry_multiplier=2.0,
-        ),
-        pod_events: RetryPolicy(
-            topic=pod_events,
+        )
+
+    for et in (EventType.POD_CREATED, EventType.POD_FAILED, EventType.POD_SUCCEEDED):
+        topic = f"{prefix}{et}"
+        policies[topic] = RetryPolicy(
+            topic=topic,
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=3,
             base_delay_seconds=60,
             max_delay_seconds=600,
             retry_multiplier=3.0,
-        ),
-        saga_commands: RetryPolicy(
-            topic=saga_commands,
+        )
+
+    for et in (EventType.CREATE_POD_COMMAND, EventType.DELETE_POD_COMMAND):
+        topic = f"{prefix}{et}"
+        policies[topic] = RetryPolicy(
+            topic=topic,
             strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
             max_retries=5,
             base_delay_seconds=30,
             max_delay_seconds=300,
             retry_multiplier=2.0,
-        ),
-        execution_results: RetryPolicy(
-            topic=execution_results,
+        )
+
+    for et in (EventType.RESULT_STORED, EventType.RESULT_FAILED):
+        topic = f"{prefix}{et}"
+        policies[topic] = RetryPolicy(
+            topic=topic,
             strategy=RetryStrategy.IMMEDIATE,
             max_retries=3,
-        ),
-    }
-
-
-class DLQProvider(Provider):
-    """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
-
-    scope = Scope.APP
-
-    @provide
-    def get_dlq_manager(
-            self,
-            broker: KafkaBroker,
-            settings: Settings,
-            logger: logging.Logger,
-            dlq_metrics: DLQMetrics,
-            repository: DLQRepository,
-    ) -> DLQManager:
-        return DLQManager(
-            settings=settings,
-            broker=broker,
-            logger=logger,
-            dlq_metrics=dlq_metrics,
-            repository=repository,
-            default_retry_policy=_default_retry_policy(),
-            retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
         )
+
+    return policies
 
 
 class DLQWorkerProvider(Provider):
-    """Provides DLQManager with APScheduler-managed retry monitoring.
-
-    Used by the DLQ worker container only.
-    """
+    """Provides DLQManager with APScheduler-managed retry monitoring."""
 
     scope = Scope.APP
 

@@ -6,7 +6,7 @@ import pytest
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq.models import DLQMessageStatus
-from app.domain.enums import KafkaTopic
+from app.domain.enums import EventType
 from dishka import AsyncContainer
 
 from tests.conftest import make_execution_requested_event
@@ -32,7 +32,7 @@ async def _create_dlq_document(
 
     doc = DLQMessageDocument(
         event=event_dict,
-        original_topic=KafkaTopic.EXECUTION_EVENTS,
+        original_topic=str(EventType.EXECUTION_REQUESTED),
         error="Test error",
         retry_count=0,
         failed_at=now,

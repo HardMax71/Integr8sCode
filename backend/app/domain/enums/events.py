@@ -82,7 +82,7 @@ class EventType(StringEnum):
     ALLOCATE_RESOURCES_COMMAND = "allocate_resources_command"
     RELEASE_RESOURCES_COMMAND = "release_resources_command"
 
-    # DLQ events
+    # DLQ
     DLQ_MESSAGE_RECEIVED = "dlq_message_received"
     DLQ_MESSAGE_RETRIED = "dlq_message_retried"
     DLQ_MESSAGE_DISCARDED = "dlq_message_discarded"

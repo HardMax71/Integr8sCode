@@ -1,16 +1,10 @@
-import asyncio
 import logging
-import socket
-from datetime import datetime, timezone
 
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
 from app.db.repositories import EventRepository
-from app.dlq.models import DLQMessage, DLQMessageStatus
-from app.domain.enums import KafkaTopic
 from app.domain.events import DomainEvent
-from app.infrastructure.kafka.mappings import EVENT_TYPE_TO_TOPIC
 from app.settings import Settings
 
 
@@ -38,7 +32,7 @@ class UnifiedProducer:
     async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
         """Persist event to MongoDB, then publish to Kafka."""
         await self._event_repository.store_event(event_to_produce)
-        topic = f"{self._topic_prefix}{EVENT_TYPE_TO_TOPIC[event_to_produce.event_type]}"
+        topic = f"{self._topic_prefix}{event_to_produce.event_type}"
         try:
             await self._broker.publish(
                 message=event_to_produce,
@@ -53,42 +47,3 @@ class UnifiedProducer:
             self._event_metrics.record_kafka_production_error(topic=topic, error_type=type(e).__name__)
             self.logger.error(f"Failed to produce message: {e}")
             raise
-
-    async def send_to_dlq(
-        self, original_event: DomainEvent, original_topic: str, error: Exception, retry_count: int = 0
-    ) -> None:
-        """Send a failed event to the Dead Letter Queue."""
-        try:
-            current_task = asyncio.current_task()
-            task_name = current_task.get_name() if current_task else "main"
-            producer_id = f"{socket.gethostname()}-{task_name}"
-
-            dlq_topic = f"{self._topic_prefix}{KafkaTopic.DEAD_LETTER_QUEUE}"
-
-            dlq_msg = DLQMessage(
-                event=original_event,
-                original_topic=original_topic,
-                error=str(error),
-                retry_count=retry_count,
-                failed_at=datetime.now(timezone.utc),
-                status=DLQMessageStatus.PENDING,
-                producer_id=producer_id,
-            )
-
-            await self._broker.publish(
-                message=dlq_msg,
-                topic=dlq_topic,
-                key=original_event.event_id.encode(),
-            )
-
-            self._event_metrics.record_kafka_message_produced(dlq_topic)
-            self.logger.warning(
-                f"Event {original_event.event_id} sent to DLQ. "
-                f"Original topic: {original_topic}, Error: {error}, "
-                f"Retry count: {retry_count}"
-            )
-
-        except Exception as e:
-            self.logger.critical(
-                f"Failed to send event {original_event.event_id} to DLQ: {e}. Original error: {error}", exc_info=True
-            )

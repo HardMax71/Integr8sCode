@@ -8,7 +8,6 @@ from app.core.providers import (
     BusinessServicesProvider,
     CoordinatorProvider,
     CoreServicesProvider,
-    DLQProvider,
     DLQWorkerProvider,
     EventReplayProvider,
     EventReplayWorkerProvider,
@@ -51,7 +50,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
+        DLQWorkerProvider(),
         SagaOrchestratorProvider(),
         KafkaServicesProvider(),
         SSEProvider(),
@@ -79,7 +78,6 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         ResultProcessorProvider(),
         context={Settings: settings},
     )
@@ -96,7 +94,6 @@ def create_coordinator_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         CoordinatorProvider(),
         context={Settings: settings},
     )
@@ -113,7 +110,6 @@ def create_k8s_worker_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         KubernetesProvider(),
         K8sWorkerProvider(),
         context={Settings: settings},
@@ -131,7 +127,6 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         KafkaServicesProvider(),
         KubernetesProvider(),
         PodMonitorProvider(),
@@ -153,7 +148,6 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         SagaWorkerProvider(),
         context={Settings: settings},
     )
@@ -173,27 +167,6 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQProvider(),
         EventReplayWorkerProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker.
-
-    Uses DLQWorkerProvider which adds APScheduler-managed retry monitoring
-    and configures retry policies and filters.
-    """
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQWorkerProvider(),
         context={Settings: settings},
     )

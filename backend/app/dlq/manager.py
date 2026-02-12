@@ -15,7 +15,6 @@ from app.dlq.models import (
     RetryPolicy,
     RetryStrategy,
 )
-from app.domain.enums import KafkaTopic
 from app.domain.events import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
@@ -42,7 +41,6 @@ class DLQManager:
         repository: DLQRepository,
         default_retry_policy: RetryPolicy,
         retry_policies: dict[str, RetryPolicy],
-        dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
         filters: list[Callable[[DLQMessage], bool]] | None = None,
     ):
         self.settings = settings
@@ -50,7 +48,6 @@ class DLQManager:
         self.logger = logger
         self.metrics = dlq_metrics
         self.repository = repository
-        self.dlq_topic = dlq_topic
         self.default_retry_policy = default_retry_policy
         self._retry_policies = retry_policies
 
@@ -61,7 +58,7 @@ class DLQManager:
             ] if f is not None
         ]
 
-        self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
+        self._topic_prefix = settings.KAFKA_TOPIC_PREFIX
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
         return not message.event.event_id.startswith("test-")
@@ -87,23 +84,24 @@ class DLQManager:
         message.last_updated = datetime.now(timezone.utc)
         await self.repository.save_message(message)
 
-        await self._broker.publish(
-            DLQMessageReceivedEvent(
-                dlq_event_id=message.event.event_id,
-                original_topic=message.original_topic,
-                original_event_type=message.event.event_type,
-                error=message.error,
-                retry_count=message.retry_count,
-                producer_id=message.producer_id,
-                failed_at=message.failed_at,
-                metadata=EventMetadata(
-                    service_name="dlq-manager",
-                    service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
-                    user_id=message.event.metadata.user_id,
-                ),
+        received_event = DLQMessageReceivedEvent(
+            dlq_event_id=message.event.event_id,
+            original_topic=message.original_topic,
+            original_event_type=message.event.event_type,
+            error=message.error,
+            retry_count=message.retry_count,
+            producer_id=message.producer_id,
+            failed_at=message.failed_at,
+            metadata=EventMetadata(
+                service_name="dlq-manager",
+                service_version="1.0.0",
+                correlation_id=message.event.metadata.correlation_id,
+                user_id=message.event.metadata.user_id,
             ),
-            topic=self._dlq_events_topic,
+        )
+        await self._broker.publish(
+            received_event,
+            topic=f"{self._topic_prefix}{received_event.event_type}",
         )
 
         retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
@@ -144,21 +142,22 @@ class DLQManager:
             ),
         )
 
-        await self._broker.publish(
-            DLQMessageRetriedEvent(
-                dlq_event_id=message.event.event_id,
-                original_topic=message.original_topic,
-                original_event_type=message.event.event_type,
-                retry_count=new_retry_count,
-                retry_topic=message.original_topic,
-                metadata=EventMetadata(
-                    service_name="dlq-manager",
-                    service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
-                    user_id=message.event.metadata.user_id,
-                ),
+        retried_event = DLQMessageRetriedEvent(
+            dlq_event_id=message.event.event_id,
+            original_topic=message.original_topic,
+            original_event_type=message.event.event_type,
+            retry_count=new_retry_count,
+            retry_topic=message.original_topic,
+            metadata=EventMetadata(
+                service_name="dlq-manager",
+                service_version="1.0.0",
+                correlation_id=message.event.metadata.correlation_id,
+                user_id=message.event.metadata.user_id,
             ),
-            topic=self._dlq_events_topic,
+        )
+        await self._broker.publish(
+            retried_event,
+            topic=f"{self._topic_prefix}{retried_event.event_type}",
         )
         self.logger.info("Successfully retried message", extra={"event_id": message.event.event_id})
 
@@ -175,21 +174,22 @@ class DLQManager:
             ),
         )
 
-        await self._broker.publish(
-            DLQMessageDiscardedEvent(
-                dlq_event_id=message.event.event_id,
-                original_topic=message.original_topic,
-                original_event_type=message.event.event_type,
-                reason=reason,
-                retry_count=message.retry_count,
-                metadata=EventMetadata(
-                    service_name="dlq-manager",
-                    service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
-                    user_id=message.event.metadata.user_id,
-                ),
+        discarded_event = DLQMessageDiscardedEvent(
+            dlq_event_id=message.event.event_id,
+            original_topic=message.original_topic,
+            original_event_type=message.event.event_type,
+            reason=reason,
+            retry_count=message.retry_count,
+            metadata=EventMetadata(
+                service_name="dlq-manager",
+                service_version="1.0.0",
+                correlation_id=message.event.metadata.correlation_id,
+                user_id=message.event.metadata.user_id,
             ),
-            topic=self._dlq_events_topic,
+        )
+        await self._broker.publish(
+            discarded_event,
+            topic=f"{self._topic_prefix}{discarded_event.event_type}",
         )
         self.logger.warning("Discarded message", extra={"event_id": message.event.event_id, "reason": reason})
 

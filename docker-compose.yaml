@@ -349,6 +349,8 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/scripts:/app/scripts:ro
       - ./backend/config.toml:/app/config.toml:ro
       - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.create_topics"]
@@ -513,26 +515,6 @@ services:
       - ./backend/config.toml:/app/config.toml:ro
       - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.event-replay.toml:/app/config.event-replay.toml:ro
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  # DLQ Processor Service
-  dlq-processor:
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: dlq-processor
-    command: ["python", "workers/run_dlq_processor.py"]
-    depends_on:
-      kafka-init:
-        condition: service_completed_successfully
-      mongo:
-        condition: service_started
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
-      - ./backend/config.dlq-processor.toml:/app/config.dlq-processor.toml:ro
     networks:
       - app-network
     restart: unless-stopped

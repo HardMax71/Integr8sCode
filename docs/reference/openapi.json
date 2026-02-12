@@ -13020,7 +13020,8 @@
           "webhook_url": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^https://"
               },
               {
                 "type": "null"
@@ -13031,7 +13032,8 @@
           "slack_webhook": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^https://hooks\\.slack\\.com/"
               },
               {
                 "type": "null"

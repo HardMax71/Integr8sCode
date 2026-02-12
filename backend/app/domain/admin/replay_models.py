@@ -1,7 +1,7 @@
 from dataclasses import field
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
@@ -27,13 +27,11 @@ class ExecutionResultSummary(BaseModel):
     error_type: ExecutionErrorType | None = None
 
 
-@dataclass
-class ReplaySessionStatusDetail:
+class ReplaySessionStatusDetail(ReplaySessionState):
     """Status detail with computed metadata for admin API."""
 
-    session: ReplaySessionState
     estimated_completion: datetime | None = None
-    execution_results: list[ExecutionResultSummary] = field(default_factory=list)
+    execution_results: list[ExecutionResultSummary] = Field(default_factory=list)
 
 
 @dataclass

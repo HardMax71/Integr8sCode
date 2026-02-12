@@ -14,7 +14,6 @@ from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.dlq import (
     DLQBatchRetryResponse,
     DLQMessageDetail,
-    DLQMessageResponse,
     DLQMessagesResponse,
     DLQTopicSummaryResponse,
     ManualRetryRequest,
@@ -41,10 +40,7 @@ async def get_dlq_messages(
         status=status, topic=topic, event_type=event_type, limit=limit, offset=offset
     )
 
-    # Convert domain messages to response models using model_validate
-    messages = [DLQMessageResponse.model_validate(msg) for msg in result.messages]
-
-    return DLQMessagesResponse(messages=messages, total=result.total, offset=result.offset, limit=result.limit)
+    return DLQMessagesResponse.model_validate(result)
 
 
 @router.get(

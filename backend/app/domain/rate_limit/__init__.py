@@ -9,6 +9,7 @@ from .rate_limit_models import (
     UserRateLimit,
     UserRateLimitsResult,
     UserRateLimitSummary,
+    UserRateLimitUpdate,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "UserRateLimit",
     "UserRateLimitsResult",
     "UserRateLimitSummary",
+    "UserRateLimitUpdate",
 ]

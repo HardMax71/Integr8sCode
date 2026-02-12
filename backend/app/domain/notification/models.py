@@ -71,6 +71,12 @@ class DomainNotificationListResult(BaseModel):
     unread_count: int
 
 
+class DomainSubscriptionListResult(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    subscriptions: list[DomainNotificationSubscription]
+
+
 class DomainNotificationCreate(BaseModel):
     """Data for creating a notification."""
 

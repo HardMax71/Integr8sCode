@@ -4,7 +4,7 @@ import re
 from dataclasses import field
 from datetime import datetime, timezone
 
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
@@ -35,8 +35,9 @@ class EndpointUsageStats:
     remaining: int
 
 
-@dataclass
-class RateLimitRule:
+class RateLimitRule(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     endpoint_pattern: str
     group: EndpointGroup
     requests: int
@@ -45,18 +46,29 @@ class RateLimitRule:
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
     priority: int = 0
     enabled: bool = True
-    # Internal cache for matching speed; not serialized
-    compiled_pattern: re.Pattern[str] | None = field(default=None, repr=False, compare=False)
+    compiled_pattern: re.Pattern[str] | None = Field(default=None, exclude=True, repr=False)
 
 
-@dataclass
-class UserRateLimit:
+class UserRateLimitUpdate(BaseModel):
+    """Update payload for user rate limits (excludes user_id and timestamps)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    rules: list[RateLimitRule] = Field(default_factory=list)
+    bypass_rate_limit: bool = False
+    global_multiplier: float = 1.0
+    notes: str | None = None
+
+
+class UserRateLimit(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     user_id: str
-    rules: list[RateLimitRule] = field(default_factory=list)
+    rules: list[RateLimitRule] = Field(default_factory=list)
     global_multiplier: float = 1.0
     bypass_rate_limit: bool = False
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = None
 
 

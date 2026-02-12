@@ -9,7 +9,7 @@ from typing import Any
 from app.db.docs.replay import ReplaySessionDocument
 from app.db.repositories import AdminEventsRepository
 from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
-from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events import (
     EventBrowseResult,
     EventDetail,
@@ -19,7 +19,7 @@ from app.domain.events import (
     EventSummary,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.event_replay import EventReplayService
 
 
@@ -196,16 +196,10 @@ class AdminEventsService:
         if not doc:
             return None
 
-        now = datetime.now(timezone.utc)
-        estimated_completion = self._estimate_completion(doc, now)
-        session = ReplaySessionState.model_validate(doc)
-        execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
-
-        return ReplaySessionStatusDetail(
-            session=session,
-            estimated_completion=estimated_completion,
-            execution_results=execution_results,
-        )
+        result = ReplaySessionStatusDetail.model_validate(doc)
+        result.estimated_completion = self._estimate_completion(doc, datetime.now(timezone.utc))
+        result.execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
+        return result
 
     def _estimate_completion(self, doc: ReplaySessionDocument, now: datetime) -> datetime | None:
         if not doc.is_running or not doc.started_at or doc.replayed_events <= 0:
@@ -217,7 +211,14 @@ class AdminEventsService:
         remaining = doc.total_events - doc.replayed_events
         return now + timedelta(seconds=remaining / rate) if rate > 0 else None
 
-    async def export_events_csv_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
+    async def export_events(
+        self, *, event_filter: EventFilter, limit: int, export_format: ExportFormat
+    ) -> ExportResult:
+        if export_format == ExportFormat.CSV:
+            return await self._export_csv(event_filter=event_filter, limit=limit)
+        return await self._export_json(event_filter=event_filter, limit=limit)
+
+    async def _export_csv(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         events = await self._repo.get_events(event_filter, skip=0, limit=limit)
         rows = [EventExportRow.model_validate(e, from_attributes=True) for e in events]
         output = StringIO()
@@ -249,7 +250,7 @@ class AdminEventsService:
         )
         return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
-    async def export_events_json_content(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
+    async def _export_json(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         events = await self._repo.get_events(event_filter, skip=0, limit=limit)
         # mode="json" auto-converts datetime fields to ISO strings
         events_data = [event.model_dump(mode="json") for event in events]

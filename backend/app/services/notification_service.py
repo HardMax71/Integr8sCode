@@ -24,6 +24,7 @@ from app.domain.notification import (
     DomainNotificationListResult,
     DomainNotificationSubscription,
     DomainNotificationUpdate,
+    DomainSubscriptionListResult,
     DomainSubscriptionUpdate,
     NotificationNotFoundError,
     NotificationThrottledError,
@@ -538,35 +539,16 @@ class NotificationService:
         self,
         user_id: str,
         channel: NotificationChannel,
-        enabled: bool,
-        webhook_url: str | None = None,
-        slack_webhook: str | None = None,
-        severities: list[NotificationSeverity] | None = None,
-        include_tags: list[str] | None = None,
-        exclude_tags: list[str] | None = None,
+        update_data: DomainSubscriptionUpdate,
     ) -> DomainNotificationSubscription:
         """Update notification subscription preferences."""
         # Validate channel-specific requirements
-        if channel == NotificationChannel.WEBHOOK and enabled:
-            if not webhook_url:
+        if channel == NotificationChannel.WEBHOOK and update_data.enabled:
+            if not update_data.webhook_url:
                 raise NotificationValidationError("webhook_url is required when enabling WEBHOOK")
-            if not (webhook_url.startswith("http://") or webhook_url.startswith("https://")):
-                raise NotificationValidationError("webhook_url must start with http:// or https://")
-        if channel == NotificationChannel.SLACK and enabled:
-            if not slack_webhook:
+        if channel == NotificationChannel.SLACK and update_data.enabled:
+            if not update_data.slack_webhook:
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
-            if not slack_webhook.startswith("https://hooks.slack.com/"):
-                raise NotificationValidationError("slack_webhook must be a valid Slack webhook URL")
-
-        # Build update data
-        update_data = DomainSubscriptionUpdate(
-            enabled=enabled,
-            webhook_url=webhook_url,
-            slack_webhook=slack_webhook,
-            severities=severities,
-            include_tags=include_tags,
-            exclude_tags=exclude_tags,
-        )
 
         return await self.repository.upsert_subscription(user_id, channel, update_data)
 
@@ -574,9 +556,10 @@ class NotificationService:
         """Mark all notifications as read for a user."""
         return await self.repository.mark_all_as_read(user_id)
 
-    async def get_subscriptions(self, user_id: str) -> dict[NotificationChannel, DomainNotificationSubscription]:
+    async def get_subscriptions(self, user_id: str) -> DomainSubscriptionListResult:
         """Get all notification subscriptions for a user."""
-        return await self.repository.get_all_subscriptions(user_id)
+        subs = await self.repository.get_all_subscriptions(user_id)
+        return DomainSubscriptionListResult(subscriptions=subs)
 
     async def delete_notification(self, user_id: str, notification_id: str) -> None:
         """Delete a notification."""

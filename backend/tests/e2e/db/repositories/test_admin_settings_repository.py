@@ -29,7 +29,7 @@ async def test_get_system_settings_existing(repo: AdminSettingsRepository) -> No
 
 @pytest.mark.asyncio
 async def test_get_seeds_with_provided_defaults(repo: AdminSettingsRepository) -> None:
-    await repo.reset_system_settings("test", "test")
+    await repo.reset_system_settings(user_id="test")
     custom = SystemSettings(max_timeout_seconds=777, memory_limit="1024Mi")
     s = await repo.get_system_settings(defaults=custom)
     assert s.max_timeout_seconds == 777
@@ -39,7 +39,7 @@ async def test_get_seeds_with_provided_defaults(repo: AdminSettingsRepository) -
 @pytest.mark.asyncio
 async def test_update_persists_values(repo: AdminSettingsRepository) -> None:
     updated_settings = SystemSettings(max_timeout_seconds=42, cpu_limit="500m")
-    result = await repo.update_system_settings(updated_settings, updated_by="admin", user_id="u1")
+    result = await repo.update_system_settings(updated_settings, user_id="u1")
     assert result.max_timeout_seconds == 42
     assert result.cpu_limit == "500m"
 
@@ -50,23 +50,19 @@ async def test_update_persists_values(repo: AdminSettingsRepository) -> None:
 @pytest.mark.asyncio
 async def test_update_creates_audit_log(repo: AdminSettingsRepository) -> None:
     count_before = await AuditLogDocument.count()
-    await repo.update_system_settings(SystemSettings(), updated_by="admin", user_id="u1")
+    await repo.update_system_settings(SystemSettings(), user_id="u1")
     assert await AuditLogDocument.count() > count_before
 
 
 @pytest.mark.asyncio
 async def test_reset_deletes_doc_and_returns_defaults(repo: AdminSettingsRepository) -> None:
-    await repo.update_system_settings(
-        SystemSettings(max_timeout_seconds=999),
-        updated_by="admin",
-        user_id="u1",
-    )
-    result = await repo.reset_system_settings("admin", "u1")
+    await repo.update_system_settings(SystemSettings(max_timeout_seconds=999), user_id="u1")
+    result = await repo.reset_system_settings(user_id="u1")
     assert result.max_timeout_seconds == _DEFAULTS.max_timeout_seconds
 
 
 @pytest.mark.asyncio
 async def test_reset_creates_audit_log(repo: AdminSettingsRepository) -> None:
     count_before = await AuditLogDocument.count()
-    await repo.reset_system_settings("admin", "u1")
+    await repo.reset_system_settings(user_id="u1")
     assert await AuditLogDocument.count() > count_before

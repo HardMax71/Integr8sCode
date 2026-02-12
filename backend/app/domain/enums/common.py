@@ -17,6 +17,13 @@ class Theme(StringEnum):
     AUTO = "auto"
 
 
+class ExportFormat(StringEnum):
+    """Supported export file formats."""
+
+    CSV = "csv"
+    JSON = "json"
+
+
 class SortOrder(StringEnum):
     """Sort order for queries."""
 

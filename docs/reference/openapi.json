@@ -988,11 +988,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SavedScriptResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Saved Scripts Api V1 Scripts Get"
+                  "$ref": "#/components/schemas/SavedScriptListResponse"
                 }
               }
             }
@@ -2081,118 +2077,23 @@
         }
       }
     },
-    "/api/v1/admin/events/export/csv": {
+    "/api/v1/admin/events/export/{export_format}": {
       "get": {
         "tags": [
           "admin-events"
         ],
-        "summary": "Export Events Csv",
-        "description": "Export filtered events as a downloadable CSV file.",
-        "operationId": "export_events_csv_api_v1_admin_events_export_csv_get",
+        "summary": "Export Events",
+        "description": "Export filtered events as a downloadable file.",
+        "operationId": "export_events_api_v1_admin_events_export__export_format__get",
         "parameters": [
           {
-            "name": "event_types",
-            "in": "query",
-            "required": false,
+            "name": "export_format",
+            "in": "path",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EventType"
-                  }
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Event types (repeat param for multiple)",
-              "title": "Event Types"
-            },
-            "description": "Event types (repeat param for multiple)"
-          },
-          {
-            "name": "start_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Start time",
-              "title": "Start Time"
-            },
-            "description": "Start time"
-          },
-          {
-            "name": "end_time",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "End time",
-              "title": "End Time"
-            },
-            "description": "End time"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50000,
-              "minimum": 1,
-              "default": 10000,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "$ref": "#/components/schemas/ExportFormat"
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/events/export/json": {
-      "get": {
-        "tags": [
-          "admin-events"
-        ],
-        "summary": "Export Events Json",
-        "description": "Export events as JSON with comprehensive filtering.",
-        "operationId": "export_events_json_api_v1_admin_events_export_json_get",
-        "parameters": [
           {
             "name": "event_types",
             "in": "query",
@@ -8512,6 +8413,15 @@
         ],
         "title": "ExecutionTimeoutEvent"
       },
+      "ExportFormat": {
+        "type": "string",
+        "enum": [
+          "csv",
+          "json"
+        ],
+        "title": "ExportFormat",
+        "description": "Supported export file formats."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -12311,6 +12221,22 @@
         ],
         "title": "SavedScriptCreateRequest"
       },
+      "SavedScriptListResponse": {
+        "properties": {
+          "scripts": {
+            "items": {
+              "$ref": "#/components/schemas/SavedScriptResponse"
+            },
+            "type": "array",
+            "title": "Scripts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scripts"
+        ],
+        "title": "SavedScriptListResponse"
+      },
       "SavedScriptResponse": {
         "properties": {
           "script_id": {
@@ -13094,7 +13020,8 @@
           "webhook_url": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^https://"
               },
               {
                 "type": "null"
@@ -13105,7 +13032,8 @@
           "slack_webhook": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^https://hooks\\.slack\\.com/"
               },
               {
                 "type": "null"

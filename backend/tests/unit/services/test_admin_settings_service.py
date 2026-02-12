@@ -31,7 +31,7 @@ async def test_get_delegates_to_runtime_loader() -> None:
     expected = SystemSettings(max_timeout_seconds=42)
     service, repo, runtime = _make_service(repo_return=expected)
 
-    result = await service.get_system_settings("admin")
+    result = await service.get_system_settings("u1")
 
     runtime.get_effective_settings.assert_called_once()
     repo.get_system_settings.assert_not_called()
@@ -44,9 +44,9 @@ async def test_update_calls_repo_and_invalidates_cache() -> None:
     service, repo, runtime = _make_service()
     repo.update_system_settings.return_value = new_settings
 
-    result = await service.update_system_settings(new_settings, updated_by="admin", user_id="u1")
+    result = await service.update_system_settings(new_settings, "u1")
 
-    repo.update_system_settings.assert_called_once_with(settings=new_settings, updated_by="admin", user_id="u1")
+    repo.update_system_settings.assert_called_once_with(settings=new_settings, user_id="u1")
     runtime.invalidate_cache.assert_called_once()
     assert result.max_timeout_seconds == 600
 
@@ -57,9 +57,9 @@ async def test_reset_calls_repo_invalidates_cache_and_reloads() -> None:
     service, repo, runtime = _make_service()
     runtime.get_effective_settings.return_value = defaults
 
-    result = await service.reset_system_settings("admin", "u1")
+    result = await service.reset_system_settings("u1")
 
-    repo.reset_system_settings.assert_called_once_with(username="admin", user_id="u1")
+    repo.reset_system_settings.assert_called_once_with(user_id="u1")
     runtime.invalidate_cache.assert_called_once()
     # After reset, reads fresh from runtime loader
     assert runtime.get_effective_settings.call_count == 1
@@ -82,6 +82,6 @@ async def test_update_invalidates_before_returning() -> None:
     repo.update_system_settings.side_effect = _track_update
     runtime.invalidate_cache.side_effect = _track_invalidate
 
-    await service.update_system_settings(SystemSettings(), updated_by="admin", user_id="u1")
+    await service.update_system_settings(SystemSettings(), "u1")
 
     assert call_order == ["repo_update", "invalidate"]

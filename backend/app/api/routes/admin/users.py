@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.dependencies import admin_user
 from app.db.repositories import AdminUserRepository
 from app.domain.enums import UserRole
-from app.domain.rate_limit import RateLimitRule, UserRateLimit
+from app.domain.rate_limit import UserRateLimitUpdate
 from app.domain.user import User
 from app.domain.user import UserUpdate as DomainUserUpdate
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
@@ -44,7 +44,7 @@ async def list_users(
 ) -> UserListResponse:
     """List all users with optional search and role filtering."""
     result = await admin_user_service.list_users(
-        admin_username=admin.username,
+        admin_user_id=admin.user_id,
         limit=limit,
         offset=offset,
         search=search,
@@ -64,7 +64,7 @@ async def create_user(
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Create a new user (admin only)."""
-    domain_user = await admin_user_service.create_user(admin_username=admin.username, user_data=user_data)
+    domain_user = await admin_user_service.create_user(admin_user_id=admin.user_id, user_data=user_data)
     return UserResponse.model_validate(domain_user)
 
 
@@ -79,7 +79,7 @@ async def get_user(
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Get a user by ID."""
-    user = await admin_user_service.get_user(admin_username=admin.username, user_id=user_id)
+    user = await admin_user_service.get_user(admin_user_id=admin.user_id, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -125,7 +125,7 @@ async def update_user(
     domain_update = DomainUserUpdate.model_validate(user_update)
 
     updated_user = await admin_user_service.update_user(
-        admin_username=admin.username, user_id=user_id, update=domain_update
+        admin_user_id=admin.user_id, user_id=user_id, update=domain_update
     )
     if not updated_user:
         raise HTTPException(status_code=500, detail="Failed to update user")
@@ -150,7 +150,7 @@ async def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     result = await admin_user_service.delete_user(
-        admin_username=admin.username, user_id=user_id, cascade=cascade
+        admin_user_id=admin.user_id, user_id=user_id, cascade=cascade
     )
     return DeleteUserResponse.model_validate(result)
 
@@ -168,7 +168,7 @@ async def reset_user_password(
 ) -> MessageResponse:
     """Reset a user's password."""
     success = await admin_user_service.reset_user_password(
-        admin_username=admin.username, user_id=user_id, new_password=password_request.new_password
+        admin_user_id=admin.user_id, user_id=user_id, new_password=password_request.new_password
     )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to reset password")
@@ -182,7 +182,7 @@ async def get_user_rate_limits(
     user_id: str,
 ) -> UserRateLimitsResponse:
     """Get rate limit configuration for a user."""
-    result = await admin_user_service.get_user_rate_limits(admin_username=admin.username, user_id=user_id)
+    result = await admin_user_service.get_user_rate_limits(admin_user_id=admin.user_id, user_id=user_id)
     return UserRateLimitsResponse.model_validate(result)
 
 
@@ -194,13 +194,9 @@ async def update_user_rate_limits(
     request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
     """Update rate limit rules for a user."""
-    config = UserRateLimit(
-        user_id=user_id,
-        rules=[RateLimitRule(**r.model_dump()) for r in request.rules],
-        **request.model_dump(exclude={"rules"}),
-    )
+    update = UserRateLimitUpdate.model_validate(request)
     result = await admin_user_service.update_user_rate_limits(
-        admin_username=admin.username, user_id=user_id, config=config
+        admin_user_id=admin.user_id, user_id=user_id, update=update
     )
     return RateLimitUpdateResponse.model_validate(result)
 
@@ -212,7 +208,7 @@ async def reset_user_rate_limits(
     user_id: str,
 ) -> MessageResponse:
     """Reset a user's rate limits to defaults."""
-    await admin_user_service.reset_user_rate_limits(admin_username=admin.username, user_id=user_id)
+    await admin_user_service.reset_user_rate_limits(admin_user_id=admin.user_id, user_id=user_id)
     return MessageResponse(message=f"Rate limits reset successfully for user {user_id}")
 
 
@@ -228,7 +224,7 @@ async def unlock_user(
     lockout_service: FromDishka[LoginLockoutService],
 ) -> UnlockResponse:
     """Unlock a user account that was locked due to failed login attempts."""
-    user = await admin_user_service.get_user(admin_username=admin.username, user_id=user_id)
+    user = await admin_user_service.get_user(admin_user_id=admin.user_id, user_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     await lockout_service.unlock_user(user.username)

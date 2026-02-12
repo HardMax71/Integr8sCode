@@ -137,7 +137,7 @@ describe('Editor', () => {
       data: { scripts: { python: '  print("Hello")' } },
       error: undefined,
     });
-    mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({ data: [], error: undefined });
+    mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({ data: { scripts: [] }, error: undefined });
     mocks.createSavedScriptApiV1ScriptsPost.mockResolvedValue({ data: { script_id: 'new-1' }, error: undefined });
     mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({ data: {}, error: undefined });
     mocks.deleteSavedScriptApiV1ScriptsScriptIdDelete.mockResolvedValue({ data: {}, error: undefined });
@@ -226,7 +226,7 @@ describe('Editor', () => {
 
     it('falls back to create when update returns 404', async () => {
       mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({
-        data: [{ script_id: 'script-99', name: 'Existing Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }],
+        data: { scripts: [{ script_id: 'script-99', name: 'Existing Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }] },
         error: undefined,
       });
       mocks.updateSavedScriptApiV1ScriptsScriptIdPut.mockResolvedValue({
@@ -284,7 +284,7 @@ describe('Editor', () => {
     it('calls confirm and delete API when delete button is clicked', async () => {
       mocks.mockConfirm.mockReturnValue(true);
       mocks.listSavedScriptsApiV1ScriptsGet.mockResolvedValue({
-        data: [{ script_id: 'script-99', name: 'My Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }],
+        data: { scripts: [{ script_id: 'script-99', name: 'My Script', script: 'print(1)', lang: 'python', lang_version: '3.11' }] },
         error: undefined,
       });
 

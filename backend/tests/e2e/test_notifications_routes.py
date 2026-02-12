@@ -232,6 +232,51 @@ class TestSubscriptions:
         assert result.exclude_tags == ["debug"]
 
 
+class TestSubscriptionUrlValidation:
+    """Tests for URL format validation on subscription updates."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "channel, payload",
+        [
+            (
+                NotificationChannel.WEBHOOK,
+                {"enabled": True, "webhook_url": "http://example.com/hook"},
+            ),
+            (
+                NotificationChannel.WEBHOOK,
+                {"enabled": False, "webhook_url": "not-a-url"},
+            ),
+            (
+                NotificationChannel.SLACK,
+                {"enabled": True, "slack_webhook": "https://evil.com/hook"},
+            ),
+            (
+                NotificationChannel.SLACK,
+                {"enabled": False, "slack_webhook": "http://bad"},
+            ),
+        ],
+        ids=[
+            "webhook_rejects_http_url",
+            "webhook_rejects_bad_url_when_disabled",
+            "slack_rejects_invalid_webhook",
+            "slack_rejects_bad_url_when_disabled",
+        ],
+    )
+    async def test_update_subscription_rejects_invalid_url(
+        self,
+        test_user: AsyncClient,
+        channel: NotificationChannel,
+        payload: dict[str, object],
+    ) -> None:
+        """Invalid webhook/slack URLs are rejected with 422 regardless of enabled flag."""
+        response = await test_user.put(
+            f"/api/v1/notifications/subscriptions/{channel}",
+            json=payload,
+        )
+        assert response.status_code == 422
+
+
 class TestUnreadCount:
     """Tests for GET /api/v1/notifications/unread-count."""
 

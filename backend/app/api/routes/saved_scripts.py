@@ -10,6 +10,7 @@ from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
+    SavedScriptListResponse,
     SavedScriptResponse,
     SavedScriptUpdate,
 )
@@ -30,14 +31,14 @@ async def create_saved_script(
     return SavedScriptResponse.model_validate(domain)
 
 
-@router.get("/scripts", response_model=list[SavedScriptResponse])
+@router.get("/scripts", response_model=SavedScriptListResponse)
 async def list_saved_scripts(
     user: Annotated[User, Depends(current_user)],
     saved_script_service: FromDishka[SavedScriptService],
-) -> list[SavedScriptResponse]:
+) -> SavedScriptListResponse:
     """List all saved scripts for the authenticated user."""
-    items = await saved_script_service.list_saved_scripts(user.user_id)
-    return [SavedScriptResponse.model_validate(item) for item in items]
+    result = await saved_script_service.list_saved_scripts(user.user_id)
+    return SavedScriptListResponse.model_validate(result)
 
 
 @router.get(

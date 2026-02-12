@@ -55,14 +55,7 @@ async def get_execution_sagas(
 ) -> SagaListResponse:
     """Get all sagas for an execution."""
     result = await saga_service.get_execution_sagas(execution_id, user, state, limit=limit, skip=skip)
-    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
-    return SagaListResponse(
-        sagas=saga_responses,
-        total=result.total,
-        skip=skip,
-        limit=limit,
-        has_more=result.has_more,
-    )
+    return SagaListResponse.model_validate(result)
 
 
 @router.get("/", response_model=SagaListResponse)
@@ -75,14 +68,7 @@ async def list_sagas(
 ) -> SagaListResponse:
     """List sagas accessible by the current user."""
     result = await saga_service.list_user_sagas(user, state, limit, skip)
-    saga_responses = [SagaStatusResponse.model_validate(s) for s in result.sagas]
-    return SagaListResponse(
-        sagas=saga_responses,
-        total=result.total,
-        skip=skip,
-        limit=limit,
-        has_more=result.has_more,
-    )
+    return SagaListResponse.model_validate(result)
 
 
 @router.post(
@@ -100,10 +86,5 @@ async def cancel_saga(
     saga_service: FromDishka[SagaService],
 ) -> SagaCancellationResponse:
     """Cancel a running saga."""
-    success = await saga_service.cancel_saga(saga_id, user)
-
-    return SagaCancellationResponse(
-        success=success,
-        message=("Saga cancelled successfully" if success else "Failed to cancel saga"),
-        saga_id=saga_id,
-    )
+    result = await saga_service.cancel_saga(saga_id, user)
+    return SagaCancellationResponse.model_validate(result)

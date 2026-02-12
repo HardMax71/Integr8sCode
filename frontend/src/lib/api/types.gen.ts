@@ -2365,6 +2365,13 @@ export type ExecutionTimeoutEvent = {
 };
 
 /**
+ * ExportFormat
+ *
+ * Supported export file formats.
+ */
+export type ExportFormat = 'csv' | 'json';
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -4639,6 +4646,16 @@ export type SavedScriptCreateRequest = {
 };
 
 /**
+ * SavedScriptListResponse
+ */
+export type SavedScriptListResponse = {
+    /**
+     * Scripts
+     */
+    scripts: Array<SavedScriptResponse>;
+};
+
+/**
  * SavedScriptResponse
  */
 export type SavedScriptResponse = {
@@ -6485,11 +6502,9 @@ export type ListSavedScriptsApiV1ScriptsGetData = {
 
 export type ListSavedScriptsApiV1ScriptsGetResponses = {
     /**
-     * Response List Saved Scripts Api V1 Scripts Get
-     *
      * Successful Response
      */
-    200: Array<SavedScriptResponse>;
+    200: SavedScriptListResponse;
 };
 
 export type ListSavedScriptsApiV1ScriptsGetResponse = ListSavedScriptsApiV1ScriptsGetResponses[keyof ListSavedScriptsApiV1ScriptsGetResponses];
@@ -7180,55 +7195,11 @@ export type GetEventStatsApiV1AdminEventsStatsGetResponses = {
 
 export type GetEventStatsApiV1AdminEventsStatsGetResponse = GetEventStatsApiV1AdminEventsStatsGetResponses[keyof GetEventStatsApiV1AdminEventsStatsGetResponses];
 
-export type ExportEventsCsvApiV1AdminEventsExportCsvGetData = {
+export type ExportEventsApiV1AdminEventsExportExportFormatGetData = {
     body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Event Types
-         *
-         * Event types (repeat param for multiple)
-         */
-        event_types?: Array<EventType> | null;
-        /**
-         * Start Time
-         *
-         * Start time
-         */
-        start_time?: string | null;
-        /**
-         * End Time
-         *
-         * End time
-         */
-        end_time?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
+    path: {
+        export_format: ExportFormat;
     };
-    url: '/api/v1/admin/events/export/csv';
-};
-
-export type ExportEventsCsvApiV1AdminEventsExportCsvGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ExportEventsCsvApiV1AdminEventsExportCsvGetError = ExportEventsCsvApiV1AdminEventsExportCsvGetErrors[keyof ExportEventsCsvApiV1AdminEventsExportCsvGetErrors];
-
-export type ExportEventsCsvApiV1AdminEventsExportCsvGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ExportEventsJsonApiV1AdminEventsExportJsonGetData = {
-    body?: never;
-    path?: never;
     query?: {
         /**
          * Event Types
@@ -7277,19 +7248,19 @@ export type ExportEventsJsonApiV1AdminEventsExportJsonGetData = {
          */
         limit?: number;
     };
-    url: '/api/v1/admin/events/export/json';
+    url: '/api/v1/admin/events/export/{export_format}';
 };
 
-export type ExportEventsJsonApiV1AdminEventsExportJsonGetErrors = {
+export type ExportEventsApiV1AdminEventsExportExportFormatGetErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ExportEventsJsonApiV1AdminEventsExportJsonGetError = ExportEventsJsonApiV1AdminEventsExportJsonGetErrors[keyof ExportEventsJsonApiV1AdminEventsExportJsonGetErrors];
+export type ExportEventsApiV1AdminEventsExportExportFormatGetError = ExportEventsApiV1AdminEventsExportExportFormatGetErrors[keyof ExportEventsApiV1AdminEventsExportExportFormatGetErrors];
 
-export type ExportEventsJsonApiV1AdminEventsExportJsonGetResponses = {
+export type ExportEventsApiV1AdminEventsExportExportFormatGetResponses = {
     /**
      * Successful Response
      */

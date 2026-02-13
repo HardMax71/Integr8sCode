@@ -56,27 +56,6 @@ class Notification(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NotificationBatch(BaseModel):
-    """Batch of notifications for bulk processing"""
-
-    batch_id: str = Field(default_factory=lambda: str(uuid4()))
-    notifications: list[Notification]
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    processed_count: int = 0
-    failed_count: int = 0
-
-    @field_validator("notifications")
-    @classmethod
-    def validate_notifications(cls, v: list[Notification]) -> list[Notification]:
-        if not v:
-            raise ValueError("Batch must contain at least one notification")
-        if len(v) > 1000:
-            raise ValueError("Batch cannot exceed 1000 notifications")
-        return v
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # Rules removed in unified model
 
 
@@ -105,37 +84,6 @@ class NotificationSubscription(BaseModel):
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class NotificationStats(BaseModel):
-    """Statistics for notification delivery"""
-
-    user_id: str | None = None
-    channel: NotificationChannel | None = None
-    tags: list[str] | None = None
-    severity: NotificationSeverity | None = None
-
-    # Time range
-    start_date: datetime
-    end_date: datetime
-
-    # Counts
-    total_sent: int = 0
-    total_delivered: int = 0
-    total_failed: int = 0
-    total_read: int = 0
-    total_clicked: int = 0
-
-    # Rates
-    delivery_rate: float = 0.0
-    read_rate: float = 0.0
-    click_rate: float = 0.0
-
-    # Performance
-    avg_delivery_time_seconds: float = 0.0
-    avg_read_time_seconds: float = 0.0
 
     model_config = ConfigDict(from_attributes=True)
 

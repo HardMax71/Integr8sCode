@@ -71,16 +71,6 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     password: str | None = None
 
-    def has_updates(self) -> bool:
-        return any(
-            [
-                self.username is not None,
-                self.email is not None,
-                self.role is not None,
-                self.is_active is not None,
-                self.password is not None,
-            ]
-        )
 
 
 class UserListResult(BaseModel):

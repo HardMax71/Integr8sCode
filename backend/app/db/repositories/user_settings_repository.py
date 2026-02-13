@@ -65,9 +65,6 @@ class UserSettingsRepository:
             GT(EventDocument.timestamp, snapshot.updated_at),
         ).count()
 
-    async def count_events_for_user(self, user_id: str) -> int:
-        return await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").count()
-
     async def delete_user_settings(self, user_id: str) -> None:
         doc = await UserSettingsSnapshotDocument.find_one(UserSettingsSnapshotDocument.user_id == user_id)
         if doc:

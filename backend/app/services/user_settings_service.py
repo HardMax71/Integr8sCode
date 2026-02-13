@@ -205,8 +205,3 @@ class UserSettingsService:
         self._cache[user_id] = settings
         self.logger.debug(f"Cached settings for user {user_id}", cache_size=len(self._cache))
 
-    async def reset_user_settings(self, user_id: str) -> None:
-        """Reset user settings by deleting all data and cache."""
-        await self.invalidate_cache(user_id)
-        await self.repository.delete_user_settings(user_id)
-        self.logger.info(f"Reset settings for user {user_id}")

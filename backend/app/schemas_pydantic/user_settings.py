@@ -77,16 +77,6 @@ class UserSettingsUpdate(BaseModel):
     custom_settings: dict[str, Any] | None = None
 
 
-class SettingChange(BaseModel):
-    """Represents a single setting change for event sourcing"""
-
-    field_path: str  # e.g., "theme", "editor.font_size", "notifications.channels"
-    old_value: Any
-    new_value: Any
-    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    change_reason: str | None = None
-
-
 class ThemeUpdateRequest(BaseModel):
     """Request model for theme update"""
 
@@ -122,9 +112,3 @@ class RestoreSettingsRequest(BaseModel):
     reason: str | None = None
 
 
-class SettingsEvent(BaseModel):
-    """Minimal event model for user settings service consumption."""
-
-    event_type: EventType
-    timestamp: datetime
-    payload: dict[str, Any]

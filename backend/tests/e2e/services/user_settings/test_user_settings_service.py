@@ -460,27 +460,6 @@ class TestCacheManagement:
         settings = await svc.get_user_settings(user_id)
         assert settings.user_id == user_id
 
-class TestResetUserSettings:
-    """Tests for reset_user_settings method."""
-
-    @pytest.mark.asyncio
-    async def test_reset_user_settings(self, scope: AsyncContainer) -> None:
-        """Reset user settings clears all data."""
-        svc: UserSettingsService = await scope.get(UserSettingsService)
-        user_id = _unique_user_id()
-
-        # Set some custom settings
-        await svc.update_theme(user_id, Theme.DARK)
-        await svc.update_custom_setting(user_id, "custom_key", "custom_value")
-
-        # Reset
-        await svc.reset_user_settings(user_id)
-
-        # Get fresh - should be defaults
-        settings = await svc.get_user_settings_fresh(user_id)
-        assert settings.theme == Theme.AUTO  # Default
-
-
 class TestSettingsIntegration:
     """Integration tests for settings workflow."""
 

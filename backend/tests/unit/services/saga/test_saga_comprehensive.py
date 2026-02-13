@@ -37,14 +37,6 @@ def _req_event() -> ExecutionRequestedEvent:
     return make_execution_requested_event(execution_id="e1", script="print('x')")
 
 
-def test_saga_context_public_filtering() -> None:
-    ctx = SagaContext("s1", "e1")
-    ctx.set("public", 1)
-    ctx.set("_private", 2)
-    out = ctx.to_public_dict()
-    assert "public" in out and "_private" not in out
-
-
 @pytest.mark.asyncio
 async def test_step_success_and_compensation_chain() -> None:
     ctx = SagaContext("s1", "e1")

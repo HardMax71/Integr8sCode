@@ -13,7 +13,6 @@ from app.domain.events import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     ExecutionFailedEvent,
-    ExecutionStartedEvent,
     PodCreatedEvent,
 )
 from app.events.core import UnifiedProducer
@@ -200,18 +199,6 @@ exec "$@"
                 self.logger.warning(f"Pod {pod.metadata.name} already exists")
             else:
                 raise
-
-    async def _publish_execution_started(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
-        """Publish execution started event"""
-        event = ExecutionStartedEvent(
-            execution_id=command.execution_id,
-            aggregate_id=command.execution_id,
-            pod_name=pod.metadata.name,
-            node_name=pod.spec.node_name,
-            container_id=None,
-            metadata=command.metadata,
-        )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""

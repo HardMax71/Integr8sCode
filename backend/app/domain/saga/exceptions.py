@@ -28,15 +28,6 @@ class SagaInvalidStateError(InvalidStateError):
         super().__init__(f"Cannot {operation} saga '{saga_id}' in state '{current_state}'")
 
 
-class SagaCompensationError(InfrastructureError):
-    """Raised when saga compensation fails."""
-
-    def __init__(self, saga_id: str, step: str, reason: str) -> None:
-        self.saga_id = saga_id
-        self.step = step
-        super().__init__(f"Compensation failed for saga '{saga_id}' at step '{step}': {reason}")
-
-
 class SagaTimeoutError(InfrastructureError):
     """Raised when a saga times out."""
 

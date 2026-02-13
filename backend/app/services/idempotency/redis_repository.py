@@ -118,9 +118,3 @@ class RedisIdempotencyRepository:
             await self._r.set(k, payload)
         return 1
 
-    async def delete_key(self, key: str) -> int:
-        k = self._full_key(key)
-        return int(await self._r.delete(k) or 0)
-
-    async def health_check(self) -> None:
-        await self._r.ping()  # type: ignore[misc]  # redis-py returns Awaitable[bool] | bool

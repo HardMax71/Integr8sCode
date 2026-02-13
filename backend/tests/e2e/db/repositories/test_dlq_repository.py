@@ -81,8 +81,5 @@ async def test_list_get_and_updates(repo: DLQRepository) -> None:
     assert res.total >= 3 and len(res.messages) <= 2
     msg = await repo.get_message_by_id("id1")
     assert msg and msg.event.event_id == "id1"
-    assert await repo.mark_message_retried("id1") in (True, False)
-    assert await repo.mark_message_discarded("id1", "r") in (True, False)
-
     topics = await repo.get_topics_summary()
     assert any(t.topic == "t1" for t in topics)

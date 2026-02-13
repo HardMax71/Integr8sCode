@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from uuid import uuid4
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -24,18 +23,6 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class UserInDB(UserBase):
-    """User model as stored in database (with hashed password)"""
-
-    user_id: str = Field(default_factory=lambda: str(uuid4()))
-    hashed_password: str
-    is_superuser: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
 
 class UserUpdate(BaseModel):

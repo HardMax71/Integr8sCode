@@ -94,20 +94,6 @@ class SagaCancellationResult(BaseModel):
     saga_id: str
 
 
-class SagaStatistics(BaseModel):
-    """Saga statistics."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    total_sagas: int
-    sagas_by_state: dict[str, int] = Field(default_factory=dict)
-    sagas_by_name: dict[str, int] = Field(default_factory=dict)
-    average_duration_seconds: float = 0.0
-    success_rate: float = 0.0
-    failure_rate: float = 0.0
-    compensation_rate: float = 0.0
-
-
 class SagaConfig(BaseModel):
     """Configuration for saga orchestration (domain)."""
 

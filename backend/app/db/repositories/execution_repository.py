@@ -8,7 +8,6 @@ from app.db.docs import ExecutionDocument
 from app.domain.execution import (
     DomainExecution,
     DomainExecutionCreate,
-    DomainExecutionUpdate,
     ExecutionResultDomain,
 )
 
@@ -33,17 +32,6 @@ class ExecutionRepository:
 
         self.logger.info("Found execution in MongoDB", execution_id=execution_id)
         return DomainExecution.model_validate(doc)
-
-    async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
-        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
-        if not doc:
-            return False
-
-        update_dict = update_data.model_dump(exclude_none=True)
-        if update_dict:
-            update_dict["updated_at"] = datetime.now(timezone.utc)
-            await doc.set(update_dict)
-        return True
 
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == result.execution_id)

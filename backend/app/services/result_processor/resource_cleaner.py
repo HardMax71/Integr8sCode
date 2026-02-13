@@ -1,16 +1,12 @@
-import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
-from app.domain.exceptions import InfrastructureError
-
 # Python 3.12 type aliases
 type ResourceDict = dict[str, list[str]]
-type CountDict = dict[str, int]
 
 
 class ResourceCleaner:
@@ -23,41 +19,6 @@ class ResourceCleaner:
         self.v1 = k8s_client.CoreV1Api(api_client)
         self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
         self.logger = logger
-
-    async def cleanup_pod_resources(
-        self,
-        pod_name: str,
-        namespace: str = "integr8scode",
-        execution_id: str | None = None,
-        timeout: int = 60,
-        delete_pvcs: bool = False,
-    ) -> None:
-        """Clean up all resources associated with a pod"""
-        self.logger.info(f"Cleaning up resources for pod: {pod_name}")
-
-        try:
-            tasks = [
-                self._delete_pod(pod_name, namespace),
-                *(
-                    [
-                        self._delete_configmaps(execution_id, namespace),
-                        *([self._delete_pvcs(execution_id, namespace)] if delete_pvcs else []),
-                    ]
-                    if execution_id
-                    else []
-                ),
-            ]
-
-            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
-
-            self.logger.info(f"Successfully cleaned up resources for pod: {pod_name}")
-
-        except asyncio.TimeoutError as e:
-            self.logger.error(f"Timeout cleaning up resources for pod: {pod_name}")
-            raise InfrastructureError("Resource cleanup timed out") from e
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup resources: {e}")
-            raise InfrastructureError(f"Resource cleanup failed: {e}") from e
 
     async def _delete_pod(self, pod_name: str, namespace: str) -> None:
         """Delete a pod"""
@@ -108,30 +69,6 @@ class ResourceCleaner:
         except ApiException as e:
             self.logger.error(f"Failed to delete {resource_type}s: {e}")
 
-    async def cleanup_orphaned_resources(
-        self,
-        namespace: str = "integr8scode",
-        max_age_hours: int = 24,
-        dry_run: bool = False,
-    ) -> ResourceDict:
-        """Clean up orphaned resources older than specified age"""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
-        cleaned: ResourceDict = {
-            "pods": [],
-            "configmaps": [],
-            "pvcs": [],
-        }
-
-        try:
-            await self._cleanup_orphaned_pods(namespace, cutoff_time, cleaned, dry_run)
-            await self._cleanup_orphaned_configmaps(namespace, cutoff_time, cleaned, dry_run)
-
-            return cleaned
-
-        except Exception as e:
-            self.logger.error(f"Failed to cleanup orphaned resources: {e}")
-            raise InfrastructureError(f"Orphaned resource cleanup failed: {e}") from e
-
     async def _cleanup_orphaned_pods(
         self, namespace: str, cutoff_time: datetime, cleaned: ResourceDict, dry_run: bool
     ) -> None:
@@ -169,45 +106,3 @@ class ResourceCleaner:
                     except Exception as e:
                         self.logger.error(f"Failed to delete orphaned ConfigMap {cm.metadata.name}: {e}")
 
-    async def get_resource_usage(self, namespace: str = "default") -> CountDict:
-        """Get current resource usage counts"""
-        label_selector = "app=integr8s"
-
-        default_counts = {"pods": 0, "configmaps": 0, "network_policies": 0}
-
-        try:
-            # Get pods count
-            try:
-                pods = await self.v1.list_namespaced_pod(namespace, label_selector=label_selector)
-                pod_count = len(pods.items)
-            except Exception as e:
-                self.logger.warning(f"Failed to get pods: {e}")
-                pod_count = 0
-
-            # Get configmaps count
-            try:
-                configmaps = await self.v1.list_namespaced_config_map(namespace, label_selector=label_selector)
-                configmap_count = len(configmaps.items)
-            except Exception as e:
-                self.logger.warning(f"Failed to get configmaps: {e}")
-                configmap_count = 0
-
-            # Get network policies count
-            try:
-                policies = await self.networking_v1.list_namespaced_network_policy(
-                    namespace, label_selector=label_selector
-                )
-                policy_count = len(policies.items)
-            except Exception as e:
-                self.logger.warning(f"Failed to get network policies: {e}")
-                policy_count = 0
-
-            return {
-                "pods": pod_count,
-                "configmaps": configmap_count,
-                "network_policies": policy_count,
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to get resource usage: {e}")
-            return default_counts

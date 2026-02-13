@@ -121,6 +121,9 @@ async def test_insert_find_update_delete_flow(
     ttl_after = await redis_client.ttl(key)
     assert ttl_after == ttl or ttl_after <= ttl  # ttl should not increase
 
+    # Clean up
+    await redis_client.delete(key)
+    assert await repository.find_by_key(sample_record.key) is None
 
 
 @pytest.mark.asyncio

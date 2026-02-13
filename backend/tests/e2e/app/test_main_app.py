@@ -128,6 +128,11 @@ class TestMiddlewareStack:
         middleware_classes = self._get_middleware_class_names(app)
         assert "CORSMiddleware" in middleware_classes
 
+    def test_request_size_limit_middleware_configured(self, app: FastAPI) -> None:
+        """Request size limit middleware is configured."""
+        middleware_classes = self._get_middleware_class_names(app)
+        assert "RequestSizeLimitMiddleware" in middleware_classes
+
     def test_cache_control_middleware_configured(self, app: FastAPI) -> None:
         """Cache control middleware is configured."""
         middleware_classes = self._get_middleware_class_names(app)
@@ -150,10 +155,11 @@ class TestMiddlewareStack:
 
     def test_middleware_count(self, app: FastAPI) -> None:
         """Expected number of middlewares are configured."""
-        # CORS, CacheControl, Metrics, RateLimit, CSRF
+        # CORS, RequestSizeLimit, CacheControl, Metrics, RateLimit, CSRF
         middleware_classes = self._get_middleware_class_names(app)
         expected_middlewares = {
             "CORSMiddleware",
+            "RequestSizeLimitMiddleware",
             "CacheControlMiddleware",
             "MetricsMiddleware",
             "RateLimitMiddleware",

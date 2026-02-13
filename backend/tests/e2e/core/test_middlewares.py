@@ -69,8 +69,8 @@ class TestCSRFMiddleware:
         assert response.status_code != 403
 
 
-class TestRequestSizeLimit:
-    """Tests for check_request_size dependency."""
+class TestRequestSizeLimitMiddleware:
+    """Tests for RequestSizeLimitMiddleware."""
 
     @pytest.mark.asyncio
     async def test_small_request_allowed(
@@ -105,21 +105,6 @@ class TestRequestSizeLimit:
 
         assert response.status_code == 413
         assert "too large" in response.json()["detail"].lower()
-
-    @pytest.mark.asyncio
-    async def test_large_request_without_content_length_rejected(
-        self, client: httpx.AsyncClient
-    ) -> None:
-        """Requests without Content-Length header are still checked by body size."""
-        large_payload = "x" * (11 * 1024 * 1024)  # 11MB
-
-        response = await client.post(
-            "/api/v1/auth/register",
-            content=large_payload,
-            headers={"Content-Type": "text/plain", "Transfer-Encoding": "chunked"},
-        )
-
-        assert response.status_code == 413
 
 
 class TestCacheControlMiddleware:

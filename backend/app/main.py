@@ -1,9 +1,8 @@
 import uvicorn
 from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.dependencies import check_request_size
 from app.api.routes import (
     auth,
     dlq,
@@ -34,6 +33,7 @@ from app.core.middlewares import (
     CSRFMiddleware,
     MetricsMiddleware,
     RateLimitMiddleware,
+    RequestSizeLimitMiddleware,
     setup_metrics,
 )
 from app.settings import Settings
@@ -60,7 +60,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None,
         docs_url=None,
         redoc_url=None,
-        dependencies=[Depends(check_request_size)],
     )
 
     # Store settings on app state for lifespan access
@@ -75,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware)
+    app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)
 
     app.add_middleware(

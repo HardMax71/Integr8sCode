@@ -21,8 +21,6 @@ def _filter_to_mongo_query(flt: EventFilter) -> dict[str, Any]:
         query["event_type"] = {"$in": flt.event_types}
     if flt.aggregate_id:
         query["aggregate_id"] = flt.aggregate_id
-    if flt.correlation_id:
-        query["metadata.correlation_id"] = flt.correlation_id
     if flt.user_id:
         query["metadata.user_id"] = flt.user_id
     if flt.service_name:
@@ -126,7 +124,6 @@ class EventService:
             "timestamp": "timestamp",
             "event_type": "event_type",
             "aggregate_id": "aggregate_id",
-            "correlation_id": "metadata.correlation_id",
             "stored_at": "stored_at",
         }
         sort_field = field_map.get(sort_by, "timestamp")
@@ -136,20 +133,6 @@ class EventService:
             sort_field=sort_field,
             skip=skip,
             limit=limit,
-        )
-
-    async def get_events_by_correlation(
-        self,
-        correlation_id: str,
-        user_id: str,
-        user_role: UserRole,
-        include_all_users: bool = False,
-        limit: int = 100,
-        skip: int = 0,
-    ) -> EventListResult:
-        filter_user = user_id if not include_all_users or user_role != UserRole.ADMIN else None
-        return await self.repository.get_events_by_correlation(
-            correlation_id=correlation_id, limit=limit, skip=skip, user_id=filter_user,
         )
 
     async def get_event_statistics(

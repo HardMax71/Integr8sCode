@@ -2134,24 +2134,6 @@
             "description": "Aggregate ID filter"
           },
           {
-            "name": "correlation_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Correlation ID filter",
-              "title": "Correlation Id"
-            },
-            "description": "Correlation ID filter"
-          },
-          {
             "name": "user_id",
             "in": "query",
             "required": false,
@@ -6856,17 +6838,6 @@
             ],
             "title": "Aggregate Id"
           },
-          "correlation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correlation Id"
-          },
           "user_id": {
             "anyOf": [
               {
@@ -6939,10 +6910,6 @@
             "type": "string",
             "title": "Service Version"
           },
-          "correlation_id": {
-            "type": "string",
-            "title": "Correlation Id"
-          },
           "user_id": {
             "type": "string",
             "title": "User Id"
@@ -6975,17 +6942,6 @@
               }
             ],
             "title": "Event Ids"
-          },
-          "correlation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correlation Id"
           },
           "aggregate_id": {
             "anyOf": [
@@ -7053,9 +7009,9 @@
             "type": "integer",
             "title": "Total Events"
           },
-          "replay_correlation_id": {
+          "replay_id": {
             "type": "string",
-            "title": "Replay Correlation Id"
+            "title": "Replay Id"
           },
           "session_id": {
             "anyOf": [
@@ -7090,7 +7046,7 @@
         "required": [
           "dry_run",
           "total_events",
-          "replay_correlation_id",
+          "replay_id",
           "status"
         ],
         "title": "EventReplayResponse",
@@ -7121,9 +7077,9 @@
             "type": "integer",
             "title": "Skipped Events"
           },
-          "correlation_id": {
+          "replay_id": {
             "type": "string",
-            "title": "Correlation Id"
+            "title": "Replay Id"
           },
           "created_at": {
             "type": "string",
@@ -7208,7 +7164,7 @@
           "replayed_events",
           "failed_events",
           "skipped_events",
-          "correlation_id",
+          "replay_id",
           "created_at",
           "progress_percentage"
         ],
@@ -10575,17 +10531,6 @@
             ],
             "title": "Execution Id"
           },
-          "correlation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correlation Id"
-          },
           "aggregate_id": {
             "anyOf": [
               {
@@ -12933,17 +12878,6 @@
               }
             ],
             "title": "Reason"
-          },
-          "correlation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Correlation Id"
           }
         },
         "type": "object",

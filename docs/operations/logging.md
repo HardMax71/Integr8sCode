@@ -1,6 +1,6 @@
 # Logging
 
-This backend uses structured JSON logging with automatic correlation IDs, trace context injection, and sensitive data
+This backend uses structured JSON logging with OpenTelemetry trace context injection and sensitive data
 sanitization. The goal is logs that are both secure against injection attacks and easy to query in aggregation systems
 like Elasticsearch or Loki.
 
@@ -9,8 +9,7 @@ like Elasticsearch or Loki.
 ```mermaid
 flowchart LR
     Code[Application Code] --> Logger
-    Logger --> CF[CorrelationFilter]
-    CF --> TF[TracingFilter]
+    Logger --> TF[TracingFilter]
     TF --> JF[JSONFormatter]
     JF --> Output[JSON stdout]
 ```
@@ -19,16 +18,15 @@ flowchart LR
 
 The logger is created once during application startup via dependency injection. The
 [`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) function configures a
-JSON formatter and attaches filters for correlation IDs and OpenTelemetry trace context:
+JSON formatter and attaches a filter for OpenTelemetry trace context:
 
 ```python
 --8<-- "backend/app/core/logging.py:110:147"
 ```
 
 The JSON formatter does two things beyond basic formatting. First, it injects context that would be tedious to pass
-manually—the correlation ID from the current request, the trace and span IDs from OpenTelemetry, and request metadata
-like method and path. Second, it sanitizes sensitive data by pattern-matching things like API keys, JWT tokens, and
-database URLs:
+manually—the trace and span IDs from OpenTelemetry, and request metadata like method and path. Second, it sanitizes
+sensitive data by pattern-matching things like API keys, JWT tokens, and database URLs:
 
 ```python
 --8<-- "backend/app/core/logging.py:35:59"
@@ -74,11 +72,10 @@ messages (which often contain user data).
 
 ## What gets logged
 
-Correlation and trace IDs are injected automatically by filters:
+Trace IDs are injected automatically by the OTel filter:
 
 | Field            | Source                          | Purpose                           |
 |------------------|---------------------------------|-----------------------------------|
-| `correlation_id` | Request header or generated     | Track request across services     |
 | `trace_id`       | OpenTelemetry                   | Link to distributed traces        |
 | `span_id`        | OpenTelemetry                   | Link to specific span             |
 | `request_method` | HTTP request                    | GET, POST, etc.                   |
@@ -90,8 +87,8 @@ consistent: the message says what happened, `extra` says to what and by whom.
 
 ## Practical use
 
-When something goes wrong, start by filtering logs by `correlation_id` to see everything that happened during that
-request. If you need to correlate with traces, use the `trace_id` to jump to Jaeger.
+When something goes wrong, start by filtering logs by `trace_id` to see everything that happened during that
+request. Use the `trace_id` to jump to Jaeger for the full distributed trace.
 
 | Log Level | Use case                                                    |
 |-----------|-------------------------------------------------------------|
@@ -107,4 +104,3 @@ The log level is controlled by the `LOG_LEVEL` environment variable.
 | File                                                                                                       | Purpose                              |
 |------------------------------------------------------------------------------------------------------------|--------------------------------------|
 | [`core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py)       | Logger setup, filters, JSON formatter|
-| [`core/correlation.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/correlation.py) | Correlation ID middleware            |

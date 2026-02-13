@@ -99,7 +99,6 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),
@@ -154,7 +153,6 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),
@@ -185,7 +183,6 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),

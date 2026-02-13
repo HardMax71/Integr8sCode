@@ -158,7 +158,6 @@ class UserSettingsService:
                         old_value=None,
                         new_value=event.model_dump().get(fld),
                         reason=event.reason,
-                        correlation_id=event.correlation_id,
                     )
                 )
         return history

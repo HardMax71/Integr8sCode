@@ -3,18 +3,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import structlog
-from app.core.correlation import CorrelationMiddleware
 from app.core.logging import (
     SENSITIVE_PATTERNS,
     add_otel_context,
     sanitize_sensitive_data,
     setup_logger,
 )
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
-from starlette.testclient import TestClient
 
 
 class TestSanitizeSensitiveData:
@@ -108,50 +102,6 @@ class TestAddOtelContext:
             result = add_otel_context(None, "info", event_dict)
         assert result["trace_id"] == "1234567890abcdef1234567890abcdef"
         assert result["span_id"] == "1234567890abcdef"
-
-
-class TestCorrelationMiddleware:
-    """Tests for CorrelationMiddleware."""
-
-    def test_sets_correlation_header(self) -> None:
-        async def ping(request: Request) -> JSONResponse:
-            return JSONResponse({"ok": True})
-
-        app = Starlette(routes=[Route("/ping", ping)])
-        app.add_middleware(CorrelationMiddleware)
-
-        with TestClient(app) as client:
-            response = client.get("/ping")
-
-            assert response.status_code == 200
-            assert "X-Correlation-ID" in response.headers
-
-    def test_preserves_provided_correlation_id(self) -> None:
-        async def ping(request: Request) -> JSONResponse:
-            return JSONResponse({"ok": True})
-
-        app = Starlette(routes=[Route("/ping", ping)])
-        app.add_middleware(CorrelationMiddleware)
-
-        with TestClient(app) as client:
-            response = client.get("/ping", headers={"X-Correlation-ID": "custom-id-123"})
-            assert response.headers["X-Correlation-ID"] == "custom-id-123"
-
-    def test_stores_correlation_in_scope_state(self) -> None:
-        captured_state: dict[str, Any] = {}
-
-        async def capture(request: Request) -> JSONResponse:
-            captured_state["correlation_id"] = request.state.correlation_id
-            return JSONResponse({"ok": True})
-
-        app = Starlette(routes=[Route("/capture", capture)])
-        app.add_middleware(CorrelationMiddleware)
-
-        with TestClient(app) as client:
-            client.get("/capture")
-
-        assert "correlation_id" in captured_state
-        assert captured_state["correlation_id"].startswith("req-")
 
 
 class TestSetupLogger:

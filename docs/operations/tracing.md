@@ -16,7 +16,7 @@ FastAPI auto-instrumentation creates a span per request. In selected endpoints a
 
 ### Kafka publishes
 
-The event publisher (KafkaEventService) adds headers to each message. Besides a few readable headers (event_type, correlation_id, service) it injects the W3C trace context (traceparent/tracestate). That makes the trace transferable to consumers without coupling to any specific SDK.
+The event publisher (KafkaEventService) adds headers to each message. Besides a few readable headers (event_type, service) it injects the W3C trace context (traceparent/tracestate). That makes the trace transferable to consumers without coupling to any specific SDK.
 
 ### Kafka consumes
 

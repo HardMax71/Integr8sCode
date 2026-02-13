@@ -178,21 +178,15 @@ class PodEventMapper:
         return None
 
     def _create_metadata(self, pod: k8s_client.V1Pod) -> EventMetadata:
-        """Create event metadata from pod with correlation tracking"""
+        """Create event metadata from pod"""
         labels = pod.metadata.labels or {}
-        annotations = pod.metadata.annotations or {}
-
-        # Try to get correlation_id from annotations first (full value),
-        # then labels (potentially truncated)
-        correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
             user_id=labels.get("user-id", str(uuid4())),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
-            correlation_id=correlation_id,
         )
-        self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}")
+        self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} name={pod.metadata.name}")
         return md
 
     def _is_duplicate(self, pod_name: str, phase: PodPhase) -> bool:

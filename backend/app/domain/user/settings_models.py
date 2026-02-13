@@ -85,7 +85,6 @@ class DomainUserSettingsChangedEvent(BaseModel):
     editor: DomainEditorSettings | None = None
     custom_settings: dict[str, Any] | None = None
     reason: str | None = None
-    correlation_id: str | None = None
 
 
 class DomainSettingsHistoryEntry(BaseModel):
@@ -97,7 +96,6 @@ class DomainSettingsHistoryEntry(BaseModel):
     old_value: Any
     new_value: Any
     reason: str | None = None
-    correlation_id: str | None = None
 
 
 class CachedSettings(BaseModel):

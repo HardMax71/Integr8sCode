@@ -32,7 +32,6 @@ def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
         "Event ID": data["event_id"],
         "Event Type": data["event_type"],
         "Timestamp": data["timestamp"],
-        "Correlation ID": meta.get("correlation_id") or "",
         "Aggregate ID": data.get("aggregate_id") or "",
         "User ID": meta.get("user_id") or "",
         "Service": meta.get("service_name", ""),
@@ -47,14 +46,14 @@ class AdminReplayResult:
             *,
             dry_run: bool,
             total_events: int,
-            replay_correlation_id: str,
+            replay_id: str,
             status: ReplayStatus,
             session_id: str | None = None,
             events_preview: list[EventSummary] | None = None,
     ) -> None:
         self.dry_run = dry_run
         self.total_events = total_events
-        self.replay_correlation_id = replay_correlation_id
+        self.replay_id = replay_id
         self.status = status
         self.session_id = session_id
         self.events_preview = events_preview
@@ -98,7 +97,7 @@ class AdminEventsService:
             *,
             replay_filter: ReplayFilter,
             dry_run: bool,
-            replay_correlation_id: str,
+            replay_id: str,
             target_service: str | None,
     ) -> AdminReplayResult:
         if replay_filter.is_empty():
@@ -108,7 +107,7 @@ class AdminEventsService:
             "Preparing replay session",
             extra={
                 "dry_run": dry_run,
-                "replay_correlation_id": replay_correlation_id,
+                "replay_id": replay_id,
             },
         )
 
@@ -126,7 +125,7 @@ class AdminEventsService:
 
         session_data = ReplaySessionData(
             total_events=event_count,
-            replay_correlation_id=replay_correlation_id,
+            replay_id=replay_id,
             dry_run=dry_run,
             filter=replay_filter,
             events_preview=events_preview,
@@ -136,7 +135,7 @@ class AdminEventsService:
             result = AdminReplayResult(
                 dry_run=True,
                 total_events=session_data.total_events,
-                replay_correlation_id=replay_correlation_id,
+                replay_id=replay_id,
                 status=ReplayStatus.PREVIEW,
                 events_preview=session_data.events_preview,
             )
@@ -144,7 +143,7 @@ class AdminEventsService:
                 "Replay dry-run prepared",
                 extra={
                     "total_events": result.total_events,
-                    "replay_correlation_id": result.replay_correlation_id,
+                    "replay_id": result.replay_id,
                 },
             )
             return result
@@ -167,7 +166,7 @@ class AdminEventsService:
         # Persist additional metadata to the admin replay session record
         session_update = ReplaySessionUpdate(
             total_events=session_data.total_events,
-            correlation_id=replay_correlation_id,
+            replay_id=replay_id,
             status=ReplayStatus.SCHEDULED,
         )
         await self._repo.update_replay_session(
@@ -178,7 +177,7 @@ class AdminEventsService:
         result = AdminReplayResult(
             dry_run=False,
             total_events=session_data.total_events,
-            replay_correlation_id=replay_correlation_id,
+            replay_id=replay_id,
             session_id=session_id,
             status=ReplayStatus.SCHEDULED,
         )
@@ -187,7 +186,7 @@ class AdminEventsService:
             extra={
                 "session_id": result.session_id,
                 "total_events": result.total_events,
-                "replay_correlation_id": result.replay_correlation_id,
+                "replay_id": result.replay_id,
             },
         )
         return result
@@ -232,7 +231,6 @@ class AdminEventsService:
                 "Event ID",
                 "Event Type",
                 "Timestamp",
-                "Correlation ID",
                 "Aggregate ID",
                 "User ID",
                 "Service",
@@ -288,13 +286,11 @@ class AdminEventsService:
         await self._repo.archive_event(detail.event, deleted_by)
         deleted = await self._repo.delete_event(event_id)
         if deleted:
-            correlation_id = detail.event.metadata.correlation_id
             self.logger.info(
                 "Event deleted",
                 extra={
                     "event_id": event_id,
                     "event_type": detail.event.event_type,
-                    "correlation_id": correlation_id,
                     "deleted_by": deleted_by,
                 },
             )

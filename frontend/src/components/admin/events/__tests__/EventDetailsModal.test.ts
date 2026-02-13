@@ -49,7 +49,6 @@ describe('EventDetailsModal', () => {
   it.each([
     { label: 'Event ID', value: 'evt-1' },
     { label: 'Event Type', value: 'execution_completed' },
-    { label: 'Correlation ID', value: 'corr-123' },
     { label: 'Aggregate ID', value: 'exec-456' },
   ])('displays $label with value "$value"', ({ label, value }) => {
     renderModal();
@@ -101,14 +100,4 @@ describe('EventDetailsModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    { case: 'null', value: null },
-    { case: 'undefined', value: undefined },
-  ])('shows "-" when correlation_id is $case', ({ value }) => {
-    const detail = createMockEventDetail();
-    detail.event.metadata.correlation_id = value as undefined;
-    renderModal({ event: detail });
-    const cells = screen.getAllByText('-');
-    expect(cells.length).toBeGreaterThanOrEqual(1);
-  });
 });

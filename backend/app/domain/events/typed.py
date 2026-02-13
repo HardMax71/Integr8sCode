@@ -34,7 +34,6 @@ class EventMetadata(BaseModel):
 
     service_name: str
     service_version: str
-    correlation_id: str = ""
     user_id: str = Field(default_factory=lambda: str(uuid4()))
     environment: Environment = Environment.PRODUCTION
 

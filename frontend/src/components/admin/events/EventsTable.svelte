@@ -192,9 +192,9 @@
                     </span>
                 </div>
                 <div class="col-span-2">
-                    <span class="text-fg-muted dark:text-dark-fg-muted">Correlation:</span>
-                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.metadata?.correlation_id ?? '-'}>
-                        {event.metadata?.correlation_id ?? '-'}
+                    <span class="text-fg-muted dark:text-dark-fg-muted">Aggregate:</span>
+                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.aggregate_id ?? '-'}>
+                        {event.aggregate_id ?? '-'}
                     </span>
                 </div>
             </div>

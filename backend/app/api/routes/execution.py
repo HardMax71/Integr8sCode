@@ -73,7 +73,6 @@ async def create_execution(
         lang_version=execution.lang_version,
         user_id=current_user.user_id,
         idempotency_key=idempotency_key,
-        correlation_id=request.state.correlation_id,
     )
     return ExecutionResponse.model_validate(exec_result)
 
@@ -99,7 +98,6 @@ async def get_result(
     },
 )
 async def cancel_execution(
-        request: Request,
         execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         current_user: Annotated[User, Depends(current_user)],
         cancel_request: CancelExecutionRequest,
@@ -111,7 +109,6 @@ async def cancel_execution(
         current_status=execution.status,
         user_id=current_user.user_id,
         reason=cancel_request.reason,
-        correlation_id=request.state.correlation_id,
     )
     return CancelResponse.model_validate(result)
 
@@ -125,7 +122,6 @@ async def cancel_execution(
     },
 )
 async def retry_execution(
-        request: Request,
         original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
         current_user: Annotated[User, Depends(current_user)],
         execution_service: FromDishka[ExecutionService],
@@ -140,7 +136,6 @@ async def retry_execution(
         lang=original_execution.lang,
         lang_version=original_execution.lang_version,
         user_id=current_user.user_id,
-        correlation_id=request.state.correlation_id,
     )
     return ExecutionResponse.model_validate(new_result)
 
@@ -217,11 +212,10 @@ async def get_k8s_resource_limits(
 
 @router.delete("/executions/{execution_id}", response_model=DeleteResponse)
 async def delete_execution(
-        request: Request,
         execution_id: str,
         admin: Annotated[User, Depends(admin_user)],
         execution_service: FromDishka[ExecutionService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""
-    await execution_service.delete_execution(execution_id, admin.user_id, request.state.correlation_id)
+    await execution_service.delete_execution(execution_id, admin.user_id)
     return DeleteResponse(message="Execution deleted successfully", execution_id=execution_id)

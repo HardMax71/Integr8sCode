@@ -11,7 +11,6 @@
         filters = $bindable({
             event_types: [],
             aggregate_id: '',
-            correlation_id: '',
             user_id: '',
             service_name: '',
             search_text: '',
@@ -69,19 +68,6 @@
                         bind:value={filters.search_text}
                         placeholder="Search events..."
                         class="form-input-standard text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label for="correlation-filter" class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                        Correlation ID
-                    </label>
-                    <input
-                        id="correlation-filter"
-                        type="text"
-                        bind:value={filters.correlation_id}
-                        placeholder="req_abc123"
-                        class="form-input-standard text-sm font-mono"
                     />
                 </div>
 

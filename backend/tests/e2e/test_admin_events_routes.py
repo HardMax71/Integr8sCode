@@ -332,7 +332,7 @@ class TestReplayEvents:
         result = EventReplayResponse.model_validate(response.json())
         assert result.dry_run is True
         assert result.total_events >= 1
-        assert result.replay_correlation_id is not None
+        assert result.replay_id is not None
         assert result.status == ReplayStatus.PREVIEW
 
     @pytest.mark.asyncio
@@ -341,7 +341,7 @@ class TestReplayEvents:
     ) -> None:
         """Replay with non-matching filter returns 404."""
         request = EventReplayRequest(
-            correlation_id="nonexistent-correlation-id-12345",
+            aggregate_id="nonexistent-aggregate-id-12345",
             dry_run=True,
         )
         response = await test_admin.post(

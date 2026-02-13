@@ -52,12 +52,7 @@ class UserSettingsRepository:
             find_query = find_query.limit(limit)
 
         docs = await find_query.to_list()
-        return [
-            DomainUserSettingsChangedEvent.model_validate(e).model_copy(
-                update={"correlation_id": e.metadata.correlation_id}
-            )
-            for e in docs
-        ]
+        return [DomainUserSettingsChangedEvent.model_validate(e) for e in docs]
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
         aggregate_id = f"user_settings_{user_id}"

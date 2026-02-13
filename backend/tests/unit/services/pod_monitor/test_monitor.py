@@ -278,7 +278,6 @@ async def test_process_pod_event_full_flow(
         async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
             class Event:
                 event_type = types.SimpleNamespace(value="test_event")
-                metadata = types.SimpleNamespace(correlation_id=None)
                 aggregate_id = "agg1"
 
             return [Event()]

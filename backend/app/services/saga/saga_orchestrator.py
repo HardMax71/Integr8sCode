@@ -114,7 +114,6 @@ class SagaOrchestrator:
 
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
-        context.set("correlation_id", trigger_event.metadata.correlation_id)
         context.set("user_id", trigger_event.metadata.user_id)
 
         await self._execute_saga(saga, instance, context, trigger_event)
@@ -326,7 +325,6 @@ class SagaOrchestrator:
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
                     user_id=trigger_event.metadata.user_id,
-                    correlation_id=trigger_event.metadata.correlation_id,
                 ),
             )
             await self._producer.produce(event_to_produce=event, key=instance.execution_id)
@@ -342,7 +340,6 @@ class SagaOrchestrator:
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
                 user_id=cancelled_by,
-                correlation_id=saga_instance.context_data.correlation_id,
             )
 
             event = SagaCancelledEvent(

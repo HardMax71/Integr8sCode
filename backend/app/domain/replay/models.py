@@ -33,7 +33,6 @@ class ReplayFilter(BaseModel):
     # Event selection filters
     event_ids: list[str] | None = None
     execution_id: str | None = None
-    correlation_id: str | None = None
     aggregate_id: str | None = None
     event_types: list[EventType] | None = None
     exclude_event_types: list[EventType] | None = None
@@ -51,7 +50,6 @@ class ReplayFilter(BaseModel):
             [
                 self.event_ids,
                 self.execution_id,
-                self.correlation_id,
                 self.aggregate_id,
                 self.event_types,
                 self.start_time,
@@ -69,9 +67,6 @@ class ReplayFilter(BaseModel):
 
         if self.execution_id:
             query["execution_id"] = self.execution_id
-
-        if self.correlation_id:
-            query["metadata.correlation_id"] = self.correlation_id
 
         if self.aggregate_id:
             query["aggregate_id"] = self.aggregate_id
@@ -146,7 +141,7 @@ class ReplaySessionState(BaseModel):
     errors: list[ReplayError] = Field(default_factory=list)
 
     # Tracking and admin fields
-    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
+    replay_id: str = Field(default_factory=lambda: str(uuid4()))
     created_by: str | None = None
     target_service: str | None = None
     dry_run: bool = False

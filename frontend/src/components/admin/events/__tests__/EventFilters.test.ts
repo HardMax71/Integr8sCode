@@ -28,7 +28,6 @@ describe('EventFilters', () => {
   it.each([
     { id: 'event-types-filter', label: 'Event Types' },
     { id: 'search-filter', label: 'Search' },
-    { id: 'correlation-filter', label: 'Correlation ID' },
     { id: 'aggregate-filter', label: 'Aggregate ID' },
     { id: 'user-filter', label: 'User ID' },
     { id: 'service-filter', label: 'Service' },

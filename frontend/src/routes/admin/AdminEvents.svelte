@@ -166,7 +166,7 @@
                     progress_percentage: 0,
                     failed_events: 0,
                     skipped_events: 0,
-                    correlation_id: '',
+                    replay_id: '',
                     created_at: new Date().toISOString()
                 };
                 checkReplayStatus(sessionId);
@@ -190,7 +190,6 @@
         if (filters.start_time) params.append('start_time', new Date(filters.start_time).toISOString());
         if (filters.end_time) params.append('end_time', new Date(filters.end_time).toISOString());
         if (filters.aggregate_id) params.append('aggregate_id', filters.aggregate_id);
-        if (filters.correlation_id) params.append('correlation_id', filters.correlation_id);
         if (filters.user_id) params.append('user_id', filters.user_id);
         if (filters.service_name) params.append('service_name', filters.service_name);
 

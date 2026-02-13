@@ -273,7 +273,6 @@ class ExecutionCoordinator:
             service_name="execution-coordinator",
             service_version="1.0.0",
             user_id=request.metadata.user_id,
-            correlation_id=request.metadata.correlation_id,
         )
 
     async def _publish_create_pod_command(self, request: ExecutionRequestedEvent) -> None:

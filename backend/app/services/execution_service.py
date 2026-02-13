@@ -50,7 +50,6 @@ class ExecutionService:
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
-        correlation_id: str,
     ) -> None:
         self.execution_repo = execution_repo
         self.producer = producer
@@ -59,7 +58,6 @@ class ExecutionService:
         self.metrics = execution_metrics
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
-        self._correlation_id = correlation_id
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
@@ -75,13 +73,13 @@ class ExecutionService:
     async def get_example_scripts(self) -> dict[str, str]:
         return self.settings.EXAMPLE_SCRIPTS
 
-    def _create_event_metadata(self, user_id: str) -> EventMetadata:
+    def _create_event_metadata(self, user_id: str, correlation_id: str = "") -> EventMetadata:
         """Create standardized event metadata."""
         return EventMetadata(
             service_name="execution-service",
             service_version="2.0.0",
             user_id=user_id,
-            correlation_id=self._correlation_id,
+            correlation_id=correlation_id,
         )
 
     async def execute_script(
@@ -92,6 +90,7 @@ class ExecutionService:
         lang: str = "python",
         lang_version: str = "3.11",
         priority: QueuePriority = QueuePriority.NORMAL,
+        correlation_id: str = "",
     ) -> DomainExecution:
         """
         Execute a script by creating an execution record and publishing an event.
@@ -149,7 +148,7 @@ class ExecutionService:
             )
 
             # Metadata and event — use admin-configurable limits
-            metadata = self._create_event_metadata(user_id=user_id)
+            metadata = self._create_event_metadata(user_id=user_id, correlation_id=correlation_id)
             effective = await self._runtime_settings.get_effective_settings()
             event = ExecutionRequestedEvent(
                 execution_id=created_execution.execution_id,
@@ -203,6 +202,7 @@ class ExecutionService:
         current_status: ExecutionStatus,
         user_id: str,
         reason: str = "User requested cancellation",
+        correlation_id: str = "",
     ) -> CancelResult:
         """
         Cancel a running or queued execution.
@@ -237,7 +237,7 @@ class ExecutionService:
                 event_id=None,
             )
 
-        metadata = self._create_event_metadata(user_id=user_id)
+        metadata = self._create_event_metadata(user_id=user_id, correlation_id=correlation_id)
         event = ExecutionCancelledEvent(
             execution_id=execution_id,
             aggregate_id=execution_id,
@@ -268,6 +268,7 @@ class ExecutionService:
         lang: str = "python",
         lang_version: str = "3.11",
         idempotency_key: str | None = None,
+        correlation_id: str = "",
     ) -> DomainExecution:
         """
         Execute a script with optional idempotency support.
@@ -288,6 +289,7 @@ class ExecutionService:
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
+                correlation_id=correlation_id,
             )
 
         pseudo_event = BaseEvent(
@@ -332,6 +334,7 @@ class ExecutionService:
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
+                correlation_id=correlation_id,
             )
 
             await self.idempotency_manager.mark_completed_with_json(
@@ -507,7 +510,7 @@ class ExecutionService:
 
         return query
 
-    async def delete_execution(self, execution_id: str, user_id: str) -> bool:
+    async def delete_execution(self, execution_id: str, user_id: str, correlation_id: str = "") -> bool:
         """
         Delete an execution and publish deletion event.
 
@@ -527,11 +530,11 @@ class ExecutionService:
 
         self.logger.info("Deleted execution", extra={"execution_id": execution_id})
 
-        await self._publish_deletion_event(execution_id, user_id)
+        await self._publish_deletion_event(execution_id, user_id, correlation_id)
 
         return True
 
-    async def _publish_deletion_event(self, execution_id: str, user_id: str) -> None:
+    async def _publish_deletion_event(self, execution_id: str, user_id: str, correlation_id: str = "") -> None:
         """
         Publish execution deletion/cancellation event.
 
@@ -539,7 +542,7 @@ class ExecutionService:
             execution_id: UUID of deleted execution.
             user_id: ID of user who deleted it.
         """
-        metadata = self._create_event_metadata(user_id=user_id)
+        metadata = self._create_event_metadata(user_id=user_id, correlation_id=correlation_id)
 
         event = ExecutionCancelledEvent(
             execution_id=execution_id,

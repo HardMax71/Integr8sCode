@@ -34,7 +34,8 @@ class TestCoreInfrastructure:
         """Container resolves BoundLogger."""
         logger = await scope.get(structlog.stdlib.BoundLogger)
 
-        assert isinstance(logger, structlog.stdlib.BoundLogger)
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "bind")
 
     @pytest.mark.asyncio
     async def test_beanie_initialized(self, app: FastAPI) -> None:

@@ -6,7 +6,6 @@ import redis.asyncio as redis
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dishka import Provider, Scope, from_context, provide
-from fastapi import Request
 from faststream.kafka import KafkaBroker
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from kubernetes_asyncio import client as k8s_client
@@ -703,7 +702,6 @@ class BusinessServicesProvider(Provider):
             execution_metrics: ExecutionMetrics,
             idempotency_manager: IdempotencyManager,
             runtime_settings: RuntimeSettingsLoader,
-            request: Request,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
@@ -713,7 +711,6 @@ class BusinessServicesProvider(Provider):
             execution_metrics=execution_metrics,
             idempotency_manager=idempotency_manager,
             runtime_settings=runtime_settings,
-            correlation_id=request.state.correlation_id,
         )
 
     @provide

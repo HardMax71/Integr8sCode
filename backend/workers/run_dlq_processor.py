@@ -7,6 +7,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
 from app.events.handlers import register_dlq_subscriber
 from app.settings import Settings
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
@@ -41,12 +42,26 @@ def main() -> None:
         register_dlq_subscriber(broker, settings)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        # Resolving DLQManager starts APScheduler retry monitor (via provider)
-        async def init_dlq() -> None:
-            await container.get(DLQManager)
-            logger.info("DLQ Processor initialized")
+        scheduler = AsyncIOScheduler()
 
-        app = FastStream(broker, on_startup=[init_dlq], on_shutdown=[container.close])
+        async def init_dlq() -> None:
+            manager = await container.get(DLQManager)
+            scheduler.add_job(
+                manager.process_monitoring_cycle,
+                trigger="interval",
+                seconds=10,
+                id="dlq_monitor_retries",
+                max_instances=1,
+                misfire_grace_time=60,
+            )
+            scheduler.start()
+            logger.info("DLQ Processor initialized (APScheduler interval=10s)")
+
+        async def shutdown() -> None:
+            scheduler.shutdown(wait=False)
+            await container.close()
+
+        app = FastStream(broker, on_startup=[init_dlq], on_shutdown=[shutdown])
         await app.run()
         logger.info("DLQ Processor shutdown complete")
 

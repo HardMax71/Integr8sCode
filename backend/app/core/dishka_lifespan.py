@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
 import structlog
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_beanie() is called here BEFORE any providers are resolved, so that
     Beanie document classes are initialized before repositories use them.
 
-    KafkaBroker lifecycle (start/stop) is managed by BrokerProvider.
+    KafkaBroker lifecycle (start/stop) is managed here explicitly.
     Subscriber registration and FastStream integration are set up here.
     """
     settings: Settings = app.state.settings
@@ -76,14 +77,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await broker.start()
     logger.info("Kafka broker started")
 
-    # Resolve NotificationScheduler — starts APScheduler via DI provider graph.
-    await container.get(NotificationScheduler)
-    logger.info("NotificationScheduler started")
+    # Set up APScheduler for NotificationScheduler
+    notification_scheduler: NotificationScheduler = await container.get(NotificationScheduler)
+    notification_apscheduler = AsyncIOScheduler()
+    notification_apscheduler.add_job(
+        notification_scheduler.process_due_notifications,
+        trigger="interval",
+        seconds=15,
+        id="process_due_notifications",
+        max_instances=1,
+        misfire_grace_time=60,
+    )
+    notification_apscheduler.start()
+    logger.info("NotificationScheduler started (APScheduler interval=15s)")
 
     try:
         yield
     finally:
-        # Container close triggers BrokerProvider cleanup (closes broker)
-        # and all other async generators in providers
+        notification_apscheduler.shutdown(wait=False)
+        logger.info("NotificationScheduler stopped")
+        await broker.stop()
+        logger.info("Kafka broker stopped")
         await container.close()
         logger.info("DI container closed")

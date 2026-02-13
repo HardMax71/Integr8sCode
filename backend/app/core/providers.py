@@ -4,13 +4,11 @@ from typing import AsyncIterator
 
 import redis.asyncio as redis
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import config as k8s_config
-from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.logging import setup_logger
 from app.core.metrics import (
@@ -63,7 +61,7 @@ from app.services.kafka_event_service import KafkaEventService
 from app.services.login_lockout import LoginLockoutService
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
-from app.services.pod_monitor import ErrorType, PodEventMapper, PodMonitor, PodMonitorConfig
+from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig
 from app.services.rate_limit_service import RateLimitService
 from app.services.result_processor import ResourceCleaner, ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -75,23 +73,23 @@ from app.settings import Settings
 
 
 class BrokerProvider(Provider):
-    """Provides KafkaBroker instance.
+    """Provides KafkaBroker instance (creation only, no lifecycle management).
 
     The broker is created here but NOT started. This is required because:
     1. Subscribers must be registered before broker.start()
     2. setup_dishka() must be called before broker.start()
 
     Lifecycle is managed externally:
-    - Workers with FastStream: FastStream(broker).run() handles start/stop
-    - Main app / event_replay: Manual broker.start(), provider handles stop
+    - Workers: FastStream(broker).run() handles start/stop
+    - Main app: dishka_lifespan handles broker.start() and broker.stop()
     """
 
     scope = Scope.APP
 
     @provide
-    async def get_broker(
+    def get_broker(
         self, settings: Settings, logger: structlog.stdlib.BoundLogger, _tracer: Tracer,
-    ) -> AsyncIterator[KafkaBroker]:
+    ) -> KafkaBroker:
         broker = KafkaBroker(
             settings.KAFKA_BOOTSTRAP_SERVERS,
             logger=logger,
@@ -100,11 +98,7 @@ class BrokerProvider(Provider):
             middlewares=(KafkaTelemetryMiddleware(),),
         )
         logger.info("Kafka broker created")
-        try:
-            yield broker
-        finally:
-            await broker.stop()
-            logger.info("Kafka broker stopped")
+        return broker
 
 
 class SettingsProvider(Provider):
@@ -291,52 +285,6 @@ class DLQProvider(Provider):
             default_retry_policy=_default_retry_policy(),
             retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
         )
-
-
-class DLQWorkerProvider(Provider):
-    """Provides DLQManager with APScheduler-managed retry monitoring.
-
-    Used by the DLQ worker container only.
-    """
-
-    scope = Scope.APP
-
-    @provide
-    async def get_dlq_manager(
-            self,
-            broker: KafkaBroker,
-            settings: Settings,
-            logger: structlog.stdlib.BoundLogger,
-            dlq_metrics: DLQMetrics,
-            repository: DLQRepository,
-    ) -> AsyncIterator[DLQManager]:
-        manager = DLQManager(
-            settings=settings,
-            broker=broker,
-            logger=logger,
-            dlq_metrics=dlq_metrics,
-            repository=repository,
-            default_retry_policy=_default_retry_policy(),
-            retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
-        )
-
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            manager.process_monitoring_cycle,
-            trigger="interval",
-            seconds=10,
-            id="dlq_monitor_retries",
-            max_instances=1,
-            misfire_grace_time=60,
-        )
-        scheduler.start()
-        logger.info("DLQManager retry monitor started (APScheduler interval=10s)")
-
-        try:
-            yield manager
-        finally:
-            scheduler.shutdown(wait=False)
-            logger.info("DLQManager retry monitor stopped")
 
 
 class KubernetesProvider(Provider):
@@ -624,36 +572,17 @@ class AdminServicesProvider(Provider):
         )
 
     @provide
-    async def get_notification_scheduler(
+    def get_notification_scheduler(
             self,
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
             logger: structlog.stdlib.BoundLogger,
-    ) -> AsyncIterator[NotificationScheduler]:
-
-        scheduler_service = NotificationScheduler(
+    ) -> NotificationScheduler:
+        return NotificationScheduler(
             notification_repository=notification_repository,
             notification_service=notification_service,
             logger=logger,
         )
-
-        apscheduler = AsyncIOScheduler()
-        apscheduler.add_job(
-            scheduler_service.process_due_notifications,
-            trigger="interval",
-            seconds=15,
-            id="process_due_notifications",
-            max_instances=1,
-            misfire_grace_time=60,
-        )
-        apscheduler.start()
-        logger.info("NotificationScheduler started (APScheduler interval=15s)")
-
-        try:
-            yield scheduler_service
-        finally:
-            apscheduler.shutdown(wait=False)
-            logger.info("NotificationScheduler stopped")
 
 
 def _create_default_saga_config() -> SagaConfig:
@@ -798,7 +727,7 @@ class PodMonitorProvider(Provider):
         )
 
     @provide
-    async def get_pod_monitor(
+    def get_pod_monitor(
         self,
         config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
@@ -806,9 +735,8 @@ class PodMonitorProvider(Provider):
         logger: structlog.stdlib.BoundLogger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
-    ) -> AsyncIterator[PodMonitor]:
-
-        monitor = PodMonitor(
+    ) -> PodMonitor:
+        return PodMonitor(
             config=config,
             kafka_event_service=kafka_event_service,
             logger=logger,
@@ -816,40 +744,6 @@ class PodMonitorProvider(Provider):
             event_mapper=event_mapper,
             kubernetes_metrics=kubernetes_metrics,
         )
-
-        async def _watch_cycle() -> None:
-            try:
-                await monitor.watch_pod_events()
-            except ApiException as e:
-                if e.status == 410:
-                    logger.warning("Resource version expired, resetting watch cursor")
-                    monitor._last_resource_version = None
-                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
-                else:
-                    logger.error(f"API error in watch: {e}")
-                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
-                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
-            except Exception as e:
-                logger.error(f"Unexpected error in watch: {e}", exc_info=True)
-                kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
-                kubernetes_metrics.increment_pod_monitor_watch_reconnects()
-
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            _watch_cycle,
-            trigger="interval",
-            seconds=5,
-            id="pod_monitor_watch",
-            max_instances=1,
-            misfire_grace_time=60,
-        )
-        scheduler.start()
-        logger.info("PodMonitor scheduler started (list-then-watch)")
-
-        try:
-            yield monitor
-        finally:
-            scheduler.shutdown(wait=False)
 
 
 class SagaOrchestratorProvider(Provider):
@@ -870,51 +764,6 @@ class SagaOrchestratorProvider(Provider):
             resource_allocation_repository=resource_allocation_repository,
             logger=logger,
         )
-
-
-class SagaWorkerProvider(Provider):
-    """Provides SagaOrchestrator with APScheduler-managed timeout checking.
-
-    Used by the saga worker container only. The main app container uses
-    SagaOrchestratorProvider (no scheduler needed).
-    """
-
-    scope = Scope.APP
-
-    @provide
-    async def get_saga_orchestrator(
-        self,
-        saga_repository: SagaRepository,
-        kafka_producer: UnifiedProducer,
-        resource_allocation_repository: ResourceAllocationRepository,
-        logger: structlog.stdlib.BoundLogger,
-    ) -> AsyncIterator[SagaOrchestrator]:
-
-        orchestrator = SagaOrchestrator(
-            config=_create_default_saga_config(),
-            saga_repository=saga_repository,
-            producer=kafka_producer,
-            resource_allocation_repository=resource_allocation_repository,
-            logger=logger,
-        )
-
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            orchestrator.check_timeouts,
-            trigger="interval",
-            seconds=30,
-            id="saga_check_timeouts",
-            max_instances=1,
-            misfire_grace_time=60,
-        )
-        scheduler.start()
-        logger.info("SagaOrchestrator timeout scheduler started (APScheduler interval=30s)")
-
-        try:
-            yield orchestrator
-        finally:
-            scheduler.shutdown(wait=False)
-            logger.info("SagaOrchestrator timeout scheduler stopped")
 
 
 class ResultProcessorProvider(Provider):
@@ -957,46 +806,3 @@ class EventReplayProvider(Provider):
         )
 
 
-class EventReplayWorkerProvider(Provider):
-    """Provides EventReplayService with APScheduler-managed session cleanup.
-
-    Used by the event replay worker container only. The main app container
-    uses EventReplayProvider (no scheduled cleanup needed).
-    """
-
-    scope = Scope.APP
-
-    @provide
-    async def get_event_replay_service(
-            self,
-            replay_repository: ReplayRepository,
-            kafka_producer: UnifiedProducer,
-            replay_metrics: ReplayMetrics,
-            logger: structlog.stdlib.BoundLogger,
-    ) -> AsyncIterator[EventReplayService]:
-
-        service = EventReplayService(
-            repository=replay_repository,
-            producer=kafka_producer,
-            replay_metrics=replay_metrics,
-            logger=logger,
-        )
-
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            service.cleanup_old_sessions,
-            trigger="interval",
-            hours=6,
-            kwargs={"older_than_hours": 48},
-            id="replay_cleanup_old_sessions",
-            max_instances=1,
-            misfire_grace_time=300,
-        )
-        scheduler.start()
-        logger.info("EventReplayService cleanup scheduler started (APScheduler interval=6h)")
-
-        try:
-            yield service
-        finally:
-            scheduler.shutdown(wait=False)
-            logger.info("EventReplayService cleanup scheduler stopped")

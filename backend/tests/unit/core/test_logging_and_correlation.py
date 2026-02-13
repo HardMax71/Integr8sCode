@@ -38,7 +38,7 @@ class TestSanitizeSensitiveData:
                 "secretpass",
                 "MONGODB_REDACTED",
             ),
-            ("user email: test@example.com", "test@example.com", "EMAIL_REDACTED"),
+            ("user email: test@example.com", "test@example.com", "tes***@example.com"),
             ('password: "mysecret123"', "mysecret123", "REDACTED"),
             (
                 "https://user:password@api.example.com/endpoint",
@@ -68,7 +68,7 @@ class TestSanitizeSensitiveData:
         result = self._run_processor(msg)
         assert "BEARER_TOKEN_REDACTED" in result
         assert "MONGODB_REDACTED" in result
-        assert "EMAIL_REDACTED" in result
+        assert "a***@b.com" in result
 
     def test_non_string_event_unchanged(self) -> None:
         event_dict: dict[str, Any] = {"event": 42}
@@ -104,7 +104,21 @@ class TestSanitizeSensitiveData:
         assert result["count"] == 5
 
     def test_has_expected_pattern_count(self) -> None:
-        assert len(SENSITIVE_PATTERNS) == 6
+        assert len(SENSITIVE_PATTERNS) == 5
+
+    @pytest.mark.parametrize(
+        ("email", "expected"),
+        [
+            ("admin@example.com", "adm***@example.com"),
+            ("ab@example.com", "ab***@example.com"),
+            ("longlocal@domain.org", "lon***@domain.org"),
+        ],
+        ids=["normal", "short_local", "long_local"],
+    )
+    def test_email_masked_preserves_prefix_and_domain(self, email: str, expected: str) -> None:
+        event_dict: dict[str, Any] = {"event": "action", "detail": email}
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert result["detail"] == expected
 
 
 class TestAddOtelContext:

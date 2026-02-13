@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Awaitable, Callable
+from urllib.parse import urlparse
 
 import backoff
 import httpx
@@ -343,17 +344,19 @@ class NotificationService:
         headers = notification.webhook_headers or {}
         headers["Content-Type"] = "application/json"
 
+        safe_host = urlparse(webhook_url).netloc
+
         self.logger.debug(
-            f"Sending webhook notification to {webhook_url}",
+            "Sending webhook notification",
             notification_id=str(notification.notification_id),
             payload_size=len(str(payload)),
-            webhook_url=webhook_url,
+            webhook_host=safe_host,
         )
 
         trace.get_current_span().set_attributes({
             "notification.id": str(notification.notification_id),
             "notification.channel": "webhook",
-            "notification.webhook_url": webhook_url,
+            "notification.webhook_host": safe_host,
         })
         async with httpx.AsyncClient() as client:
             response = await client.post(webhook_url, json=payload, headers=headers, timeout=30.0)

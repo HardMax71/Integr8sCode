@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
 
+from app.core.tracing import Tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import (
     register_notification_subscriber,
@@ -43,6 +44,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     database = client.get_default_database(default=settings.DATABASE_NAME)
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
+
+    tracer: Tracer = await container.get(Tracer)
+    tracer.instrument_app(app)
+    logger.info("FastAPI OpenTelemetry instrumentation applied")
 
     logger.info(
         "Starting application with dishka DI",

@@ -21,7 +21,7 @@ The logger is created once during application startup via dependency injection. 
 JSON formatter and attaches a filter for OpenTelemetry trace context:
 
 ```python
---8<-- "backend/app/core/logging.py:110:147"
+--8<-- "backend/app/core/logging.py:66:94"
 ```
 
 The JSON formatter does two things beyond basic formatting. First, it injects context that would be tedious to pass
@@ -29,7 +29,7 @@ manually—the trace and span IDs from OpenTelemetry, and request metadata like 
 sensitive data by pattern-matching things like API keys, JWT tokens, and database URLs:
 
 ```python
---8<-- "backend/app/core/logging.py:35:59"
+--8<-- "backend/app/core/logging.py:34:63"
 ```
 
 ## Structured logging

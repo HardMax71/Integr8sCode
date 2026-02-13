@@ -13,13 +13,21 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
     (r"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)", r"***JWT_REDACTED***"),
     (r"(mongodb(?:\+srv)?://[^:]+:)([^@]+)(@)", r"\1***MONGODB_REDACTED***\3"),
     (r"(https?://[^:]+:)([^@]+)(@)", r"\1***URL_CREDS_REDACTED***\3"),
-    (r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", r"***EMAIL_REDACTED***"),
 ]
+
+_EMAIL_PATTERN = re.compile(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", re.IGNORECASE)
+
+
+def _mask_email(match: re.Match[str]) -> str:
+    local = match.group(1)
+    domain = match.group(2)
+    return f"{local[:3]}***@{domain}"
 
 
 def _redact(value: str) -> str:
     for pattern, replacement in SENSITIVE_PATTERNS:
         value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
+    value = _EMAIL_PATTERN.sub(_mask_email, value)
     return value
 
 
@@ -31,7 +39,8 @@ def sanitize_sensitive_data(
     """Structlog processor that redacts sensitive data from all string fields.
 
     Covers event message, formatted exception text, stack info, and any
-    string value added by prior processors.
+    string value added by prior processors.  Emails are masked to show the
+    first 3 characters of the local part plus the full domain.
     """
     for key, value in event_dict.items():
         if isinstance(value, str):
@@ -78,7 +87,8 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
         cache_logger_on_first_use=True,
     )
 
-    logging.basicConfig(level=log_level.upper(), format="%(message)s", handlers=[logging.StreamHandler()])
+    logging.basicConfig(format="%(message)s", handlers=[logging.StreamHandler()])
+    logging.getLogger().setLevel(log_level.upper())
 
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger

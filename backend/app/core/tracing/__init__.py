@@ -1,6 +1,7 @@
 import os
 
 import structlog
+from fastapi import FastAPI
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -54,11 +55,15 @@ class Tracer:
         set_global_textmap(TraceContextTextMapPropagator())
 
         tp = trace.get_tracer_provider()
-        FastAPIInstrumentor().instrument(
-            tracer_provider=tp, excluded_urls="health,metrics,docs,openapi.json",
-        )
         HTTPXClientInstrumentor().instrument(tracer_provider=tp)
         PymongoInstrumentor().instrument(tracer_provider=tp)
-        LoggingInstrumentor().instrument(set_logging_format=True, log_level="INFO")
+        LoggingInstrumentor().instrument(set_logging_format=False, log_level="INFO")
 
-        logger.info(f"Tracing initialized for {name}")
+        logger.info("Tracing initialized", service_name=name)
+
+    def instrument_app(self, app: FastAPI) -> None:
+        """Instrument an existing FastAPI app with OpenTelemetry middleware."""
+        tp = trace.get_tracer_provider()
+        FastAPIInstrumentor().instrument_app(
+            app, tracer_provider=tp, excluded_urls="health,metrics,docs,openapi.json",
+        )

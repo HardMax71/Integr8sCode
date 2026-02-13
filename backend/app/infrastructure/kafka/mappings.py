@@ -98,10 +98,6 @@ def get_topic_for_event(event_type: EventType) -> KafkaTopic:
     return EVENT_TYPE_TO_TOPIC.get(event_type, KafkaTopic.SYSTEM_EVENTS)
 
 
-def get_event_types_for_topic(topic: KafkaTopic) -> list[EventType]:
-    """Get all event types that publish to a given topic."""
-    return [et for et, t in EVENT_TYPE_TO_TOPIC.items() if t == topic]
-
 
 CONSUMER_GROUP_SUBSCRIPTIONS: dict[GroupId, set[KafkaTopic]] = {
     GroupId.EXECUTION_COORDINATOR: {

@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass, field
 
 from app.domain.enums import EventType, KafkaTopic
@@ -17,8 +16,8 @@ class PodMonitorConfig:
     execution_failed_topic: KafkaTopic = get_topic_for_event(EventType.EXECUTION_FAILED)
 
     # Kubernetes settings
-    namespace: str = os.environ.get("K8S_NAMESPACE", "integr8scode")
-    kubeconfig_path: str | None = os.environ.get("KUBECONFIG", None)
+    namespace: str = "integr8scode"
+    kubeconfig_path: str | None = None
     in_cluster: bool = False
 
     # Watch settings

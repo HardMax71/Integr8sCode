@@ -9,6 +9,8 @@ from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pymongo import AsyncMongoClient
 
 from app.core.tracing import Tracer
@@ -45,8 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
 
-    tracer: Tracer = await container.get(Tracer)
-    tracer.instrument_app(app)
+    await container.get(Tracer)
+    FastAPIInstrumentor().instrument_app(
+        app, tracer_provider=trace.get_tracer_provider(), excluded_urls="health,metrics,docs,openapi.json",
+    )
     logger.info("FastAPI OpenTelemetry instrumentation applied")
 
     logger.info(

@@ -9,7 +9,7 @@ pytestmark = pytest.mark.unit
 
 def test_pod_monitor_config_defaults() -> None:
     cfg = PodMonitorConfig()
-    assert cfg.namespace in {"integr8scode", "default"}
+    assert cfg.namespace == "integr8scode"
     assert isinstance(cfg.pod_events_topic, KafkaTopic) and cfg.pod_events_topic
     assert isinstance(cfg.execution_completed_topic, KafkaTopic)
     assert cfg.ignored_pod_phases == []

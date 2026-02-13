@@ -791,9 +791,16 @@ class PodMonitorProvider(Provider):
         return PodEventMapper(logger=logger, k8s_api=k8s_client.CoreV1Api(api_client))
 
     @provide
+    def get_pod_monitor_config(self, settings: Settings) -> PodMonitorConfig:
+        return PodMonitorConfig(
+            namespace=settings.K8S_NAMESPACE,
+            kubeconfig_path=settings.KUBERNETES_CONFIG_PATH,
+        )
+
+    @provide
     async def get_pod_monitor(
         self,
-        settings: Settings,
+        config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
         api_client: k8s_client.ApiClient,
         logger: structlog.stdlib.BoundLogger,
@@ -801,10 +808,6 @@ class PodMonitorProvider(Provider):
         kubernetes_metrics: KubernetesMetrics,
     ) -> AsyncIterator[PodMonitor]:
 
-        config = PodMonitorConfig(
-            namespace=settings.K8S_NAMESPACE,
-            kubeconfig_path=settings.KUBERNETES_CONFIG_PATH,
-        )
         monitor = PodMonitor(
             config=config,
             kafka_event_service=kafka_event_service,

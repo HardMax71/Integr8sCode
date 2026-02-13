@@ -141,7 +141,10 @@ def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> N
         }
     )
 
-    otlp_exporter = OTLPMetricExporter(endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT, insecure=True)
+    otlp_exporter = OTLPMetricExporter(
+        endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT,
+        insecure=settings.OTEL_EXPORTER_OTLP_ENDPOINT.startswith("http://"),
+    )
 
     metric_reader = PeriodicExportingMetricReader(
         exporter=otlp_exporter,

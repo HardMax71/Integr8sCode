@@ -143,13 +143,11 @@ class NotificationService:
                 )
         self.logger.info(
             f"Creating notification for user {user_id}",
-            extra={
-                "user_id": user_id,
-                "channel": channel,
-                "severity": str(severity),
-                "tags": tags,
-                "scheduled": scheduled_for is not None,
-            },
+            user_id=user_id,
+            channel=channel,
+            severity=str(severity),
+            tags=tags,
+            scheduled=scheduled_for is not None,
         )
 
         # Check throttling
@@ -256,14 +254,12 @@ class NotificationService:
 
         self.logger.info(
             "System notification completed",
-            extra={
-                "severity": cfg.severity,
-                "title": title,
-                "total_users": len(users),
-                "created": created,
-                "failed": failed,
-                "throttled": throttled,
-            },
+            severity=cfg.severity,
+            title=title,
+            total_users=len(users),
+            created=created,
+            failed=failed,
+            throttled=throttled,
         )
 
         return {"total_users": len(users), "created": created, "failed": failed, "throttled": throttled}
@@ -311,7 +307,7 @@ class NotificationService:
             return "created"
         except Exception as e:
             self.logger.error(
-                "Failed to create system notification for user", extra={"user_id": user_id, "error": str(e)}
+                "Failed to create system notification for user", user_id=user_id, error=str(e)
             )
             return "failed"
 
@@ -349,11 +345,9 @@ class NotificationService:
 
         self.logger.debug(
             f"Sending webhook notification to {webhook_url}",
-            extra={
-                "notification_id": str(notification.notification_id),
-                "payload_size": len(str(payload)),
-                "webhook_url": webhook_url,
-            },
+            notification_id=str(notification.notification_id),
+            payload_size=len(str(payload)),
+            webhook_url=webhook_url,
         )
 
         trace.get_current_span().set_attributes({
@@ -366,11 +360,9 @@ class NotificationService:
             response.raise_for_status()
             self.logger.debug(
                 "Webhook delivered successfully",
-                extra={
-                    "notification_id": str(notification.notification_id),
-                    "status_code": response.status_code,
-                    "response_time_ms": int(response.elapsed.total_seconds() * 1000),
-                },
+                notification_id=str(notification.notification_id),
+                status_code=response.status_code,
+                response_time_ms=int(response.elapsed.total_seconds() * 1000),
             )
 
     async def _send_slack(self, notification: DomainNotification, subscription: DomainNotificationSubscription) -> None:
@@ -402,11 +394,9 @@ class NotificationService:
 
         self.logger.debug(
             "Sending Slack notification",
-            extra={
-                "notification_id": str(notification.notification_id),
-                "has_action": bool(notification.action_url),
-                "priority_color": self._get_slack_color(notification.severity),
-            },
+            notification_id=str(notification.notification_id),
+            has_action=bool(notification.action_url),
+            priority_color=self._get_slack_color(notification.severity),
         )
 
         trace.get_current_span().set_attributes({
@@ -418,7 +408,8 @@ class NotificationService:
             response.raise_for_status()
             self.logger.debug(
                 "Slack notification delivered successfully",
-                extra={"notification_id": str(notification.notification_id), "status_code": response.status_code},
+                notification_id=str(notification.notification_id),
+                status_code=response.status_code,
             )
 
     def _get_slack_color(self, priority: NotificationSeverity) -> str:
@@ -612,13 +603,11 @@ class NotificationService:
 
         self.logger.info(
             f"Delivering notification {notification.notification_id}",
-            extra={
-                "notification_id": str(notification.notification_id),
-                "user_id": notification.user_id,
-                "channel": notification.channel,
-                "severity": notification.severity,
-                "tags": list(notification.tags or []),
-            },
+            notification_id=str(notification.notification_id),
+            user_id=notification.user_id,
+            channel=notification.channel,
+            severity=notification.severity,
+            tags=list(notification.tags or []),
         )
 
         subscription = await self.repository.get_subscription(notification.user_id, notification.channel)
@@ -672,11 +661,9 @@ class NotificationService:
             )
             self.logger.info(
                 f"Delivered notification {notification.notification_id}",
-                extra={
-                    "notification_id": str(notification.notification_id),
-                    "channel": notification.channel,
-                    "delivery_time_ms": int(delivery_time * 1000),
-                },
+                notification_id=str(notification.notification_id),
+                channel=notification.channel,
+                delivery_time_ms=int(delivery_time * 1000),
             )
             notification_type = notification.tags[0] if notification.tags else "unknown"
             self.metrics.record_notification_sent(

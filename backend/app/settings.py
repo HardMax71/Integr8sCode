@@ -167,4 +167,4 @@ class Settings(BaseModel):
     SECURE_COOKIES: bool = True
 
     # Logging configuration
-    LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"

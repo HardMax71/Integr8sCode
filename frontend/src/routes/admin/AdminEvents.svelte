@@ -166,7 +166,7 @@
                     progress_percentage: 0,
                     failed_events: 0,
                     skipped_events: 0,
-                    replay_id: '',
+                    replay_id: response.replay_id,
                     created_at: new Date().toISOString()
                 };
                 checkReplayStatus(sessionId);

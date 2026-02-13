@@ -91,7 +91,8 @@ class SSEService:
 
                 self.logger.info(
                     "Received Redis message for execution",
-                    extra={"execution_id": execution_id, "event_type": msg.event_type},
+                    execution_id=execution_id,
+                    event_type=msg.event_type,
                 )
                 try:
                     sse_event = await self._build_sse_event_from_redis(execution_id, msg)
@@ -100,19 +101,22 @@ class SSEService:
                     if msg.event_type in self.TERMINAL_EVENT_TYPES:
                         self.logger.info(
                             "Terminal event for execution",
-                            extra={"execution_id": execution_id, "event_type": msg.event_type},
+                            execution_id=execution_id,
+                            event_type=msg.event_type,
                         )
                         return
                 except Exception as e:
                     self.logger.warning(
                         "Failed to process SSE message",
-                        extra={"execution_id": execution_id, "event_type": msg.event_type, "error": str(e)},
+                        execution_id=execution_id,
+                        event_type=msg.event_type,
+                        error=str(e),
                     )
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
             self.metrics.decrement_sse_connections("executions")
-            self.logger.info("SSE connection closed", extra={"execution_id": execution_id})
+            self.logger.info("SSE connection closed", execution_id=execution_id)
 
     async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
         """Build typed SSE event from Redis message."""
@@ -135,7 +139,7 @@ class SSEService:
         subscription: SSERedisSubscription | None = None
         try:
             subscription = await self.sse_bus.open_notification_subscription(user_id)
-            self.logger.info("Notification subscription opened", extra={"user_id": user_id})
+            self.logger.info("Notification subscription opened", user_id=user_id)
 
             while True:
                 redis_msg = await subscription.get(RedisNotificationMessage)
@@ -158,7 +162,7 @@ class SSEService:
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
-            self.logger.info("Notification stream closed", extra={"user_id": user_id})
+            self.logger.info("Notification stream closed", user_id=user_id)
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""

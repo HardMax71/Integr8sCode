@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
+import structlog
 from beanie import init_beanie
 from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
@@ -10,7 +11,6 @@ from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
 
-from app.core.logging import setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import (
     register_notification_subscriber,
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     settings: Settings = app.state.settings
     container: AsyncContainer = app.state.dishka_container
-    logger = setup_logger(settings.LOG_LEVEL)
+    logger: structlog.stdlib.BoundLogger = await container.get(structlog.stdlib.BoundLogger)
 
     # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes).
     # Use URL database first and fall back to configured DATABASE_NAME so runtime
@@ -46,10 +46,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info(
         "Starting application with dishka DI",
-        extra={
-            "project_name": settings.PROJECT_NAME,
-            "environment": "test" if settings.TESTING else "production",
-        },
+        project_name=settings.PROJECT_NAME,
+        environment="test" if settings.TESTING else "production",
     )
 
     # Get unstarted broker from DI (BrokerProvider yields without starting)

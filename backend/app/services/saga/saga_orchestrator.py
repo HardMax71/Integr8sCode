@@ -255,13 +255,14 @@ class SagaOrchestrator:
         try:
             saga_instance = await self.get_saga_status(saga_id)
             if not saga_instance:
-                self.logger.error("Saga not found", extra={"saga_id": saga_id})
+                self.logger.error("Saga not found", saga_id=saga_id)
                 return False
 
             if saga_instance.state not in [SagaState.RUNNING, SagaState.CREATED]:
                 self.logger.warning(
                     "Cannot cancel saga in current state. Only RUNNING or CREATED sagas can be cancelled.",
-                    extra={"saga_id": saga_id, "state": saga_instance.state},
+                    saga_id=saga_id,
+                    state=saga_instance.state,
                 )
                 return False
 
@@ -272,11 +273,9 @@ class SagaOrchestrator:
             user_id = saga_instance.context_data.user_id
             self.logger.info(
                 "Saga cancellation initiated",
-                extra={
-                    "saga_id": saga_id,
-                    "execution_id": saga_instance.execution_id,
-                    "user_id": user_id,
-                },
+                saga_id=saga_id,
+                execution_id=saga_instance.execution_id,
+                user_id=user_id,
             )
 
             await self._save_saga(saga_instance)
@@ -300,13 +299,14 @@ class SagaOrchestrator:
 
                 await self._compensate_saga(saga_instance, context)
 
-            self.logger.info("Saga cancelled successfully", extra={"saga_id": saga_id})
+            self.logger.info("Saga cancelled successfully", saga_id=saga_id)
             return True
 
         except Exception as e:
             self.logger.error(
                 "Error cancelling saga",
-                extra={"saga_id": saga_id, "error": str(e)},
+                saga_id=saga_id,
+                error=str(e),
                 exc_info=True,
             )
             return False

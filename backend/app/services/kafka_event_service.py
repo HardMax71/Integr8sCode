@@ -39,5 +39,5 @@ class KafkaEventService:
             await self.kafka_producer.produce(event_to_produce=event, key=key)
             self.metrics.record_event_published(event.event_type)
             self.metrics.record_event_processing_duration(time.time() - start_time, event.event_type)
-            self.logger.info("Event published", extra={"event_type": event.event_type, "event_id": event.event_id})
+            self.logger.info("Event published", event_type=event.event_type, event_id=event.event_id)
             return event.event_id

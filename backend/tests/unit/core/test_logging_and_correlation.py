@@ -75,6 +75,34 @@ class TestSanitizeSensitiveData:
         result = sanitize_sensitive_data(None, "info", event_dict)
         assert result["event"] == 42
 
+    def test_sanitizes_exc_info_field(self) -> None:
+        event_dict: dict[str, Any] = {
+            "event": "connection failed",
+            "exc_info": "ConnectionError: mongodb://user:secret123@host/db",
+        }
+        result = sanitize_sensitive_data(None, "error", event_dict)
+        assert "secret123" not in result["exc_info"]
+        assert "MONGODB_REDACTED" in result["exc_info"]
+
+    def test_sanitizes_stack_info_field(self) -> None:
+        event_dict: dict[str, Any] = {
+            "event": "debug trace",
+            "stack_info": 'password: "hunter2" at line 42',
+        }
+        result = sanitize_sensitive_data(None, "debug", event_dict)
+        assert "hunter2" not in result["stack_info"]
+
+    def test_sanitizes_extra_string_values(self) -> None:
+        event_dict: dict[str, Any] = {
+            "event": "check",
+            "url": "https://admin:s3cret@api.example.com/v1",
+            "count": 5,
+        }
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert "s3cret" not in result["url"]
+        assert "URL_CREDS_REDACTED" in result["url"]
+        assert result["count"] == 5
+
     def test_has_expected_pattern_count(self) -> None:
         assert len(SENSITIVE_PATTERNS) == 6
 

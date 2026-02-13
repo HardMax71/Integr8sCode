@@ -169,7 +169,7 @@ class EventReplayService:
         removed_db = await self._repository.delete_old_sessions(cutoff_time)
         total_removed = max(removed_memory, removed_db)
 
-        self.logger.info("Cleaned up old replay sessions", extra={"removed_count": total_removed})
+        self.logger.info("Cleaned up old replay sessions", removed_count=total_removed)
         return CleanupResult(removed_sessions=total_removed, message=f"Removed {total_removed} old sessions")
 
     async def _dispatch_next(self, session: ReplaySessionState) -> None:
@@ -269,12 +269,10 @@ class EventReplayService:
         self._buffer_indices.pop(session.session_id, None)
         self.logger.info(
             "Replay session finished",
-            extra={
-                "session_id": session.session_id,
-                "status": session.status,
-                "replayed_events": session.replayed_events,
-                "failed_events": session.failed_events,
-            },
+            session_id=session.session_id,
+            status=session.status,
+            replayed_events=session.replayed_events,
+            failed_events=session.failed_events,
         )
 
     async def _fetch_event_batches(self, session: ReplaySessionState) -> AsyncIterator[list[DomainEvent]]:
@@ -295,7 +293,8 @@ class EventReplayService:
                     session.failed_events += 1
                     self.logger.warning(
                         "Skipping event that failed validation",
-                        extra={"event_id": doc.get("event_id", "unknown"), "error": str(e)},
+                        event_id=doc.get("event_id", "unknown"),
+                        error=str(e),
                     )
                     continue
 
@@ -324,7 +323,9 @@ class EventReplayService:
             jitter=None,
             on_backoff=lambda details: self.logger.error(
                 "Failed to replay event",
-                extra={"attempt": details["tries"], "max_attempts": max_attempts, "error": str(details["exception"])},
+                attempt=details["tries"],
+                max_attempts=max_attempts,
+                error=str(details["exception"]),
             ),
         )
         async def _dispatch() -> None:

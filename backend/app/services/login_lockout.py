@@ -41,7 +41,8 @@ class LoginLockoutService:
             await self._redis.set(self._locked_key(username), "1", ex=ttl)
             self._logger.warning(
                 "Account locked due to too many failed attempts",
-                extra={"username": username, "attempts": attempts},
+                username=username,
+                attempts=attempts,
             )
             return True
 

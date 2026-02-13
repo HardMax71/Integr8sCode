@@ -46,12 +46,10 @@ async def login(
     """Authenticate and receive session cookies."""
     logger.info(
         "Login attempt",
-        extra={
-            "username": form_data.username,
-            "client_ip": get_client_ip(request),
-            "endpoint": "/login",
-            "user_agent": request.headers.get("user-agent"),
-        },
+        username=form_data.username,
+        client_ip=get_client_ip(request),
+        endpoint="/login",
+        user_agent=request.headers.get("user-agent"),
     )
 
     if await lockout_service.check_locked(form_data.username):
@@ -65,11 +63,9 @@ async def login(
     if not user:
         logger.warning(
             "Login failed - user not found",
-            extra={
-                "username": form_data.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-            },
+            username=form_data.username,
+            client_ip=get_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
         )
         locked = await lockout_service.record_failed_attempt(form_data.username)
         if locked:
@@ -86,11 +82,9 @@ async def login(
     if not security_service.verify_password(form_data.password, user.hashed_password):
         logger.warning(
             "Login failed - invalid password",
-            extra={
-                "username": form_data.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-            },
+            username=form_data.username,
+            client_ip=get_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
         )
         locked = await lockout_service.record_failed_attempt(form_data.username)
         if locked:
@@ -111,12 +105,10 @@ async def login(
 
     logger.info(
         "Login successful",
-        extra={
-            "username": user.username,
-            "client_ip": get_client_ip(request),
-            "user_agent": request.headers.get("user-agent"),
-            "token_expires_in_minutes": session_timeout,
-        },
+        username=user.username,
+        client_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        token_expires_in_minutes=session_timeout,
     )
 
     access_token_expires = timedelta(minutes=session_timeout)
@@ -174,12 +166,10 @@ async def register(
     """Register a new user account."""
     logger.info(
         "Registration attempt",
-        extra={
-            "username": user.username,
-            "client_ip": get_client_ip(request),
-            "endpoint": "/register",
-            "user_agent": request.headers.get("user-agent"),
-        },
+        username=user.username,
+        client_ip=get_client_ip(request),
+        endpoint="/register",
+        user_agent=request.headers.get("user-agent"),
     )
 
     effective = await runtime_settings.get_effective_settings()
@@ -191,11 +181,9 @@ async def register(
     if db_user:
         logger.warning(
             "Registration failed - username taken",
-            extra={
-                "username": user.username,
-                "client_ip": get_client_ip(request),
-                "user_agent": request.headers.get("user-agent"),
-            },
+            username=user.username,
+            client_ip=get_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
         )
         raise HTTPException(status_code=409, detail="Username already registered")
 
@@ -212,11 +200,9 @@ async def register(
 
     logger.info(
         "Registration successful",
-        extra={
-            "username": created_user.username,
-            "client_ip": get_client_ip(request),
-            "user_agent": request.headers.get("user-agent"),
-        },
+        username=created_user.username,
+        client_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return UserResponse.model_validate(created_user)
@@ -234,11 +220,9 @@ async def get_current_user_profile(
 
     logger.info(
         "User profile request",
-        extra={
-            "username": current_user.username,
-            "client_ip": get_client_ip(request),
-            "endpoint": "/me",
-        },
+        username=current_user.username,
+        client_ip=get_client_ip(request),
+        endpoint="/me",
     )
 
     # Set cache control headers
@@ -257,11 +241,9 @@ async def logout(
     """Log out and clear session cookies."""
     logger.info(
         "Logout attempt",
-        extra={
-            "client_ip": get_client_ip(request),
-            "endpoint": "/logout",
-            "user_agent": request.headers.get("user-agent"),
-        },
+        client_ip=get_client_ip(request),
+        endpoint="/logout",
+        user_agent=request.headers.get("user-agent"),
     )
 
     # Clear the httpOnly cookie
@@ -278,10 +260,8 @@ async def logout(
 
     logger.info(
         "Logout successful",
-        extra={
-            "client_ip": get_client_ip(request),
-            "user_agent": request.headers.get("user-agent"),
-        },
+        client_ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
     )
 
     return MessageResponse(message="Logout successful")

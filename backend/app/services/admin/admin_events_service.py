@@ -105,10 +105,8 @@ class AdminEventsService:
 
         self.logger.info(
             "Preparing replay session",
-            extra={
-                "dry_run": dry_run,
-                "replay_id": replay_id,
-            },
+            dry_run=dry_run,
+            replay_id=replay_id,
         )
 
         event_count = await self._repo.count_events_for_replay(replay_filter)
@@ -141,10 +139,8 @@ class AdminEventsService:
             )
             self.logger.info(
                 "Replay dry-run prepared",
-                extra={
-                    "total_events": result.total_events,
-                    "replay_id": result.replay_id,
-                },
+                total_events=result.total_events,
+                replay_id=result.replay_id,
             )
             return result
 
@@ -183,11 +179,9 @@ class AdminEventsService:
         )
         self.logger.info(
             "Replay scheduled",
-            extra={
-                "session_id": result.session_id,
-                "total_events": result.total_events,
-                "replay_id": result.replay_id,
-            },
+            session_id=result.session_id,
+            total_events=result.total_events,
+            replay_id=result.replay_id,
         )
         return result
 
@@ -245,10 +239,8 @@ class AdminEventsService:
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
         self.logger.info(
             "Exported events CSV",
-            extra={
-                "row_count": len(rows),
-                "file_name": filename,
-            },
+            row_count=len(rows),
+            file_name=filename,
         )
         return ExportResult(file_name=filename, content=output.getvalue(), media_type="text/csv")
 
@@ -270,16 +262,14 @@ class AdminEventsService:
         filename = f"events_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
         self.logger.info(
             "Exported events JSON",
-            extra={
-                "event_count": len(events_data),
-                "file_name": filename,
-            },
+            event_count=len(events_data),
+            file_name=filename,
         )
         return ExportResult(file_name=filename, content=json_content, media_type="application/json")
 
     async def delete_event(self, *, event_id: str, deleted_by: str) -> bool:
         # Load event for archival; archive then delete
-        self.logger.warning("Admin attempting to delete event", extra={"event_id": event_id, "deleted_by": deleted_by})
+        self.logger.warning("Admin attempting to delete event", event_id=event_id, deleted_by=deleted_by)
         detail = await self._repo.get_event_detail(event_id)
         if not detail:
             return False
@@ -288,10 +278,8 @@ class AdminEventsService:
         if deleted:
             self.logger.info(
                 "Event deleted",
-                extra={
-                    "event_id": event_id,
-                    "event_type": detail.event.event_type,
-                    "deleted_by": deleted_by,
-                },
+                event_id=event_id,
+                event_type=detail.event.event_type,
+                deleted_by=deleted_by,
             )
         return deleted

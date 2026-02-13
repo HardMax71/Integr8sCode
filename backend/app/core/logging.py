@@ -17,17 +17,25 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
+def _redact(value: str) -> str:
+    for pattern, replacement in SENSITIVE_PATTERNS:
+        value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
+    return value
+
+
 def sanitize_sensitive_data(
     logger: structlog.types.WrappedLogger,
     method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
-    """Structlog processor that redacts sensitive data from the event message."""
-    event = event_dict.get("event", "")
-    if isinstance(event, str):
-        for pattern, replacement in SENSITIVE_PATTERNS:
-            event = re.sub(pattern, replacement, event, flags=re.IGNORECASE)
-        event_dict["event"] = event
+    """Structlog processor that redacts sensitive data from all string fields.
+
+    Covers event message, formatted exception text, stack info, and any
+    string value added by prior processors.
+    """
+    for key, value in event_dict.items():
+        if isinstance(value, str):
+            event_dict[key] = _redact(value)
     return event_dict
 
 
@@ -46,22 +54,11 @@ def add_otel_context(
     return event_dict
 
 
-LOG_LEVELS: dict[str, int] = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
-}
-
-
 def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
     """Configure structlog and return a bound logger for the application.
 
     Called by DI with Settings.LOG_LEVEL and also directly by main.py/lifespan.
     """
-    level = LOG_LEVELS.get(log_level.upper(), logging.DEBUG)
-
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -69,10 +66,10 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
-            sanitize_sensitive_data,
             add_otel_context,
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
+            sanitize_sensitive_data,
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -81,8 +78,7 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
         cache_logger_on_first_use=True,
     )
 
-    logging.basicConfig(level=level, format="%(message)s", handlers=[logging.StreamHandler()])
-    logging.getLogger().setLevel(level)
+    logging.basicConfig(level=log_level.upper(), format="%(message)s", handlers=[logging.StreamHandler()])
 
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger

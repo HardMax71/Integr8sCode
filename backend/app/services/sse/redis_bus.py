@@ -31,7 +31,8 @@ class SSERedisSubscription:
         except Exception as e:
             self.logger.warning(
                 f"Failed to parse Redis message on channel {self._channel}: {e}",
-                extra={"channel": self._channel, "model": model.__name__},
+                channel=self._channel,
+                model=model.__name__,
             )
             return None
 

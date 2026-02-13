@@ -131,14 +131,12 @@ if __name__ == "__main__":
     logger = setup_logger(settings.LOG_LEVEL)
     logger.info(
         "Starting uvicorn server",
-        extra={
-            "host": settings.SERVER_HOST,
-            "port": settings.SERVER_PORT,
-            "ssl_enabled": True,
-            "workers": settings.WEB_CONCURRENCY,
-            "backlog": settings.WEB_BACKLOG,
-            "timeout_keep_alive": settings.WEB_TIMEOUT,
-        },
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
+        ssl_enabled=True,
+        workers=settings.WEB_CONCURRENCY,
+        backlog=settings.WEB_BACKLOG,
+        timeout_keep_alive=settings.WEB_TIMEOUT,
     )
     uvicorn.run(
         "app.main:create_app",

@@ -46,7 +46,7 @@ class Tracer:
             provider.add_span_processor(
                 BatchSpanProcessor(OTLPSpanExporter(
                     endpoint=settings.OTLP_TRACES_ENDPOINT,
-                    insecure=True,
+                    insecure=settings.OTLP_TRACES_ENDPOINT.startswith("http://"),
                 ))
             )
 

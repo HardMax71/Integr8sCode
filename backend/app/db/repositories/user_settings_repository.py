@@ -1,6 +1,6 @@
-import logging
 from datetime import datetime
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GT, LTE, Eq, In
@@ -11,7 +11,7 @@ from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
 
 
 class UserSettingsRepository:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
     async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
@@ -52,12 +52,7 @@ class UserSettingsRepository:
             find_query = find_query.limit(limit)
 
         docs = await find_query.to_list()
-        return [
-            DomainUserSettingsChangedEvent.model_validate(e).model_copy(
-                update={"correlation_id": e.metadata.correlation_id}
-            )
-            for e in docs
-        ]
+        return [DomainUserSettingsChangedEvent.model_validate(e) for e in docs]
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
         aggregate_id = f"user_settings_{user_id}"

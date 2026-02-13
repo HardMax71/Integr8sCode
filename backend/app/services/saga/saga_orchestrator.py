@@ -1,10 +1,10 @@
-import logging
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import structlog
+from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
-from app.core.tracing import EventAttributes, get_tracer
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import (
@@ -35,7 +35,7 @@ class SagaOrchestrator:
         saga_repository: SagaRepository,
         producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self.config = config
         self._producer = producer
@@ -114,7 +114,6 @@ class SagaOrchestrator:
 
         saga = self._create_saga_instance()
         context = SagaContext(instance.saga_id, execution_id)
-        context.set("correlation_id", trigger_event.metadata.correlation_id)
         context.set("user_id", trigger_event.metadata.user_id)
 
         await self._execute_saga(saga, instance, context, trigger_event)
@@ -139,7 +138,7 @@ class SagaOrchestrator:
         trigger_event: DomainEvent,
     ) -> None:
         """Execute saga steps."""
-        tracer = get_tracer()
+        tracer = trace.get_tracer(__name__)
         try:
             steps = saga.get_steps()
 
@@ -153,10 +152,10 @@ class SagaOrchestrator:
                     name="saga.step",
                     kind=SpanKind.INTERNAL,
                     attributes={
-                        str(EventAttributes.SAGA_NAME): instance.saga_name,
-                        str(EventAttributes.SAGA_ID): instance.saga_id,
-                        str(EventAttributes.SAGA_STEP): step.name,
-                        str(EventAttributes.EXECUTION_ID): instance.execution_id,
+                        "saga.name": instance.saga_name,
+                        "saga.id": instance.saga_id,
+                        "saga.step": step.name,
+                        "execution.id": instance.execution_id,
                     },
                 ):
                     success = await step.execute(context, trigger_event)
@@ -256,13 +255,14 @@ class SagaOrchestrator:
         try:
             saga_instance = await self.get_saga_status(saga_id)
             if not saga_instance:
-                self.logger.error("Saga not found", extra={"saga_id": saga_id})
+                self.logger.error("Saga not found", saga_id=saga_id)
                 return False
 
             if saga_instance.state not in [SagaState.RUNNING, SagaState.CREATED]:
                 self.logger.warning(
                     "Cannot cancel saga in current state. Only RUNNING or CREATED sagas can be cancelled.",
-                    extra={"saga_id": saga_id, "state": saga_instance.state},
+                    saga_id=saga_id,
+                    state=saga_instance.state,
                 )
                 return False
 
@@ -273,11 +273,9 @@ class SagaOrchestrator:
             user_id = saga_instance.context_data.user_id
             self.logger.info(
                 "Saga cancellation initiated",
-                extra={
-                    "saga_id": saga_id,
-                    "execution_id": saga_instance.execution_id,
-                    "user_id": user_id,
-                },
+                saga_id=saga_id,
+                execution_id=saga_instance.execution_id,
+                user_id=user_id,
             )
 
             await self._save_saga(saga_instance)
@@ -301,13 +299,14 @@ class SagaOrchestrator:
 
                 await self._compensate_saga(saga_instance, context)
 
-            self.logger.info("Saga cancelled successfully", extra={"saga_id": saga_id})
+            self.logger.info("Saga cancelled successfully", saga_id=saga_id)
             return True
 
         except Exception as e:
             self.logger.error(
                 "Error cancelling saga",
-                extra={"saga_id": saga_id, "error": str(e)},
+                saga_id=saga_id,
+                error=str(e),
                 exc_info=True,
             )
             return False
@@ -326,7 +325,6 @@ class SagaOrchestrator:
                     service_name="saga-orchestrator",
                     service_version="1.0.0",
                     user_id=trigger_event.metadata.user_id,
-                    correlation_id=trigger_event.metadata.correlation_id,
                 ),
             )
             await self._producer.produce(event_to_produce=event, key=instance.execution_id)
@@ -342,7 +340,6 @@ class SagaOrchestrator:
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
                 user_id=cancelled_by,
-                correlation_id=saga_instance.context_data.correlation_id,
             )
 
             event = SagaCancelledEvent(

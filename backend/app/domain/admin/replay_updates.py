@@ -15,7 +15,7 @@ class ReplaySessionUpdate(BaseModel):
     replayed_events: int | None = None
     failed_events: int | None = None
     skipped_events: int | None = None
-    correlation_id: str | None = None
+    replay_id: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error: str | None = None

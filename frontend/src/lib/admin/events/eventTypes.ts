@@ -58,7 +58,6 @@ export function getEventTypeLabel(eventType: EventType): string {
 export interface EventFilters {
     event_types: EventType[];
     aggregate_id: string;
-    correlation_id: string;
     user_id: string;
     service_name: string;
     search_text: string;
@@ -70,7 +69,6 @@ export function createDefaultEventFilters(): EventFilters {
     return {
         event_types: [],
         aggregate_id: '',
-        correlation_id: '',
         user_id: '',
         service_name: '',
         search_text: '',
@@ -83,7 +81,6 @@ export function hasActiveFilters(filters: EventFilters): boolean {
     return (
         filters.event_types.length > 0 ||
         !!filters.search_text ||
-        !!filters.correlation_id ||
         !!filters.aggregate_id ||
         !!filters.user_id ||
         !!filters.service_name ||
@@ -96,7 +93,6 @@ export function getActiveFilterCount(filters: EventFilters): number {
     let count = 0;
     if (filters.event_types.length > 0) count++;
     if (filters.search_text) count++;
-    if (filters.correlation_id) count++;
     if (filters.aggregate_id) count++;
     if (filters.user_id) count++;
     if (filters.service_name) count++;
@@ -111,7 +107,6 @@ export function getActiveFilterSummary(filters: EventFilters): string[] {
         items.push(`${filters.event_types.length} event type${filters.event_types.length > 1 ? 's' : ''}`);
     }
     if (filters.search_text) items.push('search');
-    if (filters.correlation_id) items.push('correlation');
     if (filters.aggregate_id) items.push('aggregate');
     if (filters.user_id) items.push('user');
     if (filters.service_name) items.push('service');

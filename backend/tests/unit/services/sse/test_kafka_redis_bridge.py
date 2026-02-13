@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 import pytest
 from app.domain.events import DomainEvent, EventMetadata, ExecutionStartedEvent
@@ -6,7 +6,7 @@ from app.services.sse import SSERedisBus
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.sse.redis_bus_routing")
+_test_logger = structlog.get_logger("test.services.sse.redis_bus_routing")
 
 
 class _FakeBus(SSERedisBus):

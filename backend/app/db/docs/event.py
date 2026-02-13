@@ -38,7 +38,6 @@ class EventDocument(Document):
             # Compound indexes for common query patterns
             IndexModel([("event_type", ASCENDING), ("timestamp", DESCENDING)], name="idx_event_type_ts"),
             IndexModel([("aggregate_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_aggregate_ts"),
-            IndexModel([("metadata.correlation_id", ASCENDING)], name="idx_meta_correlation"),
             IndexModel([("metadata.user_id", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_user_ts"),
             IndexModel([("metadata.service_name", ASCENDING), ("timestamp", DESCENDING)], name="idx_meta_service_ts"),
             # Event-specific field indexes (sparse - only exist on relevant event types)

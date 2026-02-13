@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
@@ -25,7 +25,7 @@ class ResultProcessor:
             execution_repo: ExecutionRepository,
             producer: UnifiedProducer,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             execution_metrics: ExecutionMetrics,
     ) -> None:
         self._execution_repo = execution_repo
@@ -68,10 +68,10 @@ class ResultProcessor:
         meta = event.metadata
         try:
             await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.correlation_id, meta.user_id)
+            await self._publish_result_stored(result, meta.user_id)
         except Exception as e:
             self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
-            await self._publish_result_failed(event.execution_id, str(e), meta.correlation_id, meta.user_id)
+            await self._publish_result_failed(event.execution_id, str(e), meta.user_id)
 
     async def handle_execution_failed(self, event: DomainEvent) -> None:
         """Handle execution failed event."""
@@ -90,10 +90,10 @@ class ResultProcessor:
         meta = event.metadata
         try:
             await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.correlation_id, meta.user_id)
+            await self._publish_result_stored(result, meta.user_id)
         except Exception as e:
             self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
-            await self._publish_result_failed(event.execution_id, str(e), meta.correlation_id, meta.user_id)
+            await self._publish_result_failed(event.execution_id, str(e), meta.user_id)
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
         """Handle execution timeout event."""
@@ -116,12 +116,12 @@ class ResultProcessor:
         meta = event.metadata
         try:
             await self._execution_repo.write_terminal_result(result)
-            await self._publish_result_stored(result, meta.correlation_id, meta.user_id)
+            await self._publish_result_stored(result, meta.user_id)
         except Exception as e:
             self.logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
-            await self._publish_result_failed(event.execution_id, str(e), meta.correlation_id, meta.user_id)
+            await self._publish_result_failed(event.execution_id, str(e), meta.user_id)
 
-    async def _publish_result_stored(self, result: ExecutionResultDomain, correlation_id: str, user_id: str) -> None:
+    async def _publish_result_stored(self, result: ExecutionResultDomain, user_id: str) -> None:
         """Publish result stored event."""
         size_bytes = len(result.stdout) + len(result.stderr)
         event = ResultStoredEvent(
@@ -132,14 +132,13 @@ class ResultProcessor:
             metadata=EventMetadata(
                 service_name=GroupId.RESULT_PROCESSOR,
                 service_version="1.0.0",
-                correlation_id=correlation_id,
                 user_id=user_id,
             ),
         )
         await self._producer.produce(event_to_produce=event, key=result.execution_id)
 
     async def _publish_result_failed(
-        self, execution_id: str, error_message: str, correlation_id: str, user_id: str,
+        self, execution_id: str, error_message: str, user_id: str,
     ) -> None:
         """Publish result processing failed event."""
         event = ResultFailedEvent(
@@ -148,7 +147,6 @@ class ResultProcessor:
             metadata=EventMetadata(
                 service_name=GroupId.RESULT_PROCESSOR,
                 service_version="1.0.0",
-                correlation_id=correlation_id,
                 user_id=user_id,
             ),
         )

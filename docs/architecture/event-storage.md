@@ -36,7 +36,7 @@ For MongoDB queries, access payload fields with dot notation:
 
 ```python
 query["payload.execution_id"] = execution_id
-query["metadata.correlation_id"] = correlation_id
+query["aggregate_id"] = aggregate_id
 ```
 
 ## Write flow

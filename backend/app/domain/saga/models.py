@@ -18,7 +18,6 @@ class SagaContextData(BaseModel):
     timeout_seconds: int | None = None
     allocation_id: str | None = None
     resources_allocated: bool = False
-    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
     pod_creation_triggered: bool = False
     user_id: str = Field(default_factory=lambda: str(uuid4()))
 

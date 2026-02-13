@@ -4,7 +4,6 @@ Create all required Kafka topics for the Integr8sCode backend.
 """
 
 import asyncio
-import os
 import sys
 
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
@@ -13,7 +12,8 @@ from app.core.logging import setup_logger
 from app.infrastructure.kafka.topics import get_all_topics, get_topic_configs
 from app.settings import Settings
 
-logger = setup_logger(os.environ.get("LOG_LEVEL", "INFO"))
+settings = Settings()
+logger = setup_logger(settings.LOG_LEVEL)
 
 
 async def create_topics(settings: Settings) -> None:
@@ -100,7 +100,7 @@ async def main() -> None:
     logger.info("Starting Kafka topic creation...")
 
     try:
-        await create_topics(Settings())
+        await create_topics(settings)
         logger.info("Topic creation completed successfully")
     except Exception as e:
         logger.error(f"Topic creation failed: {e}")

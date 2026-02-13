@@ -1,5 +1,6 @@
-import logging
 from datetime import datetime, timedelta, timezone
+
+import structlog
 
 from app.core.security import SecurityService
 from app.db.repositories import AdminUserRepository
@@ -22,7 +23,7 @@ class AdminUserService:
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
         security_service: SecurityService,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._users = user_repository
         self._events = event_service
@@ -32,7 +33,7 @@ class AdminUserService:
         self.logger = logger
 
     async def get_user_overview(self, user_id: str, hours: int = 24) -> AdminUserOverviewDomain:
-        self.logger.info("Admin getting user overview", extra={"target_user_id": user_id, "hours": hours})
+        self.logger.info("Admin getting user overview", target_user_id=user_id, hours=hours)
         user = await self._users.get_user_by_id(user_id)
         if not user:
             raise NotFoundError("User", user_id)
@@ -104,13 +105,11 @@ class AdminUserService:
     ) -> UserListResult:
         self.logger.info(
             "Admin listing users",
-            extra={
-                "admin_user_id": admin_user_id,
-                "limit": limit,
-                "offset": offset,
-                "search": search,
-                "role": role,
-            },
+            admin_user_id=admin_user_id,
+            limit=limit,
+            offset=offset,
+            search=search,
+            role=role,
         )
 
         result = await self._users.list_users(limit=limit, offset=offset, search=search, role=role)
@@ -131,7 +130,7 @@ class AdminUserService:
     async def create_user(self, *, admin_user_id: str, user_data: UserCreate) -> User:
         """Create a new user and return domain user."""
         self.logger.info(
-            "Admin creating new user", extra={"admin_user_id": admin_user_id, "new_username": user_data.username}
+            "Admin creating new user", admin_user_id=admin_user_id, new_username=user_data.username
         )
         # Ensure not exists
         search_result = await self._users.list_users(limit=1, offset=0, search=user_data.username)
@@ -151,20 +150,21 @@ class AdminUserService:
         )
         created = await self._users.create_user(create_data)
         self.logger.info(
-            "User created successfully", extra={"new_username": user_data.username, "admin_user_id": admin_user_id}
+            "User created successfully", new_username=user_data.username, admin_user_id=admin_user_id
         )
         return created
 
     async def get_user(self, *, admin_user_id: str, user_id: str) -> User | None:
         self.logger.info(
-            "Admin getting user details", extra={"admin_user_id": admin_user_id, "target_user_id": user_id}
+            "Admin getting user details", admin_user_id=admin_user_id, target_user_id=user_id
         )
         return await self._users.get_user_by_id(user_id)
 
     async def update_user(self, *, admin_user_id: str, user_id: str, update: UserUpdate) -> User | None:
         self.logger.info(
             "Admin updating user",
-            extra={"admin_user_id": admin_user_id, "target_user_id": user_id},
+            admin_user_id=admin_user_id,
+            target_user_id=user_id,
         )
         if update.password is not None:
             update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
@@ -173,29 +173,31 @@ class AdminUserService:
     async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(
             "Admin deleting user",
-            extra={"admin_user_id": admin_user_id, "target_user_id": user_id, "cascade": cascade},
+            admin_user_id=admin_user_id,
+            target_user_id=user_id,
+            cascade=cascade,
         )
         # Reset rate limits prior to deletion
         await self._rate_limits.reset_user_limits(user_id)
         result = await self._users.delete_user(user_id, cascade=cascade)
         if result.user_deleted:
-            self.logger.info("User deleted successfully", extra={"target_user_id": user_id})
+            self.logger.info("User deleted successfully", target_user_id=user_id)
         return result
 
     async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> bool:
         self.logger.info(
-            "Admin resetting user password", extra={"admin_user_id": admin_user_id, "target_user_id": user_id}
+            "Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id
         )
         hashed = self._security.get_password_hash(new_password)
         pr = PasswordReset(user_id=user_id, new_password=hashed)
         ok = await self._users.reset_user_password(pr)
         if ok:
-            self.logger.info("User password reset successfully", extra={"target_user_id": user_id})
+            self.logger.info("User password reset successfully", target_user_id=user_id)
         return ok
 
     async def get_user_rate_limits(self, *, admin_user_id: str, user_id: str) -> UserRateLimitsResult:
         self.logger.info(
-            "Admin getting user rate limits", extra={"admin_user_id": admin_user_id, "target_user_id": user_id}
+            "Admin getting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id
         )
         user_limit = await self._rate_limits.get_user_rate_limit(user_id)
         usage_stats = await self._rate_limits.get_usage_stats(user_id)
@@ -210,7 +212,8 @@ class AdminUserService:
     ) -> RateLimitUpdateResult:
         self.logger.info(
             "Admin updating user rate limits",
-            extra={"admin_user_id": admin_user_id, "target_user_id": user_id},
+            admin_user_id=admin_user_id,
+            target_user_id=user_id,
         )
         config = UserRateLimit(
             user_id=user_id,
@@ -224,7 +227,7 @@ class AdminUserService:
 
     async def reset_user_rate_limits(self, *, admin_user_id: str, user_id: str) -> bool:
         self.logger.info(
-            "Admin resetting user rate limits", extra={"admin_user_id": admin_user_id, "target_user_id": user_id}
+            "Admin resetting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id
         )
         await self._rate_limits.reset_user_limits(user_id)
         return True

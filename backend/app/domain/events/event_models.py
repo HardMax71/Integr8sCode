@@ -47,7 +47,6 @@ class EventFilter(BaseModel):
 
     event_types: list[EventType] | None = None
     aggregate_id: str | None = None
-    correlation_id: str | None = None
     user_id: str | None = None
     service_name: str | None = None
     start_time: datetime | None = None

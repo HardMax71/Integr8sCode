@@ -51,7 +51,6 @@ export function mockWindowGlobals(openMock: Mock, confirmMock: Mock): void {
 export interface MockEventMetadata {
   service_name: string;
   service_version: string;
-  correlation_id?: string;
   user_id?: string | null;
 }
 
@@ -75,7 +74,6 @@ export const DEFAULT_EVENT = {
   metadata: {
     service_name: 'test-service',
     service_version: '1.0.0',
-    correlation_id: 'corr-123',
     user_id: 'user-1',
   },
   execution_id: 'exec-456',
@@ -102,7 +100,6 @@ export const createMockEvents = (count: number) =>
     timestamp: new Date(Date.now() - i * 60000).toISOString(),
     aggregate_id: `exec-${i + 1}`,
     metadata: {
-      correlation_id: `corr-${i + 1}`,
       user_id: `user-${(i % 3) + 1}`,
       service_name: 'execution-service',
     },

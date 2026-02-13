@@ -1,6 +1,5 @@
-import logging
-
 import redis.asyncio as redis
+import structlog
 
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -14,7 +13,7 @@ class LoginLockoutService:
         self,
         redis_client: redis.Redis,
         runtime_settings: RuntimeSettingsLoader,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._redis = redis_client
         self._runtime_settings = runtime_settings
@@ -42,7 +41,8 @@ class LoginLockoutService:
             await self._redis.set(self._locked_key(username), "1", ex=ttl)
             self._logger.warning(
                 "Account locked due to too many failed attempts",
-                extra={"username": username, "attempts": attempts},
+                username=username,
+                attempts=attempts,
             )
             return True
 

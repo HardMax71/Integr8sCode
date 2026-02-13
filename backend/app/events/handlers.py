@@ -1,8 +1,8 @@
 import asyncio
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from dishka.integrations.faststream import FromDishka
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker, KafkaMessage
@@ -39,7 +39,7 @@ async def with_idempotency(
         idem: IdempotencyManager,
         key_strategy: KeyStrategy,
         ttl_seconds: int,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
 ) -> None:
     """Run *handler* inside an idempotency guard (check -> execute -> mark)."""
     result = await idem.check_and_reserve(
@@ -82,7 +82,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body: ExecutionRequestedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, coordinator.handle_execution_requested, idem, KeyStrategy.EVENT_BASED, 7200, logger,
@@ -93,7 +93,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body: ExecutionCompletedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, coordinator.handle_execution_completed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
@@ -104,7 +104,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body: ExecutionFailedEvent,
             coordinator: FromDishka[ExecutionCoordinator],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, coordinator.handle_execution_failed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
@@ -115,7 +115,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
             body: ExecutionCancelledEvent,
             coordinator: FromDishka[ExecutionCoordinator],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, coordinator.handle_execution_cancelled, idem, KeyStrategy.EVENT_BASED, 7200, logger,
@@ -138,7 +138,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
             body: CreatePodCommandEvent,
             worker: FromDishka[KubernetesWorker],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger,
@@ -149,7 +149,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
             body: DeletePodCommandEvent,
             worker: FromDishka[KubernetesWorker],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, worker.handle_delete_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger,
@@ -174,7 +174,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
             body: ExecutionCompletedEvent,
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
@@ -185,7 +185,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
             body: ExecutionFailedEvent,
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
@@ -196,7 +196,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
             body: ExecutionTimeoutEvent,
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         await with_idempotency(
             body, processor.handle_execution_timeout, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
@@ -317,7 +317,7 @@ def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
             body: DLQMessage,
             msg: KafkaMessage,
             manager: FromDishka[DLQManager],
-            logger: FromDishka[logging.Logger],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
     ) -> None:
         start = asyncio.get_running_loop().time()
         raw = msg.raw_message

@@ -1,9 +1,9 @@
 import ast
-import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
+import structlog
 from kubernetes_asyncio import client as k8s_client
 
 from app.core.utils import StringEnum
@@ -59,7 +59,7 @@ class PodLogs:
 class PodEventMapper:
     """Maps Kubernetes pod objects to application events"""
 
-    def __init__(self, logger: logging.Logger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
         self.logger = logger
         self._event_cache: dict[str, PodPhase] = {}
         self._k8s_api = k8s_api
@@ -178,21 +178,15 @@ class PodEventMapper:
         return None
 
     def _create_metadata(self, pod: k8s_client.V1Pod) -> EventMetadata:
-        """Create event metadata from pod with correlation tracking"""
+        """Create event metadata from pod"""
         labels = pod.metadata.labels or {}
-        annotations = pod.metadata.annotations or {}
-
-        # Try to get correlation_id from annotations first (full value),
-        # then labels (potentially truncated)
-        correlation_id = annotations.get("integr8s.io/correlation-id") or labels.get("correlation-id") or ""
 
         md = EventMetadata(
             user_id=labels.get("user-id", str(uuid4())),
             service_name=GroupId.POD_MONITOR,
             service_version="1.0.0",
-            correlation_id=correlation_id,
         )
-        self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} corr={md.correlation_id} name={pod.metadata.name}")
+        self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} name={pod.metadata.name}")
         return md
 
     def _is_duplicate(self, pod_name: str, phase: PodPhase) -> bool:

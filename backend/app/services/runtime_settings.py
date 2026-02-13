@@ -1,5 +1,6 @@
-import logging
 from time import monotonic
+
+import structlog
 
 from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
@@ -16,7 +17,7 @@ class RuntimeSettingsLoader:
         self,
         repo: AdminSettingsRepository,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self._repo = repo
         self._settings = settings

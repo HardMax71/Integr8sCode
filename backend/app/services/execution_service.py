@@ -1,8 +1,9 @@
-import logging
 from datetime import datetime, timezone
 from time import time
 from typing import Any
 from uuid import uuid4
+
+import structlog
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
@@ -45,23 +46,11 @@ class ExecutionService:
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
     ) -> None:
-        """
-        Initialize execution service.
-
-        Args:
-            execution_repo: Repository for execution data persistence.
-            producer: Kafka producer for publishing events.
-            settings: Application settings.
-            logger: Logger instance.
-            execution_metrics: Metrics for tracking execution operations.
-            idempotency_manager: Manager for HTTP idempotency.
-            runtime_settings: Loader for admin-configurable runtime settings.
-        """
         self.execution_repo = execution_repo
         self.producer = producer
         self.settings = settings
@@ -123,12 +112,10 @@ class ExecutionService:
         # Log incoming request
         self.logger.info(
             "Received script execution request",
-            extra={
-                "lang": lang,
-                "lang_version": lang_version,
-                "script_length": len(script),
-                "priority": priority,
-            },
+            lang=lang,
+            lang_version=lang_version,
+            script_length=len(script),
+            priority=priority,
         )
 
         runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
@@ -147,13 +134,11 @@ class ExecutionService:
 
             self.logger.info(
                 "Created execution record",
-                extra={
-                    "execution_id": created_execution.execution_id,
-                    "lang": lang,
-                    "lang_version": lang_version,
-                    "user_id": user_id,
-                    "script_length": len(script),
-                },
+                execution_id=created_execution.execution_id,
+                lang=lang,
+                lang_version=lang_version,
+                user_id=user_id,
+                script_length=len(script),
             )
 
             # Metadata and event — use admin-configurable limits
@@ -195,11 +180,9 @@ class ExecutionService:
             self.metrics.record_queue_wait_time(duration, lang_and_version)
             self.logger.info(
                 "Script execution submitted successfully",
-                extra={
-                    "execution_id": created_execution.execution_id,
-                    "status": created_execution.status,
-                    "duration_seconds": duration,
-                },
+                execution_id=created_execution.execution_id,
+                status=created_execution.status,
+                duration_seconds=duration,
             )
             return created_execution
         finally:
@@ -258,7 +241,8 @@ class ExecutionService:
 
         self.logger.info(
             "Published cancellation event",
-            extra={"execution_id": execution_id, "event_id": event.event_id},
+            execution_id=execution_id,
+            event_id=event.event_id,
         )
 
         return CancelResult(
@@ -304,7 +288,6 @@ class ExecutionService:
             timestamp=datetime.now(timezone.utc),
             metadata=EventMetadata(
                 user_id=user_id,
-                correlation_id=str(uuid4()),
                 service_name="api",
                 service_version="1.0.0",
             ),
@@ -391,20 +374,18 @@ class ExecutionService:
         """
         execution = await self.execution_repo.get_execution(execution_id)
         if not execution:
-            self.logger.warning("Execution not found", extra={"execution_id": execution_id})
+            self.logger.warning("Execution not found", execution_id=execution_id)
             raise ExecutionNotFoundError(execution_id)
 
         self.logger.info(
             "Execution result retrieved successfully",
-            extra={
-                "execution_id": execution_id,
-                "status": execution.status,
-                "lang": execution.lang,
-                "lang_version": execution.lang_version,
-                "has_output": bool(execution.stdout),
-                "has_errors": bool(execution.stderr),
-                "resource_usage": execution.resource_usage,
-            },
+            execution_id=execution_id,
+            status=execution.status,
+            lang=execution.lang,
+            lang_version=execution.lang_version,
+            has_output=bool(execution.stdout),
+            has_errors=bool(execution.stderr),
+            resource_usage=execution.resource_usage,
         )
 
         return execution
@@ -442,12 +423,10 @@ class ExecutionService:
 
         self.logger.debug(
             f"Retrieved {len(executions)} executions for user",
-            extra={
-                "user_id": user_id,
-                "filters": {k: v for k, v in query.items() if k != "user_id"},
-                "limit": limit,
-                "skip": skip,
-            },
+            user_id=user_id,
+            filters={k: v for k, v in query.items() if k != "user_id"},
+            limit=limit,
+            skip=skip,
         )
 
         return executions
@@ -530,10 +509,10 @@ class ExecutionService:
         deleted = await self.execution_repo.delete_execution(execution_id)
 
         if not deleted:
-            self.logger.warning("Execution not found for deletion", extra={"execution_id": execution_id})
+            self.logger.warning("Execution not found for deletion", execution_id=execution_id)
             raise ExecutionNotFoundError(execution_id)
 
-        self.logger.info("Deleted execution", extra={"execution_id": execution_id})
+        self.logger.info("Deleted execution", execution_id=execution_id)
 
         await self._publish_deletion_event(execution_id, user_id)
 
@@ -561,10 +540,8 @@ class ExecutionService:
 
         self.logger.info(
             "Published cancellation event",
-            extra={
-                "execution_id": execution_id,
-                "event_id": event.event_id,
-            },
+            execution_id=execution_id,
+            event_id=event.event_id,
         )
 
     async def get_execution_stats(

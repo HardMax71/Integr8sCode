@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,7 +18,7 @@ from tests.unit.conftest import make_container_status, make_pod
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.pod_monitor.event_mapper")
+_test_logger = structlog.get_logger("test.services.pod_monitor.event_mapper")
 
 
 def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodContext:
@@ -159,20 +159,18 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     p = make_pod(
         name="any",
         phase="Pending",
-        labels={"execution-id": "L1", "user-id": "u", "correlation-id": "corrL"},
+        labels={"execution-id": "L1", "user-id": "u"},
     )
     md = pem._create_metadata(p)
-    assert pem._extract_execution_id(p) == "L1" and md.user_id == "u" and md.correlation_id == "corrL"
+    assert pem._extract_execution_id(p) == "L1" and md.user_id == "u"
 
     # From annotation when label absent
     p2 = make_pod(
         name="any",
         phase="Pending",
-        annotations={"integr8s.io/execution-id": "A1", "integr8s.io/correlation-id": "corrA"},
+        annotations={"integr8s.io/execution-id": "A1"},
     )
     assert pem._extract_execution_id(p2) == "A1"
-    md2 = pem._create_metadata(p2)
-    assert md2.correlation_id == "corrA"
 
     # From name pattern exec-<id>
     p3 = make_pod(name="exec-XYZ", phase="Pending")

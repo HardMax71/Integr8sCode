@@ -3,15 +3,17 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
+import structlog
 from beanie import init_beanie
 from dishka import AsyncContainer
 from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pymongo import AsyncMongoClient
 
-from app.core.logging import setup_logger
-from app.core.tracing import init_tracing
+from app.core.tracing import Tracer
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import (
     register_notification_subscriber,
@@ -35,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     settings: Settings = app.state.settings
     container: AsyncContainer = app.state.dishka_container
-    logger = setup_logger(settings.LOG_LEVEL)
+    logger: structlog.stdlib.BoundLogger = await container.get(structlog.stdlib.BoundLogger)
 
     # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes).
     # Use URL database first and fall back to configured DATABASE_NAME so runtime
@@ -45,41 +47,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_beanie(database=database, document_models=ALL_DOCUMENTS)
     logger.info("MongoDB initialized via Beanie")
 
+    await container.get(Tracer)
+    FastAPIInstrumentor().instrument_app(
+        app, tracer_provider=trace.get_tracer_provider(), excluded_urls="health,metrics,docs,openapi.json",
+    )
+    logger.info("FastAPI OpenTelemetry instrumentation applied")
+
     logger.info(
         "Starting application with dishka DI",
-        extra={
-            "project_name": settings.PROJECT_NAME,
-            "environment": "test" if settings.TESTING else "production",
-        },
+        project_name=settings.PROJECT_NAME,
+        environment="test" if settings.TESTING else "production",
     )
-
-    # Initialize tracing only when enabled (avoid exporter retries in tests)
-    if settings.ENABLE_TRACING and not settings.TESTING:
-        instrumentation_report = init_tracing(
-            service_name=settings.TRACING_SERVICE_NAME,
-            settings=settings,
-            logger=logger,
-            service_version=settings.TRACING_SERVICE_VERSION,
-            sampling_rate=settings.TRACING_SAMPLING_RATE,
-            enable_console_exporter=settings.TESTING,
-            adaptive_sampling=settings.TRACING_ADAPTIVE_SAMPLING,
-        )
-
-        if instrumentation_report.has_failures():
-            logger.warning(
-                "Some instrumentation libraries failed to initialize",
-                extra={"instrumentation_summary": instrumentation_report.get_summary()},
-            )
-        else:
-            logger.info(
-                "Distributed tracing initialized successfully",
-                extra={"instrumentation_summary": instrumentation_report.get_summary()},
-            )
-    else:
-        logger.info(
-            "Distributed tracing disabled",
-            extra={"testing": settings.TESTING, "enable_tracing": settings.ENABLE_TRACING},
-        )
 
     # Get unstarted broker from DI (BrokerProvider yields without starting)
     broker: KafkaBroker = await container.get(KafkaBroker)

@@ -1,5 +1,4 @@
-import logging
-
+import structlog
 from fastapi import Request
 
 from app.core.security import SecurityService
@@ -9,7 +8,12 @@ from app.domain.user import AdminAccessRequiredError, AuthenticationRequiredErro
 
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository, security_service: SecurityService, logger: logging.Logger):
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        security_service: SecurityService,
+        logger: structlog.stdlib.BoundLogger,
+    ):
         self.user_repo = user_repo
         self.security_service = security_service
         self.logger = logger

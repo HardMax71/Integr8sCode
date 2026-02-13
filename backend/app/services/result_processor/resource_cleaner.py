@@ -1,8 +1,8 @@
 import asyncio
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
@@ -19,7 +19,7 @@ class ResourceCleaner:
     Accepts ApiClient via dependency injection for proper configuration management.
     """
 
-    def __init__(self, api_client: k8s_client.ApiClient, logger: logging.Logger) -> None:
+    def __init__(self, api_client: k8s_client.ApiClient, logger: structlog.stdlib.BoundLogger) -> None:
         self.v1 = k8s_client.CoreV1Api(api_client)
         self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
         self.logger = logger

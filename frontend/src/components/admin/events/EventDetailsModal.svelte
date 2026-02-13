@@ -49,10 +49,6 @@
                             <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{formatTimestamp(eventData.timestamp)}</td>
                         </tr>
                         <tr class="border-b border-border-default dark:border-dark-border-default">
-                            <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Correlation ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.metadata.correlation_id ?? '-'}</td>
-                        </tr>
-                        <tr class="border-b border-border-default dark:border-dark-border-default">
                             <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Aggregate ID</td>
                             <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default">{eventData.aggregate_id || '-'}</td>
                         </tr>

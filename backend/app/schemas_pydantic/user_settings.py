@@ -104,7 +104,6 @@ class SettingsHistoryEntry(BaseModel):
     old_value: Any
     new_value: Any
     reason: str | None = None
-    correlation_id: str | None = None
 
 
 class SettingsHistoryResponse(BaseModel):
@@ -129,4 +128,3 @@ class SettingsEvent(BaseModel):
     event_type: EventType
     timestamp: datetime
     payload: dict[str, Any]
-    correlation_id: str | None = None

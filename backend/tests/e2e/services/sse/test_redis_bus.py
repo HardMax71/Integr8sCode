@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -12,7 +12,7 @@ from app.services.sse import SSERedisBus
 
 pytestmark = pytest.mark.e2e
 
-_test_logger = logging.getLogger("test.services.sse.redis_bus")
+_test_logger = structlog.get_logger("test.services.sse.redis_bus")
 
 
 class _FakePubSub:

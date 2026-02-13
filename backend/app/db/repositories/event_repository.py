@@ -1,14 +1,14 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GTE, LTE, Eq, In, Not, Or, RegEx
 from monggregate import Pipeline, S
+from opentelemetry import trace
 from pymongo.errors import DuplicateKeyError
 
-from app.core.tracing import EventAttributes, add_span_attributes
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums import EventType
 from app.domain.events import (
@@ -24,7 +24,7 @@ from app.domain.events import (
 
 
 class EventRepository:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
     def _time_conditions(self, start_time: datetime | None, end_time: datetime | None) -> list[Any]:
@@ -44,13 +44,11 @@ class EventRepository:
         data = event.model_dump(exclude_none=True)
         data.setdefault("stored_at", datetime.now(timezone.utc))
         doc = EventDocument(**data)
-        add_span_attributes(
-            **{
-                str(EventAttributes.EVENT_TYPE): event.event_type,
-                str(EventAttributes.EVENT_ID): event.event_id,
-                str(EventAttributes.EXECUTION_ID): event.aggregate_id or "",
-            }
-        )
+        trace.get_current_span().set_attributes({
+            "event.type": event.event_type,
+            "event.id": event.event_id,
+            "execution.id": event.aggregate_id or "",
+        })
         try:
             await doc.insert()
         except DuplicateKeyError:
@@ -75,29 +73,6 @@ class EventRepository:
             await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
         )
         return [DomainEventAdapter.validate_python(d) for d in docs]
-
-    async def get_events_by_correlation(
-        self, correlation_id: str, limit: int = 100, skip: int = 0, user_id: str | None = None,
-    ) -> EventListResult:
-        conditions = [EventDocument.metadata.correlation_id == correlation_id]
-        if user_id:
-            conditions.append(EventDocument.metadata.user_id == user_id)
-        condition = {"$and": conditions} if len(conditions) > 1 else conditions[0]
-        docs = (
-            await EventDocument.find(condition)
-            .sort([("timestamp", SortDirection.ASCENDING)])
-            .skip(skip).limit(limit).to_list()
-        )
-        events = [DomainEventAdapter.validate_python(d) for d in docs]
-        total_count = await EventDocument.find(condition).count()
-        total_count = max(total_count, skip + len(events))
-        return EventListResult(
-            events=events,
-            total=total_count,
-            skip=skip,
-            limit=limit,
-            has_more=(skip + limit) < total_count,
-        )
 
     async def get_execution_events(
             self,

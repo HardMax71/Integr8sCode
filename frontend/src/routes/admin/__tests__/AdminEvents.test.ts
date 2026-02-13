@@ -229,7 +229,6 @@ describe('AdminEvents', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText(/Search/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Correlation ID/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/Aggregate ID/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/User ID/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/Service/i)).toBeInTheDocument();
@@ -396,7 +395,7 @@ describe('AdminEvents', () => {
     it('displays event information in modal', async () => {
       vi.useRealTimers();
       const user = userEvent.setup();
-      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed', metadata: { correlation_id: 'corr-abc' } });
+      const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed' });
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
         error: null,
@@ -410,7 +409,6 @@ describe('AdminEvents', () => {
         // Using getAllByText because values may appear in table + modal
         expect(screen.getAllByText('evt-123').length).toBeGreaterThan(0);
         expect(screen.getAllByText('execution_completed').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('corr-abc').length).toBeGreaterThan(0);
       });
     });
 

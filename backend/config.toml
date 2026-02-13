@@ -42,9 +42,7 @@ SSE_HEARTBEAT_INTERVAL = 30
 LOG_LEVEL = "DEBUG"
 
 # Tracing
-ENABLE_TRACING = true
-JAEGER_AGENT_HOST = "jaeger"
-JAEGER_AGENT_PORT = 6831
+OTLP_TRACES_ENDPOINT = "http://jaeger:4317"
 TRACING_SERVICE_NAME = "integr8scode-backend"
 TRACING_SERVICE_VERSION = "1.0.0"
 TRACING_SAMPLING_RATE = 1.0
@@ -62,11 +60,8 @@ APP_URL = "https://localhost"
 SERVICE_NAME = "integr8scode-backend"
 SERVICE_VERSION = "1.0.0"
 
-# OpenTelemetry
+# OpenTelemetry metrics export
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317"
-OTEL_SERVICE_NAME = "integr8scode-backend"
-OTEL_SERVICE_VERSION = "1.0.0"
-OTEL_RESOURCE_ATTRIBUTES = "environment=production,team=backend"
 
 # Gunicorn / Uvicorn
 WEB_CONCURRENCY = 4

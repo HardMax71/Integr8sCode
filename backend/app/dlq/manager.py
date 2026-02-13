@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timezone
 from typing import Callable
 
+import structlog
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
@@ -37,7 +37,7 @@ class DLQManager:
         self,
         settings: Settings,
         broker: KafkaBroker,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
         default_retry_policy: RetryPolicy,
@@ -80,7 +80,7 @@ class DLQManager:
         """Process a single DLQ message: filter → store → decide retry/discard."""
         for filter_func in self._filters:
             if not filter_func(message):
-                self.logger.info("Message filtered out", extra={"event_id": message.event.event_id})
+                self.logger.info("Message filtered out", event_id=message.event.event_id)
                 return
 
         message.status = DLQMessageStatus.PENDING
@@ -99,7 +99,6 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),
@@ -154,13 +153,12 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),
             topic=self._dlq_events_topic,
         )
-        self.logger.info("Successfully retried message", extra={"event_id": message.event.event_id})
+        self.logger.info("Successfully retried message", event_id=message.event.event_id)
 
     async def discard_message(self, message: DLQMessage, reason: str) -> None:
         """Discard a DLQ message, updating status and emitting an event."""
@@ -185,13 +183,12 @@ class DLQManager:
                 metadata=EventMetadata(
                     service_name="dlq-manager",
                     service_version="1.0.0",
-                    correlation_id=message.event.metadata.correlation_id,
                     user_id=message.event.metadata.user_id,
                 ),
             ),
             topic=self._dlq_events_topic,
         )
-        self.logger.warning("Discarded message", extra={"event_id": message.event.event_id, "reason": reason})
+        self.logger.warning("Discarded message", event_id=message.event.event_id, reason=reason)
 
     async def process_due_retries(self) -> int:
         """Process all scheduled messages whose retry time has arrived.
@@ -218,11 +215,11 @@ class DLQManager:
     async def retry_message_manually(self, event_id: str) -> bool:
         message = await self.repository.get_message_by_id(event_id)
         if not message:
-            self.logger.error("Message not found in DLQ", extra={"event_id": event_id})
+            self.logger.error("Message not found in DLQ", event_id=event_id)
             return False
 
         if message.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.info("Skipping manual retry", extra={"event_id": event_id, "status": message.status})
+            self.logger.info("Skipping manual retry", event_id=event_id, status=message.status)
             return False
 
         await self.retry_message(message)
@@ -269,11 +266,11 @@ class DLQManager:
         """
         message = await self.repository.get_message_by_id(event_id)
         if not message:
-            self.logger.error("Message not found in DLQ", extra={"event_id": event_id})
+            self.logger.error("Message not found in DLQ", event_id=event_id)
             return False
 
         if message.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
-            self.logger.info("Skipping manual discard", extra={"event_id": event_id, "status": message.status})
+            self.logger.info("Skipping manual discard", event_id=event_id, status=message.status)
             return False
 
         await self.discard_message(message, reason)

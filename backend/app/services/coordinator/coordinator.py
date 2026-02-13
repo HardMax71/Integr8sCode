@@ -1,9 +1,10 @@
 import asyncio
 import heapq
-import logging
 import time
 from collections import defaultdict
 from uuid import uuid4
+
+import structlog
 
 from app.core.metrics import CoordinatorMetrics
 from app.db.repositories import ExecutionRepository
@@ -42,7 +43,7 @@ class ExecutionCoordinator:
         self,
         producer: UnifiedProducer,
         execution_repository: ExecutionRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         coordinator_metrics: CoordinatorMetrics,
         max_queue_size: int = 10000,
         max_executions_per_user: int = 100,
@@ -272,7 +273,6 @@ class ExecutionCoordinator:
             service_name="execution-coordinator",
             service_version="1.0.0",
             user_id=request.metadata.user_id,
-            correlation_id=request.metadata.correlation_id,
         )
 
     async def _publish_create_pod_command(self, request: ExecutionRequestedEvent) -> None:

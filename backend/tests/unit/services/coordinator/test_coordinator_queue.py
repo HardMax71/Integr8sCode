@@ -1,4 +1,4 @@
-import logging
+import structlog
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,7 +9,7 @@ from app.services.coordinator import ExecutionCoordinator, QueueRejectError
 
 from tests.conftest import make_execution_requested_event
 
-_test_logger = logging.getLogger("test.services.coordinator")
+_test_logger = structlog.get_logger("test.services.coordinator")
 
 pytestmark = pytest.mark.unit
 

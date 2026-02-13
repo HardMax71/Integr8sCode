@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Annotated
+from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -7,7 +8,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
-from app.core.correlation import CorrelationContext
 from app.domain.enums import EventType, ExportFormat
 from app.domain.events import EventFilter
 from app.domain.replay import ReplayFilter
@@ -58,7 +58,6 @@ async def export_events(
     service: FromDishka[AdminEventsService],
     event_types: Annotated[list[EventType] | None, Query(description="Event types (repeat param for multiple)")] = None,
     aggregate_id: Annotated[str | None, Query(description="Aggregate ID filter")] = None,
-    correlation_id: Annotated[str | None, Query(description="Correlation ID filter")] = None,
     user_id: Annotated[str | None, Query(description="User ID filter")] = None,
     service_name: Annotated[str | None, Query(description="Service name filter")] = None,
     start_time: Annotated[datetime | None, Query(description="Start time")] = None,
@@ -69,7 +68,6 @@ async def export_events(
     export_filter = EventFilter(
         event_types=event_types,
         aggregate_id=aggregate_id,
-        correlation_id=correlation_id,
         user_id=user_id,
         service_name=service_name,
         start_time=start_time,
@@ -105,11 +103,11 @@ async def replay_events(
     request: EventReplayRequest, background_tasks: BackgroundTasks, service: FromDishka[AdminEventsService]
 ) -> EventReplayResponse:
     """Replay events by filter criteria, with optional dry-run mode."""
-    replay_correlation_id = f"replay_{CorrelationContext.get_correlation_id()}"
+    replay_id = f"replay-{uuid4().hex}"
     result = await service.prepare_or_schedule_replay(
         replay_filter=ReplayFilter.model_validate(request),
         dry_run=request.dry_run,
-        replay_correlation_id=replay_correlation_id,
+        replay_id=replay_id,
         target_service=request.target_service,
     )
 

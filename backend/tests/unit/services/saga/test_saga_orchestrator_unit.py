@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 import pytest
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
@@ -12,7 +12,7 @@ from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.saga.orchestrator")
+_test_logger = structlog.get_logger("test.services.saga.orchestrator")
 
 
 class _FakeRepo(SagaRepository):

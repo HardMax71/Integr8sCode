@@ -1,4 +1,4 @@
-import logging
+import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,7 +7,7 @@ from app.services.admin import AdminSettingsService
 
 pytestmark = pytest.mark.unit
 
-_logger = logging.getLogger("test.services.admin_settings")
+_logger = structlog.get_logger("test.services.admin_settings")
 
 
 def _make_service(

@@ -111,11 +111,8 @@ class Settings(BaseModel):
     NOTIF_THROTTLE_MAX_PER_HOUR: int = 5
     NOTIF_MAX_SCHEDULE_DAYS: int = 25  # Max days ahead a notification can be scheduled (must be < TTL)
 
-    # OpenTelemetry / Jaeger Configuration
-    ENABLE_TRACING: bool = True
-    JAEGER_AGENT_HOST: str = "jaeger"
-    JAEGER_AGENT_PORT: int = 6831
-    JAEGER_COLLECTOR_ENDPOINT: str | None = None
+    # OpenTelemetry / Tracing Configuration
+    OTLP_TRACES_ENDPOINT: str = ""
     TRACING_SAMPLING_RATE: float = Field(
         default=0.1,  # 10% sampling by default
         ge=0.0,
@@ -124,8 +121,6 @@ class Settings(BaseModel):
     )
     TRACING_SERVICE_NAME: str = "integr8scode-backend"
     TRACING_SERVICE_VERSION: str = "1.0.0"
-    TRACING_ADAPTIVE_SAMPLING: bool = False  # Enable adaptive sampling in production
-
     # Dead Letter Queue Configuration
     DLQ_RETRY_MAX_ATTEMPTS: int = 5
     DLQ_RETRY_BASE_DELAY_SECONDS: float = 60.0
@@ -157,12 +152,10 @@ class Settings(BaseModel):
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "production"  # deployment environment (production, staging, development)
+    HOSTNAME: str = "unknown"  # container hostname, set via TOML or override
 
-    # OpenTelemetry Configuration
+    # OpenTelemetry metrics export endpoint
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
-    OTEL_SERVICE_NAME: str | None = None
-    OTEL_SERVICE_VERSION: str | None = None
-    OTEL_RESOURCE_ATTRIBUTES: str | None = None
 
     # Web server (Gunicorn/Uvicorn) concurrency settings
     WEB_CONCURRENCY: int = 4
@@ -175,4 +168,4 @@ class Settings(BaseModel):
     SECURE_COOKIES: bool = True
 
     # Logging configuration
-    LOG_LEVEL: str = Field(default="DEBUG", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"

@@ -1,6 +1,5 @@
-import logging
-
 import pytest
+import structlog
 import redis.asyncio as aioredis
 from app.core.security import SecurityService
 from app.db.docs import UserDocument
@@ -32,11 +31,11 @@ class TestCoreInfrastructure:
 
     @pytest.mark.asyncio
     async def test_resolves_logger(self, scope: AsyncContainer) -> None:
-        """Container resolves Logger."""
-        logger = await scope.get(logging.Logger)
+        """Container resolves BoundLogger."""
+        logger = await scope.get(structlog.stdlib.BoundLogger)
 
-        assert isinstance(logger, logging.Logger)
-        assert logger.name == "integr8scode"
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "bind")
 
     @pytest.mark.asyncio
     async def test_beanie_initialized(self, app: FastAPI) -> None:

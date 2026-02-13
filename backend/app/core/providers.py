@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import logging
 from typing import AsyncIterator
 
 import redis.asyncio as redis
+import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dishka import Provider, Scope, from_context, provide
 from faststream.kafka import KafkaBroker
@@ -28,7 +28,7 @@ from app.core.metrics import (
     SecurityMetrics,
 )
 from app.core.security import SecurityService
-from app.core.tracing import TracerManager
+from app.core.tracing import Tracer
 from app.db.repositories import (
     AdminEventsRepository,
     AdminSettingsRepository,
@@ -90,7 +90,7 @@ class BrokerProvider(Provider):
 
     @provide
     async def get_broker(
-        self, settings: Settings, logger: logging.Logger
+        self, settings: Settings, logger: structlog.stdlib.BoundLogger, _tracer: Tracer,
     ) -> AsyncIterator[KafkaBroker]:
         broker = KafkaBroker(
             settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -117,15 +117,18 @@ class LoggingProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_logger(self, settings: Settings) -> logging.Logger:
+    def get_logger(self, settings: Settings) -> structlog.stdlib.BoundLogger:
         return setup_logger(settings.LOG_LEVEL)
+
 
 
 class RedisProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_redis_client(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[redis.Redis]:
+    async def get_redis_client(
+        self, settings: Settings, logger: structlog.stdlib.BoundLogger
+    ) -> AsyncIterator[redis.Redis]:
         # Create Redis client - it will automatically use the current event loop
         client = redis.Redis(
             host=settings.REDIS_HOST,
@@ -152,7 +155,7 @@ class RedisProvider(Provider):
             redis_client: redis.Redis,
             settings: Settings,
             rate_limit_metrics: RateLimitMetrics,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> RateLimitService:
         service = RateLimitService(redis_client, settings, rate_limit_metrics)
         try:
@@ -176,8 +179,10 @@ class CoreServicesProvider(Provider):
         return SecurityService(settings)
 
     @provide
-    def get_tracer_manager(self, settings: Settings) -> TracerManager:
-        return TracerManager(tracer_name=settings.TRACING_SERVICE_NAME)
+    def get_tracer(
+        self, settings: Settings, logger: structlog.stdlib.BoundLogger,
+    ) -> Tracer:
+        return Tracer(settings, logger)
 
 
 class MessagingProvider(Provider):
@@ -188,7 +193,7 @@ class MessagingProvider(Provider):
             self,
             broker: KafkaBroker,
             event_repository: EventRepository,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
@@ -200,7 +205,10 @@ class MessagingProvider(Provider):
 
     @provide
     def get_idempotency_manager(
-            self, repo: RedisIdempotencyRepository, logger: logging.Logger, database_metrics: DatabaseMetrics
+            self,
+            repo: RedisIdempotencyRepository,
+            logger: structlog.stdlib.BoundLogger,
+            database_metrics: DatabaseMetrics,
     ) -> IdempotencyManager:
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
 
@@ -270,7 +278,7 @@ class DLQProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
     ) -> DLQManager:
@@ -298,7 +306,7 @@ class DLQWorkerProvider(Provider):
             self,
             broker: KafkaBroker,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             dlq_metrics: DLQMetrics,
             repository: DLQRepository,
     ) -> AsyncIterator[DLQManager]:
@@ -335,7 +343,9 @@ class KubernetesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    async def get_api_client(self, settings: Settings, logger: logging.Logger) -> AsyncIterator[k8s_client.ApiClient]:
+    async def get_api_client(
+        self, settings: Settings, logger: structlog.stdlib.BoundLogger
+    ) -> AsyncIterator[k8s_client.ApiClient]:
         """Provide Kubernetes ApiClient with config loading and cleanup."""
         await k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
         api_client = k8s_client.ApiClient()
@@ -350,7 +360,9 @@ class ResourceCleanerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_resource_cleaner(self, api_client: k8s_client.ApiClient, logger: logging.Logger) -> ResourceCleaner:
+    def get_resource_cleaner(
+        self, api_client: k8s_client.ApiClient, logger: structlog.stdlib.BoundLogger
+    ) -> ResourceCleaner:
         return ResourceCleaner(api_client=api_client, logger=logger)
 
 
@@ -418,7 +430,7 @@ class RepositoryProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_execution_repository(self, logger: logging.Logger) -> ExecutionRepository:
+    def get_execution_repository(self, logger: structlog.stdlib.BoundLogger) -> ExecutionRepository:
         return ExecutionRepository(logger)
 
     @provide
@@ -434,19 +446,19 @@ class RepositoryProvider(Provider):
         return SavedScriptRepository()
 
     @provide
-    def get_dlq_repository(self, logger: logging.Logger) -> DLQRepository:
+    def get_dlq_repository(self, logger: structlog.stdlib.BoundLogger) -> DLQRepository:
         return DLQRepository(logger)
 
     @provide
-    def get_replay_repository(self, logger: logging.Logger) -> ReplayRepository:
+    def get_replay_repository(self, logger: structlog.stdlib.BoundLogger) -> ReplayRepository:
         return ReplayRepository(logger)
 
     @provide
-    def get_event_repository(self, logger: logging.Logger) -> EventRepository:
+    def get_event_repository(self, logger: structlog.stdlib.BoundLogger) -> EventRepository:
         return EventRepository(logger)
 
     @provide
-    def get_user_settings_repository(self, logger: logging.Logger) -> UserSettingsRepository:
+    def get_user_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> UserSettingsRepository:
         return UserSettingsRepository(logger)
 
     @provide
@@ -454,7 +466,7 @@ class RepositoryProvider(Provider):
         return AdminEventsRepository()
 
     @provide
-    def get_admin_settings_repository(self, logger: logging.Logger) -> AdminSettingsRepository:
+    def get_admin_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> AdminSettingsRepository:
         return AdminSettingsRepository(logger)
 
     @provide
@@ -462,7 +474,7 @@ class RepositoryProvider(Provider):
         return AdminUserRepository()
 
     @provide
-    def get_notification_repository(self, logger: logging.Logger) -> NotificationRepository:
+    def get_notification_repository(self, logger: structlog.stdlib.BoundLogger) -> NotificationRepository:
         return NotificationRepository(logger)
 
     @provide
@@ -480,7 +492,7 @@ class SSEProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: logging.Logger) -> SSERedisBus:
+    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: structlog.stdlib.BoundLogger) -> SSERedisBus:
         return SSERedisBus(redis_client, logger)
 
     @provide(scope=Scope.REQUEST)
@@ -489,7 +501,7 @@ class SSEProvider(Provider):
             sse_repository: SSERepository,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             connection_metrics: ConnectionMetrics,
     ) -> SSEService:
         return SSEService(
@@ -506,7 +518,10 @@ class AuthProvider(Provider):
 
     @provide
     def get_auth_service(
-            self, user_repository: UserRepository, security_service: SecurityService, logger: logging.Logger
+            self,
+            user_repository: UserRepository,
+            security_service: SecurityService,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AuthService:
         return AuthService(user_repository, security_service, logger)
 
@@ -525,7 +540,7 @@ class KafkaServicesProvider(Provider):
             self,
             kafka_producer: UnifiedProducer,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             event_metrics: EventMetrics,
     ) -> KafkaEventService:
         return KafkaEventService(
@@ -545,7 +560,7 @@ class UserServicesProvider(Provider):
             repository: UserSettingsRepository,
             kafka_event_service: KafkaEventService,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> UserSettingsService:
         return UserSettingsService(repository, kafka_event_service, settings, logger)
 
@@ -558,7 +573,7 @@ class AdminServicesProvider(Provider):
             self,
             admin_settings_repository: AdminSettingsRepository,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> RuntimeSettingsLoader:
         return RuntimeSettingsLoader(admin_settings_repository, settings, logger)
 
@@ -567,7 +582,7 @@ class AdminServicesProvider(Provider):
             self,
             redis_client: redis.Redis,
             runtime_settings: RuntimeSettingsLoader,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> LoginLockoutService:
         return LoginLockoutService(redis_client, runtime_settings, logger)
 
@@ -576,7 +591,7 @@ class AdminServicesProvider(Provider):
             self,
             admin_events_repository: AdminEventsRepository,
             event_replay_service: EventReplayService,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AdminEventsService:
         return AdminEventsService(admin_events_repository, event_replay_service, logger)
 
@@ -585,7 +600,7 @@ class AdminServicesProvider(Provider):
             self,
             admin_settings_repository: AdminSettingsRepository,
             runtime_settings: RuntimeSettingsLoader,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AdminSettingsService:
         return AdminSettingsService(admin_settings_repository, runtime_settings, logger)
 
@@ -596,7 +611,7 @@ class AdminServicesProvider(Provider):
             kafka_event_service: KafkaEventService,
             sse_redis_bus: SSERedisBus,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             notification_metrics: NotificationMetrics,
     ) -> NotificationService:
         return NotificationService(
@@ -613,7 +628,7 @@ class AdminServicesProvider(Provider):
             self,
             notification_repository: NotificationRepository,
             notification_service: NotificationService,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AsyncIterator[NotificationScheduler]:
 
         scheduler_service = NotificationScheduler(
@@ -668,7 +683,7 @@ class BusinessServicesProvider(Provider):
             saga_repository: SagaRepository,
             execution_repository: ExecutionRepository,
             saga_orchestrator: SagaOrchestrator,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> SagaService:
         return SagaService(
             saga_repo=saga_repository,
@@ -683,7 +698,7 @@ class BusinessServicesProvider(Provider):
             execution_repository: ExecutionRepository,
             kafka_producer: UnifiedProducer,
             settings: Settings,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
             execution_metrics: ExecutionMetrics,
             idempotency_manager: IdempotencyManager,
             runtime_settings: RuntimeSettingsLoader,
@@ -700,7 +715,7 @@ class BusinessServicesProvider(Provider):
 
     @provide
     def get_saved_script_service(
-            self, saved_script_repository: SavedScriptRepository, logger: logging.Logger
+            self, saved_script_repository: SavedScriptRepository, logger: structlog.stdlib.BoundLogger
     ) -> SavedScriptService:
         return SavedScriptService(saved_script_repository, logger)
 
@@ -712,7 +727,7 @@ class BusinessServicesProvider(Provider):
             execution_service: ExecutionService,
             rate_limit_service: RateLimitService,
             security_service: SecurityService,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AdminUserService:
         return AdminUserService(
             user_repository=admin_user_repository,
@@ -732,7 +747,7 @@ class CoordinatorProvider(Provider):
         self,
         producer: UnifiedProducer,
         execution_repository: ExecutionRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         coordinator_metrics: CoordinatorMetrics,
     ) -> ExecutionCoordinator:
         return ExecutionCoordinator(
@@ -752,7 +767,7 @@ class K8sWorkerProvider(Provider):
         api_client: k8s_client.ApiClient,
         kafka_producer: UnifiedProducer,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         event_metrics: EventMetrics,
     ) -> KubernetesWorker:
         return KubernetesWorker(
@@ -770,22 +785,29 @@ class PodMonitorProvider(Provider):
     @provide
     def get_event_mapper(
         self,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         api_client: k8s_client.ApiClient,
     ) -> PodEventMapper:
         return PodEventMapper(logger=logger, k8s_api=k8s_client.CoreV1Api(api_client))
 
     @provide
+    def get_pod_monitor_config(self, settings: Settings) -> PodMonitorConfig:
+        return PodMonitorConfig(
+            namespace=settings.K8S_NAMESPACE,
+            kubeconfig_path=settings.KUBERNETES_CONFIG_PATH,
+        )
+
+    @provide
     async def get_pod_monitor(
         self,
+        config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
         api_client: k8s_client.ApiClient,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,
     ) -> AsyncIterator[PodMonitor]:
 
-        config = PodMonitorConfig()
         monitor = PodMonitor(
             config=config,
             kafka_event_service=kafka_event_service,
@@ -839,7 +861,7 @@ class SagaOrchestratorProvider(Provider):
         saga_repository: SagaRepository,
         kafka_producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> SagaOrchestrator:
         return SagaOrchestrator(
             config=_create_default_saga_config(),
@@ -865,7 +887,7 @@ class SagaWorkerProvider(Provider):
         saga_repository: SagaRepository,
         kafka_producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> AsyncIterator[SagaOrchestrator]:
 
         orchestrator = SagaOrchestrator(
@@ -904,7 +926,7 @@ class ResultProcessorProvider(Provider):
         execution_repo: ExecutionRepository,
         kafka_producer: UnifiedProducer,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
     ) -> ResultProcessor:
         return ResultProcessor(
@@ -925,7 +947,7 @@ class EventReplayProvider(Provider):
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
@@ -950,7 +972,7 @@ class EventReplayWorkerProvider(Provider):
             replay_repository: ReplayRepository,
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
-            logger: logging.Logger,
+            logger: structlog.stdlib.BoundLogger,
     ) -> AsyncIterator[EventReplayService]:
 
         service = EventReplayService(

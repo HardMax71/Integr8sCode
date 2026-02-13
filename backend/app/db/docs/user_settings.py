@@ -98,7 +98,6 @@ class UserSettingsSnapshotDocument(Document):
 
     # Snapshot metadata
     reason: str | None = None
-    correlation_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

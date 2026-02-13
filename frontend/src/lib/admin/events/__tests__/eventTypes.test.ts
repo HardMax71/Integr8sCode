@@ -62,7 +62,6 @@ describe('eventTypes', () => {
       expect(createDefaultEventFilters()).toEqual({
         event_types: [],
         aggregate_id: '',
-        correlation_id: '',
         user_id: '',
         service_name: '',
         search_text: '',
@@ -84,7 +83,6 @@ describe('eventTypes', () => {
     it.each([
       ['event_types', { event_types: ['execution_completed'] }],
       ['search_text', { search_text: 'test' }],
-      ['correlation_id', { correlation_id: 'abc' }],
       ['aggregate_id', { aggregate_id: 'exec-1' }],
       ['user_id', { user_id: 'user-1' }],
       ['service_name', { service_name: 'svc' }],
@@ -98,12 +96,12 @@ describe('eventTypes', () => {
   describe('getActiveFilterCount', () => {
     it.each([
       [createDefaultEventFilters(), 0],
-      [withFilter({ event_types: ['x'], search_text: 'y', correlation_id: 'z' }), 3],
+      [withFilter({ event_types: ['x'], search_text: 'y' }), 2],
       [withFilter({
-        event_types: ['x'], search_text: 'y', correlation_id: 'z',
+        event_types: ['x'], search_text: 'y',
         aggregate_id: 'a', user_id: 'u', service_name: 's',
         start_time: 't1', end_time: 't2'
-      }), 8],
+      }), 7],
     ])('returns correct count', (filters, expected) => {
       expect(getActiveFilterCount(filters)).toBe(expected);
     });
@@ -118,7 +116,6 @@ describe('eventTypes', () => {
       [{ event_types: ['a', 'b'] }, '2 event types'],
       [{ event_types: ['a'] }, '1 event type'],
       [{ search_text: 'test' }, 'search'],
-      [{ correlation_id: 'abc' }, 'correlation'],
       [{ start_time: '2024-01-01' }, 'time range'],
       [{ end_time: '2024-01-02' }, 'time range'],
     ])('includes expected label', (override, expected) => {
@@ -127,10 +124,10 @@ describe('eventTypes', () => {
 
     it('includes all active filter labels', () => {
       const summary = getActiveFilterSummary(withFilter({
-        event_types: ['x'], search_text: 'y', correlation_id: 'z',
+        event_types: ['x'], search_text: 'y',
         aggregate_id: 'a', user_id: 'u', service_name: 's', start_time: 't'
       }));
-      ['1 event type', 'search', 'correlation', 'aggregate', 'user', 'service', 'time range']
+      ['1 event type', 'search', 'aggregate', 'user', 'service', 'time range']
         .forEach(label => expect(summary).toContain(label));
     });
   });

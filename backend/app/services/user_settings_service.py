@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from cachetools import TTLCache
 
 from app.db.repositories import UserSettingsRepository
@@ -25,7 +25,7 @@ class UserSettingsService:
         repository: UserSettingsRepository,
         event_service: KafkaEventService,
         settings: Settings,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self.repository = repository
         self.event_service = event_service
@@ -40,14 +40,15 @@ class UserSettingsService:
 
         self.logger.info(
             "UserSettingsService initialized",
-            extra={"cache_ttl_seconds": self._cache_ttl.total_seconds(), "max_cache_size": self._max_cache_size},
+            cache_ttl_seconds=self._cache_ttl.total_seconds(),
+            max_cache_size=self._max_cache_size,
         )
 
     async def get_user_settings(self, user_id: str) -> DomainUserSettings:
         """Get settings with cache; rebuild and cache on miss."""
         if user_id in self._cache:
             cached = self._cache[user_id]
-            self.logger.debug(f"Settings cache hit for user {user_id}", extra={"cache_size": len(self._cache)})
+            self.logger.debug(f"Settings cache hit for user {user_id}", cache_size=len(self._cache))
             return cached
 
         return await self.get_user_settings_fresh(user_id)
@@ -158,7 +159,6 @@ class UserSettingsService:
                         old_value=None,
                         new_value=event.model_dump().get(fld),
                         reason=event.reason,
-                        correlation_id=event.correlation_id,
                     )
                 )
         return history
@@ -198,12 +198,12 @@ class UserSettingsService:
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""
         if self._cache.pop(user_id, None) is not None:
-            self.logger.debug(f"Invalidated cache for user {user_id}", extra={"cache_size": len(self._cache)})
+            self.logger.debug(f"Invalidated cache for user {user_id}", cache_size=len(self._cache))
 
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
-        self.logger.debug(f"Cached settings for user {user_id}", extra={"cache_size": len(self._cache)})
+        self.logger.debug(f"Cached settings for user {user_id}", cache_size=len(self._cache))
 
     async def reset_user_settings(self, user_id: str) -> None:
         """Reset user settings by deleting all data and cache."""

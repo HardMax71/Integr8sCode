@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
@@ -23,7 +23,7 @@ class SagaService:
         saga_repo: SagaRepository,
         execution_repo: ExecutionRepository,
         orchestrator: SagaOrchestrator,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self.saga_repo = saga_repo
         self.execution_repo = execution_repo
@@ -32,11 +32,9 @@ class SagaService:
 
         self.logger.info(
             "SagaService initialized",
-            extra={
-                "saga_repo": type(saga_repo).__name__,
-                "execution_repo": type(execution_repo).__name__,
-                "orchestrator": type(orchestrator).__name__,
-            },
+            saga_repo=type(saga_repo).__name__,
+            execution_repo=type(execution_repo).__name__,
+            orchestrator=type(orchestrator).__name__,
         )
 
     async def check_execution_access(self, execution_id: str, user: User) -> bool:
@@ -52,31 +50,31 @@ class SagaService:
 
         self.logger.debug(
             "Access denied to execution",
-            extra={
-                "user_id": user.user_id,
-                "execution_id": execution_id,
-                "user_role": user.role,
-                "execution_exists": execution is not None,
-            },
+            user_id=user.user_id,
+            execution_id=execution_id,
+            user_role=user.role,
+            execution_exists=execution is not None,
         )
         return False
 
     async def get_saga_with_access_check(self, saga_id: str, user: User) -> Saga:
         """Get saga with access control."""
         self.logger.debug(
-            "Getting saga for user", extra={"saga_id": saga_id, "user_id": user.user_id, "user_role": user.role}
+            "Getting saga for user", saga_id=saga_id, user_id=user.user_id, user_role=user.role
         )
 
         saga = await self.saga_repo.get_saga(saga_id)
         if not saga:
-            self.logger.warning("Saga not found", extra={"saga_id": saga_id})
+            self.logger.warning("Saga not found", saga_id=saga_id)
             raise SagaNotFoundError(saga_id)
 
         # Check access permissions
         if not await self.check_execution_access(saga.execution_id, user):
             self.logger.warning(
                 "Access denied to saga",
-                extra={"user_id": user.user_id, "saga_id": saga_id, "execution_id": saga.execution_id},
+                user_id=user.user_id,
+                saga_id=saga_id,
+                execution_id=saga.execution_id,
             )
             raise SagaAccessDeniedError(saga_id, user.user_id)
 
@@ -90,7 +88,9 @@ class SagaService:
         if not await self.check_execution_access(execution_id, user):
             self.logger.warning(
                 "Access denied to execution",
-                extra={"user_id": user.user_id, "execution_id": execution_id, "user_role": user.role},
+                user_id=user.user_id,
+                execution_id=execution_id,
+                user_role=user.role,
             )
             raise SagaAccessDeniedError(execution_id, user.user_id)
 
@@ -110,28 +110,24 @@ class SagaService:
             if not user_execution_ids:
                 self.logger.debug(
                     "User has no executions, returning empty saga list",
-                    extra={"user_id": user.user_id},
+                    user_id=user.user_id,
                 )
                 return SagaListResult(sagas=[], total=0, skip=skip, limit=limit)
             saga_filter.execution_ids = user_execution_ids
             self.logger.debug(
                 "Filtering sagas for user",
-                extra={
-                    "user_id": user.user_id,
-                    "execution_count": len(user_execution_ids),
-                },
+                user_id=user.user_id,
+                execution_count=len(user_execution_ids),
             )
 
         # Get sagas from repository
         result = await self.saga_repo.list_sagas(saga_filter, limit, skip)
         self.logger.debug(
             "Listed sagas for user",
-            extra={
-                "user_id": user.user_id,
-                "count": len(result.sagas),
-                "total": result.total,
-                "state_filter": state,
-            },
+            user_id=user.user_id,
+            count=len(result.sagas),
+            total=result.total,
+            state_filter=state,
         )
         return result
 
@@ -139,7 +135,9 @@ class SagaService:
         """Cancel a saga with permission check."""
         self.logger.info(
             "User requesting saga cancellation",
-            extra={"user_id": user.user_id, "saga_id": saga_id, "user_role": user.role},
+            user_id=user.user_id,
+            saga_id=saga_id,
+            user_role=user.role,
         )
         # Get saga with access check
         saga = await self.get_saga_with_access_check(saga_id, user)
@@ -153,10 +151,12 @@ class SagaService:
         if success:
             self.logger.info(
                 "User cancelled saga",
-                extra={"user_id": user.user_id, "saga_id": saga_id, "user_role": user.role},
+                user_id=user.user_id,
+                saga_id=saga_id,
+                user_role=user.role,
             )
         else:
-            self.logger.error("Failed to cancel saga", extra={"saga_id": saga_id, "user_id": user.user_id})
+            self.logger.error("Failed to cancel saga", saga_id=saga_id, user_id=user.user_id)
         message = "Saga cancelled successfully" if success else "Failed to cancel saga"
         return SagaCancellationResult(success=success, message=message, saga_id=saga_id)
 

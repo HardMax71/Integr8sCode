@@ -1536,10 +1536,6 @@ export type EventFilter = {
      */
     aggregate_id?: string | null;
     /**
-     * Correlation Id
-     */
-    correlation_id?: string | null;
-    /**
      * User Id
      */
     user_id?: string | null;
@@ -1576,10 +1572,6 @@ export type EventMetadata = {
      */
     service_version: string;
     /**
-     * Correlation Id
-     */
-    correlation_id?: string;
-    /**
      * User Id
      */
     user_id?: string;
@@ -1596,10 +1588,6 @@ export type EventReplayRequest = {
      * Event Ids
      */
     event_ids?: Array<string> | null;
-    /**
-     * Correlation Id
-     */
-    correlation_id?: string | null;
     /**
      * Aggregate Id
      */
@@ -1637,9 +1625,9 @@ export type EventReplayResponse = {
      */
     total_events: number;
     /**
-     * Replay Correlation Id
+     * Replay Id
      */
-    replay_correlation_id: string;
+    replay_id: string;
     /**
      * Session Id
      */
@@ -1679,9 +1667,9 @@ export type EventReplayStatusResponse = {
      */
     skipped_events: number;
     /**
-     * Correlation Id
+     * Replay Id
      */
-    correlation_id: string;
+    replay_id: string;
     /**
      * Created At
      */
@@ -3689,10 +3677,6 @@ export type ReplayFilter = {
      */
     execution_id?: string | null;
     /**
-     * Correlation Id
-     */
-    correlation_id?: string | null;
-    /**
      * Aggregate Id
      */
     aggregate_id?: string | null;
@@ -5072,10 +5056,6 @@ export type SettingsHistoryEntry = {
      * Reason
      */
     reason?: string | null;
-    /**
-     * Correlation Id
-     */
-    correlation_id?: string | null;
 };
 
 /**
@@ -5898,9 +5878,9 @@ export type EventReplayStatusResponseWritable = {
      */
     skipped_events: number;
     /**
-     * Correlation Id
+     * Replay Id
      */
-    correlation_id: string;
+    replay_id: string;
     /**
      * Created At
      */
@@ -7213,12 +7193,6 @@ export type ExportEventsApiV1AdminEventsExportExportFormatGetData = {
          * Aggregate ID filter
          */
         aggregate_id?: string | null;
-        /**
-         * Correlation Id
-         *
-         * Correlation ID filter
-         */
-        correlation_id?: string | null;
         /**
          * User Id
          *

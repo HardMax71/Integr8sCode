@@ -5,51 +5,6 @@ from app.settings import Settings
 pytestmark = pytest.mark.e2e
 
 
-class TestCorrelationMiddleware:
-    """Tests for CorrelationMiddleware."""
-
-    @pytest.mark.asyncio
-    async def test_generates_correlation_id(self, client: httpx.AsyncClient) -> None:
-        """Middleware generates correlation ID when not provided."""
-        response = await client.get("/api/v1/health/live")
-
-        assert response.status_code == 200
-        assert "X-Correlation-ID" in response.headers
-        correlation_id = response.headers["X-Correlation-ID"]
-        assert correlation_id.startswith("req_")
-
-    @pytest.mark.asyncio
-    async def test_passes_through_correlation_id(
-        self, client: httpx.AsyncClient
-    ) -> None:
-        """Middleware uses provided correlation ID."""
-        custom_id = "custom-correlation-12345"
-
-        response = await client.get(
-            "/api/v1/health/live",
-            headers={"X-Correlation-ID": custom_id},
-        )
-
-        assert response.status_code == 200
-        assert response.headers["X-Correlation-ID"] == custom_id
-
-    @pytest.mark.asyncio
-    async def test_accepts_request_id_header(
-        self, client: httpx.AsyncClient
-    ) -> None:
-        """Middleware accepts X-Request-ID as alternative header."""
-        request_id = "request-id-67890"
-
-        response = await client.get(
-            "/api/v1/health/live",
-            headers={"X-Request-ID": request_id},
-        )
-
-        assert response.status_code == 200
-        # Should use request ID as correlation ID
-        assert response.headers["X-Correlation-ID"] == request_id
-
-
 class TestCSRFMiddleware:
     """Tests for CSRFMiddleware."""
 
@@ -258,24 +213,11 @@ class TestMiddlewareOrder:
     """Tests for middleware execution order."""
 
     @pytest.mark.asyncio
-    async def test_correlation_id_before_other_processing(
-        self, client: httpx.AsyncClient
-    ) -> None:
-        """Correlation ID is set before other middleware runs."""
-        # Even on error responses, correlation ID should be present
-        response = await client.get("/nonexistent-path")
-
-        assert "X-Correlation-ID" in response.headers
-
-    @pytest.mark.asyncio
     async def test_all_middlewares_work_together(
         self, test_user: httpx.AsyncClient, test_settings: Settings
     ) -> None:
         """All middlewares work correctly in combination."""
         response = await test_user.get("/api/v1/notifications")
-
-        # Correlation middleware ran
-        assert "X-Correlation-ID" in response.headers
 
         # Cache control middleware ran
         assert "Cache-Control" in response.headers

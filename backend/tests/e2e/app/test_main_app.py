@@ -1,4 +1,3 @@
-import logging
 from importlib import import_module
 from typing import Any
 
@@ -129,11 +128,6 @@ class TestMiddlewareStack:
         middleware_classes = self._get_middleware_class_names(app)
         assert "CORSMiddleware" in middleware_classes
 
-    def test_correlation_middleware_configured(self, app: FastAPI) -> None:
-        """Correlation ID middleware is configured."""
-        middleware_classes = self._get_middleware_class_names(app)
-        assert "CorrelationMiddleware" in middleware_classes
-
     def test_request_size_limit_middleware_configured(self, app: FastAPI) -> None:
         """Request size limit middleware is configured."""
         middleware_classes = self._get_middleware_class_names(app)
@@ -161,11 +155,10 @@ class TestMiddlewareStack:
 
     def test_middleware_count(self, app: FastAPI) -> None:
         """Expected number of middlewares are configured."""
-        # CORS, Correlation, RequestSizeLimit, CacheControl, Metrics, RateLimit, CSRF
+        # CORS, RequestSizeLimit, CacheControl, Metrics, RateLimit, CSRF
         middleware_classes = self._get_middleware_class_names(app)
         expected_middlewares = {
             "CORSMiddleware",
-            "CorrelationMiddleware",
             "RequestSizeLimitMiddleware",
             "CacheControlMiddleware",
             "MetricsMiddleware",
@@ -221,15 +214,6 @@ class TestCorsConfiguration:
         assert "Authorization" in headers
         assert "Content-Type" in headers
         assert "X-CSRF-Token" in headers
-        assert "X-Correlation-ID" in headers
-
-    def test_cors_exposes_correlation_header(self, app: FastAPI) -> None:
-        """CORS exposes X-Correlation-ID header to clients."""
-        cors_kwargs = self._get_cors_kwargs(app)
-        assert cors_kwargs is not None
-
-        exposed = cors_kwargs.get("expose_headers", [])
-        assert "X-Correlation-ID" in exposed
 
     def _get_cors_kwargs(self, app: FastAPI) -> dict[str, Any] | None:
         """Get CORS middleware kwargs from app."""
@@ -260,8 +244,11 @@ class TestDishkaContainer:
     @pytest.mark.asyncio
     async def test_container_resolves_logger(self, scope: AsyncContainer) -> None:
         """Container can resolve Logger."""
-        logger = await scope.get(logging.Logger)
-        assert isinstance(logger, logging.Logger)
+        import structlog
+
+        logger = await scope.get(structlog.stdlib.BoundLogger)
+        assert hasattr(logger, "info")
+        assert hasattr(logger, "bind")
 
 
 class TestExceptionHandlers:

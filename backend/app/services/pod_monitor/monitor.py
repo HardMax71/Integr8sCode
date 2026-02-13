@@ -1,9 +1,9 @@
-import logging
 import time
 from dataclasses import dataclass
 from enum import auto
 from typing import Any
 
+import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import watch as k8s_watch
 
@@ -54,7 +54,7 @@ class PodMonitor:
         self,
         config: PodMonitorConfig,
         kafka_event_service: KafkaEventService,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
         api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
         kubernetes_metrics: KubernetesMetrics,

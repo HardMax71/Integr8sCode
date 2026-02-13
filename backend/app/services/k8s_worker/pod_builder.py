@@ -20,7 +20,6 @@ class PodBuilder:
             execution_id=execution_id,
             user_id=command.metadata.user_id,
             language=command.language,
-            correlation_id=command.metadata.correlation_id,
             saga_id=command.saga_id,
         )
 
@@ -151,17 +150,12 @@ class PodBuilder:
         execution_id: str,
         user_id: str,
         language: str,
-        correlation_id: str | None = None,
         saga_id: str | None = None,
     ) -> k8s_client.V1ObjectMeta:
-        """Build pod metadata with correlation and saga tracking"""
+        """Build pod metadata with saga tracking"""
         labels = {"app": "integr8s", "component": "executor", "execution-id": execution_id, "language": language}
 
         labels["user-id"] = user_id[:63]  # K8s label value limit
-
-        # Add correlation_id if provided (truncate to K8s label limit)
-        if correlation_id:
-            labels["correlation-id"] = correlation_id[:63]
 
         # Add saga_id if provided (truncate to K8s label limit)
         if saga_id:
@@ -172,9 +166,6 @@ class PodBuilder:
             "integr8s.io/created-by": "kubernetes-worker",
             "integr8s.io/language": language,
         }
-
-        if correlation_id:
-            annotations["integr8s.io/correlation-id"] = correlation_id
 
         if saga_id:
             annotations["integr8s.io/saga-id"] = saga_id

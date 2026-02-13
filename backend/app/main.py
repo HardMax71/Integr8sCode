@@ -25,7 +25,6 @@ from app.api.routes.admin import (
     users_router as admin_users_router,
 )
 from app.core.container import create_app_container
-from app.core.correlation import CorrelationMiddleware
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import setup_logger
@@ -75,7 +74,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware)
-    app.add_middleware(CorrelationMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(CacheControlMiddleware)
 
@@ -100,10 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Origin",
             "X-Requested-With",
             "X-CSRF-Token",
-            "X-Correlation-ID",
-            "X-Request-ID",
         ],
-        expose_headers=["Content-Length", "Content-Range", "X-Correlation-ID"],
+        expose_headers=["Content-Length", "Content-Range"],
     )
     logger.info("CORS middleware configured")
 
@@ -135,14 +131,12 @@ if __name__ == "__main__":
     logger = setup_logger(settings.LOG_LEVEL)
     logger.info(
         "Starting uvicorn server",
-        extra={
-            "host": settings.SERVER_HOST,
-            "port": settings.SERVER_PORT,
-            "ssl_enabled": True,
-            "workers": settings.WEB_CONCURRENCY,
-            "backlog": settings.WEB_BACKLOG,
-            "timeout_keep_alive": settings.WEB_TIMEOUT,
-        },
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
+        ssl_enabled=True,
+        workers=settings.WEB_CONCURRENCY,
+        backlog=settings.WEB_BACKLOG,
+        timeout_keep_alive=settings.WEB_TIMEOUT,
     )
     uvicorn.run(
         "app.main:create_app",

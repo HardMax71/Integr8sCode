@@ -47,7 +47,6 @@ class TestPodBuilder:
             priority=QueuePriority.NORMAL,
             metadata=EventMetadata(
                 user_id=str(uuid4()),
-                correlation_id=str(uuid4()),
                 service_name="test-service",
                 service_version="1.0.0"
             )
@@ -164,7 +163,6 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=str(uuid4()),
-                correlation_id=str(uuid4())
             )
         )
 
@@ -354,7 +352,6 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=long_id,
-                correlation_id=long_id
             )
         )
 
@@ -362,11 +359,9 @@ class TestPodBuilder:
 
         # Verify labels are truncated to 63 chars
         assert len(pod.metadata.labels["user-id"]) == 63
-        assert len(pod.metadata.labels["correlation-id"]) == 63
         assert len(pod.metadata.labels["saga-id"]) == 63
 
         # But annotations should have full values
-        assert pod.metadata.annotations["integr8s.io/correlation-id"] == long_id
         assert pod.metadata.annotations["integr8s.io/saga-id"] == long_id
 
     def test_pod_restart_policy(

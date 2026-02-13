@@ -14,7 +14,6 @@ class EventFilter(BaseModel):
 
     event_types: list[EventType] | None = None
     aggregate_id: str | None = None
-    correlation_id: str | None = None
     user_id: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -34,7 +33,6 @@ class EventReplayRequest(BaseModel):
     """Request model for replaying events"""
 
     event_ids: list[str] | None = None
-    correlation_id: str | None = None
     aggregate_id: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
@@ -70,7 +68,7 @@ class EventReplayResponse(BaseModel):
 
     dry_run: bool
     total_events: int
-    replay_correlation_id: str
+    replay_id: str
     session_id: str | None = None
     status: ReplayStatus
     events_preview: list[EventSummary] | None = None
@@ -87,7 +85,7 @@ class EventReplayStatusResponse(BaseModel):
     replayed_events: int
     failed_events: int
     skipped_events: int
-    correlation_id: str
+    replay_id: str
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None

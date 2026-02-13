@@ -1,4 +1,4 @@
-import logging
+import structlog
 from time import monotonic
 from unittest.mock import AsyncMock
 
@@ -9,7 +9,7 @@ from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
-_logger = logging.getLogger("test.services.runtime_settings")
+_logger = structlog.get_logger("test.services.runtime_settings")
 
 
 def _make_settings() -> Settings:

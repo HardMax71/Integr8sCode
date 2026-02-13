@@ -34,7 +34,6 @@ class AdminEventsRepository:
         conditions = [
             In(EventDocument.event_type, f.event_types) if f.event_types else None,
             EventDocument.aggregate_id == f.aggregate_id if f.aggregate_id else None,
-            EventDocument.metadata.correlation_id == f.correlation_id if f.correlation_id else None,
             EventDocument.metadata.user_id == f.user_id if f.user_id else None,
             EventDocument.metadata.service_name == f.service_name if f.service_name else None,
             GTE(EventDocument.timestamp, f.start_time) if f.start_time else None,
@@ -79,7 +78,7 @@ class AdminEventsRepository:
 
         event = DomainEventAdapter.validate_python(doc)
 
-        related_query = {"metadata.correlation_id": doc.metadata.correlation_id, "event_id": {"$ne": event_id}}
+        related_query = {"aggregate_id": doc.aggregate_id, "event_id": {"$ne": event_id}}
         related_docs = await (
             EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )

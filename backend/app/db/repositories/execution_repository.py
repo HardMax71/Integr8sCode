@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from beanie.odm.enums import SortDirection
 
 from app.db.docs import ExecutionDocument
@@ -14,24 +14,24 @@ from app.domain.execution import (
 
 
 class ExecutionRepository:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
     async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:
         doc = ExecutionDocument(**create_data.model_dump())
-        self.logger.info("Inserting execution into MongoDB", extra={"execution_id": doc.execution_id})
+        self.logger.info("Inserting execution into MongoDB", execution_id=doc.execution_id)
         await doc.insert()
-        self.logger.info("Inserted execution", extra={"execution_id": doc.execution_id})
+        self.logger.info("Inserted execution", execution_id=doc.execution_id)
         return DomainExecution.model_validate(doc)
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
-        self.logger.info("Searching for execution in MongoDB", extra={"execution_id": execution_id})
+        self.logger.info("Searching for execution in MongoDB", execution_id=execution_id)
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
-            self.logger.warning("Execution not found in MongoDB", extra={"execution_id": execution_id})
+            self.logger.warning("Execution not found in MongoDB", execution_id=execution_id)
             return None
 
-        self.logger.info("Found execution in MongoDB", extra={"execution_id": execution_id})
+        self.logger.info("Found execution in MongoDB", execution_id=execution_id)
         return DomainExecution.model_validate(doc)
 
     async def update_execution(self, execution_id: str, update_data: DomainExecutionUpdate) -> bool:
@@ -48,7 +48,7 @@ class ExecutionRepository:
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == result.execution_id)
         if not doc:
-            self.logger.warning("No execution found", extra={"execution_id": result.execution_id})
+            self.logger.warning("No execution found", execution_id=result.execution_id)
             return False
 
         await doc.set(

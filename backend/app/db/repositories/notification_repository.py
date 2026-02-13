@@ -1,6 +1,6 @@
-import logging
 from datetime import UTC, datetime, timedelta
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, ElemMatch, In, NotIn, Or
 
@@ -16,7 +16,7 @@ from app.domain.notification import (
 
 
 class NotificationRepository:
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
 
     async def create_notification(self, create_data: DomainNotificationCreate) -> DomainNotification:

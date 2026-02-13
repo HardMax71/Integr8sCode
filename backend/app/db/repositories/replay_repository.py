@@ -1,7 +1,7 @@
-import logging
 from datetime import datetime
 from typing import Any, AsyncIterator
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.operators import LT, In
 
@@ -12,7 +12,7 @@ from app.domain.replay import ReplayFilter, ReplaySessionState
 
 
 class ReplayRepository:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
     async def save_session(self, session: ReplaySessionState) -> None:

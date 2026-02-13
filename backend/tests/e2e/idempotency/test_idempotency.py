@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -17,7 +17,7 @@ from tests.conftest import make_execution_requested_event
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
 # Test logger for all tests
-_test_logger = logging.getLogger("test.idempotency")
+_test_logger = structlog.get_logger("test.idempotency")
 
 
 class TestIdempotencyManager:

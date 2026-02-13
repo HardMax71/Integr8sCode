@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from app.db.repositories import NotificationRepository
 from app.services.notification_service import NotificationService
@@ -16,7 +16,7 @@ class NotificationScheduler:
         self,
         notification_repository: NotificationRepository,
         notification_service: NotificationService,
-        logger: logging.Logger,
+        logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self.repository = notification_repository
         self.service = notification_service

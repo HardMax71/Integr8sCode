@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 pytestmark = pytest.mark.unit
 
-_test_logger = logging.getLogger("test.services.sse.sse_service")
+_test_logger = structlog.get_logger("test.services.sse.sse_service")
 
 
 class _FakeSubscription(SSERedisSubscription):

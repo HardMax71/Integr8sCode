@@ -1,4 +1,4 @@
-import logging
+import structlog
 from unittest.mock import AsyncMock
 
 import pytest
@@ -7,7 +7,7 @@ from app.services.login_lockout import LoginLockoutService
 
 pytestmark = pytest.mark.unit
 
-_logger = logging.getLogger("test.services.login_lockout")
+_logger = structlog.get_logger("test.services.login_lockout")
 
 
 def _make_service(

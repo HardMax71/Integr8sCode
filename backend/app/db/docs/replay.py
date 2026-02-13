@@ -60,7 +60,7 @@ class ReplaySessionDocument(Document):
     errors: list[ReplayError] = Field(default_factory=list)
 
     # Tracking and admin fields
-    correlation_id: str = Field(default_factory=lambda: str(uuid4()))
+    replay_id: str = Field(default_factory=lambda: str(uuid4()))
     created_by: str | None = None
     target_service: str | None = None
     dry_run: bool = False
@@ -91,5 +91,5 @@ class ReplaySessionDocument(Document):
         use_state_management = True
         indexes = [
             IndexModel([("status", 1)]),
-            IndexModel([("correlation_id", 1)]),
+            IndexModel([("replay_id", 1)]),
         ]

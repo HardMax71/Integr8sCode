@@ -1,4 +1,4 @@
-import logging
+import structlog
 from datetime import datetime, timezone
 
 import pytest
@@ -9,7 +9,7 @@ from app.domain.enums import EventType
 
 pytestmark = pytest.mark.e2e
 
-_test_logger = logging.getLogger("test.db.repositories.dlq_repository")
+_test_logger = structlog.get_logger("test.db.repositories.dlq_repository")
 
 
 @pytest.fixture()

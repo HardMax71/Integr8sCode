@@ -7,6 +7,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_saga_subscriber
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
@@ -41,12 +42,26 @@ def main() -> None:
         register_saga_subscriber(broker, settings)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        # Resolving SagaOrchestrator starts APScheduler timeout checker (via provider)
-        async def init_saga() -> None:
-            await container.get(SagaOrchestrator)
-            logger.info("SagaOrchestrator initialized")
+        scheduler = AsyncIOScheduler()
 
-        app = FastStream(broker, on_startup=[init_saga], on_shutdown=[container.close])
+        async def init_saga() -> None:
+            orchestrator = await container.get(SagaOrchestrator)
+            scheduler.add_job(
+                orchestrator.check_timeouts,
+                trigger="interval",
+                seconds=30,
+                id="saga_check_timeouts",
+                max_instances=1,
+                misfire_grace_time=60,
+            )
+            scheduler.start()
+            logger.info("SagaOrchestrator initialized (APScheduler interval=30s)")
+
+        async def shutdown() -> None:
+            scheduler.shutdown(wait=False)
+            await container.close()
+
+        app = FastStream(broker, on_startup=[init_saga], on_shutdown=[shutdown])
         await app.run()
         logger.info("SagaOrchestrator shutdown complete")
 

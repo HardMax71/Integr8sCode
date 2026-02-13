@@ -9,9 +9,7 @@ from app.core.providers import (
     CoordinatorProvider,
     CoreServicesProvider,
     DLQProvider,
-    DLQWorkerProvider,
     EventReplayProvider,
-    EventReplayWorkerProvider,
     K8sWorkerProvider,
     KafkaServicesProvider,
     KubernetesProvider,
@@ -24,7 +22,6 @@ from app.core.providers import (
     ResourceCleanerProvider,
     ResultProcessorProvider,
     SagaOrchestratorProvider,
-    SagaWorkerProvider,
     SettingsProvider,
     SSEProvider,
     UserServicesProvider,
@@ -140,10 +137,7 @@ def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
 
 
 def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the SagaOrchestrator worker.
-
-    Uses SagaWorkerProvider which adds APScheduler-managed timeout checking.
-    """
+    """Create DI container for the SagaOrchestrator worker."""
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -154,16 +148,13 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
-        SagaWorkerProvider(),
+        SagaOrchestratorProvider(),
         context={Settings: settings},
     )
 
 
 def create_event_replay_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the EventReplay worker.
-
-    Uses EventReplayWorkerProvider which adds APScheduler-managed session cleanup.
-    """
+    """Create DI container for the EventReplay worker."""
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -174,17 +165,13 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
-        EventReplayWorkerProvider(),
+        EventReplayProvider(),
         context={Settings: settings},
     )
 
 
 def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker.
-
-    Uses DLQWorkerProvider which adds APScheduler-managed retry monitoring
-    and configures retry policies and filters.
-    """
+    """Create DI container for the DLQ processor worker."""
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -194,6 +181,6 @@ def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
         MetricsProvider(),
         RepositoryProvider(),
         MessagingProvider(),
-        DLQWorkerProvider(),
+        DLQProvider(),
         context={Settings: settings},
     )

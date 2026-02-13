@@ -3,13 +3,16 @@ from typing import Any
 
 from app.core.container import create_pod_monitor_container
 from app.core.logging import setup_logger
+from app.core.metrics import KubernetesMetrics
 from app.db.docs import ALL_DOCUMENTS
-from app.services.pod_monitor import PodMonitor
+from app.services.pod_monitor import ErrorType, PodMonitor
 from app.settings import Settings
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka.integrations.faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
+from kubernetes_asyncio.client.rest import ApiException
 from pymongo import AsyncMongoClient
 
 
@@ -39,12 +42,45 @@ def main() -> None:
         # Set up DI integration (no subscribers for pod monitor - it only publishes)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        # Resolving PodMonitor starts K8s watch loop and reconciliation scheduler (via provider)
-        async def init_monitor() -> None:
-            await container.get(PodMonitor)
-            logger.info("PodMonitor initialized")
+        scheduler = AsyncIOScheduler()
 
-        app = FastStream(broker, on_startup=[init_monitor], on_shutdown=[container.close])
+        async def init_monitor() -> None:
+            monitor = await container.get(PodMonitor)
+            kubernetes_metrics = await container.get(KubernetesMetrics)
+
+            async def _watch_cycle() -> None:
+                try:
+                    await monitor.watch_pod_events()
+                except ApiException as e:
+                    if e.status == 410:
+                        logger.warning("Resource version expired, resetting watch cursor")
+                        monitor._last_resource_version = None
+                        kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
+                    else:
+                        logger.error(f"API error in watch: {e}")
+                        kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
+                    kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+                except Exception as e:
+                    logger.error(f"Unexpected error in watch: {e}", exc_info=True)
+                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                    kubernetes_metrics.increment_pod_monitor_watch_reconnects()
+
+            scheduler.add_job(
+                _watch_cycle,
+                trigger="interval",
+                seconds=5,
+                id="pod_monitor_watch",
+                max_instances=1,
+                misfire_grace_time=60,
+            )
+            scheduler.start()
+            logger.info("PodMonitor initialized (APScheduler interval=5s)")
+
+        async def shutdown() -> None:
+            scheduler.shutdown(wait=False)
+            await container.close()
+
+        app = FastStream(broker, on_startup=[init_monitor], on_shutdown=[shutdown])
         await app.run()
         logger.info("PodMonitor shutdown complete")
 

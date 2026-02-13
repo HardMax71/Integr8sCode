@@ -22,6 +22,14 @@ repos:
         files: ^backend/.*\.py$
         pass_filenames: false
 
+      # Vulture - matches CI: cd backend && uv run vulture app/ vulture_whitelist.py
+      - id: vulture-backend
+        name: vulture dead code (backend)
+        entry: bash -c 'cd backend && uv run vulture app/ vulture_whitelist.py'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
       # ESLint - matches CI: cd frontend && npx eslint src
       - id: eslint-frontend
         name: eslint (frontend)

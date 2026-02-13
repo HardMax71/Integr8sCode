@@ -25,7 +25,7 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
-from app.domain.replay import ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayFilter
 
 
 class AdminEventsRepository:
@@ -209,17 +209,6 @@ class AdminEventsRepository:
         )
         await archive_doc.insert()
         return True
-
-    async def create_replay_session(self, session: ReplaySessionState) -> str:
-        doc = ReplaySessionDocument(**session.model_dump())
-        await doc.insert()
-        return session.session_id
-
-    async def get_replay_session(self, session_id: str) -> ReplaySessionState | None:
-        doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
-        if not doc:
-            return None
-        return ReplaySessionState.model_validate(doc)
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
         update_dict = updates.model_dump(exclude_none=True)

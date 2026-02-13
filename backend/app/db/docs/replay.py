@@ -70,18 +70,6 @@ class ReplaySessionDocument(Document):
     model_config = ConfigDict(from_attributes=True)
 
     @property
-    def progress_percentage(self) -> float:
-        """Calculate progress percentage."""
-        if self.total_events == 0:
-            return 0.0
-        return round((self.replayed_events / self.total_events) * 100, 2)
-
-    @property
-    def is_completed(self) -> bool:
-        """Check if session is completed."""
-        return self.status in [ReplayStatus.COMPLETED, ReplayStatus.FAILED, ReplayStatus.CANCELLED]
-
-    @property
     def is_running(self) -> bool:
         """Check if session is running."""
         return self.status == ReplayStatus.RUNNING

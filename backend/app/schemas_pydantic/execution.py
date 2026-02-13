@@ -20,12 +20,6 @@ class ExecutionBase(BaseModel):
     lang_version: str = "3.11"
 
 
-class ExecutionCreate(ExecutionBase):
-    """Model for creating a new execution."""
-
-    pass
-
-
 class ExecutionInDB(ExecutionBase):
     """Model for execution as stored in database."""
 
@@ -38,17 +32,6 @@ class ExecutionInDB(ExecutionBase):
     error_type: ExecutionErrorType | None = None
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class ExecutionUpdate(BaseModel):
-    """Model for updating an execution."""
-
-    status: ExecutionStatus | None = None
-    stdout: str | None = None
-    stderr: str | None = None
-    resource_usage: ResourceUsage | None = None
-    exit_code: int | None = None
-    error_type: ExecutionErrorType | None = None
 
 
 class ResourceUsage(BaseModel):

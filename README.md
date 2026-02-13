@@ -12,6 +12,9 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/security.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/security.yml?branch=main&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
   </a>
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/vulture.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/vulture.yml?branch=main&label=dead%20code&logo=python&logoColor=white" alt="Dead Code Check" />
+  </a>
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/docker.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/docker.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
@@ -57,28 +60,55 @@ things safe and efficient. You'll get the results back in no time.
 <details>
 <summary>How to deploy</summary>
 
-1. Clone this repository
-2. Check if docker is enabled, kubernetes is running and kubectl is installed
-3. `docker-compose up --build`
+### Prerequisites
 
-- Frontend: `https://127.0.0.1:5001/`
-- Backend: `https://127.0.0.1:443/`
-  - To check if it works, you can use `curl -k https://127.0.0.1/api/v1/k8s-limits`, should return JSON with current limits
-- Grafana: `http://127.0.0.1:3000` (login - `admin`, pw - `admin123`)
+- Docker and Docker Compose
+- Kubernetes cluster (k3s, Docker Desktop K8s, or minikube) with `kubectl` configured
 
+### Quick start
 
-You may also find out that k8s doesn't capture metrics (`CPU` and `Memory` params are `null`), it may well be that metrics server
-for k8s is turned off/not enabled. To enable, execute:
 ```bash
-kubectl create -f https://raw.githubusercontent.com/pythianarora/total-practice/master/sample-kubernetes-code/metrics-server.yaml
+git clone https://github.com/HardMax71/Integr8sCode.git
+cd Integr8sCode
+cp backend/secrets.example.toml backend/secrets.toml
+./deploy.sh dev
 ```
 
-and test output by writing `kubectl top node` in console, should output sth like:
+The `secrets.toml` file holds credentials and is gitignored. The example template has working development defaults.
+
+### Verify
+
+```bash
+curl -k https://localhost/api/v1/health/live
 ```
-PS C:\Users\User\Desktop\Integr8sCode> kubectl top node
-NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
-docker-desktop   267m         3%     4732Mi          29%
+
+### Access
+
+| Service            | URL                                                    |
+|--------------------|--------------------------------------------------------|
+| Frontend           | [https://localhost:5001](https://localhost:5001)       |
+| Backend API        | [https://localhost:443](https://localhost:443)         |
+| Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)         |
+| Grafana            | [http://localhost:3000](http://localhost:3000)         |
+| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686)       |
+
+Default credentials: `user` / `user123` (regular), `admin` / `admin123` (admin).
+
+Self-signed TLS certs are generated automatically — accept the browser warning.
+
+### Run tests
+
+```bash
+./deploy.sh test
 ```
+
+### Stop
+
+```bash
+./deploy.sh down
+```
+
+See the [full deployment guide](https://hardmax71.github.io/Integr8sCode/operations/deployment/) for Docker build strategy, troubleshooting, pre-built images, and more.
 
 </details>
 

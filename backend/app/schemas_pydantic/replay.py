@@ -67,12 +67,6 @@ class SessionSummary(BaseModel):
             return (self.completed_at - self.started_at).total_seconds()
         return None
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def throughput_events_per_second(self) -> float | None:
-        if self.duration_seconds and self.duration_seconds > 0 and self.replayed_events > 0:
-            return self.replayed_events / self.duration_seconds
-        return None
 
 
 class CleanupResponse(BaseModel):

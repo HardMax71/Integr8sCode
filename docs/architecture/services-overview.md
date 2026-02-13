@@ -20,7 +20,7 @@ The k8s_worker/ module runs worker.py, a long-running service that consumes SAGA
 
 The pod_monitor/ module has monitor.py and event_mapper.py which watch K8s Pod/Container status, map them into domain events with helpful metadata like exit codes, failure reasons, and stdout/stderr slices, then publish into EXECUTION_EVENTS. This decouples what the cluster did from what the system emits so clients always see consistent event shapes. See [Pod Monitor](../components/workers/pod_monitor.md) for details.
 
-The result_processor/ module runs processor.py which consumes terminal events, persists results, normalizes error types, and always records metrics by error type. The resource_cleaner.py deletes the per-execution pod and ConfigMap after completion. See [Result Processor](../components/workers/result_processor.md) for details.
+The result_processor/ module runs processor.py which consumes terminal events, persists results, normalizes error types, and always records metrics by error type. See [Result Processor](../components/workers/result_processor.md) for details.
 
 ## Event and streaming services
 
@@ -56,7 +56,7 @@ The Saga Orchestrator is a stateful choreographer for execution lifecycle. It su
 
 The K8s Worker materializes saga commands into K8s resources. It consumes SAGA_COMMANDS and creates ConfigMap (script, entrypoint) and Pod (hardened), relying on CiliumNetworkPolicy deny-all applied to the namespace rather than per-exec policies. Pod spec disables DNS, drops caps, runs non-root, no SA token. It publishes PodCreated and ExecutionStarted events, or errors when creation fails.
 
-The Result Processor persists terminal execution outcomes, updates metrics, and triggers cleanup. It consumes EXECUTION_COMPLETED, EXECUTION_FAILED, EXECUTION_TIMEOUT, writes DB records for status, outputs, errors, and usage, records metrics for errors by type and durations, and invokes ResourceCleaner to delete pods and configmaps.
+The Result Processor persists terminal execution outcomes and updates metrics. It consumes EXECUTION_COMPLETED, EXECUTION_FAILED, EXECUTION_TIMEOUT, writes DB records for status, outputs, errors, and usage, and records metrics for errors by type and durations. Kubernetes resource cleanup (pods and ConfigMaps) is handled automatically via ownerReference — the ConfigMap is owned by the pod, so K8s garbage-collects both when the pod is deleted (by saga compensation or manual cleanup).
 
 The Pod Monitor observes K8s pod state and translates to domain events. It watches CoreV1 Pod events and publishes EXECUTION_EVENTS for running, container started, logs tail, etc., adding useful metadata and best-effort failure analysis.
 
@@ -64,7 +64,7 @@ The Coordinator owns the admission/queuing policy and sets priorities. It intera
 
 The Event Replay worker re-emits stored events to debug or rebuild projections, taking DB/event store and filters as inputs and outputting replayed events on regular topics with provenance markers.
 
-The DLQ Processor drains and retries dead-lettered messages with backoff and visibility, taking DLQ topic and retry policies as inputs and outputting successful re-publishes or parked messages with audit trail. See [Dead Letter Queue](../components/dead-letter-queue.md) for more on DLQ handling.
+The DLQ Processor retries dead-lettered messages with backoff and visibility. Failed messages are persisted directly to MongoDB (no DLQ Kafka topic). The processor is APScheduler-based, periodically checking for retryable messages and republishing them via a manually started broker. See [Dead Letter Queue](../components/dead-letter-queue.md) for more on DLQ handling.
 
 ## Operational notes
 

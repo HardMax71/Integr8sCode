@@ -13,7 +13,6 @@ from app.domain.events import (
     CreatePodCommandEvent,
     DeletePodCommandEvent,
     ExecutionFailedEvent,
-    ExecutionStartedEvent,
     PodCreatedEvent,
 )
 from app.events.core import UnifiedProducer
@@ -58,7 +57,6 @@ class KubernetesWorker:
 
         # Kubernetes clients created from ApiClient
         self.v1 = k8s_client.CoreV1Api(api_client)
-        self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
         self.apps_v1 = k8s_client.AppsV1Api(api_client)
 
         # Components
@@ -83,30 +81,28 @@ class KubernetesWorker:
         await self._create_pod_for_execution(command)
 
     async def handle_delete_pod_command(self, command: DeletePodCommandEvent) -> None:
-        """Handle delete pod command from saga orchestrator (compensation)"""
+        """Handle delete pod command from saga orchestrator (compensation).
+
+        Deleting the pod is sufficient — the ConfigMap has an ownerReference pointing
+        to the pod, so K8s garbage-collects it automatically.
+        """
         execution_id = command.execution_id
         self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
 
         try:
-            # Delete the pod
             pod_name = f"executor-{execution_id}"
             await self.v1.delete_namespaced_pod(
                 name=pod_name,
                 namespace=self._settings.K8S_NAMESPACE,
                 grace_period_seconds=30,
             )
-            self.logger.info(f"Successfully deleted pod {pod_name}")
-
-            # Delete associated ConfigMap
-            configmap_name = f"script-{execution_id}"
-            await self.v1.delete_namespaced_config_map(name=configmap_name, namespace=self._settings.K8S_NAMESPACE)
-            self.logger.info(f"Successfully deleted ConfigMap {configmap_name}")
+            self.logger.info(f"Successfully deleted pod {pod_name} (ConfigMap will be GC'd by K8s)")
 
         except ApiException as e:
             if e.status == 404:
-                self.logger.warning(f"Resources for execution {execution_id} not found (may have already been deleted)")
+                self.logger.warning(f"Pod for execution {execution_id} not found (may have already been deleted)")
             else:
-                self.logger.error(f"Failed to delete resources for execution {execution_id}: {e}")
+                self.logger.error(f"Failed to delete pod for execution {execution_id}: {e}")
 
     async def _create_pod_for_execution(self, command: CreatePodCommandEvent) -> None:
         """Create pod for execution"""
@@ -129,7 +125,11 @@ class KubernetesWorker:
                 await self._create_config_map(config_map)
 
                 pod = self.pod_builder.build_pod_manifest(command=command)
-                await self._create_pod(pod)
+                created_pod = await self._create_pod(pod)
+
+                # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
+                if created_pod and created_pod.metadata and created_pod.metadata.uid:
+                    await self._set_configmap_owner(config_map, created_pod)
 
                 # Publish PodCreated event
                 await self._publish_pod_created(command, pod)
@@ -190,28 +190,47 @@ exec "$@"
                 self.metrics.record_k8s_config_map_created("failed")
                 raise
 
-    async def _create_pod(self, pod: k8s_client.V1Pod) -> None:
-        """Create Pod in Kubernetes"""
+    async def _create_pod(self, pod: k8s_client.V1Pod) -> k8s_client.V1Pod | None:
+        """Create Pod in Kubernetes. Returns the created pod (with UID) or None if it already existed."""
         try:
-            await self.v1.create_namespaced_pod(namespace=self._settings.K8S_NAMESPACE, body=pod)
+            created: k8s_client.V1Pod = await self.v1.create_namespaced_pod(
+                namespace=self._settings.K8S_NAMESPACE, body=pod
+            )
             self.logger.debug(f"Created Pod {pod.metadata.name}")
+            return created
         except ApiException as e:
             if e.status == 409:  # Already exists
                 self.logger.warning(f"Pod {pod.metadata.name} already exists")
+                return None
             else:
                 raise
 
-    async def _publish_execution_started(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
-        """Publish execution started event"""
-        event = ExecutionStartedEvent(
-            execution_id=command.execution_id,
-            aggregate_id=command.execution_id,
-            pod_name=pod.metadata.name,
-            node_name=pod.spec.node_name,
-            container_id=None,
-            metadata=command.metadata,
+    async def _set_configmap_owner(
+        self, config_map: k8s_client.V1ConfigMap, owner_pod: k8s_client.V1Pod
+    ) -> None:
+        """Patch the ConfigMap with an ownerReference pointing to the pod.
+
+        This makes K8s garbage-collect the ConfigMap automatically when the pod is deleted.
+        """
+        owner_ref = k8s_client.V1OwnerReference(
+            api_version="v1",
+            kind="Pod",
+            name=owner_pod.metadata.name,
+            uid=owner_pod.metadata.uid,
+            block_owner_deletion=False,
         )
-        await self.producer.produce(event_to_produce=event, key=command.execution_id)
+        patch_body = {"metadata": {"ownerReferences": [owner_ref]}}
+        try:
+            await self.v1.patch_namespaced_config_map(
+                name=config_map.metadata.name,
+                namespace=self._settings.K8S_NAMESPACE,
+                body=patch_body,
+            )
+            self.logger.debug(
+                f"Set ownerReference on ConfigMap {config_map.metadata.name} -> Pod {owner_pod.metadata.name}"
+            )
+        except ApiException as e:
+            self.logger.warning(f"Failed to set ownerReference on ConfigMap: {e.reason}")
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""

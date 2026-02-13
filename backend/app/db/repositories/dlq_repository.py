@@ -149,25 +149,3 @@ class DLQRepository:
             result[row["_id"]] = row["count"]
         return result
 
-    async def mark_message_retried(self, event_id: str) -> bool:
-        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        if not doc:
-            return False
-        now = datetime.now(timezone.utc)
-        doc.status = DLQMessageStatus.RETRIED
-        doc.retried_at = now
-        doc.last_updated = now
-        await doc.save()
-        return True
-
-    async def mark_message_discarded(self, event_id: str, reason: str) -> bool:
-        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        if not doc:
-            return False
-        now = datetime.now(timezone.utc)
-        doc.status = DLQMessageStatus.DISCARDED
-        doc.discarded_at = now
-        doc.discard_reason = reason
-        doc.last_updated = now
-        await doc.save()
-        return True

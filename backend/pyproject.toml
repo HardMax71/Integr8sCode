@@ -150,6 +150,7 @@ dev = [
     "pytest-xdist==3.6.1",
     "ruff==0.14.10",
     "types-cachetools==6.2.0.20250827",
+    "vulture==2.14",
 ]
 
 # Ruff configuration
@@ -166,7 +167,8 @@ exclude = [
     "**/venv/**",
     "**/.venv/**",
     "**/site-packages/**",
-    "**/.claude/**"
+    "**/.claude/**",
+    "vulture_whitelist.py"
 ]
 
 [tool.ruff.lint.flake8-bugbear]
@@ -183,6 +185,7 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disable_error_code = ["import-untyped", "import-not-found"]
+exclude = ["vulture_whitelist\\.py$"]
 plugins = ["pydantic.mypy"]
 
 [tool.pydantic-mypy]
@@ -224,3 +227,9 @@ OTEL_SDK_DISABLED = "true"  # Prevents teardown delays from OTLP exporter retrie
 [tool.coverage.run]
 # Use sysmon for faster coverage (requires Python 3.12+)
 core = "sysmon"
+
+# Vulture dead code detection
+[tool.vulture]
+min_confidence = 80
+paths = ["app"]
+exclude = ["tests"]

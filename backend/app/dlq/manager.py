@@ -209,9 +209,6 @@ class DLQManager:
     def set_retry_policy(self, topic: str, policy: RetryPolicy) -> None:
         self._retry_policies[topic] = policy
 
-    def add_filter(self, filter_func: Callable[[DLQMessage], bool]) -> None:
-        self._filters.append(filter_func)
-
     async def retry_message_manually(self, event_id: str) -> bool:
         message = await self.repository.get_message_by_id(event_id)
         if not message:

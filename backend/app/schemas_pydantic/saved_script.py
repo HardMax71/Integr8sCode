@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,15 +15,6 @@ class SavedScriptBase(BaseModel):
 
 class SavedScriptCreate(SavedScriptBase):
     pass
-
-
-class SavedScriptInDB(SavedScriptBase):
-    script_id: str = Field(default_factory=lambda: str(uuid4()))
-    user_id: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedScriptUpdate(BaseModel):

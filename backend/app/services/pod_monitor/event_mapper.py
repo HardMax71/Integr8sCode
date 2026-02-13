@@ -519,6 +519,3 @@ class PodEventMapper:
         else:
             self.logger.warning(f"Failed to extract logs from pod {pod_name}: {error}")
 
-    def clear_cache(self) -> None:
-        """Clear event cache"""
-        self._event_cache.clear()

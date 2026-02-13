@@ -62,7 +62,7 @@ from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
 from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig
 from app.services.rate_limit_service import RateLimitService
-from app.services.result_processor import ResourceCleaner, ResultProcessor
+from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.services.saga import SagaOrchestrator, SagaService
 from app.services.saved_script_service import SavedScriptService
@@ -289,16 +289,6 @@ class KubernetesProvider(Provider):
             yield api_client
         finally:
             await api_client.close()
-
-
-class ResourceCleanerProvider(Provider):
-    scope = Scope.APP
-
-    @provide
-    def get_resource_cleaner(
-        self, api_client: k8s_client.ApiClient, logger: structlog.stdlib.BoundLogger
-    ) -> ResourceCleaner:
-        return ResourceCleaner(api_client=api_client, logger=logger)
 
 
 class MetricsProvider(Provider):

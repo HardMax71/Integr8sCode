@@ -62,7 +62,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Get unstarted broker from DI (BrokerProvider yields without starting)
     broker: KafkaBroker = await container.get(KafkaBroker)
-    app.state.kafka_broker = broker
 
     # Register subscribers BEFORE broker.start() - FastStream requirement
     register_sse_subscriber(broker, settings)

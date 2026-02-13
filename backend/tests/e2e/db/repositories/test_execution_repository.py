@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionStatus
-from app.domain.execution import DomainExecutionCreate, DomainExecutionUpdate
+from app.domain.execution import DomainExecutionCreate
 
 _test_logger = structlog.get_logger("test.db.repositories.execution_repository")
 
@@ -29,13 +29,6 @@ async def test_execution_crud_and_query() -> None:
     # Get
     got = await repo.get_execution(created.execution_id)
     assert got and got.script.startswith("print") and got.status == ExecutionStatus.QUEUED
-
-    # Update
-    update = DomainExecutionUpdate(status=ExecutionStatus.RUNNING, stdout="ok")
-    ok = await repo.update_execution(created.execution_id, update)
-    assert ok is True
-    got2 = await repo.get_execution(created.execution_id)
-    assert got2 and got2.status == ExecutionStatus.RUNNING
 
     # List
     items = await repo.get_executions({"user_id": user_id}, limit=10, skip=0, sort=[("created_at", 1)])

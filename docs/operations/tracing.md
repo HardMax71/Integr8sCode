@@ -63,7 +63,7 @@ sequenceDiagram
     Note over Worker: re-injects trace context
 
     alt on failure
-        Kafka->>DLQ: message to dead_letter_queue
+        Worker->>DLQ: persist to MongoDB
         Note over DLQ: dlq.consume span<br/>preserves original context
         DLQ->>Kafka: retry with same context
     end

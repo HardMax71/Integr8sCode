@@ -57,16 +57,6 @@ class DomainUserSettingsUpdate(BaseModel):
     custom_settings: dict[str, Any] | None = None
 
 
-class DomainSettingChange(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    field_path: str
-    old_value: Any
-    new_value: Any
-    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    change_reason: str | None = None
-
-
 class DomainUserSettingsChangedEvent(BaseModel):
     """Well-typed domain event for user settings changes."""
 
@@ -105,6 +95,3 @@ class CachedSettings(BaseModel):
 
     settings: DomainUserSettings
     expires_at: datetime
-
-    def is_expired(self) -> bool:
-        return datetime.now(timezone.utc) > self.expires_at

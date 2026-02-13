@@ -3,30 +3,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.utils import StringEnum
 from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent, EventMetadata
 
 MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
 MongoQuery = dict[str, MongoQueryValue]
-
-
-class CollectionNames(StringEnum):
-    EVENTS = "events"
-    EVENT_STORE = "event_store"
-    REPLAY_SESSIONS = "replay_sessions"
-    EVENTS_ARCHIVE = "events_archive"
-    RESOURCE_ALLOCATIONS = "resource_allocations"
-    USERS = "users"
-    EXECUTIONS = "executions"
-    EXECUTION_RESULTS = "execution_results"
-    SAVED_SCRIPTS = "saved_scripts"
-    NOTIFICATIONS = "notifications"
-    NOTIFICATION_SUBSCRIPTIONS = "notification_subscriptions"
-    USER_SETTINGS = "user_settings"
-    USER_SETTINGS_SNAPSHOTS = "user_settings_snapshots"
-    SAGAS = "sagas"
-    DLQ_MESSAGES = "dlq_messages"
 
 
 class EventSummary(BaseModel):
@@ -167,16 +148,6 @@ class ExecutionEventsResult(BaseModel):
     access_allowed: bool
     include_system_events: bool
 
-    def get_filtered_events(self) -> list[DomainEvent]:
-        """Get events filtered based on access and system event settings."""
-        if not self.access_allowed:
-            return []
-
-        events = self.events
-        if not self.include_system_events:
-            events = [e for e in events if not e.metadata.service_name.startswith("system-")]
-
-        return events
 
 
 class EventExportRow(BaseModel):

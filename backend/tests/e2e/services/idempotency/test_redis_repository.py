@@ -121,9 +121,8 @@ async def test_insert_find_update_delete_flow(
     ttl_after = await redis_client.ttl(key)
     assert ttl_after == ttl or ttl_after <= ttl  # ttl should not increase
 
-    # Delete
-    deleted = await repository.delete_key(sample_record.key)
-    assert deleted == 1
+    # Clean up
+    await redis_client.delete(key)
     assert await repository.find_by_key(sample_record.key) is None
 
 
@@ -136,6 +135,3 @@ async def test_update_record_when_missing(
     assert res == 0
 
 
-@pytest.mark.asyncio
-async def test_health_check(repository: RedisIdempotencyRepository) -> None:
-    await repository.health_check()  # should not raise

@@ -61,7 +61,6 @@ DomainError
 │   └── SagaInvalidStateError
 └── InfrastructureError
     ├── EventPublishError
-    ├── SagaCompensationError
     ├── SagaTimeoutError
     └── ReplayOperationError
 ```
@@ -74,7 +73,7 @@ Domain exceptions live in their respective domain modules:
 |--------------|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Base         | `app/domain/exceptions.py`              | `DomainError`, `NotFoundError`, `ValidationError`, etc.                                                                                               |
 | Execution    | `app/domain/execution/exceptions.py`    | `ExecutionNotFoundError`, `RuntimeNotSupportedError`, `EventPublishError`                                                                             |
-| Saga         | `app/domain/saga/exceptions.py`         | `SagaNotFoundError`, `SagaAccessDeniedError`, `SagaInvalidStateError`, `SagaCompensationError`, `SagaTimeoutError`, `SagaConcurrencyError`            |
+| Saga         | `app/domain/saga/exceptions.py`         | `SagaNotFoundError`, `SagaAccessDeniedError`, `SagaInvalidStateError`, `SagaTimeoutError`, `SagaConcurrencyError`                                     |
 | Notification | `app/domain/notification/exceptions.py` | `NotificationNotFoundError`, `NotificationThrottledError`, `NotificationValidationError`                                                              |
 | Saved Script | `app/domain/saved_script/exceptions.py` | `SavedScriptNotFoundError`                                                                                                                            |
 | Replay       | `app/domain/replay/exceptions.py`       | `ReplaySessionNotFoundError`, `ReplayOperationError`                                                                                                  |

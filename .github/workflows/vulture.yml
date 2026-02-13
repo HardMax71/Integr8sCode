@@ -1,0 +1,32 @@
+name: Dead Code Detection
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  vulture:
+    name: Vulture Dead Code Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Install Python and dependencies
+        run: |
+          cd backend
+          uv python install 3.12
+          uv sync --frozen
+
+      - name: Run vulture
+        run: |
+          cd backend
+          uv run vulture app/ vulture_whitelist.py

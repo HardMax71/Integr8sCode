@@ -24,8 +24,7 @@ execution has finished and results are available.
 
 ## Resource cleanup
 
-The processor also handles cleanup after executions complete. The [`resource_cleaner.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/result_processor/resource_cleaner.py)
-module deletes ConfigMaps and pods that are no longer needed, keeping the Kubernetes namespace tidy.
+Kubernetes resource cleanup is handled via ownerReference — the K8s worker sets an ownerReference on each ConfigMap pointing to its pod. When the pod is deleted (by saga compensation or manual cleanup), K8s garbage-collects the ConfigMap automatically. The result processor itself does not perform resource cleanup.
 
 ## Key files
 
@@ -33,7 +32,6 @@ module deletes ConfigMaps and pods that are no longer needed, keeping the Kubern
 |--------------------------------------------------------------------------------------------------------------------------------|------------------|
 | [`run_result_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_result_processor.py)       | Entry point      |
 | [`processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/result_processor/processor.py)       | Result handling  |
-| [`resource_cleaner.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/result_processor/resource_cleaner.py) | K8s cleanup      |
 
 ## Deployment
 

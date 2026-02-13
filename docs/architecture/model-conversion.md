@@ -160,8 +160,7 @@ Avoid approaches that scatter conversion logic or couple layers incorrectly.
 | Conversion logic in models       | Scatters boundary logic; keep it in repositories/services |
 
 Thin wrappers that delegate to `model_dump()` with specific options are fine. For example, `BaseEvent.to_dict()` applies
-`by_alias=True, mode="json"` consistently across all events. Methods with additional behavior like filtering private
-keys (`to_public_dict()`) are also acceptable—the anti-pattern is manually listing fields.
+`by_alias=True, mode="json"` consistently across all events—the anti-pattern is manually listing fields.
 
 ## Quick reference
 

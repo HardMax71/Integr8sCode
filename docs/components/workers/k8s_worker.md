@@ -19,9 +19,11 @@ it builds a complete pod specification including:
 - A ConfigMap containing the user's script and an entrypoint script
 - A Pod manifest with hardened security context
 - Proper labels for tracking and network policy matching
+- An ownerReference on the ConfigMap pointing to the pod, so K8s garbage-collects the ConfigMap when the pod is deleted
 
 After creating resources, it publishes `PodCreated` and `ExecutionStarted` events so the rest of the system knows
-the execution has begun.
+the execution has begun. For `DeletePodCommand` (saga compensation), only the pod needs to be deleted — K8s
+automatically cleans up the owned ConfigMap.
 
 ## Pod security
 

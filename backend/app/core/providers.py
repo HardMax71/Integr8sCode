@@ -46,7 +46,6 @@ from app.db.repositories import (
 from app.dlq.manager import DLQManager
 from app.dlq.models import RetryPolicy, RetryStrategy
 from app.domain.enums import KafkaTopic
-from app.domain.rate_limit import RateLimitConfig
 from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
@@ -144,25 +143,13 @@ class RedisProvider(Provider):
             await client.aclose()
 
     @provide
-    async def get_rate_limit_service(
+    def get_rate_limit_service(
             self,
             redis_client: redis.Redis,
             settings: Settings,
             rate_limit_metrics: RateLimitMetrics,
-            logger: structlog.stdlib.BoundLogger,
     ) -> RateLimitService:
-        service = RateLimitService(redis_client, settings, rate_limit_metrics)
-        try:
-            config_key = f"{settings.RATE_LIMIT_REDIS_PREFIX}config"
-            existing_config = await redis_client.get(config_key)
-            if not existing_config:
-                logger.info("Initializing default rate limit configuration in Redis")
-                default_config = RateLimitConfig.get_default_config()
-                await service.update_config(default_config)
-                logger.info(f"Initialized {len(default_config.default_rules)} default rate limit rules")
-        except Exception as e:
-            logger.error(f"Failed to initialize rate limits: {e}")
-        return service
+        return RateLimitService(redis_client, settings, rate_limit_metrics)
 
 
 class CoreServicesProvider(Provider):

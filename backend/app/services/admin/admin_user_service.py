@@ -3,12 +3,20 @@ from datetime import datetime, timedelta, timezone
 import structlog
 
 from app.core.security import SecurityService
-from app.db.repositories import AdminUserRepository
+from app.db.repositories import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
+from app.domain.user import (
+    DomainUserCreate,
+    DomainUserUpdate,
+    PasswordReset,
+    User,
+    UserDeleteResult,
+    UserListResult,
+    UserUpdate,
+)
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.rate_limit_service import RateLimitService
@@ -17,7 +25,7 @@ from app.services.rate_limit_service import RateLimitService
 class AdminUserService:
     def __init__(
         self,
-        user_repository: AdminUserRepository,
+        user_repository: UserRepository,
         event_service: EventService,
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
@@ -131,11 +139,9 @@ class AdminUserService:
         self.logger.info(
             "Admin creating new user", admin_user_id=admin_user_id, new_username=create_data.username
         )
-        # Ensure not exists
-        search_result = await self._users.list_users(limit=1, offset=0, search=create_data.username)
-        for user in search_result.users:
-            if user.username == create_data.username:
-                raise ConflictError("Username already exists")
+        existing = await self._users.get_user(create_data.username)
+        if existing:
+            raise ConflictError("Username already exists")
 
         created = await self._users.create_user(create_data)
         self.logger.info(
@@ -155,9 +161,15 @@ class AdminUserService:
             admin_user_id=admin_user_id,
             target_user_id=user_id,
         )
-        if update.password is not None:
-            update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
-        return await self._users.update_user(user_id, update)
+        hashed_password = self._security.get_password_hash(update.password) if update.password else None
+        domain_update = DomainUserUpdate(
+            username=update.username,
+            email=update.email,
+            role=update.role,
+            is_active=update.is_active,
+            hashed_password=hashed_password,
+        )
+        return await self._users.update_user(user_id, domain_update)
 
     async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(

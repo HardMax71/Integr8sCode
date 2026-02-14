@@ -221,7 +221,7 @@ class AdminEventsService:
 
     async def _export_csv(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         events = await self._repo.get_events(event_filter, skip=0, limit=limit)
-        rows = [_export_row_ta.validate_python(e, from_attributes=True) for e in events]
+        rows = [_export_row_ta.validate_python(e.model_dump()) for e in events]
         output = StringIO()
         writer = csv.DictWriter(
             output,

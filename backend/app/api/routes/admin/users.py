@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
 from app.core.security import SecurityService
-from app.db.repositories import AdminUserRepository
+from app.db.repositories import UserRepository
 from app.domain.enums import UserRole
 from app.domain.rate_limit import UserRateLimitUpdate
 from app.domain.user import DomainUserCreate, User
@@ -124,7 +124,7 @@ async def update_user(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
     user_update: UserUpdate,
-    user_repo: FromDishka[AdminUserRepository],
+    user_repo: FromDishka[UserRepository],
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Update a user's profile fields."""

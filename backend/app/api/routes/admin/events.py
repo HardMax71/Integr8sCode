@@ -37,7 +37,7 @@ router = APIRouter(
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     """Browse events with filtering, sorting, and pagination."""
     result = await service.browse_events(
-        event_filter=_domain_filter_ta.validate_python(request.filters, from_attributes=True),
+        event_filter=_domain_filter_ta.validate_python(request.filters.model_dump()),
         skip=request.skip,
         limit=request.limit,
     )

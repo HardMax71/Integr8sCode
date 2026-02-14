@@ -88,7 +88,7 @@ class AdminEventsRepository:
         related_docs = await (
             EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )
-        related_events = [_event_summary_ta.validate_python(d, from_attributes=True) for d in related_docs]
+        related_events = [_event_summary_ta.validate_python(d.model_dump()) for d in related_docs]
         timeline = related_events[:5]
 
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
@@ -242,13 +242,13 @@ class AdminEventsRepository:
         exec_docs = await ExecutionDocument.find(
             In(ExecutionDocument.execution_id, exec_ids)
         ).to_list()
-        return [_exec_result_ta.validate_python(d, from_attributes=True) for d in exec_docs]
+        return [_exec_result_ta.validate_python(d.model_dump()) for d in exec_docs]
 
     async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
         return await EventDocument.find(replay_filter.to_mongo_query()).count()
 
     async def get_events_preview_for_replay(self, replay_filter: ReplayFilter, limit: int = 100) -> list[EventSummary]:
         docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
-        return [_event_summary_ta.validate_python(doc, from_attributes=True) for doc in docs]
+        return [_event_summary_ta.validate_python(doc.model_dump()) for doc in docs]
 
 

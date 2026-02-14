@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -20,9 +21,9 @@ class NotificationRepository:
         self.logger = logger
 
     async def create_notification(self, create_data: DomainNotificationCreate) -> DomainNotification:
-        doc = NotificationDocument(**create_data.model_dump())
+        doc = NotificationDocument(**dataclasses.asdict(create_data))
         await doc.insert()
-        return DomainNotification.model_validate(doc)
+        return DomainNotification(**doc.model_dump(include=set(DomainNotification.__dataclass_fields__)))
 
     async def update_notification(
         self, notification_id: str, user_id: str, update_data: DomainNotificationUpdate
@@ -33,7 +34,7 @@ class NotificationRepository:
         )
         if not doc:
             return False
-        update_dict = update_data.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         if update_dict:
             await doc.set(update_dict)
         return True
@@ -90,7 +91,10 @@ class NotificationRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainNotification.model_validate(doc) for doc in docs]
+        return [
+            DomainNotification(**doc.model_dump(include=set(DomainNotification.__dataclass_fields__)))
+            for doc in docs
+        ]
 
     async def count_notifications(
         self,
@@ -129,7 +133,10 @@ class NotificationRepository:
             .limit(limit)
             .to_list()
         )
-        return [DomainNotification.model_validate(doc) for doc in docs]
+        return [
+            DomainNotification(**doc.model_dump(include=set(DomainNotification.__dataclass_fields__)))
+            for doc in docs
+        ]
 
     async def try_claim_pending(self, notification_id: str) -> bool:
         now = datetime.now(UTC)
@@ -158,7 +165,9 @@ class NotificationRepository:
         if not doc:
             # Default: enabled=True for new users (consistent with get_all_subscriptions)
             return DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True)
-        return DomainNotificationSubscription.model_validate(doc)
+        return DomainNotificationSubscription(
+            **doc.model_dump(include=set(DomainNotificationSubscription.__dataclass_fields__))
+        )
 
     async def upsert_subscription(
         self, user_id: str, channel: NotificationChannel, update_data: DomainSubscriptionUpdate
@@ -167,12 +176,14 @@ class NotificationRepository:
             NotificationSubscriptionDocument.user_id == user_id,
             NotificationSubscriptionDocument.channel == channel,
         )
-        update_dict = update_data.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         update_dict["updated_at"] = datetime.now(UTC)
 
         if existing:
             await existing.set(update_dict)
-            return DomainNotificationSubscription.model_validate(existing)
+            return DomainNotificationSubscription(
+                **existing.model_dump(include=set(DomainNotificationSubscription.__dataclass_fields__))
+            )
         else:
             doc = NotificationSubscriptionDocument(
                 user_id=user_id,
@@ -180,7 +191,9 @@ class NotificationRepository:
                 **update_dict,
             )
             await doc.insert()
-            return DomainNotificationSubscription.model_validate(doc)
+            return DomainNotificationSubscription(
+                **doc.model_dump(include=set(DomainNotificationSubscription.__dataclass_fields__))
+            )
 
     async def get_all_subscriptions(self, user_id: str) -> list[DomainNotificationSubscription]:
         subs: list[DomainNotificationSubscription] = []
@@ -190,7 +203,9 @@ class NotificationRepository:
                 NotificationSubscriptionDocument.channel == channel,
             )
             if doc:
-                subs.append(DomainNotificationSubscription.model_validate(doc))
+                subs.append(DomainNotificationSubscription(
+                    **doc.model_dump(include=set(DomainNotificationSubscription.__dataclass_fields__))
+                ))
             else:
                 subs.append(DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True))
         return subs

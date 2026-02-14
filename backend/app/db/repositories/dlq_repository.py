@@ -12,9 +12,9 @@ from app.dlq import (
     DLQMessageListResult,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQTopicSummary,
 )
 from app.domain.enums import EventType
+from app.schemas_pydantic.dlq import DLQTopicSummary
 
 
 class DLQRepository:

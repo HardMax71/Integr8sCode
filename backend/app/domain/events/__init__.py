@@ -1,19 +1,3 @@
-from app.domain.events.event_models import (
-    EventBrowseResult,
-    EventDetail,
-    EventExportRow,
-    EventFilter,
-    EventListResult,
-    EventProjection,
-    EventReplayInfo,
-    EventStatistics,
-    EventSummary,
-    EventTypeCount,
-    ExecutionEventsResult,
-    HourlyEventCount,
-    ServiceEventCount,
-    UserEventCount,
-)
 from app.domain.events.typed import (
     # Saga Command Events
     AllocateResourcesCommandEvent,
@@ -95,9 +79,25 @@ from app.domain.events.typed import (
     UserSettingsUpdatedEvent,
     UserUpdatedEvent,
 )
+from app.schemas_pydantic.event_schemas import (
+    EventBrowseResult,
+    EventDetail,
+    EventExportRow,
+    EventFilter,
+    EventListResult,
+    EventProjection,
+    EventReplayInfo,
+    EventStatistics,
+    EventSummary,
+    EventTypeCount,
+    ExecutionEventsResult,
+    HourlyEventCount,
+    ServiceEventCount,
+    UserEventCount,
+)
 
 __all__ = [
-    # Query/filter/result types
+    # Query/filter/result types (now in schemas_pydantic/event_schemas.py)
     "EventBrowseResult",
     "EventDetail",
     "EventExportRow",

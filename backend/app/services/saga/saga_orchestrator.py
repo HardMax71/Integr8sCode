@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -162,7 +163,7 @@ class SagaOrchestrator:
 
                 if success:
                     instance.completed_steps.append(step.name)
-                    instance.context_data = SagaContextData.model_validate(context.data)
+                    instance.context_data = SagaContextData(**context.data)
                     await self._save_saga(instance)
 
                     compensation = step.get_compensation()
@@ -287,7 +288,7 @@ class SagaOrchestrator:
                 saga = self._create_saga_instance()
                 context = SagaContext(saga_instance.saga_id, saga_instance.execution_id)
 
-                for key, value in saga_instance.context_data.model_dump().items():
+                for key, value in dataclasses.asdict(saga_instance.context_data).items():
                     context.set(key, value)
 
                 steps = saga.get_steps()

@@ -1,3 +1,4 @@
+import dataclasses
 import re
 from datetime import datetime, timezone
 
@@ -14,19 +15,19 @@ from app.domain.user import DomainUserCreate, DomainUserUpdate, User, UserListRe
 class UserRepository:
     async def get_user(self, username: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.username == username)
-        return User.model_validate(doc) if doc else None
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__))) if doc else None
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
-        doc = UserDocument(**create_data.model_dump())
+        doc = UserDocument(**dataclasses.asdict(create_data))
         try:
             await doc.insert()
         except DuplicateKeyError as e:
             raise ConflictError("User already exists") from e
-        return User.model_validate(doc)
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__)))
 
     async def get_user_by_id(self, user_id: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
-        return User.model_validate(doc) if doc else None
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__))) if doc else None
 
     async def list_users(
         self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
@@ -49,7 +50,7 @@ class UserRepository:
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
         return UserListResult(
-            users=[User.model_validate(d) for d in docs],
+            users=[User(**d.model_dump(include=set(User.__dataclass_fields__))) for d in docs],
             total=total,
             offset=offset,
             limit=limit,
@@ -60,11 +61,11 @@ class UserRepository:
         if not doc:
             return None
 
-        update_dict = update_data.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return User.model_validate(doc)
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__)))
 
     async def delete_user(self, user_id: str) -> bool:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)

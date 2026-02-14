@@ -86,7 +86,7 @@ async def update_subscription(
     notification_service: FromDishka[NotificationService],
 ) -> NotificationSubscription:
     """Update subscription settings for a notification channel."""
-    update_data = DomainSubscriptionUpdate.model_validate(subscription)
+    update_data = DomainSubscriptionUpdate(**subscription.model_dump())
     updated_sub = await notification_service.update_subscription(
         user_id=user.user_id,
         channel=channel,

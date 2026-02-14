@@ -63,7 +63,9 @@ class ResultProcessor:
             memory_percent, attributes={"lang_and_version": lang_and_version}
         )
 
-        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.COMPLETED)
+        _fields = ExecutionResultDomain.__dataclass_fields__
+        data = {k: v for k, v in event.model_dump().items() if k in _fields}
+        result = ExecutionResultDomain(**data, status=ExecutionStatus.COMPLETED)
 
         meta = event.metadata
         try:
@@ -86,7 +88,9 @@ class ResultProcessor:
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)
-        result = ExecutionResultDomain(**event.model_dump(), status=ExecutionStatus.FAILED)
+        _fields = ExecutionResultDomain.__dataclass_fields__
+        data = {k: v for k, v in event.model_dump().items() if k in _fields}
+        result = ExecutionResultDomain(**data, status=ExecutionStatus.FAILED)
         meta = event.metadata
         try:
             await self._execution_repo.write_terminal_result(result)
@@ -110,8 +114,10 @@ class ResultProcessor:
         self._metrics.record_script_execution(ExecutionStatus.TIMEOUT, lang_and_version)
         self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
 
+        _fields = ExecutionResultDomain.__dataclass_fields__
         result = ExecutionResultDomain(
-            **event.model_dump(), status=ExecutionStatus.TIMEOUT, exit_code=-1, error_type=ExecutionErrorType.TIMEOUT,
+            **{k: v for k, v in event.model_dump().items() if k in _fields},
+            status=ExecutionStatus.TIMEOUT, exit_code=-1, error_type=ExecutionErrorType.TIMEOUT,
         )
         meta = event.metadata
         try:

@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -211,7 +212,7 @@ class AdminEventsRepository:
         return True
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = updates.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
         if not update_dict:
             return False
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)

@@ -25,7 +25,8 @@ async def create_replay_session(
     service: FromDishka[EventReplayService],
 ) -> ReplayResponse:
     """Create a new event replay session from a configuration."""
-    result = await service.create_session_from_config(ReplayConfig.model_validate(replay_request))
+    config_fields = set(ReplayConfig.__dataclass_fields__)
+    result = await service.create_session_from_config(ReplayConfig(**replay_request.model_dump(include=config_fields)))
     return ReplayResponse.model_validate(result)
 
 

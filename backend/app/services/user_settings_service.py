@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -78,18 +79,20 @@ class UserSettingsService:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
         current = await self.get_user_settings(user_id)
 
-        changes = updates.model_dump(exclude_none=True)
+        changes = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
         if not changes:
             return current
 
-        new_settings = DomainUserSettings.model_validate({
-            **current.model_dump(),
+        new_settings = DomainUserSettings(**{
+            **dataclasses.asdict(current),
             **changes,
             "version": (current.version or 0) + 1,
             "updated_at": datetime.now(timezone.utc),
         })
 
-        await self._publish_settings_event(user_id, updates.model_dump(exclude_none=True, mode="json"), reason)
+        await self._publish_settings_event(
+            user_id, {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}, reason
+        )
 
         self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
@@ -157,7 +160,7 @@ class UserSettingsService:
                         event_type=event.event_type,
                         field=f"/{fld}",
                         old_value=None,
-                        new_value=event.model_dump().get(fld),
+                        new_value=dataclasses.asdict(event).get(fld),
                         reason=event.reason,
                     )
                 )
@@ -190,10 +193,12 @@ class UserSettingsService:
         return settings
 
     def _apply_event(self, settings: DomainUserSettings, event: DomainUserSettingsChangedEvent) -> DomainUserSettings:
-        """Apply a settings update event via dict merge + model_validate."""
-        return DomainUserSettings.model_validate(
-            {**settings.model_dump(), **event.model_dump(exclude_none=True), "updated_at": event.timestamp}
-        )
+        """Apply a settings update event via dict merge."""
+        return DomainUserSettings(**{
+            **dataclasses.asdict(settings),
+            **{k: v for k, v in dataclasses.asdict(event).items() if v is not None},
+            "updated_at": event.timestamp,
+        })
 
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""
@@ -204,4 +209,3 @@ class UserSettingsService:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
         self.logger.debug(f"Cached settings for user {user_id}", cache_size=len(self._cache))
-

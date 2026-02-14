@@ -193,7 +193,8 @@ class AdminEventsService:
         if not doc:
             return None
 
-        result = ReplaySessionStatusDetail.model_validate(doc)
+        _detail_fields = set(ReplaySessionStatusDetail.__dataclass_fields__)
+        result = ReplaySessionStatusDetail(**doc.model_dump(include=_detail_fields))
         result.estimated_completion = self._estimate_completion(doc, datetime.now(timezone.utc))
         result.execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
         return result

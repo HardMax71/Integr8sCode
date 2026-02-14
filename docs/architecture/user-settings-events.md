@@ -40,7 +40,7 @@ When reconstructing settings from events, `_apply_event` merges each event's cha
 ```
 
 The `validate_python` call handles nested dict-to-dataclass conversion, enum parsing, and type coercion automatically.
-See [Pydantic Dataclasses](pydantic-dataclasses.md) for details.
+See [Domain Dataclasses](domain-dataclasses.md) for details.
 
 ## Settings reconstruction
 
@@ -66,15 +66,15 @@ Settings are cached with TTL to avoid repeated reconstruction:
 --8<-- "backend/app/services/user_settings_service.py:33:40"
 ```
 
-Cache invalidation happens via [EventBus](event-bus.md) subscription. The EventBus filters out self-published messages,
-so the handler only runs for events from other instances:
+Cache invalidation happens through TTL-based expiration. The cache has a configurable TTL, so stale entries are
+automatically refreshed:
 
 ```python
 --8<-- "backend/app/services/user_settings_service.py:56:70"
 ```
 
-After each update, the service updates its local cache directly, then publishes to the event bus to trigger cache
-invalidation on other instances.
+After each update, the service updates its local cache directly. Other instances pick up changes when their cache TTL
+expires.
 
 ## Settings history
 
@@ -89,12 +89,10 @@ The `get_settings_history` method returns a list of changes extracted from event
 | File                                                                                                                                                         | Purpose                                                      |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 | [`services/user_settings_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/user_settings_service.py)                     | Settings service with caching and event sourcing             |
-| [`services/event_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_bus.py)                                             | Cross-instance event distribution                            |
 | [`domain/user/settings_models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/user/settings_models.py)                           | `DomainUserSettings`, `DomainUserSettingsUpdate` dataclasses |
 | [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py)                                           | `UserSettingsUpdatedEvent` definition                        |
 | [`db/repositories/user_settings_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/user_settings_repository.py) | Snapshot and event queries                                   |
 
 ## Related docs
 
-- [Event Bus](event-bus.md) — cross-instance communication with self-filtering
-- [Pydantic Dataclasses](pydantic-dataclasses.md) — TypeAdapter and dict-to-model conversion
+- [Domain Dataclasses](domain-dataclasses.md) — domain model conventions and dict-to-model conversion

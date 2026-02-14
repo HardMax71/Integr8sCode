@@ -115,12 +115,12 @@ Routes interact with several Svelte stores:
 
 | Store             | Location                      | Purpose                         |
 |-------------------|-------------------------------|---------------------------------|
-| `isAuthenticated` | `stores/auth.ts`              | Authentication state            |
-| `username`        | `stores/auth.ts`              | Current username                |
-| `userRole`        | `stores/auth.ts`              | User role (USER/ADMIN)          |
-| `csrfToken`       | `stores/auth.ts`              | CSRF token for API calls        |
-| `theme`           | `stores/theme.ts`             | Current theme (light/dark/auto) |
-| `notifications`   | `stores/notificationStore.ts` | Notification list               |
+| `isAuthenticated` | `stores/auth.svelte.ts`              | Authentication state            |
+| `username`        | `stores/auth.svelte.ts`              | Current username                |
+| `userRole`        | `stores/auth.svelte.ts`              | User role (USER/ADMIN)          |
+| `csrfToken`       | `stores/auth.svelte.ts`              | CSRF token for API calls        |
+| `theme`           | `stores/theme.svelte.ts`             | Current theme (light/dark/auto) |
+| `notifications`   | `stores/notificationStore.svelte.ts` | Notification list               |
 
 ## SSE Connections
 
@@ -158,7 +158,7 @@ The router supports deep linking with proper URL handling:
 | File                                   | Purpose                         |
 |----------------------------------------|---------------------------------|
 | `src/App.svelte`                       | Route definitions and layout    |
-| `src/stores/auth.ts`                   | Authentication state            |
+| `src/stores/auth.svelte.ts`                   | Authentication state            |
 | `src/lib/auth-init.ts`                 | Auth initialization on app load |
 | `src/components/Header.svelte`         | Navigation links                |
 | `src/components/ProtectedRoute.svelte` | Route protection wrapper        |

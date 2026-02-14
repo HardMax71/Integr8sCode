@@ -96,13 +96,13 @@ Login sets cookies with security best practices:
 The frontend maintains authentication state in a Svelte store with sessionStorage persistence:
 
 ```typescript
---8<-- "frontend/src/stores/auth.ts:9:17"
+--8<-- "frontend/src/stores/auth.svelte.ts:9:17"
 ```
 
 The store caches verification results for 30 seconds to reduce server load:
 
 ```typescript
---8<-- "frontend/src/stores/auth.ts:45:47"
+--8<-- "frontend/src/stores/auth.svelte.ts:45:47"
 ```
 
 ### CSRF Injection
@@ -173,5 +173,5 @@ Security-critical operations should use `verifyAuth(forceRefresh=true)` to bypas
 | [`services/auth_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/auth_service.py)   | Auth service layer             |
 | [`api/routes/auth.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/auth.py)               | Auth endpoints                 |
 | [`services/login_lockout.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/login_lockout.py) | Redis-backed login lockout     |
-| [`stores/auth.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.ts)                      | Frontend auth state            |
+| [`stores/auth.svelte.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.svelte.ts)                      | Frontend auth state            |
 | [`api-interceptors.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/lib/api-interceptors.ts)        | CSRF injection, error handling |

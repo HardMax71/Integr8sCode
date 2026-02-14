@@ -116,11 +116,10 @@ nav:
     - Runtime Registry: architecture/runtime-registry.md
     - Middleware: architecture/middleware.md
     - Domain Exceptions: architecture/domain-exceptions.md
-    - Pydantic Dataclasses: architecture/pydantic-dataclasses.md
+    - Domain Dataclasses: architecture/domain-dataclasses.md
     - Model Conversion: architecture/model-conversion.md
     - Event Storage: architecture/event-storage.md
     - Event System Design: architecture/event-system-design.md
-    - Event Bus: architecture/event-bus.md
     - User Settings Events: architecture/user-settings-events.md
     - Frontend Build: architecture/frontend-build.md
     - Svelte 5 Migration: architecture/svelte5-migration.md

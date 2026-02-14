@@ -135,7 +135,7 @@ All 6 images are built on a single runner and pushed to GHCR with an immutable `
 
 Workers reuse the `backend` image with different `command:` overrides in docker-compose, so no separate worker images
 are needed. Of these 6 images, 5 are scanned by Trivy and promoted to `latest` in the
-[Docker Scan & Promote](#docker-scan--promote) workflow. The `frontend-dev` image is excluded — it's the Vite dev
+[Docker Scan & Promote](#docker-scan--promote) workflow. The `frontend-dev` image is excluded — it's the Rollup dev
 server build used only for E2E tests in CI and is never deployed to production.
 
 The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend

@@ -8,7 +8,7 @@ The pattern that actually fits Python and asyncio is the language's own RAII: as
 
 ## What changed
 
-Services with long-running background work now implement the async context manager protocol. KubernetesWorker, PodMonitor, SSE Kafka→Redis bridge, EventStoreConsumer, ResultProcessor, DLQManager, EventBus, NotificationService, and the Kafka producer all expose `__aenter__`/`__aexit__` that call `start`/`stop`. The Coordinator is stateless and has its consumer lifecycle managed entirely by the DI provider.
+Services with long-running background work now implement the async context manager protocol. KubernetesWorker, PodMonitor, ResultProcessor, DLQManager, NotificationService, and the Kafka producer all expose `__aenter__`/`__aexit__` that call `start`/`stop`. The Coordinator is stateless and has its consumer lifecycle managed entirely by the DI provider.
 
 DI providers return unstarted instances for these services. The FastAPI lifespan acquires them and uses an `AsyncExitStack` to start/stop them in a single place. That removed scattered start/stop logic from providers and made shutdown order explicit.
 

@@ -85,18 +85,17 @@ user = User.model_validate(user_response)
 
 ### Dict to dataclass
 
-Use constructor unpacking, handling nested objects explicitly:
+Use constructor unpacking, handling nested objects explicitly. Since stdlib dataclasses don't auto-convert nested dicts,
+nested dataclass fields must be constructed manually:
 
 ```python
 domain_obj = DomainModel(**data)
 
-# With nested conversion
-domain_obj = DomainModel(
-    **{
-        **doc.model_dump(exclude={"id", "revision_id"}),
-        "metadata": DomainMetadata(**doc.metadata.model_dump()),
-    }
-)
+# With nested conversion (nested dataclass from Beanie document)
+data = doc.model_dump(exclude={"id", "revision_id"})
+if metadata := data.get("metadata"):
+    data["metadata"] = DomainMetadata(**metadata)
+domain_obj = DomainModel(**data)
 ```
 
 ## Repository examples
@@ -123,12 +122,10 @@ async def get_event(self, event_id: str) -> Event | None:
     doc = await EventDocument.find_one({"event_id": event_id})
     if not doc:
         return None
-    return Event(
-        **{
-            **doc.model_dump(exclude={"id", "revision_id"}),
-            "metadata": DomainMetadata(**doc.metadata.model_dump()),
-        }
-    )
+    data = doc.model_dump(exclude={"id", "revision_id"})
+    if metadata := data.get("metadata"):
+        data["metadata"] = DomainMetadata(**metadata)
+    return Event(**data)
 ```
 
 ### Updating with typed input

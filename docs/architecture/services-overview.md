@@ -24,11 +24,11 @@ The result_processor/ module runs processor.py which consumes terminal events, p
 
 ## Event and streaming services
 
-The sse/ module contains kafka_redis_bridge.py and sse_shutdown_manager.py which bridge Kafka events to Redis channels for Server-Sent Events across workers with graceful shutdown. This keeps SSE robust under load, isolates slow clients from blocking others, and implements backpressure. See [SSE Architecture](../components/sse/sse-architecture.md) for details.
+The sse/ module contains sse_service.py and redis_bus.py which manage SSE connections and Redis pub/sub for streaming events to browser clients. The SSE service subscribes to Redis channels keyed by execution ID and streams events to connected browsers. See [SSE Architecture](../components/sse/sse-architecture.md) for details.
 
 The execution_service.py is the facade used by API routes. It validates script/lang/version, consults the runtime registry, constructs idempotent requests, and emits initial queued/requested events.
 
-The event_service.py, kafka_event_service.py, and event_bus.py handle read/write/fan-out of events in a uniform way with mappers. kafka_event_service centralizes production including headers, correlation IDs, and error handling.
+The event_service.py and kafka_event_service.py handle read/write of events in a uniform way with mappers. kafka_event_service centralizes production including headers and error handling.
 
 The replay_service.py and event_replay/ provide tools and workers for replaying historical events into the system to debug, recompute state, or backfill projections.
 

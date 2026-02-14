@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -77,6 +78,7 @@ class ReplaySessionDocument(Document):
     class Settings:
         name = "replay_sessions"
         use_state_management = True
+        bson_encoders = {ReplayFilter: dataclasses.asdict, ReplayError: dataclasses.asdict}
         indexes = [
             IndexModel([("status", 1)]),
             IndexModel([("replay_id", 1)]),

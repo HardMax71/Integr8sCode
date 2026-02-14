@@ -31,7 +31,7 @@ from app.domain.notification import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from app.schemas_pydantic.sse import RedisNotificationMessage
+from app.domain.sse import RedisNotificationMessage
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse import SSERedisBus
 from app.settings import Settings

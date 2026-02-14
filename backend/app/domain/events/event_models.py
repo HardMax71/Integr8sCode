@@ -1,31 +1,20 @@
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent, EventMetadata
 
-MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
-MongoQuery = dict[str, MongoQueryValue]
 
-
-class EventSummary(BaseModel):
-    """Lightweight event summary for lists and previews."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventSummary:
     event_id: str
     event_type: EventType
     timestamp: datetime
     aggregate_id: str | None = None
 
 
-class EventFilter(BaseModel):
-    """Filter criteria for querying events."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventFilter:
     event_types: list[EventType] | None = None
     aggregate_id: str | None = None
     user_id: str | None = None
@@ -36,11 +25,8 @@ class EventFilter(BaseModel):
     status: str | None = None
 
 
-class EventListResult(BaseModel):
-    """Result of event list query."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventListResult:
     events: list[DomainEvent]
     total: int
     skip: int
@@ -48,90 +34,60 @@ class EventListResult(BaseModel):
     has_more: bool
 
 
-class EventBrowseResult(BaseModel):
-    """Result for event browsing."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventBrowseResult:
     events: list[DomainEvent]
     total: int
     skip: int
     limit: int
 
 
-class EventDetail(BaseModel):
-    """Detailed event information with related events."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventDetail:
     event: DomainEvent
-    related_events: list[EventSummary] = Field(default_factory=list)
-    timeline: list[EventSummary] = Field(default_factory=list)
+    related_events: list[EventSummary] = field(default_factory=list)
+    timeline: list[EventSummary] = field(default_factory=list)
 
 
-class EventTypeCount(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventTypeCount:
     event_type: EventType
     count: int
 
 
-class HourlyEventCount(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class HourlyEventCount:
     hour: str
     count: int
 
 
-class ServiceEventCount(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class ServiceEventCount:
     service_name: str
     count: int
 
 
-class UserEventCount(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class UserEventCount:
     user_id: str
     event_count: int
 
 
-class EventStatistics(BaseModel):
-    """Event statistics."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventStatistics:
     total_events: int
-    events_by_type: list[EventTypeCount] = Field(default_factory=list)
-    events_by_service: list[ServiceEventCount] = Field(default_factory=list)
-    events_by_hour: list[HourlyEventCount] = Field(default_factory=list)
-    top_users: list[UserEventCount] = Field(default_factory=list)
+    events_by_type: list[EventTypeCount] = field(default_factory=list)
+    events_by_service: list[ServiceEventCount] = field(default_factory=list)
+    events_by_hour: list[HourlyEventCount] = field(default_factory=list)
+    top_users: list[UserEventCount] = field(default_factory=list)
     error_rate: float = 0.0
     avg_processing_time: float = 0.0
     start_time: datetime | None = None
     end_time: datetime | None = None
 
 
-class EventProjection(BaseModel):
-    """Configuration for event projections."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    name: str
-    pipeline: list[dict[str, Any]]
-    output_collection: str
-    description: str | None = None
-    source_events: list[EventType] | None = None
-    refresh_interval_seconds: int = 300
-    last_updated: datetime | None = None
-
-
-class EventReplayInfo(BaseModel):
-    """Information for event replay."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventReplayInfo:
     events: list[DomainEvent]
     event_count: int
     event_types: list[EventType]
@@ -139,24 +95,10 @@ class EventReplayInfo(BaseModel):
     end_time: datetime
 
 
-class ExecutionEventsResult(BaseModel):
-    """Result of execution events query."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    events: list[DomainEvent]
-    access_allowed: bool
-    include_system_events: bool
-
-
-
-class EventExportRow(BaseModel):
-    """Event export row for CSV."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class EventExportRow:
     event_id: str
     event_type: EventType
     timestamp: datetime
     aggregate_id: str | None = None
-    metadata: EventMetadata
+    metadata: EventMetadata | None = None

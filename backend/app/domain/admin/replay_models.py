@@ -1,19 +1,13 @@
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.dataclasses import dataclass
 
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
 from app.domain.events import EventSummary, ResourceUsageDomain
-from app.domain.replay import ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
 
 
-class ExecutionResultSummary(BaseModel):
-    """Summary of an execution result for replay status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class ExecutionResultSummary:
     execution_id: str
     status: ExecutionStatus | None
     stdout: str | None
@@ -27,11 +21,30 @@ class ExecutionResultSummary(BaseModel):
     error_type: ExecutionErrorType | None = None
 
 
-class ReplaySessionStatusDetail(ReplaySessionState):
+@dataclass
+class ReplaySessionStatusDetail:
     """Status detail with computed metadata for admin API."""
 
+    session_id: str
+    config: ReplayConfig
+    status: ReplayStatus = ReplayStatus.CREATED
+    total_events: int = 0
+    replayed_events: int = 0
+    failed_events: int = 0
+    skipped_events: int = 0
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    last_event_at: datetime | None = None
+    errors: list[ReplayError] = field(default_factory=list)
+    replay_id: str = ""
+    created_by: str | None = None
+    target_service: str | None = None
+    dry_run: bool = False
+    triggered_executions: list[str] = field(default_factory=list)
+    error: str | None = None
     estimated_completion: datetime | None = None
-    execution_results: list[ExecutionResultSummary] = Field(default_factory=list)
+    execution_results: list[ExecutionResultSummary] = field(default_factory=list)
 
 
 @dataclass

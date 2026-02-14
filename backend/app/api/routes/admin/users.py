@@ -5,11 +5,10 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
-from app.db.repositories import AdminUserRepository
 from app.domain.enums import UserRole
-from app.domain.rate_limit import UserRateLimitUpdate
+from app.domain.rate_limit import RateLimitRule, UserRateLimitUpdate
 from app.domain.user import User
-from app.domain.user import UserUpdate as DomainUserUpdate
+from app.domain.user import UserUpdate as UserUpdateDomain
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
@@ -64,7 +63,14 @@ async def create_user(
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Create a new user (admin only)."""
-    domain_user = await admin_user_service.create_user(admin_user_id=admin.user_id, user_data=user_data)
+    domain_user = await admin_user_service.create_user(
+        admin_user_id=admin.user_id,
+        username=user_data.username,
+        email=user_data.email,
+        password=user_data.password,
+        role=user_data.role,
+        is_active=user_data.is_active,
+    )
     return UserResponse.model_validate(domain_user)
 
 
@@ -106,29 +112,22 @@ async def get_user_overview(
     response_model=UserResponse,
     responses={
         404: {"model": ErrorResponse, "description": "User not found"},
-        500: {"model": ErrorResponse, "description": "Failed to update user"},
     },
 )
 async def update_user(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
     user_update: UserUpdate,
-    user_repo: FromDishka[AdminUserRepository],
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Update a user's profile fields."""
-    # Get existing user (explicit 404), then update
-    existing_user = await user_repo.get_user_by_id(user_id)
-    if not existing_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    domain_update = DomainUserUpdate.model_validate(user_update)
+    domain_update = UserUpdateDomain(**user_update.model_dump())
 
     updated_user = await admin_user_service.update_user(
         admin_user_id=admin.user_id, user_id=user_id, update=domain_update
     )
     if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to update user")
+        raise HTTPException(status_code=404, detail="User not found")
 
     return UserResponse.model_validate(updated_user)
 
@@ -194,7 +193,9 @@ async def update_user_rate_limits(
     request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
     """Update rate limit rules for a user."""
-    update = UserRateLimitUpdate.model_validate(request)
+    data = request.model_dump(include=set(UserRateLimitUpdate.__dataclass_fields__))
+    data["rules"] = [RateLimitRule(**r) for r in data.get("rules", [])]
+    update = UserRateLimitUpdate(**data)
     result = await admin_user_service.update_user_rate_limits(
         admin_user_id=admin.user_id, user_id=user_id, update=update
     )

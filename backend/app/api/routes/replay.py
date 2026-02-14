@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums import ReplayStatus
-from app.domain.replay import ReplayConfig
-from app.schemas_pydantic.replay import (
+from app.domain.replay import ReplayConfig, ReplayFilter
+from app.schemas_pydantic.replays import (
     CleanupResponse,
     ReplayRequest,
     ReplayResponse,
+    ReplaySession,
     SessionSummary,
 )
-from app.schemas_pydantic.replay_models import ReplaySession
 from app.services.event_replay import EventReplayService
 
 router = APIRouter(prefix="/replay", tags=["Event Replay"], route_class=DishkaRoute, dependencies=[Depends(admin_user)])
@@ -25,7 +25,9 @@ async def create_replay_session(
     service: FromDishka[EventReplayService],
 ) -> ReplayResponse:
     """Create a new event replay session from a configuration."""
-    result = await service.create_session_from_config(ReplayConfig.model_validate(replay_request))
+    data = replay_request.model_dump(include=set(ReplayConfig.__dataclass_fields__))
+    data["filter"] = ReplayFilter(**data.get("filter", {}))
+    result = await service.create_session_from_config(ReplayConfig(**data))
     return ReplayResponse.model_validate(result)
 
 

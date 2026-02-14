@@ -1,14 +1,12 @@
+from dataclasses import dataclass
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict
 
 from app.domain.enums import ReplayStatus
 
 
-class ReplaySessionUpdate(BaseModel):
+@dataclass
+class ReplaySessionUpdate:
     """Domain model for replay session updates."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     status: ReplayStatus | None = None
     total_events: int | None = None

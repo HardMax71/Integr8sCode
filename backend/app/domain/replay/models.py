@@ -1,13 +1,30 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
 
 
-class ReplayError(BaseModel):
+@dataclass
+class ReplayOperationResult:
+    """Domain result for replay session operations."""
+
+    session_id: str
+    status: ReplayStatus
+    message: str
+
+
+@dataclass
+class CleanupResult:
+    """Domain result for cleanup operations."""
+
+    removed_sessions: int
+    message: str
+
+
+@dataclass
+class ReplayError:
     """Error details for replay operations.
 
     Attributes:
@@ -19,17 +36,14 @@ class ReplayError(BaseModel):
         event_id: ID of the event that failed to replay. Present for event-level errors.
     """
 
-    model_config = ConfigDict(from_attributes=True)
-
     timestamp: datetime
     error: str
     error_type: str | None = None
     event_id: str | None = None
 
 
-class ReplayFilter(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class ReplayFilter:
     # Event selection filters
     event_ids: list[str] | None = None
     execution_id: str | None = None
@@ -97,17 +111,16 @@ class ReplayFilter(BaseModel):
         return query
 
 
-class ReplayConfig(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class ReplayConfig:
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
-    filter: ReplayFilter = Field(default_factory=ReplayFilter)
+    filter: ReplayFilter = field(default_factory=ReplayFilter)
 
-    speed_multiplier: float = Field(default=1.0, ge=0.1, le=100.0)
+    speed_multiplier: float = 1.0
     preserve_timestamps: bool = False
-    batch_size: int = Field(default=100, ge=1, le=1000)
-    max_events: int | None = Field(default=None, ge=1)
+    batch_size: int = 100
+    max_events: int | None = None
 
     target_topics: dict[EventType, KafkaTopic] | None = None
     target_file_path: str | None = None
@@ -119,10 +132,9 @@ class ReplayConfig(BaseModel):
     enable_progress_tracking: bool = True
 
 
-class ReplaySessionState(BaseModel):
+@dataclass
+class ReplaySessionState:
     """Domain replay session model used by services and repository."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     session_id: str
     config: ReplayConfig
@@ -133,32 +145,17 @@ class ReplaySessionState(BaseModel):
     failed_events: int = 0
     skipped_events: int = 0
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: datetime | None = None
     completed_at: datetime | None = None
     last_event_at: datetime | None = None
 
-    errors: list[ReplayError] = Field(default_factory=list)
+    errors: list[ReplayError] = field(default_factory=list)
 
     # Tracking and admin fields
-    replay_id: str = Field(default_factory=lambda: str(uuid4()))
+    replay_id: str = field(default_factory=lambda: str(uuid4()))
     created_by: str | None = None
     target_service: str | None = None
     dry_run: bool = False
-    triggered_executions: list[str] = Field(default_factory=list)
+    triggered_executions: list[str] = field(default_factory=list)
     error: str | None = None
-
-
-class ReplayOperationResult(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    session_id: str
-    status: ReplayStatus
-    message: str
-
-
-class CleanupResult(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    removed_sessions: int
-    message: str

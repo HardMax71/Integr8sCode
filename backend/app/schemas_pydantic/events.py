@@ -1,46 +1,27 @@
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import EventType
-
-
-class EventTypeCountSchema(BaseModel):
-    """Event count by type."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    event_type: EventType
-    count: int
-
-
-class HourlyEventCountSchema(BaseModel):
-    """Hourly event count for statistics."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    hour: str
-    count: int
-
-
-class ServiceEventCountSchema(BaseModel):
-    """Event count by service."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    service_name: str
-    count: int
+from app.domain.events import DomainEvent
+from app.domain.events.event_models import (
+    EventBrowseResult,
+    EventDetail,
+    EventExportRow,
+    EventFilter,
+    EventListResult,
+    EventReplayInfo,
+    EventSummary,
+    EventTypeCount,
+    HourlyEventCount,
+    ServiceEventCount,
+    UserEventCount,
+)
 
 
 class EventStatistics(BaseModel):
-    """Event statistics response."""
-
-    total_events: int
-    events_by_type: list[EventTypeCountSchema]
-    events_by_service: list[ServiceEventCountSchema]
-    events_by_hour: list[HourlyEventCountSchema]
-    start_time: datetime | None = None
-    end_time: datetime | None = None
+    """Event statistics with API schema extras."""
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -63,3 +44,55 @@ class EventStatistics(BaseModel):
             }
         },
     )
+
+    total_events: int
+    events_by_type: list[EventTypeCount] = Field(default_factory=list)
+    events_by_service: list[ServiceEventCount] = Field(default_factory=list)
+    events_by_hour: list[HourlyEventCount] = Field(default_factory=list)
+    top_users: list[UserEventCount] = Field(default_factory=list)
+    error_rate: float = 0.0
+    avg_processing_time: float = 0.0
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+
+
+class EventProjection(BaseModel):
+    """Configuration for event projections."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    pipeline: list[dict[str, Any]]
+    output_collection: str
+    description: str | None = None
+    source_events: list[EventType] | None = None
+    refresh_interval_seconds: int = 300
+    last_updated: datetime | None = None
+
+
+class ExecutionEventsResult(BaseModel):
+    """Result of execution events query."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    events: list[DomainEvent]
+    access_allowed: bool
+    include_system_events: bool
+
+
+__all__ = [
+    "EventSummary",
+    "EventFilter",
+    "EventListResult",
+    "EventBrowseResult",
+    "EventDetail",
+    "EventTypeCount",
+    "HourlyEventCount",
+    "ServiceEventCount",
+    "UserEventCount",
+    "EventStatistics",
+    "EventReplayInfo",
+    "EventExportRow",
+    "EventProjection",
+    "ExecutionEventsResult",
+]

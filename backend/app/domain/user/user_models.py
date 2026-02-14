@@ -1,12 +1,8 @@
-import re
+from dataclasses import dataclass
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict
 
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
-
-EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class UserFields(StringEnum):
@@ -31,19 +27,9 @@ class UserFilterType(StringEnum):
     ROLE = "role"
 
 
-class UserSearchFilter(BaseModel):
-    """User search filter criteria."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    search_text: str | None = None
-    role: UserRole | None = None
-
-
-class User(BaseModel):
+@dataclass
+class User:
     """User domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     username: str
@@ -60,10 +46,9 @@ class User(BaseModel):
     has_custom_limits: bool | None = None
 
 
-class UserUpdate(BaseModel):
+@dataclass
+class UserUpdate:
     """User update domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
@@ -72,11 +57,9 @@ class UserUpdate(BaseModel):
     password: str | None = None
 
 
-
-class UserListResult(BaseModel):
+@dataclass
+class UserListResult:
     """Result of listing users."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     users: list[User]
     total: int
@@ -84,10 +67,9 @@ class UserListResult(BaseModel):
     limit: int
 
 
-class PasswordReset(BaseModel):
+@dataclass
+class PasswordReset:
     """Password reset domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     new_password: str
@@ -96,33 +78,22 @@ class PasswordReset(BaseModel):
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
-class UserCreation(BaseModel):
-    """User creation domain model (API-facing, with plain password)."""
+@dataclass
+class UserDeleteResult:
+    """Domain result for user deletion."""
 
-    model_config = ConfigDict(from_attributes=True)
-
-    username: str
-    email: str
-    password: str
-    role: UserRole = UserRole.USER
-    is_active: bool = True
-    is_superuser: bool = False
-
-    def is_valid(self) -> bool:
-        return all(
-            [
-                self.username,
-                self.email,
-                self.password and len(self.password) >= 8,
-                EMAIL_PATTERN.match(self.email) is not None,  # Proper email validation
-            ]
-        )
+    user_deleted: bool
+    executions: int = 0
+    saved_scripts: int = 0
+    notifications: int = 0
+    user_settings: int = 0
+    events: int = 0
+    sagas: int = 0
 
 
-class DomainUserCreate(BaseModel):
+@dataclass
+class DomainUserCreate:
     """User creation data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -132,27 +103,12 @@ class DomainUserCreate(BaseModel):
     is_superuser: bool = False
 
 
-class DomainUserUpdate(BaseModel):
+@dataclass
+class DomainUserUpdate:
     """User update data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
     hashed_password: str | None = None
-
-
-class UserDeleteResult(BaseModel):
-    """Result of deleting a user and optionally cascading to related data."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    user_deleted: bool
-    executions: int = 0
-    saved_scripts: int = 0
-    notifications: int = 0
-    user_settings: int = 0
-    events: int = 0
-    sagas: int = 0

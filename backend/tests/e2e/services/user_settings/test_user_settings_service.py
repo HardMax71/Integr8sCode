@@ -6,10 +6,10 @@ from app.domain.enums import Theme
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
-    DomainSettingsHistoryEntry,
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
+from app.domain.user import DomainSettingsHistoryEntry
 from app.services.user_settings_service import UserSettingsService
 from dishka import AsyncContainer
 

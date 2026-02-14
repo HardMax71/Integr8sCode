@@ -4,12 +4,10 @@ from app.domain.events.event_models import (
     EventExportRow,
     EventFilter,
     EventListResult,
-    EventProjection,
     EventReplayInfo,
     EventStatistics,
     EventSummary,
     EventTypeCount,
-    ExecutionEventsResult,
     HourlyEventCount,
     ServiceEventCount,
     UserEventCount,
@@ -97,21 +95,19 @@ from app.domain.events.typed import (
 )
 
 __all__ = [
-    # Query/filter/result types
-    "EventBrowseResult",
-    "EventDetail",
-    "EventExportRow",
+    # Event query/aggregation types
+    "EventSummary",
     "EventFilter",
     "EventListResult",
-    "EventProjection",
-    "EventReplayInfo",
-    "EventStatistics",
-    "EventSummary",
+    "EventBrowseResult",
+    "EventDetail",
     "EventTypeCount",
-    "ExecutionEventsResult",
     "HourlyEventCount",
     "ServiceEventCount",
     "UserEventCount",
+    "EventStatistics",
+    "EventReplayInfo",
+    "EventExportRow",
     # Base types
     "ArchivedEvent",
     "BaseEvent",

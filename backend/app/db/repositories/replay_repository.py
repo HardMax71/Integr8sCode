@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime
 from typing import Any, AsyncIterator
 
@@ -8,16 +9,27 @@ from beanie.operators import LT, In
 from app.db.docs import EventDocument, ReplaySessionDocument
 from app.domain.admin import ReplaySessionUpdate
 from app.domain.enums import ReplayStatus
-from app.domain.replay import ReplayFilter, ReplaySessionState
+from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter, ReplaySessionState
+
+_replay_fields = set(ReplaySessionState.__dataclass_fields__)
 
 
 class ReplayRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
         self.logger = logger
 
+    @staticmethod
+    def _to_domain(doc: ReplaySessionDocument) -> ReplaySessionState:
+        data = doc.model_dump(include=_replay_fields)
+        config = data.get("config", {})
+        config["filter"] = ReplayFilter(**config.get("filter", {}))
+        data["config"] = ReplayConfig(**config)
+        data["errors"] = [ReplayError(**e) for e in data.get("errors", [])]
+        return ReplaySessionState(**data)
+
     async def save_session(self, session: ReplaySessionState) -> None:
         existing = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session.session_id)
-        doc = ReplaySessionDocument(**session.model_dump())
+        doc = ReplaySessionDocument(**dataclasses.asdict(session))
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -26,7 +38,7 @@ class ReplayRepository:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
         if not doc:
             return None
-        return ReplaySessionState.model_validate(doc)
+        return self._to_domain(doc)
 
     async def list_sessions(
         self, status: ReplayStatus | None = None, user_id: str | None = None, limit: int = 100, skip: int = 0
@@ -43,7 +55,7 @@ class ReplayRepository:
             .limit(limit)
             .to_list()
         )
-        return [ReplaySessionState.model_validate(doc) for doc in docs]
+        return [self._to_domain(doc) for doc in docs]
 
     async def update_session_status(self, session_id: str, status: ReplayStatus) -> bool:
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
@@ -66,7 +78,7 @@ class ReplayRepository:
         return result.deleted_count if result else 0
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = updates.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
         if not update_dict:
             return False
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)

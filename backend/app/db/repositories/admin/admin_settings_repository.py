@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 
 import structlog
@@ -33,7 +34,7 @@ class AdminSettingsRepository:
         audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_UPDATED,
             user_id=user_id,
-            changes=settings.model_dump(),
+            changes=dataclasses.asdict(settings),
         )
         await audit_entry.insert()
 

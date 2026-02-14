@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -34,6 +35,7 @@ class EventDocument(Document):
     class Settings:
         name = "events"
         use_state_management = True
+        bson_encoders = {EventMetadata: dataclasses.asdict}
         indexes = [
             # Compound indexes for common query patterns
             IndexModel([("event_type", ASCENDING), ("timestamp", DESCENDING)], name="idx_event_type_ts"),
@@ -96,6 +98,7 @@ class EventArchiveDocument(Document):
     class Settings:
         name = "events_archive"
         use_state_management = True
+        bson_encoders = {EventMetadata: dataclasses.asdict}
         indexes = [
             IndexModel([("event_type", 1)]),
         ]

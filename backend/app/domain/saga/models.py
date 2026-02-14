@@ -1,15 +1,13 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import SagaState
 
 
-class SagaContextData(BaseModel):
+@dataclass
+class SagaContextData:
     """Typed saga execution context. Populated incrementally by saga steps."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     execution_id: str = ""
     language: str = ""
@@ -19,33 +17,31 @@ class SagaContextData(BaseModel):
     allocation_id: str | None = None
     resources_allocated: bool = False
     pod_creation_triggered: bool = False
-    user_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = field(default_factory=lambda: str(uuid4()))
 
 
-class Saga(BaseModel):
+@dataclass
+class Saga:
     """Domain model for saga."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     saga_id: str
     saga_name: str
     execution_id: str
     state: SagaState
     current_step: str | None = None
-    completed_steps: list[str] = Field(default_factory=list)
-    compensated_steps: list[str] = Field(default_factory=list)
-    context_data: SagaContextData = Field(default_factory=SagaContextData)
+    completed_steps: list[str] = field(default_factory=list)
+    compensated_steps: list[str] = field(default_factory=list)
+    context_data: SagaContextData = field(default_factory=SagaContextData)
     error_message: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     retry_count: int = 0
 
 
-class SagaFilter(BaseModel):
+@dataclass
+class SagaFilter:
     """Filter criteria for saga queries."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     state: SagaState | None = None
     execution_ids: list[str] | None = None
@@ -56,10 +52,9 @@ class SagaFilter(BaseModel):
     error_status: bool | None = None
 
 
-class SagaQuery(BaseModel):
+@dataclass
+class SagaQuery:
     """Query parameters for saga search."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     filter: SagaFilter
     sort_by: str = "created_at"
@@ -68,10 +63,9 @@ class SagaQuery(BaseModel):
     skip: int = 0
 
 
-class SagaListResult(BaseModel):
+@dataclass
+class SagaListResult:
     """Result of saga list query."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     sagas: list[Saga]
     total: int
@@ -84,20 +78,9 @@ class SagaListResult(BaseModel):
         return (self.skip + len(self.sagas)) < self.total
 
 
-class SagaCancellationResult(BaseModel):
-    """Result of saga cancellation."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    success: bool
-    message: str
-    saga_id: str
-
-
-class SagaConfig(BaseModel):
+@dataclass
+class SagaConfig:
     """Configuration for saga orchestration (domain)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     name: str
     timeout_seconds: int = 300
@@ -111,30 +94,37 @@ class SagaConfig(BaseModel):
     publish_commands: bool = False
 
 
-class SagaInstance(BaseModel):
+@dataclass
+class SagaInstance:
     """Runtime instance of a saga execution (domain)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     saga_name: str
     execution_id: str
     state: SagaState = SagaState.CREATED
-    saga_id: str = Field(default_factory=lambda: str(uuid4()))
+    saga_id: str = field(default_factory=lambda: str(uuid4()))
     current_step: str | None = None
-    completed_steps: list[str] = Field(default_factory=list)
-    compensated_steps: list[str] = Field(default_factory=list)
-    context_data: SagaContextData = Field(default_factory=SagaContextData)
+    completed_steps: list[str] = field(default_factory=list)
+    compensated_steps: list[str] = field(default_factory=list)
+    context_data: SagaContextData = field(default_factory=SagaContextData)
     error_message: str | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     retry_count: int = 0
 
 
-class DomainResourceAllocation(BaseModel):
-    """Domain model for resource allocation."""
+@dataclass
+class SagaCancellationResult:
+    """Domain result for saga cancellation operations."""
 
-    model_config = ConfigDict(from_attributes=True)
+    success: bool
+    message: str
+    saga_id: str
+
+
+@dataclass
+class DomainResourceAllocation:
+    """Domain model for resource allocation."""
 
     allocation_id: str
     execution_id: str
@@ -144,14 +134,13 @@ class DomainResourceAllocation(BaseModel):
     cpu_limit: str
     memory_limit: str
     status: str = "active"
-    allocated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    allocated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     released_at: datetime | None = None
 
 
-class DomainResourceAllocationCreate(BaseModel):
+@dataclass
+class DomainResourceAllocationCreate:
     """Data for creating a resource allocation."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     execution_id: str
     language: str

@@ -2,10 +2,12 @@ import asyncio
 import json
 import structlog
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypeVar
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import TypeAdapter
+
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, ExecutionStatus
@@ -14,11 +16,12 @@ from app.domain.execution import DomainExecution
 from app.domain.sse import SSEExecutionStatusDomain
 from app.services.sse import SSERedisBus, SSERedisSubscription, SSEService
 from app.settings import Settings
-from pydantic import BaseModel
 
 pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.sse.sse_service")
+
+T = TypeVar("T")
 
 
 class _FakeSubscription(SSERedisSubscription):
@@ -27,12 +30,12 @@ class _FakeSubscription(SSERedisSubscription):
         self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self.closed = False
 
-    async def get[T: BaseModel](self, model: type[T]) -> T | None:
+    async def get(self, model: type[T], adapter: TypeAdapter[Any] | None = None) -> T | None:
         try:
             raw = await asyncio.wait_for(self._q.get(), timeout=0.5)
             if raw is None:
                 return None
-            return model.model_validate(raw)
+            return TypeAdapter(model).validate_python(raw)
         except asyncio.TimeoutError:
             return None
         except Exception:

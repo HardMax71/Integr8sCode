@@ -1,15 +1,23 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 
 import structlog
 
 from app.core.security import SecurityService
-from app.db.repositories import AdminUserRepository
+from app.db.repositories import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
-from app.schemas_pydantic.user import UserCreate
+from app.domain.user import (
+    DomainUserCreate,
+    DomainUserUpdate,
+    PasswordReset,
+    User,
+    UserDeleteResult,
+    UserListResult,
+    UserUpdate,
+)
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.rate_limit_service import RateLimitService
@@ -18,7 +26,7 @@ from app.services.rate_limit_service import RateLimitService
 class AdminUserService:
     def __init__(
         self,
-        user_repository: AdminUserRepository,
+        user_repository: UserRepository,
         event_service: EventService,
         execution_service: ExecutionService,
         rate_limit_service: RateLimitService,
@@ -117,41 +125,41 @@ class AdminUserService:
         # Enrich users with rate limit summaries
         summaries = await self._rate_limits.get_user_rate_limit_summaries([u.user_id for u in result.users])
         enriched_users = [
-            user.model_copy(update={
-                "bypass_rate_limit": s.bypass_rate_limit,
-                "global_multiplier": s.global_multiplier,
-                "has_custom_limits": s.has_custom_limits,
-            }) if (s := summaries.get(user.user_id)) else user
+            dataclasses.replace(
+                user,
+                bypass_rate_limit=s.bypass_rate_limit,
+                global_multiplier=s.global_multiplier,
+                has_custom_limits=s.has_custom_limits,
+            ) if (s := summaries.get(user.user_id)) else user
             for user in result.users
         ]
 
         return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
 
-    async def create_user(self, *, admin_user_id: str, user_data: UserCreate) -> User:
-        """Create a new user and return domain user."""
-        self.logger.info(
-            "Admin creating new user", admin_user_id=admin_user_id, new_username=user_data.username
-        )
-        # Ensure not exists
-        search_result = await self._users.list_users(limit=1, offset=0, search=user_data.username)
-        for user in search_result.users:
-            if user.username == user_data.username:
-                raise ConflictError("Username already exists")
-
-        hashed_password = self._security.get_password_hash(user_data.password)
+    async def create_user(
+        self,
+        *,
+        admin_user_id: str,
+        username: str,
+        email: str,
+        password: str,
+        role: UserRole = UserRole.USER,
+        is_active: bool = True,
+    ) -> User:
+        self.logger.info("Admin creating new user", admin_user_id=admin_user_id, new_username=username)
+        existing = await self._users.get_user(username)
+        if existing:
+            raise ConflictError("Username already exists")
 
         create_data = DomainUserCreate(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password=hashed_password,
-            role=getattr(user_data, "role", UserRole.USER),
-            is_active=getattr(user_data, "is_active", True),
-            is_superuser=False,
+            username=username,
+            email=email,
+            hashed_password=self._security.get_password_hash(password),
+            role=role,
+            is_active=is_active,
         )
         created = await self._users.create_user(create_data)
-        self.logger.info(
-            "User created successfully", new_username=user_data.username, admin_user_id=admin_user_id
-        )
+        self.logger.info("User created successfully", new_username=username, admin_user_id=admin_user_id)
         return created
 
     async def get_user(self, *, admin_user_id: str, user_id: str) -> User | None:
@@ -166,9 +174,15 @@ class AdminUserService:
             admin_user_id=admin_user_id,
             target_user_id=user_id,
         )
-        if update.password is not None:
-            update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
-        return await self._users.update_user(user_id, update)
+        hashed_password = self._security.get_password_hash(update.password) if update.password else None
+        domain_update = DomainUserUpdate(
+            username=update.username,
+            email=update.email,
+            role=update.role,
+            is_active=update.is_active,
+            hashed_password=hashed_password,
+        )
+        return await self._users.update_user(user_id, domain_update)
 
     async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(

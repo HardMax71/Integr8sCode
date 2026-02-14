@@ -20,24 +20,47 @@ from app.domain.events import (
     EventSummary,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter
+from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
 from app.services.event_replay import EventReplayService
+
+_status_detail_fields = set(ReplaySessionStatusDetail.__dataclass_fields__)
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
     """Convert EventExportRow to dict with CSV column names."""
-    data = row.model_dump(mode="json")
-    meta = data.get("metadata", {})
+    meta = row.metadata
     return {
-        "Event ID": data["event_id"],
-        "Event Type": data["event_type"],
-        "Timestamp": data["timestamp"],
-        "Aggregate ID": data.get("aggregate_id") or "",
-        "User ID": meta.get("user_id") or "",
-        "Service": meta.get("service_name", ""),
+        "Event ID": row.event_id,
+        "Event Type": row.event_type.value,
+        "Timestamp": row.timestamp.isoformat(),
+        "Aggregate ID": row.aggregate_id or "",
+        "User ID": meta.user_id if meta and meta.user_id else "",
+        "Service": meta.service_name if meta else "",
         "Status": "",
         "Error": "",
     }
+
+
+def _filter_to_json_dict(f: EventFilter) -> dict[str, Any]:
+    """Convert EventFilter to a JSON-safe dict (non-None fields only)."""
+    d: dict[str, Any] = {}
+    if f.event_types:
+        d["event_types"] = [et.value for et in f.event_types]
+    if f.aggregate_id:
+        d["aggregate_id"] = f.aggregate_id
+    if f.user_id:
+        d["user_id"] = f.user_id
+    if f.service_name:
+        d["service_name"] = f.service_name
+    if f.start_time:
+        d["start_time"] = f.start_time.isoformat()
+    if f.end_time:
+        d["end_time"] = f.end_time.isoformat()
+    if f.search_text:
+        d["search_text"] = f.search_text
+    if f.status:
+        d["status"] = f.status
+    return d
 
 
 class AdminReplayResult:
@@ -193,7 +216,12 @@ class AdminEventsService:
         if not doc:
             return None
 
-        result = ReplaySessionStatusDetail.model_validate(doc)
+        data = doc.model_dump(include=_status_detail_fields)
+        config = data.get("config", {})
+        config["filter"] = ReplayFilter(**config.get("filter", {}))
+        data["config"] = ReplayConfig(**config)
+        data["errors"] = [ReplayError(**e) for e in data.get("errors", [])]
+        result = ReplaySessionStatusDetail(**data)
         result.estimated_completion = self._estimate_completion(doc, datetime.now(timezone.utc))
         result.execution_results = await self._repo.get_execution_results_for_filter(doc.config.filter)
         return result
@@ -217,7 +245,16 @@ class AdminEventsService:
 
     async def _export_csv(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         events = await self._repo.get_events(event_filter, skip=0, limit=limit)
-        rows = [EventExportRow.model_validate(e, from_attributes=True) for e in events]
+        rows = [
+            EventExportRow(
+                event_id=e.event_id,
+                event_type=e.event_type,
+                timestamp=e.timestamp,
+                aggregate_id=e.aggregate_id,
+                metadata=e.metadata,
+            )
+            for e in events
+        ]
         output = StringIO()
         writer = csv.DictWriter(
             output,
@@ -253,7 +290,7 @@ class AdminEventsService:
             "export_metadata": {
                 "exported_at": datetime.now(timezone.utc).isoformat(),
                 "total_events": len(events_data),
-                "filters_applied": event_filter.model_dump(mode="json"),
+                "filters_applied": _filter_to_json_dict(event_filter),
                 "export_limit": limit,
             },
             "events": events_data,

@@ -3,19 +3,12 @@ from datetime import datetime, timezone
 
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+
+from app.schemas_pydantic.health import LivenessResponse
 
 router = APIRouter(prefix="/health", tags=["Health"], route_class=DishkaRoute)
 
 _START_TIME = time.time()
-
-
-class LivenessResponse(BaseModel):
-    """Response model for liveness probe."""
-
-    status: str = Field(description="Health status")
-    uptime_seconds: int = Field(description="Server uptime in seconds")
-    timestamp: datetime = Field(description="Timestamp of health check")
 
 
 @router.get("/live", response_model=LivenessResponse)

@@ -30,7 +30,6 @@ from app.core.tracing import Tracer
 from app.db.repositories import (
     AdminEventsRepository,
     AdminSettingsRepository,
-    AdminUserRepository,
     DLQRepository,
     EventRepository,
     ExecutionRepository,
@@ -395,10 +394,6 @@ class RepositoryProvider(Provider):
         return AdminSettingsRepository(logger)
 
     @provide
-    def get_admin_user_repository(self) -> AdminUserRepository:
-        return AdminUserRepository()
-
-    @provide
     def get_notification_repository(self, logger: structlog.stdlib.BoundLogger) -> NotificationRepository:
         return NotificationRepository(logger)
 
@@ -628,7 +623,7 @@ class BusinessServicesProvider(Provider):
     @provide
     def get_admin_user_service(
             self,
-            admin_user_repository: AdminUserRepository,
+            user_repository: UserRepository,
             event_service: EventService,
             execution_service: ExecutionService,
             rate_limit_service: RateLimitService,
@@ -636,7 +631,7 @@ class BusinessServicesProvider(Provider):
             logger: structlog.stdlib.BoundLogger,
     ) -> AdminUserService:
         return AdminUserService(
-            user_repository=admin_user_repository,
+            user_repository=user_repository,
             event_service=event_service,
             execution_service=execution_service,
             rate_limit_service=rate_limit_service,

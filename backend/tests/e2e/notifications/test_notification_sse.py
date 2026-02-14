@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from app.domain.enums import NotificationChannel, NotificationSeverity
 from app.domain.notification import DomainSubscriptionUpdate
-from app.schemas_pydantic.sse import RedisNotificationMessage
+from app.domain.sse import RedisNotificationMessage
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
 from dishka import AsyncContainer

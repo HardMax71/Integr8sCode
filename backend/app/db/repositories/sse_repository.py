@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
 from app.db.docs import ExecutionDocument
+from app.domain.events import ResourceUsageDomain
 from app.domain.execution import DomainExecution
 from app.domain.sse import SSEExecutionStatusDomain
+
+_exec_fields = set(DomainExecution.__dataclass_fields__)
 
 
 class SSERepository:
@@ -20,4 +23,7 @@ class SSERepository:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
-        return DomainExecution.model_validate(doc)
+        data = doc.model_dump(include=_exec_fields)
+        if data.get("resource_usage"):
+            data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
+        return DomainExecution(**data)

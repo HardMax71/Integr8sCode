@@ -2,8 +2,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
 from app.domain.events import DomainEvent
@@ -28,19 +26,18 @@ class RetryStrategy(StringEnum):
     MANUAL = "manual"
 
 
-class DLQMessage(BaseModel):
+@dataclass
+class DLQMessage:
     """Unified DLQ message model. Access event_id/event_type via event.event_id, event.event_type."""
 
-    model_config = ConfigDict(from_attributes=True)
-
-    event: DomainEvent  # Discriminated union - auto-validates from dict
+    event: DomainEvent
     original_topic: str = ""
     error: str = "Unknown error"
     retry_count: int = 0
-    failed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    failed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     status: DLQMessageStatus = DLQMessageStatus.PENDING
     producer_id: str = "unknown"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_updated: datetime | None = None
     next_retry_at: datetime | None = None
     retried_at: datetime | None = None
@@ -143,11 +140,8 @@ class DLQMessageListResult:
     limit: int
 
 
-class DLQTopicSummary(BaseModel):
-    """Summary of a topic in DLQ."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class DLQTopicSummary:
     topic: str
     total_messages: int
     status_breakdown: dict[DLQMessageStatus, int]

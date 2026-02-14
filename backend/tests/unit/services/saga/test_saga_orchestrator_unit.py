@@ -1,3 +1,5 @@
+import dataclasses
+
 import structlog
 
 import pytest
@@ -62,7 +64,7 @@ class _FakeAlloc(ResourceAllocationRepository):
     async def create_allocation(self, create_data: DomainResourceAllocationCreate) -> DomainResourceAllocation:
         alloc = DomainResourceAllocation(
             allocation_id="alloc-1",
-            **create_data.model_dump(),
+            **dataclasses.asdict(create_data),
         )
         self.allocations.append(alloc)
         return alloc

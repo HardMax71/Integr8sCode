@@ -1,6 +1,5 @@
 from app.db.repositories import (
     AdminSettingsRepository,
-    AdminUserRepository,
     EventRepository,
     ExecutionRepository,
     NotificationRepository,
@@ -14,7 +13,6 @@ from app.db.repositories import (
 
 __all__ = [
     "AdminSettingsRepository",
-    "AdminUserRepository",
     "EventRepository",
     "ExecutionRepository",
     "NotificationRepository",

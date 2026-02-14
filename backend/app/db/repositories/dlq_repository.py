@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 
@@ -15,11 +16,20 @@ from app.dlq import (
     DLQTopicSummary,
 )
 from app.domain.enums import EventType
+from app.domain.events import DomainEventAdapter
+
+_dlq_fields = set(DLQMessage.__dataclass_fields__)
 
 
 class DLQRepository:
     def __init__(self, logger: structlog.stdlib.BoundLogger):
         self.logger = logger
+
+    @staticmethod
+    def _to_domain(doc: DLQMessageDocument) -> DLQMessage:
+        data = doc.model_dump(include=_dlq_fields)
+        data["event"] = DomainEventAdapter.validate_python(data["event"])
+        return DLQMessage(**data)
 
     async def get_messages(
             self,
@@ -41,7 +51,7 @@ class DLQRepository:
         docs = await query.sort([("failed_at", SortDirection.DESCENDING)]).skip(offset).limit(limit).to_list()
 
         return DLQMessageListResult(
-            messages=[DLQMessage.model_validate(d) for d in docs],
+            messages=[self._to_domain(d) for d in docs],
             total=total_count,
             offset=offset,
             limit=limit,
@@ -49,7 +59,7 @@ class DLQRepository:
 
     async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        return DLQMessage.model_validate(doc) if doc else None
+        return self._to_domain(doc) if doc else None
 
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
@@ -91,11 +101,23 @@ class DLQRepository:
             )
         )
         results = await DLQMessageDocument.aggregate(pipeline.export()).to_list()
-        return [DLQTopicSummary.model_validate(r) for r in results]
+        return [
+            DLQTopicSummary(
+                topic=r["topic"],
+                total_messages=r["total_messages"],
+                status_breakdown={DLQMessageStatus(k): v for k, v in r["status_breakdown"].items()},
+                oldest_message=r["oldest_message"],
+                newest_message=r["newest_message"],
+                avg_retry_count=r["avg_retry_count"],
+                max_retry_count=r["max_retry_count"],
+            )
+            for r in results
+        ]
 
     async def save_message(self, message: DLQMessage) -> None:
         """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""
-        payload = message.model_dump()
+        payload = dataclasses.asdict(message)
+        payload["event"] = message.event.model_dump()
         await DLQMessageDocument.find_one({"event.event_id": message.event.event_id}).upsert(
             Set(payload),  # type: ignore[no-untyped-call]
             on_insert=DLQMessageDocument(**payload),
@@ -136,7 +158,7 @@ class DLQRepository:
             .limit(limit)
             .to_list()
         )
-        return [DLQMessage.model_validate(doc) for doc in docs]
+        return [self._to_domain(doc) for doc in docs]
 
     async def get_queue_sizes_by_topic(self) -> dict[str, int]:
         """Get message counts per topic for active (pending/scheduled) messages."""
@@ -148,4 +170,3 @@ class DLQRepository:
         async for row in DLQMessageDocument.aggregate(pipeline):
             result[row["_id"]] = row["count"]
         return result
-

@@ -8,7 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.api.dependencies import current_user
 from app.domain.user import User
 from app.schemas_pydantic.notification import NotificationResponse
-from app.schemas_pydantic.sse import SSEExecutionEventData
+from app.schemas_pydantic.sse import SSEExecutionEventSchema
 from app.services.sse import SSEService
 
 router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
@@ -33,7 +33,7 @@ async def notification_stream(
 @router.get(
     "/executions/{execution_id}",
     response_class=EventSourceResponse,
-    responses={200: {"model": SSEExecutionEventData}},
+    responses={200: {"model": SSEExecutionEventSchema}},
 )
 async def execution_events(
     execution_id: str,

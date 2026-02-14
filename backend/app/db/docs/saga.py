@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -34,6 +35,7 @@ class SagaDocument(Document):
     class Settings:
         name = "sagas"
         use_state_management = True
+        bson_encoders = {SagaContextData: dataclasses.asdict}
         indexes = [
             IndexModel([("state", ASCENDING)], name="idx_saga_state"),
             IndexModel([("state", ASCENDING), ("created_at", ASCENDING)], name="idx_saga_state_created"),

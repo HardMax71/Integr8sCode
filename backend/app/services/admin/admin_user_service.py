@@ -8,8 +8,8 @@ from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateL
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
-from app.schemas_pydantic.user import UserCreate
+from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
+from app.schemas_pydantic.user import DeleteUserResponse, UserCreate
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.rate_limit_service import RateLimitService
@@ -170,7 +170,7 @@ class AdminUserService:
             update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
         return await self._users.update_user(user_id, update)
 
-    async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
+    async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> DeleteUserResponse:
         self.logger.info(
             "Admin deleting user",
             admin_user_id=admin_user_id,

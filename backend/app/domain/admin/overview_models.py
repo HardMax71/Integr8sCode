@@ -4,8 +4,9 @@ from dataclasses import field
 
 from pydantic.dataclasses import dataclass
 
-from app.domain.events import DomainEvent, EventStatistics
+from app.domain.events import DomainEvent
 from app.domain.user import User as DomainAdminUser
+from app.schemas_pydantic.events import EventStatistics
 
 
 @dataclass

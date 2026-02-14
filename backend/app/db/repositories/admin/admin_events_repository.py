@@ -11,11 +11,12 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ExecutionResultSummary, ReplaySessionUpdate
+from app.domain.admin import ReplaySessionUpdate
 from app.domain.enums import EventType, ExecutionStatus
-from app.domain.events import (
-    DomainEvent,
-    DomainEventAdapter,
+from app.domain.events import DomainEvent, DomainEventAdapter
+from app.domain.replay import ReplayFilter
+from app.schemas_pydantic.admin_events import ExecutionResultSummary
+from app.schemas_pydantic.events import (
     EventBrowseResult,
     EventDetail,
     EventFilter,
@@ -25,7 +26,6 @@ from app.domain.events import (
     HourlyEventCount,
     UserEventCount,
 )
-from app.domain.replay import ReplayFilter
 
 
 class AdminEventsRepository:

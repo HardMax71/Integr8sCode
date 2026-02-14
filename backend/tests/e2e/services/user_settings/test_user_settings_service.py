@@ -6,10 +6,10 @@ from app.domain.enums import Theme
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
-    DomainSettingsHistoryEntry,
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
+from app.schemas_pydantic.user_settings import SettingsHistoryEntry
 from app.services.user_settings_service import UserSettingsService
 from dishka import AsyncContainer
 
@@ -356,7 +356,7 @@ class TestGetSettingsHistory:
         assert isinstance(history, list)
         # Should have at least some history entries
         for entry in history:
-            assert isinstance(entry, DomainSettingsHistoryEntry)
+            assert isinstance(entry, SettingsHistoryEntry)
             assert entry.timestamp is not None
 
     @pytest.mark.asyncio
@@ -381,7 +381,7 @@ class TestGetSettingsHistory:
         # The reason field contains the key info (e.g., "Custom setting 'key_0' updated")
         expected_keys = ["key_0", "key_1", "key_2"]
         for i, entry in enumerate(history):
-            assert isinstance(entry, DomainSettingsHistoryEntry)
+            assert isinstance(entry, SettingsHistoryEntry)
             assert entry.reason is not None, f"Entry {i} should have a reason"
             assert expected_keys[i] in entry.reason, (
                 f"Entry {i} reason '{entry.reason}' should contain '{expected_keys[i]}'"

@@ -1,12 +1,9 @@
-import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
-
-EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 
 
 class UserFields(StringEnum):
@@ -29,15 +26,6 @@ class UserFilterType(StringEnum):
     USERNAME = "username"
     EMAIL = "email"
     ROLE = "role"
-
-
-class UserSearchFilter(BaseModel):
-    """User search filter criteria."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    search_text: str | None = None
-    role: UserRole | None = None
 
 
 class User(BaseModel):
@@ -96,29 +84,6 @@ class PasswordReset(BaseModel):
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
-class UserCreation(BaseModel):
-    """User creation domain model (API-facing, with plain password)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    username: str
-    email: str
-    password: str
-    role: UserRole = UserRole.USER
-    is_active: bool = True
-    is_superuser: bool = False
-
-    def is_valid(self) -> bool:
-        return all(
-            [
-                self.username,
-                self.email,
-                self.password and len(self.password) >= 8,
-                EMAIL_PATTERN.match(self.email) is not None,  # Proper email validation
-            ]
-        )
-
-
 class DomainUserCreate(BaseModel):
     """User creation data for repository (with hashed password)."""
 
@@ -144,15 +109,3 @@ class DomainUserUpdate(BaseModel):
     hashed_password: str | None = None
 
 
-class UserDeleteResult(BaseModel):
-    """Result of deleting a user and optionally cascading to related data."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    user_deleted: bool
-    executions: int = 0
-    saved_scripts: int = 0
-    notifications: int = 0
-    user_settings: int = 0
-    events: int = 0
-    sagas: int = 0

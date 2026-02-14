@@ -11,10 +11,8 @@ from pymongo.errors import DuplicateKeyError
 
 from app.db.docs import EventArchiveDocument, EventDocument
 from app.domain.enums import EventType
-from app.domain.events import (
-    ArchivedEvent,
-    DomainEvent,
-    DomainEventAdapter,
+from app.domain.events import ArchivedEvent, DomainEvent, DomainEventAdapter
+from app.schemas_pydantic.events import (
     EventListResult,
     EventReplayInfo,
     EventStatistics,

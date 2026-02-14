@@ -1,30 +1,13 @@
 from dataclasses import field
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
-from app.domain.events import EventSummary, ResourceUsageDomain
+from app.domain.enums import ReplayStatus
 from app.domain.replay import ReplayFilter, ReplaySessionState
-
-
-class ExecutionResultSummary(BaseModel):
-    """Summary of an execution result for replay status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_id: str
-    status: ExecutionStatus | None
-    stdout: str | None
-    stderr: str | None
-    exit_code: int | None
-    lang: str
-    lang_version: str
-    created_at: datetime
-    updated_at: datetime
-    resource_usage: ResourceUsageDomain | None = None
-    error_type: ExecutionErrorType | None = None
+from app.schemas_pydantic.admin_events import ExecutionResultSummary
+from app.schemas_pydantic.events import EventSummary
 
 
 class ReplaySessionStatusDetail(ReplaySessionState):

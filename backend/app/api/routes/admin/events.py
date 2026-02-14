@@ -9,7 +9,6 @@ from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import admin_user
 from app.domain.enums import EventType, ExportFormat
-from app.domain.events import EventFilter
 from app.domain.replay import ReplayFilter
 from app.domain.user import User
 from app.schemas_pydantic.admin_events import (
@@ -23,6 +22,7 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.common import ErrorResponse
+from app.schemas_pydantic.events import EventFilter
 from app.services.admin import AdminEventsService
 
 router = APIRouter(

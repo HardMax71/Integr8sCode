@@ -7,13 +7,13 @@ from fastapi import APIRouter, Depends, Query
 from app.api.dependencies import admin_user
 from app.domain.enums import ReplayStatus
 from app.domain.replay import ReplayConfig
-from app.schemas_pydantic.replay import (
+from app.schemas_pydantic.replays import (
     CleanupResponse,
     ReplayRequest,
     ReplayResponse,
+    ReplaySession,
     SessionSummary,
 )
-from app.schemas_pydantic.replay_models import ReplaySession
 from app.services.event_replay import EventReplayService
 
 router = APIRouter(prefix="/replay", tags=["Event Replay"], route_class=DishkaRoute, dependencies=[Depends(admin_user)])

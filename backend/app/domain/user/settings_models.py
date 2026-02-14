@@ -77,17 +77,6 @@ class DomainUserSettingsChangedEvent(BaseModel):
     reason: str | None = None
 
 
-class DomainSettingsHistoryEntry(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    timestamp: datetime
-    event_type: EventType
-    field: str
-    old_value: Any
-    new_value: Any
-    reason: str | None = None
-
-
 class CachedSettings(BaseModel):
     """Wrapper for cached user settings with expiration time."""
 

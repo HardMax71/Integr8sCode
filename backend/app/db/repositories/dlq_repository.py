@@ -12,9 +12,9 @@ from app.dlq import (
     DLQMessageListResult,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQTopicSummary,
 )
 from app.domain.enums import EventType
+from app.schemas_pydantic.dlq import DLQTopicSummaryResponse
 
 
 class DLQRepository:
@@ -51,7 +51,7 @@ class DLQRepository:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
         return DLQMessage.model_validate(doc) if doc else None
 
-    async def get_topics_summary(self) -> list[DLQTopicSummary]:
+    async def get_topics_summary(self) -> list[DLQTopicSummaryResponse]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
         # Note: compound keys need S.field() wrapper for monggregate to add $ prefix
         pipeline = (
@@ -91,7 +91,7 @@ class DLQRepository:
             )
         )
         results = await DLQMessageDocument.aggregate(pipeline.export()).to_list()
-        return [DLQTopicSummary.model_validate(r) for r in results]
+        return [DLQTopicSummaryResponse.model_validate(r) for r in results]
 
     async def save_message(self, message: DLQMessage) -> None:
         """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""

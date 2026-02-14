@@ -149,16 +149,3 @@ class ReplaySessionState(BaseModel):
     error: str | None = None
 
 
-class ReplayOperationResult(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    session_id: str
-    status: ReplayStatus
-    message: str
-
-
-class CleanupResult(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    removed_sessions: int
-    message: str

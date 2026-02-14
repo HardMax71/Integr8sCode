@@ -11,7 +11,9 @@ from app.db.docs.replay import ReplaySessionDocument
 from app.db.repositories import AdminEventsRepository
 from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
 from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
-from app.domain.events import (
+from app.domain.exceptions import NotFoundError, ValidationError
+from app.domain.replay import ReplayConfig, ReplayFilter
+from app.schemas_pydantic.events import (
     EventBrowseResult,
     EventDetail,
     EventExportRow,
@@ -19,8 +21,6 @@ from app.domain.events import (
     EventStatistics,
     EventSummary,
 )
-from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.event_replay import EventReplayService
 
 

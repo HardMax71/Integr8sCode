@@ -18,9 +18,9 @@ _saga_fields = set(Saga.__dataclass_fields__)
 class SagaRepository:
     @staticmethod
     def _to_domain(doc: SagaDocument) -> Saga:
-        data = doc.model_dump(include=_saga_fields)
-        data["context_data"] = SagaContextData(**data.get("context_data", {}))
-        return Saga(**data)
+        return Saga(
+            **(d := doc.model_dump(include=_saga_fields)) | {"context_data": SagaContextData(**d["context_data"])}
+        )
 
     def _filter_conditions(self, saga_filter: SagaFilter) -> list[BaseFindOperator]:
         """Build Beanie query conditions from SagaFilter."""

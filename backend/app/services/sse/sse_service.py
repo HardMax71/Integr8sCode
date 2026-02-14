@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
+from app.domain.events import ResourceUsageDomain
 from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import (
     DomainNotificationSSEPayload,
@@ -138,6 +139,7 @@ class SSEService:
                     execution_id=execution_id,
                 )
 
+        ru = msg.data.get("resource_usage")
         return SSEExecutionEventData(
             event_type=msg.data.get("event_type", msg.event_type),
             execution_id=execution_id,
@@ -149,6 +151,7 @@ class SSEService:
             exit_code=msg.data.get("exit_code"),
             timeout_seconds=msg.data.get("timeout_seconds"),
             message=msg.data.get("message"),
+            resource_usage=ResourceUsageDomain(**ru) if ru else None,
             result=result,
         )
 

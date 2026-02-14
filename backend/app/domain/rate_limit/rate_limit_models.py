@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -42,7 +41,6 @@ class RateLimitRule:
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
     priority: int = 0
     enabled: bool = True
-    compiled_pattern: re.Pattern[str] | None = field(default=None, repr=False)
 
 
 @dataclass

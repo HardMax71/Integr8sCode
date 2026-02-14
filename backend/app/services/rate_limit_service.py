@@ -30,6 +30,7 @@ class RateLimitService:
         self.settings = settings
         self.prefix = settings.RATE_LIMIT_REDIS_PREFIX
         self.metrics = metrics
+        self._pattern_cache: dict[str, re.Pattern[str]] = {}
 
         # Patterns to match IDs and replace with *
         self._uuid_pattern = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -59,16 +60,16 @@ class RateLimitService:
             algorithm=algo,
         )
 
+    def _compile_pattern(self, endpoint_pattern: str) -> re.Pattern[str]:
+        pat = self._pattern_cache.get(endpoint_pattern)
+        if pat is None:
+            pat = re.compile(endpoint_pattern)
+            self._pattern_cache[endpoint_pattern] = pat
+        return pat
+
     def _prepare_config(self, config: RateLimitConfig) -> None:
-        # Precompile and sort rules for faster matching
-        for rule in config.default_rules:
-            if rule.compiled_pattern is None:
-                rule.compiled_pattern = re.compile(rule.endpoint_pattern)
         config.default_rules.sort(key=lambda r: r.priority, reverse=True)
         for user_limit in config.user_overrides.values():
-            for rule in user_limit.rules:
-                if rule.compiled_pattern is None:
-                    rule.compiled_pattern = re.compile(rule.endpoint_pattern)
             user_limit.rules.sort(key=lambda r: r.priority, reverse=True)
 
     async def check_rate_limit(
@@ -219,13 +220,10 @@ class RateLimitService:
         # Add global default rules (already pre-sorted)
         rules.extend(global_config.default_rules)
 
-        # Find first match using precompiled patterns
         for rule in rules:
             if not rule.enabled:
                 continue
-            pat = rule.compiled_pattern or re.compile(rule.endpoint_pattern)
-            rule.compiled_pattern = pat
-            if pat.match(endpoint):
+            if self._compile_pattern(rule.endpoint_pattern).match(endpoint):
                 return rule
 
         return None

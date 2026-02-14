@@ -1,10 +1,10 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, In, Text
 from monggregate import Pipeline, S
-from pydantic import TypeAdapter
 
 from app.db.docs import (
     EventArchiveDocument,
@@ -24,14 +24,10 @@ from app.domain.events import (
     EventSummary,
     EventTypeCount,
     HourlyEventCount,
+    ResourceUsageDomain,
     UserEventCount,
 )
 from app.domain.replay import ReplayFilter
-
-_event_summary_ta = TypeAdapter(EventSummary)
-_hourly_count_ta = TypeAdapter(HourlyEventCount)
-_user_count_ta = TypeAdapter(UserEventCount)
-_exec_result_ta = TypeAdapter(ExecutionResultSummary)
 
 
 class AdminEventsRepository:
@@ -88,7 +84,15 @@ class AdminEventsRepository:
         related_docs = await (
             EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )
-        related_events = [_event_summary_ta.validate_python(d.model_dump()) for d in related_docs]
+        related_events = [
+            EventSummary(
+                event_id=d.event_id,
+                event_type=d.event_type,
+                timestamp=d.timestamp,
+                aggregate_id=d.aggregate_id,
+            )
+            for d in related_docs
+        ]
         timeline = related_events[:5]
 
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
@@ -177,9 +181,9 @@ class AdminEventsRepository:
             EventTypeCount(event_type=EventType(t["_id"]), count=t["count"])
             for t in facet.get("by_type", [])
         ]
-        events_by_hour = [_hourly_count_ta.validate_python(doc) for doc in facet.get("by_hour", [])]
+        events_by_hour = [HourlyEventCount(**doc) for doc in facet.get("by_hour", [])]
         top_users = [
-            _user_count_ta.validate_python(doc) for doc in facet.get("by_user", []) if doc["user_id"]
+            UserEventCount(**doc) for doc in facet.get("by_user", []) if doc["user_id"]
         ]
 
         # Separate collection — must be a separate query
@@ -217,7 +221,7 @@ class AdminEventsRepository:
         return True
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:
-        update_dict = updates.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
         if not update_dict:
             return False
         doc = await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
@@ -242,13 +246,34 @@ class AdminEventsRepository:
         exec_docs = await ExecutionDocument.find(
             In(ExecutionDocument.execution_id, exec_ids)
         ).to_list()
-        return [_exec_result_ta.validate_python(d.model_dump()) for d in exec_docs]
+        return [
+            ExecutionResultSummary(
+                execution_id=d.execution_id,
+                status=d.status,
+                stdout=d.stdout,
+                stderr=d.stderr,
+                exit_code=d.exit_code,
+                lang=d.lang,
+                lang_version=d.lang_version,
+                created_at=d.created_at,
+                updated_at=d.updated_at,
+                resource_usage=ResourceUsageDomain(**d.resource_usage.model_dump()) if d.resource_usage else None,
+                error_type=d.error_type,
+            )
+            for d in exec_docs
+        ]
 
     async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
         return await EventDocument.find(replay_filter.to_mongo_query()).count()
 
     async def get_events_preview_for_replay(self, replay_filter: ReplayFilter, limit: int = 100) -> list[EventSummary]:
         docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
-        return [_event_summary_ta.validate_python(doc.model_dump()) for doc in docs]
-
-
+        return [
+            EventSummary(
+                event_id=doc.event_id,
+                event_type=doc.event_type,
+                timestamp=doc.timestamp,
+                aggregate_id=doc.aggregate_id,
+            )
+            for doc in docs
+        ]

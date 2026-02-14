@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 
@@ -27,7 +24,7 @@ class EndpointGroup(StringEnum):
     API = "api"
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class EndpointUsageStats:
     """Usage statistics for a single endpoint (IETF RateLimit-style)."""
 
@@ -35,9 +32,8 @@ class EndpointUsageStats:
     remaining: int
 
 
-class RateLimitRule(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class RateLimitRule:
     endpoint_pattern: str
     group: EndpointGroup
     requests: int
@@ -46,29 +42,27 @@ class RateLimitRule(BaseModel):
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
     priority: int = 0
     enabled: bool = True
-    compiled_pattern: re.Pattern[str] | None = Field(default=None, exclude=True, repr=False)
+    compiled_pattern: re.Pattern[str] | None = field(default=None, repr=False)
 
 
-class UserRateLimitUpdate(BaseModel):
+@dataclass
+class UserRateLimitUpdate:
     """Update payload for user rate limits (excludes user_id and timestamps)."""
 
-    model_config = ConfigDict(from_attributes=True)
-
-    rules: list[RateLimitRule] = Field(default_factory=list)
+    rules: list[RateLimitRule] = field(default_factory=list)
     bypass_rate_limit: bool = False
     global_multiplier: float = 1.0
     notes: str | None = None
 
 
-class UserRateLimit(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class UserRateLimit:
     user_id: str
-    rules: list[RateLimitRule] = Field(default_factory=list)
+    rules: list[RateLimitRule] = field(default_factory=list)
     global_multiplier: float = 1.0
     bypass_rate_limit: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = None
 
 
@@ -80,7 +74,7 @@ class RateLimitConfig:
     redis_ttl: int = 3600
 
     @classmethod
-    def get_default_config(cls) -> "RateLimitConfig":
+    def get_default_config(cls) -> RateLimitConfig:
         return cls(
             default_rules=[
                 RateLimitRule(

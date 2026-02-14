@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, Type, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 import redis.asyncio as redis
 import structlog
@@ -12,8 +12,8 @@ from app.domain.sse import RedisNotificationMessage, RedisSSEMessage
 
 T = TypeVar("T")
 
-_sse_msg_ta = TypeAdapter(RedisSSEMessage)
-_notif_msg_ta = TypeAdapter(RedisNotificationMessage)
+_sse_msg_adapter = TypeAdapter(RedisSSEMessage)
+_notif_msg_adapter = TypeAdapter(RedisNotificationMessage)
 
 
 class SSERedisSubscription:
@@ -24,13 +24,14 @@ class SSERedisSubscription:
         self._channel = channel
         self.logger = logger
 
-    async def get(self, model: Type[T]) -> T | None:
+    async def get(self, model: type[T], adapter: TypeAdapter[Any] | None = None) -> T | None:
         """Get next typed message from the subscription."""
         msg = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=0.5)
         if not msg or msg.get("type") != "message":
             return None
         try:
-            return TypeAdapter(model).validate_json(msg["data"])
+            ta = adapter or TypeAdapter(model)
+            return ta.validate_json(msg["data"])  # type: ignore[no-any-return]
         except Exception as e:
             self.logger.warning(
                 f"Failed to parse Redis message on channel {self._channel}: {e}",
@@ -92,7 +93,7 @@ class SSERedisBus:
             execution_id=execution_id,
             data=event.model_dump(mode="json"),
         )
-        await self._redis.publish(self._exec_channel(execution_id), _sse_msg_ta.dump_json(message))
+        await self._redis.publish(self._exec_channel(execution_id), _sse_msg_adapter.dump_json(message))
 
     async def route_domain_event(self, event: DomainEvent) -> None:
         """Route a domain event to its Redis execution channel by execution_id."""
@@ -120,7 +121,7 @@ class SSERedisBus:
 
     async def publish_notification(self, user_id: str, notification: RedisNotificationMessage) -> None:
         """Publish a typed notification message to Redis for SSE delivery."""
-        await self._redis.publish(self._notif_channel(user_id), _notif_msg_ta.dump_json(notification))
+        await self._redis.publish(self._notif_channel(user_id), _notif_msg_adapter.dump_json(notification))
 
     async def open_notification_subscription(self, user_id: str) -> SSERedisSubscription:
         pubsub = self._redis.pubsub()

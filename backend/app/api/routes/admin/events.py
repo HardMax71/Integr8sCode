@@ -6,7 +6,6 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
 from app.domain.enums import EventType, ExportFormat
@@ -26,8 +25,6 @@ from app.schemas_pydantic.admin_events import (
 from app.schemas_pydantic.common import ErrorResponse
 from app.services.admin import AdminEventsService
 
-_domain_filter_ta = TypeAdapter(DomainEventFilter)
-
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
 )
@@ -36,8 +33,17 @@ router = APIRouter(
 @router.post("/browse")
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     """Browse events with filtering, sorting, and pagination."""
+    filters = request.filters
     result = await service.browse_events(
-        event_filter=_domain_filter_ta.validate_python(request.filters.model_dump()),
+        event_filter=DomainEventFilter(
+            event_types=filters.event_types,
+            aggregate_id=filters.aggregate_id,
+            user_id=filters.user_id,
+            service_name=filters.service_name,
+            start_time=filters.start_time,
+            end_time=filters.end_time,
+            search_text=filters.search_text,
+        ),
         skip=request.skip,
         limit=request.limit,
     )
@@ -108,7 +114,12 @@ async def replay_events(
     """Replay events by filter criteria, with optional dry-run mode."""
     replay_id = f"replay-{uuid4().hex}"
     result = await service.prepare_or_schedule_replay(
-        replay_filter=ReplayFilter.model_validate(request),
+        replay_filter=ReplayFilter(
+            event_ids=request.event_ids,
+            aggregate_id=request.aggregate_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+        ),
         dry_run=request.dry_run,
         replay_id=replay_id,
         target_service=request.target_service,

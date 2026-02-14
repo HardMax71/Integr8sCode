@@ -30,7 +30,7 @@ class _FakeSubscription(SSERedisSubscription):
         self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self.closed = False
 
-    async def get(self, model: type[T]) -> T | None:
+    async def get(self, model: type[T], adapter: TypeAdapter[Any] | None = None) -> T | None:
         try:
             raw = await asyncio.wait_for(self._q.get(), timeout=0.5)
             if raw is None:

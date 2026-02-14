@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.admin import SystemSettings
+from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 
 pytestmark = pytest.mark.unit
 
@@ -26,23 +27,23 @@ class TestDefaults:
 class TestK8sPatternValidation:
     @pytest.mark.parametrize("value", ["512Mi", "1Gi", "256Ki", "1024Mi"])
     def test_valid_memory_limit(self, value: str) -> None:
-        s = SystemSettings(memory_limit=value)
+        s = SystemSettingsSchema(memory_limit=value)
         assert s.memory_limit == value
 
     @pytest.mark.parametrize("value", ["512mb", "1G", "abc", "512", "Mi512"])
     def test_invalid_memory_limit(self, value: str) -> None:
         with pytest.raises(ValidationError, match="memory_limit"):
-            SystemSettings(memory_limit=value)
+            SystemSettingsSchema(memory_limit=value)
 
     @pytest.mark.parametrize("value", ["1000m", "500m", "2000m"])
     def test_valid_cpu_limit(self, value: str) -> None:
-        s = SystemSettings(cpu_limit=value)
+        s = SystemSettingsSchema(cpu_limit=value)
         assert s.cpu_limit == value
 
     @pytest.mark.parametrize("value", ["1000", "2 cores", "500mc", "m500"])
     def test_invalid_cpu_limit(self, value: str) -> None:
         with pytest.raises(ValidationError, match="cpu_limit"):
-            SystemSettings(cpu_limit=value)
+            SystemSettingsSchema(cpu_limit=value)
 
 
 class TestBoundaryValidation:
@@ -60,32 +61,32 @@ class TestBoundaryValidation:
     )
     def test_rejects_out_of_range(self, field: str, too_low: int, too_high: int) -> None:
         with pytest.raises(ValidationError):
-            SystemSettings.model_validate({field: too_low})
+            SystemSettingsSchema.model_validate({field: too_low})
         with pytest.raises(ValidationError):
-            SystemSettings.model_validate({field: too_high})
+            SystemSettingsSchema.model_validate({field: too_high})
 
     def test_sampling_rate_boundaries(self) -> None:
-        assert SystemSettings(sampling_rate=0.0).sampling_rate == 0.0
-        assert SystemSettings(sampling_rate=1.0).sampling_rate == 1.0
+        assert SystemSettingsSchema(sampling_rate=0.0).sampling_rate == 0.0
+        assert SystemSettingsSchema(sampling_rate=1.0).sampling_rate == 1.0
         with pytest.raises(ValidationError):
-            SystemSettings(sampling_rate=-0.1)
+            SystemSettingsSchema(sampling_rate=-0.1)
         with pytest.raises(ValidationError):
-            SystemSettings(sampling_rate=1.1)
+            SystemSettingsSchema(sampling_rate=1.1)
 
 
 class TestLogLevel:
     @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     def test_valid_log_levels(self, level: str) -> None:
-        s = SystemSettings.model_validate({"log_level": level})
+        s = SystemSettingsSchema.model_validate({"log_level": level})
         assert s.log_level == level
 
     def test_invalid_log_level(self) -> None:
         with pytest.raises(ValidationError):
-            SystemSettings(log_level="TRACE")  # type: ignore[arg-type]
+            SystemSettingsSchema(log_level="TRACE")  # type: ignore[arg-type]
 
 
 class TestExtraFieldsIgnored:
     def test_extra_fields_ignored(self) -> None:
-        s = SystemSettings.model_validate({"max_timeout_seconds": 100, "unknown_field": "whatever"})
+        s = SystemSettingsSchema.model_validate({"max_timeout_seconds": 100, "unknown_field": "whatever"})
         assert s.max_timeout_seconds == 100
         assert not hasattr(s, "unknown_field")

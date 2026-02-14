@@ -45,7 +45,7 @@ async def update_system_settings(
     service: FromDishka[AdminSettingsService],
 ) -> SystemSettingsSchema:
     """Replace system-wide settings."""
-    domain_settings = SystemSettings.model_validate(settings)
+    domain_settings = SystemSettings(**settings.model_dump())
     result = await service.update_system_settings(domain_settings, admin.user_id)
     return SystemSettingsSchema.model_validate(result)
 

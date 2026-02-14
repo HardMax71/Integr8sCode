@@ -1,6 +1,5 @@
+from dataclasses import dataclass
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict
 
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
@@ -28,10 +27,9 @@ class UserFilterType(StringEnum):
     ROLE = "role"
 
 
-class User(BaseModel):
+@dataclass
+class User:
     """User domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     username: str
@@ -48,10 +46,9 @@ class User(BaseModel):
     has_custom_limits: bool | None = None
 
 
-class UserUpdate(BaseModel):
+@dataclass
+class UserUpdate:
     """User update domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
@@ -60,11 +57,9 @@ class UserUpdate(BaseModel):
     password: str | None = None
 
 
-
-class UserListResult(BaseModel):
+@dataclass
+class UserListResult:
     """Result of listing users."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     users: list[User]
     total: int
@@ -72,10 +67,9 @@ class UserListResult(BaseModel):
     limit: int
 
 
-class PasswordReset(BaseModel):
+@dataclass
+class PasswordReset:
     """Password reset domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     new_password: str
@@ -84,10 +78,9 @@ class PasswordReset(BaseModel):
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
-class UserDeleteResult(BaseModel):
+@dataclass
+class UserDeleteResult:
     """Domain result for user deletion."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_deleted: bool
     executions: int = 0
@@ -98,10 +91,9 @@ class UserDeleteResult(BaseModel):
     sagas: int = 0
 
 
-class DomainUserCreate(BaseModel):
+@dataclass
+class DomainUserCreate:
     """User creation data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -111,15 +103,12 @@ class DomainUserCreate(BaseModel):
     is_superuser: bool = False
 
 
-class DomainUserUpdate(BaseModel):
+@dataclass
+class DomainUserUpdate:
     """User update data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
     role: UserRole | None = None
     is_active: bool | None = None
     hashed_password: str | None = None
-
-

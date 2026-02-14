@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums import UserRole
-from app.domain.rate_limit import UserRateLimitUpdate
+from app.domain.rate_limit import RateLimitRule, UserRateLimitUpdate
 from app.domain.user import User
 from app.domain.user import UserUpdate as UserUpdateDomain
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
@@ -121,7 +121,7 @@ async def update_user(
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Update a user's profile fields."""
-    domain_update = UserUpdateDomain.model_validate(user_update)
+    domain_update = UserUpdateDomain(**user_update.model_dump())
 
     updated_user = await admin_user_service.update_user(
         admin_user_id=admin.user_id, user_id=user_id, update=domain_update
@@ -193,7 +193,9 @@ async def update_user_rate_limits(
     request: RateLimitUpdateRequest,
 ) -> RateLimitUpdateResponse:
     """Update rate limit rules for a user."""
-    update = UserRateLimitUpdate.model_validate(request)
+    data = request.model_dump(include=set(UserRateLimitUpdate.__dataclass_fields__))
+    data["rules"] = [RateLimitRule(**r) for r in data.get("rules", [])]
+    update = UserRateLimitUpdate(**data)
     result = await admin_user_service.update_user_rate_limits(
         admin_user_id=admin.user_id, user_id=user_id, update=update
     )

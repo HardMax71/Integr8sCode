@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -16,10 +17,9 @@ from app.domain.enums import (
 )
 
 
-class ResourceUsageDomain(BaseModel):
+@dataclass
+class ResourceUsageDomain:
     """Resource usage metrics from script execution."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     execution_time_wall_seconds: float = 0.0
     cpu_time_jiffies: int = 0
@@ -27,14 +27,13 @@ class ResourceUsageDomain(BaseModel):
     peak_memory_kb: int = 0
 
 
-class EventMetadata(BaseModel):
+@dataclass
+class EventMetadata:
     """Event metadata - embedded in all events."""
-
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
     service_name: str
     service_version: str
-    user_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = field(default_factory=lambda: str(uuid4()))
     environment: Environment = Environment.PRODUCTION
 
 
@@ -163,10 +162,9 @@ class PodScheduledEvent(BaseEvent):
     node_name: str = ""
 
 
-class ContainerStatusInfo(BaseModel):
+@dataclass
+class ContainerStatusInfo:
     """Container status information from Kubernetes pod."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     name: str
     ready: bool = False

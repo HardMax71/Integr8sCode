@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 import structlog
+from pydantic import TypeAdapter
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
@@ -30,6 +31,8 @@ from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
+
+_exec_adapter = TypeAdapter(DomainExecution)
 
 
 class ExecutionService:
@@ -315,7 +318,7 @@ class ExecutionService:
             )
             if not cached_json:
                 raise ConflictError(f"Cached result for '{idempotency_key}' is no longer available")
-            return DomainExecution.model_validate_json(cached_json)
+            return _exec_adapter.validate_json(cached_json)
 
         try:
             exec_result = await self.execute_script(
@@ -327,7 +330,7 @@ class ExecutionService:
 
             await self.idempotency_manager.mark_completed_with_json(
                 event=pseudo_event,
-                cached_json=exec_result.model_dump_json(),
+                cached_json=_exec_adapter.dump_json(exec_result).decode(),
                 key_strategy=KeyStrategy.CUSTOM,
                 custom_key=custom_key,
             )

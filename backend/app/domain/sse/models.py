@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-
-from pydantic import BaseModel, ConfigDict
-from pydantic.dataclasses import dataclass
 
 from app.domain.enums import (
     EventType,
@@ -19,22 +16,20 @@ from app.domain.events.typed import ResourceUsageDomain
 from app.domain.execution.models import ExecutionResultDomain
 
 
-class SSEExecutionStatusDomain(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class SSEExecutionStatusDomain:
     execution_id: str
     status: ExecutionStatus
     timestamp: datetime
 
 
-class SSEEventDomain(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+@dataclass
+class SSEEventDomain:
     aggregate_id: str
     timestamp: datetime
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class RedisSSEMessage:
     """Message structure published to Redis for execution SSE delivery."""
 
@@ -43,7 +38,7 @@ class RedisSSEMessage:
     execution_id: str | None = None
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class RedisNotificationMessage:
     """Message structure published to Redis for notification SSE delivery."""
 
@@ -57,7 +52,7 @@ class RedisNotificationMessage:
     action_url: str = ""
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 
@@ -81,7 +76,7 @@ class SSEExecutionEventData:
     result: ExecutionResultDomain | None = None
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class DomainNotificationSSEPayload:
     """Domain model for notification SSE payload."""
 

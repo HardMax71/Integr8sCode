@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime
 from typing import Any
 
@@ -9,10 +10,18 @@ from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums import SagaState
-from app.domain.saga import Saga, SagaFilter, SagaListResult
+from app.domain.saga import Saga, SagaContextData, SagaFilter, SagaListResult
+
+_saga_fields = set(Saga.__dataclass_fields__)
 
 
 class SagaRepository:
+    @staticmethod
+    def _to_domain(doc: SagaDocument) -> Saga:
+        data = doc.model_dump(include=_saga_fields)
+        data["context_data"] = SagaContextData(**data.get("context_data", {}))
+        return Saga(**data)
+
     def _filter_conditions(self, saga_filter: SagaFilter) -> list[BaseFindOperator]:
         """Build Beanie query conditions from SagaFilter."""
         conditions: list[BaseFindOperator] = []
@@ -36,7 +45,7 @@ class SagaRepository:
 
     async def upsert_saga(self, saga: Saga) -> bool:
         existing = await SagaDocument.find_one(SagaDocument.saga_id == saga.saga_id)
-        doc = SagaDocument(**saga.model_dump())
+        doc = SagaDocument(**dataclasses.asdict(saga))
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -48,7 +57,7 @@ class SagaRepository:
         Uses MongoDB findOneAndUpdate with $setOnInsert + upsert in a single
         atomic round-trip.  Returns (saga, created).
         """
-        insert_doc = SagaDocument(**saga.model_dump())
+        insert_doc = SagaDocument(**dataclasses.asdict(saga))
         insert_data = insert_doc.model_dump()
         insert_data.pop("id", None)
         insert_data.pop("revision_id", None)
@@ -64,18 +73,18 @@ class SagaRepository:
         )
         assert doc is not None
         created = doc.saga_id == saga.saga_id
-        return Saga.model_validate(doc), created
+        return self._to_domain(doc), created
 
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         doc = await SagaDocument.find_one(
             SagaDocument.execution_id == execution_id,
             SagaDocument.saga_name == saga_name,
         )
-        return Saga.model_validate(doc) if doc else None
+        return self._to_domain(doc) if doc else None
 
     async def get_saga(self, saga_id: str) -> Saga | None:
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
-        return Saga.model_validate(doc) if doc else None
+        return self._to_domain(doc) if doc else None
 
     async def get_sagas_by_execution(
             self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
@@ -88,7 +97,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga.model_validate(d) for d in docs],
+            sagas=[self._to_domain(d) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -100,7 +109,7 @@ class SagaRepository:
         total = await query.count()
         docs = await query.sort([("created_at", SortDirection.DESCENDING)]).skip(skip).limit(limit).to_list()
         return SagaListResult(
-            sagas=[Saga.model_validate(d) for d in docs],
+            sagas=[self._to_domain(d) for d in docs],
             total=total,
             skip=skip,
             limit=limit,
@@ -125,7 +134,7 @@ class SagaRepository:
             .limit(limit)
             .to_list()
         )
-        return [Saga.model_validate(d) for d in docs]
+        return [self._to_domain(d) for d in docs]
 
     async def get_saga_statistics(self, saga_filter: SagaFilter | None = None) -> dict[str, Any]:
         conditions = self._filter_conditions(saga_filter) if saga_filter else []

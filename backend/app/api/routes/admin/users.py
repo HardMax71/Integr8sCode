@@ -5,11 +5,10 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
-from app.db.repositories import UserRepository
 from app.domain.enums import UserRole
 from app.domain.rate_limit import UserRateLimitUpdate
 from app.domain.user import User
-from app.domain.user import UserUpdate as DomainUserUpdate
+from app.domain.user import UserUpdate as UserUpdateDomain
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.common import ErrorResponse
 from app.schemas_pydantic.user import (
@@ -113,29 +112,22 @@ async def get_user_overview(
     response_model=UserResponse,
     responses={
         404: {"model": ErrorResponse, "description": "User not found"},
-        500: {"model": ErrorResponse, "description": "Failed to update user"},
     },
 )
 async def update_user(
     admin: Annotated[User, Depends(admin_user)],
     user_id: str,
     user_update: UserUpdate,
-    user_repo: FromDishka[UserRepository],
     admin_user_service: FromDishka[AdminUserService],
 ) -> UserResponse:
     """Update a user's profile fields."""
-    # Get existing user (explicit 404), then update
-    existing_user = await user_repo.get_user_by_id(user_id)
-    if not existing_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    domain_update = DomainUserUpdate.model_validate(user_update)
+    domain_update = UserUpdateDomain.model_validate(user_update)
 
     updated_user = await admin_user_service.update_user(
         admin_user_id=admin.user_id, user_id=user_id, update=domain_update
     )
     if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to update user")
+        raise HTTPException(status_code=404, detail="User not found")
 
     return UserResponse.model_validate(updated_user)
 

@@ -4,14 +4,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import EventType, ExecutionStatus, SSEControlEvent
 from app.domain.events.typed import ResourceUsageDomain
-from app.domain.sse.models import (
-    RedisNotificationMessage,
-    RedisSSEMessage,
-)
 from app.schemas_pydantic.execution import ExecutionResult
 
 
-class SSEExecutionEventData(BaseModel):
+class SSEExecutionEventSchema(BaseModel):
     """API schema for SSE execution stream event payload (OpenAPI docs)."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -34,7 +30,5 @@ class SSEExecutionEventData(BaseModel):
 
 
 __all__ = [
-    "SSEExecutionEventData",
-    "RedisSSEMessage",
-    "RedisNotificationMessage",
+    "SSEExecutionEventSchema",
 ]

@@ -129,6 +129,11 @@ class SSEService:
             execution = await self.repository.get_execution(execution_id)
             if execution:
                 result = ExecutionResultDomain.model_validate(execution)
+            else:
+                self.logger.warning(
+                    "Execution not found for RESULT_STORED event",
+                    execution_id=execution_id,
+                )
 
         return _sse_event_ta.validate_python(
             {

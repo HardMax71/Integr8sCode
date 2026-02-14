@@ -7,7 +7,7 @@ import pytest
 import redis.asyncio as redis_async
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus
 from app.domain.events import EventMetadata, ExecutionCompletedEvent
-from app.schemas_pydantic.sse import RedisNotificationMessage, RedisSSEMessage
+from app.domain.sse import RedisNotificationMessage, RedisSSEMessage
 from app.services.sse import SSERedisBus
 
 pytestmark = pytest.mark.e2e

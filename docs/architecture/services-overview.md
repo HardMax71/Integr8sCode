@@ -78,7 +78,7 @@ The main execution flow goes: User → API → Coordinator → Saga Orchestrator
 
 For executing a script, a POST to `/api/v1/execute` triggers validation and enqueues EXECUTION_REQUESTED. The Saga issues CreatePodCommandEvent, the Worker creates ConfigMap and Pod, Pod Monitor emits running/progress events, and Result Processor persists the outcome and triggers cleanup on completion, failure, or timeout.
 
-For SSE streams, the client subscribes and SSE Router binds to relevant topics with buffered fan-out per execution and clean shutdown on deploys.
+For SSE streams, the client opens a connection and the SSE service subscribes to a Redis pub/sub channel keyed by execution ID, forwarding published events to the browser as SSE frames.
 
 ## Troubleshooting
 

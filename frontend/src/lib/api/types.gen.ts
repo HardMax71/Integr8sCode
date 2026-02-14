@@ -1703,7 +1703,7 @@ export type EventReplayStatusResponse = {
 /**
  * EventStatistics
  *
- * Event statistics response.
+ * Event statistics with API schema extras.
  */
 export type EventStatistics = {
     /**
@@ -1713,15 +1713,27 @@ export type EventStatistics = {
     /**
      * Events By Type
      */
-    events_by_type: Array<EventTypeCountSchema>;
+    events_by_type?: Array<EventTypeCount>;
     /**
      * Events By Service
      */
-    events_by_service: Array<ServiceEventCountSchema>;
+    events_by_service?: Array<ServiceEventCount>;
     /**
      * Events By Hour
      */
-    events_by_hour: Array<HourlyEventCountSchema>;
+    events_by_hour?: Array<HourlyEventCount>;
+    /**
+     * Top Users
+     */
+    top_users?: Array<UserEventCount>;
+    /**
+     * Error Rate
+     */
+    error_rate?: number;
+    /**
+     * Avg Processing Time
+     */
+    avg_processing_time?: number;
     /**
      * Start Time
      */
@@ -1745,15 +1757,15 @@ export type EventStatsResponse = {
     /**
      * Events By Type
      */
-    events_by_type: Array<EventTypeCountSchema>;
+    events_by_type: Array<EventTypeCount>;
     /**
      * Events By Hour
      */
-    events_by_hour: Array<HourlyEventCountSchema>;
+    events_by_hour: Array<HourlyEventCount>;
     /**
      * Top Users
      */
-    top_users: Array<UserEventCountSchema>;
+    top_users: Array<UserEventCount>;
     /**
      * Error Rate
      */
@@ -1793,11 +1805,9 @@ export type EventSummary = {
 export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_all_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded';
 
 /**
- * EventTypeCountSchema
- *
- * Event count by type.
+ * EventTypeCount
  */
-export type EventTypeCountSchema = {
+export type EventTypeCount = {
     event_type: EventType;
     /**
      * Count
@@ -2370,11 +2380,9 @@ export type HttpValidationError = {
 };
 
 /**
- * HourlyEventCountSchema
- *
- * Hourly event count for statistics.
+ * HourlyEventCount
  */
-export type HourlyEventCountSchema = {
+export type HourlyEventCount = {
     /**
      * Hour
      */
@@ -3711,13 +3719,25 @@ export type ReplayFilter = {
  */
 export type ReplayFilterSchema = {
     /**
+     * Event Ids
+     */
+    event_ids?: Array<string> | null;
+    /**
      * Execution Id
      */
     execution_id?: string | null;
     /**
+     * Aggregate Id
+     */
+    aggregate_id?: string | null;
+    /**
      * Event Types
      */
     event_types?: Array<EventType> | null;
+    /**
+     * Exclude Event Types
+     */
+    exclude_event_types?: Array<EventType> | null;
     /**
      * Start Time
      */
@@ -3734,10 +3754,6 @@ export type ReplayFilterSchema = {
      * Service Name
      */
     service_name?: string | null;
-    /**
-     * Exclude Event Types
-     */
-    exclude_event_types?: Array<EventType> | null;
 };
 
 /**
@@ -4136,11 +4152,7 @@ export type SseControlEvent = 'connected' | 'subscribed' | 'status';
 /**
  * SSEExecutionEventData
  *
- * Typed model for SSE execution stream event payload.
- *
- * This represents the JSON data sent inside each SSE message for execution streams.
- * All fields except event_type and execution_id are optional since different
- * event types carry different data.
+ * API schema for SSE execution stream event payload (OpenAPI docs).
  */
 export type SseExecutionEventData = {
     /**
@@ -4210,9 +4222,9 @@ export type SseExecutionEventData = {
     /**
      * CPU/memory usage metrics
      */
-    resource_usage?: ResourceUsage | null;
+    resource_usage?: ResourceUsageDomain | null;
     /**
-     * Complete execution result
+     * Execution result
      */
     result?: ExecutionResult | null;
 };
@@ -4876,11 +4888,9 @@ export type SecurityViolationEvent = {
 };
 
 /**
- * ServiceEventCountSchema
- *
- * Event count by service.
+ * ServiceEventCount
  */
-export type ServiceEventCountSchema = {
+export type ServiceEventCount = {
     /**
      * Service Name
      */
@@ -5023,10 +5033,6 @@ export type SessionSummary = {
      * Duration Seconds
      */
     readonly duration_seconds: number | null;
-    /**
-     * Throughput Events Per Second
-     */
-    readonly throughput_events_per_second: number | null;
 };
 
 /**
@@ -5350,11 +5356,9 @@ export type UserDeletedEvent = {
 };
 
 /**
- * UserEventCountSchema
- *
- * User event count schema
+ * UserEventCount
  */
-export type UserEventCountSchema = {
+export type UserEventCount = {
     /**
      * User Id
      */

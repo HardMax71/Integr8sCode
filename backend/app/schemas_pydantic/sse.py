@@ -4,11 +4,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import EventType, ExecutionStatus, SSEControlEvent
 from app.domain.events.typed import ResourceUsageDomain
-from app.domain.execution.models import DomainExecution
 from app.domain.sse.models import (
     RedisNotificationMessage,
     RedisSSEMessage,
 )
+from app.schemas_pydantic.execution import ExecutionResult
 
 
 class SSEExecutionEventData(BaseModel):
@@ -30,7 +30,7 @@ class SSEExecutionEventData(BaseModel):
     exit_code: int | None = Field(default=None, description="Process exit code")
     timeout_seconds: int | None = Field(default=None, description="Timeout duration in seconds")
     resource_usage: ResourceUsageDomain | None = Field(default=None, description="CPU/memory usage metrics")
-    result: DomainExecution | None = Field(default=None, description="Complete execution result")
+    result: ExecutionResult | None = Field(default=None, description="Execution result")
 
 
 __all__ = [

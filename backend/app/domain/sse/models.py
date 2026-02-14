@@ -16,7 +16,7 @@ from app.domain.enums import (
     SSEControlEvent,
 )
 from app.domain.events.typed import ResourceUsageDomain
-from app.domain.execution.models import DomainExecution
+from app.domain.execution.models import ExecutionResultDomain
 
 
 class SSEExecutionStatusDomain(BaseModel):
@@ -78,7 +78,7 @@ class SSEExecutionEventData:
     exit_code: int | None = None
     timeout_seconds: int | None = None
     resource_usage: ResourceUsageDomain | None = None
-    result: DomainExecution | None = None
+    result: ExecutionResultDomain | None = None
 
 
 @dataclass(config=ConfigDict(from_attributes=True))

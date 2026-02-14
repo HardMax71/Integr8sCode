@@ -9,7 +9,7 @@ from pydantic import TypeAdapter
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
-from app.domain.execution.models import DomainExecution
+from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import (
     DomainNotificationSSEPayload,
     RedisNotificationMessage,
@@ -124,9 +124,11 @@ class SSEService:
 
     async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
         """Build typed SSE event from Redis message."""
-        result: DomainExecution | None = None
+        result: ExecutionResultDomain | None = None
         if msg.event_type == EventType.RESULT_STORED:
-            result = await self.repository.get_execution(execution_id)
+            execution = await self.repository.get_execution(execution_id)
+            if execution:
+                result = ExecutionResultDomain.model_validate(execution)
 
         return _sse_event_ta.validate_python(
             {
@@ -160,7 +162,7 @@ class SSEService:
                     severity=redis_msg.severity,
                     tags=redis_msg.tags,
                 )
-                yield {"event": "notification", "data": _notif_payload_ta.dump_json(payload)}
+                yield {"event": "notification", "data": _notif_payload_ta.dump_json(payload).decode()}
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
@@ -168,4 +170,4 @@ class SSEService:
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
-        return {"data": _sse_event_ta.dump_json(event, exclude_none=True)}
+        return {"data": _sse_event_ta.dump_json(event, exclude_none=True).decode()}

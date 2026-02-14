@@ -44,6 +44,8 @@ class ExecutionResultDomain(BaseModel):
     exit_code: int
     stdout: str
     stderr: str
+    lang: str = "python"
+    lang_version: str = "3.11"
     resource_usage: ResourceUsageDomain | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: EventMetadata | None = None

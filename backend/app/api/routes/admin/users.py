@@ -5,11 +5,10 @@ from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
-from app.core.security import SecurityService
 from app.db.repositories import UserRepository
 from app.domain.enums import UserRole
 from app.domain.rate_limit import UserRateLimitUpdate
-from app.domain.user import DomainUserCreate, User
+from app.domain.user import User
 from app.domain.user import UserUpdate as DomainUserUpdate
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
 from app.schemas_pydantic.common import ErrorResponse
@@ -63,19 +62,16 @@ async def create_user(
     admin: Annotated[User, Depends(admin_user)],
     user_data: UserCreate,
     admin_user_service: FromDishka[AdminUserService],
-    security_service: FromDishka[SecurityService],
 ) -> UserResponse:
     """Create a new user (admin only)."""
-    hashed_password = security_service.get_password_hash(user_data.password)
-    create_data = DomainUserCreate(
+    domain_user = await admin_user_service.create_user(
+        admin_user_id=admin.user_id,
         username=user_data.username,
         email=user_data.email,
-        hashed_password=hashed_password,
-        role=getattr(user_data, "role", UserRole.USER),
-        is_active=getattr(user_data, "is_active", True),
-        is_superuser=False,
+        password=user_data.password,
+        role=user_data.role,
+        is_active=user_data.is_active,
     )
-    domain_user = await admin_user_service.create_user(admin_user_id=admin.user_id, create_data=create_data)
     return UserResponse.model_validate(domain_user)
 
 

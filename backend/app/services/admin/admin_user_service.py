@@ -134,19 +134,30 @@ class AdminUserService:
 
         return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
 
-    async def create_user(self, *, admin_user_id: str, create_data: DomainUserCreate) -> User:
-        """Create a new user and return domain user."""
-        self.logger.info(
-            "Admin creating new user", admin_user_id=admin_user_id, new_username=create_data.username
-        )
-        existing = await self._users.get_user(create_data.username)
+    async def create_user(
+        self,
+        *,
+        admin_user_id: str,
+        username: str,
+        email: str,
+        password: str,
+        role: UserRole = UserRole.USER,
+        is_active: bool = True,
+    ) -> User:
+        self.logger.info("Admin creating new user", admin_user_id=admin_user_id, new_username=username)
+        existing = await self._users.get_user(username)
         if existing:
             raise ConflictError("Username already exists")
 
-        created = await self._users.create_user(create_data)
-        self.logger.info(
-            "User created successfully", new_username=create_data.username, admin_user_id=admin_user_id
+        create_data = DomainUserCreate(
+            username=username,
+            email=email,
+            hashed_password=self._security.get_password_hash(password),
+            role=role,
+            is_active=is_active,
         )
+        created = await self._users.create_user(create_data)
+        self.logger.info("User created successfully", new_username=username, admin_user_id=admin_user_id)
         return created
 
     async def get_user(self, *, admin_user_id: str, user_id: str) -> User | None:

@@ -122,7 +122,7 @@ async def update_user(
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    domain_update = DomainUserUpdate.model_validate(user_update)
+    domain_update = DomainUserUpdate(**user_update.model_dump())
 
     updated_user = await admin_user_service.update_user(
         admin_user_id=admin.user_id, user_id=user_id, update=domain_update

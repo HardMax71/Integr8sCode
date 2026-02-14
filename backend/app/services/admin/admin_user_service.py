@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -117,11 +118,12 @@ class AdminUserService:
         # Enrich users with rate limit summaries
         summaries = await self._rate_limits.get_user_rate_limit_summaries([u.user_id for u in result.users])
         enriched_users = [
-            user.model_copy(update={
-                "bypass_rate_limit": s.bypass_rate_limit,
-                "global_multiplier": s.global_multiplier,
-                "has_custom_limits": s.has_custom_limits,
-            }) if (s := summaries.get(user.user_id)) else user
+            dataclasses.replace(
+                user,
+                bypass_rate_limit=s.bypass_rate_limit,
+                global_multiplier=s.global_multiplier,
+                has_custom_limits=s.has_custom_limits,
+            ) if (s := summaries.get(user.user_id)) else user
             for user in result.users
         ]
 
@@ -167,7 +169,7 @@ class AdminUserService:
             target_user_id=user_id,
         )
         if update.password is not None:
-            update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
+            update = dataclasses.replace(update, password=self._security.get_password_hash(update.password))
         return await self._users.update_user(user_id, update)
 
     async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:

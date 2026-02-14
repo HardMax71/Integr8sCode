@@ -105,7 +105,7 @@ async def replay_events(
     """Replay events by filter criteria, with optional dry-run mode."""
     replay_id = f"replay-{uuid4().hex}"
     result = await service.prepare_or_schedule_replay(
-        replay_filter=ReplayFilter.model_validate(request),
+        replay_filter=ReplayFilter(**request.model_dump(include=set(ReplayFilter.__dataclass_fields__))),
         dry_run=request.dry_run,
         replay_id=replay_id,
         target_service=request.target_service,

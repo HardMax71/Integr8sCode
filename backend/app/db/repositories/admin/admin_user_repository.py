@@ -1,3 +1,4 @@
+import dataclasses
 import re
 from datetime import datetime, timezone
 
@@ -28,9 +29,9 @@ from app.domain.user import (
 class AdminUserRepository:
 
     async def create_user(self, create_data: DomainUserCreate) -> User:
-        doc = UserDocument(**create_data.model_dump())
+        doc = UserDocument(**dataclasses.asdict(create_data))
         await doc.insert()
-        return User.model_validate(doc)
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__)))
 
     async def list_users(
             self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
@@ -52,26 +53,26 @@ class AdminUserRepository:
         query = UserDocument.find(*conditions)
         total = await query.count()
         docs = await query.skip(offset).limit(limit).to_list()
-        users = [User.model_validate(doc) for doc in docs]
+        users = [User(**doc.model_dump(include=set(User.__dataclass_fields__))) for doc in docs]
         return UserListResult(users=users, total=total, offset=offset, limit=limit)
 
     async def get_user_by_id(self, user_id: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
-        return User.model_validate(doc) if doc else None
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__))) if doc else None
 
     async def update_user(self, user_id: str, update_data: UserUpdate) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             return None
 
-        update_dict = update_data.model_dump(exclude_none=True)
+        update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         if "password" in update_dict:
             update_dict["hashed_password"] = update_dict.pop("password")
 
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
             await doc.set(update_dict)
-        return User.model_validate(doc)
+        return User(**doc.model_dump(include=set(User.__dataclass_fields__)))
 
     async def delete_user(self, user_id: str, cascade: bool = True) -> UserDeleteResult:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)

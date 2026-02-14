@@ -26,7 +26,7 @@ async def create_saved_script(
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptResponse:
     """Save a new script to the user's collection."""
-    create = DomainSavedScriptCreate.model_validate(saved_script)
+    create = DomainSavedScriptCreate(**saved_script.model_dump())
     domain = await saved_script_service.create_saved_script(create, user.user_id)
     return SavedScriptResponse.model_validate(domain)
 
@@ -68,7 +68,7 @@ async def update_saved_script(
     saved_script_service: FromDishka[SavedScriptService],
 ) -> SavedScriptResponse:
     """Update an existing saved script."""
-    update_data = DomainSavedScriptUpdate.model_validate(script_update)
+    update_data = DomainSavedScriptUpdate(**script_update.model_dump())
     domain = await saved_script_service.update_saved_script(script_id, user.user_id, update_data)
     return SavedScriptResponse.model_validate(domain)
 

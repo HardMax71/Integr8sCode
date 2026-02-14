@@ -1,9 +1,22 @@
-from pydantic import BaseModel, ConfigDict, Field
+import re
+from dataclasses import dataclass
+from typing import Any
 
 from app.core.utils import StringEnum
 
-K8S_MEMORY_PATTERN = r"^[1-9]\d*(Ki|Mi|Gi)$"
-K8S_CPU_PATTERN = r"^[1-9]\d*m$"
+K8S_MEMORY_PATTERN = re.compile(r"^[1-9]\d*(Ki|Mi|Gi)$")
+K8S_CPU_PATTERN = re.compile(r"^[1-9]\d*m$")
+
+_RANGE_RULES: dict[str, tuple[int | float, int | float]] = {
+    "max_timeout_seconds": (1, 3600),
+    "max_concurrent_executions": (1, 100),
+    "password_min_length": (8, 32),
+    "session_timeout_minutes": (5, 1440),
+    "max_login_attempts": (3, 10),
+    "lockout_duration_minutes": (5, 60),
+    "metrics_retention_days": (7, 90),
+    "sampling_rate": (0.0, 1.0),
+}
 
 
 class AuditAction(StringEnum):
@@ -23,22 +36,36 @@ class LogLevel(StringEnum):
     CRITICAL = "CRITICAL"
 
 
-class SystemSettings(BaseModel):
+@dataclass
+class SystemSettings:
     """Flat system-wide settings — execution, security, and monitoring."""
 
-    model_config = ConfigDict(from_attributes=True, extra="ignore", use_enum_values=True)
+    max_timeout_seconds: int = 300
+    memory_limit: str = "512Mi"
+    cpu_limit: str = "2000m"
+    max_concurrent_executions: int = 10
 
-    max_timeout_seconds: int = Field(300, ge=1, le=3600)
-    memory_limit: str = Field("512Mi", pattern=K8S_MEMORY_PATTERN)
-    cpu_limit: str = Field("2000m", pattern=K8S_CPU_PATTERN)
-    max_concurrent_executions: int = Field(10, ge=1, le=100)
+    password_min_length: int = 8
+    session_timeout_minutes: int = 60
+    max_login_attempts: int = 5
+    lockout_duration_minutes: int = 15
 
-    password_min_length: int = Field(8, ge=8, le=32)
-    session_timeout_minutes: int = Field(60, ge=5, le=1440)
-    max_login_attempts: int = Field(5, ge=3, le=10)
-    lockout_duration_minutes: int = Field(15, ge=5, le=60)
-
-    metrics_retention_days: int = Field(30, ge=7, le=90)
+    metrics_retention_days: int = 30
     log_level: LogLevel = LogLevel.INFO
     enable_tracing: bool = True
-    sampling_rate: float = Field(0.1, ge=0.0, le=1.0)
+    sampling_rate: float = 0.1
+
+    def __post_init__(self) -> None:
+        for name, (lo, hi) in _RANGE_RULES.items():
+            val = getattr(self, name)
+            if not (lo <= val <= hi):
+                raise ValueError(f"{name} must be between {lo} and {hi}")
+
+        if not K8S_MEMORY_PATTERN.match(self.memory_limit):
+            raise ValueError(f"memory_limit must match K8s resource format, got '{self.memory_limit}'")
+        if not K8S_CPU_PATTERN.match(self.cpu_limit):
+            raise ValueError(f"cpu_limit must match K8s millicore format, got '{self.cpu_limit}'")
+
+        raw: Any = self.log_level
+        if not isinstance(raw, LogLevel):
+            self.log_level = LogLevel(raw)

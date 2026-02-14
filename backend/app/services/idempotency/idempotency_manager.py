@@ -1,9 +1,9 @@
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import structlog
-from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
 from app.core.metrics import DatabaseMetrics
@@ -13,18 +13,20 @@ from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStra
 from app.services.idempotency.redis_repository import RedisIdempotencyRepository
 
 
-class IdempotencyResult(BaseModel):
+@dataclass
+class IdempotencyResult:
     is_duplicate: bool
     status: IdempotencyStatus
     created_at: datetime
+    key: str
     completed_at: datetime | None = None
     processing_duration_ms: int | None = None
     error: str | None = None
     has_cached_result: bool = False
-    key: str
 
 
-class IdempotencyConfig(BaseModel):
+@dataclass
+class IdempotencyConfig:
     key_prefix: str = "idempotency"
     default_ttl_seconds: int = 3600
     processing_timeout_seconds: int = 300

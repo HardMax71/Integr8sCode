@@ -20,4 +20,4 @@ class SSERepository:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
-        return DomainExecution.model_validate(doc)
+        return DomainExecution(**doc.model_dump(include=set(DomainExecution.__dataclass_fields__)))

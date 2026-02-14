@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
-
-from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus
 from app.domain.events import EventMetadata, ResourceUsageDomain
@@ -18,51 +16,47 @@ class CancelResult:
     event_id: str | None
 
 
-class DomainExecution(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_id: str = Field(default_factory=lambda: str(uuid4()))
+@dataclass
+class DomainExecution:
+    execution_id: str = field(default_factory=lambda: str(uuid4()))
     script: str = ""
     status: ExecutionStatus = ExecutionStatus.QUEUED
     stdout: str | None = None
     stderr: str | None = None
     lang: str = "python"
     lang_version: str = "3.11"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resource_usage: ResourceUsageDomain | None = None
     user_id: str | None = None
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
 
 
-class ExecutionResultDomain(BaseModel):
-    model_config = ConfigDict(from_attributes=True, extra="ignore")
-
+@dataclass
+class ExecutionResultDomain:
     execution_id: str
     status: ExecutionStatus
     exit_code: int
     stdout: str
     stderr: str
     resource_usage: ResourceUsageDomain | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: EventMetadata | None = None
     error_type: ExecutionErrorType | None = None
 
 
-class LanguageInfoDomain(BaseModel):
+@dataclass
+class LanguageInfoDomain:
     """Language runtime information."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     versions: list[str]
     file_ext: str
 
 
-class ResourceLimitsDomain(BaseModel):
+@dataclass
+class ResourceLimitsDomain:
     """K8s resource limits configuration."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     cpu_limit: str
     memory_limit: str
@@ -72,10 +66,9 @@ class ResourceLimitsDomain(BaseModel):
     supported_runtimes: dict[str, LanguageInfoDomain]
 
 
-class DomainExecutionCreate(BaseModel):
+@dataclass
+class DomainExecutionCreate:
     """Execution creation data for repository."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     script: str
     user_id: str
@@ -84,10 +77,9 @@ class DomainExecutionCreate(BaseModel):
     status: ExecutionStatus = ExecutionStatus.QUEUED
 
 
-class DomainExecutionUpdate(BaseModel):
+@dataclass
+class DomainExecutionUpdate:
     """Execution update data for repository."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     status: ExecutionStatus | None = None
     stdout: str | None = None

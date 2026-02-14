@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import DomainEvent, EventSummary
 from app.domain.replay import ReplayError
-from app.schemas_pydantic.events import EventTypeCountSchema, HourlyEventCountSchema
+from app.schemas_pydantic.event_schemas import EventTypeCount, HourlyEventCount, UserEventCount
 from app.schemas_pydantic.execution import ExecutionResult
 
 
@@ -108,23 +108,14 @@ class EventDeleteResponse(BaseModel):
     event_id: str
 
 
-class UserEventCountSchema(BaseModel):
-    """User event count schema"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    user_id: str
-    event_count: int
-
-
 class EventStatsResponse(BaseModel):
     """Response model for event statistics"""
 
     model_config = ConfigDict(from_attributes=True)
 
     total_events: int
-    events_by_type: list[EventTypeCountSchema]
-    events_by_hour: list[HourlyEventCountSchema]
-    top_users: list[UserEventCountSchema]
+    events_by_type: list[EventTypeCount]
+    events_by_hour: list[HourlyEventCount]
+    top_users: list[UserEventCount]
     error_rate: float
     avg_processing_time: float

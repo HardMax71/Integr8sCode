@@ -143,15 +143,3 @@ class DLQMessageListResult:
     limit: int
 
 
-class DLQTopicSummary(BaseModel):
-    """Summary of a topic in DLQ."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    topic: str
-    total_messages: int
-    status_breakdown: dict[DLQMessageStatus, int]
-    oldest_message: datetime
-    newest_message: datetime
-    avg_retry_count: float
-    max_retry_count: int

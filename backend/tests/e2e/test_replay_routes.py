@@ -1,13 +1,13 @@
 import pytest
 from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplayFilter
-from app.schemas_pydantic.replay import (
+from app.schemas_pydantic.replay_schemas import (
     CleanupResponse,
     ReplayRequest,
     ReplayResponse,
+    ReplaySession,
     SessionSummary,
 )
-from app.schemas_pydantic.replay_models import ReplaySession
 from httpx import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.kafka]

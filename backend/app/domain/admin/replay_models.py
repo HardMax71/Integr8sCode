@@ -1,37 +1,19 @@
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.dataclasses import dataclass
-
-from app.domain.enums import ExecutionErrorType, ExecutionStatus, ReplayStatus
-from app.domain.events import EventSummary, ResourceUsageDomain
+from app.domain.enums import ReplayStatus
+from app.domain.events import EventSummary
 from app.domain.replay import ReplayFilter, ReplaySessionState
+from app.schemas_pydantic.replay_schemas import ExecutionResultSummary
 
 
-class ExecutionResultSummary(BaseModel):
-    """Summary of an execution result for replay status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_id: str
-    status: ExecutionStatus | None
-    stdout: str | None
-    stderr: str | None
-    exit_code: int | None
-    lang: str
-    lang_version: str
-    created_at: datetime
-    updated_at: datetime
-    resource_usage: ResourceUsageDomain | None = None
-    error_type: ExecutionErrorType | None = None
-
-
+@dataclass
 class ReplaySessionStatusDetail(ReplaySessionState):
     """Status detail with computed metadata for admin API."""
 
     estimated_completion: datetime | None = None
-    execution_results: list[ExecutionResultSummary] = Field(default_factory=list)
+    execution_results: list[ExecutionResultSummary] = field(default_factory=list)
 
 
 @dataclass
@@ -61,3 +43,8 @@ class ReplaySessionData:
     dry_run: bool
     filter: ReplayFilter
     events_preview: list[EventSummary] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        raw: Any = self.filter
+        if isinstance(raw, dict):
+            self.filter = ReplayFilter(**raw)

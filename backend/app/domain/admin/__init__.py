@@ -1,10 +1,11 @@
+from app.schemas_pydantic.replay_schemas import ExecutionResultSummary
+
 from .overview_models import (
     AdminUserOverviewDomain,
     DerivedCountsDomain,
     RateLimitSummaryDomain,
 )
 from .replay_models import (
-    ExecutionResultSummary,
     ReplaySessionData,
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,

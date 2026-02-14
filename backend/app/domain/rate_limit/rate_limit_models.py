@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic.dataclasses import dataclass
 
 from app.core.utils import StringEnum
 
@@ -27,7 +26,7 @@ class EndpointGroup(StringEnum):
     API = "api"
 
 
-@dataclass(config=ConfigDict(from_attributes=True))
+@dataclass
 class EndpointUsageStats:
     """Usage statistics for a single endpoint (IETF RateLimit-style)."""
 

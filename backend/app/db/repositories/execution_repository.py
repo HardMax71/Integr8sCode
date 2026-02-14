@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,11 +18,11 @@ class ExecutionRepository:
         self.logger = logger
 
     async def create_execution(self, create_data: DomainExecutionCreate) -> DomainExecution:
-        doc = ExecutionDocument(**create_data.model_dump())
+        doc = ExecutionDocument(**dataclasses.asdict(create_data))
         self.logger.info("Inserting execution into MongoDB", execution_id=doc.execution_id)
         await doc.insert()
         self.logger.info("Inserted execution", execution_id=doc.execution_id)
-        return DomainExecution.model_validate(doc)
+        return DomainExecution(**doc.model_dump(include=set(DomainExecution.__dataclass_fields__)))
 
     async def get_execution(self, execution_id: str) -> DomainExecution | None:
         self.logger.info("Searching for execution in MongoDB", execution_id=execution_id)
@@ -31,7 +32,7 @@ class ExecutionRepository:
             return None
 
         self.logger.info("Found execution in MongoDB", execution_id=execution_id)
-        return DomainExecution.model_validate(doc)
+        return DomainExecution(**doc.model_dump(include=set(DomainExecution.__dataclass_fields__)))
 
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == result.execution_id)
@@ -63,7 +64,7 @@ class ExecutionRepository:
             ]
             find_query = find_query.sort(beanie_sort)
         docs = await find_query.skip(skip).limit(limit).to_list()
-        return [DomainExecution.model_validate(doc) for doc in docs]
+        return [DomainExecution(**doc.model_dump(include=set(DomainExecution.__dataclass_fields__))) for doc in docs]
 
     async def count_executions(self, query: dict[str, Any]) -> int:
         return await ExecutionDocument.find(query).count()

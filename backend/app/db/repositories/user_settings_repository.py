@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime
 
 import structlog
@@ -18,11 +19,11 @@ class UserSettingsRepository:
         doc = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == user_id)
         if not doc:
             return None
-        return DomainUserSettings.model_validate(doc)
+        return DomainUserSettings(**doc.model_dump(include=set(DomainUserSettings.__dataclass_fields__)))
 
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         existing = await UserSettingsDocument.find_one(UserSettingsDocument.user_id == settings.user_id)
-        doc = UserSettingsDocument(**settings.model_dump())
+        doc = UserSettingsDocument(**dataclasses.asdict(settings))
         if existing:
             doc.id = existing.id
         await doc.save()
@@ -52,7 +53,10 @@ class UserSettingsRepository:
             find_query = find_query.limit(limit)
 
         docs = await find_query.to_list()
-        return [DomainUserSettingsChangedEvent.model_validate(e) for e in docs]
+        return [
+            DomainUserSettingsChangedEvent(**e.model_dump(include=set(DomainUserSettingsChangedEvent.__dataclass_fields__)))
+            for e in docs
+        ]
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
         aggregate_id = f"user_settings_{user_id}"

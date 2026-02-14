@@ -5,12 +5,13 @@ from uuid import uuid4
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 
-from app.domain.admin import AuditAction, SystemSettings
+from app.domain.admin import AuditAction
+from app.schemas_pydantic.admin_settings import SystemSettingsSchema
 
 
 class SystemSettingsDocument(Document):
     settings_id: str = "global"
-    config: SystemSettings = Field(default_factory=SystemSettings)
+    config: SystemSettingsSchema = Field(default_factory=SystemSettingsSchema)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

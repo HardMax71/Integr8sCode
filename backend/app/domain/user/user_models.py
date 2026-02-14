@@ -1,7 +1,6 @@
 import re
+from dataclasses import dataclass
 from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict
 
 from app.core.utils import StringEnum
 from app.domain.enums import UserRole
@@ -31,19 +30,17 @@ class UserFilterType(StringEnum):
     ROLE = "role"
 
 
-class UserSearchFilter(BaseModel):
+@dataclass
+class UserSearchFilter:
     """User search filter criteria."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     search_text: str | None = None
     role: UserRole | None = None
 
 
-class User(BaseModel):
+@dataclass
+class User:
     """User domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     username: str
@@ -54,16 +51,14 @@ class User(BaseModel):
     hashed_password: str
     created_at: datetime
     updated_at: datetime
-    # Rate limit summary (optional, populated by admin service)
     bypass_rate_limit: bool | None = None
     global_multiplier: float | None = None
     has_custom_limits: bool | None = None
 
 
-class UserUpdate(BaseModel):
+@dataclass
+class UserUpdate:
     """User update domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
@@ -72,11 +67,9 @@ class UserUpdate(BaseModel):
     password: str | None = None
 
 
-
-class UserListResult(BaseModel):
+@dataclass
+class UserListResult:
     """Result of listing users."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     users: list[User]
     total: int
@@ -84,10 +77,9 @@ class UserListResult(BaseModel):
     limit: int
 
 
-class PasswordReset(BaseModel):
+@dataclass
+class PasswordReset:
     """Password reset domain model."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_id: str
     new_password: str
@@ -96,10 +88,9 @@ class PasswordReset(BaseModel):
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
-class UserCreation(BaseModel):
+@dataclass
+class UserCreation:
     """User creation domain model (API-facing, with plain password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -114,15 +105,14 @@ class UserCreation(BaseModel):
                 self.username,
                 self.email,
                 self.password and len(self.password) >= 8,
-                EMAIL_PATTERN.match(self.email) is not None,  # Proper email validation
+                EMAIL_PATTERN.match(self.email) is not None,
             ]
         )
 
 
-class DomainUserCreate(BaseModel):
+@dataclass
+class DomainUserCreate:
     """User creation data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str
     email: str
@@ -132,10 +122,9 @@ class DomainUserCreate(BaseModel):
     is_superuser: bool = False
 
 
-class DomainUserUpdate(BaseModel):
+@dataclass
+class DomainUserUpdate:
     """User update data for repository (with hashed password)."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     username: str | None = None
     email: str | None = None
@@ -144,10 +133,9 @@ class DomainUserUpdate(BaseModel):
     hashed_password: str | None = None
 
 
-class UserDeleteResult(BaseModel):
+@dataclass
+class UserDeleteResult:
     """Result of deleting a user and optionally cascading to related data."""
-
-    model_config = ConfigDict(from_attributes=True)
 
     user_deleted: bool
     executions: int = 0

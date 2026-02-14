@@ -112,30 +112,6 @@ class SagaConfig:
 
 
 @dataclass
-class SagaInstance:
-    """Runtime instance of a saga execution (domain)."""
-
-    saga_name: str
-    execution_id: str
-    state: SagaState = SagaState.CREATED
-    saga_id: str = field(default_factory=lambda: str(uuid4()))
-    current_step: str | None = None
-    completed_steps: list[str] = field(default_factory=list)
-    compensated_steps: list[str] = field(default_factory=list)
-    context_data: SagaContextData = field(default_factory=SagaContextData)
-    error_message: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: datetime | None = None
-    retry_count: int = 0
-
-    def __post_init__(self) -> None:
-        raw: Any = self.context_data
-        if isinstance(raw, dict):
-            self.context_data = SagaContextData(**raw)
-
-
-@dataclass
 class DomainResourceAllocation:
     """Domain model for resource allocation."""
 

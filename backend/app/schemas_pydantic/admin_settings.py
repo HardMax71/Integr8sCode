@@ -6,8 +6,8 @@ K8S_MEMORY_PATTERN = r"^[1-9]\d*(Ki|Mi|Gi)$"
 K8S_CPU_PATTERN = r"^[1-9]\d*m$"
 
 
-class SystemSettings(BaseModel):
-    """Flat system-wide settings — execution, security, and monitoring."""
+class SystemSettingsSchema(BaseModel):
+    """API schema for system-wide settings."""
 
     model_config = ConfigDict(from_attributes=True, extra="ignore", use_enum_values=True)
 
@@ -25,7 +25,3 @@ class SystemSettings(BaseModel):
     log_level: LogLevel = LogLevel.INFO
     enable_tracing: bool = True
     sampling_rate: float = Field(0.1, ge=0.0, le=1.0)
-
-
-class SystemSettingsSchema(SystemSettings):
-    """API schema for system settings — inherits all fields from domain model."""

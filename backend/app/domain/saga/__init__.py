@@ -13,7 +13,6 @@ from app.domain.saga.models import (
     SagaConfig,
     SagaContextData,
     SagaFilter,
-    SagaInstance,
     SagaListResult,
     SagaQuery,
 )
@@ -25,7 +24,6 @@ __all__ = [
     "SagaCancellationResult",
     "SagaConfig",
     "SagaContextData",
-    "SagaInstance",
     "SagaFilter",
     "SagaListResult",
     "SagaQuery",

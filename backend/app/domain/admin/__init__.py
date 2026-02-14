@@ -1,4 +1,3 @@
-from app.schemas_pydantic.admin_settings import SystemSettings
 from app.schemas_pydantic.replay_schemas import ExecutionResultSummary
 
 from .overview_models import (
@@ -15,6 +14,7 @@ from .replay_updates import ReplaySessionUpdate
 from .settings_models import (
     AuditAction,
     LogLevel,
+    SystemSettings,
 )
 
 __all__ = [

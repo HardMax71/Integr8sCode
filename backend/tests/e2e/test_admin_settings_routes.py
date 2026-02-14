@@ -17,7 +17,7 @@ class TestGetSystemSettings:
         response = await test_admin.get("/api/v1/admin/settings/")
 
         assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
+        settings = SystemSettings(**response.json())
 
         assert settings.max_timeout_seconds >= 1
         assert settings.max_concurrent_executions >= 1
@@ -71,7 +71,7 @@ class TestUpdateSystemSettings:
         response = await test_admin.put("/api/v1/admin/settings/", json=request_body)
 
         assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
+        settings = SystemSettings(**response.json())
 
         assert settings.max_timeout_seconds == 600
         assert settings.memory_limit == "1024Mi"
@@ -95,7 +95,7 @@ class TestUpdateSystemSettings:
         response = await test_admin.put("/api/v1/admin/settings/", json=request_body)
 
         assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
+        settings = SystemSettings(**response.json())
         assert settings.max_timeout_seconds == 120
         assert settings.max_concurrent_executions == 15
 
@@ -164,7 +164,7 @@ class TestResetSystemSettings:
         response = await test_admin.post("/api/v1/admin/settings/reset")
 
         assert response.status_code == 200
-        settings = SystemSettings.model_validate(response.json())
+        settings = SystemSettings(**response.json())
 
         # Reset returns TOML-derived defaults for fields mapped from Settings,
         # and SystemSettings() model defaults for the rest.

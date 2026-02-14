@@ -6,9 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import EventType
 from app.domain.events.typed import DomainEvent, EventMetadata
 
-MongoQueryValue = str | dict[str, str | list[str] | float | datetime]
-MongoQuery = dict[str, MongoQueryValue]
-
 
 class EventSummary(BaseModel):
     """Lightweight event summary for lists and previews."""
@@ -98,9 +95,7 @@ class UserEventCount(BaseModel):
 
 
 class EventStatistics(BaseModel):
-    """Event statistics."""
-
-    model_config = ConfigDict(from_attributes=True)
+    """Event statistics response."""
 
     total_events: int
     events_by_type: list[EventTypeCount] = Field(default_factory=list)
@@ -111,6 +106,28 @@ class EventStatistics(BaseModel):
     avg_processing_time: float = 0.0
     start_time: datetime | None = None
     end_time: datetime | None = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "total_events": 1543,
+                "events_by_type": [
+                    {"event_type": "EXECUTION_REQUESTED", "count": 523},
+                    {"event_type": "EXECUTION_COMPLETED", "count": 498},
+                    {"event_type": "POD_CREATED", "count": 522},
+                ],
+                "events_by_service": [
+                    {"service_name": "api-gateway", "count": 523},
+                    {"service_name": "execution-service", "count": 1020},
+                ],
+                "events_by_hour": [
+                    {"hour": "2024-01-20 10:00", "count": 85},
+                    {"hour": "2024-01-20 11:00", "count": 92},
+                ],
+            }
+        },
+    )
 
 
 class EventProjection(BaseModel):

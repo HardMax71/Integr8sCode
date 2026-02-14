@@ -34,7 +34,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Core
 
 ```toml
---8<-- "backend/config.toml:1:9"
+--8<-- "backend/config.toml:core"
 ```
 
 ??? info "Legend"
@@ -50,7 +50,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Kubernetes
 
 ```toml
---8<-- "backend/config.toml:11:20"
+--8<-- "backend/config.toml:kubernetes"
 ```
 
 ??? info "Legend"
@@ -69,7 +69,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Kafka
 
 ```toml
---8<-- "backend/config.toml:26:37"
+--8<-- "backend/config.toml:kafka"
 ```
 
 ??? info "Legend"
@@ -89,7 +89,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## SSE (Server-Sent Events)
 
 ```toml
---8<-- "backend/config.toml:39:40"
+--8<-- "backend/config.toml:sse"
 ```
 
 ??? info "Legend"
@@ -101,7 +101,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Tracing (OpenTelemetry)
 
 ```toml
---8<-- "backend/config.toml:45:51"
+--8<-- "backend/config.toml:tracing"
 ```
 
 ??? info "Legend"
@@ -117,7 +117,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Dead Letter Queue
 
 ```toml
---8<-- "backend/config.toml:53:59"
+--8<-- "backend/config.toml:dlq"
 ```
 
 ??? info "Legend"
@@ -133,7 +133,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Service & OTEL
 
 ```toml
---8<-- "backend/config.toml:61:70"
+--8<-- "backend/config.toml:service"
 ```
 
 ??? info "Legend"
@@ -150,7 +150,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ## Server
 
 ```toml
---8<-- "backend/config.toml:72:80"
+--8<-- "backend/config.toml:server"
 ```
 
 ??? info "Legend"

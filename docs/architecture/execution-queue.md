@@ -29,7 +29,7 @@ flowchart TB
 Executions enter the queue with one of five priority levels. Lower numeric values are processed first:
 
 ```python
---8<-- "backend/app/services/coordinator/coordinator.py:32:37"
+--8<-- "backend/app/services/coordinator/coordinator.py:ExecutionCoordinator"
 ```
 
 The queue uses Python's `heapq` module, which efficiently maintains the priority ordering.
@@ -39,7 +39,7 @@ The queue uses Python's `heapq` module, which efficiently maintains the priority
 The queue enforces per-user execution limits to prevent a single user from monopolizing resources:
 
 ```python
---8<-- "backend/app/services/coordinator/coordinator.py:70:79"
+--8<-- "backend/app/services/coordinator/coordinator.py:handle_execution_requested"
 ```
 
 When a user exceeds their limit, new execution requests are rejected with an error message indicating the limit has been

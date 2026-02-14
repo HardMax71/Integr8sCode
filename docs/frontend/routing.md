@@ -24,7 +24,7 @@ Routes are defined in `App.svelte` with authentication guards for protected page
 Routes are defined in `src/App.svelte` using the router's declarative syntax:
 
 ```typescript
---8<-- "frontend/src/App.svelte:69:85"
+--8<-- "frontend/src/App.svelte:routes"
 ```
 
 ## Authentication Guard
@@ -32,7 +32,7 @@ Routes are defined in `src/App.svelte` using the router's declarative syntax:
 The `requireAuth` hook checks the `isAuthenticated` store before allowing navigation:
 
 ```typescript
---8<-- "frontend/src/App.svelte:55:67"
+--8<-- "frontend/src/App.svelte:require_auth"
 ```
 
 When an unauthenticated user tries to access a protected route:

@@ -12,7 +12,7 @@ with consistent structure.
 event-specific fields go into the `payload` dict:
 
 ```python
---8<-- "backend/app/db/docs/event.py:30:45"
+--8<-- "backend/app/db/docs/event.py:EventDocument"
 ```
 
 ## Storage pattern
@@ -63,13 +63,13 @@ cleanup. For permanent audit requirements, events can be archived to `EventArchi
 `ReplayFilter` provides a unified way to query events across all use cases:
 
 ```python
---8<-- "backend/app/domain/replay/models.py:13:31"
+--8<-- "backend/app/domain/replay/models.py:ReplayError"
 ```
 
 The `to_mongo_query()` method builds MongoDB queries from filter fields:
 
 ```python
---8<-- "backend/app/domain/replay/models.py:49:90"
+--8<-- "backend/app/domain/replay/models.py:ReplayFilter"
 ```
 
 All event querying—admin browse, replay preview, event export—uses `ReplayFilter.to_mongo_query()` for consistency.

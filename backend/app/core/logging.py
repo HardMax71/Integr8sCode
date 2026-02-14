@@ -63,12 +63,14 @@ def add_otel_context(
     return event_dict
 
 
+# --8<-- [start:setup_logger]
 def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
     """Configure structlog and return a bound logger for the application.
 
     Called by DI with Settings.LOG_LEVEL and also directly by main.py/lifespan.
     """
     structlog.configure(
+        # --8<-- [start:log_processors]
         processors=[
             structlog.contextvars.merge_contextvars,
             structlog.stdlib.filter_by_level,
@@ -81,6 +83,7 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
             sanitize_sensitive_data,
             structlog.processors.JSONRenderer(),
         ],
+        # --8<-- [end:log_processors]
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -92,3 +95,4 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
 
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger
+# --8<-- [end:setup_logger]

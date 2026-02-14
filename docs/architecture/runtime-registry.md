@@ -20,13 +20,13 @@ Each language is defined by a `LanguageSpec` dictionary containing the available
 extension, and interpreter command:
 
 ```python
---8<-- "backend/app/runtime_registry.py:12:17"
+--8<-- "backend/app/runtime_registry.py:LanguageSpec"
 ```
 
 The full specification for all languages:
 
 ```python
---8<-- "backend/app/runtime_registry.py:19:50"
+--8<-- "backend/app/runtime_registry.py:LANGUAGE_SPECS"
 ```
 
 ## Runtime Configuration
@@ -35,7 +35,7 @@ The registry generates a `RuntimeConfig` for each language/version combination. 
 script in a pod:
 
 ```python
---8<-- "backend/app/runtime_registry.py:6:10"
+--8<-- "backend/app/runtime_registry.py:RuntimeConfig"
 ```
 
 - **image**: The full Docker image reference (e.g., `python:3.11-slim`)
@@ -70,7 +70,7 @@ Each language includes an example script that demonstrates both universal featur
 scripts are shown in the frontend editor as templates:
 
 ```python
---8<-- "backend/app/runtime_registry.py:52:78"
+--8<-- "backend/app/runtime_registry.py:EXAMPLE_SCRIPTS"
 ```
 
 The example scripts intentionally use features that may not work on older versions, helping users understand version
@@ -79,48 +79,21 @@ compatibility. For instance, Python's match statement (3.10+), Node's `Promise.w
 
 ## API Endpoints
 
-The runtime information is available via two endpoints:
+The runtime information is exposed via two public GET endpoints:
 
-### GET /api/v1/k8s-limits
-
-Returns resource limits and supported runtimes:
-
-```json
-{
-  "cpu_limit": "1000m",
-  "memory_limit": "128Mi",
-  "cpu_request": "1000m",
-  "memory_request": "128Mi",
-  "execution_timeout": 300,
-  "supported_runtimes": {
-    "python": {"versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"], "file_ext": "py"},
-    "node": {"versions": ["18", "20", "22"], "file_ext": "js"},
-    "ruby": {"versions": ["3.1", "3.2", "3.3"], "file_ext": "rb"},
-    "go": {"versions": ["1.20", "1.21", "1.22"], "file_ext": "go"},
-    "bash": {"versions": ["5.1", "5.2", "5.3"], "file_ext": "sh"}
-  }
-}
-```
-
-### GET /api/v1/example-scripts
-
-Returns example scripts for each language:
-
-```json
-{
-  "scripts": {
-    "python": "# Python example script...",
-    "node": "// Node.js example script...",
-    "ruby": "# Ruby example script...",
-    "go": "package main...",
-    "bash": "#!/bin/bash..."
-  }
-}
-```
+- **GET /api/v1/k8s-limits** — returns resource limits (`cpu_limit`, `memory_limit`, `execution_timeout`) and a map of supported runtimes with their available versions and file extensions. The frontend uses this to populate the language/version picker and show resource constraints.
+- **GET /api/v1/example-scripts** — returns a map of language → example script string. Shown in the editor as starter templates when a user picks a language.
 
 ## Key Files
 
-| File                                                                                                                 | Purpose                                                |
-|----------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py)         | Language specifications and runtime config generation  |
-| [`api/routes/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/execution.py) | API endpoints including k8s-limits and example-scripts |
+<div class="grid cards" markdown>
+
+-   :material-translate:{ .lg .middle } **[runtime_registry.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py)**
+
+    Language specifications and runtime config generation
+
+-   :material-api:{ .lg .middle } **[api/routes/execution.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/execution.py)**
+
+    API endpoints including k8s-limits and example-scripts
+
+</div>

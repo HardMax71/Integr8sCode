@@ -91,6 +91,7 @@ class RedisIdempotencyRepository:
             return None
         return self._doc_to_record(doc)
 
+    # --8<-- [start:insert_processing]
     async def insert_processing(self, record: IdempotencyRecord) -> None:
         k = self._full_key(record.key)
         doc = self._record_to_doc(record)
@@ -99,6 +100,7 @@ class RedisIdempotencyRepository:
         if not ok:
             # Mirror Mongo behavior so manager's DuplicateKeyError path is reused
             raise DuplicateKeyError("Key already exists")
+    # --8<-- [end:insert_processing]
 
     async def update_record(self, record: IdempotencyRecord) -> int:
         k = self._full_key(record.key)

@@ -33,6 +33,7 @@ from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 
+# --8<-- [start:with_idempotency]
 async def with_idempotency(
         event: DomainEvent,
         handler: Any,
@@ -56,6 +57,7 @@ async def with_idempotency(
             event=event, error=str(e), key_strategy=key_strategy,
         )
         raise
+# --8<-- [end:with_idempotency]
 
 
 def _topics(settings: Settings, group_id: GroupId) -> list[str]:

@@ -12,6 +12,7 @@ from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
 
+# --8<-- [start:RateLimitMiddleware]
 class RateLimitMiddleware:
     """
     Middleware for rate limiting API requests.
@@ -24,6 +25,7 @@ class RateLimitMiddleware:
     """
 
     # Paths exempt from rate limiting
+    # --8<-- [start:excluded_paths]
     EXCLUDED_PATHS = frozenset(
         {
             "/health",
@@ -36,6 +38,8 @@ class RateLimitMiddleware:
             "/api/v1/auth/logout",
         }
     )
+    # --8<-- [end:excluded_paths]
+    # --8<-- [end:RateLimitMiddleware]
 
     def __init__(
         self,
@@ -97,11 +101,13 @@ class RateLimitMiddleware:
 
         await self.app(scope, receive, send_wrapper)
 
+    # --8<-- [start:extract_user_id]
     def _extract_user_id(self, request: Request) -> str:
         user: User | None = request.state.__dict__.get("user")
         if user:
             return str(user.user_id)
         return f"ip:{get_client_ip(request)}"
+    # --8<-- [end:extract_user_id]
 
     async def _check_rate_limit(self, user_id: str, endpoint: str) -> RateLimitStatus:
         # At this point service should be available; if not, allow request

@@ -37,6 +37,7 @@
         }
     });
 
+    // --8<-- [start:require_auth]
     // Auth hook for protected routes
     const requireAuth = async () => {
         await authStore.waitForInit();
@@ -50,7 +51,9 @@
         }
         return true;
     };
+    // --8<-- [end:require_auth]
 
+    // --8<-- [start:routes]
     // Routes configuration
     const routes = [
         // Public routes
@@ -68,6 +71,7 @@
         { path: "/admin/settings", component: AdminSettings, hooks: { pre: requireAuth } },
         { path: "^/admin$", component: AdminEvents, hooks: { pre: requireAuth } },
     ];
+    // --8<-- [end:routes]
 </script>
 
 {#if appError.current}

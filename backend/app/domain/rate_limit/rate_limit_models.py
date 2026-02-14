@@ -13,6 +13,7 @@ class RateLimitAlgorithm(StringEnum):
     LEAKY_BUCKET = "leaky_bucket"
 
 
+# --8<-- [start:EndpointGroup]
 class EndpointGroup(StringEnum):
     EXECUTION = "execution"
     ADMIN = "admin"
@@ -21,14 +22,17 @@ class EndpointGroup(StringEnum):
     AUTH = "auth"
     PUBLIC = "public"
     API = "api"
+# --8<-- [end:EndpointGroup]
 
 
+# --8<-- [start:EndpointUsageStats]
 @dataclass
 class EndpointUsageStats:
     """Usage statistics for a single endpoint (IETF RateLimit-style)."""
 
     algorithm: RateLimitAlgorithm
     remaining: int
+# --8<-- [end:EndpointUsageStats]
 
 
 @dataclass
@@ -53,6 +57,7 @@ class UserRateLimitUpdate:
     notes: str | None = None
 
 
+# --8<-- [start:UserRateLimit]
 @dataclass
 class UserRateLimit:
     user_id: str
@@ -62,6 +67,7 @@ class UserRateLimit:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = None
+# --8<-- [end:UserRateLimit]
 
 
 @dataclass

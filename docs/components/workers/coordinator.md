@@ -28,7 +28,7 @@ pops the next item and publishes a `CreatePodCommand`. A dedup guard prevents do
 Executions are processed in priority order. Lower numeric values are processed first:
 
 ```python
---8<-- "backend/app/services/coordinator/coordinator.py:32:37"
+--8<-- "backend/app/services/coordinator/coordinator.py:ExecutionCoordinator"
 ```
 
 ## Configuration

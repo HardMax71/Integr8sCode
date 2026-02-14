@@ -27,7 +27,7 @@ flowchart TB
 The [`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) script wraps Docker Compose:
 
 ```bash
---8<-- "deploy.sh:6:18"
+--8<-- "deploy.sh:usage"
 ```
 
 The script wraps Docker Compose with convenience commands for building, starting, stopping, and running tests.
@@ -96,7 +96,7 @@ caching means most builds only rebuild the thin application layer.
 For local development, the compose file mounts source directories:
 
 ```yaml
---8<-- "docker-compose.yaml:95:99"
+--8<-- "docker-compose.yaml:dev_volumes"
 ```
 
 This preserves the container's `.venv` while allowing live code changes. Gunicorn watches for file changes and reloads

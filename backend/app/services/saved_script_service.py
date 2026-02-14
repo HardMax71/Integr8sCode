@@ -15,6 +15,7 @@ class SavedScriptService:
         self.saved_script_repo = saved_script_repo
         self.logger = logger
 
+    # --8<-- [start:create_saved_script]
     async def create_saved_script(
         self, saved_script_create: DomainSavedScriptCreate, user_id: str
     ) -> DomainSavedScript:
@@ -34,6 +35,7 @@ class SavedScriptService:
             script_name=created_script.name,
         )
         return created_script
+    # --8<-- [end:create_saved_script]
 
     async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript:
         self.logger.info(

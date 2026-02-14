@@ -41,6 +41,7 @@ print_warning() { echo -e "${YELLOW}⚠ $1${NC}"; }
 print_error() { echo -e "${RED}✗ $1${NC}"; }
 print_info() { echo -e "${BLUE}→ $1${NC}"; }
 
+# --8<-- [start:usage]
 show_help() {
     echo "Integr8sCode Deployment Script"
     echo ""
@@ -76,6 +77,7 @@ show_help() {
     echo "  ./deploy.sh dev --wait             # Start and wait for healthy"
     echo "  ./deploy.sh logs backend           # View backend logs"
 }
+# --8<-- [end:usage]
 
 # =============================================================================
 # LOCAL DEVELOPMENT (docker-compose)

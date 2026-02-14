@@ -85,11 +85,11 @@ Specific exceptions have constructors that capture context for logging and debug
 they take structured arguments:
 
 ```python
---8<-- "backend/app/domain/saga/exceptions.py:11:17"
+--8<-- "backend/app/domain/saga/exceptions.py:SagaAccessDeniedError"
 ```
 
 ```python
---8<-- "backend/app/domain/notification/exceptions.py:11:18"
+--8<-- "backend/app/domain/notification/exceptions.py:NotificationThrottledError"
 ```
 
 This means you can log `exc.saga_id` or `exc.limit` without parsing the message, and tests can assert on specific
@@ -101,7 +101,7 @@ The middleware in `app/core/exceptions/handlers.py` catches all `DomainError` su
 responses:
 
 ```python
---8<-- "backend/app/core/exceptions/handlers.py:17:44"
+--8<-- "backend/app/core/exceptions/handlers.py:configure_exception_handlers"
 ```
 
 The response includes the exception type name, so clients can distinguish between `ExecutionNotFoundError` and

@@ -60,7 +60,7 @@ Execution failed:
 The service throttles notifications per user per severity window:
 
 ```python
---8<-- "backend/app/services/notification_service.py:76:101"
+--8<-- "backend/app/services/notification_service.py:ThrottleCache"
 ```
 
 ## Channel handlers
@@ -68,7 +68,7 @@ The service throttles notifications per user per severity window:
 Notifications route to handlers based on channel:
 
 ```python
---8<-- "backend/app/services/notification_service.py:156:160"
+--8<-- "backend/app/services/notification_service.py:channel_handlers"
 ```
 
 In-app notifications publish to the SSE bus for realtime delivery. Webhook and Slack channels use HTTP POST with retry
@@ -80,7 +80,7 @@ Users configure subscriptions per channel with severity and tag filters. The `_s
 these before delivery:
 
 ```python
---8<-- "backend/app/services/notification_service.py:801:823"
+--8<-- "backend/app/services/notification_service.py:should_skip_notification"
 ```
 
 ## Key files

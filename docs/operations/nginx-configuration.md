@@ -20,7 +20,7 @@ backend.
 ### Server block
 
 ```nginx
---8<-- "frontend/nginx.conf.template:1:6"
+--8<-- "frontend/nginx.conf.template:server_block"
 ```
 
 | Directive       | Purpose                                          |
@@ -32,7 +32,7 @@ backend.
 ### Compression
 
 ```nginx
---8<-- "frontend/nginx.conf.template:8:13"
+--8<-- "frontend/nginx.conf.template:compression"
 ```
 
 Gzip compression reduces bandwidth for text-based assets. Binary files (images, fonts) are excluded as they're already
@@ -41,7 +41,7 @@ compressed.
 ### API proxy
 
 ```nginx
---8<-- "frontend/nginx.conf.template:15:25"
+--8<-- "frontend/nginx.conf.template:api_proxy"
 ```
 
 | Directive              | Purpose                                          |
@@ -57,7 +57,7 @@ compressed.
 SSE endpoints require special handling to prevent buffering:
 
 ```nginx
---8<-- "frontend/nginx.conf.template:27:54"
+--8<-- "frontend/nginx.conf.template:sse_proxy"
 ```
 
 | Directive                   | Purpose                                           |
@@ -73,7 +73,7 @@ Without these settings, SSE events would be buffered and delivered in batches in
 ### Static asset caching
 
 ```nginx
---8<-- "frontend/nginx.conf.template:57:75"
+--8<-- "frontend/nginx.conf.template:static_caching"
 ```
 
 Svelte build outputs hashed filenames (`app.abc123.js`), making them safe to cache indefinitely. HTML files must never
@@ -82,7 +82,7 @@ be cached to ensure users get the latest asset references.
 ### Security headers
 
 ```nginx
---8<-- "frontend/nginx.conf.template:77:84"
+--8<-- "frontend/nginx.conf.template:security_headers"
 ```
 
 #### Content Security Policy
@@ -120,7 +120,7 @@ The nginx configuration uses environment variable substitution via the official 
 feature:
 
 ```dockerfile
---8<-- "frontend/Dockerfile.prod:12:21"
+--8<-- "frontend/Dockerfile.prod:production_stage"
 ```
 
 The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to

@@ -236,6 +236,7 @@ class ResultFailedEvent(BaseEvent):
 # --- User Events ---
 
 
+# --8<-- [start:UserSettingsUpdatedEvent]
 class UserSettingsUpdatedEvent(BaseEvent):
     model_config = ConfigDict(extra="allow")
 
@@ -243,6 +244,7 @@ class UserSettingsUpdatedEvent(BaseEvent):
     user_id: str
     changed_fields: list[str] = Field(default_factory=list)
     reason: str | None = None
+# --8<-- [end:UserSettingsUpdatedEvent]
 
 
 class UserRegisteredEvent(BaseEvent):

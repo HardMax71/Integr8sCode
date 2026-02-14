@@ -1,17 +1,22 @@
+# --8<-- [start:server_block]
 server {
     listen 5001;
     server_name _;
 
     root /usr/share/nginx/html;
     index index.html;
+# --8<-- [end:server_block]
 
+    # --8<-- [start:compression]
     # Enable gzip compression
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json application/x-font-ttf font/opentype image/svg+xml image/x-icon;
     gzip_disable "msie6";
+    # --8<-- [end:compression]
 
+    # --8<-- [start:api_proxy]
     location /api/ {
         proxy_pass ${BACKEND_URL};
         proxy_ssl_verify off;
@@ -23,7 +28,9 @@ server {
         # Forward cookies
         proxy_pass_request_headers on;
         proxy_set_header Cookie $http_cookie;
+    # --8<-- [end:api_proxy]
 
+        # --8<-- [start:sse_proxy]
         # SSE specific settings for /api/v1/events/
         location ~ ^/api/v1/events/ {
             proxy_pass ${BACKEND_URL};
@@ -52,8 +59,10 @@ server {
             add_header Cache-Control 'no-cache';
             add_header X-Accel-Buffering 'no';
         }
+        # --8<-- [end:sse_proxy]
     }
 
+    # --8<-- [start:static_caching]
     # Cache static assets
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
@@ -73,7 +82,9 @@ server {
         expires -1;
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
     }
+    # --8<-- [end:static_caching]
 
+    # --8<-- [start:security_headers]
     location / {
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
         add_header X-Frame-Options "SAMEORIGIN";
@@ -82,4 +93,5 @@ server {
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
         try_files $uri $uri/ /index.html;
     }
+    # --8<-- [end:security_headers]
 }

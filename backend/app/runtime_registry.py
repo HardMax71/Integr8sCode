@@ -3,19 +3,24 @@ from typing import NamedTuple, TypedDict
 from app.domain.execution import LanguageInfoDomain
 
 
+# --8<-- [start:RuntimeConfig]
 class RuntimeConfig(NamedTuple):
     image: str  # Full Docker image reference
     file_name: str  # Name that will be mounted under /scripts/
     command: list[str]  # Entrypoint executed inside the container
+# --8<-- [end:RuntimeConfig]
 
 
+# --8<-- [start:LanguageSpec]
 class LanguageSpec(TypedDict):
     versions: list[str]
     image_tpl: str
     file_ext: str
     interpreter: list[str]
+# --8<-- [end:LanguageSpec]
 
 
+# --8<-- [start:LANGUAGE_SPECS]
 LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "python": {
         "versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
@@ -48,7 +53,9 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
         "interpreter": ["go", "run"],
     },
 }
+# --8<-- [end:LANGUAGE_SPECS]
 
+# --8<-- [start:EXAMPLE_SCRIPTS]
 EXAMPLE_SCRIPTS: dict[str, str] = {
     "python": """
 # This f-string formatting works on all supported Python versions (3.7+)
@@ -152,6 +159,7 @@ func main() {
 }
 """,
 }
+# --8<-- [end:EXAMPLE_SCRIPTS]
 
 
 def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:

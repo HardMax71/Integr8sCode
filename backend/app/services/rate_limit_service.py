@@ -125,12 +125,14 @@ class RateLimitService:
         now = time.time()
         window_start = now - window_seconds
 
+        # --8<-- [start:check_sliding_window]
         pipe = self.redis.pipeline()
         pipe.zremrangebyscore(key, 0, window_start)
         pipe.zadd(key, {str(now): now})
         pipe.zcard(key)
         pipe.expire(key, window_seconds * 2)
         results = await pipe.execute()
+        # --8<-- [end:check_sliding_window]
 
         count = results[2]
         remaining = max(0, limit - count)
@@ -172,6 +174,7 @@ class RateLimitService:
 
         await self._register_user_key(user_id, key)
 
+        # --8<-- [start:check_token_bucket]
         bucket_data = await self.redis.get(key)
         if bucket_data:
             bucket = json.loads(bucket_data)
@@ -186,6 +189,7 @@ class RateLimitService:
         if tokens >= 1:
             tokens -= 1
             await self.redis.setex(key, window_seconds * 2, json.dumps({"tokens": tokens, "last_refill": now}))
+        # --8<-- [end:check_token_bucket]
 
             return RateLimitStatus(
                 allowed=True,

@@ -84,6 +84,20 @@ class PasswordReset(BaseModel):
         return bool(self.user_id and self.new_password and len(self.new_password) >= 8)
 
 
+class UserDeleteResult(BaseModel):
+    """Domain result for user deletion."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_deleted: bool
+    executions: int = 0
+    saved_scripts: int = 0
+    notifications: int = 0
+    user_settings: int = 0
+    events: int = 0
+    sagas: int = 0
+
+
 class DomainUserCreate(BaseModel):
     """User creation data for repository (with hashed password)."""
 

@@ -7,6 +7,25 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
 
 
+class ReplayOperationResult(BaseModel):
+    """Domain result for replay session operations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: str
+    status: ReplayStatus
+    message: str
+
+
+class CleanupResult(BaseModel):
+    """Domain result for cleanup operations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    removed_sessions: int
+    message: str
+
+
 class ReplayError(BaseModel):
     """Error details for replay operations.
 

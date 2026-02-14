@@ -8,8 +8,7 @@ from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateL
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
-from app.domain.user import DomainUserCreate, PasswordReset, User, UserListResult, UserUpdate
-from app.schemas_pydantic.user import DeleteUserResponse, UserCreate
+from app.domain.user import DomainUserCreate, PasswordReset, User, UserDeleteResult, UserListResult, UserUpdate
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 from app.services.rate_limit_service import RateLimitService
@@ -127,30 +126,20 @@ class AdminUserService:
 
         return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
 
-    async def create_user(self, *, admin_user_id: str, user_data: UserCreate) -> User:
+    async def create_user(self, *, admin_user_id: str, create_data: DomainUserCreate) -> User:
         """Create a new user and return domain user."""
         self.logger.info(
-            "Admin creating new user", admin_user_id=admin_user_id, new_username=user_data.username
+            "Admin creating new user", admin_user_id=admin_user_id, new_username=create_data.username
         )
         # Ensure not exists
-        search_result = await self._users.list_users(limit=1, offset=0, search=user_data.username)
+        search_result = await self._users.list_users(limit=1, offset=0, search=create_data.username)
         for user in search_result.users:
-            if user.username == user_data.username:
+            if user.username == create_data.username:
                 raise ConflictError("Username already exists")
 
-        hashed_password = self._security.get_password_hash(user_data.password)
-
-        create_data = DomainUserCreate(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password=hashed_password,
-            role=getattr(user_data, "role", UserRole.USER),
-            is_active=getattr(user_data, "is_active", True),
-            is_superuser=False,
-        )
         created = await self._users.create_user(create_data)
         self.logger.info(
-            "User created successfully", new_username=user_data.username, admin_user_id=admin_user_id
+            "User created successfully", new_username=create_data.username, admin_user_id=admin_user_id
         )
         return created
 
@@ -170,7 +159,7 @@ class AdminUserService:
             update = update.model_copy(update={"password": self._security.get_password_hash(update.password)})
         return await self._users.update_user(user_id, update)
 
-    async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> DeleteUserResponse:
+    async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(
             "Admin deleting user",
             admin_user_id=admin_user_id,

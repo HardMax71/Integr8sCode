@@ -5,6 +5,7 @@ import structlog
 from beanie.odm.enums import SortDirection
 from beanie.operators import Set
 from monggregate import Pipeline, S
+from pydantic import TypeAdapter
 
 from app.db.docs import DLQMessageDocument
 from app.dlq import (
@@ -12,9 +13,11 @@ from app.dlq import (
     DLQMessageListResult,
     DLQMessageStatus,
     DLQMessageUpdate,
+    DLQTopicSummary,
 )
 from app.domain.enums import EventType
-from app.schemas_pydantic.dlq import DLQTopicSummaryResponse
+
+_topic_summary_ta = TypeAdapter(DLQTopicSummary)
 
 
 class DLQRepository:
@@ -51,7 +54,7 @@ class DLQRepository:
         doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
         return DLQMessage.model_validate(doc) if doc else None
 
-    async def get_topics_summary(self) -> list[DLQTopicSummaryResponse]:
+    async def get_topics_summary(self) -> list[DLQTopicSummary]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
         # Note: compound keys need S.field() wrapper for monggregate to add $ prefix
         pipeline = (
@@ -91,7 +94,7 @@ class DLQRepository:
             )
         )
         results = await DLQMessageDocument.aggregate(pipeline.export()).to_list()
-        return [DLQTopicSummaryResponse.model_validate(r) for r in results]
+        return [_topic_summary_ta.validate_python(r) for r in results]
 
     async def save_message(self, message: DLQMessage) -> None:
         """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""

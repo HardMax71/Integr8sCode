@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
@@ -141,5 +142,18 @@ class DLQMessageListResult:
     total: int
     offset: int
     limit: int
+
+
+@pydantic_dataclass(config=ConfigDict(from_attributes=True))
+class DLQTopicSummary:
+    """Domain model for topic summary."""
+
+    topic: str
+    total_messages: int
+    status_breakdown: dict[DLQMessageStatus, int]
+    oldest_message: datetime
+    newest_message: datetime
+    avg_retry_count: float
+    max_retry_count: int
 
 

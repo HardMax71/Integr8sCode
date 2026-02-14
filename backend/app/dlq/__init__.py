@@ -12,6 +12,7 @@ from .models import (
     DLQMessageStatus,
     DLQMessageUpdate,
     DLQRetryResult,
+    DLQTopicSummary,
     RetryPolicy,
     RetryStrategy,
 )
@@ -26,4 +27,5 @@ __all__ = [
     "DLQRetryResult",
     "DLQBatchRetryResult",
     "DLQMessageListResult",
+    "DLQTopicSummary",
 ]

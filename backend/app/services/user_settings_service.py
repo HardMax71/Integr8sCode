@@ -10,11 +10,11 @@ from app.domain.events import EventMetadata, UserSettingsUpdatedEvent
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
+    DomainSettingsHistoryEntry,
     DomainUserSettings,
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.schemas_pydantic.user_settings import SettingsHistoryEntry
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
@@ -145,14 +145,14 @@ class UserSettingsService:
             reason=f"Custom setting '{key}' updated",
         )
 
-    async def get_settings_history(self, user_id: str, limit: int = 50) -> list[SettingsHistoryEntry]:
+    async def get_settings_history(self, user_id: str, limit: int = 50) -> list[DomainSettingsHistoryEntry]:
         """Get history from changed fields recorded in events."""
         events = await self.repository.get_settings_events(user_id, [EventType.USER_SETTINGS_UPDATED], limit=limit)
-        history: list[SettingsHistoryEntry] = []
+        history: list[DomainSettingsHistoryEntry] = []
         for event in events:
             for fld in event.changed_fields:
                 history.append(
-                    SettingsHistoryEntry(
+                    DomainSettingsHistoryEntry(
                         timestamp=event.timestamp,
                         event_type=event.event_type,
                         field=f"/{fld}",

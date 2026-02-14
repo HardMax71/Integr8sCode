@@ -5,13 +5,13 @@ from app.domain.enums import SagaState, UserRole
 from app.domain.saga import (
     Saga,
     SagaAccessDeniedError,
+    SagaCancellationResult,
     SagaFilter,
     SagaInvalidStateError,
     SagaListResult,
     SagaNotFoundError,
 )
 from app.domain.user import User
-from app.schemas_pydantic.saga import SagaCancellationResponse
 from app.services.saga import SagaOrchestrator
 
 
@@ -131,7 +131,7 @@ class SagaService:
         )
         return result
 
-    async def cancel_saga(self, saga_id: str, user: User) -> SagaCancellationResponse:
+    async def cancel_saga(self, saga_id: str, user: User) -> SagaCancellationResult:
         """Cancel a saga with permission check."""
         self.logger.info(
             "User requesting saga cancellation",
@@ -158,7 +158,7 @@ class SagaService:
         else:
             self.logger.error("Failed to cancel saga", saga_id=saga_id, user_id=user.user_id)
         message = "Saga cancelled successfully" if success else "Failed to cancel saga"
-        return SagaCancellationResponse(success=success, message=message, saga_id=saga_id)
+        return SagaCancellationResult(success=success, message=message, saga_id=saga_id)
 
     async def get_saga_statistics(self, user: User, include_all: bool = False) -> dict[str, object]:
         """Get saga statistics."""

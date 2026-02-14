@@ -4,6 +4,7 @@ from typing import Any
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, In, Text
 from monggregate import Pipeline, S
+from pydantic import TypeAdapter
 
 from app.db.docs import (
     EventArchiveDocument,
@@ -11,12 +12,11 @@ from app.db.docs import (
     ExecutionDocument,
     ReplaySessionDocument,
 )
-from app.domain.admin import ReplaySessionUpdate
+from app.domain.admin import ExecutionResultSummary, ReplaySessionUpdate
 from app.domain.enums import EventType, ExecutionStatus
-from app.domain.events import DomainEvent, DomainEventAdapter
-from app.domain.replay import ReplayFilter
-from app.schemas_pydantic.admin_events import ExecutionResultSummary
-from app.schemas_pydantic.events import (
+from app.domain.events import (
+    DomainEvent,
+    DomainEventAdapter,
     EventBrowseResult,
     EventDetail,
     EventFilter,
@@ -26,6 +26,12 @@ from app.schemas_pydantic.events import (
     HourlyEventCount,
     UserEventCount,
 )
+from app.domain.replay import ReplayFilter
+
+_event_summary_ta = TypeAdapter(EventSummary)
+_hourly_count_ta = TypeAdapter(HourlyEventCount)
+_user_count_ta = TypeAdapter(UserEventCount)
+_exec_result_ta = TypeAdapter(ExecutionResultSummary)
 
 
 class AdminEventsRepository:
@@ -82,7 +88,7 @@ class AdminEventsRepository:
         related_docs = await (
             EventDocument.find(related_query).sort([("timestamp", SortDirection.ASCENDING)]).limit(10).to_list()
         )
-        related_events = [EventSummary.model_validate(d) for d in related_docs]
+        related_events = [_event_summary_ta.validate_python(d, from_attributes=True) for d in related_docs]
         timeline = related_events[:5]
 
         return EventDetail(event=event, related_events=related_events, timeline=timeline)
@@ -171,9 +177,9 @@ class AdminEventsRepository:
             EventTypeCount(event_type=EventType(t["_id"]), count=t["count"])
             for t in facet.get("by_type", [])
         ]
-        events_by_hour = [HourlyEventCount.model_validate(doc) for doc in facet.get("by_hour", [])]
+        events_by_hour = [_hourly_count_ta.validate_python(doc) for doc in facet.get("by_hour", [])]
         top_users = [
-            UserEventCount.model_validate(doc) for doc in facet.get("by_user", []) if doc["user_id"]
+            _user_count_ta.validate_python(doc) for doc in facet.get("by_user", []) if doc["user_id"]
         ]
 
         # Separate collection — must be a separate query
@@ -236,13 +242,13 @@ class AdminEventsRepository:
         exec_docs = await ExecutionDocument.find(
             In(ExecutionDocument.execution_id, exec_ids)
         ).to_list()
-        return [ExecutionResultSummary.model_validate(d) for d in exec_docs]
+        return [_exec_result_ta.validate_python(d, from_attributes=True) for d in exec_docs]
 
     async def count_events_for_replay(self, replay_filter: ReplayFilter) -> int:
         return await EventDocument.find(replay_filter.to_mongo_query()).count()
 
     async def get_events_preview_for_replay(self, replay_filter: ReplayFilter, limit: int = 100) -> list[EventSummary]:
         docs = await EventDocument.find(replay_filter.to_mongo_query()).limit(limit).to_list()
-        return [EventSummary.model_validate(doc) for doc in docs]
+        return [_event_summary_ta.validate_python(doc, from_attributes=True) for doc in docs]
 
 

@@ -18,11 +18,11 @@ from app.domain.user import (
     DomainUserCreate,
     PasswordReset,
     User,
+    UserDeleteResult,
     UserListResult,
     UserNotFoundError,
     UserUpdate,
 )
-from app.schemas_pydantic.user import DeleteUserResponse
 
 
 class AdminUserRepository:
@@ -73,7 +73,7 @@ class AdminUserRepository:
             await doc.set(update_dict)
         return User.model_validate(doc)
 
-    async def delete_user(self, user_id: str, cascade: bool = True) -> DeleteUserResponse:
+    async def delete_user(self, user_id: str, cascade: bool = True) -> UserDeleteResult:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
             raise UserNotFoundError(user_id)
@@ -81,7 +81,7 @@ class AdminUserRepository:
         await doc.delete()
 
         if not cascade:
-            return DeleteUserResponse(user_deleted=True)
+            return UserDeleteResult(user_deleted=True)
 
         # Cascade delete related data
         exec_result = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).delete()
@@ -91,7 +91,7 @@ class AdminUserRepository:
         events_result = await EventDocument.find(EventDocument.metadata.user_id == user_id).delete()
         sagas_result = await SagaDocument.find(SagaDocument.context_data.user_id == user_id).delete()
 
-        return DeleteUserResponse(
+        return UserDeleteResult(
             user_deleted=True,
             executions=exec_result.deleted_count if exec_result else 0,
             saved_scripts=scripts_result.deleted_count if scripts_result else 0,

@@ -4,6 +4,7 @@ from .overview_models import (
     RateLimitSummaryDomain,
 )
 from .replay_models import (
+    ExecutionResultSummary,
     ReplaySessionData,
     ReplaySessionStatusDetail,
     ReplaySessionStatusInfo,
@@ -25,6 +26,7 @@ __all__ = [
     "LogLevel",
     "SystemSettings",
     # Replay
+    "ExecutionResultSummary",
     "ReplaySessionData",
     "ReplaySessionStatusDetail",
     "ReplaySessionStatusInfo",

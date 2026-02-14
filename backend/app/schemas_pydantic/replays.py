@@ -10,13 +10,15 @@ from app.domain.replay.models import ReplayError, ReplayFilter
 class ReplayFilterSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    event_ids: list[str] | None = None
     execution_id: str | None = None
+    aggregate_id: str | None = None
     event_types: list[EventType] | None = None
+    exclude_event_types: list[EventType] | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
     user_id: str | None = None
     service_name: str | None = None
-    exclude_event_types: list[EventType] | None = None
 
 
 class ReplayConfigSchema(BaseModel):

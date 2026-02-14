@@ -121,6 +121,16 @@ class SagaInstance(BaseModel):
     retry_count: int = 0
 
 
+class SagaCancellationResult(BaseModel):
+    """Domain result for saga cancellation operations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    success: bool
+    message: str
+    saga_id: str
+
+
 class DomainResourceAllocation(BaseModel):
     """Domain model for resource allocation."""
 

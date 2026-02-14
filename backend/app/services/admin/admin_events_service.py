@@ -6,14 +6,13 @@ from io import StringIO
 from typing import Any
 
 import structlog
+from pydantic import TypeAdapter
 
 from app.db.docs.replay import ReplaySessionDocument
 from app.db.repositories import AdminEventsRepository
 from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
 from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
-from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayFilter
-from app.schemas_pydantic.events import (
+from app.domain.events import (
     EventBrowseResult,
     EventDetail,
     EventExportRow,
@@ -21,12 +20,17 @@ from app.schemas_pydantic.events import (
     EventStatistics,
     EventSummary,
 )
+from app.domain.exceptions import NotFoundError, ValidationError
+from app.domain.replay import ReplayConfig, ReplayFilter
 from app.services.event_replay import EventReplayService
+
+_export_row_ta = TypeAdapter(EventExportRow)
+_event_filter_ta = TypeAdapter(EventFilter)
 
 
 def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
     """Convert EventExportRow to dict with CSV column names."""
-    data = row.model_dump(mode="json")
+    data = _export_row_ta.dump_python(row, mode="json")
     meta = data.get("metadata", {})
     return {
         "Event ID": data["event_id"],
@@ -217,7 +221,7 @@ class AdminEventsService:
 
     async def _export_csv(self, *, event_filter: EventFilter, limit: int) -> ExportResult:
         events = await self._repo.get_events(event_filter, skip=0, limit=limit)
-        rows = [EventExportRow.model_validate(e, from_attributes=True) for e in events]
+        rows = [_export_row_ta.validate_python(e, from_attributes=True) for e in events]
         output = StringIO()
         writer = csv.DictWriter(
             output,
@@ -253,7 +257,7 @@ class AdminEventsService:
             "export_metadata": {
                 "exported_at": datetime.now(timezone.utc).isoformat(),
                 "total_events": len(events_data),
-                "filters_applied": event_filter.model_dump(mode="json"),
+                "filters_applied": _event_filter_ta.dump_python(event_filter, mode="json"),
                 "export_limit": limit,
             },
             "events": events_data,

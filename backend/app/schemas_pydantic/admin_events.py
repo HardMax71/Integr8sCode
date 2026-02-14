@@ -2,10 +2,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.domain.enums import EventType, ExecutionErrorType, ExecutionStatus, ReplayStatus
-from app.domain.events import DomainEvent, ResourceUsageDomain
+from app.domain.admin.replay_models import ExecutionResultSummary
+from app.domain.enums import EventType, ReplayStatus
+from app.domain.events import DomainEvent, EventSummary, EventTypeCount, HourlyEventCount, UserEventCount
 from app.domain.replay import ReplayError
-from app.schemas_pydantic.events import EventSummary, EventTypeCount, HourlyEventCount, UserEventCount
 from app.schemas_pydantic.execution import ExecutionResult
 
 
@@ -121,19 +121,15 @@ class EventStatsResponse(BaseModel):
     avg_processing_time: float
 
 
-class ExecutionResultSummary(BaseModel):
-    """Summary of an execution result for replay status."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    execution_id: str
-    status: ExecutionStatus | None
-    stdout: str | None
-    stderr: str | None
-    exit_code: int | None
-    lang: str
-    lang_version: str
-    created_at: datetime
-    updated_at: datetime
-    resource_usage: ResourceUsageDomain | None = None
-    error_type: ExecutionErrorType | None = None
+__all__ = [
+    "EventFilter",
+    "EventBrowseRequest",
+    "EventReplayRequest",
+    "EventBrowseResponse",
+    "EventDetailResponse",
+    "EventReplayResponse",
+    "EventReplayStatusResponse",
+    "EventDeleteResponse",
+    "EventStatsResponse",
+    "ExecutionResultSummary",
+]

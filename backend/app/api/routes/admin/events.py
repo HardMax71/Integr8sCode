@@ -6,9 +6,11 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from pydantic import TypeAdapter
 
 from app.api.dependencies import admin_user
 from app.domain.enums import EventType, ExportFormat
+from app.domain.events import EventFilter as DomainEventFilter
 from app.domain.replay import ReplayFilter
 from app.domain.user import User
 from app.schemas_pydantic.admin_events import (
@@ -22,8 +24,9 @@ from app.schemas_pydantic.admin_events import (
     EventStatsResponse,
 )
 from app.schemas_pydantic.common import ErrorResponse
-from app.schemas_pydantic.events import EventFilter
 from app.services.admin import AdminEventsService
+
+_domain_filter_ta = TypeAdapter(DomainEventFilter)
 
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -34,7 +37,7 @@ router = APIRouter(
 async def browse_events(request: EventBrowseRequest, service: FromDishka[AdminEventsService]) -> EventBrowseResponse:
     """Browse events with filtering, sorting, and pagination."""
     result = await service.browse_events(
-        event_filter=EventFilter.model_validate(request.filters),
+        event_filter=_domain_filter_ta.validate_python(request.filters, from_attributes=True),
         skip=request.skip,
         limit=request.limit,
     )
@@ -65,7 +68,7 @@ async def export_events(
     limit: Annotated[int, Query(ge=1, le=50000)] = 10000,
 ) -> StreamingResponse:
     """Export filtered events as a downloadable file."""
-    export_filter = EventFilter(
+    export_filter = DomainEventFilter(
         event_types=event_types,
         aggregate_id=aggregate_id,
         user_id=user_id,

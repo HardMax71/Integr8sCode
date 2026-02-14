@@ -4,19 +4,23 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+from pydantic import TypeAdapter
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
-from app.schemas_pydantic.execution import ExecutionResult
-from app.schemas_pydantic.notification import NotificationResponse
-from app.schemas_pydantic.sse import (
+from app.domain.execution.models import DomainExecution
+from app.domain.sse import (
+    DomainNotificationSSEPayload,
     RedisNotificationMessage,
     RedisSSEMessage,
     SSEExecutionEventData,
 )
 from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription
 from app.settings import Settings
+
+_sse_event_ta = TypeAdapter(SSEExecutionEventData)
+_notif_payload_ta = TypeAdapter(DomainNotificationSSEPayload)
 
 
 class SSEService:
@@ -120,13 +124,11 @@ class SSEService:
 
     async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
         """Build typed SSE event from Redis message."""
-        result: ExecutionResult | None = None
+        result: DomainExecution | None = None
         if msg.event_type == EventType.RESULT_STORED:
-            exec_domain = await self.repository.get_execution(execution_id)
-            if exec_domain:
-                result = ExecutionResult.model_validate(exec_domain)
+            result = await self.repository.get_execution(execution_id)
 
-        return SSEExecutionEventData.model_validate(
+        return _sse_event_ta.validate_python(
             {
                 **msg.data,
                 "event_type": msg.event_type,
@@ -146,7 +148,7 @@ class SSEService:
                 if not redis_msg:
                     continue
 
-                notification = NotificationResponse(
+                payload = DomainNotificationSSEPayload(
                     notification_id=redis_msg.notification_id,
                     channel=NotificationChannel.IN_APP,
                     status=redis_msg.status,
@@ -158,7 +160,7 @@ class SSEService:
                     severity=redis_msg.severity,
                     tags=redis_msg.tags,
                 )
-                yield {"event": "notification", "data": notification.model_dump_json()}
+                yield {"event": "notification", "data": _notif_payload_ta.dump_json(payload)}
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
@@ -166,4 +168,4 @@ class SSEService:
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
-        return {"data": event.model_dump_json(exclude_none=True)}
+        return {"data": _sse_event_ta.dump_json(event, exclude_none=True)}

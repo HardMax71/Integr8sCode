@@ -1,3 +1,17 @@
+from app.domain.events.event_models import (
+    EventBrowseResult,
+    EventDetail,
+    EventExportRow,
+    EventFilter,
+    EventListResult,
+    EventReplayInfo,
+    EventStatistics,
+    EventSummary,
+    EventTypeCount,
+    HourlyEventCount,
+    ServiceEventCount,
+    UserEventCount,
+)
 from app.domain.events.typed import (
     # Saga Command Events
     AllocateResourcesCommandEvent,
@@ -81,6 +95,19 @@ from app.domain.events.typed import (
 )
 
 __all__ = [
+    # Event query/aggregation types
+    "EventSummary",
+    "EventFilter",
+    "EventListResult",
+    "EventBrowseResult",
+    "EventDetail",
+    "EventTypeCount",
+    "HourlyEventCount",
+    "ServiceEventCount",
+    "UserEventCount",
+    "EventStatistics",
+    "EventReplayInfo",
+    "EventExportRow",
     # Base types
     "ArchivedEvent",
     "BaseEvent",

@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 
 from beanie import Document, Indexed
@@ -5,7 +6,7 @@ from pydantic import ConfigDict, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from app.dlq.models import DLQMessageStatus
-from app.domain.events import DomainEvent
+from app.domain.events import ContainerStatusInfo, DomainEvent, EventMetadata, ResourceUsageDomain
 
 
 class DLQMessageDocument(Document):
@@ -34,6 +35,11 @@ class DLQMessageDocument(Document):
     class Settings:
         name = "dlq_messages"
         use_state_management = True
+        bson_encoders = {
+            EventMetadata: dataclasses.asdict,
+            ResourceUsageDomain: dataclasses.asdict,
+            ContainerStatusInfo: dataclasses.asdict,
+        }
         indexes = [
             IndexModel([("event.event_id", ASCENDING)], unique=True, name="idx_dlq_event_id"),
             IndexModel([("event.event_type", ASCENDING)], name="idx_dlq_event_type"),

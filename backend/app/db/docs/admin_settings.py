@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -19,6 +20,7 @@ class SystemSettingsDocument(Document):
     class Settings:
         name = "system_settings"
         use_state_management = True
+        bson_encoders = {SystemSettings: dataclasses.asdict}
 
 
 class AuditLogDocument(Document):

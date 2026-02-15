@@ -21,6 +21,9 @@ build/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+e2e/
 
 # Logs
 logs/
@@ -51,9 +54,8 @@ temp/
 *.swp
 *.orig
 
-# Git
+# Git (keep .gitignore — Tailwind CSS v4 needs it for content detection)
 .git/
-.gitignore
 .gitattributes
 
 # Documentation

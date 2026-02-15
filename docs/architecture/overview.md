@@ -74,7 +74,7 @@ graph TD
     - **Middlewares**: CORS, Metrics, RateLimit, CSRF, RequestSizeLimit, CacheControl
     - **Routes + DI**: REST and SSE endpoints wired by Dishka
     - **Services**: Execution, Events, SSE, Idempotency, Notifications, User Settings, Rate Limit, Saved Scripts, Replay, Saga API
-    - **Kafka Layer**: UnifiedProducer, FastStream subscribers, EventStore
+    - **Kafka Layer**: UnifiedProducer, FastStream subscribers, EventRepository
     - **Observability**: OTel Collector → VictoriaMetrics (metrics) + Jaeger (traces)
 
 FastAPI under Uvicorn exposes REST and SSE routes. Requests pass through six middleware layers before reaching Dishka-wired route handlers that call services. Services use Mongo-backed repositories for state and a unified Kafka layer to publish and consume events. Redis handles rate limiting and SSE fanout. Workers are separate processes shown in the system diagram above.

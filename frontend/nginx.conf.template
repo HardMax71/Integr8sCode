@@ -62,10 +62,6 @@ server {
 
             # Disable buffering for SSE
             proxy_set_header X-Accel-Buffering no;
-
-            # CORS headers for SSE
-            add_header Cache-Control 'no-cache';
-            add_header X-Accel-Buffering 'no';
         }
         # --8<-- [end:sse_proxy]
     }

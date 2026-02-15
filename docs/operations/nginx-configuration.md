@@ -55,7 +55,7 @@ compressed.
 | Directive                      | Purpose                                                                      |
 |--------------------------------|------------------------------------------------------------------------------|
 | `proxy_pass ${BACKEND_URL}`    | Forward requests to the backend; the variable is replaced by `envsubst` at container start |
-| `proxy_ssl_verify off`         | Skip TLS certificate verification — safe because this is container-to-container traffic on an internal Docker network |
+| `proxy_ssl_verify off`         | Skip TLS certificate verification — safe because this is container-to-container traffic on an internal Docker network. **Never use this when proxying to external or untrusted backends** — it disables certificate validation entirely, making the connection vulnerable to MITM attacks |
 | `proxy_set_header Host $host`  | Forward the original `Host` header so the backend sees the client's requested hostname |
 | `proxy_set_header X-Real-IP`   | Pass the client's real IP address for rate limiting and audit logging         |
 | `proxy_set_header X-Forwarded-For` | Append client IP to the proxy chain header (standard for multi-layer proxies) |
@@ -83,9 +83,11 @@ SSE endpoints require special handling to prevent buffering:
 
 Without these settings, SSE events would be buffered and delivered in batches instead of real-time.
 
-This location block is nested inside `location /api/` and uses a regex match (`~ ^/api/v1/events/`). Nginx requires
-a nested location to share the same prefix as its parent. Because the nested block is a separate scope, it redeclares
-all `proxy_set_header` directives — nginx does not inherit `proxy_set_header` from parent locations.
+This location block is nested inside `location /api/` using a regex match (`~ ^/api/v1/events/`). Nesting is used here
+so that the SSE location inherits the parent's `proxy_pass` context while adding stream-specific directives. Because
+the SSE block defines its own `proxy_set_header` directives (e.g., `Connection ''`, `X-Accel-Buffering no`), it must
+redeclare all of them — `proxy_set_header` follows the same all-or-nothing inheritance as `add_header`: once a child
+block defines **any** `proxy_set_header`, all parent-level `proxy_set_header` directives are dropped for that block.
 
 ### Static asset caching
 
@@ -128,11 +130,17 @@ All security headers are defined at the `server` level so they apply to every re
 
 The `data:` source is required for the Monaco editor's inline SVG icons.
 
+`'unsafe-inline'` for `script-src` and `style-src` weakens CSP protection against XSS attacks, since it allows any
+inline `<script>` or `<style>` tag to execute. This is a trade-off for Svelte compatibility — the framework injects
+inline styles at runtime, and the build output includes inline scripts. Migrating to nonce-based CSP
+(`'nonce-<random>'`) would eliminate this trade-off but requires coordinating nonce generation between nginx and the
+backend.
+
 #### Other security headers
 
 | Header                   | Value                             | Purpose                        |
 |--------------------------|-----------------------------------|--------------------------------|
-| `X-Frame-Options`        | `SAMEORIGIN`                      | Legacy clickjacking protection |
+| `X-Frame-Options`        | `DENY`                            | Legacy clickjacking protection (aligns with CSP `frame-ancestors 'none'`) |
 | `X-Content-Type-Options` | `nosniff`                         | Prevent MIME sniffing          |
 | `Referrer-Policy`        | `strict-origin-when-cross-origin` | Limit referrer leakage         |
 | `Permissions-Policy`     | Deny geolocation, mic, camera     | Disable unused APIs            |
@@ -151,7 +159,7 @@ behavior — there is no merging.
 ```nginx
 # BAD — security headers NOT sent for /api/v1/events/ responses
 server {
-    add_header X-Frame-Options "SAMEORIGIN";          # defined at server level
+    add_header X-Frame-Options "DENY";                 # defined at server level
 
     location ~ ^/api/v1/events/ {
         add_header Cache-Control "no-cache";           # this single add_header
@@ -163,7 +171,7 @@ server {
 ```nginx
 # GOOD — security headers sent for all responses including SSE
 server {
-    add_header X-Frame-Options "SAMEORIGIN";          # defined at server level
+    add_header X-Frame-Options "DENY";                 # defined at server level
 
     location ~ ^/api/v1/events/ {
         proxy_buffering off;                           # no add_header here,

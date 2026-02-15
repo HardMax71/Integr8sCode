@@ -7,7 +7,7 @@ Users can save scripts to their account for later reuse. Scripts are stored in M
 Each saved script contains:
 
 ```python
---8<-- "backend/app/schemas_pydantic/saved_script.py:45:55"
+--8<-- "backend/app/schemas_pydantic/saved_script.py:SavedScriptResponse"
 ```
 
 Scripts are scoped to individual users—a user can only access their own saved scripts.
@@ -21,7 +21,7 @@ Scripts are scoped to individual users—a user can only access their own saved 
 The `SavedScriptService` handles business logic with comprehensive logging:
 
 ```python
---8<-- "backend/app/services/saved_script_service.py:17:39"
+--8<-- "backend/app/services/saved_script_service.py:create_saved_script"
 ```
 
 All operations log the user ID, script ID, and relevant metadata for auditing.

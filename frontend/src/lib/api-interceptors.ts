@@ -58,6 +58,7 @@ function handle401(isAuthEndpoint: boolean): void {
     }
 }
 
+// --8<-- [start:error_handling]
 function handleErrorStatus(status: number | undefined, error: unknown, isAuthEndpoint: boolean): boolean {
     if (!status) {
         if (!isAuthEndpoint) toast.error('Network error. Check your connection.');
@@ -90,6 +91,7 @@ function handleErrorStatus(status: number | undefined, error: unknown, isAuthEnd
 
     return false;
 }
+// --8<-- [end:error_handling]
 
 export function initializeApiInterceptors(): void {
     client.setConfig({
@@ -112,6 +114,7 @@ export function initializeApiInterceptors(): void {
         return error;
     });
 
+    // --8<-- [start:csrf_injection]
     client.interceptors.request.use((request, _opts) => {
         if (request.method !== 'GET') {
             const token = authStore.csrfToken;
@@ -121,6 +124,7 @@ export function initializeApiInterceptors(): void {
         }
         return request;
     });
+    // --8<-- [end:csrf_injection]
 }
 
 export function unwrap<T>(result: { data?: T; error?: unknown }): T {

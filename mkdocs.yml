@@ -50,6 +50,20 @@ theme:
 plugins:
   - search
   - swagger-ui-tag
+  - mermaid2:
+      arguments:
+        securityLevel: loose
+        fontFamily: "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
+        flowchart:
+          curve: basis
+          padding: 16
+          nodeSpacing: 30
+          rankSpacing: 50
+        sequence:
+          mirrorActors: false
+          messageMargin: 40
+          actorFontFamily: "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
+          messageFontFamily: "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif"
 
 markdown_extensions:
   # Python Markdown
@@ -82,6 +96,7 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.snippets:
+      check_paths: true
       base_path:
         - .
         - docs
@@ -89,7 +104,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format: !!python/name:mermaid2.fence_mermaid_custom
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
@@ -116,11 +131,10 @@ nav:
     - Runtime Registry: architecture/runtime-registry.md
     - Middleware: architecture/middleware.md
     - Domain Exceptions: architecture/domain-exceptions.md
-    - Pydantic Dataclasses: architecture/pydantic-dataclasses.md
+    - Domain Dataclasses: architecture/domain-dataclasses.md
     - Model Conversion: architecture/model-conversion.md
     - Event Storage: architecture/event-storage.md
     - Event System Design: architecture/event-system-design.md
-    - Event Bus: architecture/event-bus.md
     - User Settings Events: architecture/user-settings-events.md
     - Frontend Build: architecture/frontend-build.md
     - Svelte 5 Migration: architecture/svelte5-migration.md

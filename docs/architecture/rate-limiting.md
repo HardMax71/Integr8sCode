@@ -47,7 +47,7 @@ empty, requests are rejected until tokens refill. The `burst_multiplier` control
 beyond the base limit, allowing controlled bursts.
 
 ```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:14:18"
+--8<-- "backend/app/domain/rate_limit/rate_limit_models.py:EndpointGroup"
 ```
 
 ## Default Rules
@@ -72,18 +72,18 @@ applies to any endpoint not matching a more specific pattern.
 
 ## Middleware Integration
 
-The `RateLimitMiddleware` intercepts all HTTP requests, extracts the user identifier, and checks against the configured
-limits:
+The `RateLimitMiddleware` intercepts every HTTP request except a set of excluded paths (health checks, auth endpoints,
+static assets):
 
 ```python
---8<-- "backend/app/core/middlewares/rate_limit.py:15:38"
+--8<-- "backend/app/core/middlewares/rate_limit.py:RateLimitMiddleware"
 ```
 
 For authenticated requests, the middleware uses the user ID from the request state. Anonymous requests are identified by
 client IP address:
 
 ```python
---8<-- "backend/app/core/middlewares/rate_limit.py:100:104"
+--8<-- "backend/app/core/middlewares/rate_limit.py:extract_user_id"
 ```
 
 ## Response Headers
@@ -114,7 +114,7 @@ Administrators can query current rate limit usage for any user via the admin API
 using a single `remaining` field that represents available capacity regardless of the underlying algorithm:
 
 ```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:31:36"
+--8<-- "backend/app/domain/rate_limit/rate_limit_models.py:EndpointUsageStats"
 ```
 
 For sliding window, `remaining` is calculated as `limit - requests_in_window`. For token bucket, it's the current token
@@ -129,7 +129,7 @@ Administrators can customize limits for specific users through the admin API. Us
 - **Custom rules**: Add user-specific rules that take priority over defaults
 
 ```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:53:61"
+--8<-- "backend/app/domain/rate_limit/rate_limit_models.py:UserRateLimit"
 ```
 
 ## Redis Storage
@@ -137,13 +137,13 @@ Administrators can customize limits for specific users through the admin API. Us
 Rate limit state is stored in Redis with automatic TTL expiration. The sliding window algorithm uses sorted sets:
 
 ```python
---8<-- "backend/app/services/rate_limit_service.py:128:133"
+--8<-- "backend/app/services/rate_limit_service.py:check_sliding_window"
 ```
 
 Token bucket state is stored as JSON with the current token count and last refill time:
 
 ```python
---8<-- "backend/app/services/rate_limit_service.py:175:188"
+--8<-- "backend/app/services/rate_limit_service.py:check_token_bucket"
 ```
 
 Configuration is cached in Redis for 5 minutes to reduce database load while allowing dynamic updates.

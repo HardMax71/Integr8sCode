@@ -1,41 +1,92 @@
 # Service lifecycle
 
-Service lifecycles (start/stop) used to be managed in an ad-hoc way. Some services started themselves, others were started by DI providers, some runners remembered to stop things, some didn't. A few places tried to clean up with `locals()` checks and best-effort branching. It worked until it didn't: shutdowns were inconsistent, readiness was unclear, and tricky bugs hid in error paths.
+Services in this codebase are stateless by design. They receive their dependencies through Dishka constructors and expose plain async methods — no `start()`, no `stop()`, no context manager protocol. Lifecycle management sits outside the services themselves: the FastAPI lifespan handles the API process, and FastStream callbacks handle each worker process.
 
-A destructor-style approach (start in `__init__`, stop in `__del__`) looks simple on paper but is the wrong fit for asyncio. You can't await from a destructor, and destructors may run after the event loop is already gone. That prevents clean cancellation and flush of background tasks and network clients.
+This keeps services simple and testable. A service doesn't know or care how it was created or when it will be destroyed. It just does its job when called.
 
-The pattern that actually fits Python and asyncio is the language's own RAII: async context managers. Each service implements `start`/`stop`, and also implements `__aenter__`/`__aexit__` that call them. Runners and the FastAPI lifespan manage the lifetime of multiple services with an `AsyncExitStack` so the code stays flat and readable. Startup is deterministic, and shutdown always happens while the loop is still alive.
+## How it works
 
-## What changed
+Two infrastructure components actually have lifecycle: the **Kafka broker** (needs `start`/`stop`) and **APScheduler** instances (need `start`/`shutdown`). Everything else — services, repositories, the producer — is stateless and disposable.
 
-Services with long-running background work now implement the async context manager protocol. KubernetesWorker, PodMonitor, SSE Kafka→Redis bridge, EventStoreConsumer, ResultProcessor, DLQManager, EventBus, NotificationService, and the Kafka producer all expose `__aenter__`/`__aexit__` that call `start`/`stop`. The Coordinator is stateless and has its consumer lifecycle managed entirely by the DI provider.
+The FastAPI lifespan and worker entrypoints each manage these two concerns in their own way, but the principle is the same: start infrastructure, yield or block, then tear down in reverse.
 
-DI providers return unstarted instances for these services. The FastAPI lifespan acquires them and uses an `AsyncExitStack` to start/stop them in a single place. That removed scattered start/stop logic from providers and made shutdown order explicit.
+## FastAPI lifespan
 
-Worker entrypoints (coordinator, k8s-worker, pod-monitor, event-replay, result-processor, dlq-processor) use `AsyncExitStack` as well. No more `if 'x' in locals()` cleanups or nested with statements. Each runner acquires the services it needs, enters them in the stack, and blocks. When it's time to exit, everything stops in reverse order.
+The API process manages the broker and a notification scheduler:
 
-## Why this is better
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # ... init Beanie, register subscribers, set up Dishka ...
+    await broker.start()
 
-It's deterministic: `stop()` runs while the loop is alive, in the right order. It's explicit without being noisy: lifecycle sits in one place (lifespan or runner) instead of being sprinkled everywhere. It avoids Python destructors and other hidden magic. It also makes tests less flaky: you can spin up a service in an `async with` block and know it always gets torn down.
+    notification_apscheduler = AsyncIOScheduler()
+    notification_apscheduler.add_job(scheduler.process_due_notifications, ...)
+    notification_apscheduler.start()
+
+    try:
+        yield
+    finally:
+        notification_apscheduler.shutdown(wait=False)
+        await broker.stop()
+        await container.close()
+```
+
+Explicit try/finally keeps teardown visible. The broker stops before the container closes, so any in-flight publishes complete before DI resources are released.
+
+## Worker entrypoints
+
+Workers use FastStream's `on_startup` / `on_shutdown` callbacks instead of a context manager:
+
+```python
+async def init_service() -> None:
+    worker = await container.get(SomeService)
+    # optional: set up APScheduler, pre-warm caches, etc.
+
+async def shutdown() -> None:
+    scheduler.shutdown(wait=False)  # if APScheduler was used
+    await container.close()
+
+app = FastStream(broker, on_startup=[init_service], on_shutdown=[shutdown])
+await app.run()
+```
+
+FastStream calls `on_startup` after the broker connects and `on_shutdown` when the process receives a signal. The worker blocks on `app.run()` until termination.
+
+All seven workers follow this pattern:
+
+| Worker | Startup hook | Has APScheduler |
+|--------|-------------|-----------------|
+| coordinator | — | No |
+| k8s-worker | Pre-pull daemonset | No |
+| pod-monitor | Start watch loop | Yes |
+| result-processor | — | No |
+| saga-orchestrator | Start saga scheduler | Yes |
+| dlq-processor | Start monitoring cycle | Yes |
+| event-replay | Start replay scheduler | Yes |
+
+Workers without startup work pass only `on_shutdown=[container.close]`.
+
+## Why stateless services
+
+Earlier iterations had services that started themselves in constructors, or DI providers that managed `start`/`stop`. That scattered lifecycle logic across multiple layers and made shutdown order fragile.
+
+The current approach pushes all lifecycle concerns to the edges (lifespan and worker entrypoints) and keeps services as pure handlers. Benefits:
+
+- **Testable**: instantiate a service, call a method, assert results. No setup/teardown ceremony.
+- **Predictable shutdown**: one place per process owns the teardown sequence.
+- **No hidden state**: services don't hold background tasks or connections. The broker and scheduler do, and they're managed explicitly.
 
 ## Building new services
 
-Keep it simple: implement async `start()` and `stop()`. If your service owns a background task, start it in `start()` and cancel/await it in `stop()`. Add `__aenter__`/`__aexit__` that await start/stop. Don't start in `__init__`, and don't rely on `__del__`. Callers will manage lifetime with an `async with` or an `AsyncExitStack`.
+Write a plain class that takes its dependencies in `__init__` via Dishka. Expose async methods. Don't start background work in the constructor — if the service needs a periodic job, let the worker entrypoint set up APScheduler and register the method as a job. The service itself stays unaware of scheduling.
 
-## Using multiple services
+## Building new workers
 
-Use an `AsyncExitStack` at the call site:
+Follow the existing pattern in `backend/workers/`:
 
-```python
-async with AsyncExitStack() as stack:
-    await stack.enter_async_context(producer)
-    await stack.enter_async_context(coordinator)
-    # add more services as needed
-    await asyncio.Event().wait()
-```
-
-The stack starts services in the order they're added and stops them in reverse. That's usually what you want: consumers stop before producers flush, monitors stop before their publishers.
-
-## Trade-offs
-
-The "invisible" start-in-constructor convenience is gone in return for correctness and clarity. The payoff is fewer shutdown bugs, fewer hidden dependencies, and far less boilerplate. The code is simpler to read and reason about because the lifetime of each component is explicit and managed by the language tools built for it.
+1. Create a `Settings` with the worker's override TOML
+2. Init Beanie, create the worker's DI container, get the broker
+3. Register subscribers and set up Dishka on the broker
+4. Define `init_*` and `shutdown` callbacks
+5. Create `FastStream(broker, on_startup=[...], on_shutdown=[...])` and call `app.run()`

@@ -5,12 +5,14 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 class CacheControlMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
+        # --8<-- [start:cache_policies]
         self.cache_policies: dict[str, str] = {
             "/api/v1/k8s-limits": "public, max-age=300",  # 5 minutes
             "/api/v1/example-scripts": "public, max-age=600",  # 10 minutes
             "/api/v1/notifications": "private, no-cache",  # Always revalidate
             "/api/v1/notifications/unread-count": "private, no-cache",  # Always revalidate
         }
+        # --8<-- [end:cache_policies]
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":

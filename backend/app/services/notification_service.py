@@ -47,6 +47,7 @@ type SystemNotificationStats = dict[str, int]
 type SlackMessage = dict[str, object]
 
 
+# --8<-- [start:ThrottleCache]
 @dataclass
 class ThrottleCache:
     """Manages notification throttling with time windows."""
@@ -85,6 +86,7 @@ class ThrottleCache:
         """Clear all throttle entries."""
         async with self._lock:
             self._entries.clear()
+# --8<-- [end:ThrottleCache]
 
 
 @dataclass(frozen=True)
@@ -112,12 +114,14 @@ class NotificationService:
 
         self._throttle_cache = ThrottleCache()
 
+        # --8<-- [start:channel_handlers]
         # Channel handlers mapping
         self._channel_handlers: dict[NotificationChannel, ChannelHandler] = {
             NotificationChannel.IN_APP: self._send_in_app,
             NotificationChannel.WEBHOOK: self._send_webhook,
             NotificationChannel.SLACK: self._send_slack,
         }
+        # --8<-- [end:channel_handlers]
 
     async def create_notification(
         self,
@@ -571,6 +575,7 @@ class NotificationService:
         )
         await self.sse_bus.publish_notification(notification.user_id, message)
 
+    # --8<-- [start:should_skip_notification]
     async def _should_skip_notification(
         self, notification: DomainNotification, subscription: DomainNotificationSubscription
     ) -> str | None:
@@ -594,6 +599,7 @@ class NotificationService:
             return f"Notification tags {notification.tags} excluded by preferences for {notification.channel}"
 
         return None
+    # --8<-- [end:should_skip_notification]
 
     async def _deliver_notification(self, notification: DomainNotification) -> bool:
         """Deliver notification through configured channel with inline retry.

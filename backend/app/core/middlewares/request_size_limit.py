@@ -2,12 +2,14 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
+# --8<-- [start:RequestSizeLimitMiddleware]
 class RequestSizeLimitMiddleware:
     """Middleware to limit request size, default 10MB"""
 
     def __init__(self, app: ASGIApp, max_size_mb: int = 10) -> None:
         self.app = app
         self.max_size_bytes = max_size_mb * 1024 * 1024
+    # --8<-- [end:RequestSizeLimitMiddleware]
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":

@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
 
+// --8<-- [start:config]
 export default defineConfig({
   plugins: [
     svelte({ hot: !process.env.VITEST }),
@@ -37,3 +38,4 @@ export default defineConfig({
     },
   },
 });
+// --8<-- [end:config]

@@ -9,6 +9,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# --8<-- [start:production_stage]
 # Production stage
 FROM nginx:alpine
 
@@ -27,3 +28,4 @@ RUN mkdir -p /var/cache/nginx /var/run && \
 EXPOSE 5001
 
 CMD ["nginx", "-g", "daemon off;"]
+# --8<-- [end:production_stage]

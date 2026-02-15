@@ -7,10 +7,12 @@ from app.core.utils import StringEnum
 from app.domain.enums import EventType
 
 
+# --8<-- [start:IdempotencyStatus]
 class IdempotencyStatus(StringEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+# --8<-- [end:IdempotencyStatus]
 
 
 class KeyStrategy(StringEnum):

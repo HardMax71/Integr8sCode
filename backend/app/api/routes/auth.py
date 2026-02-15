@@ -116,6 +116,7 @@ async def login(
 
     csrf_token = security_service.generate_csrf_token(access_token)
 
+    # --8<-- [start:login_cookies]
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -135,6 +136,7 @@ async def login(
         samesite="strict",
         path="/",
     )
+    # --8<-- [end:login_cookies]
 
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"

@@ -46,7 +46,7 @@ this when the same logical operation might produce different event IDs but ident
 execution per user per minute").
 
 ```python
---8<-- "backend/app/services/idempotency/idempotency_manager.py:48:66"
+--8<-- "backend/app/services/idempotency/idempotency_manager.py:generate_key"
 ```
 
 ## Status Lifecycle
@@ -54,7 +54,7 @@ execution per user per minute").
 Each idempotency record transitions through defined states:
 
 ```python
---8<-- "backend/app/domain/idempotency/models.py:10:13"
+--8<-- "backend/app/domain/idempotency/models.py:IdempotencyStatus"
 ```
 
 When an event arrives, the manager checks for an existing key. If none exists, it creates a record in `PROCESSING` state
@@ -64,21 +64,18 @@ states block duplicate processing for the TTL duration.
 If a key is found in `PROCESSING` state but has exceeded the processing timeout (default 5 minutes), the manager assumes
 the previous processor crashed and allows a retry.
 
-## Middleware Integration
+## Handler Integration
 
-The `IdempotentEventHandler` wraps a single Kafka event handler with automatic duplicate detection:
-
-```python
---8<-- "backend/app/services/idempotency/middleware.py:10:59"
-```
-
-`IdempotentEventDispatcher` is an `EventDispatcher` subclass that automatically wraps every registered
-handler with idempotency. DI providers create this subclass for services that need idempotent event handling
-(coordinator, k8s worker, result processor); services that don't (saga orchestrator) use a plain `EventDispatcher`:
+Event handlers use the `with_idempotency` helper in `events/handlers.py` to wrap handler execution
+with automatic duplicate detection. The helper checks and reserves the key, runs the handler, then
+marks the result as completed or failed:
 
 ```python
---8<-- "backend/app/services/idempotency/middleware.py:62:88"
+--8<-- "backend/app/events/handlers.py:with_idempotency"
 ```
+
+`IdempotencyManager` is injected via Dishka into each worker's handler registrations. The saga
+orchestrator skips idempotency since saga steps have their own deduplication logic.
 
 ## Redis Storage
 
@@ -86,7 +83,7 @@ Idempotency records are stored in Redis with automatic TTL expiration. The `SET 
 reservation—if two processes race to claim the same key, only one succeeds:
 
 ```python
---8<-- "backend/app/services/idempotency/redis_repository.py:93:100"
+--8<-- "backend/app/services/idempotency/redis_repository.py:insert_processing"
 ```
 
 ## Configuration
@@ -100,7 +97,7 @@ reservation—if two processes race to claim the same key, only one succeeds:
 | `max_result_size_bytes`      | `1048576`     | Maximum cached result size (1MB)     |
 
 ```python
---8<-- "backend/app/services/idempotency/idempotency_manager.py:26:31"
+--8<-- "backend/app/services/idempotency/idempotency_manager.py:IdempotencyConfig"
 ```
 
 ## Result Caching
@@ -127,5 +124,5 @@ The idempotency system exposes several metrics for monitoring:
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
 | [`services/idempotency/idempotency_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/idempotency_manager.py) | Core idempotency logic                    |
 | [`services/idempotency/redis_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/redis_repository.py)       | Redis storage adapter                     |
-| [`services/idempotency/middleware.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/middleware.py)                   | Handler wrapper and `IdempotentEventDispatcher` |
+| [`events/handlers.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/handlers.py)                                                   | `with_idempotency` helper for event handlers |
 | [`domain/idempotency/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/domain/idempotency)                                                  | Domain models                             |

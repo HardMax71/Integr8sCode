@@ -23,6 +23,7 @@ class MetricsMiddleware:
         self.meter = metrics.get_meter(__name__)
 
         # Create metrics instruments
+        # --8<-- [start:instruments]
         self.request_counter = self.meter.create_counter(
             name="http_requests_total", description="Total number of HTTP requests", unit="requests"
         )
@@ -42,6 +43,7 @@ class MetricsMiddleware:
         self.active_requests = self.meter.create_up_down_counter(
             name="http_requests_active", description="Number of active HTTP requests", unit="requests"
         )
+        # --8<-- [end:instruments]
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -100,6 +102,7 @@ class MetricsMiddleware:
         # Decrement active requests
         self.active_requests.add(-1, {"method": method, "path": path_template})
 
+    # --8<-- [start:path_template]
     @staticmethod
     def _get_path_template(path: str) -> str:
         """Convert path to template for lower cardinality."""
@@ -115,6 +118,7 @@ class MetricsMiddleware:
         path = re.sub(r"/[0-9a-f]{24}", "/{id}", path)
 
         return path
+    # --8<-- [end:path_template]
 
 
 def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
@@ -162,6 +166,7 @@ def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> N
     logger.info("OpenTelemetry metrics configured with OTLP exporter")
 
 
+# --8<-- [start:system_metrics]
 def create_system_metrics() -> None:
     """Create system metrics collectors."""
     meter = metrics.get_meter(__name__)
@@ -186,7 +191,7 @@ def create_system_metrics() -> None:
     # CPU usage
     def get_cpu_usage(_: CallbackOptions) -> list[Observation]:
         """Get current CPU usage."""
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = psutil.cpu_percent(interval=None)
         return [Observation(cpu_percent)]
 
     meter.create_observable_gauge(
@@ -196,9 +201,10 @@ def create_system_metrics() -> None:
     # Process metrics
     def get_process_metrics(_: CallbackOptions) -> list[Observation]:
         """Get current process metrics."""
+        mem = current_process.memory_info()
         return [
-            Observation(current_process.memory_info().rss, {"type": "rss"}),
-            Observation(current_process.memory_info().vms, {"type": "vms"}),
+            Observation(mem.rss, {"type": "rss"}),
+            Observation(mem.vms, {"type": "vms"}),
             Observation(current_process.cpu_percent(), {"type": "cpu"}),
             Observation(current_process.num_threads(), {"type": "threads"}),
         ]
@@ -206,3 +212,4 @@ def create_system_metrics() -> None:
     meter.create_observable_gauge(
         name="process_metrics", callbacks=[get_process_metrics], description="Process-level metrics", unit="mixed"
     )
+# --8<-- [end:system_metrics]

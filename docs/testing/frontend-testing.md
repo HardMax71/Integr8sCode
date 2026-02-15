@@ -160,7 +160,7 @@ test('redirects unauthenticated users to login', async ({ page }) => {
 Vitest configuration lives in [`vitest.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.config.ts):
 
 ```typescript
---8<-- "frontend/vitest.config.ts:5:27"
+--8<-- "frontend/vitest.config.ts:config"
 ```
 
 The setup file [`vitest.setup.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts)
@@ -170,7 +170,7 @@ IntersectionObserver).
 Playwright configuration in [`playwright.config.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/playwright.config.ts):
 
 ```typescript
---8<-- "frontend/playwright.config.ts:3:25"
+--8<-- "frontend/playwright.config.ts:config"
 ```
 
 ## Writing component tests

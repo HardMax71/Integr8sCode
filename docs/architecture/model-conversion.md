@@ -13,24 +13,35 @@ boundaries—repositories and services—not inside models.
 ```mermaid
 graph TB
     subgraph "API Layer"
-        API["Pydantic Schemas<br/><code>app/schemas_pydantic/</code>"]
+        API["Pydantic Schemas — app/schemas_pydantic/"]
     end
 
     subgraph "Service Layer"
-        SVC["Services<br/><code>app/services/</code>"]
+        SVC["Services — app/services/"]
     end
 
     subgraph "Domain Layer"
-        DOM["Dataclasses<br/><code>app/domain/</code>"]
+        DOM["Dataclasses + Events — app/domain/"]
+    end
+
+    subgraph "Database Layer"
+        DB["Beanie Documents — app/db/docs/"]
     end
 
     subgraph "Infrastructure Layer"
-        INF["Pydantic/ODM<br/><code>app/db/docs/</code><br/><code>app/domain/events/typed.py</code>"]
+        INF["Kafka / FastStream — app/events/"]
     end
 
     API <--> SVC
     SVC <--> DOM
+    SVC <--> DB
     SVC <--> INF
+
+    click API "https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/schemas_pydantic" "Pydantic request/response schemas"
+    click SVC "https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/services" "Business logic services"
+    click DOM "https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/domain" "Domain models and events"
+    click DB "https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/db/docs" "Beanie ODM documents"
+    click INF "https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/events" "Kafka producers and consumers"
 ```
 
 API routes receive and return Pydantic schemas. Services orchestrate business logic using domain dataclasses.
@@ -85,18 +96,17 @@ user = User.model_validate(user_response)
 
 ### Dict to dataclass
 
-Use constructor unpacking, handling nested objects explicitly:
+Use constructor unpacking, handling nested objects explicitly. Since stdlib dataclasses don't auto-convert nested dicts,
+nested dataclass fields must be constructed manually:
 
 ```python
 domain_obj = DomainModel(**data)
 
-# With nested conversion
-domain_obj = DomainModel(
-    **{
-        **doc.model_dump(exclude={"id", "revision_id"}),
-        "metadata": DomainMetadata(**doc.metadata.model_dump()),
-    }
-)
+# With nested conversion (nested dataclass from Beanie document)
+data = doc.model_dump(exclude={"id", "revision_id"})
+if metadata := data.get("metadata"):
+    data["metadata"] = DomainMetadata(**metadata)
+domain_obj = DomainModel(**data)
 ```
 
 ## Repository examples
@@ -123,12 +133,10 @@ async def get_event(self, event_id: str) -> Event | None:
     doc = await EventDocument.find_one({"event_id": event_id})
     if not doc:
         return None
-    return Event(
-        **{
-            **doc.model_dump(exclude={"id", "revision_id"}),
-            "metadata": DomainMetadata(**doc.metadata.model_dump()),
-        }
-    )
+    data = doc.model_dump(exclude={"id", "revision_id"})
+    if metadata := data.get("metadata"):
+        data["metadata"] = DomainMetadata(**metadata)
+    return Event(**data)
 ```
 
 ### Updating with typed input

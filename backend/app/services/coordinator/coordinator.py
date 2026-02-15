@@ -28,6 +28,7 @@ class QueueRejectError(Exception):
 _PRIORITY_SORT = {p: i for i, p in enumerate(QueuePriority)}
 
 
+# --8<-- [start:ExecutionCoordinator]
 class ExecutionCoordinator:
     """
     Coordinates execution scheduling across the system.
@@ -38,6 +39,7 @@ class ExecutionCoordinator:
     3. Enforces per-user rate limits
     4. Publishes CreatePodCommand events for workers
     """
+# --8<-- [end:ExecutionCoordinator]
 
     def __init__(
         self,
@@ -69,6 +71,7 @@ class ExecutionCoordinator:
         # Scheduling state
         self._active_executions: set[str] = set()
 
+    # --8<-- [start:handle_execution_requested]
     async def handle_execution_requested(self, event: ExecutionRequestedEvent) -> None:
         """Handle execution requested event - add to queue for processing."""
         self.logger.info(f"HANDLER CALLED: handle_execution_requested for event {event.event_id}")
@@ -95,6 +98,7 @@ class ExecutionCoordinator:
 
         if position == 0:
             await self._try_schedule_next()
+    # --8<-- [end:handle_execution_requested]
 
     async def handle_execution_cancelled(self, event: ExecutionCancelledEvent) -> None:
         """Handle execution cancelled event."""

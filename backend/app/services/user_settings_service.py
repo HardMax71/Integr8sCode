@@ -19,7 +19,9 @@ from app.domain.user import (
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
 
+# --8<-- [start:settings_fields]
 _settings_fields = set(DomainUserSettings.__dataclass_fields__)
+# --8<-- [end:settings_fields]
 
 
 class UserSettingsService:
@@ -36,10 +38,12 @@ class UserSettingsService:
         self.logger = logger
         self._cache_ttl = timedelta(minutes=5)
         self._max_cache_size = 1000
+        # --8<-- [start:cache_init]
         self._cache: TTLCache[str, DomainUserSettings] = TTLCache(
             maxsize=self._max_cache_size,
             ttl=self._cache_ttl.total_seconds(),
         )
+        # --8<-- [end:cache_init]
 
         self.logger.info(
             "UserSettingsService initialized",
@@ -56,6 +60,7 @@ class UserSettingsService:
 
         return await self.get_user_settings_fresh(user_id)
 
+    # --8<-- [start:get_user_settings_fresh]
     async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
         """Bypass cache and rebuild settings from snapshot + events."""
         snapshot = await self.repository.get_snapshot(user_id)
@@ -74,7 +79,9 @@ class UserSettingsService:
 
         self._add_to_cache(user_id, settings)
         return settings
+    # --8<-- [end:get_user_settings_fresh]
 
+    # --8<-- [start:update_user_settings]
     async def update_user_settings(
         self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
@@ -98,6 +105,7 @@ class UserSettingsService:
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
             await self.repository.create_snapshot(new_settings)
         return new_settings
+    # --8<-- [end:update_user_settings]
 
     async def _publish_settings_event(self, user_id: str, changes: dict[str, Any], reason: str | None) -> None:
         """Publish settings update event with typed payload fields."""
@@ -140,14 +148,15 @@ class UserSettingsService:
     async def update_custom_setting(self, user_id: str, key: str, value: Any) -> DomainUserSettings:
         """Update a custom setting"""
         current_settings = await self.get_user_settings(user_id)
-        current_settings.custom_settings[key] = value
+        updated_custom = {**current_settings.custom_settings, key: value}
 
         return await self.update_user_settings(
             user_id,
-            DomainUserSettingsUpdate(custom_settings=current_settings.custom_settings),
+            DomainUserSettingsUpdate(custom_settings=updated_custom),
             reason=f"Custom setting '{key}' updated",
         )
 
+    # --8<-- [start:get_settings_history]
     async def get_settings_history(self, user_id: str, limit: int = 50) -> list[DomainSettingsHistoryEntry]:
         """Get history from changed fields recorded in events."""
         events = await self.repository.get_settings_events(user_id, [EventType.USER_SETTINGS_UPDATED], limit=limit)
@@ -165,6 +174,7 @@ class UserSettingsService:
                     )
                 )
         return history
+    # --8<-- [end:get_settings_history]
 
     async def restore_settings_to_point(self, user_id: str, timestamp: datetime) -> DomainUserSettings:
         """Restore settings to a specific point in time"""
@@ -192,10 +202,12 @@ class UserSettingsService:
 
         return settings
 
+    # --8<-- [start:apply_event]
     def _apply_event(self, settings: DomainUserSettings, event: DomainUserSettingsChangedEvent) -> DomainUserSettings:
         """Apply a settings update event via dict merge."""
         event_data = {k: v for k, v in dataclasses.asdict(event).items() if v is not None}
         return self._build_settings({**dataclasses.asdict(settings), **event_data, "updated_at": event.timestamp})
+    # --8<-- [end:apply_event]
 
     @staticmethod
     def _build_settings(data: dict[str, Any]) -> DomainUserSettings:

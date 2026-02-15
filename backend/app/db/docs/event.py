@@ -11,6 +11,7 @@ from app.domain.enums import EventType
 from app.domain.events import EventMetadata
 
 
+# --8<-- [start:EventDocument]
 class EventDocument(Document):
     """Event document for event browsing/admin system.
 
@@ -70,6 +71,7 @@ class EventDocument(Document):
                 default_language="english",
             ),
         ]
+# --8<-- [end:EventDocument]
 
 
 class EventArchiveDocument(Document):

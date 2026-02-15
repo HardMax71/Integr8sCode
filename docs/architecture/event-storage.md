@@ -12,23 +12,13 @@ with consistent structure.
 event-specific fields go into the `payload` dict:
 
 ```python
---8<-- "backend/app/db/docs/event.py:30:45"
+--8<-- "backend/app/db/docs/event.py:EventDocument"
 ```
 
 ## Storage pattern
 
-When storing events, base fields stay at top level while everything else goes into payload. The `_flatten_doc` helper
-reverses this for deserialization:
-
-```python
---8<-- "backend/app/events/event_store.py:18:26"
-```
-
-The `store_event` method applies this pattern:
-
-```python
---8<-- "backend/app/events/event_store.py:56:64"
-```
+When storing events, base fields stay at top level while everything else goes into payload. Repositories handle
+serialization and deserialization at the boundary between domain models and Beanie documents.
 
 ## Query pattern
 
@@ -44,16 +34,14 @@ query["aggregate_id"] = aggregate_id
 ```mermaid
 graph TD
     App[Application Code] --> KES[KafkaEventService.publish_event]
-    KES --> ES[EventStore.store_event]
-    ES --> Events[(events collection)]
+    KES --> Repo[EventRepository]
+    Repo --> Events[(events collection)]
     KES --> Producer[UnifiedProducer]
     Producer --> Kafka[(Kafka)]
-    Kafka --> ESC[EventStoreConsumer]
-    ESC --> ES
 ```
 
-`KafkaEventService.publish_event()` stores to `events` AND publishes to Kafka. `EventStoreConsumer` consumes from Kafka
-and stores to the same `events` collection. Deduplication via unique `event_id` index handles double-writes gracefully.
+`KafkaEventService.publish_event()` stores to `events` AND publishes to Kafka. Deduplication via unique `event_id` index
+handles double-writes gracefully.
 
 ## Read patterns
 
@@ -61,7 +49,7 @@ All repositories query the same `events` collection:
 
 | Repository              | Use Case                                             |
 |-------------------------|------------------------------------------------------|
-| `EventStore`            | Core event operations, replay, typed deserialization |
+| `EventRepository`       | Core event operations, replay, typed deserialization |
 | `AdminEventsRepository` | Admin dashboard, analytics, browsing                 |
 | `ReplayRepository`      | Replay session management, event streaming           |
 
@@ -75,13 +63,13 @@ cleanup. For permanent audit requirements, events can be archived to `EventArchi
 `ReplayFilter` provides a unified way to query events across all use cases:
 
 ```python
---8<-- "backend/app/domain/replay/models.py:13:31"
+--8<-- "backend/app/domain/replay/models.py:ReplayError"
 ```
 
 The `to_mongo_query()` method builds MongoDB queries from filter fields:
 
 ```python
---8<-- "backend/app/domain/replay/models.py:49:90"
+--8<-- "backend/app/domain/replay/models.py:ReplayFilter"
 ```
 
 All event querying—admin browse, replay preview, event export—uses `ReplayFilter.to_mongo_query()` for consistency.
@@ -92,7 +80,7 @@ All event querying—admin browse, replay preview, event export—uses `ReplayFi
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
 | [`db/docs/event.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/event.py)                                                                 | `EventDocument` and `EventArchiveDocument` definitions |
 | [`domain/replay/models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/replay/models.py)                                                   | `ReplayFilter`, `ReplayConfig`, `ReplaySessionState`   |
-| [`events/event_store.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/event_store.py)                                                       | Event storage and retrieval operations                 |
+| [`db/repositories/event_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/event_repository.py)                           | Event storage and retrieval operations                 |
 | [`db/repositories/replay_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/replay_repository.py)                         | Replay-specific queries                                |
 | [`db/repositories/admin/admin_events_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/admin/admin_events_repository.py) | Admin dashboard queries                                |
 | [`services/kafka_event_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/kafka_event_service.py)                                   | Unified publish (store + Kafka)                        |
@@ -100,4 +88,4 @@ All event querying—admin browse, replay preview, event export—uses `ReplayFi
 ## Related docs
 
 - [User Settings Events](user-settings-events.md) — event sourcing pattern for user settings with TypeAdapter merging
-- [Pydantic Dataclasses](pydantic-dataclasses.md) — why domain models use pydantic dataclasses for nested conversion
+- [Domain Dataclasses](domain-dataclasses.md) — why domain models use stdlib dataclasses

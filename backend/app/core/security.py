@@ -17,6 +17,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 class SecurityService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        # --8<-- [start:password_hashing]
         self.pwd_context = CryptContext(
             schemes=["bcrypt"],
             deprecated="auto",
@@ -28,13 +29,16 @@ class SecurityService:
 
     def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)  # type: ignore
+    # --8<-- [end:password_hashing]
 
+    # --8<-- [start:create_access_token]
     def create_access_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return encoded_jwt
+    # --8<-- [end:create_access_token]
 
     def decode_token(self, token: str) -> str:
         """Decode JWT and return the username (sub claim)."""
@@ -72,6 +76,7 @@ class SecurityService:
         expected = self._sign_csrf(nonce, session_id)
         return hmac.compare_digest(signature, expected)
 
+    # --8<-- [start:csrf_validation]
     def validate_csrf_token(self, header_token: str, cookie_token: str) -> bool:
         """Validate CSRF token using double-submit cookie pattern"""
         if not header_token or not cookie_token:
@@ -127,3 +132,4 @@ class SecurityService:
             raise CSRFValidationError("CSRF token signature invalid")
 
         return header_token
+    # --8<-- [end:csrf_validation]

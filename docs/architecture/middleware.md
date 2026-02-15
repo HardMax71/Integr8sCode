@@ -19,7 +19,7 @@ Rejects requests exceeding a configurable size limit (default 10MB). This protec
 from large payloads.
 
 ```python
---8<-- "backend/app/core/middlewares/request_size_limit.py:5:10"
+--8<-- "backend/app/core/middlewares/request_size_limit.py:RequestSizeLimitMiddleware"
 ```
 
 Requests exceeding the limit receive a 413 response:
@@ -33,13 +33,12 @@ requests.
 
 ## Rate Limit
 
-The `RateLimitMiddleware` intercepts all HTTP requests and checks them against configured rate limits.
-See [Rate Limiting](rate-limiting.md) for the full algorithm details.
+The `RateLimitMiddleware` intercepts all HTTP requests and checks them against configured [rate limits](rate-limiting.md).
 
 Excluded paths bypass rate limiting:
 
 ```python
---8<-- "backend/app/core/middlewares/rate_limit.py:26:38"
+--8<-- "backend/app/core/middlewares/rate_limit.py:excluded_paths"
 ```
 
 When a request is allowed, rate limit headers are added to the response. When rejected, a 429 response is returned with
@@ -50,7 +49,7 @@ When a request is allowed, rate limit headers are added to the response. When re
 Adds appropriate `Cache-Control` headers to GET responses based on endpoint patterns:
 
 ```python
---8<-- "backend/app/core/middlewares/cache.py:7:16"
+--8<-- "backend/app/core/middlewares/cache.py:cache_policies"
 ```
 
 | Endpoint                    | Policy            | TTL        |
@@ -68,7 +67,7 @@ successful (200) responses.
 The `MetricsMiddleware` collects HTTP request telemetry using OpenTelemetry:
 
 ```python
---8<-- "backend/app/core/middlewares/metrics.py:27:45"
+--8<-- "backend/app/core/middlewares/metrics.py:instruments"
 ```
 
 The middleware tracks:
@@ -81,7 +80,7 @@ The middleware tracks:
 Path templates use pattern replacement to reduce metric cardinality:
 
 ```python
---8<-- "backend/app/core/middlewares/metrics.py:104:118"
+--8<-- "backend/app/core/middlewares/metrics.py:path_template"
 ```
 
 UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent metric explosion.
@@ -91,7 +90,7 @@ UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent me
 In addition to HTTP metrics, the middleware module provides system-level observables:
 
 ```python
---8<-- "backend/app/core/middlewares/metrics.py:169:188"
+--8<-- "backend/app/core/middlewares/metrics.py:system_metrics"
 ```
 
 These expose:
@@ -102,10 +101,22 @@ These expose:
 
 ## Key Files
 
-| File                                                                                                                                               | Purpose                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| [`core/middlewares/__init__.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/__init__.py)                     | Middleware exports      |
-| [`core/middlewares/rate_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/rate_limit.py)                 | Rate limiting           |
-| [`core/middlewares/cache.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/cache.py)                           | Cache headers           |
-| [`core/middlewares/request_size_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/request_size_limit.py) | Request size validation |
-| [`core/middlewares/metrics.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/metrics.py)                       | HTTP and system metrics |
+<div class="grid cards" markdown>
+
+-   :material-speedometer:{ .lg .middle } **[rate_limit.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/rate_limit.py)**
+
+    Per-user / per-endpoint rate limiting
+
+-   :material-cached:{ .lg .middle } **[cache.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/cache.py)**
+
+    Cache-Control headers for GET responses
+
+-   :material-file-document-check-outline:{ .lg .middle } **[request_size_limit.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/request_size_limit.py)**
+
+    Reject oversized payloads before reading the body
+
+-   :material-chart-line:{ .lg .middle } **[metrics.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/metrics.py)**
+
+    HTTP request telemetry and system-level observables
+
+</div>

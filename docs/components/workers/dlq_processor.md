@@ -41,7 +41,6 @@ prevents overwhelming downstream services during outages.
 
 The DLQ can be monitored via the admin API:
 
-- `GET /api/v1/dlq/stats` — DLQ statistics by status, topic, event type
 - `GET /api/v1/dlq/messages` — List DLQ messages with filtering
 - `GET /api/v1/dlq/messages/{event_id}` — Retrieve a specific message by ID
 - `GET /api/v1/dlq/topics` — List all topics with DLQ messages

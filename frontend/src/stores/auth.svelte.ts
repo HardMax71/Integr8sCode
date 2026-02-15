@@ -5,6 +5,7 @@ import {
 } from '$lib/api';
 import { clearUserSettings } from '$stores/userSettings.svelte';
 
+// --8<-- [start:AuthState]
 export interface AuthState {
     isAuthenticated: boolean | null;
     username: string | null;
@@ -14,6 +15,7 @@ export interface AuthState {
     csrfToken: string | null;
     timestamp: number;
 }
+// --8<-- [end:AuthState]
 
 export function getPersistedAuthState(): AuthState | null {
     if (typeof window === 'undefined') return null;
@@ -46,8 +48,10 @@ class AuthStore {
     userEmail = $state<string | null>(persisted?.userEmail ?? null);
     csrfToken = $state<string | null>(persisted?.csrfToken ?? null);
 
+    // --8<-- [start:auth_cache]
     #authCache: { valid: boolean | null; timestamp: number } = { valid: null, timestamp: 0 };
     #verifyPromise: Promise<boolean> | null = null;
+    // --8<-- [end:auth_cache]
     #initialized = false;
     #initPromise: Promise<boolean> | null = null;
 

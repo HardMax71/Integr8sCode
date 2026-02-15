@@ -39,8 +39,7 @@ filter criteria before running a real replay.
 | File                                                                                                           | Purpose                   |
 |----------------------------------------------------------------------------------------------------------------|---------------------------|
 | [`run_event_replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_event_replay.py) | Entry point               |
-| [`replay_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/replay_service.py) | Replay session management |
-| [`event_store.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/event_store.py)      | Event store queries       |
+| [`replay_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_replay/replay_service.py) | Replay session management |
 
 ## Deployment
 

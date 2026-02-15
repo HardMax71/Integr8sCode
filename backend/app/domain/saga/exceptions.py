@@ -9,6 +9,7 @@ class SagaNotFoundError(NotFoundError):
         super().__init__("Saga", saga_id)
 
 
+# --8<-- [start:SagaAccessDeniedError]
 class SagaAccessDeniedError(ForbiddenError):
     """Raised when access to a saga is denied."""
 
@@ -16,6 +17,7 @@ class SagaAccessDeniedError(ForbiddenError):
         self.saga_id = saga_id
         self.user_id = user_id
         super().__init__(f"Access denied to saga '{saga_id}' for user '{user_id}'")
+# --8<-- [end:SagaAccessDeniedError]
 
 
 class SagaInvalidStateError(InvalidStateError):

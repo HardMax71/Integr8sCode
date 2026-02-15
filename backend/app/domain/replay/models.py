@@ -23,6 +23,7 @@ class CleanupResult:
     message: str
 
 
+# --8<-- [start:ReplayError]
 @dataclass
 class ReplayError:
     """Error details for replay operations.
@@ -40,8 +41,10 @@ class ReplayError:
     error: str
     error_type: str | None = None
     event_id: str | None = None
+# --8<-- [end:ReplayError]
 
 
+# --8<-- [start:ReplayFilter]
 @dataclass
 class ReplayFilter:
     # Event selection filters
@@ -109,6 +112,7 @@ class ReplayFilter:
             query["metadata.service_name"] = self.service_name
 
         return query
+# --8<-- [end:ReplayFilter]
 
 
 @dataclass

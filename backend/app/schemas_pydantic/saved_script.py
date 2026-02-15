@@ -32,6 +32,7 @@ class SavedScriptCreateRequest(SavedScriptBase):
     pass
 
 
+# --8<-- [start:SavedScriptResponse]
 class SavedScriptResponse(BaseModel):
     script_id: str
     name: str
@@ -43,6 +44,7 @@ class SavedScriptResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+# --8<-- [end:SavedScriptResponse]
 
 
 class SavedScriptListResponse(BaseModel):

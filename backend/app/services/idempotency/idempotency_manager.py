@@ -24,12 +24,14 @@ class IdempotencyResult(BaseModel):
     key: str
 
 
+# --8<-- [start:IdempotencyConfig]
 class IdempotencyConfig(BaseModel):
     key_prefix: str = "idempotency"
     default_ttl_seconds: int = 3600
     processing_timeout_seconds: int = 300
     enable_result_caching: bool = True
     max_result_size_bytes: int = 1048576
+# --8<-- [end:IdempotencyConfig]
 
 
 class IdempotencyManager:
@@ -46,6 +48,7 @@ class IdempotencyManager:
         self.logger = logger
         self.logger.info("Idempotency manager initialized")
 
+    # --8<-- [start:generate_key]
     def _generate_key(
         self, event: BaseEvent, key_strategy: KeyStrategy, custom_key: str | None = None, fields: set[str] | None = None
     ) -> str:
@@ -65,6 +68,7 @@ class IdempotencyManager:
         else:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
         return f"{self.config.key_prefix}:{key}"
+    # --8<-- [end:generate_key]
 
     async def check_and_reserve(
         self,

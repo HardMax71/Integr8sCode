@@ -8,7 +8,7 @@ component has its own metrics class, and all metrics follow a consistent naming 
 Metrics are collected using the OpenTelemetry SDK and exported every 10 seconds to the configured OTLP endpoint:
 
 ```python
---8<-- "backend/app/core/metrics/base.py:13:19"
+--8<-- "backend/app/core/metrics/base.py:init"
 ```
 
 When `ENABLE_TRACING` is false or no OTLP endpoint is configured, the system uses a no-op meter provider to avoid

@@ -600,6 +600,7 @@ services:
     # Note: otel-collector uses scratch image - no wget/curl available for healthcheck
     # The service exposes health endpoint at :13133 but we can't check it from inside container
 
+# --8<-- [start:dev_volumes]
 volumes:
   mongo_data:
   redis_data:
@@ -612,6 +613,7 @@ volumes:
   zookeeper_log:
   zookeeper_logs:
   zookeeper_certs:
+# --8<-- [end:dev_volumes]
 
 networks:
   app-network:

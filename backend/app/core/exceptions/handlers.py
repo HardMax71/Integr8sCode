@@ -14,6 +14,7 @@ from app.domain.exceptions import (
 )
 
 
+# --8<-- [start:configure_exception_handlers]
 def configure_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
@@ -42,3 +43,4 @@ def _map_to_status_code(exc: DomainError) -> int:
     if isinstance(exc, InfrastructureError):
         return 500
     return 500
+# --8<-- [end:configure_exception_handlers]

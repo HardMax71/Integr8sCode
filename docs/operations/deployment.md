@@ -261,6 +261,37 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 |---------------|------------------------------------|
 | `latest`      | Most recent build from main branch |
 | `sha-abc1234` | Specific commit SHA                |
+| `2026.2.0`    | CalVer release version             |
+
+## Production deployment
+
+Merges to `main` trigger automatic deployment to the production server via the
+[Release & Deploy](cicd.md#release--deploy) workflow. The full pipeline chain is:
+
+1. **Stack Tests** — unit tests, image build, E2E tests
+2. **Docker Scan & Promote** — Trivy vulnerability scan, promote `sha-xxx` to `latest`
+3. **Release & Deploy** — create CalVer tag + GitHub Release, SSH deploy to production
+
+The deploy step pulls the latest images on the server and recreates containers with zero-downtime health checks. No
+manual intervention is required for normal merges.
+
+### Rollback
+
+To roll back to a previous release, use a specific CalVer or SHA tag:
+
+```bash
+# On the production server
+IMAGE_TAG=2026.2.0 docker compose pull
+IMAGE_TAG=2026.2.0 docker compose up -d --remove-orphans
+```
+
+Or trigger the Release & Deploy workflow manually with `skip_deploy` enabled to create a release without deploying,
+then deploy a specific version via SSH.
+
+### First-time setup
+
+See [`SETUP_DEPLOY.md`](https://github.com/HardMax71/Integr8sCode/blob/main/SETUP_DEPLOY.md) at the repo root for
+instructions on configuring the production server and GitHub Secrets.
 
 ## Key files
 
@@ -270,3 +301,4 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 | [`docker-compose.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/docker-compose.yaml)                               | Full stack definition       |
 | [`backend/Dockerfile.base`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/Dockerfile.base)                       | Shared base image with deps |
 | [`.github/workflows/docker.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/docker.yml)             | CI/CD image build pipeline  |
+| [`.github/workflows/release-deploy.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/release-deploy.yml) | Release + deploy pipeline   |

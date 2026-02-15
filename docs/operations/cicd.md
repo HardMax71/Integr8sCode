@@ -38,6 +38,12 @@ graph LR
         Scan --> Promote
     end
 
+    subgraph "Release & Deploy"
+        Release["CalVer Tag + GitHub Release"]
+        Deploy["SSH Deploy to Production"]
+        Release --> Deploy
+    end
+
     subgraph "Documentation"
         Docs["MkDocs Build"]
         Pages["GitHub Pages"]
@@ -45,13 +51,15 @@ graph LR
 
     Push["Push / PR"] --> Ruff & MyPy & Vulture & ESLint & Bandit & SBOM & UnitBE & UnitFE & Docs
     Build -->|main, all tests pass| Scan
+    Promote -->|main, scans pass| Release
     Docs -->|main only| Pages
 ```
 
-The two heavyweight workflows are **Stack Tests** (builds images, runs all tests) and **Docker Scan & Promote**
-(scans images with Trivy and promotes to `latest`). They're connected: Docker Scan & Promote triggers automatically
-after Stack Tests succeeds on `main`, forming a build-test-scan-promote pipeline where the `latest` tag only moves
-forward when everything passes.
+The three heavyweight workflows are **Stack Tests** (builds images, runs all tests), **Docker Scan & Promote**
+(scans images with Trivy and promotes to `latest`), and **Release & Deploy** (creates CalVer releases and deploys to
+production). They're chained: Docker Scan & Promote triggers after Stack Tests succeeds on `main`, and Release & Deploy
+triggers after Docker Scan & Promote succeeds, forming a build-test-scan-promote-release-deploy pipeline where
+production only updates when everything passes.
 
 ## Workflow files
 
@@ -59,6 +67,7 @@ forward when everything passes.
 |-------------------------|----------------------------------------------|-----------------------------------------------|--------------------------------------------|
 | Stack Tests             | `.github/workflows/stack-tests.yml`          | Push/PR to `main`, tags `v*`                   | Unit tests, image build, E2E tests         |
 | Docker Scan & Promote   | `.github/workflows/docker.yml`               | After Stack Tests completes on `main`          | Trivy scan + promote SHA tag to `latest`   |
+| Release & Deploy        | `.github/workflows/release-deploy.yml`       | After Docker Scan & Promote completes on `main`| CalVer release + SSH deploy to production  |
 | SBOM & Supply Chain     | `.github/workflows/sbom-compliance.yml`      | Push/PR to `main`, weekly schedule             | SPDX SBOM generation + Grype vulnerability scan |
 | Ruff Linting            | `.github/workflows/ruff.yml`                 | Push/PR to `main`                              | Python code style and import checks        |
 | MyPy Type Checking      | `.github/workflows/mypy.yml`                 | Push/PR to `main`                              | Python static type analysis                |
@@ -251,6 +260,66 @@ files to GitHub's Security tab.
 Uses [crane](https://github.com/google/go-containerregistry/blob/main/cmd/crane/README.md) to copy manifests at the
 registry level (`crane copy sha-tag latest`), avoiding any rebuild or re-push. This is a fast, atomic operation that
 simply re-tags existing image manifests.
+
+## Release & Deploy
+
+This workflow creates a CalVer-tagged GitHub Release and deploys to production. It chains after Docker Scan & Promote,
+completing the full pipeline from code push to production deployment.
+
+```mermaid
+graph LR
+    DSP["Docker Scan & Promote<br/>(main, success)"] -->|workflow_run trigger| Release
+    Release["CalVer Tag<br/>+ GitHub Release"] --> Deploy["SSH Deploy<br/>to Production"]
+    Deploy --> Summary["Step Summary"]
+```
+
+### Trigger
+
+Runs automatically when `Docker Scan & Promote` completes successfully on `main`. Can also be triggered manually via
+`workflow_dispatch` with an optional `skip_deploy` flag to create a release without deploying.
+
+### CalVer tagging
+
+Releases use [Calendar Versioning](https://calver.org/) with the format `YYYY.M.PATCH`:
+
+- `YYYY` — full year (e.g., `2026`)
+- `M` — month without leading zero (e.g., `2` for February)
+- `PATCH` — auto-incrementing counter within the month, starting at `0`
+
+Examples: `2026.2.0`, `2026.2.1`, `2026.3.0`. The workflow counts existing tags matching the current `YYYY.M.*` pattern
+and increments the patch number. All 5 deployed GHCR images are tagged with the CalVer version using crane (same
+registry-level manifest copy as the promote step).
+
+### GitHub Release
+
+The workflow creates an annotated git tag and a GitHub Release using `softprops/action-gh-release@v2` with
+`generate_release_notes: true`, which auto-generates a changelog from merged PRs since the previous release. The release
+body includes the commit SHA and docker pull commands for the tagged images.
+
+### Production deployment
+
+The deploy job SSHs into the production server using `appleboy/ssh-action@v1` and runs:
+
+1. `git pull origin main` — update config files and compose definitions
+2. `docker login ghcr.io` — authenticate with a dedicated read-only PAT (passed via `envs`, not embedded in the script)
+3. `docker compose pull` — pull the latest images
+4. `docker compose up -d --remove-orphans` — recreate changed containers
+5. Health check — polls `/api/v1/health/live` with a 120-second timeout
+6. `docker image prune` — clean up images older than 72 hours
+
+The deploy job is skippable via the `skip_deploy` input on manual dispatch.
+
+### Required secrets
+
+| Secret             | Purpose                              |
+|--------------------|--------------------------------------|
+| `DEPLOY_HOST`      | Production server IP                 |
+| `DEPLOY_USER`      | SSH username                         |
+| `DEPLOY_SSH_KEY`   | Ed25519 private key for SSH          |
+| `DEPLOY_GHCR_TOKEN`| GitHub PAT with `read:packages` scope|
+
+See [`SETUP_DEPLOY.md`](https://github.com/HardMax71/Integr8sCode/blob/main/SETUP_DEPLOY.md) at the repo root for
+step-by-step setup instructions.
 
 ## SBOM & Supply Chain Security
 

@@ -69,6 +69,17 @@ DLQ_CRITICAL_THRESHOLD = 1000
 
 APP_URL = "https://localhost"
 
+CORS_ORIGINS = [
+    "https://app.integr8scode.cc",
+    "https://integr8scode.cc",
+    "https://localhost:5001",
+    "https://127.0.0.1:5001",
+    "https://localhost",
+    "https://127.0.0.1",
+    "https://localhost:443",
+    "https://127.0.0.1:443",
+]
+
 # --8<-- [start:service]
 SERVICE_NAME = "integr8scode-backend"
 SERVICE_VERSION = "1.0.0"

@@ -79,16 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://localhost:5001",
-            "https://127.0.0.1:5001",
-            "https://[::1]:5001",
-            "https://localhost",
-            "https://127.0.0.1",
-            "https://localhost:443",
-            "https://127.0.0.1:443",
-            "https://[::1]:443",
-        ],
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=[
@@ -101,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ],
         expose_headers=["Content-Length", "Content-Range"],
     )
-    logger.info("CORS middleware configured")
+    logger.info("CORS middleware configured", origins=settings.CORS_ORIGINS)
 
     app.include_router(auth.router, prefix=settings.API_V1_STR)
     app.include_router(execution.router, prefix=settings.API_V1_STR)

@@ -167,5 +167,17 @@ class Settings(BaseModel):
     DEVELOPMENT_MODE: bool = False
     SECURE_COOKIES: bool = True
 
+    # CORS allowed origins (overridable via config.toml / secrets.toml)
+    CORS_ORIGINS: list[str] = Field(default_factory=lambda: [
+        "https://localhost:5001",
+        "https://127.0.0.1:5001",
+        "https://[::1]:5001",
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://localhost:443",
+        "https://127.0.0.1:443",
+        "https://[::1]:443",
+    ])
+
     # Logging configuration
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"

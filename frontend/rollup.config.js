@@ -175,7 +175,7 @@ export default {
         }),
         postcss({
             extract: 'bundle.css',
-            minimize: production,
+            minimize: false,
         }),
         typescript({
             sourceMap: true,

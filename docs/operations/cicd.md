@@ -92,7 +92,7 @@ no setup to overlap.
 
 ## Stack Tests (the main workflow)
 
-This is the core testing workflow. It builds all 6 container images, pushes them to GHCR with immutable SHA-based
+This is the core testing workflow. It builds all 5 container images, pushes them to GHCR with immutable SHA-based
 tags, then runs E2E tests on separate runners that pull images from the registry.
 
 ```mermaid
@@ -103,7 +103,7 @@ graph TD
     end
 
     subgraph "Phase 2: Build"
-        C["Build & Push 6 Images to GHCR"]
+        C["Build & Push 5 Images to GHCR"]
     end
 
     subgraph "Phase 3: E2E (parallel runners)"
@@ -131,7 +131,7 @@ the image build is skipped entirely.
 
 ### Phase 2: Build and push
 
-All 6 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
+All 5 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
 
 | Image                | Source                                      |
 |----------------------|---------------------------------------------|
@@ -139,19 +139,17 @@ All 6 images are built on a single runner and pushed to GHCR with an immutable `
 | `backend`            | `backend/Dockerfile`                        |
 | `cert-generator`     | `cert-generator/Dockerfile`                 |
 | `zookeeper-certgen`  | `backend/zookeeper/Dockerfile.certgen`      |
-| `frontend-dev`       | `frontend/Dockerfile`                       |
-| `frontend`           | `frontend/Dockerfile.prod`                  |
+| `frontend`           | `frontend/Dockerfile`                       |
 
 Workers reuse the `backend` image with different `command:` overrides in docker-compose, so no separate worker images
-are needed. Of these 6 images, 5 are scanned by Trivy and promoted to `latest` in the
-[Docker Scan & Promote](#docker-scan-promote) workflow. The `frontend-dev` image is excluded — it's the Rollup dev
-server build used only for E2E tests in CI and is never deployed to production.
+are needed. All 5 images are scanned by Trivy and promoted to `latest` in the
+[Docker Scan & Promote](#docker-scan-promote) workflow.
 
 The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
 image depends on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images
 use GHA layer caching.
 
-All 6 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
+All 5 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 
 ```yaml
 declare -A PIDS
@@ -440,7 +438,7 @@ Playwright browsers are cached by `package-lock.json` hash. On cache hit, only s
 
 ### Parallel image push
 
-All 6 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
+All 5 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
 reported individually via `::error::` annotations.
 
 ## Running locally

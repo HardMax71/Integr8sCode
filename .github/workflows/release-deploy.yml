@@ -137,6 +137,7 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             export IMAGE_TAG="$IMAGE_TAG"
+            export COMPOSE_PROFILES=observability
             docker compose pull
             docker compose up -d --remove-orphans --no-build
 

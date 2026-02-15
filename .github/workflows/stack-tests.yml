@@ -194,7 +194,7 @@ jobs:
           cache-from: type=gha,scope=zookeeper-certgen
           cache-to: type=gha,mode=max,scope=zookeeper-certgen
 
-      # ── Frontend (dev for E2E, prod for scanning/deployment) ─────────
+      # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
@@ -204,16 +204,6 @@ jobs:
           tags: integr8scode-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
-
-      - name: Build frontend-prod image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile.prod
-          load: true
-          tags: integr8scode-frontend-prod:latest
-          cache-from: type=gha,scope=frontend-prod
-          cache-to: type=gha,mode=max,scope=frontend-prod
 
       # ── Push all images to GHCR in parallel ────────────────────────
       - name: Push all images to GHCR
@@ -227,13 +217,12 @@ jobs:
           docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
           docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
           docker tag integr8scode-zookeeper-certgen:latest "$IMG/zookeeper-certgen:$TAG"
-          docker tag integr8scode-frontend:latest "$IMG/frontend-dev:$TAG"
-          docker tag integr8scode-frontend-prod:latest "$IMG/frontend:$TAG"
+          docker tag integr8scode-frontend:latest "$IMG/frontend:$TAG"
 
-          # Push all 6 images in parallel, tracking each PID
+          # Push all 5 images in parallel, tracking each PID
           declare -A PIDS
           for name in base backend cert-generator zookeeper-certgen \
-                      frontend-dev frontend; do
+                      frontend; do
             docker push "$IMG/$name:$TAG" &
             PIDS[$name]=$!
           done

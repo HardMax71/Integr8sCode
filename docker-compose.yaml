@@ -127,7 +127,7 @@ services:
       start_period: 3s
 
   frontend:
-    image: ghcr.io/hardmax71/integr8scode/frontend-dev:${IMAGE_TAG:-latest}
+    image: ghcr.io/hardmax71/integr8scode/frontend:${IMAGE_TAG:-latest}
     container_name: frontend
     build:
       context: ./frontend
@@ -138,17 +138,14 @@ services:
       backend:
         condition: service_started
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - ./frontend/certs:/app/certs:ro
+      - ./frontend/certs:/etc/nginx/certs:ro
       - shared_ca:/shared_ca:ro
     ports:
       - "5001:5001"
     networks:
       - app-network
     environment:
-      - VITE_BACKEND_URL=https://backend:443
-      - NODE_EXTRA_CA_CERTS=/shared_ca/ca.pem
+      - BACKEND_URL=https://backend:443
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:5001 >/dev/null || exit 1"]
       interval: 2s
@@ -159,8 +156,8 @@ services:
 
   grafana:
     container_name: grafana
-    image: grafana/grafana:12.3.1
     profiles: ["observability"]
+    image: grafana/grafana:12.3.1
     user: "472"
     ports:
       - "3000:3000"

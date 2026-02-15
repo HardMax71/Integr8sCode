@@ -1,7 +1,13 @@
 # --8<-- [start:server_block]
 server {
-    listen 5001;
+    listen 5001 ssl;
     server_name _;
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers on;
 
     root /usr/share/nginx/html;
     index index.html;
@@ -9,6 +15,7 @@ server {
 
     # --8<-- [start:security_headers]
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "DENY";
     add_header X-Content-Type-Options "nosniff";
     add_header Referrer-Policy "strict-origin-when-cross-origin";
@@ -85,7 +92,9 @@ server {
 
     # --8<-- [start:grafana_proxy]
     location /grafana/ {
-        proxy_pass http://grafana:3000;
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $grafana_upstream http://grafana:3000;
+        proxy_pass $grafana_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

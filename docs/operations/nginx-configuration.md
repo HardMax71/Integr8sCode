@@ -99,9 +99,15 @@ block defines **any** `proxy_set_header`, all parent-level `proxy_set_header` di
 Grafana is only available when the `observability` Docker Compose profile is active. Without it, requests to `/grafana/`
 return 502 (expected).
 
+The `resolver` + `set $upstream` pattern is used here so nginx resolves `grafana` at request time instead of at startup.
+Without this, nginx would fail to start when the Grafana container is not running (e.g., when the `observability` profile
+is not active). Docker's embedded DNS resolver (`127.0.0.11`) handles container name resolution on the internal network.
+
 | Directive                                                     | Purpose                                                                      |
 |---------------------------------------------------------------|------------------------------------------------------------------------------|
-| `proxy_pass http://grafana:3000`                              | Forward requests to the Grafana container on the internal Docker network     |
+| `resolver 127.0.0.11 valid=30s ipv6=off`                     | Use Docker's embedded DNS; cache results for 30s; skip IPv6 (Docker bridge is IPv4) |
+| `set $grafana_upstream http://grafana:3000`                   | Store upstream in a variable so nginx resolves it at request time, not startup |
+| `proxy_pass $grafana_upstream`                                | Forward requests to the Grafana container on the internal Docker network     |
 | `proxy_set_header Host $host`                                 | Forward the original `Host` header so Grafana sees the client's hostname     |
 | `proxy_set_header X-Real-IP $remote_addr`                     | Pass the client's real IP address                                            |
 | `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` | Append client IP to the proxy chain header                                   |
@@ -244,7 +250,7 @@ The nginx configuration uses environment variable substitution via the official 
 feature:
 
 ```dockerfile
---8<-- "frontend/Dockerfile.prod:production_stage"
+--8<-- "frontend/Dockerfile:production_stage"
 ```
 
 The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to

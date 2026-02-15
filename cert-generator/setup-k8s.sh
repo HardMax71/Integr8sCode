@@ -86,8 +86,6 @@ if ! kubectl version --request-timeout=10s >/dev/null 2>&1; then
 fi
 echo "Connected to Kubernetes"
 
-echo "Connected to Kubernetes"
-
 # Create namespace
 kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 

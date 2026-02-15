@@ -9,11 +9,12 @@ The frontend uses Nginx as a reverse proxy and static file server. The configura
 flowchart LR
     Browser --> Nginx
     Nginx -->|"/api/*"| Backend["Backend :443"]
+    Nginx -->|"/grafana/*"| Grafana["Grafana :3000"]
     Nginx -->|"static files"| Static["Static files"]
 ```
 
-Nginx serves two purposes: static file server for the Svelte frontend build, and reverse proxy for API requests to the
-backend.
+Nginx serves three purposes: static file server for the Svelte frontend build, reverse proxy for API requests to the
+backend, and reverse proxy for Grafana (when the `observability` Docker Compose profile is active).
 
 ## Configuration breakdown
 
@@ -88,6 +89,31 @@ so that the SSE location inherits the parent's `proxy_pass` context while adding
 the SSE block defines its own `proxy_set_header` directives (e.g., `Connection ''`, `X-Accel-Buffering no`), it must
 redeclare all of them — `proxy_set_header` follows the same all-or-nothing inheritance as `add_header`: once a child
 block defines **any** `proxy_set_header`, all parent-level `proxy_set_header` directives are dropped for that block.
+
+### Grafana proxy
+
+```nginx
+--8<-- "frontend/nginx.conf.template:grafana_proxy"
+```
+
+Grafana is only available when the `observability` Docker Compose profile is active. Without it, requests to `/grafana/`
+return 502 (expected).
+
+| Directive                                                     | Purpose                                                                      |
+|---------------------------------------------------------------|------------------------------------------------------------------------------|
+| `proxy_pass http://grafana:3000`                              | Forward requests to the Grafana container on the internal Docker network     |
+| `proxy_set_header Host $host`                                 | Forward the original `Host` header so Grafana sees the client's hostname     |
+| `proxy_set_header X-Real-IP $remote_addr`                     | Pass the client's real IP address                                            |
+| `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` | Append client IP to the proxy chain header                                   |
+| `proxy_set_header X-Forwarded-Proto $scheme`                  | Preserve the original protocol so Grafana can build correct redirect URLs    |
+
+Grafana must also be configured to serve from a subpath. This is done in `backend/grafana/grafana.ini`:
+
+```ini
+[server]
+root_url = %(protocol)s://%(domain)s:%(http_port)s/grafana/
+serve_from_sub_path = true
+```
 
 ### Static asset caching
 
@@ -187,6 +213,7 @@ the `server` level apply uniformly to all responses:
 |--------------------------------|-------------------|-----------------------------|
 | `location /api/`               | No                | Yes                         |
 | `location ~ ^/api/v1/events/` | No                | Yes                         |
+| `location /grafana/`           | No                | Yes                         |
 | `location ~* \.(js\|css\|…)`  | No                | Yes                         |
 | `location /build/`             | No                | Yes                         |
 | `location ~* \.html$`         | No                | Yes                         |

@@ -163,6 +163,7 @@ export default {
         aliases,
         replace({
             'process.env.VITE_BACKEND_URL': JSON.stringify(''),
+            'process.env.VITE_GRAFANA_URL': JSON.stringify(process.env.VITE_GRAFANA_URL || '/grafana'),
             preventAssignment: true
         }),
         svelte({

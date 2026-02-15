@@ -79,6 +79,7 @@
     "http-proxy": "^1.18.1",
     "jsdom": "^27.4.0",
     "monocart-reporter": "^2.10.0",
+    "postcss-lightningcss": "^1.0.2",
     "rollup-plugin-serve": "^3.0.0",
     "svelte-check": "^4.3.6",
     "svelte-eslint-parser": "^1.4.1",

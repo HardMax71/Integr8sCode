@@ -31,5 +31,5 @@ RUN dos2unix /setup-k8s.sh /setup-certs.sh && chmod +x /setup-k8s.sh /setup-cert
 RUN echo '#!/bin/sh\necho "Cert Generator Health Check: OK"\n' > /health.sh && \
     chmod +x /health.sh
 
-# Run both setup scripts
-ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh && /setup-certs.sh"]
+# Run both setup scripts (k8s setup failure must not block cert generation)
+ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh; /setup-certs.sh"]

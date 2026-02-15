@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -36,7 +37,7 @@ from app.settings import Settings
 # --8<-- [start:with_idempotency]
 async def with_idempotency(
         event: DomainEvent,
-        handler: Any,
+        handler: Callable[..., Awaitable[None]],
         idem: IdempotencyManager,
         key_strategy: KeyStrategy,
         ttl_seconds: int,
@@ -216,6 +217,8 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         ack_policy=AckPolicy.ACK,
     )
 
+    # No with_idempotency — the saga state machine provides its own
+    # deduplication via status checks before each transition.
     @sub(filter=lambda msg: _event_type_filter(msg, EventType.EXECUTION_REQUESTED))
     async def on_execution_requested(
             body: ExecutionRequestedEvent,

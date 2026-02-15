@@ -148,11 +148,11 @@ class UserSettingsService:
     async def update_custom_setting(self, user_id: str, key: str, value: Any) -> DomainUserSettings:
         """Update a custom setting"""
         current_settings = await self.get_user_settings(user_id)
-        current_settings.custom_settings[key] = value
+        updated_custom = {**current_settings.custom_settings, key: value}
 
         return await self.update_user_settings(
             user_id,
-            DomainUserSettingsUpdate(custom_settings=current_settings.custom_settings),
+            DomainUserSettingsUpdate(custom_settings=updated_custom),
             reason=f"Custom setting '{key}' updated",
         )
 

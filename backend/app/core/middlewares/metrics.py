@@ -191,7 +191,7 @@ def create_system_metrics() -> None:
     # CPU usage
     def get_cpu_usage(_: CallbackOptions) -> list[Observation]:
         """Get current CPU usage."""
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = psutil.cpu_percent(interval=None)
         return [Observation(cpu_percent)]
 
     meter.create_observable_gauge(
@@ -201,9 +201,10 @@ def create_system_metrics() -> None:
     # Process metrics
     def get_process_metrics(_: CallbackOptions) -> list[Observation]:
         """Get current process metrics."""
+        mem = current_process.memory_info()
         return [
-            Observation(current_process.memory_info().rss, {"type": "rss"}),
-            Observation(current_process.memory_info().vms, {"type": "vms"}),
+            Observation(mem.rss, {"type": "rss"}),
+            Observation(mem.vms, {"type": "vms"}),
             Observation(current_process.cpu_percent(), {"type": "cpu"}),
             Observation(current_process.num_threads(), {"type": "threads"}),
         ]

@@ -7,6 +7,14 @@ server {
     index index.html;
 # --8<-- [end:server_block]
 
+    # --8<-- [start:security_headers]
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+    add_header Referrer-Policy "strict-origin-when-cross-origin";
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
+    # --8<-- [end:security_headers]
+
     # --8<-- [start:compression]
     # Enable gzip compression
     gzip on;
@@ -63,35 +71,23 @@ server {
     }
 
     # --8<-- [start:static_caching]
-    # Cache static assets
+    # Cache static assets (no add_header here — server-level security headers inherit)
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
-        add_header Cache-Control "public, immutable";
-        add_header X-Content-Type-Options "nosniff";
     }
 
     # Cache build directory assets with long expiry
     location /build/ {
         expires 1y;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        add_header X-Content-Type-Options "nosniff";
     }
 
     # HTML files should not be cached
     location ~* \.html$ {
         expires -1;
-        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
     }
     # --8<-- [end:static_caching]
 
-    # --8<-- [start:security_headers]
     location / {
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
-        add_header X-Frame-Options "SAMEORIGIN";
-        add_header X-Content-Type-Options "nosniff";
-        add_header Referrer-Policy "strict-origin-when-cross-origin";
-        add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
         try_files $uri $uri/ /index.html;
     }
-    # --8<-- [end:security_headers]
 }

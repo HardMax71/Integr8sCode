@@ -29,7 +29,7 @@ class SecurityService:
 
     def get_password_hash(self, password: str) -> str:
         return self.pwd_context.hash(password)  # type: ignore
-        # --8<-- [end:password_hashing]
+    # --8<-- [end:password_hashing]
 
     # --8<-- [start:create_access_token]
     def create_access_token(self, data: dict[str, Any], expires_delta: timedelta) -> str:

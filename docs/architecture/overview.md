@@ -116,7 +116,7 @@ The K8s Worker consumes the event, spins up an isolated pod, and runs the script
 sequenceDiagram
     autonumber
     actor Client
-    participant Router as SSERouter
+    participant Router as SSE Route
     participant SSE as SSEService
     participant Bus as Redis Pub/Sub
 
@@ -141,7 +141,7 @@ sequenceDiagram
     link SSE: Docs @ ../../components/sse/sse-architecture/
 ```
 
-The SSE layer uses Redis pub/sub as a broadcast bus so that any API instance can deliver events to any connected client, regardless of which instance originally handled the request. When a client opens an SSE connection, the PartitionedSSERouter assigns it to a partition based on execution ID or user ID, and the SSEService subscribes to the corresponding Redis channel. Events flow through Redis from producers like the Result Processor or NotificationService. Each SSEService instance listens on its subscribed channels and forwards incoming messages as SSE frames to the client. This design means you can scale API instances horizontally without sticky sessions since Redis handles the fan-out.
+The SSE layer uses Redis pub/sub as a broadcast bus so that any API instance can deliver events to any connected client, regardless of which instance originally handled the request. When a client opens an SSE connection, the SSE route passes the execution ID or user ID to SSEService, which subscribes to the corresponding Redis channel. Events flow through Redis from producers like the Result Processor or NotificationService. Each SSEService instance listens on its subscribed channels and forwards incoming messages as SSE frames to the client. This design means you can scale API instances horizontally without sticky sessions since Redis handles the fan-out.
 
 Streams terminate in a few ways. For execution streams, the result_stored event signals completion and the connection closes gracefully. For notification streams, the client stays connected until they disconnect or the server shuts down. In both cases, the service unsubscribes from Redis to clean up resources. Timeouts and heartbeats keep connections alive and detect stale clients.
 

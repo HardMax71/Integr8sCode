@@ -72,8 +72,8 @@ applies to any endpoint not matching a more specific pattern.
 
 ## Middleware Integration
 
-The `RateLimitMiddleware` intercepts all HTTP requests, extracts the user identifier, and checks against the configured
-limits:
+The `RateLimitMiddleware` intercepts every HTTP request except a set of excluded paths (health checks, auth endpoints,
+static assets):
 
 ```python
 --8<-- "backend/app/core/middlewares/rate_limit.py:RateLimitMiddleware"

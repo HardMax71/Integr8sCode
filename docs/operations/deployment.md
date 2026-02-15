@@ -290,8 +290,9 @@ then deploy a specific version via SSH.
 
 ### First-time setup
 
-See [`SETUP_DEPLOY.md`](https://github.com/HardMax71/Integr8sCode/blob/main/SETUP_DEPLOY.md) at the repo root for
-instructions on configuring the production server and GitHub Secrets.
+To configure the production server and GitHub Secrets, follow the [Required secrets](cicd.md#required-secrets) section
+in the CI/CD docs. You will need to generate an SSH key pair, create a GitHub PAT with `read:packages` scope, and add
+all four secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_GHCR_TOKEN`) to the repository settings.
 
 ## Key files
 

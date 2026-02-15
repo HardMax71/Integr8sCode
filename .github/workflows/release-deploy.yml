@@ -19,7 +19,7 @@ jobs:
   release:
     name: Create CalVer Release
     if: >
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
@@ -44,6 +44,7 @@ jobs:
           fi
           echo "sha=$SHA" >> $GITHUB_OUTPUT
           echo "short-sha=${SHA::7}" >> $GITHUB_OUTPUT
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
 
       - name: Compute CalVer tag
         id: calver
@@ -103,8 +104,8 @@ jobs:
             ### Docker Images
 
             ```
-            docker pull ghcr.io/${{ github.repository_owner }}/integr8scode/backend:${{ steps.calver.outputs.version }}
-            docker pull ghcr.io/${{ github.repository_owner }}/integr8scode/frontend:${{ steps.calver.outputs.version }}
+            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/backend:${{ steps.calver.outputs.version }}
+            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/frontend:${{ steps.calver.outputs.version }}
             ```
 
   deploy:
@@ -120,11 +121,12 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
           GHCR_USER: ${{ github.repository_owner }}
+          IMAGE_TAG: ${{ needs.release.outputs.version }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG
           command_timeout: 10m
           script: |
             set -e
@@ -134,15 +136,16 @@ jobs:
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
+            export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose up -d --remove-orphans --no-build
 
             TIMEOUT=120; ELAPSED=0
             until curl -kfs https://localhost/api/v1/health/live > /dev/null 2>&1; do
               [ $ELAPSED -ge $TIMEOUT ] && echo "Health check failed" && docker compose logs backend --tail=30 && exit 1
               sleep 5; ELAPSED=$((ELAPSED + 5))
             done
-            echo "Backend healthy"
+            echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 
             docker image prune -af --filter "until=72h" || true
 

@@ -99,13 +99,13 @@ block defines **any** `proxy_set_header`, all parent-level `proxy_set_header` di
 Grafana is only available when the `observability` Docker Compose profile is active. Without it, requests to `/grafana/`
 return 502 (expected).
 
-| Directive                             | Purpose                                                                      |
-|---------------------------------------|------------------------------------------------------------------------------|
-| `proxy_pass http://grafana:3000`      | Forward requests to the Grafana container on the internal Docker network     |
-| `proxy_set_header Host`              | Forward the original `Host` header so Grafana sees the client's hostname     |
-| `proxy_set_header X-Real-IP`         | Pass the client's real IP address                                            |
-| `proxy_set_header X-Forwarded-For`   | Append client IP to the proxy chain header                                   |
-| `proxy_set_header X-Forwarded-Proto` | Preserve the original protocol so Grafana can build correct redirect URLs    |
+| Directive                                                     | Purpose                                                                      |
+|---------------------------------------------------------------|------------------------------------------------------------------------------|
+| `proxy_pass http://grafana:3000`                              | Forward requests to the Grafana container on the internal Docker network     |
+| `proxy_set_header Host $host`                                 | Forward the original `Host` header so Grafana sees the client's hostname     |
+| `proxy_set_header X-Real-IP $remote_addr`                     | Pass the client's real IP address                                            |
+| `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` | Append client IP to the proxy chain header                                   |
+| `proxy_set_header X-Forwarded-Proto $scheme`                  | Preserve the original protocol so Grafana can build correct redirect URLs    |
 
 Grafana must also be configured to serve from a subpath. This is done in `backend/grafana/grafana.ini`:
 

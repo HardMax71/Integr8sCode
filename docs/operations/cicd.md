@@ -318,8 +318,7 @@ The deploy job is skippable via the `skip_deploy` input on manual dispatch.
 | `DEPLOY_SSH_KEY`   | Ed25519 private key for SSH          |
 | `DEPLOY_GHCR_TOKEN`| GitHub PAT with `read:packages` scope|
 
-See [`SETUP_DEPLOY.md`](https://github.com/HardMax71/Integr8sCode/blob/main/SETUP_DEPLOY.md) at the repo root for
-step-by-step setup instructions.
+See [Deployment — Production deployment](deployment.md#production-deployment) for setup instructions.
 
 ## SBOM & Supply Chain Security
 

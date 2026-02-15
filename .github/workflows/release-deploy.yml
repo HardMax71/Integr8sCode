@@ -139,13 +139,8 @@ jobs:
             export IMAGE_TAG="$IMAGE_TAG"
             export COMPOSE_PROFILES=observability
             docker compose pull
-            docker compose up -d --remove-orphans --no-build
+            docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 
-            TIMEOUT=120; ELAPSED=0
-            until curl -kfs https://localhost/api/v1/health/live > /dev/null 2>&1; do
-              [ $ELAPSED -ge $TIMEOUT ] && echo "Health check failed" && docker compose logs backend --tail=30 && exit 1
-              sleep 5; ELAPSED=$((ELAPSED + 5))
-            done
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 
             docker image prune -af --filter "until=72h" || true

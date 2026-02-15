@@ -78,22 +78,13 @@ EOF
     fi
 fi
 
-# Check k8s connection with retries (k3s may still be initializing)
+# Check k8s connection (single attempt — k3s should already be running)
 echo "Checking Kubernetes connection..."
-MAX_RETRIES=12
-RETRY_DELAY=5
-for i in $(seq 1 $MAX_RETRIES); do
-    if kubectl version --request-timeout=10s >/dev/null 2>&1; then
-        echo "Connected to Kubernetes (attempt $i)"
-        break
-    fi
-    if [ $i -eq $MAX_RETRIES ]; then
-        echo "ERROR: Cannot connect to Kubernetes cluster after $MAX_RETRIES attempts!"
-        exit 1
-    fi
-    echo "Kubernetes not ready, retrying in ${RETRY_DELAY}s... (attempt $i/$MAX_RETRIES)"
-    sleep $RETRY_DELAY
-done
+if ! kubectl version --request-timeout=10s >/dev/null 2>&1; then
+    echo "ERROR: Cannot connect to Kubernetes cluster"
+    exit 1
+fi
+echo "Connected to Kubernetes"
 
 echo "Connected to Kubernetes"
 

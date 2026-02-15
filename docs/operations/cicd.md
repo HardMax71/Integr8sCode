@@ -103,7 +103,7 @@ graph TD
     end
 
     subgraph "Phase 2: Build"
-        C["Build & Push 6 Images to GHCR"]
+        C["Build & Push 5 Images to GHCR"]
     end
 
     subgraph "Phase 3: E2E (parallel runners)"

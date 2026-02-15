@@ -157,7 +157,6 @@ services:
   grafana:
     container_name: grafana
     image: grafana/grafana:12.3.1
-    profiles: ["observability"]
     user: "472"
     ports:
       - "3000:3000"
@@ -478,7 +477,6 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.52
     container_name: jaeger
-    profiles: ["observability"]
     ports:
       - "5775:5775/udp"   # Zipkin/thrift compact
       - "6831:6831/udp"   # Thrift compact
@@ -539,7 +537,6 @@ services:
   victoria-metrics:
     image: victoriametrics/victoria-metrics:v1.96.0
     container_name: victoria-metrics
-    profiles: ["observability"]
     ports:
       - "8428:8428"
     volumes:
@@ -561,7 +558,6 @@ services:
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
-    profiles: ["observability"]
     command:
       - "--kafka.server=kafka:29092"
       - "--web.listen-address=:9308"
@@ -580,7 +576,6 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
-    profiles: ["observability"]
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro

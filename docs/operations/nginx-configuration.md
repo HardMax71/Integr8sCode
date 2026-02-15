@@ -244,7 +244,7 @@ The nginx configuration uses environment variable substitution via the official 
 feature:
 
 ```dockerfile
---8<-- "frontend/Dockerfile.prod:production_stage"
+--8<-- "frontend/Dockerfile:production_stage"
 ```
 
 The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to

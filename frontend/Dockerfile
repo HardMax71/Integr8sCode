@@ -11,7 +11,7 @@ RUN npm run build
 
 # --8<-- [start:production_stage]
 # Production stage
-FROM nginx:alpine
+FROM nginx:1.27-alpine
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl

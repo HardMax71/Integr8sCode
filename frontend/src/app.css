@@ -4,6 +4,9 @@
 /* Tailwind CSS v4 */
 @import "tailwindcss";
 
+/* Explicit source path for Docker builds (no .git/.gitignore in container) */
+@source ".";
+
 /* Import component and page styles (after tailwindcss, before other directives) */
 @import './styles/components.css';
 @import './styles/pages.css';

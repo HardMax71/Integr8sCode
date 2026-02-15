@@ -83,6 +83,16 @@ server {
     }
     # --8<-- [end:static_caching]
 
+    # --8<-- [start:grafana_proxy]
+    location /grafana/ {
+        proxy_pass http://grafana:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    # --8<-- [end:grafana_proxy]
+
     location / {
         try_files $uri $uri/ /index.html;
     }

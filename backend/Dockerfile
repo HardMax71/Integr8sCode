@@ -15,23 +15,19 @@ RUN mkdir -p /app/certs
 EXPOSE 9090
 
 # Create entrypoint script inline (BuildKit heredoc)
+# Note: cert wait is handled by docker-compose depends_on (cert-generator: service_completed_successfully)
 COPY <<'EOF' /entrypoint.sh
 #!/bin/bash
 set -e
-
-while [ ! -f /app/certs/server.key ]; do
-  echo "Waiting for TLS certs..."
-  sleep 2
-done
 
 echo "Starting application..."
 
 exec gunicorn 'app.main:create_app()' \
   -k uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:443 \
-  --workers 4 \
-  --threads 4 \
-  --timeout 60 \
+  --workers "${WEB_CONCURRENCY:-2}" \
+  --threads "${WEB_THREADS:-4}" \
+  --timeout "${WEB_TIMEOUT:-60}" \
   --graceful-timeout 30 \
   --keep-alive 2 \
   --backlog 2048 \

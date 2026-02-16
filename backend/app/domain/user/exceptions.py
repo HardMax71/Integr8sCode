@@ -11,7 +11,7 @@ class AuthenticationRequiredError(UnauthorizedError):
 class InvalidCredentialsError(UnauthorizedError):
     """Raised when credentials are invalid."""
 
-    def __init__(self, message: str = "Could not validate credentials") -> None:
+    def __init__(self, message: str = "Invalid credentials") -> None:
         super().__init__(message)
 
 

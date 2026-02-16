@@ -58,6 +58,7 @@ class SSEService:
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         subscription: SSERedisSubscription | None = None
+        start_time = datetime.now(timezone.utc)
         self.metrics.increment_sse_connections("executions")
         try:
             yield self._format_sse_event(
@@ -121,6 +122,8 @@ class SSEService:
         finally:
             if subscription is not None:
                 await asyncio.shield(subscription.close())
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            self.metrics.record_sse_connection_duration(duration, "executions")
             self.metrics.decrement_sse_connections("executions")
             self.logger.info("SSE connection closed", execution_id=execution_id)
 

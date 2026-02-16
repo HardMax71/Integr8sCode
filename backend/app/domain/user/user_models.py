@@ -104,6 +104,17 @@ class DomainUserCreate:
 
 
 @dataclass
+class LoginResult:
+    """Result of a successful login."""
+
+    username: str
+    role: UserRole
+    access_token: str
+    csrf_token: str
+    session_timeout_minutes: int
+
+
+@dataclass
 class DomainUserUpdate:
     """User update data for repository (with hashed password)."""
 

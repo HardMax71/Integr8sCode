@@ -122,11 +122,13 @@ jobs:
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
           GHCR_USER: ${{ github.repository_owner }}
           IMAGE_TAG: ${{ needs.release.outputs.version }}
+          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD
           command_timeout: 10m
           script: |
             set -e
@@ -138,6 +140,9 @@ jobs:
 
             export IMAGE_TAG="$IMAGE_TAG"
             export COMPOSE_PROFILES=observability
+            export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
+            export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"
+            export GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD"
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 

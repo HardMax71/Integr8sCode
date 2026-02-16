@@ -173,6 +173,9 @@ services:
       - app-network
     environment:
       - GF_LOG_LEVEL=warn
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
 
   # Kafka Infrastructure for Event-Driven Design
   # Certificate generator for Zookeeper/Kafka SSL

@@ -20,6 +20,7 @@ from .settings_models import (
 from .user_models import (
     DomainUserCreate,
     DomainUserUpdate,
+    LoginResult,
     PasswordReset,
     User,
     UserDeleteResult,
@@ -43,6 +44,7 @@ __all__ = [
     "DomainUserSettingsUpdate",
     "DomainUserUpdate",
     "InvalidCredentialsError",
+    "LoginResult",
     "PasswordReset",
     "TokenExpiredError",
     "User",

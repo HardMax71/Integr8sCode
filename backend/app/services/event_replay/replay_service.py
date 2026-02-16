@@ -51,6 +51,7 @@ class EventReplayService:
             state = ReplaySessionState(session_id=str(uuid4()), config=config)
             self._sessions[state.session_id] = state
             await self._repository.save_session(state)
+            self._metrics.record_session_created(config.replay_type, config.target)
             return ReplayOperationResult(
                 session_id=state.session_id,
                 status=ReplayStatus.CREATED,
@@ -94,6 +95,7 @@ class EventReplayService:
         session.status = ReplayStatus.RUNNING
         session.started_at = datetime.now(timezone.utc)
         self._metrics.increment_active_replays()
+        self._metrics.record_speed_multiplier(session.config.speed_multiplier, session.config.replay_type)
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session started"
@@ -213,6 +215,9 @@ class EventReplayService:
         if next_event and session.last_event_at and session.config.speed_multiplier < 100:
             time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
             delay = max(time_diff / session.config.speed_multiplier, 0)
+
+        if delay > 0:
+            self._metrics.record_delay_applied(delay)
 
         scheduler = self._schedulers.get(session.session_id)
         if scheduler and scheduler.running and session.status == ReplayStatus.RUNNING:
@@ -343,8 +348,10 @@ class EventReplayService:
 
         try:
             await _dispatch()
+            self._metrics.record_replay_by_target(config.target, success=True)
             return True
         except Exception:
+            self._metrics.record_replay_by_target(config.target, success=False)
             return False
 
     async def _write_event_to_file(self, event: DomainEvent, file_path: str) -> None:

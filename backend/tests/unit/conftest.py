@@ -11,7 +11,6 @@ from app.core.metrics import (
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
-    HealthMetrics,
     KubernetesMetrics,
     NotificationMetrics,
     RateLimitMetrics,
@@ -217,11 +216,6 @@ def event_metrics(test_settings: Settings) -> EventMetrics:
 @pytest.fixture
 def execution_metrics(test_settings: Settings) -> ExecutionMetrics:
     return ExecutionMetrics(test_settings)
-
-
-@pytest.fixture
-def health_metrics(test_settings: Settings) -> HealthMetrics:
-    return HealthMetrics(test_settings)
 
 
 @pytest.fixture

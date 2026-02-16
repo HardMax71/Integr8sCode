@@ -168,6 +168,7 @@ class NotificationService:
                 f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
             )
             self.logger.warning(error_msg)
+            self.metrics.record_notification_throttled("general")
             raise NotificationThrottledError(
                 user_id,
                 self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
@@ -544,7 +545,9 @@ class NotificationService:
             if not update_data.slack_webhook:
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
 
-        return await self.repository.upsert_subscription(user_id, channel, update_data)
+        result = await self.repository.upsert_subscription(user_id, channel, update_data)
+        self.metrics.record_subscription_change(channel, update_data.enabled)
+        return result
 
     async def mark_all_as_read(self, user_id: str) -> int:
         """Mark all notifications as read for a user."""
@@ -693,6 +696,8 @@ class NotificationService:
                     retry_count=notification.max_retries,
                 ),
             )
+            notification_type = notification.tags[0] if notification.tags else "unknown"
+            self.metrics.record_notification_failed(notification_type, str(last_error), channel=notification.channel)
             self.logger.error(
                 f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
                 exc_info=last_error,

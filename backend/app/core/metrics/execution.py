@@ -10,12 +10,6 @@ class ExecutionMetrics(BaseMetrics):
             name="script.executions.total", description="Total number of script executions", unit="1"
         )
 
-        self.execution_events = self._meter.create_observable_gauge(
-            name="script.execution.events",
-            description="Instantaneous execution events (1 when execution starts, 0 otherwise)",
-            unit="1",
-        )
-
         self.execution_duration = self._meter.create_histogram(
             name="script.execution.duration", description="Time spent executing scripts in seconds", unit="s"
         )
@@ -26,12 +20,6 @@ class ExecutionMetrics(BaseMetrics):
 
         self.memory_usage = self._meter.create_histogram(
             name="script.memory.usage", description="Memory usage per script execution in MiB", unit="MiB"
-        )
-
-        self.cpu_utilization = self._meter.create_histogram(
-            name="script.cpu.utilization",
-            description="CPU utilization in millicores per script execution",
-            unit="millicores",
         )
 
         self.memory_utilization_percent = self._meter.create_histogram(
@@ -94,15 +82,3 @@ class ExecutionMetrics(BaseMetrics):
 
     def record_execution_scheduled(self) -> None:
         self.executions_assigned.add(1)
-
-    def update_cpu_available(self, cores: float) -> None:
-        self.cpu_utilization.record(cores)
-
-    def update_memory_available(self, memory_mb: float) -> None:
-        self.memory_usage.record(memory_mb, attributes={"lang_and_version": "resource_manager"})
-
-    def update_gpu_available(self, count: int) -> None:
-        self.cpu_utilization.record(count, attributes={"resource": "gpu"})
-
-    def update_allocations_active(self, count: int) -> None:
-        self.memory_utilization_percent.record(count, attributes={"metric": "allocations"})

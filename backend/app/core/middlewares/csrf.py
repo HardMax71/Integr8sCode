@@ -1,6 +1,5 @@
-import logging
-from typing import TYPE_CHECKING
-
+import structlog
+from dishka import AsyncContainer
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -8,10 +7,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
 
-if TYPE_CHECKING:
-    from dishka import AsyncContainer
-
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class CSRFMiddleware:
@@ -36,22 +32,21 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Get container from app state (set during lifespan)
         container: AsyncContainer = scope["app"].state.dishka_container
         security_service: SecurityService = await container.get(SecurityService)
 
         request = Request(scope, receive=receive)
 
         try:
-            # validate_csrf_from_request returns "skip" or the token if valid
-            # raises CSRFValidationError if invalid
             security_service.validate_csrf_from_request(request)
             await self.app(scope, receive, send)
 
         except CSRFValidationError as e:
             logger.warning(
                 "CSRF validation failed",
-                extra={"path": request.url.path, "method": request.method, "reason": str(e)},
+                path=request.url.path,
+                method=request.method,
+                reason=str(e),
             )
             response = JSONResponse(
                 status_code=403,

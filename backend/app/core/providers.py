@@ -18,7 +18,6 @@ from app.core.metrics import (
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
-    HealthMetrics,
     KubernetesMetrics,
     NotificationMetrics,
     RateLimitMetrics,
@@ -155,8 +154,8 @@ class CoreServicesProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_security_service(self, settings: Settings) -> SecurityService:
-        return SecurityService(settings)
+    def get_security_service(self, settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
+        return SecurityService(settings, security_metrics)
 
     @provide
     def get_tracer(
@@ -316,10 +315,6 @@ class MetricsProvider(Provider):
         return DatabaseMetrics(settings)
 
     @provide
-    def get_health_metrics(self, settings: Settings) -> HealthMetrics:
-        return HealthMetrics(settings)
-
-    @provide
     def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
         return KubernetesMetrics(settings)
 
@@ -441,9 +436,23 @@ class AuthProvider(Provider):
             self,
             user_repository: UserRepository,
             security_service: SecurityService,
+            security_metrics: SecurityMetrics,
             logger: structlog.stdlib.BoundLogger,
+            lockout_service: LoginLockoutService,
+            runtime_settings: RuntimeSettingsLoader,
+            producer: UnifiedProducer,
+            settings: Settings,
     ) -> AuthService:
-        return AuthService(user_repository, security_service, logger)
+        return AuthService(
+            user_repo=user_repository,
+            security_service=security_service,
+            security_metrics=security_metrics,
+            logger=logger,
+            lockout_service=lockout_service,
+            runtime_settings=runtime_settings,
+            producer=producer,
+            settings=settings,
+        )
 
 
 class KafkaServicesProvider(Provider):
@@ -628,6 +637,7 @@ class BusinessServicesProvider(Provider):
             execution_service: ExecutionService,
             rate_limit_service: RateLimitService,
             security_service: SecurityService,
+            security_metrics: SecurityMetrics,
             logger: structlog.stdlib.BoundLogger,
     ) -> AdminUserService:
         return AdminUserService(
@@ -636,6 +646,7 @@ class BusinessServicesProvider(Provider):
             execution_service=execution_service,
             rate_limit_service=rate_limit_service,
             security_service=security_service,
+            security_metrics=security_metrics,
             logger=logger,
         )
 

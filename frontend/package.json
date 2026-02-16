@@ -77,7 +77,7 @@
     "express": "^5.2.1",
     "globals": "^17.3.0",
     "http-proxy": "^1.18.1",
-    "jsdom": "^27.4.0",
+    "jsdom": "^28.1.0",
     "monocart-reporter": "^2.10.0",
     "postcss-lightningcss": "^1.0.2",
     "rollup-plugin-serve": "^3.0.0",

@@ -321,7 +321,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "percent"
         }
       },
       "gridPos": {

@@ -198,7 +198,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "decmbytes"
+          "unit": "mbytes"
         }
       },
       "gridPos": {

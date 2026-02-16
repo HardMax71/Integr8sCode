@@ -90,7 +90,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-collector:4317"
 
 # --8<-- [start:server]
 # Gunicorn / Uvicorn
-WEB_CONCURRENCY = 4
+WEB_CONCURRENCY = 2
 WEB_THREADS = 4
 WEB_TIMEOUT = 60
 WEB_BACKLOG = 2048

@@ -591,17 +591,17 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(dlq_message_age_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.90, sum(rate(dlq_message_age_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
           "legendFormat": "p90",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -678,12 +678,12 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_bucket[5m])) by (le, operation))",
+          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p50 {{operation}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_bucket[5m])) by (le, operation))",
+          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p95 {{operation}}",
           "refId": "B"
         }
@@ -755,7 +755,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "avg by (original_topic) (dlq_retry_attempts)",
+          "expr": "sum by (original_topic) (dlq_retry_attempts_sum) / sum by (original_topic) (dlq_retry_attempts_count)",
           "legendFormat": "{{original_topic}}",
           "refId": "A"
         }
@@ -909,7 +909,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum by (original_topic) (dlq_throughput_rate)",
+          "expr": "sum by (original_topic) (rate(dlq_throughput_rate_msg_per_second_sum[5m])) / sum by (original_topic) (rate(dlq_throughput_rate_msg_per_second_count[5m]))",
           "legendFormat": "{{original_topic}}",
           "refId": "A"
         }
@@ -1494,7 +1494,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
           "refId": "A"
         }
       ],

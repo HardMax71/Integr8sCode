@@ -219,7 +219,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 18,
+        "w": 9,
         "x": 6,
         "y": 20
       },
@@ -229,14 +229,33 @@
           "expr": "rate(event_store_operations_total[5m])",
           "legendFormat": "Store Ops",
           "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "Idempotency p95",
-          "refId": "B"
         }
       ],
-      "title": "Event Store & Idempotency",
+      "title": "Event Store Operations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 20
+      },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Idempotency Processing Duration",
       "type": "timeseries"
     },
     {

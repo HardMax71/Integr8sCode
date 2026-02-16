@@ -37,7 +37,7 @@
       "id": 1,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(coordinator_scheduling_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(coordinator_scheduling_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -61,7 +61,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(coordinator_queue_wait_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(coordinator_queue_wait_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -144,7 +144,7 @@
       "id": 5,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(execution_queue_wait_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(execution_queue_wait_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -210,12 +210,12 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(script_memory_usage_MiB_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(script_memory_usage_MiB_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(script_memory_usage_MiB_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(script_memory_usage_MiB_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         }
@@ -239,12 +239,12 @@
       "id": 8,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(script_memory_utilization_percent_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(script_memory_utilization_percent_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(script_memory_utilization_percent_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(script_memory_utilization_percent_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         }

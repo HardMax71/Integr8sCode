@@ -31,6 +31,13 @@ from app.settings import Settings
 
 
 class AuthService:
+    # Pre-computed bcrypt hash used as a timing side-channel mitigation.
+    # When a login attempt targets a non-existent username, we still run
+    # verify_password against this hash so the response time is comparable
+    # to the "user exists, wrong password" path. Without this, an attacker
+    # could measure response times to enumerate valid usernames.
+    _dummy_hash = "$2b$12$hDE3I.Y1MHugA561T/NQgebE/IVQS.2YliUDGfqADq7v/MTUG6.Bi"
+
     def __init__(
         self,
         user_repo: UserRepository,
@@ -106,7 +113,7 @@ class AuthService:
             key=username,
         )
         if locked:
-            self.security_metrics.record_account_locked(username, "brute_force")
+            self.security_metrics.record_account_locked("brute_force")
             raise AccountLockedError("Account locked due to too many failed attempts")
         raise InvalidCredentialsError()
 
@@ -123,10 +130,11 @@ class AuthService:
         user = await self.user_repo.get_user(username)
 
         if not user:
+            self.security_service.verify_password(password, self._dummy_hash)
             await self._fail_login(username, "user_not_found", ip_address, user_agent)
 
         if not self.security_service.verify_password(password, user.hashed_password):
-            await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=str(user.user_id))
+            await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=user.user_id)
 
         await self._lockout.clear_attempts(username)
 
@@ -149,11 +157,11 @@ class AuthService:
 
         await self._producer.produce(
             event_to_produce=UserLoggedInEvent(
-                user_id=str(user.user_id),
+                user_id=user.user_id,
                 login_method=LoginMethod.PASSWORD,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                metadata=self._build_metadata(user_id=str(user.user_id)),
+                metadata=self._build_metadata(user_id=user.user_id),
             ),
             key=user.username,
         )
@@ -177,7 +185,7 @@ class AuthService:
         effective = await self._runtime_settings.get_effective_settings()
         min_len = effective.password_min_length
         if len(password) < min_len:
-            self.security_metrics.record_weak_password_attempt(username, "too_short")
+            self.security_metrics.record_weak_password_attempt("too_short")
             raise ValidationError(f"Password must be at least {min_len} characters")
 
         existing = await self.user_repo.get_user(username)
@@ -210,10 +218,10 @@ class AuthService:
 
         await self._producer.produce(
             event_to_produce=UserRegisteredEvent(
-                user_id=str(created_user.user_id),
+                user_id=created_user.user_id,
                 username=created_user.username,
                 email=created_user.email,
-                metadata=self._build_metadata(user_id=str(created_user.user_id)),
+                metadata=self._build_metadata(user_id=created_user.user_id),
             ),
             key=created_user.username,
         )
@@ -224,11 +232,14 @@ class AuthService:
         if not token:
             return
         username = self.security_service.decode_token(token)
+        user = await self.user_repo.get_user(username)
+        if not user:
+            return
         await self._producer.produce(
             event_to_produce=UserLoggedOutEvent(
-                user_id=username,
+                user_id=user.user_id,
                 logout_reason="user_initiated",
-                metadata=self._build_metadata(user_id=username),
+                metadata=self._build_metadata(user_id=user.user_id),
             ),
             key=username,
         )

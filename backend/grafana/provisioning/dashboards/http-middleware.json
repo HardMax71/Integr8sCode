@@ -61,7 +61,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -108,12 +108,12 @@
       "id": 4,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_size_bytes_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_size_bytes_bucket[5m])) by (le))",
           "legendFormat": "Request p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_response_size_bytes_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_response_size_bytes_bucket[5m])) by (le))",
           "legendFormat": "Response p50",
           "refId": "B"
         }
@@ -179,7 +179,7 @@
       "id": 6,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(mongodb_event_query_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(mongodb_event_query_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -231,7 +231,7 @@
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(idempotency_processing_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "Idempotency p95",
           "refId": "B"
         }

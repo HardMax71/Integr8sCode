@@ -102,29 +102,6 @@
       "type": "stat"
     },
     {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 1
-      },
-      "id": 4,
-      "targets": [
-        {
-          "expr": "notifications_unread_count",
-          "refId": "A"
-        }
-      ],
-      "title": "Unread",
-      "type": "stat"
-    },
-    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -189,7 +166,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -201,7 +178,7 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(notification_channel_delivery_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -250,7 +227,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -262,7 +239,7 @@
       "id": 9,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(notification_delivery_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_delivery_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -357,7 +334,7 @@
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(notification_retry_success_rate_percent_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(notification_retry_success_rate_percent_bucket[5m])) by (le))",
           "legendFormat": "Success Rate p50",
           "refId": "B"
         }
@@ -382,7 +359,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -394,7 +371,7 @@
       "id": 13,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(notification_webhook_delivery_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_webhook_delivery_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         },
@@ -411,7 +388,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -423,7 +400,7 @@
       "id": 14,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(notification_slack_delivery_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_slack_delivery_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         },
@@ -465,14 +442,9 @@
       "id": 15,
       "targets": [
         {
-          "expr": "notification_subscriptions_active",
-          "legendFormat": "Active",
-          "refId": "A"
-        },
-        {
           "expr": "rate(notification_subscription_changes_total[5m])",
-          "legendFormat": "Changes",
-          "refId": "B"
+          "legendFormat": "Changes/s",
+          "refId": "A"
         }
       ],
       "title": "Subscriptions",

@@ -168,7 +168,7 @@ class NotificationService:
                 f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
             )
             self.logger.warning(error_msg)
-            self.metrics.record_notification_throttled("general", user_id)
+            self.metrics.record_notification_throttled("general")
             raise NotificationThrottledError(
                 user_id,
                 self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
@@ -546,8 +546,7 @@ class NotificationService:
                 raise NotificationValidationError("slack_webhook is required when enabling SLACK")
 
         result = await self.repository.upsert_subscription(user_id, channel, update_data)
-        action = "enabled" if update_data.enabled else "updated"
-        self.metrics.record_subscription_change(user_id, channel, action)
+        self.metrics.record_subscription_change(channel, update_data.enabled)
         return result
 
     async def mark_all_as_read(self, user_id: str) -> int:

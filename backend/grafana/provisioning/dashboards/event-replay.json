@@ -191,7 +191,7 @@
       "id": 6,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(replay_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(replay_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -215,7 +215,7 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(replay_event_processing_time_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(replay_event_processing_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -239,7 +239,7 @@
       "id": 8,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(replay_throughput_event_per_second_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_throughput_event_per_second_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         }
@@ -263,7 +263,7 @@
       "id": 9,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(replay_batch_size_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_batch_size_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         }
@@ -329,12 +329,12 @@
       "id": 11,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(replay_speed_multiplier_x_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_speed_multiplier_x_bucket[5m])) by (le))",
           "legendFormat": "Multiplier p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(replay_delay_applied_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_delay_applied_seconds_bucket[5m])) by (le))",
           "legendFormat": "Delay p50",
           "refId": "B"
         }

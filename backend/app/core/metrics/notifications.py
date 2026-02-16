@@ -54,10 +54,6 @@ class NotificationMetrics(BaseMetrics):
             name="notifications.read.total", description="Total notifications read by users", unit="1"
         )
 
-        self.unread_count = self._meter.create_up_down_counter(
-            name="notifications.unread.count", description="Current unread notifications per user", unit="1"
-        )
-
         # Throttling metrics
         self.notifications_throttled = self._meter.create_counter(
             name="notifications.throttled.total", description="Total notifications throttled", unit="1"
@@ -101,12 +97,6 @@ class NotificationMetrics(BaseMetrics):
         )
 
         # Subscription metrics
-        self.subscriptions_active = self._meter.create_up_down_counter(
-            name="notification.subscriptions.active",
-            description="Number of active notification subscriptions",
-            unit="1",
-        )
-
         self.subscription_changes = self._meter.create_counter(
             name="notification.subscription.changes.total", description="Total subscription changes", unit="1"
         )
@@ -146,14 +136,11 @@ class NotificationMetrics(BaseMetrics):
     def record_notification_read(self, notification_type: str) -> None:
         self.notifications_read.add(1, attributes={"category": notification_type})
 
-    def decrement_unread_count(self, user_id: str) -> None:
-        self.unread_count.add(-1, attributes={"user_id": user_id})
+    def record_notification_throttled(self, notification_type: str) -> None:
+        self.notifications_throttled.add(1, attributes={"category": notification_type})
 
-    def record_notification_throttled(self, notification_type: str, user_id: str) -> None:
-        self.notifications_throttled.add(1, attributes={"category": notification_type, "user_id": user_id})
-
-    def record_throttle_window_hit(self, user_id: str) -> None:
-        self.throttle_window_hits.add(1, attributes={"user_id": user_id})
+    def record_throttle_window_hit(self) -> None:
+        self.throttle_window_hits.add(1)
 
     def record_notification_retry(self, notification_type: str, attempt_number: int, success: bool) -> None:
         self.notification_retries.add(
@@ -177,20 +164,12 @@ class NotificationMetrics(BaseMetrics):
         if not success and error_type:
             self.slack_api_errors.add(1, attributes={"error_type": error_type, "channel": channel})
 
-    def update_active_subscriptions(self, user_id: str, count: int) -> None:
-        key = f"_subscriptions_{user_id}"
-        current_val = getattr(self, key, 0)
-        delta = count - current_val
-        if delta != 0:
-            self.subscriptions_active.add(delta, attributes={"user_id": user_id})
-        setattr(self, key, count)
-
-    def record_subscription_change(self, user_id: str, notification_type: str, action: str) -> None:
+    def record_subscription_change(self, channel: str, enabled: bool | None) -> None:
+        action = "enabled" if enabled is True else "disabled" if enabled is False else "updated"
         self.subscription_changes.add(
             1,
             attributes={
-                "user_id": user_id,
-                "category": notification_type,
+                "channel": channel,
                 "action": action,
             },
         )

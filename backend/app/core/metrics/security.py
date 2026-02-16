@@ -131,8 +131,8 @@ class SecurityMetrics(BaseMetrics):
     def record_password_reset_request(self, user_id: str, method: str = "admin") -> None:
         self.password_reset_requests.add(1, attributes={"user_id": user_id, "method": method})
 
-    def record_weak_password_attempt(self, user_id: str, weakness_type: str) -> None:
-        self.weak_password_attempts.add(1, attributes={"user_id": user_id, "weakness_type": weakness_type})
+    def record_weak_password_attempt(self, weakness_type: str) -> None:
+        self.weak_password_attempts.add(1, attributes={"weakness_type": weakness_type})
 
     def record_brute_force_attempt(
         self, ip_address: str, target_user: str | None = None, action_taken: str = "logged"
@@ -146,11 +146,10 @@ class SecurityMetrics(BaseMetrics):
             },
         )
 
-    def record_account_locked(self, user_id: str, reason: str, duration_seconds: float | None = None) -> None:
+    def record_account_locked(self, reason: str, duration_seconds: float | None = None) -> None:
         self.accounts_locked.add(
             1,
             attributes={
-                "user_id": user_id,
                 "reason": reason,
                 "duration": str(duration_seconds) if duration_seconds else "permanent",
             },

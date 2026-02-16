@@ -41,6 +41,6 @@ def test_security_metrics_methods(test_settings: Settings) -> None:
     m.record_csrf_token_generated()
     m.record_csrf_validation_failure("missing")
     m.record_password_reset_request("u1", method="admin")
-    m.record_weak_password_attempt("u1", "common_password")
+    m.record_weak_password_attempt("common_password")
     m.record_brute_force_attempt("1.2.3.4", target_user="u1", action_taken="blocked")
-    m.record_account_locked("u1", "brute_force", duration_seconds=600)
+    m.record_account_locked("brute_force", duration_seconds=600)

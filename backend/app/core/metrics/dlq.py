@@ -5,6 +5,8 @@ class DLQMetrics(BaseMetrics):
     """Metrics for Dead Letter Queue operations."""
 
     def _create_instruments(self) -> None:
+        self._dlq_sizes: dict[str, int] = {}
+
         self.dlq_messages_received = self._meter.create_counter(
             name="dlq.messages.received.total", description="Total number of messages received in DLQ", unit="1"
         )
@@ -50,12 +52,11 @@ class DLQMetrics(BaseMetrics):
         self.dlq_processing_duration.record(duration_seconds, attributes={"operation": operation})
 
     def update_dlq_queue_size(self, original_topic: str, size: int) -> None:
-        key = f"_dlq_size_{original_topic}"
-        current_val = getattr(self, key, 0)
+        current_val = self._dlq_sizes.get(original_topic, 0)
         delta = size - current_val
         if delta != 0:
             self.dlq_queue_size.add(delta, attributes={"original_topic": original_topic})
-        setattr(self, key, size)
+        self._dlq_sizes[original_topic] = size
 
     def record_dlq_message_age(self, age_seconds: float) -> None:
         self.dlq_message_age.record(age_seconds)

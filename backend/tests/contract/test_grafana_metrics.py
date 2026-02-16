@@ -49,18 +49,25 @@ PROMQL_BUILTINS = frozenset({
 
 
 @pytest.fixture(scope="module")
-def prometheus_families() -> dict[str, set[str]]:
+def prometheus_families(request: pytest.FixtureRequest) -> dict[str, set[str]]:
     """Instantiate every metric class through the real OTel -> Prometheus pipeline.
 
     Returns:
         Mapping of family name to set of sample names produced by that family.
     """
     # pytest-env sets OTEL_SDK_DISABLED=true; override so the real SDK is active.
-    os.environ.pop("OTEL_SDK_DISABLED", None)
+    old_otel_disabled = os.environ.pop("OTEL_SDK_DISABLED", None)
 
     reader = PrometheusMetricReader()
     provider = MeterProvider(metric_readers=[reader])
     otel_api.set_meter_provider(provider)
+
+    def _teardown() -> None:
+        provider.shutdown()
+        if old_otel_disabled is not None:
+            os.environ["OTEL_SDK_DISABLED"] = old_otel_disabled
+
+    request.addfinalizer(_teardown)
 
     for _, mod_name, _ in pkgutil.iter_modules(metrics_pkg.__path__):
         importlib.import_module(f"app.core.metrics.{mod_name}")

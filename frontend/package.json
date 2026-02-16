@@ -46,7 +46,7 @@
     "dotenv": "^17.2.3",
     "event-source-plus": "^0.1.15",
     "postcss": "^8.4.47",
-    "rollup": "^4.55.1",
+    "rollup": "^4.57.1",
     "rollup-plugin-css-only": "^4.3.0",
     "rollup-plugin-livereload": "^2.0.0",
     "rollup-plugin-postcss": "^4.0.2",

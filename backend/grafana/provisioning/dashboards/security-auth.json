@@ -1,0 +1,355 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Security & Authentication",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Authentication",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "rate(authentication_attempts_total[5m])",
+          "legendFormat": "Attempts",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(authentication_failures_total[5m])",
+          "legendFormat": "Failures",
+          "refId": "B"
+        }
+      ],
+      "title": "Authentication Attempts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(authentication_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Authentication Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 7
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "authentication_sessions_active",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Sessions",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 7
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "increase(accounts_locked_total[24h])",
+          "refId": "A"
+        }
+      ],
+      "title": "Accounts Locked (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 7
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "increase(brute_force_attempts_total[1h])",
+          "refId": "A"
+        }
+      ],
+      "title": "Brute Force Attempts (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 7
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "increase(weak_password_attempts_total[24h])",
+          "refId": "A"
+        }
+      ],
+      "title": "Weak Password Attempts",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Tokens & CSRF",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "rate(tokens_generated_total[5m])",
+          "legendFormat": "Generated",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(tokens_revoked_total[5m])",
+          "legendFormat": "Revoked",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(token_validation_failures_total[5m])",
+          "legendFormat": "Validation Failures",
+          "refId": "C"
+        }
+      ],
+      "title": "Token Operations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(token_expiry_time_seconds_bucket[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
+        }
+      ],
+      "title": "Token Expiry Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "rate(csrf_tokens_generated_total[5m])",
+          "legendFormat": "Generated",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(csrf_validation_failures_total[5m])",
+          "legendFormat": "Failures",
+          "refId": "B"
+        }
+      ],
+      "title": "CSRF",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Authorization",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "rate(authorization_checks_total[5m])",
+          "legendFormat": "Checks",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(authorization_denials_total[5m])",
+          "legendFormat": "Denials",
+          "refId": "B"
+        }
+      ],
+      "title": "Authorization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "rate(password_reset_requests_total[5m])",
+          "legendFormat": "Resets",
+          "refId": "A"
+        }
+      ],
+      "title": "Password Resets",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 33,
+  "style": "dark",
+  "tags": [
+    "security",
+    "auth"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Security & Authentication",
+  "uid": "security-auth",
+  "version": 1
+}

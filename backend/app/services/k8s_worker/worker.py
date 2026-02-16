@@ -109,7 +109,7 @@ class KubernetesWorker:
         async with self._creation_semaphore:
             execution_id = command.execution_id
             self._active_creations.add(execution_id)
-            self.metrics.update_k8s_active_creations(len(self._active_creations))
+            self.metrics.update_active_pod_creations(len(self._active_creations))
 
             start_time = time.time()
 
@@ -151,7 +151,7 @@ class KubernetesWorker:
 
             finally:
                 self._active_creations.discard(execution_id)
-                self.metrics.update_k8s_active_creations(len(self._active_creations))
+                self.metrics.update_active_pod_creations(len(self._active_creations))
 
     async def _get_entrypoint_script(self) -> str:
         """Get entrypoint script content"""

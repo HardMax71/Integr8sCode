@@ -35,13 +35,9 @@ class KubernetesMetrics(BaseMetrics):
             name="pods.by.phase", description="Current number of pods by phase", unit="1"
         )
 
-        # ConfigMap and NetworkPolicy metrics
+        # ConfigMap metrics
         self.config_maps_created = self._meter.create_counter(
             name="configmaps.created.total", description="Total number of ConfigMaps created", unit="1"
-        )
-
-        self.network_policies_created = self._meter.create_counter(
-            name="networkpolicies.created.total", description="Total number of NetworkPolicies created", unit="1"
         )
 
         # Pod monitor metrics
@@ -75,20 +71,6 @@ class KubernetesMetrics(BaseMetrics):
             name="pods.monitored", description="Number of pods currently being monitored", unit="1"
         )
 
-        # Resource metrics
-        self.pod_resource_requests = self._meter.create_histogram(
-            name="pod.resource.requests", description="Pod resource requests", unit="1"
-        )
-
-        self.pod_resource_limits = self._meter.create_histogram(
-            name="pod.resource.limits", description="Pod resource limits", unit="1"
-        )
-
-        # Node metrics
-        self.pods_per_node = self._meter.create_histogram(
-            name="pods.per.node", description="Number of pods per node", unit="1"
-        )
-
     def record_pod_creation_failure(self, failure_reason: str) -> None:
         self.pod_creation_failures.add(1, attributes={"failure_reason": failure_reason})
 
@@ -99,7 +81,6 @@ class KubernetesMetrics(BaseMetrics):
         self.pod_creation_duration.record(duration_seconds, attributes={"language": language})
 
     def update_active_pod_creations(self, count: int) -> None:
-        # Track the delta for gauge-like behavior
         key = "_active_pod_creations"
         current_val = getattr(self, key, 0)
         delta = count - current_val
@@ -125,12 +106,6 @@ class KubernetesMetrics(BaseMetrics):
     def record_k8s_config_map_created(self, status: str) -> None:
         self.record_config_map_created(status)
 
-    def record_k8s_network_policy_created(self, status: str) -> None:
-        self.network_policies_created.add(1, attributes={"status": status})
-
-    def update_k8s_active_creations(self, count: int) -> None:
-        self.update_active_pod_creations(count)
-
     def increment_pod_monitor_watch_reconnects(self) -> None:
         self.pod_monitor_watch_reconnects.add(1)
 
@@ -147,7 +122,6 @@ class KubernetesMetrics(BaseMetrics):
         self.pod_monitor_watch_errors.add(1, attributes={"error_type": error_type})
 
     def update_pod_monitor_pods_watched(self, count: int) -> None:
-        # Track the delta for gauge-like behavior
         key = "_pods_monitored"
         current_val = getattr(self, key, 0)
         delta = count - current_val
@@ -164,19 +138,9 @@ class KubernetesMetrics(BaseMetrics):
         self.pod_lifetime.record(lifetime_seconds, attributes={"final_phase": final_phase, "language": language})
 
     def update_pods_by_phase(self, phase: str, count: int) -> None:
-        # Track the delta for gauge-like behavior
         key = f"_pods_phase_{phase}"
         current_val = getattr(self, key, 0)
         delta = count - current_val
         if delta != 0:
             self.pods_by_phase.add(delta, attributes={"phase": phase})
         setattr(self, key, count)
-
-    def record_pod_resource_request(self, resource_type: str, value: float, language: str) -> None:
-        self.pod_resource_requests.record(value, attributes={"resource_type": resource_type, "language": language})
-
-    def record_pod_resource_limit(self, resource_type: str, value: float, language: str) -> None:
-        self.pod_resource_limits.record(value, attributes={"resource_type": resource_type, "language": language})
-
-    def record_pods_per_node(self, node_name: str, pod_count: int) -> None:
-        self.pods_per_node.record(pod_count, attributes={"node_name": node_name})

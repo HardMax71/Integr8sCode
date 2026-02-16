@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.domain.exceptions import (
+    AccountLockedError,
     ConflictError,
     DomainError,
     ForbiddenError,
@@ -40,6 +41,8 @@ def _map_to_status_code(exc: DomainError) -> int:
         return 403
     if isinstance(exc, InvalidStateError):
         return 400
+    if isinstance(exc, AccountLockedError):
+        return 423
     if isinstance(exc, InfrastructureError):
         return 500
     return 500

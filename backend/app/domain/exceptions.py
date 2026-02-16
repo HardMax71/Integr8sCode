@@ -51,6 +51,12 @@ class InvalidStateError(DomainError):
     pass
 
 
+class AccountLockedError(DomainError):
+    """Account temporarily locked (maps to 423)."""
+
+    pass
+
+
 class InfrastructureError(DomainError):
     """Infrastructure failure - DB, Kafka, K8s, etc (maps to 500)."""
 

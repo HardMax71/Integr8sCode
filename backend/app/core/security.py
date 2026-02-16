@@ -8,6 +8,7 @@ from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
+from app.core.metrics import SecurityMetrics
 from app.domain.user import CSRFValidationError, InvalidCredentialsError
 from app.settings import Settings
 
@@ -15,8 +16,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
 
 
 class SecurityService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, security_metrics: SecurityMetrics) -> None:
         self.settings = settings
+        self._security_metrics = security_metrics
         # --8<-- [start:password_hashing]
         self.pwd_context = CryptContext(
             schemes=["bcrypt"],
@@ -123,12 +125,15 @@ class SecurityService:
         cookie_token = request.cookies.get("csrf_token", "")
 
         if not header_token:
+            self._security_metrics.record_csrf_validation_failure("missing_header")
             raise CSRFValidationError("CSRF token missing from X-CSRF-Token header")
 
         if not self.validate_csrf_token(header_token, cookie_token):
+            self._security_metrics.record_csrf_validation_failure("token_mismatch")
             raise CSRFValidationError("CSRF token invalid or does not match cookie")
 
         if not self._verify_csrf_signature(header_token, access_token):
+            self._security_metrics.record_csrf_validation_failure("invalid_signature")
             raise CSRFValidationError("CSRF token signature invalid")
 
         return header_token

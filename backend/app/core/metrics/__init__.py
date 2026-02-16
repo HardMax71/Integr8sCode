@@ -5,7 +5,6 @@ from app.core.metrics.database import DatabaseMetrics
 from app.core.metrics.dlq import DLQMetrics
 from app.core.metrics.events import EventMetrics
 from app.core.metrics.execution import ExecutionMetrics
-from app.core.metrics.health import HealthMetrics
 from app.core.metrics.kubernetes import KubernetesMetrics
 from app.core.metrics.notifications import NotificationMetrics
 from app.core.metrics.rate_limit import RateLimitMetrics
@@ -20,7 +19,6 @@ __all__ = [
     "DLQMetrics",
     "EventMetrics",
     "ExecutionMetrics",
-    "HealthMetrics",
     "KubernetesMetrics",
     "NotificationMetrics",
     "RateLimitMetrics",

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
+from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
 from app.domain.user import InvalidCredentialsError
@@ -15,9 +16,9 @@ class TestPasswordHashing:
     """Test password hashing functionality."""
 
     @pytest.fixture
-    def security_svc(self, test_settings: Settings) -> SecurityService:
+    def security_svc(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
         """Create SecurityService instance."""
-        return SecurityService(test_settings)
+        return SecurityService(test_settings, security_metrics)
 
     def test_password_hash_creates_different_hash(self, security_svc: SecurityService) -> None:
         """Test that password hashing creates unique hashes."""
@@ -72,9 +73,9 @@ class TestSecurityService:
     """Test SecurityService functionality."""
 
     @pytest.fixture
-    def security_service(self, test_settings: Settings) -> SecurityService:
+    def security_service(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
         """Create SecurityService instance using test settings."""
-        return SecurityService(test_settings)
+        return SecurityService(test_settings, security_metrics)
 
     def test_create_access_token_basic(
             self,
@@ -283,9 +284,9 @@ class TestSecurityService:
         assert decoded["role"] == UserRole.USER
         assert "extra_field" in decoded  # Claims are carried as provided
 
-    def test_password_context_configuration(self, test_settings: Settings) -> None:
+    def test_password_context_configuration(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Test password context is properly configured."""
-        svc = SecurityService(test_settings)
+        svc = SecurityService(test_settings, security_metrics)
         password = "test_password"
         hashed = svc.get_password_hash(password)
         assert svc.verify_password(password, hashed)
@@ -311,8 +312,8 @@ class TestDecodeToken:
     """Test SecurityService.decode_token method."""
 
     @pytest.fixture
-    def security_service(self, test_settings: Settings) -> SecurityService:
-        return SecurityService(test_settings)
+    def security_service(self, test_settings: Settings, security_metrics: SecurityMetrics) -> SecurityService:
+        return SecurityService(test_settings, security_metrics)
 
     def test_valid_token_returns_username(self, security_service: SecurityService) -> None:
         token = security_service.create_access_token(

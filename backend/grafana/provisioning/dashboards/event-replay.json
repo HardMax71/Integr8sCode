@@ -1,0 +1,387 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Event Replay",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Sessions",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "rate(replay_sessions_created_total[5m])",
+          "legendFormat": "Created",
+          "refId": "A"
+        }
+      ],
+      "title": "Sessions Created",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "replay_sessions_active",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Sessions",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "replay_sessions_by_status",
+          "refId": "A"
+        }
+      ],
+      "title": "By Status",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Events",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "rate(replay_events_processed_total[5m])",
+          "legendFormat": "Processed",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(replay_events_failed_total[5m])",
+          "legendFormat": "Failed",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(replay_events_skipped_total[5m])",
+          "legendFormat": "Skipped",
+          "refId": "C"
+        }
+      ],
+      "title": "Events Processed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "rate(replay_status_changes_total[5m])",
+          "legendFormat": "Changes",
+          "refId": "A"
+        }
+      ],
+      "title": "Status Changes",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Performance",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(replay_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Replay Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(replay_event_processing_time_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Event Processing Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(replay_throughput_event_per_second_bucket[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(replay_batch_size_bucket[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
+        }
+      ],
+      "title": "Batch Size",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Targets & Speed",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "rate(replay_by_target_total[5m])",
+          "legendFormat": "{{target}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(replay_target_errors_total[5m])",
+          "legendFormat": "Errors",
+          "refId": "B"
+        }
+      ],
+      "title": "By Target",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(replay_speed_multiplier_x_bucket[5m]))",
+          "legendFormat": "Multiplier p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(replay_delay_applied_seconds_bucket[5m]))",
+          "legendFormat": "Delay p50",
+          "refId": "B"
+        }
+      ],
+      "title": "Speed Control",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "replay_queue_size",
+          "refId": "A"
+        }
+      ],
+      "title": "Queue Size",
+      "type": "stat"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 33,
+  "style": "dark",
+  "tags": [
+    "replay"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Event Replay",
+  "uid": "event-replay",
+  "version": 1
+}

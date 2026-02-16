@@ -1,0 +1,387 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "HTTP & Middleware",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "HTTP Requests",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[5m])",
+          "legendFormat": "Requests",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "http_requests_active_requests",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 7
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(http_request_size_bytes_bucket[5m]))",
+          "legendFormat": "Request p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(http_response_size_bytes_bucket[5m]))",
+          "legendFormat": "Response p50",
+          "refId": "B"
+        }
+      ],
+      "title": "Request/Response Size",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Database & Event Store",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "rate(mongodb_event_operations_total[5m])",
+          "legendFormat": "Operations",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(database_connection_errors_total[5m])",
+          "legendFormat": "Connection Errors",
+          "refId": "B"
+        }
+      ],
+      "title": "MongoDB Operations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(mongodb_event_query_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "MongoDB Query Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 20
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "database_connections_active",
+          "refId": "A"
+        }
+      ],
+      "title": "Active DB Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 18,
+        "x": 6,
+        "y": 20
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "rate(event_store_operations_total[5m])",
+          "legendFormat": "Store Ops",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(idempotency_processing_duration_seconds_bucket[5m]))",
+          "legendFormat": "Idempotency p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Event Store & Idempotency",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Kafka Errors & Event Bus",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "rate(kafka_production_errors_total[5m])",
+          "legendFormat": "Production",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(kafka_consumption_errors_total[5m])",
+          "legendFormat": "Consumption",
+          "refId": "B"
+        }
+      ],
+      "title": "Kafka Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "event_bus_queue_size",
+          "refId": "A"
+        }
+      ],
+      "title": "Event Bus Queue Size",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "id": 103,
+      "panels": [],
+      "title": "System",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "system_cpu_percent",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "process_metrics_mixed",
+          "refId": "A"
+        }
+      ],
+      "title": "Process Metrics",
+      "type": "stat"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 33,
+  "style": "dark",
+  "tags": [
+    "http",
+    "middleware",
+    "database"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "HTTP & Middleware",
+  "uid": "http-middleware",
+  "version": 1
+}

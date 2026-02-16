@@ -13,11 +13,6 @@ def test_connection_metrics_methods(test_settings: Settings) -> None:
     m.record_sse_message_sent("/events", "etype")
     m.record_sse_connection_duration(1.2, "/events")
     m.update_sse_draining_connections(1)
-    m.record_sse_shutdown_duration(0.5, "phase1")
-    m.update_sse_shutdown_duration(0.6, "phase2")
-    m.increment_event_bus_subscriptions()
-    m.decrement_event_bus_subscriptions(1)
-    m.update_event_bus_subscribers(3, "*")
 
 
 def test_coordinator_metrics_methods(test_settings: Settings) -> None:

@@ -1,4 +1,5 @@
 import pytest
+from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
 from app.settings import Settings
@@ -28,9 +29,9 @@ def make_request(
 class TestCSRFTokenGeneration:
     """Tests for CSRF token generation."""
 
-    def test_generates_signed_token_format(self, test_settings: Settings) -> None:
+    def test_generates_signed_token_format(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """CSRF token has nonce.signature format."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         token = security.generate_csrf_token("session-abc")
 
@@ -40,17 +41,19 @@ class TestCSRFTokenGeneration:
         assert len(nonce) > 0
         assert len(signature) == 64  # sha256 hexdigest
 
-    def test_generates_unique_tokens(self, test_settings: Settings) -> None:
+    def test_generates_unique_tokens(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Each CSRF token is unique (different nonce each time)."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         tokens = {security.generate_csrf_token("same-session") for _ in range(100)}
 
         assert len(tokens) == 100
 
-    def test_different_sessions_produce_different_tokens(self, test_settings: Settings) -> None:
+    def test_different_sessions_produce_different_tokens(
+        self, test_settings: Settings, security_metrics: SecurityMetrics,
+    ) -> None:
         """Tokens for different sessions differ even with same nonce derivation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         token_a = security.generate_csrf_token("session-a")
         token_b = security.generate_csrf_token("session-b")
@@ -61,18 +64,18 @@ class TestCSRFTokenGeneration:
 class TestCSRFTokenValidation:
     """Tests for CSRF token validation (double-submit check)."""
 
-    def test_validates_matching_tokens(self, test_settings: Settings) -> None:
+    def test_validates_matching_tokens(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Matching CSRF tokens pass validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         token = security.generate_csrf_token("session-1")
 
         result = security.validate_csrf_token(token, token)
 
         assert result is True
 
-    def test_rejects_mismatched_tokens(self, test_settings: Settings) -> None:
+    def test_rejects_mismatched_tokens(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Mismatched CSRF tokens fail validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         token1 = security.generate_csrf_token("session-1")
         token2 = security.generate_csrf_token("session-2")
@@ -91,10 +94,11 @@ class TestCSRFTokenValidation:
         ids=["empty_header", "empty_cookie", "both_empty"],
     )
     def test_rejects_empty_tokens(
-        self, test_settings: Settings, header_token: str, cookie_token: str
+        self, test_settings: Settings, security_metrics: SecurityMetrics,
+        header_token: str, cookie_token: str,
     ) -> None:
         """Empty CSRF tokens fail validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         result = security.validate_csrf_token(header_token, cookie_token)
 
@@ -104,29 +108,29 @@ class TestCSRFTokenValidation:
 class TestCSRFSignatureVerification:
     """Tests for CSRF HMAC signature verification."""
 
-    def test_valid_signature_passes(self, test_settings: Settings) -> None:
+    def test_valid_signature_passes(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Token verified against the same session_id succeeds."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         token = security.generate_csrf_token("my-session")
 
         assert security._verify_csrf_signature(token, "my-session") is True
 
-    def test_wrong_session_rejected(self, test_settings: Settings) -> None:
+    def test_wrong_session_rejected(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Token signed for session A fails verification against session B."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         token = security.generate_csrf_token("session-a")
 
         assert security._verify_csrf_signature(token, "session-b") is False
 
-    def test_unsigned_token_rejected(self, test_settings: Settings) -> None:
+    def test_unsigned_token_rejected(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """A plain random string without signature structure is rejected."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         assert security._verify_csrf_signature("plain-random-token", "session") is False
 
-    def test_tampered_signature_rejected(self, test_settings: Settings) -> None:
+    def test_tampered_signature_rejected(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Modifying the signature portion causes rejection."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         token = security.generate_csrf_token("session-x")
 
         nonce, sig = token.split(".", 1)
@@ -139,23 +143,23 @@ class TestCSRFExemptPaths:
     """Tests for CSRF exempt path configuration."""
 
     def test_exempt_paths_includes_login_and_register(
-        self, test_settings: Settings
+        self, test_settings: Settings, security_metrics: SecurityMetrics,
     ) -> None:
         """CSRF exempt paths include login and register."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         assert "/api/v1/auth/login" in security.CSRF_EXEMPT_PATHS
         assert "/api/v1/auth/register" in security.CSRF_EXEMPT_PATHS
 
-    def test_logout_is_not_exempt(self, test_settings: Settings) -> None:
+    def test_logout_is_not_exempt(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Logout is NOT exempt from CSRF validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         assert "/api/v1/auth/logout" not in security.CSRF_EXEMPT_PATHS
 
-    def test_exempt_paths_is_frozenset(self, test_settings: Settings) -> None:
+    def test_exempt_paths_is_frozenset(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """CSRF exempt paths is a frozenset (immutable)."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
 
         assert isinstance(security.CSRF_EXEMPT_PATHS, frozenset)
 
@@ -163,18 +167,18 @@ class TestCSRFExemptPaths:
 class TestCSRFRequestValidation:
     """Tests for CSRF validation from HTTP requests."""
 
-    def test_skips_get_requests(self, test_settings: Settings) -> None:
+    def test_skips_get_requests(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """GET requests skip CSRF validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         req = make_request("GET", "/api/v1/anything")
 
         assert security.validate_csrf_from_request(req) == "skip"
 
     def test_missing_header_raises_when_authenticated(
-        self, test_settings: Settings
+        self, test_settings: Settings, security_metrics: SecurityMetrics,
     ) -> None:
         """Missing CSRF header raises error for authenticated POST."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         req = make_request(
             "POST",
             "/api/v1/items",
@@ -184,9 +188,9 @@ class TestCSRFRequestValidation:
         with pytest.raises(CSRFValidationError):
             security.validate_csrf_from_request(req)
 
-    def test_valid_tokens_pass(self, test_settings: Settings) -> None:
+    def test_valid_tokens_pass(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Valid signed CSRF tokens pass full request validation."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         access_token = "my-access-token-value"
         token = security.generate_csrf_token(access_token)
         req = make_request(
@@ -198,9 +202,9 @@ class TestCSRFRequestValidation:
 
         assert security.validate_csrf_from_request(req) == token
 
-    def test_forged_token_rejected(self, test_settings: Settings) -> None:
+    def test_forged_token_rejected(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Unsigned token matching in header+cookie is rejected (signature check)."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         forged = "forged-random-value"
         req = make_request(
             "POST",
@@ -212,9 +216,9 @@ class TestCSRFRequestValidation:
         with pytest.raises(CSRFValidationError, match="signature invalid"):
             security.validate_csrf_from_request(req)
 
-    def test_wrong_session_token_rejected(self, test_settings: Settings) -> None:
+    def test_wrong_session_token_rejected(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """Token signed for one session rejected when presented with different access_token."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         token = security.generate_csrf_token("session-A-jwt")
         req = make_request(
             "POST",
@@ -226,9 +230,9 @@ class TestCSRFRequestValidation:
         with pytest.raises(CSRFValidationError, match="signature invalid"):
             security.validate_csrf_from_request(req)
 
-    def test_logout_requires_csrf(self, test_settings: Settings) -> None:
+    def test_logout_requires_csrf(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
         """POST to logout with authentication requires CSRF token."""
-        security = SecurityService(test_settings)
+        security = SecurityService(test_settings, security_metrics)
         req = make_request(
             "POST",
             "/api/v1/auth/logout",

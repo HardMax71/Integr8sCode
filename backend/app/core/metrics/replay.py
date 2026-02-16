@@ -72,20 +72,7 @@ class ReplayMetrics(BaseMetrics):
             name="replay.delay.applied", description="Delay applied between replay events in seconds", unit="s"
         )
 
-        # Filter metrics
-        self.replay_events_filtered = self._meter.create_counter(
-            name="replay.events.filtered.total", description="Total events filtered during replay", unit="1"
-        )
-
-        self.replay_filter_effectiveness = self._meter.create_histogram(
-            name="replay.filter.effectiveness", description="Percentage of events passing filters", unit="%"
-        )
-
-        # Memory and resource metrics
-        self.replay_memory_usage = self._meter.create_histogram(
-            name="replay.memory.usage", description="Memory usage during replay in MB", unit="MB"
-        )
-
+        # Queue metrics
         self.replay_queue_size = self._meter.create_up_down_counter(
             name="replay.queue.size", description="Size of replay event queue", unit="1"
         )
@@ -94,7 +81,6 @@ class ReplayMetrics(BaseMetrics):
         self.replay_sessions_created.add(1, attributes={"replay_type": replay_type, "target": target})
 
     def update_active_replays(self, count: int) -> None:
-        # Track the delta for gauge-like behavior
         key = "_active_replays"
         current_val = getattr(self, key, 0)
         delta = count - current_val
@@ -122,7 +108,6 @@ class ReplayMetrics(BaseMetrics):
     def record_replay_duration(self, duration_seconds: float, replay_type: str, total_events: int = 0) -> None:
         self.replay_duration.record(duration_seconds, attributes={"replay_type": replay_type})
 
-        # Calculate and record throughput if events were processed
         if total_events > 0 and duration_seconds > 0:
             throughput = total_events / duration_seconds
             self.replay_throughput.record(throughput, attributes={"replay_type": replay_type})
@@ -135,8 +120,6 @@ class ReplayMetrics(BaseMetrics):
 
     def record_status_change(self, session_id: str, from_status: str, to_status: str) -> None:
         self.replay_status_changes.add(1, attributes={"from_status": from_status, "to_status": to_status})
-
-        # Update sessions by status
         self.update_sessions_by_status(from_status, -1)
         self.update_sessions_by_status(to_status, 1)
 
@@ -146,7 +129,6 @@ class ReplayMetrics(BaseMetrics):
 
     def record_replay_by_target(self, target: str, success: bool) -> None:
         self.replay_by_target.add(1, attributes={"target": target, "success": str(success)})
-
         if not success:
             self.replay_target_errors.add(1, attributes={"target": target})
 
@@ -159,19 +141,7 @@ class ReplayMetrics(BaseMetrics):
     def record_batch_size(self, size: int, replay_type: str) -> None:
         self.replay_batch_size.record(size, attributes={"replay_type": replay_type})
 
-    def record_events_filtered(self, filter_type: str, count: int) -> None:
-        self.replay_events_filtered.add(count, attributes={"filter_type": filter_type})
-
-    def record_filter_effectiveness(self, passed: int, total: int, filter_type: str) -> None:
-        if total > 0:
-            effectiveness = (passed / total) * 100
-            self.replay_filter_effectiveness.record(effectiveness, attributes={"filter_type": filter_type})
-
-    def record_replay_memory_usage(self, memory_mb: float, session_id: str) -> None:
-        self.replay_memory_usage.record(memory_mb, attributes={"session_id": session_id})
-
     def update_replay_queue_size(self, session_id: str, size: int) -> None:
-        # Track the delta for gauge-like behavior
         key = f"_queue_{session_id}"
         current_val = getattr(self, key, 0)
         delta = size - current_val

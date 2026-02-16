@@ -21,10 +21,6 @@ def test_execution_metrics_methods(test_settings: Settings) -> None:
     m.record_execution_assigned()
     m.record_execution_queued()
     m.record_execution_scheduled()
-    m.update_cpu_available(100.0)
-    m.update_memory_available(512.0)
-    m.update_gpu_available(1)
-    m.update_allocations_active(2)
 
 
 def test_event_metrics_methods(test_settings: Settings) -> None:
@@ -32,15 +28,7 @@ def test_event_metrics_methods(test_settings: Settings) -> None:
     m = EventMetrics(test_settings)
     m.record_event_published("execution.requested", None)
     m.record_event_processing_duration(0.05, "execution.requested")
-    m.record_pod_event_published("pod.running")
     m.record_event_replay_operation("prepare", "success")
-    m.update_event_buffer_size(3)
-    m.record_event_buffer_dropped()
-    m.record_event_buffer_processed()
-    m.record_event_buffer_latency(0.2)
-    m.set_event_buffer_backpressure(True)
-    m.set_event_buffer_backpressure(False)
-    m.record_event_buffer_memory_usage(12.3)
     m.record_event_stored("execution.requested", "events")
     m.record_events_processing_failed("topic", "etype", "group", "error")
     m.record_event_store_duration(0.1, "insert", "events")
@@ -49,10 +37,8 @@ def test_event_metrics_methods(test_settings: Settings) -> None:
     m.record_processing_duration(0.3, "topic", "etype", "group")
     m.record_kafka_message_produced("t")
     m.record_kafka_message_consumed("t", "g")
-    m.record_kafka_consumer_lag(10, "t", "g", 0)
     m.record_kafka_production_error("t", "e")
     m.record_kafka_consumption_error("t", "g", "e")
     m.update_event_bus_queue_size(1, "default")
     m.set_event_bus_queue_size(5, "default")
     m.set_event_bus_queue_size(2, "default")
-

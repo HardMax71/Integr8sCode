@@ -136,7 +136,7 @@ packages = ["app", "workers"]
 dev = [
     "async-asgi-testclient>=1.4.11",
     "coverage==7.13.0",
-    "hypothesis==6.103.4",
+    "hypothesis==6.151.6",
     "iniconfig==2.3.0",
     "matplotlib==3.10.8",
     "mypy==1.19.1",

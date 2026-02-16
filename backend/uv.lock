@@ -982,15 +982,14 @@ wheels = [
 
 [[package]]
 name = "hypothesis"
-version = "6.103.4"
+version = "6.151.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "attrs" },
     { name = "sortedcontainers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/f6/b81f0091c97090f74ee8c4bf5dbd3cf303f3244db629ab8dcafa5ef57975/hypothesis-6.103.4.tar.gz", hash = "sha256:77a4ddd92177e9c4a3772714685259063505b001cbda9a006986ae2d5f8cf157", size = 400657, upload-time = "2024-06-24T05:49:28.541Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/5b/039c095977004f2316225559d591c5a4c62b2e4d7a429db2dd01d37c3ec2/hypothesis-6.151.6.tar.gz", hash = "sha256:755decfa326c8c97a4c8766fe40509985003396442138554b0ae824f9584318f", size = 475846, upload-time = "2026-02-11T04:42:06.891Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/53/8efd7f455d62f5f967becb6049f1616ae6664113bbe4deb4b4d9fc88a330/hypothesis-6.103.4-py3-none-any.whl", hash = "sha256:b997b82b9fd63068502d2e4b56fcb79e2a476fc7837d80bbbca64b151cd46793", size = 461389, upload-time = "2024-06-24T05:49:16.916Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/70/42760b369723f8b5aa6a21e5fae58809f503ca7ebb6da13b99f4de36305a/hypothesis-6.151.6-py3-none-any.whl", hash = "sha256:4e6e933a98c6f606b3e0ada97a750e7fff12277a40260b9300a05e7a5c3c5e2e", size = 543324, upload-time = "2026-02-11T04:42:04.025Z" },
 ]
 
 [[package]]
@@ -1306,7 +1305,7 @@ requires-dist = [
 dev = [
     { name = "async-asgi-testclient", specifier = ">=1.4.11" },
     { name = "coverage", specifier = "==7.13.0" },
-    { name = "hypothesis", specifier = "==6.103.4" },
+    { name = "hypothesis", specifier = "==6.151.6" },
     { name = "iniconfig", specifier = "==2.3.0" },
     { name = "matplotlib", specifier = "==3.10.8" },
     { name = "mypy", specifier = "==1.19.1" },

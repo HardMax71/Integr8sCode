@@ -54,7 +54,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -217,7 +217,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {

@@ -127,52 +127,53 @@ class AuthService:
         if await self._lockout.check_locked(username):
             raise AccountLockedError("Account temporarily locked due to too many failed attempts")
 
-        user = await self.user_repo.get_user(username)
+        with self.security_metrics.track_authentication("login"):
+            user = await self.user_repo.get_user(username)
 
-        if not user:
-            self.security_service.verify_password(password, self._dummy_hash)
-            await self._fail_login(username, "user_not_found", ip_address, user_agent)
+            if not user:
+                self.security_service.verify_password(password, self._dummy_hash)
+                await self._fail_login(username, "user_not_found", ip_address, user_agent)
 
-        if not self.security_service.verify_password(password, user.hashed_password):
-            await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=user.user_id)
+            if not self.security_service.verify_password(password, user.hashed_password):
+                await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=user.user_id)
 
-        await self._lockout.clear_attempts(username)
+            await self._lockout.clear_attempts(username)
 
-        effective = await self._runtime_settings.get_effective_settings()
-        session_timeout = effective.session_timeout_minutes
+            effective = await self._runtime_settings.get_effective_settings()
+            session_timeout = effective.session_timeout_minutes
 
-        self.logger.info(
-            "Login successful",
-            username=user.username,
-            client_ip=ip_address,
-            user_agent=user_agent,
-            token_expires_in_minutes=session_timeout,
-        )
-
-        access_token_expires = timedelta(minutes=session_timeout)
-        access_token = self.security_service.create_access_token(
-            data={"sub": user.username}, expires_delta=access_token_expires,
-        )
-        csrf_token = self.security_service.generate_csrf_token(access_token)
-
-        await self._producer.produce(
-            event_to_produce=UserLoggedInEvent(
-                user_id=user.user_id,
-                login_method=LoginMethod.PASSWORD,
-                ip_address=ip_address,
+            self.logger.info(
+                "Login successful",
+                username=user.username,
+                client_ip=ip_address,
                 user_agent=user_agent,
-                metadata=self._build_metadata(user_id=user.user_id),
-            ),
-            key=user.username,
-        )
+                token_expires_in_minutes=session_timeout,
+            )
 
-        return LoginResult(
-            username=user.username,
-            role=user.role,
-            access_token=access_token,
-            csrf_token=csrf_token,
-            session_timeout_minutes=session_timeout,
-        )
+            access_token_expires = timedelta(minutes=session_timeout)
+            access_token = self.security_service.create_access_token(
+                data={"sub": user.username}, expires_delta=access_token_expires,
+            )
+            csrf_token = self.security_service.generate_csrf_token(access_token)
+
+            await self._producer.produce(
+                event_to_produce=UserLoggedInEvent(
+                    user_id=user.user_id,
+                    login_method=LoginMethod.PASSWORD,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    metadata=self._build_metadata(user_id=user.user_id),
+                ),
+                key=user.username,
+            )
+
+            return LoginResult(
+                username=user.username,
+                role=user.role,
+                access_token=access_token,
+                csrf_token=csrf_token,
+                session_timeout_minutes=session_timeout,
+            )
 
     async def register(
         self,

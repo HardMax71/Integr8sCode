@@ -205,7 +205,7 @@ class AdminUserService:
         self.logger.info(
             "Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id
         )
-        self._security_metrics.record_password_reset_request(user_id, method="admin")
+        self._security_metrics.record_password_reset_request(method="admin")
         hashed = self._security.get_password_hash(new_password)
         pr = PasswordReset(user_id=user_id, new_password=hashed)
         ok = await self._users.reset_user_password(pr)

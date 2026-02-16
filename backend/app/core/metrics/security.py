@@ -1,3 +1,7 @@
+import time
+from collections.abc import Generator
+from contextlib import contextmanager
+
 from app.core.metrics.base import BaseMetrics
 
 
@@ -75,18 +79,22 @@ class SecurityMetrics(BaseMetrics):
             name="accounts.locked.total", description="Total number of accounts locked due to security", unit="1"
         )
 
-    def record_authentication_attempt(
-        self, method: str, success: bool, user_id: str | None = None, duration_seconds: float | None = None
-    ) -> None:
-        self.authentication_attempts.add(
-            1, attributes={"method": method, "success": str(success), "user_id": user_id or "unknown"}
-        )
-
+    def record_authentication_attempt(self, method: str, success: bool, duration_seconds: float) -> None:
+        attrs = {"method": method, "success": str(success)}
+        self.authentication_attempts.add(1, attributes=attrs)
         if not success:
-            self.authentication_failures.add(1, attributes={"method": method, "user_id": user_id or "unknown"})
+            self.authentication_failures.add(1, attributes={"method": method})
+        self.authentication_duration.record(duration_seconds, attributes={"method": method})
 
-        if duration_seconds is not None:
-            self.authentication_duration.record(duration_seconds, attributes={"method": method})
+    @contextmanager
+    def track_authentication(self, method: str) -> Generator[None, None, None]:
+        start = time.monotonic()
+        success = False
+        try:
+            yield
+            success = True
+        finally:
+            self.record_authentication_attempt(method, success, time.monotonic() - start)
 
     def increment_active_sessions(self) -> None:
         self.active_sessions.add(1)
@@ -128,8 +136,8 @@ class SecurityMetrics(BaseMetrics):
     def record_csrf_validation_failure(self, reason: str) -> None:
         self.csrf_validation_failures.add(1, attributes={"reason": reason})
 
-    def record_password_reset_request(self, user_id: str, method: str = "admin") -> None:
-        self.password_reset_requests.add(1, attributes={"user_id": user_id, "method": method})
+    def record_password_reset_request(self, method: str = "admin") -> None:
+        self.password_reset_requests.add(1, attributes={"method": method})
 
     def record_weak_password_attempt(self, weakness_type: str) -> None:
         self.weak_password_attempts.add(1, attributes={"weakness_type": weakness_type})

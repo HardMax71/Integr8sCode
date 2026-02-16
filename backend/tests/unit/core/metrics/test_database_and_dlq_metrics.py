@@ -37,5 +37,3 @@ def test_dlq_metrics_methods(test_settings: Settings) -> None:
     m.update_dlq_queue_size("topic", 7)
     m.record_dlq_message_age(5.0)
     m.record_dlq_processing_error("topic", "etype", "err")
-    m.increment_dlq_queue_size("topic")
-    m.decrement_dlq_queue_size("topic")

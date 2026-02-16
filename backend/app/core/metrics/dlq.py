@@ -66,8 +66,3 @@ class DLQMetrics(BaseMetrics):
             1, attributes={"original_topic": original_topic, "event_type": event_type, "error_type": error_type}
         )
 
-    def increment_dlq_queue_size(self, original_topic: str) -> None:
-        self.dlq_queue_size.add(1, attributes={"original_topic": original_topic})
-
-    def decrement_dlq_queue_size(self, original_topic: str) -> None:
-        self.dlq_queue_size.add(-1, attributes={"original_topic": original_topic})

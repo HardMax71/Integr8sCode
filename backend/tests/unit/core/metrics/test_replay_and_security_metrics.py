@@ -31,7 +31,9 @@ def test_replay_metrics_methods(test_settings: Settings) -> None:
 def test_security_metrics_methods(test_settings: Settings) -> None:
     """Test SecurityMetrics methods with no-op metrics."""
     m = SecurityMetrics(test_settings)
-    m.record_authentication_attempt("password", False, user_id="u1", duration_seconds=0.2)
+    m.record_authentication_attempt("password", False, 0.2)
+    with m.track_authentication("password"):
+        pass
     m.increment_active_sessions()
     m.decrement_active_sessions()
     m.record_token_generated("access", 3600)
@@ -40,7 +42,7 @@ def test_security_metrics_methods(test_settings: Settings) -> None:
     m.record_authorization_check("/admin", "GET", False, user_role="user")
     m.record_csrf_token_generated()
     m.record_csrf_validation_failure("missing")
-    m.record_password_reset_request("u1", method="admin")
+    m.record_password_reset_request(method="admin")
     m.record_weak_password_attempt("common_password")
     m.record_brute_force_attempt("1.2.3.4", target_user="u1", action_taken="blocked")
     m.record_account_locked("brute_force", duration_seconds=600)

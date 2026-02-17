@@ -128,7 +128,7 @@ services:
       - WEB_TIMEOUT=${WEB_TIMEOUT:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    mem_limit: 512m
+    mem_limit: 768m
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
@@ -581,6 +581,7 @@ services:
       - "--retentionPeriod=30d"
     networks:
       - app-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8428/-/healthy"]
       interval: 5s
@@ -627,6 +628,7 @@ services:
     depends_on:
       - victoria-metrics
       - jaeger
+    restart: unless-stopped
     # Note: otel-collector uses scratch image - no wget/curl available for healthcheck
     # The service exposes health endpoint at :13133 but we can't check it from inside container
 

@@ -30,7 +30,7 @@ Grafana approach — no intermediate backend service is needed.
 Alert configuration is managed via YAML files in `backend/grafana/provisioning/alerting/`. Grafana loads these on
 startup, so alert rules, contact points, and notification policies are version-controlled and reproducible.
 
-The provisioning file includes active infrastructure alert rules and commented-out examples for notification channels:
+The provisioning file (`alerting.yml`) includes active infrastructure alert rules under `groups` and ships with empty `contactPoints: []` and `policies: []` — populate these keys to route alerts to Slack, email, or other channels (see examples below):
 
 ### Built-in Alert Rules
 

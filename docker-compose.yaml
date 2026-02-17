@@ -128,7 +128,7 @@ services:
       - WEB_TIMEOUT=${WEB_TIMEOUT:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    mem_limit: 384m
+    mem_limit: 512m
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]

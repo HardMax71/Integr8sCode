@@ -144,7 +144,7 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 | Redis | 300 m | 256 MB maxmemory | LRU eviction, persistence disabled |
 | Kafka | 1280 m | JVM `-Xms256m -Xmx1g` | Single-broker, low throughput workload |
 | Zookeeper | 512 m | JVM `-Xms128m -Xmx384m` | Metadata-only role |
-| Backend API | 384 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
+| Backend API | 512 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
 | Frontend | 128 m | nginx serving static assets | |
 | Each worker (×7) | 160 m | Single-process Python | coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
 | Grafana | 192 m | | Observability profile |

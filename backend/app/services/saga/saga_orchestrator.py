@@ -85,14 +85,14 @@ class SagaOrchestrator:
         """Look up the active saga for an execution and transition it to a terminal state."""
         saga = await self._repo.get_saga_by_execution_and_name(execution_id, _SAGA_NAME)
         if not saga:
-            self.logger.debug(f"No execution_saga found for execution {execution_id}")
+            self.logger.debug("No execution_saga found for execution", execution_id=execution_id)
             return
 
         if saga.state not in (SagaState.RUNNING, SagaState.CREATED):
-            self.logger.debug(f"Saga {saga.saga_id} already in terminal state {saga.state}")
+            self.logger.debug("Saga already in terminal state", saga_id=saga.saga_id, state=saga.state)
             return
 
-        self.logger.info(f"Marking saga {saga.saga_id} as {state}")
+        self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
         await self._repo.save_saga(
             saga.saga_id, state=state, error_message=error_message, completed_at=datetime.now(UTC),
         )
@@ -100,7 +100,7 @@ class SagaOrchestrator:
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
         """Start a new saga instance."""
         execution_id = trigger_event.execution_id
-        self.logger.info(f"Starting saga {_SAGA_NAME} for execution {execution_id}")
+        self.logger.info("Starting saga", saga_name=_SAGA_NAME, execution_id=execution_id)
 
         candidate = Saga(
             saga_id=str(uuid4()),
@@ -111,10 +111,10 @@ class SagaOrchestrator:
 
         instance, created = await self._repo.get_or_create_saga(candidate)
         if not created:
-            self.logger.info(f"Saga {_SAGA_NAME} already exists for execution {execution_id}")
+            self.logger.info("Saga already exists for execution", saga_name=_SAGA_NAME, execution_id=execution_id)
             return instance.saga_id
 
-        self.logger.info(f"Started saga {_SAGA_NAME} (ID: {instance.saga_id}) for execution {execution_id}")
+        self.logger.info("Started saga", saga_name=_SAGA_NAME, saga_id=instance.saga_id, execution_id=execution_id)
 
         if self._producer and self.config.store_events:
             await self._publish_saga_started_event(instance, trigger_event)
@@ -154,11 +154,11 @@ class SagaOrchestrator:
 
                 if saved.state not in (SagaState.RUNNING, SagaState.CREATED):
                     self.logger.info(
-                        f"Saga {instance.saga_id} no longer active (state={saved.state}), stopping"
+                        "Saga no longer active, stopping", saga_id=instance.saga_id, state=saved.state
                     )
                     return
 
-                self.logger.info(f"Executing saga step: {step.name} for saga {instance.saga_id}")
+                self.logger.info("Executing saga step", step=step.name, saga_id=instance.saga_id)
 
                 with tracer.start_as_current_span(
                     name="saga.step",
@@ -185,7 +185,7 @@ class SagaOrchestrator:
                     if compensation:
                         context.add_compensation(compensation)
                 else:
-                    self.logger.error(f"Saga step {step.name} failed for saga {instance.saga_id}")
+                    self.logger.error("Saga step failed", step=step.name, saga_id=instance.saga_id)
 
                     if self.config.enable_compensation:
                         await self._compensate_saga(instance.saga_id, context)
@@ -194,12 +194,12 @@ class SagaOrchestrator:
 
                     return
 
-            self.logger.info(f"Saga {instance.saga_id} steps done, waiting for execution completion event")
+            self.logger.info("Saga steps done, waiting for execution completion event", saga_id=instance.saga_id)
 
         except SagaConcurrencyError:
-            self.logger.info(f"Saga {instance.saga_id} modified concurrently, stopping execution")
+            self.logger.info("Saga modified concurrently, stopping execution", saga_id=instance.saga_id)
         except Exception as e:
-            self.logger.error(f"Error executing saga {instance.saga_id}: {e}", exc_info=True)
+            self.logger.error("Error executing saga", saga_id=instance.saga_id, exc_info=True)
 
             if self.config.enable_compensation:
                 await self._compensate_saga(instance.saga_id, context)
@@ -208,11 +208,11 @@ class SagaOrchestrator:
 
     async def _compensate_saga(self, saga_id: str, context: SagaContext) -> None:
         """Execute compensation steps."""
-        self.logger.info(f"Starting compensation for saga {saga_id}")
+        self.logger.info("Starting compensation for saga", saga_id=saga_id)
 
         saga = await self._repo.get_saga(saga_id)
         if not saga:
-            self.logger.error(f"Cannot compensate: saga {saga_id} not found")
+            self.logger.error("Cannot compensate: saga not found", saga_id=saga_id)
             return
 
         was_cancelled = saga.state == SagaState.CANCELLED
@@ -223,21 +223,23 @@ class SagaOrchestrator:
         compensated: list[str] = list(saga.compensated_steps)
         for compensation in reversed(context.compensations):
             try:
-                self.logger.info(f"Executing compensation: {compensation.name} for saga {saga_id}")
+                self.logger.info("Executing compensation", compensation=compensation.name, saga_id=saga_id)
 
                 success = await compensation.compensate(context)
 
                 if success:
                     compensated.append(compensation.name)
                 else:
-                    self.logger.error(f"Compensation {compensation.name} failed for saga {saga_id}")
+                    self.logger.error("Compensation failed", compensation=compensation.name, saga_id=saga_id)
 
-            except Exception as e:
-                self.logger.error(f"Error in compensation {compensation.name}: {e}", exc_info=True)
+            except Exception:
+                self.logger.error(
+                    "Error in compensation", compensation=compensation.name, saga_id=saga_id, exc_info=True
+                )
 
         if was_cancelled:
             await self._repo.save_saga(saga_id, compensated_steps=compensated)
-            self.logger.info(f"Saga {saga_id} compensation completed after cancellation")
+            self.logger.info("Saga compensation completed after cancellation", saga_id=saga_id)
         else:
             await self._repo.save_saga(
                 saga_id,
@@ -246,21 +248,21 @@ class SagaOrchestrator:
                 completed_at=datetime.now(UTC),
                 compensated_steps=compensated,
             )
-            self.logger.error(f"Saga {saga_id} failed: Saga compensated due to failure")
+            self.logger.error("Saga failed after compensation", saga_id=saga_id)
 
     async def _fail_saga(self, saga_id: str, error_message: str) -> None:
         """Mark saga as failed."""
         await self._repo.save_saga(
             saga_id, state=SagaState.FAILED, error_message=error_message, completed_at=datetime.now(UTC),
         )
-        self.logger.error(f"Saga {saga_id} failed: {error_message}")
+        self.logger.error("Saga failed", saga_id=saga_id, error_message=error_message)
 
     async def check_timeouts(self) -> None:
         """Check for timed-out sagas and mark them. Single invocation."""
         cutoff_time = datetime.now(UTC) - timedelta(seconds=self.config.timeout_seconds)
         timed_out = await self._repo.find_timed_out_sagas(cutoff_time)
         for instance in timed_out:
-            self.logger.warning(f"Saga {instance.saga_id} timed out")
+            self.logger.warning("Saga timed out", saga_id=instance.saga_id)
             await self._repo.save_saga(
                 instance.saga_id,
                 state=SagaState.TIMEOUT,
@@ -341,9 +343,9 @@ class SagaOrchestrator:
                 ),
             )
             await self._producer.produce(event_to_produce=event, key=instance.execution_id)
-            self.logger.info(f"Published SagaStartedEvent for saga {instance.saga_id}")
-        except Exception as e:
-            self.logger.error(f"Failed to publish saga started event: {e}")
+            self.logger.info("Published SagaStartedEvent", saga_id=instance.saga_id)
+        except Exception:
+            self.logger.error("Failed to publish saga started event", exc_info=True)
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
         """Publish saga cancelled event."""
@@ -370,7 +372,7 @@ class SagaOrchestrator:
             if self._producer:
                 await self._producer.produce(event_to_produce=event, key=saga_instance.execution_id)
 
-            self.logger.info(f"Published cancellation event for saga {saga_instance.saga_id}")
+            self.logger.info("Published cancellation event", saga_id=saga_instance.saga_id)
 
-        except Exception as e:
-            self.logger.error(f"Failed to publish saga cancellation event: {e}")
+        except Exception:
+            self.logger.error("Failed to publish saga cancellation event", exc_info=True)

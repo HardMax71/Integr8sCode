@@ -30,11 +30,22 @@ Grafana approach — no intermediate backend service is needed.
 Alert configuration is managed via YAML files in `backend/grafana/provisioning/alerting/`. Grafana loads these on
 startup, so alert rules, contact points, and notification policies are version-controlled and reproducible.
 
-The provisioning file ships with commented-out examples for common setups:
+The provisioning file (`alerting.yml`) includes active infrastructure alert rules under `groups` and ships with empty `contactPoints: []` and `policies: []` — populate these keys to route alerts to Slack, email, or other channels (see examples below):
+
+### Built-in Alert Rules
+
+Two host-memory alert rules are provisioned out of the box. They query the `system_memory_utilization` metric produced by the OTel Collector's `hostmetrics` receiver:
+
+| Rule | Threshold | `for` | Severity |
+|------|-----------|-------|----------|
+| Host Memory > 85 % | 85 % | 5 m | warning |
+| Host Memory > 95 % | 95 % | 2 m | critical |
+
+These rules fire into Grafana's built-in alerting UI. To route them to Slack, email, or PagerDuty, add a contact point and notification policy (see below).
 
 ### Contact Points
 
-Contact points define where notifications go. Uncomment and configure in `alerting.yml`:
+Contact points define where notifications go. Configure in `alerting.yml`:
 
 ```yaml
 contactPoints:

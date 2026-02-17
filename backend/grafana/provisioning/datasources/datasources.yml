@@ -4,6 +4,7 @@ datasources:
   # Victoria Metrics - High-performance time series database
   - name: Victoria Metrics
     type: prometheus
+    uid: victoria-metrics
     access: proxy
     url: http://victoria-metrics:8428
     isDefault: true

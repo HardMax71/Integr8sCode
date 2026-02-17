@@ -1,84 +1,73 @@
 apiVersion: 1
 
-# Contact points define where alert notifications are sent.
-# Uncomment and configure one or more of the examples below.
-
-# contactPoints:
-#   - orgId: 1
-#     name: slack-notifications
-#     receivers:
-#       - uid: slack-receiver
-#         type: slack
-#         settings:
-#           url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-#           recipient: "#alerts"
-#           title: |
-#             {{ template "default.title" . }}
-#           text: |
-#             {{ template "default.message" . }}
-#
-#   - orgId: 1
-#     name: email-notifications
-#     receivers:
-#       - uid: email-receiver
-#         type: email
-#         settings:
-#           addresses: ops-team@example.com
-#           singleEmail: true
-
 contactPoints: []
-
-# Notification policies control routing: which contact point receives
-# which alerts, grouping, and timing.
-
-# policies:
-#   - orgId: 1
-#     receiver: slack-notifications
-#     group_by: ["alertname", "namespace"]
-#     group_wait: 30s
-#     group_interval: 5m
-#     repeat_interval: 4h
 
 policies: []
 
-# Alert rules query data sources and fire when thresholds are breached.
-# The example below queries Victoria Metrics for a high HTTP error rate.
+groups:
+  - orgId: 1
+    name: infrastructure-alerts
+    folder: Integr8sCode
+    interval: 1m
+    rules:
+      - uid: host-memory-warning
+        title: "Host Memory > 85%"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: system_memory_utilization * 100
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+              expression: A
+        for: 5m
+        annotations:
+          summary: "Host memory usage is above 85%"
+        labels:
+          severity: warning
 
-# groups:
-#   - orgId: 1
-#     name: backend-alerts
-#     folder: Integr8sCode
-#     interval: 1m
-#     rules:
-#       - uid: high-error-rate
-#         title: High HTTP 5xx Error Rate
-#         condition: C
-#         data:
-#           - refId: A
-#             relativeTimeRange:
-#               from: 300
-#               to: 0
-#             datasourceUid: victoria-metrics
-#             model:
-#               expr: >
-#                 sum(rate(http_requests_total{status=~"5.."}[5m]))
-#                 / sum(rate(http_requests_total[5m])) * 100
-#               intervalMs: 15000
-#               maxDataPoints: 43200
-#           - refId: C
-#             relativeTimeRange:
-#               from: 300
-#               to: 0
-#             datasourceUid: __expr__
-#             model:
-#               type: threshold
-#               conditions:
-#                 - evaluator:
-#                     type: gt
-#                     params: [5]
-#               expression: A
-#         for: 5m
-#         annotations:
-#           summary: "HTTP 5xx error rate is above 5%"
-#         labels:
-#           severity: warning
+      - uid: host-memory-critical
+        title: "Host Memory > 95%"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoria-metrics
+            model:
+              expr: system_memory_utilization * 100
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [95]
+              expression: A
+        for: 2m
+        annotations:
+          summary: "Host memory critically high (>95%), OOM kill risk"
+        labels:
+          severity: critical

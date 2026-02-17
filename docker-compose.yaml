@@ -41,6 +41,7 @@ services:
 
   mongo:
     image: mongo:8.0
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.4"]
     ports:
       - "27017:27017"
     environment:
@@ -52,6 +53,8 @@ services:
     networks:
       - app-network
     container_name: mongo
+    mem_limit: 1024m
+    restart: unless-stopped
     ulimits:
       nofile:
         soft: 65536
@@ -73,6 +76,8 @@ services:
       - redis_data:/data
     networks:
       - app-network
+    mem_limit: 300m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -123,6 +128,8 @@ services:
       - WEB_TIMEOUT=${WEB_TIMEOUT:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    mem_limit: 384m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:443/api/v1/health/live >/dev/null || exit 1"]
       interval: 2s
@@ -150,6 +157,8 @@ services:
       - app-network
     environment:
       - BACKEND_URL=https://backend:443
+    mem_limit: 128m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -k -f -s https://localhost:5001 >/dev/null || exit 1"]
       interval: 2s
@@ -171,6 +180,8 @@ services:
       - grafana_data:/var/lib/grafana
     networks:
       - app-network
+    mem_limit: 192m
+    restart: unless-stopped
     environment:
       - GF_LOG_LEVEL=warn
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
@@ -228,10 +239,10 @@ services:
       ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT: 3
       ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: 24
       
-      # JVM settings for production
-      KAFKA_HEAP_OPTS: '-Xms1G -Xmx1G'
+      # JVM settings
+      KAFKA_HEAP_OPTS: '-Xms128m -Xmx384m'
       KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -Djute.maxbuffer=4194304'
-      
+
       # Logging
       ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: 'WARN'
       ZOOKEEPER_LOG4J_LOGGERS: 'org.apache.zookeeper.server.auth=INFO,org.apache.zookeeper.audit=INFO'
@@ -261,6 +272,8 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+    mem_limit: 512m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
       interval: 3s
@@ -309,7 +322,7 @@ services:
       KAFKA_LOG_CLEANUP_POLICY: 'delete'
       
       # JVM settings
-      KAFKA_HEAP_OPTS: '-Xms2G -Xmx2G'
+      KAFKA_HEAP_OPTS: '-Xms256m -Xmx1g'
       KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true'
       
     volumes:
@@ -322,6 +335,8 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+    mem_limit: 1280m
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
       interval: 3s
@@ -382,6 +397,7 @@ services:
   coordinator:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: coordinator
+    mem_limit: 160m
     command: ["python", "workers/run_coordinator.py"]
     depends_on:
       kafka-init:
@@ -401,6 +417,7 @@ services:
   k8s-worker:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: k8s-worker
+    mem_limit: 160m
     command: ["python", "workers/run_k8s_worker.py"]
     depends_on:
       kafka-init:
@@ -423,6 +440,7 @@ services:
   pod-monitor:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: pod-monitor
+    mem_limit: 160m
     command: ["python", "workers/run_pod_monitor.py"]
     depends_on:
       kafka-init:
@@ -443,6 +461,7 @@ services:
   result-processor:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: result-processor
+    mem_limit: 160m
     command: ["python", "workers/run_result_processor.py"]
     depends_on:
       kafka-init:
@@ -465,6 +484,7 @@ services:
   saga-orchestrator:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: saga-orchestrator
+    mem_limit: 160m
     command: ["python", "workers/run_saga_orchestrator.py"]
     depends_on:
       kafka-init:
@@ -486,6 +506,7 @@ services:
     image: jaegertracing/all-in-one:1.52
     container_name: jaeger
     profiles: ["observability"]
+    mem_limit: 256m
     ports:
       - "5775:5775/udp"   # Zipkin/thrift compact
       - "6831:6831/udp"   # Thrift compact
@@ -505,6 +526,7 @@ services:
   event-replay:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: event-replay
+    mem_limit: 160m
     command: ["python", "workers/run_event_replay.py"]
     depends_on:
       kafka-init:
@@ -525,6 +547,7 @@ services:
   dlq-processor:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: dlq-processor
+    mem_limit: 160m
     command: ["python", "workers/run_dlq_processor.py"]
     depends_on:
       kafka-init:
@@ -547,6 +570,7 @@ services:
     image: victoriametrics/victoria-metrics:v1.96.0
     container_name: victoria-metrics
     profiles: ["observability"]
+    mem_limit: 256m
     ports:
       - "8428:8428"
     volumes:
@@ -569,6 +593,7 @@ services:
     image: danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
     profiles: ["observability"]
+    mem_limit: 96m
     command:
       - "--kafka.server=kafka:29092"
       - "--web.listen-address=:9308"
@@ -588,6 +613,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
     profiles: ["observability"]
+    mem_limit: 192m
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro

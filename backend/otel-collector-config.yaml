@@ -26,8 +26,8 @@ processors:
   
   memory_limiter:
     check_interval: 1s
-    limit_mib: 512
-    spike_limit_mib: 128
+    limit_mib: 150
+    spike_limit_mib: 40
 
   tail_sampling:
     decision_wait: 10s

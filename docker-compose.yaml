@@ -240,7 +240,7 @@ services:
       ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: 24
       
       # JVM settings
-      KAFKA_HEAP_OPTS: '-Xms128m -Xmx384m'
+      KAFKA_HEAP_OPTS: '-Xms128m -Xmx256m'
       KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -Djute.maxbuffer=4194304'
 
       # Logging

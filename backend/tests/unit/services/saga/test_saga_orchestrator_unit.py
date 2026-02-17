@@ -1,4 +1,6 @@
 import dataclasses
+from datetime import datetime, timezone
+from typing import Any
 
 import structlog
 
@@ -6,7 +8,13 @@ import pytest
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import DomainEvent
-from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate, Saga, SagaConfig
+from app.domain.saga import (
+    DomainResourceAllocation,
+    DomainResourceAllocationCreate,
+    Saga,
+    SagaConfig,
+    SagaNotFoundError,
+)
 from app.events.core import UnifiedProducer
 from app.services.saga import ExecutionSaga, SagaOrchestrator
 
@@ -24,6 +32,12 @@ class _FakeRepo(SagaRepository):
         self.saved: list[Saga] = []
         self.existing: dict[tuple[str, str], Saga] = {}
 
+    def _find_by_id(self, saga_id: str) -> Saga | None:
+        for saga in [*self.saved, *self.existing.values()]:
+            if saga.saga_id == saga_id:
+                return saga
+        return None
+
     async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
         key = (saga.execution_id, saga.saga_name)
         if key in self.existing:
@@ -32,12 +46,20 @@ class _FakeRepo(SagaRepository):
         self.saved.append(saga)
         return saga, True
 
+    async def get_saga(self, saga_id: str) -> Saga | None:
+        return self._find_by_id(saga_id)
+
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         return self.existing.get((execution_id, saga_name))
 
-    async def upsert_saga(self, saga: Saga) -> bool:
-        self.saved.append(saga)
-        return True
+    async def save_saga(self, saga_id: str, **updates: Any) -> Saga:
+        saga = self._find_by_id(saga_id)
+        if not saga:
+            raise SagaNotFoundError(saga_id)
+        for field, value in updates.items():
+            setattr(saga, field, value)
+        saga.updated_at = datetime.now(timezone.utc)
+        return saga
 
 
 class _FakeProd(UnifiedProducer):

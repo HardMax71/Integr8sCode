@@ -7,7 +7,6 @@ from app.domain.saga import (
     SagaAccessDeniedError,
     SagaCancellationResult,
     SagaFilter,
-    SagaInvalidStateError,
     SagaListResult,
     SagaNotFoundError,
 )
@@ -139,26 +138,10 @@ class SagaService:
             saga_id=saga_id,
             user_role=user.role,
         )
-        # Get saga with access check
-        saga = await self.get_saga_with_access_check(saga_id, user)
-
-        # Check if saga can be cancelled
-        if saga.state not in [SagaState.RUNNING, SagaState.CREATED]:
-            raise SagaInvalidStateError(saga_id, saga.state, "cancel")
-
-        # Use orchestrator to cancel
-        success = await self.orchestrator.cancel_saga(saga_id)
-        if success:
-            self.logger.info(
-                "User cancelled saga",
-                user_id=user.user_id,
-                saga_id=saga_id,
-                user_role=user.role,
-            )
-        else:
-            self.logger.error("Failed to cancel saga", saga_id=saga_id, user_id=user.user_id)
-        message = "Saga cancelled successfully" if success else "Failed to cancel saga"
-        return SagaCancellationResult(success=success, message=message, saga_id=saga_id)
+        await self.get_saga_with_access_check(saga_id, user)
+        await self.orchestrator.cancel_saga(saga_id)
+        self.logger.info("User cancelled saga", user_id=user.user_id, saga_id=saga_id)
+        return SagaCancellationResult(success=True, message="Saga cancelled successfully", saga_id=saga_id)
 
     async def get_saga_statistics(self, user: User, include_all: bool = False) -> dict[str, object]:
         """Get saga statistics."""

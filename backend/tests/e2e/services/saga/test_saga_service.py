@@ -67,8 +67,8 @@ async def create_saga_for_execution(
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
-    await saga_repo.upsert_saga(saga)
-    return saga
+    created_saga, _ = await saga_repo.get_or_create_saga(saga)
+    return created_saga
 
 
 class TestListUserSagas:

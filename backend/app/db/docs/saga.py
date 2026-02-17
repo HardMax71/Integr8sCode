@@ -35,6 +35,7 @@ class SagaDocument(Document):
     class Settings:
         name = "sagas"
         use_state_management = True
+        use_revision = True
         bson_encoders = {SagaContextData: dataclasses.asdict}
         indexes = [
             IndexModel([("state", ASCENDING)], name="idx_saga_state"),

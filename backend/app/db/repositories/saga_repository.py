@@ -1,7 +1,8 @@
 import dataclasses
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
+from beanie.exceptions import RevisionIdWasChanged
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.odm.queries.update import UpdateResponse
@@ -10,7 +11,7 @@ from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums import SagaState
-from app.domain.saga import Saga, SagaContextData, SagaFilter, SagaListResult
+from app.domain.saga import Saga, SagaConcurrencyError, SagaContextData, SagaFilter, SagaListResult, SagaNotFoundError
 
 _saga_fields = set(Saga.__dataclass_fields__)
 
@@ -43,13 +44,26 @@ class SagaRepository:
             conditions.append(Eq(SagaDocument.error_message, None))
         return conditions
 
-    async def upsert_saga(self, saga: Saga) -> bool:
-        existing = await SagaDocument.find_one(SagaDocument.saga_id == saga.saga_id)
-        doc = SagaDocument(**dataclasses.asdict(saga))
-        if existing:
-            doc.id = existing.id
-        await doc.save()
-        return existing is not None
+    async def save_saga(self, saga_id: str, **updates: Any) -> Saga:
+        """Load document, apply partial updates, and persist via save_changes().
+
+        Only the provided fields are written (Beanie diffs against the loaded
+        snapshot), so concurrent changes to *other* fields are never overwritten.
+
+        Raises SagaConcurrencyError if the document was modified between load
+        and save (revision mismatch).
+        """
+        doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
+        if not doc:
+            raise SagaNotFoundError(saga_id)
+        for field, value in updates.items():
+            setattr(doc, field, value)
+        doc.updated_at = datetime.now(timezone.utc)
+        try:
+            await doc.save_changes()
+        except RevisionIdWasChanged as exc:
+            raise SagaConcurrencyError(saga_id) from exc
+        return self._to_domain(doc)
 
     async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
         """Atomically get or create a saga by (execution_id, saga_name).

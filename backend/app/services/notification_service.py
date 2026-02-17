@@ -191,12 +191,12 @@ class NotificationService:
         # Save to database
         notification = await self.repository.create_notification(create_data)
 
-        await self._publish_notification_created_event(notification)
-
         # Deliver immediately if not scheduled; scheduled notifications are
         # picked up by the NotificationScheduler worker.
         if scheduled_for is None:
             await self._deliver_notification(notification)
+
+        await self._publish_notification_created_event(notification)
 
         return notification
 

@@ -1,18 +1,11 @@
 from dataclasses import dataclass, field
 
-from app.domain.enums import EventType
 from app.services.pod_monitor.event_mapper import PodPhase
 
 
 @dataclass
 class PodMonitorConfig:
     """Configuration for PodMonitor service"""
-
-    # Kafka settings
-    pod_events_topic: str = EventType.POD_CREATED
-    execution_events_topic: str = EventType.EXECUTION_REQUESTED
-    execution_completed_topic: str = EventType.EXECUTION_COMPLETED
-    execution_failed_topic: str = EventType.EXECUTION_FAILED
 
     # Kubernetes settings
     namespace: str = "integr8scode"

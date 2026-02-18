@@ -302,8 +302,6 @@ export type CleanupResponse = {
 
 /**
  * ContainerStatusInfo
- *
- * Container status information from Kubernetes pod.
  */
 export type ContainerStatusInfo = {
     /**
@@ -1180,8 +1178,6 @@ export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth'
 
 /**
  * EndpointUsageStats
- *
- * Usage statistics for a single endpoint (IETF RateLimit-style).
  */
 export type EndpointUsageStats = {
     algorithm: RateLimitAlgorithm;
@@ -1559,8 +1555,6 @@ export type EventFilter = {
 
 /**
  * EventMetadata
- *
- * Event metadata - embedded in all events.
  */
 export type EventMetadata = {
     /**
@@ -1778,8 +1772,6 @@ export type EventStatsResponse = {
 
 /**
  * EventSummary
- *
- * Lightweight event summary for lists and previews.
  */
 export type EventSummary = {
     /**
@@ -2392,13 +2384,6 @@ export type HourlyEventCount = {
      */
     count: number;
 };
-
-/**
- * KafkaTopic
- *
- * Kafka topic names used throughout the system.
- */
-export type KafkaTopic = 'execution_events' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_requests' | 'execution_commands' | 'execution_tasks' | 'pod_events' | 'pod_status_updates' | 'pod_results' | 'execution_results' | 'user_events' | 'user_notifications' | 'user_settings_events' | 'script_events' | 'security_events' | 'resource_events' | 'notification_events' | 'system_events' | 'saga_events' | 'saga_commands' | 'dead_letter_queue' | 'dlq_events' | 'websocket_events';
 
 /**
  * LanguageInfo
@@ -3616,7 +3601,7 @@ export type ReplayConfigSchema = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: KafkaTopic;
+        [key: string]: string;
     } | null;
     /**
      * Target File Path
@@ -3642,16 +3627,6 @@ export type ReplayConfigSchema = {
 
 /**
  * ReplayError
- *
- * Error details for replay operations.
- *
- * Attributes:
- * timestamp: When the error occurred.
- * error: Human-readable error message.
- * error_type: Python exception class name (e.g., "ValueError", "KafkaException").
- * This is the result of `type(exception).__name__`, NOT the ErrorType enum.
- * Present for session-level errors.
- * event_id: ID of the event that failed to replay. Present for event-level errors.
  */
 export type ReplayError = {
     /**
@@ -3793,7 +3768,7 @@ export type ReplayRequest = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: KafkaTopic;
+        [key: string]: string;
     } | null;
     /**
      * Retry Failed
@@ -3992,8 +3967,6 @@ export type ResourceUsage = {
 
 /**
  * ResourceUsageDomain
- *
- * Resource usage metrics from script execution.
  */
 export type ResourceUsageDomain = {
     /**
@@ -4150,11 +4123,11 @@ export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interva
 export type SseControlEvent = 'connected' | 'subscribed' | 'status';
 
 /**
- * SSEExecutionEventData
+ * SSEExecutionEventSchema
  *
  * API schema for SSE execution stream event payload (OpenAPI docs).
  */
-export type SseExecutionEventData = {
+export type SseExecutionEventSchema = {
     /**
      * Event Type
      *
@@ -5197,7 +5170,7 @@ export type SystemErrorEvent = {
 /**
  * SystemSettingsSchema
  *
- * API schema for system settings — inherits all fields from domain model.
+ * API schema for system settings with validation.
  */
 export type SystemSettingsSchema = {
     /**
@@ -7117,7 +7090,7 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
      * Successful Response
      */
-    200: SseExecutionEventData;
+    200: SseExecutionEventSchema;
 };
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
@@ -7630,10 +7603,6 @@ export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
      * Validation Error
      */
     422: HttpValidationError;
-    /**
-     * Failed to update user
-     */
-    500: ErrorResponse;
 };
 
 export type UpdateUserApiV1AdminUsersUserIdPutError = UpdateUserApiV1AdminUsersUserIdPutErrors[keyof UpdateUserApiV1AdminUsersUserIdPutErrors];

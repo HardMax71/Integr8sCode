@@ -1969,7 +1969,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SSEExecutionEventData"
+                  "$ref": "#/components/schemas/SSEExecutionEventSchema"
                 }
               }
             }
@@ -2818,16 +2818,6 @@
           },
           "404": {
             "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to update user",
             "content": {
               "application/json": {
                 "schema": {
@@ -4753,8 +4743,7 @@
         "required": [
           "name"
         ],
-        "title": "ContainerStatusInfo",
-        "description": "Container status information from Kubernetes pod."
+        "title": "ContainerStatusInfo"
       },
       "CreatePodCommandEvent": {
         "properties": {
@@ -6198,8 +6187,7 @@
           "algorithm",
           "remaining"
         ],
-        "title": "EndpointUsageStats",
-        "description": "Usage statistics for a single endpoint (IETF RateLimit-style)."
+        "title": "EndpointUsageStats"
       },
       "Environment": {
         "type": "string",
@@ -6924,8 +6912,7 @@
           "service_name",
           "service_version"
         ],
-        "title": "EventMetadata",
-        "description": "Event metadata - embedded in all events."
+        "title": "EventMetadata"
       },
       "EventReplayRequest": {
         "properties": {
@@ -7364,8 +7351,7 @@
           "event_type",
           "timestamp"
         ],
-        "title": "EventSummary",
-        "description": "Lightweight event summary for lists and previews."
+        "title": "EventSummary"
       },
       "EventType": {
         "type": "string",
@@ -8421,37 +8407,6 @@
           "count"
         ],
         "title": "HourlyEventCount"
-      },
-      "KafkaTopic": {
-        "type": "string",
-        "enum": [
-          "execution_events",
-          "execution_completed",
-          "execution_failed",
-          "execution_timeout",
-          "execution_requests",
-          "execution_commands",
-          "execution_tasks",
-          "pod_events",
-          "pod_status_updates",
-          "pod_results",
-          "execution_results",
-          "user_events",
-          "user_notifications",
-          "user_settings_events",
-          "script_events",
-          "security_events",
-          "resource_events",
-          "notification_events",
-          "system_events",
-          "saga_events",
-          "saga_commands",
-          "dead_letter_queue",
-          "dlq_events",
-          "websocket_events"
-        ],
-        "title": "KafkaTopic",
-        "description": "Kafka topic names used throughout the system."
       },
       "LanguageInfo": {
         "properties": {
@@ -10426,7 +10381,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/KafkaTopic"
+                  "type": "string"
                 },
                 "type": "object"
               },
@@ -10513,8 +10468,7 @@
           "timestamp",
           "error"
         ],
-        "title": "ReplayError",
-        "description": "Error details for replay operations.\n\nAttributes:\n    timestamp: When the error occurred.\n    error: Human-readable error message.\n    error_type: Python exception class name (e.g., \"ValueError\", \"KafkaException\").\n        This is the result of `type(exception).__name__`, NOT the ErrorType enum.\n        Present for session-level errors.\n    event_id: ID of the event that failed to replay. Present for event-level errors."
+        "title": "ReplayError"
       },
       "ReplayFilter": {
         "properties": {
@@ -10811,7 +10765,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/KafkaTopic"
+                  "type": "string"
                 },
                 "type": "object"
               },
@@ -11158,8 +11112,7 @@
           }
         },
         "type": "object",
-        "title": "ResourceUsageDomain",
-        "description": "Resource usage metrics from script execution."
+        "title": "ResourceUsageDomain"
       },
       "RestoreSettingsRequest": {
         "properties": {
@@ -11390,7 +11343,7 @@
         "title": "SSEControlEvent",
         "description": "Control events for execution SSE streams (not from Kafka)."
       },
-      "SSEExecutionEventData": {
+      "SSEExecutionEventSchema": {
         "properties": {
           "event_type": {
             "anyOf": [
@@ -11545,7 +11498,7 @@
           "event_type",
           "execution_id"
         ],
-        "title": "SSEExecutionEventData",
+        "title": "SSEExecutionEventSchema",
         "description": "API schema for SSE execution stream event payload (OpenAPI docs)."
       },
       "SagaCancellationResponse": {
@@ -13144,13 +13097,11 @@
           },
           "memory_limit": {
             "type": "string",
-            "pattern": "^[1-9]\\d*(Ki|Mi|Gi)$",
             "title": "Memory Limit",
             "default": "512Mi"
           },
           "cpu_limit": {
             "type": "string",
-            "pattern": "^[1-9]\\d*m$",
             "title": "Cpu Limit",
             "default": "2000m"
           },
@@ -13215,7 +13166,7 @@
         },
         "type": "object",
         "title": "SystemSettingsSchema",
-        "description": "API schema for system settings \u2014 inherits all fields from domain model."
+        "description": "API schema for system settings with validation."
       },
       "Theme": {
         "type": "string",

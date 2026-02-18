@@ -5,7 +5,7 @@ import {
     type ExecutionStatus,
     type EventType,
     type SseControlEvent,
-    type SseExecutionEventData,
+    type SseExecutionEventSchema,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
 
@@ -91,9 +91,9 @@ export function createExecutionState() {
                 for (const line of lines) {
                     if (!line.startsWith('data:')) continue;
 
-                    let eventData: SseExecutionEventData;
+                    let eventData: SseExecutionEventSchema;
                     try {
-                        eventData = JSON.parse(line.slice(5).trim()) as SseExecutionEventData;
+                        eventData = JSON.parse(line.slice(5).trim()) as SseExecutionEventSchema;
                     } catch {
                         continue; // Skip malformed SSE events
                     }

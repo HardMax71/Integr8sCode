@@ -15,7 +15,7 @@ receivers:
       disk:
       filesystem:
         exclude_mount_points:
-          mount_points: ["^/hostfs/boot", "^/hostfs/var/lib/kubelet"]
+          mount_points: ["^(/hostfs)?/boot", "^(/hostfs)?/var/lib/kubelet"]
           match_type: regexp
       load:
       memory:

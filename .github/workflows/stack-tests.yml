@@ -29,7 +29,6 @@ env:
   MONGO_IMAGE: mongo:8.0
   REDIS_IMAGE: redis:7-alpine
   KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
-  ZOOKEEPER_IMAGE: confluentinc/cp-zookeeper:7.8.2
   K3S_VERSION: v1.32.11+k3s1
   K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 
@@ -184,16 +183,6 @@ jobs:
           cache-from: type=gha,scope=cert-generator
           cache-to: type=gha,mode=max,scope=cert-generator
 
-      - name: Build zookeeper-certgen image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend/zookeeper
-          file: ./backend/zookeeper/Dockerfile.certgen
-          load: true
-          tags: integr8scode-zookeeper-certgen:latest
-          cache-from: type=gha,scope=zookeeper-certgen
-          cache-to: type=gha,mode=max,scope=zookeeper-certgen
-
       # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
         uses: docker/build-push-action@v6
@@ -216,13 +205,11 @@ jobs:
           docker tag integr8scode-base:latest "$IMG/base:$TAG"
           docker tag integr8scode-backend:latest "$IMG/backend:$TAG"
           docker tag integr8scode-cert-generator:latest "$IMG/cert-generator:$TAG"
-          docker tag integr8scode-zookeeper-certgen:latest "$IMG/zookeeper-certgen:$TAG"
           docker tag integr8scode-frontend:latest "$IMG/frontend:$TAG"
 
-          # Push all 5 images in parallel, tracking each PID
+          # Push all 4 images in parallel, tracking each PID
           declare -A PIDS
-          for name in base backend cert-generator zookeeper-certgen \
-                      frontend; do
+          for name in base backend cert-generator frontend; do
             docker push "$IMG/$name:$TAG" &
             PIDS[$name]=$!
           done
@@ -286,7 +273,7 @@ jobs:
         run: |
           mkdir -p logs
           docker compose logs --timestamps > logs/docker-compose.log 2>&1
-          for svc in backend mongo redis kafka zookeeper \
+          for svc in backend mongo redis kafka \
                      coordinator k8s-worker pod-monitor result-processor \
                      saga-orchestrator event-replay dlq-processor; do
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true

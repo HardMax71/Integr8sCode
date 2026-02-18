@@ -80,7 +80,7 @@ jobs:
         run: |
           PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
           VERSION="${{ steps.calver.outputs.version }}"
-          for img in base backend frontend cert-generator zookeeper-certgen; do
+          for img in base backend frontend cert-generator; do
             crane copy "$REGISTRY/$PREFIX/$img:latest" "$REGISTRY/$PREFIX/$img:$VERSION"
           done
 

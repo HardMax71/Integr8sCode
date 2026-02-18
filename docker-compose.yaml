@@ -188,125 +188,37 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
 
-  # Kafka Infrastructure for Event-Driven Design
-  # Certificate generator for Zookeeper/Kafka mTLS
-  zookeeper-certgen:
-    image: ghcr.io/hardmax71/integr8scode/zookeeper-certgen:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend/zookeeper
-      dockerfile: Dockerfile.certgen
-    container_name: zookeeper-certgen
-    volumes:
-      - zookeeper_certs:/certs
-    networks:
-      - app-network
-    restart: "no"
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.8.2
-    container_name: zookeeper
-    depends_on:
-      zookeeper-certgen:
-        condition: service_completed_successfully
-    environment:
-      # TLS-only: no plaintext client port
-      ZOOKEEPER_SECURE_CLIENT_PORT: 2281
-      ZOOKEEPER_TICK_TIME: 2000
-
-      # Production settings
-      ZOOKEEPER_MAX_CLIENT_CNXNS: 60
-      ZOOKEEPER_INIT_LIMIT: 10
-      ZOOKEEPER_SYNC_LIMIT: 5
-
-      # Security settings (SASL + mTLS)
-      ZOOKEEPER_AUTH_PROVIDER_1: org.apache.zookeeper.server.auth.DigestAuthenticationProvider
-      ZOOKEEPER_SERVER_CNXN_FACTORY: org.apache.zookeeper.server.NettyServerCnxnFactory
-      KAFKA_OPTS: '-Dzookeeper.serverCnxnFactory=org.apache.zookeeper.server.NettyServerCnxnFactory -Dzookeeper.4lw.commands.whitelist=* -Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf'
-
-      # TLS settings (keystore/truststore produced by certgen)
-      ZOOKEEPER_SSL_KEYSTORE_LOCATION: /etc/kafka/certs/zookeeper.keystore.jks
-      ZOOKEEPER_SSL_KEYSTORE_PASSWORD: zookeeper_keystore_password
-      ZOOKEEPER_SSL_TRUSTSTORE_LOCATION: /etc/kafka/certs/zookeeper.truststore.jks
-      ZOOKEEPER_SSL_TRUSTSTORE_PASSWORD: zookeeper_truststore_password
-      ZOOKEEPER_SSL_CLIENT_AUTH: need
-
-      # 4lw commands whitelist
-      ZOOKEEPER_4LW_COMMANDS_WHITELIST: '*'
-
-      # Autopurge settings
-      ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT: 3
-      ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL: 24
-
-      # JVM settings
-      KAFKA_HEAP_OPTS: '-Xms128m -Xmx256m'
-      KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -XX:+ParallelRefProcEnabled -Djute.maxbuffer=4194304'
-
-      # Logging — suppress TLS handshake noise from internet scanners
-      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: 'WARN'
-      ZOOKEEPER_LOG4J_LOGGERS: 'org.apache.zookeeper.server.auth=INFO,org.apache.zookeeper.audit=INFO,org.apache.zookeeper.server.NettyServerCnxnFactory=ERROR'
-
-      # Disable admin server for security
-      ZOOKEEPER_ADMIN_ENABLE_SERVER: 'false'
-      ZOOKEEPER_ADMIN_SERVER_PORT: 0
-
-    volumes:
-      - ./backend/zookeeper/secrets:/etc/kafka/secrets:ro
-      - zookeeper_certs:/etc/kafka/certs:ro
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_log:/var/lib/zookeeper/log
-      - zookeeper_logs:/var/log/zookeeper
-    ports:
-      - "127.0.0.1:2281:2281"
-    networks:
-      - app-network
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-    mem_limit: 512m
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 2281"]
-      interval: 3s
-      timeout: 5s
-      retries: 15
-      start_period: 5s
-
+  # Kafka (KRaft mode — no ZooKeeper)
   kafka:
     image: confluentinc/cp-kafka:7.8.2
     container_name: kafka
-    depends_on:
-      zookeeper-certgen:
-        condition: service_completed_successfully
-      zookeeper:
-        condition: service_healthy
     ports:
       - "127.0.0.1:9092:9092"
       - "127.0.0.1:29092:29092"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2281
-      KAFKA_ZOOKEEPER_SSL_CLIENT_ENABLE: 'true'
-      KAFKA_ZOOKEEPER_CLIENT_CNXN_SOCKET: org.apache.zookeeper.ClientCnxnSocketNetty
-      KAFKA_ZOOKEEPER_SSL_KEYSTORE_LOCATION: /etc/kafka/certs/kafka-client.keystore.jks
-      KAFKA_ZOOKEEPER_SSL_KEYSTORE_PASSWORD: kafka_keystore_password
-      KAFKA_ZOOKEEPER_SSL_TRUSTSTORE_LOCATION: /etc/kafka/certs/kafka-client.truststore.jks
-      KAFKA_ZOOKEEPER_SSL_TRUSTSTORE_PASSWORD: kafka_truststore_password
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      # KRaft identity (combined broker + controller)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+
+      # Listeners
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+
+      # Single-node replication
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'  # Needed for initial setup
+
+      # Topic management
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_DELETE_TOPIC_ENABLE: 'true'
       KAFKA_LOG_RETENTION_HOURS: 168
 
-      # Security settings for Zookeeper connection (SASL/Digest over TLS)
-      KAFKA_OPTS: '-Dzookeeper.sasl.client=true -Dzookeeper.sasl.clientconfig=Client -Djava.security.auth.login.config=/etc/kafka/secrets/kafka_jaas.conf'
-      KAFKA_ZOOKEEPER_SET_ACL: 'false'
-      # KAFKA_AUTHORIZER_CLASS_NAME: 'kafka.security.authorizer.AclAuthorizer'
-      # KAFKA_SUPER_USERS: 'User:admin;User:kafka'
-      
       # Production settings
       KAFKA_COMPRESSION_TYPE: 'gzip'
       KAFKA_NUM_NETWORK_THREADS: 8
@@ -314,19 +226,16 @@ services:
       KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
       KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
       KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
-      
+
       # Log settings
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
       KAFKA_LOG_CLEANUP_POLICY: 'delete'
-      
+
       # JVM settings
       KAFKA_HEAP_OPTS: '-Xms256m -Xmx1g'
       KAFKA_JVM_PERFORMANCE_OPTS: '-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true'
-      
     volumes:
-      - ./backend/zookeeper/secrets/kafka_jaas.conf:/etc/kafka/secrets/kafka_jaas.conf:ro
-      - zookeeper_certs:/etc/kafka/certs:ro
       - kafka_data:/var/lib/kafka/data
       - kafka_logs:/var/log/kafka
     networks:
@@ -641,10 +550,6 @@ volumes:
   shared_ca:
   kafka_data:
   kafka_logs:
-  zookeeper_data:
-  zookeeper_log:
-  zookeeper_logs:
-  zookeeper_certs:
 # --8<-- [end:dev_volumes]
 
 networks:

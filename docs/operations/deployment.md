@@ -41,7 +41,7 @@ with health checks and dependency ordering, so containers start in the correct s
 ./deploy.sh dev
 ```
 
-This brings up MongoDB, Redis, Kafka with Zookeeper, all seven workers, the backend API, and the
+This brings up MongoDB, Redis, Kafka (KRaft mode), all seven workers, the backend API, and the
 frontend. Two initialization containers run automatically: `kafka-init` creates required Kafka topics, and `user-seed`
 populates the database with default user accounts.
 
@@ -129,7 +129,6 @@ services define healthchecks in `docker-compose.yaml`:
 | Redis           | `redis-cli ping`                              |
 | Backend         | `curl /api/v1/health/live`                    |
 | Kafka           | `kafka-broker-api-versions`                   |
-| Zookeeper       | `nc -z localhost 2281` (TLS-only, no plaintext client port) |
 
 Services without explicit healthchecks (workers, Grafana, Kafdrop) are considered "started" when their container is
 running. The test suite doesn't require worker containers since tests instantiate worker classes directly.
@@ -142,8 +141,7 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 |---------|-------------|--------------|-------|
 | MongoDB | 1024 m | wiredTiger 0.4 GB | `--wiredTigerCacheSizeGB 0.4` prevents default 50 %-of-RAM behavior |
 | Redis | 300 m | 256 MB maxmemory | LRU eviction, persistence disabled |
-| Kafka | 1280 m | JVM `-Xms256m -Xmx1g` | Single-broker, low throughput workload |
-| Zookeeper | 512 m | JVM `-Xms128m -Xmx256m` | Metadata-only role |
+| Kafka | 1280 m | JVM `-Xms256m -Xmx1g` | Single-broker KRaft mode, low throughput workload |
 | Backend API | 768 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
 | Frontend | 128 m | nginx serving static assets | |
 | Each worker (×7) | 160 m | Single-process Python | coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
@@ -153,7 +151,7 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 | OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor | Observability profile |
 | Kafka Exporter | 96 m | | Observability profile |
 
-All long-running services — core infrastructure (MongoDB, Redis, Kafka, Zookeeper, backend, frontend), all seven workers (coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, kafka-exporter, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
+All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all seven workers (coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, kafka-exporter, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
 
 ## Monitoring
 

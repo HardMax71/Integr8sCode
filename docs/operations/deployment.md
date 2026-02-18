@@ -148,10 +148,9 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 | Grafana | 192 m | | Observability profile |
 | Jaeger | 256 m | All-in-one, in-memory storage | Observability profile |
 | Victoria Metrics | 256 m | 30-day retention | Observability profile |
-| OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor | Observability profile |
-| Kafka Exporter | 96 m | | Observability profile |
+| OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor; includes `kafkametrics` receiver | Observability profile |
 
-All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all seven workers (coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, kafka-exporter, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
+All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all seven workers (coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
 
 ## Monitoring
 

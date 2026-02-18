@@ -1,6 +1,7 @@
 import dataclasses
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from beanie.exceptions import RevisionIdWasChanged
 from beanie.odm.enums import SortDirection
@@ -78,8 +79,8 @@ class SagaRepository:
     ) -> Saga:
         """Atomically cancel a saga using findOneAndUpdate.
 
-        Bypasses Beanie's revision check to eliminate TOCTOU races with
-        concurrent step saves from the orchestrator.
+        Bumps revision_id so any concurrent save_changes() (which filters on
+        the old revision_id) will see a mismatch and raise RevisionIdWasChanged.
         """
         doc = await SagaDocument.find_one(
             SagaDocument.saga_id == saga_id,
@@ -90,6 +91,7 @@ class SagaRepository:
                 SagaDocument.error_message: error_message,
                 SagaDocument.completed_at: completed_at,
                 SagaDocument.updated_at: datetime.now(timezone.utc),
+                "revision_id": uuid4(),
             }),
             response_type=UpdateResponse.NEW_DOCUMENT,
         )

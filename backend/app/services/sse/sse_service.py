@@ -147,8 +147,8 @@ class SSEService:
                 )
 
         return _sse_event_adapter.validate_python({
-            "event_type": msg.event_type,
             **msg.data,
+            "event_type": msg.event_type,
             "execution_id": execution_id,
             "result": result,
         })

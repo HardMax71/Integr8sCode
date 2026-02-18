@@ -129,7 +129,7 @@ services define healthchecks in `docker-compose.yaml`:
 | Redis           | `redis-cli ping`                              |
 | Backend         | `curl /api/v1/health/live`                    |
 | Kafka           | `kafka-broker-api-versions`                   |
-| Zookeeper       | `nc -z localhost 7070` (Prometheus metrics port; TLS-only, no plaintext client port) |
+| Zookeeper       | `nc -z localhost 2281` (TLS-only, no plaintext client port) |
 
 Services without explicit healthchecks (workers, Grafana, Kafdrop) are considered "started" when their container is
 running. The test suite doesn't require worker containers since tests instantiate worker classes directly.

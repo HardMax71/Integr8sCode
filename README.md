@@ -173,7 +173,7 @@ cause `match-case` was introduced first in `Python 3.10`.
 
 The platform is built on three main pillars:
 
-- Frontend: A sleek Svelte app that users interact with.
+- Frontend: Svelte app that users interact with.
 - Backend: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
 - Kubernetes Cluster: Each script runs in its own pod, ensuring isolation and resource control.
 

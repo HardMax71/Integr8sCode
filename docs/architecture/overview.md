@@ -28,7 +28,7 @@ Integr8sCode lets users submit Python scripts through a Svelte SPA. The FastAPI 
 
 ## System overview
 
-![System diagram](/assets/images/system_diagram.png)
+![System diagram](/assets/images/system_diagram.svg)
 
 The SPA hits the frontend, which proxies to the API over HTTPS; the API
 serves both REST and SSE. Kafka carries events as JSON (serialized by FastStream) using KRaft for metadata consensus; kafka-

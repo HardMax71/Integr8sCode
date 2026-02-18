@@ -195,6 +195,7 @@ services:
       - GF_SMTP_USER=${MAILJET_API_KEY:-}
       - GF_SMTP_PASSWORD=${MAILJET_SECRET_KEY:-}
       - GF_SMTP_FROM_ADDRESS=${MAILJET_FROM_ADDRESS:-}
+      - GF_SMTP_ALERT_RECIPIENTS=${GRAFANA_ALERT_RECIPIENTS:-}
 
   # Kafka (KRaft mode — no ZooKeeper)
   kafka:

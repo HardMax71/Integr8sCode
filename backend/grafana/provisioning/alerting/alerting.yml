@@ -7,7 +7,7 @@ contactPoints:
       - uid: email-alerts-receiver
         type: email
         settings:
-          addresses: ${GF_SMTP_FROM_ADDRESS}
+          addresses: ${GF_SMTP_ALERT_RECIPIENTS}
           singleEmail: true
 
 policies:
@@ -34,7 +34,7 @@ groups:
               to: 0
             datasourceUid: victoria-metrics
             model:
-              expr: system_memory_utilization * 100
+              expr: system_memory_utilization{state="used"} * 100
               intervalMs: 15000
               maxDataPoints: 43200
           - refId: C
@@ -65,7 +65,7 @@ groups:
               to: 0
             datasourceUid: victoria-metrics
             model:
-              expr: system_memory_utilization * 100
+              expr: system_memory_utilization{state="used"} * 100
               intervalMs: 15000
               maxDataPoints: 43200
           - refId: C

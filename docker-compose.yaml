@@ -272,7 +272,7 @@ services:
     mem_limit: 512m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7070/metrics >/dev/null"]
+      test: ["CMD-SHELL", "nc -z localhost 7070"]
       interval: 3s
       timeout: 5s
       retries: 15

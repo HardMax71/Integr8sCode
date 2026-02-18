@@ -169,11 +169,11 @@ cause `match-case` was introduced first in `Python 3.10`.
 > [!TIP]
 > Full documentation is available at https://hardmax71.github.io/Integr8sCode/
 
-<img src="./docs/assets/images/system_diagram.png" alt="system diagram">
+<img src="./docs/assets/images/system_diagram.svg" alt="system diagram">
 
 The platform is built on three main pillars:
 
-- Frontend: A sleek Svelte app that users interact with.
+- Frontend: Svelte app that users interact with.
 - Backend: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
 - Kubernetes Cluster: Each script runs in its own pod, ensuring isolation and resource control.
 

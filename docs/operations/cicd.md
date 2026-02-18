@@ -308,12 +308,16 @@ The deploy job is skippable via the `skip_deploy` input on manual dispatch.
 
 ### Required secrets
 
-| Secret             | Purpose                              |
-|--------------------|--------------------------------------|
-| `DEPLOY_HOST`      | Production server IP                 |
-| `DEPLOY_USER`      | SSH username                         |
-| `DEPLOY_SSH_KEY`   | Ed25519 private key for SSH          |
-| `DEPLOY_GHCR_TOKEN`| GitHub PAT with `read:packages` scope|
+| Secret                       | Purpose                                    |
+|------------------------------|--------------------------------------------|
+| `DEPLOY_HOST`                | Production server IP                       |
+| `DEPLOY_USER`                | SSH username                               |
+| `DEPLOY_SSH_KEY`             | Ed25519 private key for SSH                |
+| `DEPLOY_GHCR_TOKEN`         | GitHub PAT with `read:packages` scope      |
+| `MAILJET_API_KEY`            | Mailjet SMTP username (API key)            |
+| `MAILJET_SECRET_KEY`         | Mailjet SMTP password (secret key)         |
+| `MAILJET_FROM_ADDRESS`       | Verified sender email for alerts           |
+| `GRAFANA_ALERT_RECIPIENTS`   | Email(s) that receive alert notifications  |
 
 See [Deployment — Production deployment](deployment.md#production-deployment) for setup instructions.
 

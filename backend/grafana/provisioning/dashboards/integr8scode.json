@@ -683,7 +683,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "avg(system_memory_bytes{type=\"percent\"}) or vector(0)",
+          "expr": "system_memory_utilization{state=\"used\"} * 100 or vector(0)",
           "refId": "A"
         }
       ],

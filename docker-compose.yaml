@@ -182,11 +182,20 @@ services:
       - app-network
     mem_limit: 192m
     restart: unless-stopped
+    depends_on:
+      victoria-metrics:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       - GF_LOG_LEVEL=warn
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_SMTP_USER=${MAILJET_API_KEY:-}
+      - GF_SMTP_PASSWORD=${MAILJET_SECRET_KEY:-}
+      - GF_SMTP_FROM_ADDRESS=${MAILJET_FROM_ADDRESS:-}
+      - GF_SMTP_ALERT_RECIPIENTS=${GRAFANA_ALERT_RECIPIENTS:-}
 
   # Kafka (KRaft mode — no ZooKeeper)
   kafka:
@@ -498,26 +507,6 @@ services:
       retries: 12
       start_period: 10s
 
-  # Kafka Exporter for metrics
-  kafka-exporter:
-    image: danielqsj/kafka-exporter:latest
-    container_name: kafka-exporter
-    profiles: ["observability"]
-    mem_limit: 96m
-    command:
-      - "--kafka.server=kafka:29092"
-      - "--web.listen-address=:9308"
-      - "--topic.filter=.*"
-      - "--group.filter=.*"
-    ports:
-      - "127.0.0.1:9308:9308"
-    networks:
-      - app-network
-    depends_on:
-      kafka:
-        condition: service_healthy
-    restart: unless-stopped
-
   # OpenTelemetry Collector
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
@@ -528,6 +517,11 @@ services:
     volumes:
       - ./backend/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+    environment:
+      - HOST_PROC=/hostfs/proc
+      - HOST_SYS=/hostfs/sys
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
@@ -535,11 +529,13 @@ services:
     networks:
       - app-network
     depends_on:
-      - victoria-metrics
-      - jaeger
+      victoria-metrics:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
-    # Note: otel-collector uses scratch image - no wget/curl available for healthcheck
-    # The service exposes health endpoint at :13133 but we can't check it from inside container
 
 # --8<-- [start:dev_volumes]
 volumes:

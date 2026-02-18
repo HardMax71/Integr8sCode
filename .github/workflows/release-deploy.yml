@@ -124,11 +124,15 @@ jobs:
           IMAGE_TAG: ${{ needs.release.outputs.version }}
           GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          MAILJET_API_KEY: ${{ secrets.MAILJET_API_KEY }}
+          MAILJET_SECRET_KEY: ${{ secrets.MAILJET_SECRET_KEY }}
+          MAILJET_FROM_ADDRESS: ${{ secrets.MAILJET_FROM_ADDRESS }}
+          GRAFANA_ALERT_RECIPIENTS: ${{ secrets.GRAFANA_ALERT_RECIPIENTS }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,GRAFANA_ALERT_RECIPIENTS
           command_timeout: 10m
           script: |
             set -e
@@ -143,6 +147,10 @@ jobs:
             export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
             export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"
             export GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD"
+            export MAILJET_API_KEY="$MAILJET_API_KEY"
+            export MAILJET_SECRET_KEY="$MAILJET_SECRET_KEY"
+            export MAILJET_FROM_ADDRESS="$MAILJET_FROM_ADDRESS"
+            export GRAFANA_ALERT_RECIPIENTS="$GRAFANA_ALERT_RECIPIENTS"
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 

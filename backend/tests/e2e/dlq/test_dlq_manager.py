@@ -7,11 +7,10 @@ from datetime import datetime, timezone
 import pytest
 from aiokafka import AIOKafkaConsumer
 from app.core.metrics import DLQMetrics
-from app.core.providers import _default_retry_policies, _default_retry_policy
 from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
 from app.dlq.models import DLQMessage
-from app.domain.enums import EventType, KafkaTopic
+from app.domain.enums import EventType
 from app.domain.events import DLQMessageReceivedEvent, DomainEventAdapter
 from app.settings import Settings
 from dishka import AsyncContainer
@@ -39,7 +38,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
     received_future: asyncio.Future[DLQMessageReceivedEvent] = asyncio.get_running_loop().create_future()
 
     # Create consumer for DLQ events topic
-    dlq_events_topic = f"{prefix}{KafkaTopic.DLQ_EVENTS}"
+    dlq_events_topic = f"{prefix}{EventType.DLQ_MESSAGE_RECEIVED}"
     events_consumer = AIOKafkaConsumer(
         dlq_events_topic,
         bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -79,14 +78,12 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
             logger=_test_logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
-            default_retry_policy=_default_retry_policy(),
-            retry_policies=_default_retry_policies(test_settings.KAFKA_TOPIC_PREFIX),
         )
 
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)
         dlq_msg = DLQMessage(
             event=ev,
-            original_topic=f"{prefix}{KafkaTopic.EXECUTION_EVENTS}",
+            original_topic=f"{prefix}{EventType.EXECUTION_REQUESTED}",
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),

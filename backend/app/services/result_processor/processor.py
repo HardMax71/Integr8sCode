@@ -2,7 +2,7 @@ import structlog
 
 from app.core.metrics import ExecutionMetrics
 from app.db.repositories import ExecutionRepository
-from app.domain.enums import ExecutionErrorType, ExecutionStatus, GroupId, StorageType
+from app.domain.enums import ExecutionErrorType, ExecutionStatus, StorageType
 from app.domain.events import (
     DomainEvent,
     EventMetadata,
@@ -144,7 +144,7 @@ class ResultProcessor:
             size_bytes=size_bytes,
             storage_type=StorageType.DATABASE,
             metadata=EventMetadata(
-                service_name=GroupId.RESULT_PROCESSOR,
+                service_name="result-processor",
                 service_version="1.0.0",
                 user_id=user_id,
             ),
@@ -159,7 +159,7 @@ class ResultProcessor:
             execution_id=execution_id,
             error=error_message,
             metadata=EventMetadata(
-                service_name=GroupId.RESULT_PROCESSOR,
+                service_name="result-processor",
                 service_version="1.0.0",
                 user_id=user_id,
             ),

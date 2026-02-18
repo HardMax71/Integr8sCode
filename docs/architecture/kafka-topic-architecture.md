@@ -1,82 +1,85 @@
 # Kafka topic architecture
 
-## Why two topics?
+## 1-topic-per-event-type
 
-The system uses *two separate Kafka topics* for execution flow: `execution_events` and `execution_tasks`. This might seem redundant since both can contain the same `ExecutionRequestedEvent`, but the separation is essential for scalability and maintainability.
+The system uses a **1:1 mapping** between `EventType` enum values and Kafka topics. Each event type gets its own dedicated topic. The topic name IS the `EventType` string value (with an optional prefix for environment isolation).
 
-## Events vs tasks
+```
+Topic name = f"{KAFKA_TOPIC_PREFIX}{EventType.EXECUTION_REQUESTED}"
+           = f"dev_{EventType.EXECUTION_REQUESTED}"
+           = "dev_execution_requested"
+```
 
-**execution_events** is the system's *event stream* — an append-only log capturing everything that happens to executions throughout their lifecycle:
+Since `EventType` extends `StringEnum` (which extends `str`), no `.value` accessor is needed — the enum member IS the string.
 
-- User requests an execution
-- Execution starts, completes, or fails
-- Pods are created or terminated
-- Status updates and log entries
+## Why one topic per event type?
 
-Multiple services consume this topic: SSE streams updates to users, projection service maintains read-optimized views, saga orchestrator manages workflows, monitoring tracks health. These consumers care about *completeness and ordering* because they're building a comprehensive picture of system state.
+Previous designs multiplexed many event types onto shared topics (e.g. `execution_events` carried 9 different event types consumed by 4 separate consumer groups). This created problems:
 
-**execution_tasks** is a *work queue*. It contains only events representing actual work to be done — executions that have been validated, authorized, rate-limited, and scheduled. When the coordinator publishes to `execution_tasks`, it's saying "this needs to be done now" rather than "this happened." The Kubernetes worker, the *sole consumer* of this topic, just needs to know what pods to create.
+- **Body-based filtering**: Every consumer decoded every message just to check `event_type`, wasting CPU
+- **Catch-all handlers**: Unmatched events were silently dropped by `on_unhandled` handlers
+- **Tight coupling**: Unrelated event types shared partition counts, retention policies, and consumer group offsets
+- **Debugging difficulty**: Hard to reason about which consumer is processing what
+
+The 1:1 approach eliminates all of these:
+
+- **No filtering**: Each `@broker.subscriber(topic)` receives exactly one event type with its typed Pydantic model
+- **No catch-alls**: Nothing to drop — every message on a topic matches the subscriber's type
+- **Independent tuning**: Each topic can have its own partition count and retention policy
+- **Clear ownership**: Easy to see which consumer groups subscribe to which event types
+
+## Topic categories and configuration
+
+Topics are grouped into categories for configuration purposes (partition count, retention):
+
+| Category | Partitions | Retention | Event Types |
+|----------|-----------|-----------|-------------|
+| Execution | 6 | 7 days | `execution_requested`, `execution_completed`, `execution_failed`, etc. |
+| Pod | 3 | 1 day | `pod_created`, `pod_scheduled`, `pod_running`, etc. |
+| Command | 3 | 1 day | `create_pod_command`, `delete_pod_command`, etc. |
+| User/Security | 3 | 30 days | `user_registered`, `security_violation`, etc. |
+| Default | 3 | 7 days | Everything else (saga, notification, DLQ, etc.) |
+| DLQ | 3 | 14 days | `dead_letter_queue` |
+
+Configuration is defined in `infrastructure/kafka/topics.py` using category sets.
+
+## Consumer groups
+
+Each worker subscribes to only the topics it needs, with its own consumer group:
+
+| Consumer Group | Subscribed Topics |
+|---------------|-------------------|
+| `execution-coordinator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_cancelled` |
+| `k8s-worker` | `create_pod_command`, `delete_pod_command` |
+| `result-processor` | `execution_completed`, `execution_failed`, `execution_timeout` |
+| `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout` |
+| `notification-service` | `execution_completed`, `execution_failed`, `execution_timeout` |
+| `sse-bridge-pool` | 16 event types (execution + pod lifecycle + result) |
+| `dlq-manager` | `dead_letter_queue` |
+
+Multiple consumer groups can subscribe to the same topic — Kafka delivers each message to every group independently.
 
 ## Request flow
 
-When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to `execution_events`. This acknowledges the request and makes it part of the permanent record.
+When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to the `execution_requested` topic. Multiple consumers receive it:
 
-The coordinator subscribes to `execution_events` and begins validation:
+1. **Coordinator**: Validates, rate-limits, orchestrates the execution flow
+2. **Saga orchestrator**: Creates a saga to track the distributed transaction
+3. **SSE bridge**: Pushes the event to the user's browser in real-time
 
-- Has the user exceeded their rate limit?
-- Is the queue full?
-- Should this execution be prioritized or queued?
+The coordinator publishes `CreatePodCommandEvent` to the `create_pod_command` topic. The K8s worker — the sole consumer — creates the pod. Pod lifecycle events flow back through their respective topics.
 
-Some requests get rejected immediately. Others sit in a priority queue waiting for resources. Still others get cancelled before starting.
+## Scaling
 
-Only when the coordinator determines an execution is *ready to proceed* does it republish to `execution_tasks`. This represents a state transition — the event has moved from being a request to being *scheduled work*.
+With dedicated topics per event type, each can be scaled independently:
 
-The Kubernetes worker then consumes from `execution_tasks`, creates resources (ConfigMaps, Pods), and publishes a `PodCreatedEvent` back to `execution_events`. It doesn't need to know about rate limits or queuing — all that complexity has been handled upstream.
+- High-throughput execution events get 6 partitions
+- Lower-volume pod events use 3 partitions
+- Command topics (work queues) use 3 partitions, optimized for the worker's consumption pattern
 
-## Performance and scaling
+## Failure isolation
 
-The `execution_events` topic is busy. For every execution, there might be a dozen or more events: requested, queued, started, pod status updates, log entries, completion, cleanup. Hundreds of executions per minute means *thousands* of events flowing through.
-
-If the Kubernetes worker had to consume from this firehose, it would receive every event type and need to filter down to just the ready-to-process `ExecutionRequestedEvents`. This filtering would consume CPU and bandwidth, and couple worker performance to overall event volume.
-
-With separate topics, the worker receives *only what it needs*. If `execution_events` processes 1000 events/minute but only 50 executions are scheduled, the worker sees only those 50. This allows focus on the core responsibility: creating and managing pods.
-
-The separation enables independent scaling:
-
-- `execution_events`: many partitions for high throughput, numerous concurrent consumers
-- `execution_tasks`: fewer partitions optimized for the worker's pattern (pod creation is expensive, less parallelism is sometimes better)
-
-## Operations
-
-Separate topics provide crucial isolation. When troubleshooting:
-
-- If `execution_tasks` is backing up → the Kubernetes worker is struggling
-- If `execution_events` is backing up → need to identify which consumer is the bottleneck
-
-Different retention policies make sense too. `execution_events` needs long retention (90+ days) as the audit log and source of truth. `execution_tasks` can have short retention — once processed, a few days is enough for recovery scenarios.
-
-Monitoring becomes more precise. Different SLAs for different stages:
-
-- `ExecutionRequestedEvent` in `execution_events` within 100ms of API receipt
-- Up to 30 seconds acceptable before appearing in `execution_tasks`
-
-## Failure handling
-
-If the Kubernetes worker crashes, `execution_tasks` accumulates messages but the rest of the system continues normally. Users can submit executions, the coordinator validates and queues them, other services process `execution_events`. When the worker recovers, it picks up where it left off.
-
-In a single-topic architecture, a slow worker would cause backpressure affecting *all* consumers. SSE might delay updates. Projections might fall behind. The entire system degrades because one component can't keep up.
-
-The coordinator acts as a *shock absorber* between user requests and pod creation. It implements queuing and prioritization without affecting upstream producers or downstream workers. During high load, the coordinator holds executions in its internal queue while still acknowledging receipt.
-
-## Extensibility
-
-This pattern provides flexibility for evolution:
-
-- Add GPU workers or long-running job workers → introduce additional task topics without modifying core event flow
-- Add security scanning or batch processing stages → insert between `execution_events` and `execution_tasks`
-- Add scheduled executions → `schedule_events` for audit, `schedule_tasks` for scheduling work
-
-The pattern of separating *event streams* from *task queues* applies broadly.
+If the K8s worker crashes, only `create_pod_command` and `delete_pod_command` topics accumulate messages. The rest of the system continues normally — SSE streams updates, the coordinator processes requests, notifications fire.
 
 ## Sagas
 
@@ -128,13 +131,13 @@ Create a replay session with filters (time range, event type), and ReplayService
 
 ```mermaid
 graph LR
-    Consumer[Consumer] -->|"failure"| DLQ[(DLQ Topic)]
+    Consumer[Consumer] -->|"failure"| DLQ[(dead_letter_queue topic)]
     DLQ <--> Manager[DLQ Manager]
     Manager -->|"retry"| Original[(Original Topic)]
     Admin[Admin API] --> Manager
 ```
 
-When a consumer fails to process an event after multiple retries, it lands in the dead letter queue. The DLQ manager handles retry logic with *exponential backoff* and configurable thresholds.
+When a consumer fails to process an event after multiple retries, it lands in the dead letter queue. The DLQ manager handles retry logic with *exponential backoff* and configurable thresholds. Retry policies are determined by event type category (execution events get aggressive retries, pod events get cautious retries).
 
 Admins can:
 
@@ -148,8 +151,8 @@ Admins can:
 Key files:
 
 - `domain/events/typed.py` — all Pydantic event models (plain `BaseModel` subclasses)
-- `infrastructure/kafka/mappings.py` — event-to-topic routing and helper functions
+- `infrastructure/kafka/topics.py` — category-based topic configs (partitions, retention)
 - `events/core/producer.py` — UnifiedProducer (persists to MongoDB, publishes to Kafka)
 - `events/handlers.py` — FastStream subscriber registrations for all workers
 
-All events are Pydantic models with strict typing. FastStream handles JSON serialization natively — the producer publishes Pydantic instances directly via `broker.publish()`, and subscribers receive typed model instances. The mappings module routes each event type to its destination topic via `EVENT_TYPE_TO_TOPIC`. Pydantic validation on both ends ensures structural agreement between producers and consumers.
+All events are Pydantic models with strict typing. FastStream handles JSON serialization natively — the producer publishes Pydantic instances directly via `broker.publish()`, and subscribers receive typed model instances. Pydantic validation on both ends ensures structural agreement between producers and consumers.

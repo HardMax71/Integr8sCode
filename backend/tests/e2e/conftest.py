@@ -9,7 +9,7 @@ import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer
 from app.db.docs.saga import SagaDocument
-from app.domain.enums import EventType, KafkaTopic, UserRole
+from app.domain.enums import EventType, UserRole
 from app.domain.events import DomainEvent, DomainEventAdapter, SagaStartedEvent
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
@@ -138,16 +138,10 @@ class EventWaiter:
 async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, None]:
     """Session-scoped Kafka event waiter. Starts before any test produces events."""
     prefix = test_settings.KAFKA_TOPIC_PREFIX
-    topics = [
-        f"{prefix}{KafkaTopic.EXECUTION_EVENTS}",
-        f"{prefix}{KafkaTopic.EXECUTION_RESULTS}",
-        f"{prefix}{KafkaTopic.SAGA_EVENTS}",
-        f"{prefix}{KafkaTopic.SAGA_COMMANDS}",
-        f"{prefix}{KafkaTopic.NOTIFICATION_EVENTS}",
-    ]
+    topics = [f"{prefix}{et}" for et in EventType]
     waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics)
     await waiter.start()
-    _logger.info("EventWaiter started on %s", topics)
+    _logger.info("EventWaiter started on %d topics", len(topics))
     yield waiter
     await waiter.stop()
 

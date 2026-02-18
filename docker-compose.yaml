@@ -226,6 +226,7 @@ services:
       # Topic management
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 3
       KAFKA_LOG_RETENTION_HOURS: 168
 
       # Production settings
@@ -276,23 +277,6 @@ services:
     networks:
       - app-network
 
-  # Kafka topic initialization
-  kafka-init:
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: kafka-init
-    depends_on:
-      kafka:
-        condition: service_healthy
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-    volumes:
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
-    command: ["python", "-m", "scripts.create_topics"]
-    networks:
-      - app-network
-    restart: "no"  # Run once and exit
-
   # Seed default users (runs once after mongo is ready)
   user-seed:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
@@ -318,8 +302,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_coordinator.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:
@@ -338,8 +322,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_k8s_worker.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:
@@ -361,8 +345,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_pod_monitor.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
@@ -382,8 +366,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_result_processor.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:
@@ -405,8 +389,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_saga_orchestrator.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:
@@ -447,8 +431,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_event_replay.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:
@@ -468,8 +452,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_dlq_processor.py"]
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
       mongo:
         condition: service_started
     volumes:

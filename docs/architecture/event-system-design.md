@@ -16,17 +16,12 @@ graph LR
         DE[Domain Events<br/>typed.py<br/>extends BaseModel]
     end
 
-    subgraph "Infrastructure"
-        M[Mappings<br/>kafka/mappings.py]
-    end
-
     ET --> DE
-    DE --> M
-    M --> Kafka[(Kafka Topics)]
+    DE --> Kafka[(Kafka Topics)]
     DE --> MongoDB[(MongoDB)]
 ```
 
-The `EventType` enum defines all possible event types as strings. Domain events are Pydantic `BaseModel` subclasses, making them usable for both MongoDB storage and Kafka transport. FastStream handles JSON serialization natively when publishing and deserializing when consuming. The mappings module routes events to the correct Kafka topics.
+The `EventType` enum defines all possible event types as strings. Each `EventType` value IS the Kafka topic name (1:1 mapping). Domain events are Pydantic `BaseModel` subclasses, making them usable for both MongoDB storage and Kafka transport. FastStream handles JSON serialization natively when publishing and deserializing when consuming.
 
 This design eliminates duplication between "domain events" and "Kafka events" by making the domain event the single source of truth.
 
@@ -44,9 +39,7 @@ The unified approach addresses these issues:
 - **Single definition**: Each event is defined once in `domain/events/typed.py`
 - **JSON-native**: `BaseEvent` extends Pydantic `BaseModel`; FastStream serializes to JSON automatically
 - **Storage-ready**: Events include storage fields (`stored_at`, `ttl_expires_at`) that MongoDB uses
-- **Topic routing**: The `EVENT_TYPE_TO_TOPIC` mapping in `infrastructure/kafka/mappings.py` handles routing
-
-Infrastructure concerns (Kafka topics) are kept separate through the mappings module rather than embedded in event classes.
+- **1:1 topic mapping**: Topic name = `EventType` value — no mapping layer needed
 
 ## How discriminated unions work
 
@@ -115,28 +108,18 @@ Since `BaseEvent` is a plain Pydantic model, FastStream handles serialization an
 
 ## Topic routing
 
-Events are routed to Kafka topics through the `EVENT_TYPE_TO_TOPIC` mapping:
+Each `EventType` maps 1:1 to a Kafka topic. The topic name is the `EventType` string value itself. Since `EventType` extends `StringEnum` (which extends `StrEnum` extends `str`), the event type IS the topic name:
 
 ```python
-# infrastructure/kafka/mappings.py
-EVENT_TYPE_TO_TOPIC: Dict[EventType, KafkaTopic] = {
-    EventType.EXECUTION_REQUESTED: KafkaTopic.EXECUTION_EVENTS,
-    EventType.EXECUTION_COMPLETED: KafkaTopic.EXECUTION_EVENTS,
-    EventType.POD_CREATED: KafkaTopic.EXECUTION_EVENTS,
-    EventType.SAGA_STARTED: KafkaTopic.SAGA_EVENTS,
-    # ... all event types
-}
+# Producer — topic derived directly from event type
+topic = f"{prefix}{event.event_type}"
+
+# Consumer — one subscriber per event type
+@broker.subscriber(f"{prefix}{EventType.EXECUTION_REQUESTED}", group_id="execution-coordinator")
+async def on_execution_requested(body: ExecutionRequestedEvent): ...
 ```
 
-Helper functions provide type-safe access:
-
-```python
-def get_topic_for_event(event_type: EventType) -> KafkaTopic:
-    return EVENT_TYPE_TO_TOPIC.get(event_type, KafkaTopic.SYSTEM_EVENTS)
-
-def get_event_class_for_type(event_type: EventType) -> type | None:
-    return _get_event_type_to_class().get(event_type)
-```
+No mapping layer, no routing table, no `EVENT_TYPE_TO_TOPIC` dict. Each handler subscribes to exactly the topic it cares about.
 
 ## Keeping things in sync
 
@@ -152,7 +135,8 @@ When adding a new event type:
 1. Add the value to `EventType` enum
 2. Create the event class in `typed.py` with the correct `event_type` default
 3. Add it to the `DomainEvent` union
-4. Add the topic mapping in `infrastructure/kafka/mappings.py`
+
+The topic is automatically available since topic name = event type string.
 
 If you miss a step, the test tells you exactly what's missing.
 
@@ -178,7 +162,7 @@ graph TB
 
 When publishing events, the `UnifiedProducer`:
 1. Persists the event to MongoDB via `EventRepository`
-2. Looks up the topic via `EVENT_TYPE_TO_TOPIC`
+2. Derives the topic name from `event_type` directly
 3. Publishes the Pydantic model to Kafka through `broker.publish()` (FastStream handles JSON serialization)
 
 The producer handles both storage in MongoDB and publishing to Kafka in a single flow.
@@ -189,7 +173,7 @@ The producer handles both storage in MongoDB and publishing to Kafka in a single
 |------|---------|
 | [`domain/enums/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/enums/events.py) | `EventType` enum with all event type values |
 | [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | All domain event classes and `DomainEvent` union |
-| [`infrastructure/kafka/mappings.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/mappings.py) | Event-to-topic routing and helper functions |
+| [`infrastructure/kafka/topics.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/topics.py) | Category-based topic configs for partition/retention tuning |
 | [`events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py) | UnifiedProducer — persists to MongoDB then publishes to Kafka |
 | [`tests/unit/domain/events/test_event_schema_coverage.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/tests/unit/domain/events/test_event_schema_coverage.py) | Validates correspondence between enum and event classes |
 

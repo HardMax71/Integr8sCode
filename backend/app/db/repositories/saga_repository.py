@@ -1,17 +1,26 @@
 import dataclasses
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from beanie.exceptions import RevisionIdWasChanged
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.odm.queries.update import UpdateResponse
-from beanie.operators import GT, LT, NE, Eq, In
+from beanie.operators import GT, LT, NE, Eq, In, Set
 from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
 from app.domain.enums import SagaState
-from app.domain.saga import Saga, SagaConcurrencyError, SagaContextData, SagaFilter, SagaListResult, SagaNotFoundError
+from app.domain.saga import (
+    Saga,
+    SagaConcurrencyError,
+    SagaContextData,
+    SagaFilter,
+    SagaInvalidStateError,
+    SagaListResult,
+    SagaNotFoundError,
+)
 
 _saga_fields = set(Saga.__dataclass_fields__)
 
@@ -63,6 +72,34 @@ class SagaRepository:
             await doc.save_changes()
         except RevisionIdWasChanged as exc:
             raise SagaConcurrencyError(saga_id) from exc
+        return self._to_domain(doc)
+
+    async def atomic_cancel_saga(
+        self, saga_id: str, error_message: str, completed_at: datetime,
+    ) -> Saga:
+        """Atomically cancel a saga using findOneAndUpdate.
+
+        Bumps revision_id so any concurrent save_changes() (which filters on
+        the old revision_id) will see a mismatch and raise RevisionIdWasChanged.
+        """
+        doc = await SagaDocument.find_one(
+            SagaDocument.saga_id == saga_id,
+            In(SagaDocument.state, [SagaState.RUNNING, SagaState.CREATED]),
+        ).update(
+            Set({  # type: ignore[no-untyped-call]
+                SagaDocument.state: SagaState.CANCELLED,
+                SagaDocument.error_message: error_message,
+                SagaDocument.completed_at: completed_at,
+                SagaDocument.updated_at: datetime.now(timezone.utc),
+                "revision_id": uuid4(),
+            }),
+            response_type=UpdateResponse.NEW_DOCUMENT,
+        )
+        if not doc:
+            existing = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
+            if not existing:
+                raise SagaNotFoundError(saga_id)
+            raise SagaInvalidStateError(saga_id, existing.state, "cancel")
         return self._to_domain(doc)
 
     async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:

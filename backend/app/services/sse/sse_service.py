@@ -9,7 +9,6 @@ from pydantic import TypeAdapter
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
-from app.domain.events import ResourceUsageDomain
 from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import (
     DomainNotificationSSEPayload,
@@ -128,7 +127,12 @@ class SSEService:
             self.logger.info("SSE connection closed", execution_id=execution_id)
 
     async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
-        """Build typed SSE event from Redis message."""
+        """Build typed SSE event from Redis message.
+
+        Uses validate_python to coerce JSON primitives (str → enum, ISO str → datetime,
+        dict → dataclass) back to proper types after the Redis JSON round-trip.
+        Extra keys from the original domain event are ignored.
+        """
         result: ExecutionResultDomain | None = None
         if msg.event_type == EventType.RESULT_STORED:
             execution = await self.repository.get_execution(execution_id)
@@ -142,21 +146,12 @@ class SSEService:
                     execution_id=execution_id,
                 )
 
-        ru = msg.data.get("resource_usage")
-        return SSEExecutionEventData(
-            event_type=msg.data.get("event_type", msg.event_type),
-            execution_id=execution_id,
-            timestamp=msg.data.get("timestamp"),
-            event_id=msg.data.get("event_id"),
-            status=msg.data.get("status"),
-            stdout=msg.data.get("stdout"),
-            stderr=msg.data.get("stderr"),
-            exit_code=msg.data.get("exit_code"),
-            timeout_seconds=msg.data.get("timeout_seconds"),
-            message=msg.data.get("message"),
-            resource_usage=ResourceUsageDomain(**ru) if ru else None,
-            result=result,
-        )
+        return _sse_event_adapter.validate_python({
+            **msg.data,
+            "event_type": msg.event_type,
+            "execution_id": execution_id,
+            "result": result,
+        })
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         subscription: SSERedisSubscription | None = None

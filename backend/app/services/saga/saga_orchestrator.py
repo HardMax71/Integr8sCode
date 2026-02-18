@@ -23,8 +23,6 @@ from app.domain.saga import (
     SagaConcurrencyError,
     SagaConfig,
     SagaContextData,
-    SagaInvalidStateError,
-    SagaNotFoundError,
 )
 from app.events.core import UnifiedProducer
 
@@ -282,27 +280,23 @@ class SagaOrchestrator:
     async def cancel_saga(self, saga_id: str) -> None:
         """Cancel a running saga and trigger compensation.
 
+        Uses an atomic findOneAndUpdate to set state=CANCELLED, eliminating
+        revision-check races with the step-execution loop.
+
         Raises SagaNotFoundError if saga doesn't exist.
         Raises SagaInvalidStateError if saga is not in a cancellable state.
-        Raises SagaConcurrencyError if saga was modified concurrently.
         """
-        saga_instance = await self.get_saga_status(saga_id)
-        if not saga_instance:
-            raise SagaNotFoundError(saga_id)
-
-        if saga_instance.state not in (SagaState.RUNNING, SagaState.CREATED):
-            raise SagaInvalidStateError(saga_id, saga_instance.state, "cancel")
+        saved = await self._repo.atomic_cancel_saga(
+            saga_id,
+            error_message="Saga cancelled by user request",
+            completed_at=datetime.now(UTC),
+        )
 
         self.logger.info(
             "Saga cancellation initiated",
             saga_id=saga_id,
-            execution_id=saga_instance.execution_id,
-            user_id=saga_instance.context_data.user_id,
-        )
-
-        saved = await self._repo.save_saga(
-            saga_id, state=SagaState.CANCELLED,
-            error_message="Saga cancelled by user request", completed_at=datetime.now(UTC),
+            execution_id=saved.execution_id,
+            user_id=saved.context_data.user_id,
         )
 
         if self._producer and self.config.store_events:

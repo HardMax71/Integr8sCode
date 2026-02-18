@@ -10,7 +10,7 @@ import pytest_asyncio
 from aiokafka import AIOKafkaConsumer
 from app.db.docs.saga import SagaDocument
 from app.domain.enums import EventType, KafkaTopic, UserRole
-from app.domain.events import DomainEvent, DomainEventAdapter
+from app.domain.events import DomainEvent, DomainEventAdapter, SagaStartedEvent
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse
@@ -110,15 +110,17 @@ class EventWaiter:
             timeout=timeout,
         )
 
-    async def wait_for_saga_started(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
+    async def wait_for_saga_started(self, execution_id: str, timeout: float = 15.0) -> SagaStartedEvent:
         """Wait for SAGA_STARTED — saga document is guaranteed in MongoDB after this."""
-        return await self.wait_for(
+        event = await self.wait_for(
             lambda e: (
                 e.event_type == EventType.SAGA_STARTED
                 and e.execution_id == execution_id
             ),
             timeout=timeout,
         )
+        assert isinstance(event, SagaStartedEvent)
+        return event
 
     async def wait_for_notification_created(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
         """Wait for NOTIFICATION_CREATED — notification is guaranteed in MongoDB after this."""

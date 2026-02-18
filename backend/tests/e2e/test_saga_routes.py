@@ -201,25 +201,26 @@ class TestCancelSaga:
         assert exec_response.status_code == 200
 
         execution = ExecutionResponse.model_validate(exec_response.json())
+
+        # Get saga_id from SAGA_STARTED event (published after saga persisted)
+        started = await event_waiter.wait_for_saga_started(execution.execution_id)
+
         # Wait for CREATE_POD_COMMAND — the orchestrator's last step.
         # After this the orchestrator is idle, so cancel won't race with
         # concurrent step-processing writes to the saga document.
         await event_waiter.wait_for_saga_command(execution.execution_id)
 
-        saga_resp = await test_user.get(f"/api/v1/sagas/execution/{execution.execution_id}")
-        saga = SagaListResponse.model_validate(saga_resp.json()).sagas[0]
-
-        response = await test_user.post(f"/api/v1/sagas/{saga.saga_id}/cancel")
+        response = await test_user.post(f"/api/v1/sagas/{started.saga_id}/cancel")
 
         assert response.status_code == 200
         result = SagaCancellationResponse.model_validate(response.json())
-        assert result.saga_id == saga.saga_id
+        assert result.saga_id == started.saga_id
         assert result.success is True
         assert result.message is not None
 
         # cancel_saga sets state to CANCELLED synchronously in MongoDB
         # before returning the HTTP response (compensation also runs inline).
-        status_resp = await test_user.get(f"/api/v1/sagas/{saga.saga_id}")
+        status_resp = await test_user.get(f"/api/v1/sagas/{started.saga_id}")
         assert status_resp.status_code == 200
         updated_saga = SagaStatusResponse.model_validate(status_resp.json())
         assert updated_saga.state == SagaState.CANCELLED
@@ -250,12 +251,9 @@ class TestCancelSaga:
         assert exec_response.status_code == 200
 
         execution = ExecutionResponse.model_validate(exec_response.json())
-        await event_waiter.wait_for_saga_started(execution.execution_id)
+        started = await event_waiter.wait_for_saga_started(execution.execution_id)
 
-        saga_resp = await test_user.get(f"/api/v1/sagas/execution/{execution.execution_id}")
-        saga = SagaListResponse.model_validate(saga_resp.json()).sagas[0]
-
-        response = await another_user.post(f"/api/v1/sagas/{saga.saga_id}/cancel")
+        response = await another_user.post(f"/api/v1/sagas/{started.saga_id}/cancel")
 
         assert response.status_code == 403
 

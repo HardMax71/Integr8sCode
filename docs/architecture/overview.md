@@ -31,7 +31,7 @@ Integr8sCode lets users submit Python scripts through a Svelte SPA. The FastAPI 
 ![System diagram](/assets/images/system_diagram.png)
 
 The SPA hits the frontend, which proxies to the API over HTTPS; the API
-serves both REST and SSE. Kafka carries events as JSON (serialized by FastStream) with Zookeeper backing it; kafka-
+serves both REST and SSE. Kafka carries events as JSON (serialized by FastStream) using KRaft for metadata consensus; kafka-
 init seeds topics. All workers are separate containers subscribed to Kafka; the k8s-worker talks to the
 Kubernetes API to run code, the pod-monitor watches pods, the result-processor writes results to Mongo
 and nudges Redis for SSE fanout, and the saga-orchestrator coordinates long flows with Mongo and Redis.

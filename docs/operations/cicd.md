@@ -33,7 +33,7 @@ graph LR
     end
 
     subgraph "Docker Scan & Promote"
-        Scan["Trivy Scan (5 images)"]
+        Scan["Trivy Scan (4 images)"]
         Promote["Promote SHA → latest"]
         Scan --> Promote
     end
@@ -92,7 +92,7 @@ no setup to overlap.
 
 ## Stack Tests (the main workflow)
 
-This is the core testing workflow. It builds all 5 container images, pushes them to GHCR with immutable SHA-based
+This is the core testing workflow. It builds all 4 container images, pushes them to GHCR with immutable SHA-based
 tags, then runs E2E tests on separate runners that pull images from the registry.
 
 ```mermaid
@@ -131,29 +131,28 @@ the image build is skipped entirely.
 
 ### Phase 2: Build and push
 
-All 5 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
+All 4 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
 
 | Image                | Source                                      |
 |----------------------|---------------------------------------------|
 | `base`               | `backend/Dockerfile.base`                   |
 | `backend`            | `backend/Dockerfile`                        |
 | `cert-generator`     | `cert-generator/Dockerfile`                 |
-| `zookeeper-certgen`  | `backend/zookeeper/Dockerfile.certgen`      |
 | `frontend`           | `frontend/Dockerfile`                       |
 
 Workers reuse the `backend` image with different `command:` overrides in docker-compose, so no separate worker images
-are needed. All 5 images are scanned by Trivy and promoted to `latest` in the
+are needed. All 4 images are scanned by Trivy and promoted to `latest` in the
 [Docker Scan & Promote](#docker-scan-promote) workflow.
 
 The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
 image depends on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images
 use GHA layer caching.
 
-All 5 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
+All 4 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 
 ```yaml
 declare -A PIDS
-for name in base backend cert-generator zookeeper-certgen ...; do
+for name in base backend cert-generator frontend; do
   docker push "$IMG/$name:$TAG" &
   PIDS[$name]=$!
 done
@@ -180,7 +179,7 @@ This action kicks off three slow tasks that can overlap:
 
 1. **GHCR login** using `docker/login-action@v3`
 2. **Background image pull + infra pre-warm** — pulls all compose images then starts infrastructure services
-   (mongo, redis, kafka, zookeeper) in a background `nohup` process. The exit status is persisted
+   (mongo, redis, kafka) in a background `nohup` process. The exit status is persisted
    to `/tmp/infra-pull.exit` so the next action can check for failures.
 3. **k3s install** — downloads and installs a pinned k3s version with SHA256 checksum verification (see
    [supply-chain hardening](#supply-chain-hardening) below)
@@ -238,7 +237,7 @@ sets it, and only after all tests pass.
 ```mermaid
 graph LR
     ST["Stack Tests<br/>(main, success)"] -->|workflow_run trigger| Scan
-    Scan["Trivy Scan<br/>(5 images in parallel)"] --> Promote["crane copy<br/>sha-xxx → latest"]
+    Scan["Trivy Scan<br/>(4 images in parallel)"] --> Promote["crane copy<br/>sha-xxx → latest"]
     Promote --> Summary["Step Summary"]
 ```
 
@@ -249,7 +248,7 @@ Runs automatically when `Stack Tests` completes successfully on `main`. Can also
 
 ### Scan
 
-Uses [Trivy](https://trivy.dev/) (pinned at `v0.68.2`) to scan all 5 deployed images in parallel via matrix strategy.
+Uses [Trivy](https://trivy.dev/) (pinned at `v0.68.2`) to scan all 4 deployed images in parallel via matrix strategy.
 Scans for `CRITICAL` and `HIGH` severity vulnerabilities with unfixed issues ignored. Results are uploaded as SARIF
 files to GitHub's Security tab.
 
@@ -285,7 +284,7 @@ Releases use [Calendar Versioning](https://calver.org/) with the format `YYYY.M.
 - `PATCH` — auto-incrementing counter within the month, starting at `0`
 
 Examples: `2026.2.0`, `2026.2.1`, `2026.3.0`. The workflow counts existing tags matching the current `YYYY.M.*` pattern
-and increments the patch number. All 5 deployed GHCR images are tagged with the CalVer version using crane (same
+and increments the patch number. All 4 deployed GHCR images are tagged with the CalVer version using crane (same
 registry-level manifest copy as the promote step).
 
 ### GitHub Release
@@ -438,7 +437,7 @@ Playwright browsers are cached by `package-lock.json` hash. On cache hit, only s
 
 ### Parallel image push
 
-All 5 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
+All 4 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
 reported individually via `::error::` annotations.
 
 ## Running locally

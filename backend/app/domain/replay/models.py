@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from app.domain.enums import EventType, KafkaTopic, ReplayStatus, ReplayTarget, ReplayType
+from app.domain.enums import EventType, ReplayStatus, ReplayTarget, ReplayType
 
 
 @dataclass
@@ -126,7 +126,7 @@ class ReplayConfig:
     batch_size: int = 100
     max_events: int | None = None
 
-    target_topics: dict[EventType, KafkaTopic] | None = None
+    target_topics: dict[EventType, str] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True

@@ -42,8 +42,6 @@ from app.db.repositories import (
     UserSettingsRepository,
 )
 from app.dlq.manager import DLQManager
-from app.dlq.models import RetryPolicy, RetryStrategy
-from app.domain.enums import KafkaTopic
 from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
@@ -173,10 +171,9 @@ class MessagingProvider(Provider):
             broker: KafkaBroker,
             event_repository: EventRepository,
             logger: structlog.stdlib.BoundLogger,
-            settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
+        return UnifiedProducer(broker, event_repository, logger, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -190,61 +187,6 @@ class MessagingProvider(Provider):
             database_metrics: DatabaseMetrics,
     ) -> IdempotencyManager:
         return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
-
-
-def _default_retry_policy() -> RetryPolicy:
-    """Default retry policy for DLQ messages."""
-    return RetryPolicy(
-        topic="default",
-        strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-        max_retries=4,
-        base_delay_seconds=60,
-        max_delay_seconds=1800,
-        retry_multiplier=2.5,
-    )
-
-
-def _default_retry_policies(prefix: str) -> dict[str, RetryPolicy]:
-    """Topic-specific retry policies for DLQ.
-
-    Keys must match message.original_topic (full prefixed topic name).
-    """
-    execution_events = f"{prefix}{KafkaTopic.EXECUTION_EVENTS}"
-    pod_events = f"{prefix}{KafkaTopic.POD_EVENTS}"
-    saga_commands = f"{prefix}{KafkaTopic.SAGA_COMMANDS}"
-    execution_results = f"{prefix}{KafkaTopic.EXECUTION_RESULTS}"
-
-    return {
-        execution_events: RetryPolicy(
-            topic=execution_events,
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-            max_retries=5,
-            base_delay_seconds=30,
-            max_delay_seconds=300,
-            retry_multiplier=2.0,
-        ),
-        pod_events: RetryPolicy(
-            topic=pod_events,
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-            max_retries=3,
-            base_delay_seconds=60,
-            max_delay_seconds=600,
-            retry_multiplier=3.0,
-        ),
-        saga_commands: RetryPolicy(
-            topic=saga_commands,
-            strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-            max_retries=5,
-            base_delay_seconds=30,
-            max_delay_seconds=300,
-            retry_multiplier=2.0,
-        ),
-        execution_results: RetryPolicy(
-            topic=execution_results,
-            strategy=RetryStrategy.IMMEDIATE,
-            max_retries=3,
-        ),
-    }
 
 
 class DLQProvider(Provider):
@@ -267,8 +209,6 @@ class DLQProvider(Provider):
             logger=logger,
             dlq_metrics=dlq_metrics,
             repository=repository,
-            default_retry_policy=_default_retry_policy(),
-            retry_policies=_default_retry_policies(settings.KAFKA_TOPIC_PREFIX),
         )
 
 

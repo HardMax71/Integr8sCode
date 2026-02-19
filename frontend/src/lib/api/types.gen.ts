@@ -302,8 +302,6 @@ export type CleanupResponse = {
 
 /**
  * ContainerStatusInfo
- *
- * Container status information from Kubernetes pod.
  */
 export type ContainerStatusInfo = {
     /**
@@ -402,213 +400,6 @@ export type CreatePodCommandEvent = {
      */
     memory_request?: string;
     priority?: QueuePriority;
-};
-
-/**
- * DLQBatchRetryResponse
- *
- * Response model for batch retry operation.
- */
-export type DlqBatchRetryResponse = {
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Successful
-     */
-    successful: number;
-    /**
-     * Failed
-     */
-    failed: number;
-    /**
-     * Details
-     */
-    details: Array<DlqRetryResult>;
-};
-
-/**
- * DLQMessageDetail
- *
- * Detailed DLQ message response. Mirrors DLQMessage for direct model_validate.
- */
-export type DlqMessageDetail = {
-    /**
-     * Event
-     */
-    event: ({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent);
-    /**
-     * Original Topic
-     */
-    original_topic: string;
-    /**
-     * Error
-     */
-    error: string;
-    /**
-     * Retry Count
-     */
-    retry_count: number;
-    /**
-     * Failed At
-     */
-    failed_at: string;
-    status: DlqMessageStatus;
-    /**
-     * Producer Id
-     */
-    producer_id: string;
-    /**
-     * Created At
-     */
-    created_at?: string | null;
-    /**
-     * Last Updated
-     */
-    last_updated?: string | null;
-    /**
-     * Next Retry At
-     */
-    next_retry_at?: string | null;
-    /**
-     * Retried At
-     */
-    retried_at?: string | null;
-    /**
-     * Discarded At
-     */
-    discarded_at?: string | null;
-    /**
-     * Discard Reason
-     */
-    discard_reason?: string | null;
-    /**
-     * Dlq Offset
-     */
-    dlq_offset?: number | null;
-    /**
-     * Dlq Partition
-     */
-    dlq_partition?: number | null;
-    /**
-     * Last Error
-     */
-    last_error?: string | null;
 };
 
 /**
@@ -712,169 +503,6 @@ export type DlqMessageReceivedEvent = {
 };
 
 /**
- * DLQMessageResponse
- *
- * Response model for a DLQ message. Mirrors DLQMessage for direct model_validate.
- */
-export type DlqMessageResponse = {
-    /**
-     * Event
-     */
-    event: ({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent);
-    /**
-     * Original Topic
-     */
-    original_topic: string;
-    /**
-     * Error
-     */
-    error: string;
-    /**
-     * Retry Count
-     */
-    retry_count: number;
-    /**
-     * Failed At
-     */
-    failed_at: string;
-    status: DlqMessageStatus;
-    /**
-     * Producer Id
-     */
-    producer_id: string;
-    /**
-     * Dlq Offset
-     */
-    dlq_offset?: number | null;
-    /**
-     * Dlq Partition
-     */
-    dlq_partition?: number | null;
-    /**
-     * Last Error
-     */
-    last_error?: string | null;
-    /**
-     * Next Retry At
-     */
-    next_retry_at?: string | null;
-};
-
-/**
  * DLQMessageRetriedEvent
  *
  * Emitted when a DLQ message is retried.
@@ -918,93 +546,6 @@ export type DlqMessageRetriedEvent = {
      * Retry Topic
      */
     retry_topic?: string;
-};
-
-/**
- * DLQMessageStatus
- *
- * Status of a message in the Dead Letter Queue.
- */
-export type DlqMessageStatus = 'pending' | 'scheduled' | 'retried' | 'discarded';
-
-/**
- * DLQMessagesResponse
- *
- * Response model for listing DLQ messages.
- */
-export type DlqMessagesResponse = {
-    /**
-     * Messages
-     */
-    messages: Array<DlqMessageResponse>;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Offset
-     */
-    offset: number;
-    /**
-     * Limit
-     */
-    limit: number;
-};
-
-/**
- * DLQRetryResult
- */
-export type DlqRetryResult = {
-    /**
-     * Event Id
-     */
-    event_id: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Error
-     */
-    error?: string | null;
-};
-
-/**
- * DLQTopicSummaryResponse
- *
- * Response model for topic summary.
- */
-export type DlqTopicSummaryResponse = {
-    /**
-     * Topic
-     */
-    topic: string;
-    /**
-     * Total Messages
-     */
-    total_messages: number;
-    /**
-     * Status Breakdown
-     */
-    status_breakdown: {
-        [key: string]: number;
-    };
-    /**
-     * Oldest Message
-     */
-    oldest_message: string;
-    /**
-     * Newest Message
-     */
-    newest_message: string;
-    /**
-     * Avg Retry Count
-     */
-    avg_retry_count: number;
-    /**
-     * Max Retry Count
-     */
-    max_retry_count: number;
 };
 
 /**
@@ -1180,8 +721,6 @@ export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth'
 
 /**
  * EndpointUsageStats
- *
- * Usage statistics for a single endpoint (IETF RateLimit-style).
  */
 export type EndpointUsageStats = {
     algorithm: RateLimitAlgorithm;
@@ -1559,8 +1098,6 @@ export type EventFilter = {
 
 /**
  * EventMetadata
- *
- * Event metadata - embedded in all events.
  */
 export type EventMetadata = {
     /**
@@ -1778,8 +1315,6 @@ export type EventStatsResponse = {
 
 /**
  * EventSummary
- *
- * Lightweight event summary for lists and previews.
  */
 export type EventSummary = {
     /**
@@ -2394,13 +1929,6 @@ export type HourlyEventCount = {
 };
 
 /**
- * KafkaTopic
- *
- * Kafka topic names used throughout the system.
- */
-export type KafkaTopic = 'execution_events' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_requests' | 'execution_commands' | 'execution_tasks' | 'pod_events' | 'pod_status_updates' | 'pod_results' | 'execution_results' | 'user_events' | 'user_notifications' | 'user_settings_events' | 'script_events' | 'security_events' | 'resource_events' | 'notification_events' | 'system_events' | 'saga_events' | 'saga_commands' | 'dead_letter_queue' | 'dlq_events' | 'websocket_events';
-
-/**
  * LanguageInfo
  *
  * Language runtime information.
@@ -2475,18 +2003,6 @@ export type LoginResponse = {
      * Csrf Token
      */
     csrf_token: string;
-};
-
-/**
- * ManualRetryRequest
- *
- * Request model for manual retry of messages.
- */
-export type ManualRetryRequest = {
-    /**
-     * Event Ids
-     */
-    event_ids: Array<string>;
 };
 
 /**
@@ -3616,7 +3132,7 @@ export type ReplayConfigSchema = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: KafkaTopic;
+        [key: string]: string;
     } | null;
     /**
      * Target File Path
@@ -3642,16 +3158,6 @@ export type ReplayConfigSchema = {
 
 /**
  * ReplayError
- *
- * Error details for replay operations.
- *
- * Attributes:
- * timestamp: When the error occurred.
- * error: Human-readable error message.
- * error_type: Python exception class name (e.g., "ValueError", "KafkaException").
- * This is the result of `type(exception).__name__`, NOT the ErrorType enum.
- * Present for session-level errors.
- * event_id: ID of the event that failed to replay. Present for event-level errors.
  */
 export type ReplayError = {
     /**
@@ -3793,7 +3299,7 @@ export type ReplayRequest = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: KafkaTopic;
+        [key: string]: string;
     } | null;
     /**
      * Retry Failed
@@ -3992,8 +3498,6 @@ export type ResourceUsage = {
 
 /**
  * ResourceUsageDomain
- *
- * Resource usage metrics from script execution.
  */
 export type ResourceUsageDomain = {
     /**
@@ -4107,42 +3611,6 @@ export type ResultStoredEvent = {
 };
 
 /**
- * RetryPolicyRequest
- *
- * Request model for setting a retry policy.
- */
-export type RetryPolicyRequest = {
-    /**
-     * Topic
-     */
-    topic: string;
-    strategy: RetryStrategy;
-    /**
-     * Max Retries
-     */
-    max_retries?: number;
-    /**
-     * Base Delay Seconds
-     */
-    base_delay_seconds?: number;
-    /**
-     * Max Delay Seconds
-     */
-    max_delay_seconds?: number;
-    /**
-     * Retry Multiplier
-     */
-    retry_multiplier?: number;
-};
-
-/**
- * RetryStrategy
- *
- * Retry strategies for DLQ messages.
- */
-export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interval' | 'scheduled' | 'manual';
-
-/**
  * SSEControlEvent
  *
  * Control events for execution SSE streams (not from Kafka).
@@ -4150,11 +3618,11 @@ export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'fixed_interva
 export type SseControlEvent = 'connected' | 'subscribed' | 'status';
 
 /**
- * SSEExecutionEventData
+ * SSEExecutionEventSchema
  *
  * API schema for SSE execution stream event payload (OpenAPI docs).
  */
-export type SseExecutionEventData = {
+export type SseExecutionEventSchema = {
     /**
      * Event Type
      *
@@ -5197,7 +4665,7 @@ export type SystemErrorEvent = {
 /**
  * SystemSettingsSchema
  *
- * API schema for system settings — inherits all fields from domain model.
+ * API schema for system settings with validation.
  */
 export type SystemSettingsSchema = {
     /**
@@ -6881,201 +6349,6 @@ export type LivenessApiV1HealthLiveGetResponses = {
 
 export type LivenessApiV1HealthLiveGetResponse = LivenessApiV1HealthLiveGetResponses[keyof LivenessApiV1HealthLiveGetResponses];
 
-export type GetDlqMessagesApiV1DlqMessagesGetData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Status
-         *
-         * Filter by message status
-         */
-        status?: DlqMessageStatus | null;
-        /**
-         * Topic
-         *
-         * Filter by source Kafka topic
-         */
-        topic?: string | null;
-        /**
-         * Event Type
-         *
-         * Filter by event type
-         */
-        event_type?: EventType | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/api/v1/dlq/messages';
-};
-
-export type GetDlqMessagesApiV1DlqMessagesGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDlqMessagesApiV1DlqMessagesGetError = GetDlqMessagesApiV1DlqMessagesGetErrors[keyof GetDlqMessagesApiV1DlqMessagesGetErrors];
-
-export type GetDlqMessagesApiV1DlqMessagesGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: DlqMessagesResponse;
-};
-
-export type GetDlqMessagesApiV1DlqMessagesGetResponse = GetDlqMessagesApiV1DlqMessagesGetResponses[keyof GetDlqMessagesApiV1DlqMessagesGetResponses];
-
-export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query: {
-        /**
-         * Reason
-         *
-         * Reason for discarding
-         */
-        reason: string;
-    };
-    url: '/api/v1/dlq/messages/{event_id}';
-};
-
-export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteErrors = {
-    /**
-     * Message not found or already in terminal state
-     */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteError = DiscardDlqMessageApiV1DlqMessagesEventIdDeleteErrors[keyof DiscardDlqMessageApiV1DlqMessagesEventIdDeleteErrors];
-
-export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteResponses = {
-    /**
-     * Successful Response
-     */
-    200: MessageResponse;
-};
-
-export type DiscardDlqMessageApiV1DlqMessagesEventIdDeleteResponse = DiscardDlqMessageApiV1DlqMessagesEventIdDeleteResponses[keyof DiscardDlqMessageApiV1DlqMessagesEventIdDeleteResponses];
-
-export type GetDlqMessageApiV1DlqMessagesEventIdGetData = {
-    body?: never;
-    path: {
-        /**
-         * Event Id
-         */
-        event_id: string;
-    };
-    query?: never;
-    url: '/api/v1/dlq/messages/{event_id}';
-};
-
-export type GetDlqMessageApiV1DlqMessagesEventIdGetErrors = {
-    /**
-     * DLQ message not found
-     */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDlqMessageApiV1DlqMessagesEventIdGetError = GetDlqMessageApiV1DlqMessagesEventIdGetErrors[keyof GetDlqMessageApiV1DlqMessagesEventIdGetErrors];
-
-export type GetDlqMessageApiV1DlqMessagesEventIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: DlqMessageDetail;
-};
-
-export type GetDlqMessageApiV1DlqMessagesEventIdGetResponse = GetDlqMessageApiV1DlqMessagesEventIdGetResponses[keyof GetDlqMessageApiV1DlqMessagesEventIdGetResponses];
-
-export type RetryDlqMessagesApiV1DlqRetryPostData = {
-    body: ManualRetryRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dlq/retry';
-};
-
-export type RetryDlqMessagesApiV1DlqRetryPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RetryDlqMessagesApiV1DlqRetryPostError = RetryDlqMessagesApiV1DlqRetryPostErrors[keyof RetryDlqMessagesApiV1DlqRetryPostErrors];
-
-export type RetryDlqMessagesApiV1DlqRetryPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: DlqBatchRetryResponse;
-};
-
-export type RetryDlqMessagesApiV1DlqRetryPostResponse = RetryDlqMessagesApiV1DlqRetryPostResponses[keyof RetryDlqMessagesApiV1DlqRetryPostResponses];
-
-export type SetRetryPolicyApiV1DlqRetryPolicyPostData = {
-    body: RetryPolicyRequest;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dlq/retry-policy';
-};
-
-export type SetRetryPolicyApiV1DlqRetryPolicyPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetRetryPolicyApiV1DlqRetryPolicyPostError = SetRetryPolicyApiV1DlqRetryPolicyPostErrors[keyof SetRetryPolicyApiV1DlqRetryPolicyPostErrors];
-
-export type SetRetryPolicyApiV1DlqRetryPolicyPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: MessageResponse;
-};
-
-export type SetRetryPolicyApiV1DlqRetryPolicyPostResponse = SetRetryPolicyApiV1DlqRetryPolicyPostResponses[keyof SetRetryPolicyApiV1DlqRetryPolicyPostResponses];
-
-export type GetDlqTopicsApiV1DlqTopicsGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/v1/dlq/topics';
-};
-
-export type GetDlqTopicsApiV1DlqTopicsGetResponses = {
-    /**
-     * Response Get Dlq Topics Api V1 Dlq Topics Get
-     *
-     * Successful Response
-     */
-    200: Array<DlqTopicSummaryResponse>;
-};
-
-export type GetDlqTopicsApiV1DlqTopicsGetResponse = GetDlqTopicsApiV1DlqTopicsGetResponses[keyof GetDlqTopicsApiV1DlqTopicsGetResponses];
-
 export type NotificationStreamApiV1EventsNotificationsStreamGetData = {
     body?: never;
     path?: never;
@@ -7117,7 +6390,7 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses = {
     /**
      * Successful Response
      */
-    200: SseExecutionEventData;
+    200: SseExecutionEventSchema;
 };
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse = ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses];
@@ -7630,10 +6903,6 @@ export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
      * Validation Error
      */
     422: HttpValidationError;
-    /**
-     * Failed to update user
-     */
-    500: ErrorResponse;
 };
 
 export type UpdateUserApiV1AdminUsersUserIdPutError = UpdateUserApiV1AdminUsersUserIdPutErrors[keyof UpdateUserApiV1AdminUsersUserIdPutErrors];

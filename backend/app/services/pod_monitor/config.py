@@ -1,19 +1,11 @@
 from dataclasses import dataclass, field
 
-from app.domain.enums import EventType, KafkaTopic
-from app.infrastructure.kafka import get_topic_for_event
 from app.services.pod_monitor.event_mapper import PodPhase
 
 
 @dataclass
 class PodMonitorConfig:
     """Configuration for PodMonitor service"""
-
-    # Kafka settings
-    pod_events_topic: KafkaTopic = get_topic_for_event(EventType.POD_CREATED)
-    execution_events_topic: KafkaTopic = get_topic_for_event(EventType.EXECUTION_REQUESTED)
-    execution_completed_topic: KafkaTopic = get_topic_for_event(EventType.EXECUTION_COMPLETED)
-    execution_failed_topic: KafkaTopic = get_topic_for_event(EventType.EXECUTION_FAILED)
 
     # Kubernetes settings
     namespace: str = "integr8scode"

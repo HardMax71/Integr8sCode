@@ -11,12 +11,21 @@ from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import SSEExecutionEventSchema
 from app.services.sse import SSEService
 
+
+class _SSEResponse(EventSourceResponse):
+    """Workaround: sse-starlette sets media_type only in __init__, not as a
+    class attribute.  FastAPI reads the class attribute for OpenAPI generation,
+    so without this subclass every SSE endpoint shows application/json."""
+
+    media_type = "text/event-stream"
+
+
 router = APIRouter(prefix="/events", tags=["sse"], route_class=DishkaRoute)
 
 
 @router.get(
     "/notifications/stream",
-    response_class=EventSourceResponse,
+    response_class=_SSEResponse,
     responses={200: {"model": NotificationResponse}},
 )
 async def notification_stream(
@@ -32,7 +41,7 @@ async def notification_stream(
 
 @router.get(
     "/executions/{execution_id}",
-    response_class=EventSourceResponse,
+    response_class=_SSEResponse,
     responses={200: {"model": SSEExecutionEventSchema}},
 )
 async def execution_events(

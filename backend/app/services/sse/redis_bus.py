@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, TypeVar
+from typing import Any, TypeVar
 
 import redis.asyncio as redis
 import structlog
 from pydantic import TypeAdapter
 
-from app.domain.enums import EventType
 from app.domain.events import DomainEvent
 from app.domain.sse import RedisNotificationMessage, RedisSSEMessage
 
@@ -49,25 +48,6 @@ class SSERedisSubscription:
 
 class SSERedisBus:
     """Redis-backed pub/sub bus for SSE event fan-out across workers."""
-
-    SSE_ROUTED_EVENTS: ClassVar[list[EventType]] = [
-        EventType.EXECUTION_REQUESTED,
-        EventType.EXECUTION_QUEUED,
-        EventType.EXECUTION_STARTED,
-        EventType.EXECUTION_RUNNING,
-        EventType.EXECUTION_COMPLETED,
-        EventType.EXECUTION_FAILED,
-        EventType.EXECUTION_TIMEOUT,
-        EventType.EXECUTION_CANCELLED,
-        EventType.RESULT_STORED,
-        EventType.POD_CREATED,
-        EventType.POD_SCHEDULED,
-        EventType.POD_RUNNING,
-        EventType.POD_SUCCEEDED,
-        EventType.POD_FAILED,
-        EventType.POD_TERMINATED,
-        EventType.POD_DELETED,
-    ]
 
     def __init__(
         self,

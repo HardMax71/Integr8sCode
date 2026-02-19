@@ -75,7 +75,6 @@ class DLQMessageFilter:
 class RetryPolicy:
     """Retry policy configuration for DLQ messages."""
 
-    topic: str
     strategy: RetryStrategy
     max_retries: int = 5
     base_delay_seconds: float = 60.0
@@ -109,6 +108,36 @@ class RetryPolicy:
             delay = self.base_delay_seconds
 
         return datetime.now(timezone.utc) + timedelta(seconds=delay)
+
+
+AGGRESSIVE_RETRY = RetryPolicy(
+    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+    max_retries=5, base_delay_seconds=30, max_delay_seconds=300, retry_multiplier=2.0,
+)
+CAUTIOUS_RETRY = RetryPolicy(
+    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+    max_retries=3, base_delay_seconds=60, max_delay_seconds=600, retry_multiplier=3.0,
+)
+IMMEDIATE_RETRY = RetryPolicy(strategy=RetryStrategy.IMMEDIATE, max_retries=3)
+DEFAULT_RETRY = RetryPolicy(
+    strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
+    max_retries=4, base_delay_seconds=60, max_delay_seconds=1800, retry_multiplier=2.5,
+)
+
+
+def retry_policy_for(event_type: EventType) -> RetryPolicy:
+    """Determine retry policy from event type using category sets."""
+    from app.infrastructure.kafka.topics import COMMAND_TYPES, EXECUTION_TYPES, POD_TYPES, RESULT_TYPES
+
+    if event_type in EXECUTION_TYPES:
+        return AGGRESSIVE_RETRY
+    if event_type in POD_TYPES:
+        return CAUTIOUS_RETRY
+    if event_type in COMMAND_TYPES:
+        return AGGRESSIVE_RETRY
+    if event_type in RESULT_TYPES:
+        return IMMEDIATE_RETRY
+    return DEFAULT_RETRY
 
 
 @dataclass

@@ -7,7 +7,7 @@ import structlog
 from kubernetes_asyncio import client as k8s_client
 
 from app.core.utils import StringEnum
-from app.domain.enums import ExecutionErrorType, GroupId
+from app.domain.enums import ExecutionErrorType
 from app.domain.events import (
     ContainerStatusInfo,
     DomainEvent,
@@ -183,7 +183,7 @@ class PodEventMapper:
 
         md = EventMetadata(
             user_id=labels.get("user-id", str(uuid4())),
-            service_name=GroupId.POD_MONITOR,
+            service_name="pod-monitor",
             service_version="1.0.0",
         )
         self.logger.info(f"POD-EVENT: metadata user_id={md.user_id} name={pod.metadata.name}")

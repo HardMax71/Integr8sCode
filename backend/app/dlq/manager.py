@@ -14,8 +14,9 @@ from app.dlq.models import (
     DLQRetryResult,
     RetryPolicy,
     RetryStrategy,
+    retry_policy_for,
 )
-from app.domain.enums import KafkaTopic
+from app.domain.enums import EventType
 from app.domain.events import (
     DLQMessageDiscardedEvent,
     DLQMessageReceivedEvent,
@@ -40,9 +41,6 @@ class DLQManager:
         logger: structlog.stdlib.BoundLogger,
         dlq_metrics: DLQMetrics,
         repository: DLQRepository,
-        default_retry_policy: RetryPolicy,
-        retry_policies: dict[str, RetryPolicy],
-        dlq_topic: KafkaTopic = KafkaTopic.DEAD_LETTER_QUEUE,
         filters: list[Callable[[DLQMessage], bool]] | None = None,
     ):
         self.settings = settings
@@ -50,9 +48,7 @@ class DLQManager:
         self.logger = logger
         self.metrics = dlq_metrics
         self.repository = repository
-        self.dlq_topic = dlq_topic
-        self.default_retry_policy = default_retry_policy
-        self._retry_policies = retry_policies
+        self._retry_overrides: dict[str, RetryPolicy] = {}
 
         self._filters: list[Callable[[DLQMessage], bool]] = filters if filters is not None else [
             f for f in [
@@ -61,7 +57,6 @@ class DLQManager:
             ] if f is not None
         ]
 
-        self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{KafkaTopic.DLQ_EVENTS}"
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
         return not message.event.event_id.startswith("test-")
@@ -71,13 +66,18 @@ class DLQManager:
         age_seconds = (datetime.now(timezone.utc) - message.failed_at).total_seconds()
         return age_seconds < (max_age_days * 24 * 3600)
 
+    def _resolve_retry_policy(self, message: DLQMessage) -> RetryPolicy:
+        if message.original_topic in self._retry_overrides:
+            return self._retry_overrides[message.original_topic]
+        return retry_policy_for(message.event.event_type)
+
     async def process_monitoring_cycle(self) -> None:
         """Process due retries and update queue metrics. Called by APScheduler."""
         await self.process_due_retries()
         await self.update_queue_metrics()
 
     async def handle_message(self, message: DLQMessage) -> None:
-        """Process a single DLQ message: filter → store → decide retry/discard."""
+        """Process a single DLQ message: filter -> store -> decide retry/discard."""
         for filter_func in self._filters:
             if not filter_func(message):
                 self.logger.info("Message filtered out", event_id=message.event.event_id)
@@ -102,10 +102,10 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_RECEIVED,
         )
 
-        retry_policy = self._retry_policies.get(message.original_topic, self.default_retry_policy)
+        retry_policy = self._resolve_retry_policy(message)
 
         if not retry_policy.should_retry(message):
             await self.discard_message(message, "max_retries_exceeded")
@@ -156,7 +156,7 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_RETRIED,
         )
         self.logger.info("Successfully retried message", event_id=message.event.event_id)
 
@@ -186,7 +186,7 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_DISCARDED,
         )
         self.logger.warning("Discarded message", event_id=message.event.event_id, reason=reason)
 
@@ -207,7 +207,7 @@ class DLQManager:
             self.metrics.update_dlq_queue_size(topic, count)
 
     def set_retry_policy(self, topic: str, policy: RetryPolicy) -> None:
-        self._retry_policies[topic] = policy
+        self._retry_overrides[topic] = policy
 
     async def retry_message_manually(self, event_id: str) -> bool:
         message = await self.repository.get_message_by_id(event_id)

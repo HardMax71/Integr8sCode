@@ -5,7 +5,6 @@ from app.core.container import create_dlq_processor_container
 from app.core.logging import setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
-from app.events.handlers import register_dlq_subscriber
 from app.settings import Settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
@@ -38,8 +37,8 @@ def main() -> None:
         # Get broker from DI
         broker: KafkaBroker = await container.get(KafkaBroker)
 
-        # Register DLQ subscriber and set up DI integration
-        register_dlq_subscriber(broker, settings)
+        # Set up DI integration (no subscribers — DLQ manager uses APScheduler,
+        # broker is only needed for publishing retry/status events)
         setup_dishka(container, broker=broker, auto_inject=True)
 
         scheduler = AsyncIOScheduler()

@@ -37,7 +37,7 @@ def main() -> None:
         broker: KafkaBroker = await container.get(KafkaBroker)
 
         # Register subscriber and set up DI integration
-        register_coordinator_subscriber(broker, settings)
+        register_coordinator_subscriber(broker)
         setup_dishka(container, broker=broker, auto_inject=True)
 
         app = FastStream(broker, on_shutdown=[container.close])

@@ -42,8 +42,8 @@ with health checks and dependency ordering, so containers start in the correct s
 ```
 
 This brings up MongoDB, Redis, Kafka (KRaft mode), all seven workers, the backend API, and the
-frontend. Two initialization containers run automatically: `kafka-init` creates required Kafka topics, and `user-seed`
-populates the database with default user accounts.
+frontend. One initialization container runs automatically: `user-seed` populates the database with default user accounts.
+Kafka topics are created on-demand via `auto.create.topics.enable` when producers first publish or consumers subscribe.
 
 Once the stack is running, you can access the services at their default ports.
 
@@ -166,18 +166,18 @@ docker compose logs backend
 
 | Issue                 | Cause                             | Solution                                          |
 |-----------------------|-----------------------------------|---------------------------------------------------|
-| Unknown topic errors  | kafka-init failed or wrong prefix | Check `docker compose logs kafka-init`            |
+| Unknown topic errors  | Kafka not ready or wrong prefix   | Check `docker compose logs kafka`                 |
 | MongoDB auth errors   | Password mismatch                 | Verify `secrets.toml` matches compose env vars    |
 | Worker crash loop     | Config file missing               | Ensure `config.<worker>.toml` exists              |
 
 ### Kafka topic debugging
 
 ```bash
-docker compose logs kafka-init
+docker compose logs kafka
 docker compose exec kafka kafka-topics --list --bootstrap-server localhost:29092
 ```
 
-Topics should be prefixed (e.g., `prefexecution_events` not `execution_events`).
+Topics are auto-created on first use. Each topic name = event type value with prefix (e.g., `dev_execution_requested`).
 
 ### k3s crash loop after VPN or IP change
 

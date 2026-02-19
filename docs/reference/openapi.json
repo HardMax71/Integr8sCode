@@ -1586,342 +1586,6 @@
         }
       }
     },
-    "/api/v1/dlq/messages": {
-      "get": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Get Dlq Messages",
-        "description": "List DLQ messages with optional filtering.",
-        "operationId": "get_dlq_messages_api_v1_dlq_messages_get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/DLQMessageStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by message status",
-              "title": "Status"
-            },
-            "description": "Filter by message status"
-          },
-          {
-            "name": "topic",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by source Kafka topic",
-              "title": "Topic"
-            },
-            "description": "Filter by source Kafka topic"
-          },
-          {
-            "name": "event_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/EventType"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by event type",
-              "title": "Event Type"
-            },
-            "description": "Filter by event type"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DLQMessagesResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dlq/messages/{event_id}": {
-      "get": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Get Dlq Message",
-        "description": "Get details of a specific DLQ message.",
-        "operationId": "get_dlq_message_api_v1_dlq_messages__event_id__get",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Event Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DLQMessageDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "DLQ message not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Discard Dlq Message",
-        "description": "Permanently discard a DLQ message with a reason.",
-        "operationId": "discard_dlq_message_api_v1_dlq_messages__event_id__delete",
-        "parameters": [
-          {
-            "name": "event_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Event Id"
-            }
-          },
-          {
-            "name": "reason",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Reason for discarding",
-              "title": "Reason"
-            },
-            "description": "Reason for discarding"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Message not found or already in terminal state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dlq/retry": {
-      "post": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Retry Dlq Messages",
-        "description": "Retry a batch of DLQ messages by their event IDs.",
-        "operationId": "retry_dlq_messages_api_v1_dlq_retry_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ManualRetryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DLQBatchRetryResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dlq/retry-policy": {
-      "post": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Set Retry Policy",
-        "description": "Configure a retry policy for a specific Kafka topic.",
-        "operationId": "set_retry_policy_api_v1_dlq_retry_policy_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RetryPolicyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dlq/topics": {
-      "get": {
-        "tags": [
-          "Dead Letter Queue"
-        ],
-        "summary": "Get Dlq Topics",
-        "description": "Get a per-topic summary of DLQ message counts.",
-        "operationId": "get_dlq_topics_api_v1_dlq_topics_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DLQTopicSummaryResponse"
-                  },
-                  "type": "array",
-                  "title": "Response Get Dlq Topics Api V1 Dlq Topics Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/events/notifications/stream": {
       "get": {
         "tags": [
@@ -1934,9 +1598,10 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationResponse"
+                  "$ref": "#/components/schemas/NotificationResponse",
+                  "type": "string"
                 }
               }
             }
@@ -1967,9 +1632,10 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
-                  "$ref": "#/components/schemas/SSEExecutionEventData"
+                  "type": "string",
+                  "$ref": "#/components/schemas/SSEExecutionEventSchema"
                 }
               }
             }
@@ -2818,16 +2484,6 @@
           },
           "404": {
             "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to update user",
             "content": {
               "application/json": {
                 "schema": {
@@ -4753,8 +4409,7 @@
         "required": [
           "name"
         ],
-        "title": "ContainerStatusInfo",
-        "description": "Container status information from Kubernetes pod."
+        "title": "ContainerStatusInfo"
       },
       "CreatePodCommandEvent": {
         "properties": {
@@ -4864,420 +4519,6 @@
           "metadata"
         ],
         "title": "CreatePodCommandEvent"
-      },
-      "DLQBatchRetryResponse": {
-        "properties": {
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "successful": {
-            "type": "integer",
-            "title": "Successful"
-          },
-          "failed": {
-            "type": "integer",
-            "title": "Failed"
-          },
-          "details": {
-            "items": {
-              "$ref": "#/components/schemas/DLQRetryResult"
-            },
-            "type": "array",
-            "title": "Details"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total",
-          "successful",
-          "failed",
-          "details"
-        ],
-        "title": "DLQBatchRetryResponse",
-        "description": "Response model for batch retry operation."
-      },
-      "DLQMessageDetail": {
-        "properties": {
-          "event": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionRequestedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionAcceptedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionQueuedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionStartedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionRunningEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionCompletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionTimeoutEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionCancelledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodCreatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodScheduledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodRunningEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodSucceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodTerminatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResultStoredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResultFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserSettingsUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserRegisteredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoginEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoggedInEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoggedOutEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationCreatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationSentEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationDeliveredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationReadEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationAllReadEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationClickedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationPreferencesUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaStartedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCancelledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompensatingEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompensatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/CreatePodCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DeletePodCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/AllocateResourcesCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ReleaseResourcesCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptSavedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptSharedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SecurityViolationEvent"
-              },
-              {
-                "$ref": "#/components/schemas/RateLimitExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/AuthFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResourceLimitExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/QuotaExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SystemErrorEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ServiceUnhealthyEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ServiceRecoveredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageReceivedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageRetriedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageDiscardedEvent"
-              }
-            ],
-            "title": "Event",
-            "discriminator": {
-              "propertyName": "event_type",
-              "mapping": {
-                "allocate_resources_command": "#/components/schemas/AllocateResourcesCommandEvent",
-                "auth_failed": "#/components/schemas/AuthFailedEvent",
-                "create_pod_command": "#/components/schemas/CreatePodCommandEvent",
-                "delete_pod_command": "#/components/schemas/DeletePodCommandEvent",
-                "dlq_message_discarded": "#/components/schemas/DLQMessageDiscardedEvent",
-                "dlq_message_received": "#/components/schemas/DLQMessageReceivedEvent",
-                "dlq_message_retried": "#/components/schemas/DLQMessageRetriedEvent",
-                "execution_accepted": "#/components/schemas/ExecutionAcceptedEvent",
-                "execution_cancelled": "#/components/schemas/ExecutionCancelledEvent",
-                "execution_completed": "#/components/schemas/ExecutionCompletedEvent",
-                "execution_failed": "#/components/schemas/ExecutionFailedEvent",
-                "execution_queued": "#/components/schemas/ExecutionQueuedEvent",
-                "execution_requested": "#/components/schemas/ExecutionRequestedEvent",
-                "execution_running": "#/components/schemas/ExecutionRunningEvent",
-                "execution_started": "#/components/schemas/ExecutionStartedEvent",
-                "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
-                "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
-                "notification_clicked": "#/components/schemas/NotificationClickedEvent",
-                "notification_created": "#/components/schemas/NotificationCreatedEvent",
-                "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
-                "notification_failed": "#/components/schemas/NotificationFailedEvent",
-                "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
-                "notification_read": "#/components/schemas/NotificationReadEvent",
-                "notification_sent": "#/components/schemas/NotificationSentEvent",
-                "pod_created": "#/components/schemas/PodCreatedEvent",
-                "pod_deleted": "#/components/schemas/PodDeletedEvent",
-                "pod_failed": "#/components/schemas/PodFailedEvent",
-                "pod_running": "#/components/schemas/PodRunningEvent",
-                "pod_scheduled": "#/components/schemas/PodScheduledEvent",
-                "pod_succeeded": "#/components/schemas/PodSucceededEvent",
-                "pod_terminated": "#/components/schemas/PodTerminatedEvent",
-                "quota_exceeded": "#/components/schemas/QuotaExceededEvent",
-                "rate_limit_exceeded": "#/components/schemas/RateLimitExceededEvent",
-                "release_resources_command": "#/components/schemas/ReleaseResourcesCommandEvent",
-                "resource_limit_exceeded": "#/components/schemas/ResourceLimitExceededEvent",
-                "result_failed": "#/components/schemas/ResultFailedEvent",
-                "result_stored": "#/components/schemas/ResultStoredEvent",
-                "saga_cancelled": "#/components/schemas/SagaCancelledEvent",
-                "saga_compensated": "#/components/schemas/SagaCompensatedEvent",
-                "saga_compensating": "#/components/schemas/SagaCompensatingEvent",
-                "saga_completed": "#/components/schemas/SagaCompletedEvent",
-                "saga_failed": "#/components/schemas/SagaFailedEvent",
-                "saga_started": "#/components/schemas/SagaStartedEvent",
-                "script_deleted": "#/components/schemas/ScriptDeletedEvent",
-                "script_saved": "#/components/schemas/ScriptSavedEvent",
-                "script_shared": "#/components/schemas/ScriptSharedEvent",
-                "security_violation": "#/components/schemas/SecurityViolationEvent",
-                "service_recovered": "#/components/schemas/ServiceRecoveredEvent",
-                "service_unhealthy": "#/components/schemas/ServiceUnhealthyEvent",
-                "system_error": "#/components/schemas/SystemErrorEvent",
-                "user_deleted": "#/components/schemas/UserDeletedEvent",
-                "user_logged_in": "#/components/schemas/UserLoggedInEvent",
-                "user_logged_out": "#/components/schemas/UserLoggedOutEvent",
-                "user_login": "#/components/schemas/UserLoginEvent",
-                "user_registered": "#/components/schemas/UserRegisteredEvent",
-                "user_settings_updated": "#/components/schemas/UserSettingsUpdatedEvent",
-                "user_updated": "#/components/schemas/UserUpdatedEvent"
-              }
-            }
-          },
-          "original_topic": {
-            "type": "string",
-            "title": "Original Topic"
-          },
-          "error": {
-            "type": "string",
-            "title": "Error"
-          },
-          "retry_count": {
-            "type": "integer",
-            "title": "Retry Count"
-          },
-          "failed_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Failed At"
-          },
-          "status": {
-            "$ref": "#/components/schemas/DLQMessageStatus"
-          },
-          "producer_id": {
-            "type": "string",
-            "title": "Producer Id"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "last_updated": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Updated"
-          },
-          "next_retry_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Retry At"
-          },
-          "retried_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Retried At"
-          },
-          "discarded_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discarded At"
-          },
-          "discard_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discard Reason"
-          },
-          "dlq_offset": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dlq Offset"
-          },
-          "dlq_partition": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dlq Partition"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event",
-          "original_topic",
-          "error",
-          "retry_count",
-          "failed_at",
-          "status",
-          "producer_id"
-        ],
-        "title": "DLQMessageDetail",
-        "description": "Detailed DLQ message response. Mirrors DLQMessage for direct model_validate."
       },
       "DLQMessageDiscardedEvent": {
         "properties": {
@@ -5428,329 +4669,6 @@
         "title": "DLQMessageReceivedEvent",
         "description": "Emitted when a message is received and persisted in the DLQ."
       },
-      "DLQMessageResponse": {
-        "properties": {
-          "event": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionRequestedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionAcceptedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionQueuedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionStartedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionRunningEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionCompletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionTimeoutEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ExecutionCancelledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodCreatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodScheduledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodRunningEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodSucceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodTerminatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/PodDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResultStoredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResultFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserSettingsUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserRegisteredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoginEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoggedInEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserLoggedOutEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/UserDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationCreatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationSentEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationDeliveredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationReadEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationAllReadEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationClickedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/NotificationPreferencesUpdatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaStartedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCancelledEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompensatingEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SagaCompensatedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/CreatePodCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DeletePodCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/AllocateResourcesCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ReleaseResourcesCommandEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptSavedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptDeletedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ScriptSharedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SecurityViolationEvent"
-              },
-              {
-                "$ref": "#/components/schemas/RateLimitExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/AuthFailedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ResourceLimitExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/QuotaExceededEvent"
-              },
-              {
-                "$ref": "#/components/schemas/SystemErrorEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ServiceUnhealthyEvent"
-              },
-              {
-                "$ref": "#/components/schemas/ServiceRecoveredEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageReceivedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageRetriedEvent"
-              },
-              {
-                "$ref": "#/components/schemas/DLQMessageDiscardedEvent"
-              }
-            ],
-            "title": "Event",
-            "discriminator": {
-              "propertyName": "event_type",
-              "mapping": {
-                "allocate_resources_command": "#/components/schemas/AllocateResourcesCommandEvent",
-                "auth_failed": "#/components/schemas/AuthFailedEvent",
-                "create_pod_command": "#/components/schemas/CreatePodCommandEvent",
-                "delete_pod_command": "#/components/schemas/DeletePodCommandEvent",
-                "dlq_message_discarded": "#/components/schemas/DLQMessageDiscardedEvent",
-                "dlq_message_received": "#/components/schemas/DLQMessageReceivedEvent",
-                "dlq_message_retried": "#/components/schemas/DLQMessageRetriedEvent",
-                "execution_accepted": "#/components/schemas/ExecutionAcceptedEvent",
-                "execution_cancelled": "#/components/schemas/ExecutionCancelledEvent",
-                "execution_completed": "#/components/schemas/ExecutionCompletedEvent",
-                "execution_failed": "#/components/schemas/ExecutionFailedEvent",
-                "execution_queued": "#/components/schemas/ExecutionQueuedEvent",
-                "execution_requested": "#/components/schemas/ExecutionRequestedEvent",
-                "execution_running": "#/components/schemas/ExecutionRunningEvent",
-                "execution_started": "#/components/schemas/ExecutionStartedEvent",
-                "execution_timeout": "#/components/schemas/ExecutionTimeoutEvent",
-                "notification_all_read": "#/components/schemas/NotificationAllReadEvent",
-                "notification_clicked": "#/components/schemas/NotificationClickedEvent",
-                "notification_created": "#/components/schemas/NotificationCreatedEvent",
-                "notification_delivered": "#/components/schemas/NotificationDeliveredEvent",
-                "notification_failed": "#/components/schemas/NotificationFailedEvent",
-                "notification_preferences_updated": "#/components/schemas/NotificationPreferencesUpdatedEvent",
-                "notification_read": "#/components/schemas/NotificationReadEvent",
-                "notification_sent": "#/components/schemas/NotificationSentEvent",
-                "pod_created": "#/components/schemas/PodCreatedEvent",
-                "pod_deleted": "#/components/schemas/PodDeletedEvent",
-                "pod_failed": "#/components/schemas/PodFailedEvent",
-                "pod_running": "#/components/schemas/PodRunningEvent",
-                "pod_scheduled": "#/components/schemas/PodScheduledEvent",
-                "pod_succeeded": "#/components/schemas/PodSucceededEvent",
-                "pod_terminated": "#/components/schemas/PodTerminatedEvent",
-                "quota_exceeded": "#/components/schemas/QuotaExceededEvent",
-                "rate_limit_exceeded": "#/components/schemas/RateLimitExceededEvent",
-                "release_resources_command": "#/components/schemas/ReleaseResourcesCommandEvent",
-                "resource_limit_exceeded": "#/components/schemas/ResourceLimitExceededEvent",
-                "result_failed": "#/components/schemas/ResultFailedEvent",
-                "result_stored": "#/components/schemas/ResultStoredEvent",
-                "saga_cancelled": "#/components/schemas/SagaCancelledEvent",
-                "saga_compensated": "#/components/schemas/SagaCompensatedEvent",
-                "saga_compensating": "#/components/schemas/SagaCompensatingEvent",
-                "saga_completed": "#/components/schemas/SagaCompletedEvent",
-                "saga_failed": "#/components/schemas/SagaFailedEvent",
-                "saga_started": "#/components/schemas/SagaStartedEvent",
-                "script_deleted": "#/components/schemas/ScriptDeletedEvent",
-                "script_saved": "#/components/schemas/ScriptSavedEvent",
-                "script_shared": "#/components/schemas/ScriptSharedEvent",
-                "security_violation": "#/components/schemas/SecurityViolationEvent",
-                "service_recovered": "#/components/schemas/ServiceRecoveredEvent",
-                "service_unhealthy": "#/components/schemas/ServiceUnhealthyEvent",
-                "system_error": "#/components/schemas/SystemErrorEvent",
-                "user_deleted": "#/components/schemas/UserDeletedEvent",
-                "user_logged_in": "#/components/schemas/UserLoggedInEvent",
-                "user_logged_out": "#/components/schemas/UserLoggedOutEvent",
-                "user_login": "#/components/schemas/UserLoginEvent",
-                "user_registered": "#/components/schemas/UserRegisteredEvent",
-                "user_settings_updated": "#/components/schemas/UserSettingsUpdatedEvent",
-                "user_updated": "#/components/schemas/UserUpdatedEvent"
-              }
-            }
-          },
-          "original_topic": {
-            "type": "string",
-            "title": "Original Topic"
-          },
-          "error": {
-            "type": "string",
-            "title": "Error"
-          },
-          "retry_count": {
-            "type": "integer",
-            "title": "Retry Count"
-          },
-          "failed_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Failed At"
-          },
-          "status": {
-            "$ref": "#/components/schemas/DLQMessageStatus"
-          },
-          "producer_id": {
-            "type": "string",
-            "title": "Producer Id"
-          },
-          "dlq_offset": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dlq Offset"
-          },
-          "dlq_partition": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dlq Partition"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          },
-          "next_retry_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Retry At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event",
-          "original_topic",
-          "error",
-          "retry_count",
-          "failed_at",
-          "status",
-          "producer_id"
-        ],
-        "title": "DLQMessageResponse",
-        "description": "Response model for a DLQ message. Mirrors DLQMessage for direct model_validate."
-      },
       "DLQMessageRetriedEvent": {
         "properties": {
           "event_id": {
@@ -5820,127 +4738,6 @@
         ],
         "title": "DLQMessageRetriedEvent",
         "description": "Emitted when a DLQ message is retried."
-      },
-      "DLQMessageStatus": {
-        "type": "string",
-        "enum": [
-          "pending",
-          "scheduled",
-          "retried",
-          "discarded"
-        ],
-        "title": "DLQMessageStatus",
-        "description": "Status of a message in the Dead Letter Queue."
-      },
-      "DLQMessagesResponse": {
-        "properties": {
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/DLQMessageResponse"
-            },
-            "type": "array",
-            "title": "Messages"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "offset": {
-            "type": "integer",
-            "title": "Offset"
-          },
-          "limit": {
-            "type": "integer",
-            "title": "Limit"
-          }
-        },
-        "type": "object",
-        "required": [
-          "messages",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "DLQMessagesResponse",
-        "description": "Response model for listing DLQ messages."
-      },
-      "DLQRetryResult": {
-        "properties": {
-          "event_id": {
-            "type": "string",
-            "title": "Event Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_id",
-          "status"
-        ],
-        "title": "DLQRetryResult"
-      },
-      "DLQTopicSummaryResponse": {
-        "properties": {
-          "topic": {
-            "type": "string",
-            "title": "Topic"
-          },
-          "total_messages": {
-            "type": "integer",
-            "title": "Total Messages"
-          },
-          "status_breakdown": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Status Breakdown"
-          },
-          "oldest_message": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Oldest Message"
-          },
-          "newest_message": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Newest Message"
-          },
-          "avg_retry_count": {
-            "type": "number",
-            "title": "Avg Retry Count"
-          },
-          "max_retry_count": {
-            "type": "integer",
-            "title": "Max Retry Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "topic",
-          "total_messages",
-          "status_breakdown",
-          "oldest_message",
-          "newest_message",
-          "avg_retry_count",
-          "max_retry_count"
-        ],
-        "title": "DLQTopicSummaryResponse",
-        "description": "Response model for topic summary."
       },
       "DeleteNotificationResponse": {
         "properties": {
@@ -6198,8 +4995,7 @@
           "algorithm",
           "remaining"
         ],
-        "title": "EndpointUsageStats",
-        "description": "Usage statistics for a single endpoint (IETF RateLimit-style)."
+        "title": "EndpointUsageStats"
       },
       "Environment": {
         "type": "string",
@@ -6924,8 +5720,7 @@
           "service_name",
           "service_version"
         ],
-        "title": "EventMetadata",
-        "description": "Event metadata - embedded in all events."
+        "title": "EventMetadata"
       },
       "EventReplayRequest": {
         "properties": {
@@ -7364,8 +6159,7 @@
           "event_type",
           "timestamp"
         ],
-        "title": "EventSummary",
-        "description": "Lightweight event summary for lists and previews."
+        "title": "EventSummary"
       },
       "EventType": {
         "type": "string",
@@ -8422,37 +7216,6 @@
         ],
         "title": "HourlyEventCount"
       },
-      "KafkaTopic": {
-        "type": "string",
-        "enum": [
-          "execution_events",
-          "execution_completed",
-          "execution_failed",
-          "execution_timeout",
-          "execution_requests",
-          "execution_commands",
-          "execution_tasks",
-          "pod_events",
-          "pod_status_updates",
-          "pod_results",
-          "execution_results",
-          "user_events",
-          "user_notifications",
-          "user_settings_events",
-          "script_events",
-          "security_events",
-          "resource_events",
-          "notification_events",
-          "system_events",
-          "saga_events",
-          "saga_commands",
-          "dead_letter_queue",
-          "dlq_events",
-          "websocket_events"
-        ],
-        "title": "KafkaTopic",
-        "description": "Kafka topic names used throughout the system."
-      },
       "LanguageInfo": {
         "properties": {
           "versions": {
@@ -8553,23 +7316,6 @@
         ],
         "title": "LoginResponse",
         "description": "Response model for successful login"
-      },
-      "ManualRetryRequest": {
-        "properties": {
-          "event_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Event Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_ids"
-        ],
-        "title": "ManualRetryRequest",
-        "description": "Request model for manual retry of messages."
       },
       "MessageResponse": {
         "properties": {
@@ -10426,7 +9172,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/KafkaTopic"
+                  "type": "string"
                 },
                 "type": "object"
               },
@@ -10513,8 +9259,7 @@
           "timestamp",
           "error"
         ],
-        "title": "ReplayError",
-        "description": "Error details for replay operations.\n\nAttributes:\n    timestamp: When the error occurred.\n    error: Human-readable error message.\n    error_type: Python exception class name (e.g., \"ValueError\", \"KafkaException\").\n        This is the result of `type(exception).__name__`, NOT the ErrorType enum.\n        Present for session-level errors.\n    event_id: ID of the event that failed to replay. Present for event-level errors."
+        "title": "ReplayError"
       },
       "ReplayFilter": {
         "properties": {
@@ -10811,7 +9556,7 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/KafkaTopic"
+                  "type": "string"
                 },
                 "type": "object"
               },
@@ -11158,8 +9903,7 @@
           }
         },
         "type": "object",
-        "title": "ResourceUsageDomain",
-        "description": "Resource usage metrics from script execution."
+        "title": "ResourceUsageDomain"
       },
       "RestoreSettingsRequest": {
         "properties": {
@@ -11330,56 +10074,6 @@
         ],
         "title": "ResultStoredEvent"
       },
-      "RetryPolicyRequest": {
-        "properties": {
-          "topic": {
-            "type": "string",
-            "title": "Topic"
-          },
-          "strategy": {
-            "$ref": "#/components/schemas/RetryStrategy"
-          },
-          "max_retries": {
-            "type": "integer",
-            "title": "Max Retries",
-            "default": 5
-          },
-          "base_delay_seconds": {
-            "type": "number",
-            "title": "Base Delay Seconds",
-            "default": 60.0
-          },
-          "max_delay_seconds": {
-            "type": "number",
-            "title": "Max Delay Seconds",
-            "default": 3600.0
-          },
-          "retry_multiplier": {
-            "type": "number",
-            "title": "Retry Multiplier",
-            "default": 2.0
-          }
-        },
-        "type": "object",
-        "required": [
-          "topic",
-          "strategy"
-        ],
-        "title": "RetryPolicyRequest",
-        "description": "Request model for setting a retry policy."
-      },
-      "RetryStrategy": {
-        "type": "string",
-        "enum": [
-          "immediate",
-          "exponential_backoff",
-          "fixed_interval",
-          "scheduled",
-          "manual"
-        ],
-        "title": "RetryStrategy",
-        "description": "Retry strategies for DLQ messages."
-      },
       "SSEControlEvent": {
         "type": "string",
         "enum": [
@@ -11390,7 +10084,7 @@
         "title": "SSEControlEvent",
         "description": "Control events for execution SSE streams (not from Kafka)."
       },
-      "SSEExecutionEventData": {
+      "SSEExecutionEventSchema": {
         "properties": {
           "event_type": {
             "anyOf": [
@@ -11545,7 +10239,7 @@
           "event_type",
           "execution_id"
         ],
-        "title": "SSEExecutionEventData",
+        "title": "SSEExecutionEventSchema",
         "description": "API schema for SSE execution stream event payload (OpenAPI docs)."
       },
       "SagaCancellationResponse": {
@@ -13144,13 +11838,11 @@
           },
           "memory_limit": {
             "type": "string",
-            "pattern": "^[1-9]\\d*(Ki|Mi|Gi)$",
             "title": "Memory Limit",
             "default": "512Mi"
           },
           "cpu_limit": {
             "type": "string",
-            "pattern": "^[1-9]\\d*m$",
             "title": "Cpu Limit",
             "default": "2000m"
           },
@@ -13215,7 +11907,7 @@
         },
         "type": "object",
         "title": "SystemSettingsSchema",
-        "description": "API schema for system settings \u2014 inherits all fields from domain model."
+        "description": "API schema for system settings with validation."
       },
       "Theme": {
         "type": "string",

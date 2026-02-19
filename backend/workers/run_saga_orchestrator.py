@@ -39,7 +39,7 @@ def main() -> None:
         broker: KafkaBroker = await container.get(KafkaBroker)
 
         # Register subscriber and set up DI integration
-        register_saga_subscriber(broker, settings)
+        register_saga_subscriber(broker)
         setup_dishka(container, broker=broker, auto_inject=True)
 
         scheduler = AsyncIOScheduler()

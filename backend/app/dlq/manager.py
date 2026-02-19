@@ -57,7 +57,7 @@ class DLQManager:
             ] if f is not None
         ]
 
-        self._dlq_events_topic = f"{settings.KAFKA_TOPIC_PREFIX}{EventType.DLQ_MESSAGE_RECEIVED}"
+        self._dlq_events_topic: str = EventType.DLQ_MESSAGE_RECEIVED
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
         return not message.event.event_id.startswith("test-")

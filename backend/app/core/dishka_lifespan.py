@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Register subscribers BEFORE broker.start() - FastStream requirement
     register_sse_subscriber(broker, settings)
-    register_notification_subscriber(broker, settings)
+    register_notification_subscriber(broker)
     logger.info("Kafka subscribers registered")
 
     # Set up FastStream DI integration (must be before start per Dishka docs)

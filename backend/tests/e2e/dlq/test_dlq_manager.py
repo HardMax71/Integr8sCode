@@ -31,14 +31,13 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
     """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
     dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
 
-    prefix = test_settings.KAFKA_TOPIC_PREFIX
     ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
 
     # Future resolves when DLQMessageReceivedEvent is consumed
     received_future: asyncio.Future[DLQMessageReceivedEvent] = asyncio.get_running_loop().create_future()
 
     # Create consumer for DLQ events topic
-    dlq_events_topic = f"{prefix}{EventType.DLQ_MESSAGE_RECEIVED}"
+    dlq_events_topic = EventType.DLQ_MESSAGE_RECEIVED
     events_consumer = AIOKafkaConsumer(
         dlq_events_topic,
         bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -83,7 +82,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         # Build a DLQMessage directly and call handle_message (no internal consumer loop)
         dlq_msg = DLQMessage(
             event=ev,
-            original_topic=f"{prefix}{EventType.EXECUTION_REQUESTED}",
+            original_topic=EventType.EXECUTION_REQUESTED,
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),

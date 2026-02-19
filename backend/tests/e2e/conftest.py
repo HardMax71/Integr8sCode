@@ -137,8 +137,7 @@ class EventWaiter:
 @pytest_asyncio.fixture(scope="session")
 async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, None]:
     """Session-scoped Kafka event waiter. Starts before any test produces events."""
-    prefix = test_settings.KAFKA_TOPIC_PREFIX
-    topics = [f"{prefix}{et}" for et in EventType]
+    topics: list[str] = list(EventType)
     waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics)
     await waiter.start()
     _logger.info("EventWaiter started on %d topics", len(topics))

@@ -171,10 +171,9 @@ class MessagingProvider(Provider):
             broker: KafkaBroker,
             event_repository: EventRepository,
             logger: structlog.stdlib.BoundLogger,
-            settings: Settings,
             event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
+        return UnifiedProducer(broker, event_repository, logger, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:

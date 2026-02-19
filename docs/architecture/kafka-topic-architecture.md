@@ -2,12 +2,11 @@
 
 ## 1-topic-per-event-type
 
-The system uses a **1:1 mapping** between `EventType` enum values and Kafka topics. Each event type gets its own dedicated topic. The topic name IS the `EventType` string value (with an optional prefix for environment isolation).
+The system uses a **1:1 mapping** between `EventType` enum values and Kafka topics. Each event type gets its own dedicated topic. The topic name IS the `EventType` string value — no prefix, no transformation.
 
 ```
-Topic name = f"{KAFKA_TOPIC_PREFIX}{EventType.EXECUTION_REQUESTED}"
-           = f"dev_{EventType.EXECUTION_REQUESTED}"
-           = "dev_execution_requested"
+Topic name = EventType.EXECUTION_REQUESTED
+           = "execution_requested"
 ```
 
 Since `EventType` extends `StringEnum` (which extends `str`), no `.value` accessor is needed — the enum member IS the string.

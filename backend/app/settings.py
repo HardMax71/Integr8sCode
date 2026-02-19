@@ -92,7 +92,6 @@ class Settings(BaseModel):
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:29092"
     ENABLE_EVENT_STREAMING: bool = False
     EVENT_RETENTION_DAYS: int = 30
-    KAFKA_TOPIC_PREFIX: str = "pref"
     KAFKA_CONSUMER_GROUP_ID: str = "integr8scode-backend"
     KAFKA_AUTO_OFFSET_RESET: str = "earliest"
     KAFKA_ENABLE_AUTO_COMMIT: bool = True

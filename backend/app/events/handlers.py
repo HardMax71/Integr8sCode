@@ -58,11 +58,9 @@ async def with_idempotency(
 # --8<-- [end:with_idempotency]
 
 
-def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-
+def register_coordinator_subscriber(broker: KafkaBroker) -> None:
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_REQUESTED}",
+        EventType.EXECUTION_REQUESTED,
         group_id="execution-coordinator",
         ack_policy=AckPolicy.ACK,
     )
@@ -77,7 +75,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_COMPLETED}",
+        EventType.EXECUTION_COMPLETED,
         group_id="execution-coordinator",
         ack_policy=AckPolicy.ACK,
     )
@@ -92,7 +90,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_FAILED}",
+        EventType.EXECUTION_FAILED,
         group_id="execution-coordinator",
         ack_policy=AckPolicy.ACK,
     )
@@ -107,7 +105,7 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_CANCELLED}",
+        EventType.EXECUTION_CANCELLED,
         group_id="execution-coordinator",
         ack_policy=AckPolicy.ACK,
     )
@@ -122,11 +120,9 @@ def register_coordinator_subscriber(broker: KafkaBroker, settings: Settings) -> 
         )
 
 
-def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-
+def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:
     @broker.subscriber(
-        f"{prefix}{EventType.CREATE_POD_COMMAND}",
+        EventType.CREATE_POD_COMMAND,
         group_id="k8s-worker",
         ack_policy=AckPolicy.ACK,
     )
@@ -141,7 +137,7 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.DELETE_POD_COMMAND}",
+        EventType.DELETE_POD_COMMAND,
         group_id="k8s-worker",
         ack_policy=AckPolicy.ACK,
     )
@@ -156,11 +152,9 @@ def register_k8s_worker_subscriber(broker: KafkaBroker, settings: Settings) -> N
         )
 
 
-def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-
+def register_result_processor_subscriber(broker: KafkaBroker) -> None:
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_COMPLETED}",
+        EventType.EXECUTION_COMPLETED,
         group_id="result-processor",
         ack_policy=AckPolicy.ACK,
         max_poll_records=1,
@@ -177,7 +171,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_FAILED}",
+        EventType.EXECUTION_FAILED,
         group_id="result-processor",
         ack_policy=AckPolicy.ACK,
         max_poll_records=1,
@@ -194,7 +188,7 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
         )
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_TIMEOUT}",
+        EventType.EXECUTION_TIMEOUT,
         group_id="result-processor",
         ack_policy=AckPolicy.ACK,
         max_poll_records=1,
@@ -211,13 +205,11 @@ def register_result_processor_subscriber(broker: KafkaBroker, settings: Settings
         )
 
 
-def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-
+def register_saga_subscriber(broker: KafkaBroker) -> None:
     # No with_idempotency — the saga state machine provides its own
     # deduplication via status checks before each transition.
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_REQUESTED}",
+        EventType.EXECUTION_REQUESTED,
         group_id="saga-orchestrator",
         ack_policy=AckPolicy.ACK,
     )
@@ -228,7 +220,7 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         await orchestrator.handle_execution_requested(body)
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_COMPLETED}",
+        EventType.EXECUTION_COMPLETED,
         group_id="saga-orchestrator",
         ack_policy=AckPolicy.ACK,
     )
@@ -239,7 +231,7 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         await orchestrator.handle_execution_completed(body)
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_FAILED}",
+        EventType.EXECUTION_FAILED,
         group_id="saga-orchestrator",
         ack_policy=AckPolicy.ACK,
     )
@@ -250,7 +242,7 @@ def register_saga_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         await orchestrator.handle_execution_failed(body)
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_TIMEOUT}",
+        EventType.EXECUTION_TIMEOUT,
         group_id="saga-orchestrator",
         ack_policy=AckPolicy.ACK,
     )
@@ -282,11 +274,8 @@ _SSE_EVENT_TYPES = [
 
 
 def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-    topics = [f"{prefix}{et}" for et in _SSE_EVENT_TYPES]
-
     @broker.subscriber(
-        *topics,
+        *_SSE_EVENT_TYPES,
         group_id="sse-bridge-pool",
         ack_policy=AckPolicy.ACK_FIRST,
         auto_offset_reset="latest",
@@ -299,11 +288,9 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         await sse_bus.route_domain_event(body)
 
 
-def register_notification_subscriber(broker: KafkaBroker, settings: Settings) -> None:
-    prefix = settings.KAFKA_TOPIC_PREFIX
-
+def register_notification_subscriber(broker: KafkaBroker) -> None:
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_COMPLETED}",
+        EventType.EXECUTION_COMPLETED,
         group_id="notification-service",
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
@@ -316,7 +303,7 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
         await service.handle_execution_completed(body)
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_FAILED}",
+        EventType.EXECUTION_FAILED,
         group_id="notification-service",
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
@@ -329,7 +316,7 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
         await service.handle_execution_failed(body)
 
     @broker.subscriber(
-        f"{prefix}{EventType.EXECUTION_TIMEOUT}",
+        EventType.EXECUTION_TIMEOUT,
         group_id="notification-service",
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
@@ -342,7 +329,7 @@ def register_notification_subscriber(broker: KafkaBroker, settings: Settings) ->
         await service.handle_execution_timeout(body)
 
 
-def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
+def register_dlq_subscriber(broker: KafkaBroker) -> None:
     """Register a DLQ subscriber that consumes dead-letter messages.
 
     DLQ messages are JSON-encoded DLQMessage models (Pydantic serialization via FastStream).
@@ -350,7 +337,7 @@ def register_dlq_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     """
 
     @broker.subscriber(
-        f"{settings.KAFKA_TOPIC_PREFIX}dead_letter_queue",
+        "dead_letter_queue",
         group_id="dlq-manager",
         ack_policy=AckPolicy.ACK,
         auto_offset_reset="earliest",

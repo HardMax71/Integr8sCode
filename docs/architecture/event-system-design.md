@@ -173,7 +173,7 @@ The producer handles both storage in MongoDB and publishing to Kafka in a single
 |------|---------|
 | [`domain/enums/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/enums/events.py) | `EventType` enum with all event type values |
 | [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | All domain event classes and `DomainEvent` union |
-| [`infrastructure/kafka/topics.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/topics.py) | Category-based topic configs for partition/retention tuning |
+| [`infrastructure/kafka/topics.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/topics.py) | Event-type category sets (`EXECUTION_TYPES`, `POD_TYPES`, `COMMAND_TYPES`, etc.) for DLQ retry policy resolution and grouping |
 | [`events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py) | UnifiedProducer — persists to MongoDB then publishes to Kafka |
 | [`tests/unit/domain/events/test_event_schema_coverage.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/tests/unit/domain/events/test_event_schema_coverage.py) | Validates correspondence between enum and event classes |
 

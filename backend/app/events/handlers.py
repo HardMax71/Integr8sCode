@@ -270,6 +270,7 @@ _SSE_EVENT_TYPES = [
     EventType.EXECUTION_TIMEOUT,
     EventType.EXECUTION_CANCELLED,
     EventType.RESULT_STORED,
+    EventType.RESULT_FAILED,
     EventType.POD_CREATED,
     EventType.POD_SCHEDULED,
     EventType.POD_RUNNING,

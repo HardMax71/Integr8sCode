@@ -1,14 +1,10 @@
-import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
 
 import structlog
 from dishka.integrations.faststream import FromDishka
 from faststream import AckPolicy
-from faststream.kafka import KafkaBroker, KafkaMessage
+from faststream.kafka import KafkaBroker
 
-from app.dlq.manager import DLQManager
-from app.dlq.models import DLQMessage
 from app.domain.enums import EventType
 from app.domain.events import (
     CreatePodCommandEvent,
@@ -329,37 +325,3 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
         await service.handle_execution_timeout(body)
 
 
-def register_dlq_subscriber(broker: KafkaBroker) -> None:
-    """Register a DLQ subscriber that consumes dead-letter messages.
-
-    DLQ messages are JSON-encoded DLQMessage models (Pydantic serialization via FastStream).
-    All DLQ metadata is in the message body — no Kafka headers needed.
-    """
-
-    @broker.subscriber(
-        "dead_letter_queue",
-        group_id="dlq-manager",
-        ack_policy=AckPolicy.ACK,
-        auto_offset_reset="earliest",
-    )
-    async def on_dlq_message(
-            body: DLQMessage,
-            msg: KafkaMessage,
-            manager: FromDishka[DLQManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-    ) -> None:
-        start = asyncio.get_running_loop().time()
-        raw = msg.raw_message
-        assert not isinstance(raw, tuple)
-        body.dlq_offset = raw.offset
-        body.dlq_partition = raw.partition
-
-        await manager.handle_message(body)
-
-        manager.metrics.record_dlq_message_received(body.original_topic, body.event.event_type)
-        manager.metrics.record_dlq_message_age(
-            (datetime.now(timezone.utc) - body.failed_at).total_seconds()
-        )
-        manager.metrics.record_dlq_processing_duration(
-            asyncio.get_running_loop().time() - start, "process"
-        )

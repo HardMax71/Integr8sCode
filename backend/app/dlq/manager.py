@@ -57,7 +57,6 @@ class DLQManager:
             ] if f is not None
         ]
 
-        self._dlq_events_topic: str = EventType.DLQ_MESSAGE_RECEIVED
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
         return not message.event.event_id.startswith("test-")
@@ -103,7 +102,7 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_RECEIVED,
         )
 
         retry_policy = self._resolve_retry_policy(message)
@@ -157,7 +156,7 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_RETRIED,
         )
         self.logger.info("Successfully retried message", event_id=message.event.event_id)
 
@@ -187,7 +186,7 @@ class DLQManager:
                     user_id=message.event.metadata.user_id,
                 ),
             ),
-            topic=self._dlq_events_topic,
+            topic=EventType.DLQ_MESSAGE_DISCARDED,
         )
         self.logger.warning("Discarded message", event_id=message.event.event_id, reason=reason)
 

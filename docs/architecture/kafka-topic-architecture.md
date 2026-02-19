@@ -38,7 +38,6 @@ Topics are grouped into categories for configuration purposes (partition count, 
 | Command | 3 | 1 day | `create_pod_command`, `delete_pod_command`, etc. |
 | User/Security | 3 | 30 days | `user_registered`, `security_violation`, etc. |
 | Default | 3 | 7 days | Everything else (saga, notification, DLQ, etc.) |
-| DLQ | 3 | 14 days | `dead_letter_queue` |
 
 Configuration is defined in `infrastructure/kafka/topics.py` using category sets.
 
@@ -54,7 +53,6 @@ Each worker subscribes to only the topics it needs, with its own consumer group:
 | `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout` |
 | `notification-service` | `execution_completed`, `execution_failed`, `execution_timeout` |
 | `sse-bridge-pool` | 16 event types (execution + pod lifecycle + result) |
-| `dlq-manager` | `dead_letter_queue` |
 
 Multiple consumer groups can subscribe to the same topic — Kafka delivers each message to every group independently.
 
@@ -130,20 +128,13 @@ Create a replay session with filters (time range, event type), and ReplayService
 
 ```mermaid
 graph LR
-    Consumer[Consumer] -->|"failure"| DLQ[(dead_letter_queue topic)]
-    DLQ <--> Manager[DLQ Manager]
+    Consumer[Consumer] -->|"failure"| Manager[DLQ Manager]
+    Manager -->|"persist"| MongoDB[(MongoDB)]
     Manager -->|"retry"| Original[(Original Topic)]
-    Admin[Admin API] --> Manager
+    Manager -->|"status events"| Kafka[(dlq_* topics)]
 ```
 
-When a consumer fails to process an event after multiple retries, it lands in the dead letter queue. The DLQ manager handles retry logic with *exponential backoff* and configurable thresholds. Retry policies are determined by event type category (execution events get aggressive retries, pod events get cautious retries).
-
-Admins can:
-
-- Inspect failed events through the API
-- Fix the underlying issue
-- Replay events back to the original topic
-- Delete or archive events that repeatedly fail
+When a consumer fails to process an event, the DLQ manager receives it via direct `handle_message()` calls (not Kafka consumption). Messages are persisted to MongoDB and the manager handles retry logic with *exponential backoff* and configurable thresholds. Retry policies are determined by event type category (execution events get aggressive retries, pod events get cautious retries). Status events (`dlq_message_received`, `dlq_message_retried`, `dlq_message_discarded`) are published to their own per-event-type topics.
 
 ## Event schemas
 

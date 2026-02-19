@@ -283,22 +283,20 @@ _SSE_EVENT_TYPES = [
 
 def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     prefix = settings.KAFKA_TOPIC_PREFIX
+    topics = [f"{prefix}{et}" for et in _SSE_EVENT_TYPES]
 
-    for et in _SSE_EVENT_TYPES:
-        topic = f"{prefix}{et}"
-
-        @broker.subscriber(
-            topic,
-            group_id="sse-bridge-pool",
-            ack_policy=AckPolicy.ACK_FIRST,
-            auto_offset_reset="latest",
-            max_workers=settings.SSE_CONSUMER_POOL_SIZE,
-        )
-        async def on_sse_event(
-                body: DomainEvent,
-                sse_bus: FromDishka[SSERedisBus],
-        ) -> None:
-            await sse_bus.route_domain_event(body)
+    @broker.subscriber(
+        *topics,
+        group_id="sse-bridge-pool",
+        ack_policy=AckPolicy.ACK_FIRST,
+        auto_offset_reset="latest",
+        max_workers=settings.SSE_CONSUMER_POOL_SIZE,
+    )
+    async def on_sse_event(
+            body: DomainEvent,
+            sse_bus: FromDishka[SSERedisBus],
+    ) -> None:
+        await sse_bus.route_domain_event(body)
 
 
 def register_notification_subscriber(broker: KafkaBroker, settings: Settings) -> None:

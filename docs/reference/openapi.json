@@ -1598,9 +1598,10 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationResponse"
+                  "$ref": "#/components/schemas/NotificationResponse",
+                  "type": "string"
                 }
               }
             }
@@ -1631,8 +1632,9 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
+                  "type": "string",
                   "$ref": "#/components/schemas/SSEExecutionEventSchema"
                 }
               }

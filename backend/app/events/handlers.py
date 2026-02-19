@@ -248,6 +248,17 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     ) -> None:
         await orchestrator.handle_execution_timeout(body)
 
+    @broker.subscriber(
+        EventType.EXECUTION_CANCELLED,
+        group_id="saga-orchestrator",
+        ack_policy=AckPolicy.ACK,
+    )
+    async def on_execution_cancelled(
+            body: ExecutionCancelledEvent,
+            orchestrator: FromDishka[SagaOrchestrator],
+    ) -> None:
+        await orchestrator.handle_execution_cancelled(body)
+
 
 _SSE_EVENT_TYPES = [
     EventType.EXECUTION_REQUESTED,

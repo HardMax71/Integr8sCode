@@ -11,6 +11,7 @@ from app.domain.enums import SagaState
 from app.domain.events import (
     DomainEvent,
     EventMetadata,
+    ExecutionCancelledEvent,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
@@ -75,6 +76,14 @@ class SagaOrchestrator:
             raise TypeError(f"Expected ExecutionTimeoutEvent, got {type(event).__name__}")
         await self._resolve_completion(
             event.execution_id, SagaState.TIMEOUT, f"Execution timed out after {event.timeout_seconds} seconds"
+        )
+
+    async def handle_execution_cancelled(self, event: DomainEvent) -> None:
+        """Handle EXECUTION_CANCELLED — marks saga as cancelled."""
+        if not isinstance(event, ExecutionCancelledEvent):
+            raise TypeError(f"Expected ExecutionCancelledEvent, got {type(event).__name__}")
+        await self._resolve_completion(
+            event.execution_id, SagaState.CANCELLED, event.reason
         )
 
     async def _resolve_completion(

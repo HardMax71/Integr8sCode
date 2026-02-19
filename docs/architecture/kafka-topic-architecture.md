@@ -50,7 +50,7 @@ Each worker subscribes to only the topics it needs, with its own consumer group:
 | `execution-coordinator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_cancelled` |
 | `k8s-worker` | `create_pod_command`, `delete_pod_command` |
 | `result-processor` | `execution_completed`, `execution_failed`, `execution_timeout` |
-| `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout` |
+| `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
 | `notification-service` | `execution_completed`, `execution_failed`, `execution_timeout` |
 | `sse-bridge-pool` | 16 event types (execution + pod lifecycle + result) |
 

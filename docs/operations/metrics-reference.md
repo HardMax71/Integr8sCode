@@ -31,16 +31,17 @@ Track script execution performance and resource usage.
 | `execution.queue.depth`     | UpDownCounter | -                        | Queued executions            |
 | `execution.queue.wait_time` | Histogram     | lang_and_version         | Queue wait time (seconds)    |
 
-### Coordinator Metrics
+### Queue Metrics
 
-Track scheduling and queue management.
+Track execution queue scheduling and depth.
 
-| Metric                                   | Type          | Labels   | Description               |
-|------------------------------------------|---------------|----------|---------------------------|
-| `coordinator.scheduling.duration`        | Histogram     | -        | Scheduling time           |
-| `coordinator.executions.active`          | UpDownCounter | -        | Active managed executions |
-| `coordinator.queue.wait_time`            | Histogram     | priority | Queue wait by priority    |
-| `coordinator.executions.scheduled.total` | Counter       | status   | Scheduled executions      |
+| Metric                 | Type          | Labels | Description                            |
+|------------------------|---------------|--------|----------------------------------------|
+| `queue.depth`          | UpDownCounter | -      | Current number of queued executions    |
+| `queue.active`         | UpDownCounter | -      | Currently active (scheduled) executions|
+| `queue.enqueue.total`  | Counter       | -      | Total executions enqueued              |
+| `queue.schedule.total` | Counter       | -      | Total executions scheduled             |
+| `queue.wait_time`      | Histogram     | priority | Time spent waiting in queue (seconds)  |
 
 ### Rate Limit Metrics
 
@@ -158,6 +159,6 @@ avg_over_time(execution_queue_depth[1h])
 |------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
 | [`core/metrics/base.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/base.py)               | Base metrics class and configuration |
 | [`core/metrics/execution.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/execution.py)     | Execution metrics                    |
-| [`core/metrics/coordinator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/coordinator.py) | Coordinator metrics                  |
+| [`core/metrics/queue.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/queue.py) | Queue metrics                        |
 | [`core/metrics/rate_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/rate_limit.py)   | Rate limit metrics                   |
 | [`core/metrics/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/core/metrics)                              | All metrics modules                  |

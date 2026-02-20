@@ -22,7 +22,7 @@ class Settings(BaseModel):
     Usage:
         Settings()                                                       # config.toml + secrets
         Settings(config_path="config.test.toml")                         # test config (has own secrets)
-        Settings(override_path="config.coordinator.toml")                # base + secrets + worker
+        Settings(override_path="config.saga-orchestrator.toml")           # base + secrets + worker
     """
 
     model_config = ConfigDict(extra="forbid")

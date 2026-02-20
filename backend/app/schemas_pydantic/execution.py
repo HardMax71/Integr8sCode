@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus
+from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus, QueuePriority
 from app.runtime_registry import SUPPORTED_RUNTIMES
 
 
@@ -30,6 +30,7 @@ class ExecutionInDB(ExecutionBase):
     user_id: str | None = None
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
+    priority: QueuePriority = QueuePriority.NORMAL
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,6 +85,7 @@ class ExecutionResult(BaseModel):
     resource_usage: ResourceUsage | None = None
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
+    priority: QueuePriority = QueuePriority.NORMAL
 
     model_config = ConfigDict(from_attributes=True)
 

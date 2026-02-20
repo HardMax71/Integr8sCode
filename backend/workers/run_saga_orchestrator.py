@@ -54,8 +54,16 @@ def main() -> None:
                 max_instances=1,
                 misfire_grace_time=60,
             )
+            scheduler.add_job(
+                orchestrator.try_schedule_from_queue,
+                trigger="interval",
+                seconds=10,
+                id="saga_try_schedule",
+                max_instances=1,
+                misfire_grace_time=30,
+            )
             scheduler.start()
-            logger.info("SagaOrchestrator initialized (APScheduler interval=30s)")
+            logger.info("SagaOrchestrator initialized (APScheduler: timeouts=30s, scheduling=10s)")
 
         async def shutdown() -> None:
             scheduler.shutdown(wait=False)

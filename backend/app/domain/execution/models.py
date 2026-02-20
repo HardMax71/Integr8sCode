@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus
+from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus, QueuePriority
 from app.domain.events import EventMetadata, ResourceUsageDomain
 
 
@@ -31,6 +31,7 @@ class DomainExecution:
     user_id: str | None = None
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 @dataclass
@@ -77,6 +78,7 @@ class DomainExecutionCreate:
     lang: str = "python"
     lang_version: str = "3.11"
     status: ExecutionStatus = ExecutionStatus.QUEUED
+    priority: QueuePriority = QueuePriority.NORMAL
 
 
 @dataclass

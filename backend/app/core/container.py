@@ -6,10 +6,10 @@ from app.core.providers import (
     AuthProvider,
     BrokerProvider,
     BusinessServicesProvider,
-    CoordinatorProvider,
     CoreServicesProvider,
     DLQProvider,
     EventReplayProvider,
+    ExecutionQueueProvider,
     K8sWorkerProvider,
     KafkaServicesProvider,
     KubernetesProvider,
@@ -20,6 +20,7 @@ from app.core.providers import (
     RedisProvider,
     RepositoryProvider,
     ResultProcessorProvider,
+    RuntimeSettingsProvider,
     SagaOrchestratorProvider,
     SettingsProvider,
     SSEProvider,
@@ -48,15 +49,16 @@ def create_app_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
+        ExecutionQueueProvider(),
         SagaOrchestratorProvider(),
         KafkaServicesProvider(),
         SSEProvider(),
         AuthProvider(),
         UserServicesProvider(),
+        RuntimeSettingsProvider(),
         AdminServicesProvider(),
         EventReplayProvider(),
         BusinessServicesProvider(),
-        CoordinatorProvider(),
         KubernetesProvider(),
         FastapiProvider(),
         context={Settings: settings},
@@ -76,23 +78,6 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         MessagingProvider(),
         DLQProvider(),
         ResultProcessorProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_coordinator_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the ExecutionCoordinator worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
-        CoordinatorProvider(),
         context={Settings: settings},
     )
 
@@ -146,6 +131,8 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
+        ExecutionQueueProvider(),
+        RuntimeSettingsProvider(),
         SagaOrchestratorProvider(),
         context={Settings: settings},
     )

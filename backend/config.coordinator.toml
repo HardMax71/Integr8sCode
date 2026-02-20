@@ -1,2 +1,0 @@
-TRACING_SERVICE_NAME = "execution-coordinator"
-KAFKA_CONSUMER_GROUP_ID = "execution-coordinator"

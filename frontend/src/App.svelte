@@ -19,6 +19,7 @@
     import Settings from "$routes/Settings.svelte";
     import Notifications from "$routes/Notifications.svelte";
     import AdminEvents from "$routes/admin/AdminEvents.svelte";
+    import AdminExecutions from "$routes/admin/AdminExecutions.svelte";
     import AdminSagas from "$routes/admin/AdminSagas.svelte";
     import AdminUsers from "$routes/admin/AdminUsers.svelte";
     import AdminSettings from "$routes/admin/AdminSettings.svelte";
@@ -66,6 +67,7 @@
         { path: "/settings", component: Settings, hooks: { pre: requireAuth } },
         { path: "/notifications", component: Notifications, hooks: { pre: requireAuth } },
         { path: "/admin/events", component: AdminEvents, hooks: { pre: requireAuth } },
+        { path: "/admin/executions", component: AdminExecutions, hooks: { pre: requireAuth } },
         { path: "/admin/sagas", component: AdminSagas, hooks: { pre: requireAuth } },
         { path: "/admin/users", component: AdminUsers, hooks: { pre: requireAuth } },
         { path: "/admin/settings", component: AdminSettings, hooks: { pre: requireAuth } },

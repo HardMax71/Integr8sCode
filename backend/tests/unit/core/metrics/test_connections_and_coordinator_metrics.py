@@ -1,5 +1,5 @@
 import pytest
-from app.core.metrics import ConnectionMetrics, CoordinatorMetrics
+from app.core.metrics import ConnectionMetrics, QueueMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
@@ -15,13 +15,10 @@ def test_connection_metrics_methods(test_settings: Settings) -> None:
     m.update_sse_draining_connections(1)
 
 
-def test_coordinator_metrics_methods(test_settings: Settings) -> None:
-    """Test CoordinatorMetrics methods with no-op metrics."""
-    m = CoordinatorMetrics(test_settings)
-    m.record_coordinator_scheduling_duration(0.4)
-    m.update_coordinator_active_executions(3)
-    m.update_coordinator_active_executions(1)
-    m.record_coordinator_queue_time(0.3, "high")
-    m.record_coordinator_execution_scheduled("ok")
-    m.update_execution_request_queue_size(10)
-    m.update_execution_request_queue_size(6)
+def test_queue_metrics_methods(test_settings: Settings) -> None:
+    """Test QueueMetrics methods with no-op metrics."""
+    m = QueueMetrics(test_settings)
+    m.record_enqueue()
+    m.record_schedule()
+    m.record_release()
+    m.record_wait_time(0.3, "high")

@@ -274,7 +274,7 @@ jobs:
           mkdir -p logs
           docker compose logs --timestamps > logs/docker-compose.log 2>&1
           for svc in backend mongo redis kafka \
-                     coordinator k8s-worker pod-monitor result-processor \
+                     k8s-worker pod-monitor result-processor \
                      saga-orchestrator event-replay dlq-processor; do
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
           done

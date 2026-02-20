@@ -115,7 +115,7 @@ Each `EventType` maps 1:1 to a Kafka topic. The topic name is the `EventType` st
 topic = f"{prefix}{event.event_type}"
 
 # Consumer — one subscriber per event type
-@broker.subscriber(f"{prefix}{EventType.EXECUTION_REQUESTED}", group_id="execution-coordinator")
+@broker.subscriber(f"{prefix}{EventType.EXECUTION_REQUESTED}", group_id="saga-orchestrator")
 async def on_execution_requested(body: ExecutionRequestedEvent): ...
 ```
 

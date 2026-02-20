@@ -41,7 +41,7 @@ with health checks and dependency ordering, so containers start in the correct s
 ./deploy.sh dev
 ```
 
-This brings up MongoDB, Redis, Kafka (KRaft mode), all seven workers, the backend API, and the
+This brings up MongoDB, Redis, Kafka (KRaft mode), all six workers, the backend API, and the
 frontend. One initialization container runs automatically: `user-seed` populates the database with default user accounts.
 Kafka topics are created on-demand via `auto.create.topics.enable` when producers first publish or consumers subscribe.
 
@@ -144,13 +144,13 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 | Kafka | 1280 m | JVM `-Xms256m -Xmx1g` | Single-broker KRaft mode, low throughput workload |
 | Backend API | 768 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
 | Frontend | 128 m | nginx serving static assets | |
-| Each worker (×7) | 160 m | Single-process Python | coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
+| Each worker (x6) | 160 m | Single-process Python | k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
 | Grafana | 192 m | | Observability profile |
 | Jaeger | 256 m | All-in-one, in-memory storage | Observability profile |
 | Victoria Metrics | 256 m | 30-day retention | Observability profile |
 | OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor; includes `kafkametrics` receiver | Observability profile |
 
-All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all seven workers (coordinator, k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
+All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all six workers (k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
 
 ## Monitoring
 

@@ -5,7 +5,7 @@ from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
-from app.domain.enums import ExecutionErrorType, ExecutionStatus
+from app.domain.enums import ExecutionErrorType, ExecutionStatus, QueuePriority
 
 
 # Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.
@@ -41,6 +41,7 @@ class ExecutionDocument(Document):
     user_id: Indexed(str) | None = None  # type: ignore[valid-type]
     exit_code: int | None = None
     error_type: ExecutionErrorType | None = None
+    priority: QueuePriority = QueuePriority.NORMAL
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,4 +50,5 @@ class ExecutionDocument(Document):
         use_state_management = True
         indexes = [
             IndexModel([("status", 1)]),
+            IndexModel([("priority", 1)]),
         ]

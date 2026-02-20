@@ -2117,6 +2117,223 @@
         }
       }
     },
+    "/api/v1/admin/executions/": {
+      "get": {
+        "tags": [
+          "admin-executions"
+        ],
+        "summary": "List Executions",
+        "operationId": "list_executions_api_v1_admin_executions__get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExecutionStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/QueuePriority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExecutionListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/executions/{execution_id}/priority": {
+      "put": {
+        "tags": [
+          "admin-executions"
+        ],
+        "summary": "Update Priority",
+        "operationId": "update_priority_api_v1_admin_executions__execution_id__priority_put",
+        "parameters": [
+          {
+            "name": "execution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Execution Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriorityUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminExecutionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/executions/queue": {
+      "get": {
+        "tags": [
+          "admin-executions"
+        ],
+        "summary": "Get Queue Status",
+        "operationId": "get_queue_status_api_v1_admin_executions_queue_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueStatusResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/settings/": {
       "get": {
         "tags": [
@@ -3844,6 +4061,146 @@
   },
   "components": {
     "schemas": {
+      "AdminExecutionListResponse": {
+        "properties": {
+          "executions": {
+            "items": {
+              "$ref": "#/components/schemas/AdminExecutionResponse"
+            },
+            "type": "array",
+            "title": "Executions"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "skip": {
+            "type": "integer",
+            "title": "Skip"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executions",
+          "total",
+          "limit",
+          "skip",
+          "has_more"
+        ],
+        "title": "AdminExecutionListResponse",
+        "description": "Paginated list of executions for admin."
+      },
+      "AdminExecutionResponse": {
+        "properties": {
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "script": {
+            "type": "string",
+            "title": "Script"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExecutionStatus"
+          },
+          "lang": {
+            "type": "string",
+            "title": "Lang"
+          },
+          "lang_version": {
+            "type": "string",
+            "title": "Lang Version"
+          },
+          "stdout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stdout"
+          },
+          "stderr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stderr"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionErrorType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "$ref": "#/components/schemas/QueuePriority",
+            "default": "normal"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_id",
+          "script",
+          "status",
+          "lang",
+          "lang_version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminExecutionResponse",
+        "description": "Execution with priority for admin views."
+      },
       "AdminUserOverview": {
         "properties": {
           "user": {
@@ -6923,6 +7280,10 @@
                 "type": "null"
               }
             ]
+          },
+          "priority": {
+            "$ref": "#/components/schemas/QueuePriority",
+            "default": "normal"
           }
         },
         "type": "object",
@@ -8710,6 +9071,20 @@
         ],
         "title": "PodTerminatedEvent"
       },
+      "PriorityUpdateRequest": {
+        "properties": {
+          "priority": {
+            "$ref": "#/components/schemas/QueuePriority",
+            "description": "New priority level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "priority"
+        ],
+        "title": "PriorityUpdateRequest",
+        "description": "Request to update execution priority."
+      },
       "QueuePriority": {
         "type": "string",
         "enum": [
@@ -8721,6 +9096,41 @@
         ],
         "title": "QueuePriority",
         "description": "Execution priority, ordered highest to lowest."
+      },
+      "QueueStatusResponse": {
+        "properties": {
+          "queue_depth": {
+            "type": "integer",
+            "title": "Queue Depth",
+            "description": "Number of pending executions"
+          },
+          "active_count": {
+            "type": "integer",
+            "title": "Active Count",
+            "description": "Number of actively running executions"
+          },
+          "max_concurrent": {
+            "type": "integer",
+            "title": "Max Concurrent",
+            "description": "Maximum concurrent executions allowed"
+          },
+          "by_priority": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Priority",
+            "description": "Pending count per priority"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queue_depth",
+          "active_count",
+          "max_concurrent"
+        ],
+        "title": "QueueStatusResponse",
+        "description": "Queue status summary."
       },
       "QuotaExceededEvent": {
         "properties": {

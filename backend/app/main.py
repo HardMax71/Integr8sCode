@@ -18,6 +18,9 @@ from app.api.routes.admin import (
     events_router as admin_events_router,
 )
 from app.api.routes.admin import (
+    executions_router as admin_executions_router,
+)
+from app.api.routes.admin import (
     settings_router as admin_settings_router,
 )
 from app.api.routes.admin import (
@@ -101,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=settings.API_V1_STR)
     app.include_router(sse.router, prefix=settings.API_V1_STR)
     app.include_router(admin_events_router, prefix=settings.API_V1_STR)
+    app.include_router(admin_executions_router, prefix=settings.API_V1_STR)
     app.include_router(admin_settings_router, prefix=settings.API_V1_STR)
     app.include_router(admin_users_router, prefix=settings.API_V1_STR)
     app.include_router(user_settings.router, prefix=settings.API_V1_STR)

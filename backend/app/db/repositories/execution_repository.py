@@ -6,6 +6,7 @@ import structlog
 from beanie.odm.enums import SortDirection
 
 from app.db.docs import ExecutionDocument
+from app.domain.enums import QueuePriority
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import (
     DomainExecution,
@@ -77,6 +78,13 @@ class ExecutionRepository:
 
     async def count_executions(self, query: dict[str, Any]) -> int:
         return await ExecutionDocument.find(query).count()
+
+    async def update_priority(self, execution_id: str, priority: QueuePriority) -> DomainExecution | None:
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
+        if not doc:
+            return None
+        await doc.set({"priority": priority, "updated_at": datetime.now(timezone.utc)})
+        return self._to_domain(doc)
 
     async def delete_execution(self, execution_id: str) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)

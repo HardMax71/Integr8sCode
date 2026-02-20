@@ -4,7 +4,7 @@ This guide walks you through running Integr8sCode locally and executing your fir
 
 ## What you're deploying
 
-The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafka, and seven background workers. Sounds like a lot, but `docker compose` handles all of it. First startup takes a few minutes to pull images and initialize services; subsequent starts are much faster.
+The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafka, and six background workers. Sounds like a lot, but `docker compose` handles all of it. First startup takes a few minutes to pull images and initialize services; subsequent starts are much faster.
 
 ## Start the stack
 
@@ -57,7 +57,7 @@ When you click Run:
 
 1. The frontend sends your script to the backend API
 2. Backend validates it, creates an execution record, and publishes an event to Kafka
-3. The coordinator worker picks up the event and starts a saga
+3. The saga orchestrator picks up the event, enqueues the execution in a Redis-backed priority queue, and publishes a pod creation command
 4. K8s worker spins up an isolated pod with the appropriate runtime
 5. Pod monitor watches for completion and captures output
 6. Result processor stores the result and publishes it to Redis

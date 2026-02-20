@@ -296,26 +296,6 @@ services:
     restart: "no"  # Run once and exit
 
   # Event-driven workers
-  coordinator:
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: coordinator
-    mem_limit: 160m
-    command: ["python", "workers/run_coordinator.py"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
-      - ./backend/config.coordinator.toml:/app/config.coordinator.toml:ro
-    networks:
-      - app-network
-    restart: unless-stopped
-
   k8s-worker:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: k8s-worker

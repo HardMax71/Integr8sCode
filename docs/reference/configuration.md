@@ -4,7 +4,7 @@ All backend configuration is loaded from TOML files — no environment variables
 
 1. **`config.toml`** — base settings, committed to git (no secrets)
 2. **`secrets.toml`** — sensitive values (`SECRET_KEY`, `MONGODB_URL`), gitignored
-3. **per-worker override** — optional TOML file for service-specific settings (e.g. `config.coordinator.toml`)
+3. **per-worker override** — optional TOML file for service-specific settings (e.g. `config.saga-orchestrator.toml`)
 
 ```python
 # Default — reads config.toml + secrets.toml
@@ -14,7 +14,7 @@ Settings()
 Settings(config_path="config.test.toml")
 
 # Worker — reads config.toml + secrets.toml + worker override
-Settings(override_path="config.coordinator.toml")
+Settings(override_path="config.saga-orchestrator.toml")
 ```
 
 ## Secrets
@@ -170,7 +170,6 @@ Each worker runs with a small override TOML that sets `TRACING_SERVICE_NAME` and
 
 | File | Service |
 |------|---------|
-| `config.coordinator.toml` | Execution coordinator |
 | `config.k8s-worker.toml` | Kubernetes pod manager |
 | `config.pod-monitor.toml` | Pod status watcher |
 | `config.result-processor.toml` | Result processor |

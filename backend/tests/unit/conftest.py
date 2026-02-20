@@ -17,6 +17,8 @@ from app.core.metrics import (
     ReplayMetrics,
     SecurityMetrics,
 )
+from app.domain.enums import ExecutionStatus, QueuePriority
+from app.domain.execution import DomainExecution
 from app.settings import Settings
 from kubernetes_asyncio.client import (
     V1ContainerState,
@@ -29,6 +31,33 @@ from kubernetes_asyncio.client import (
     V1PodSpec,
     V1PodStatus,
 )
+
+# ===== Domain execution factory =====
+
+
+def make_domain_execution(
+    *,
+    execution_id: str = "e1",
+    script: str = "print('hello')",
+    status: ExecutionStatus = ExecutionStatus.QUEUED,
+    lang: str = "python",
+    lang_version: str = "3.11",
+    priority: QueuePriority = QueuePriority.NORMAL,
+    user_id: str | None = "test-user",
+    **kwargs: object,
+) -> DomainExecution:
+    """Factory for DomainExecution with sensible defaults."""
+    return DomainExecution(
+        execution_id=execution_id,
+        script=script,
+        status=status,
+        lang=lang,
+        lang_version=lang_version,
+        priority=priority,
+        user_id=user_id,
+        **kwargs,  # type: ignore[arg-type]
+    )
+
 
 # ===== Kubernetes test factories =====
 

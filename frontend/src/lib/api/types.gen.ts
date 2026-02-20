@@ -5,6 +5,85 @@ export type ClientOptions = {
 };
 
 /**
+ * AdminExecutionListResponse
+ *
+ * Paginated list of executions for admin.
+ */
+export type AdminExecutionListResponse = {
+    /**
+     * Executions
+     */
+    executions: Array<AdminExecutionResponse>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Skip
+     */
+    skip: number;
+    /**
+     * Has More
+     */
+    has_more: boolean;
+};
+
+/**
+ * AdminExecutionResponse
+ *
+ * Execution with priority for admin views.
+ */
+export type AdminExecutionResponse = {
+    /**
+     * Execution Id
+     */
+    execution_id: string;
+    /**
+     * Script
+     */
+    script: string;
+    status: ExecutionStatus;
+    /**
+     * Lang
+     */
+    lang: string;
+    /**
+     * Lang Version
+     */
+    lang_version: string;
+    /**
+     * Stdout
+     */
+    stdout?: string | null;
+    /**
+     * Stderr
+     */
+    stderr?: string | null;
+    /**
+     * Exit Code
+     */
+    exit_code?: number | null;
+    error_type?: ExecutionErrorType | null;
+    priority?: QueuePriority;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * AdminUserOverview
  */
 export type AdminUserOverview = {
@@ -1762,6 +1841,7 @@ export type ExecutionResult = {
      */
     exit_code?: number | null;
     error_type?: ExecutionErrorType | null;
+    priority?: QueuePriority;
 };
 
 /**
@@ -2842,11 +2922,57 @@ export type PodTerminatedEvent = {
 };
 
 /**
+ * PriorityUpdateRequest
+ *
+ * Request to update execution priority.
+ */
+export type PriorityUpdateRequest = {
+    /**
+     * New priority level
+     */
+    priority: QueuePriority;
+};
+
+/**
  * QueuePriority
  *
  * Execution priority, ordered highest to lowest.
  */
 export type QueuePriority = 'critical' | 'high' | 'normal' | 'low' | 'background';
+
+/**
+ * QueueStatusResponse
+ *
+ * Queue status summary.
+ */
+export type QueueStatusResponse = {
+    /**
+     * Queue Depth
+     *
+     * Number of pending executions
+     */
+    queue_depth: number;
+    /**
+     * Active Count
+     *
+     * Number of actively running executions
+     */
+    active_count: number;
+    /**
+     * Max Concurrent
+     *
+     * Maximum concurrent executions allowed
+     */
+    max_concurrent: number;
+    /**
+     * By Priority
+     *
+     * Pending count per priority
+     */
+    by_priority?: {
+        [key: string]: number;
+    };
+};
 
 /**
  * QuotaExceededEvent
@@ -6648,6 +6774,119 @@ export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses = {
 };
 
 export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses];
+
+export type ListExecutionsApiV1AdminExecutionsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: ExecutionStatus | null;
+        /**
+         * Priority
+         */
+        priority?: QueuePriority | null;
+        /**
+         * User Id
+         */
+        user_id?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Skip
+         */
+        skip?: number;
+    };
+    url: '/api/v1/admin/executions/';
+};
+
+export type ListExecutionsApiV1AdminExecutionsGetErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListExecutionsApiV1AdminExecutionsGetError = ListExecutionsApiV1AdminExecutionsGetErrors[keyof ListExecutionsApiV1AdminExecutionsGetErrors];
+
+export type ListExecutionsApiV1AdminExecutionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminExecutionListResponse;
+};
+
+export type ListExecutionsApiV1AdminExecutionsGetResponse = ListExecutionsApiV1AdminExecutionsGetResponses[keyof ListExecutionsApiV1AdminExecutionsGetResponses];
+
+export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData = {
+    body: PriorityUpdateRequest;
+    path: {
+        /**
+         * Execution Id
+         */
+        execution_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/executions/{execution_id}/priority';
+};
+
+export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutError = UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors[keyof UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors];
+
+export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminExecutionResponse;
+};
+
+export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponse = UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses[keyof UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses];
+
+export type GetQueueStatusApiV1AdminExecutionsQueueGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/executions/queue';
+};
+
+export type GetQueueStatusApiV1AdminExecutionsQueueGetErrors = {
+    /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+};
+
+export type GetQueueStatusApiV1AdminExecutionsQueueGetError = GetQueueStatusApiV1AdminExecutionsQueueGetErrors[keyof GetQueueStatusApiV1AdminExecutionsQueueGetErrors];
+
+export type GetQueueStatusApiV1AdminExecutionsQueueGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: QueueStatusResponse;
+};
+
+export type GetQueueStatusApiV1AdminExecutionsQueueGetResponse = GetQueueStatusApiV1AdminExecutionsQueueGetResponses[keyof GetQueueStatusApiV1AdminExecutionsQueueGetResponses];
 
 export type GetSystemSettingsApiV1AdminSettingsGetData = {
     body?: never;

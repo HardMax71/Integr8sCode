@@ -31,6 +31,19 @@ def _score_for(priority: QueuePriority) -> float:
     return PRIORITY_SCORES[priority] * 10**12 + int(time.time() * 1000)
 
 
+_UPDATE_PRIORITY_LUA = """
+local pending_key = KEYS[1]
+local exec_id = ARGV[1]
+local new_score = tonumber(ARGV[2])
+
+if not redis.call('ZSCORE', pending_key, exec_id) then
+    return 0
+end
+
+redis.call('ZADD', pending_key, new_score, exec_id)
+return 1
+"""
+
 _TRY_SCHEDULE_LUA = """
 local active_key = KEYS[1]
 local pending_key = KEYS[2]
@@ -65,11 +78,17 @@ class ExecutionQueueService:
         self._logger = logger
         self._metrics = queue_metrics
         self._schedule_script: Any = None
+        self._update_priority_script: Any = None
 
     async def _get_schedule_script(self) -> Any:
         if self._schedule_script is None:
             self._schedule_script = self._redis.register_script(_TRY_SCHEDULE_LUA)
         return self._schedule_script
+
+    async def _get_update_priority_script(self) -> Any:
+        if self._update_priority_script is None:
+            self._update_priority_script = self._redis.register_script(_UPDATE_PRIORITY_LUA)
+        return self._update_priority_script
 
     async def enqueue(self, event: ExecutionRequestedEvent) -> int:
         execution_id = event.execution_id
@@ -115,11 +134,11 @@ class ExecutionQueueService:
         self._logger.debug("Released execution from active set", execution_id=execution_id)
 
     async def update_priority(self, execution_id: str, new_priority: QueuePriority) -> bool:
-        score = await self._redis.zscore(_PENDING_KEY, execution_id)
-        if score is None:
-            return False
+        script = await self._get_update_priority_script()
         new_score = _score_for(new_priority)
-        await self._redis.zadd(_PENDING_KEY, {execution_id: new_score})
+        result = await script(keys=[_PENDING_KEY], args=[execution_id, new_score])
+        if not result:
+            return False
         self._logger.info(
             "Updated execution priority", execution_id=execution_id, new_priority=new_priority,
         )

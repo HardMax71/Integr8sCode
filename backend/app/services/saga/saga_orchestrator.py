@@ -97,20 +97,22 @@ class SagaOrchestrator:
     async def _resolve_completion(
         self, execution_id: str, state: SagaState, error_message: str | None = None
     ) -> None:
-        """Look up the active saga for an execution and transition it to a terminal state."""
+        """Look up the active saga for an execution and transition it to a terminal state.
+
+        Always releases the queue slot and attempts to schedule the next pending
+        execution, even when no saga is found or the saga is already terminal.
+        ``release()`` is idempotent (Redis SREM on a missing member is a no-op).
+        """
         saga = await self._repo.get_saga_by_execution_and_name(execution_id, _SAGA_NAME)
         if not saga:
             self.logger.debug("No execution_saga found for execution", execution_id=execution_id)
-            return
-
-        if saga.state not in (SagaState.RUNNING, SagaState.CREATED):
+        elif saga.state not in (SagaState.RUNNING, SagaState.CREATED):
             self.logger.debug("Saga already in terminal state", saga_id=saga.saga_id, state=saga.state)
-            return
-
-        self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
-        await self._repo.save_saga(
-            saga.saga_id, state=state, error_message=error_message, completed_at=datetime.now(UTC),
-        )
+        else:
+            self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
+            await self._repo.save_saga(
+                saga.saga_id, state=state, error_message=error_message, completed_at=datetime.now(UTC),
+            )
 
         await self._queue.release(execution_id)
         await self.try_schedule_from_queue()
@@ -123,7 +125,13 @@ class SagaOrchestrator:
             if result is None:
                 break
             execution_id, event = result
-            await self._start_saga(event)
+            try:
+                await self._start_saga(event)
+            except Exception:
+                self.logger.error(
+                    "Failed to start saga, releasing queue slot", execution_id=execution_id, exc_info=True,
+                )
+                await self._queue.release(execution_id)
 
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
         """Start a new saga instance."""

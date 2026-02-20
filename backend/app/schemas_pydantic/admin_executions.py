@@ -19,8 +19,8 @@ class AdminExecutionResponse(BaseModel):
     error_type: ExecutionErrorType | None = None
     priority: QueuePriority = QueuePriority.NORMAL
     user_id: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,39 +1,26 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import {
+        listExecutionsApiV1AdminExecutionsGet,
+        updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
+        getQueueStatusApiV1AdminExecutionsQueueGet,
+        type AdminExecutionResponse,
+        type QueueStatusResponse,
+        type QueuePriority,
+        type ExecutionStatus,
+    } from '$lib/api';
+    import { unwrapOr } from '$lib/api-interceptors';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
     import Pagination from '$components/Pagination.svelte';
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '$lib/admin/constants';
-    import { client } from '$lib/api/client.gen';
 
-    type QueuePriority = 'critical' | 'high' | 'normal' | 'low' | 'background';
-    type ExecutionStatus = 'queued' | 'scheduled' | 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'error';
-
-    interface Execution {
-        execution_id: string;
-        script: string;
-        status: ExecutionStatus;
-        lang: string;
-        lang_version: string;
-        priority: QueuePriority;
-        user_id: string | null;
-        created_at: string | null;
-        updated_at: string | null;
-    }
-
-    interface QueueStatus {
-        queue_depth: number;
-        active_count: number;
-        max_concurrent: number;
-        by_priority: Record<string, number>;
-    }
-
-    let executions = $state<Execution[]>([]);
+    let executions = $state<AdminExecutionResponse[]>([]);
     let total = $state(0);
     let loading = $state(false);
-    let queueStatus = $state<QueueStatus | null>(null);
+    let queueStatus = $state<QueueStatusResponse | null>(null);
 
     // Filters
     let statusFilter = $state<string>('all');
@@ -59,21 +46,17 @@
     async function loadExecutions(): Promise<void> {
         loading = true;
         try {
-            const params = new URLSearchParams();
-            params.set('limit', String(pageSize));
-            params.set('skip', String((currentPage - 1) * pageSize));
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-            if (priorityFilter !== 'all') params.set('priority', priorityFilter);
-            if (userSearch) params.set('user_id', userSearch);
-
-            const response = await client.get({
-                url: `/api/v1/admin/executions/?${params.toString()}`,
-            });
-            if (response.data) {
-                const data = response.data as { executions: Execution[]; total: number };
-                executions = data.executions || [];
-                total = data.total || 0;
-            }
+            const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
+                query: {
+                    limit: pageSize,
+                    skip: (currentPage - 1) * pageSize,
+                    status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
+                    priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
+                    user_id: userSearch || undefined,
+                },
+            }), null);
+            executions = data?.executions || [];
+            total = data?.total || 0;
         } catch {
             // Auto-refresh may fail silently
         } finally {
@@ -83,11 +66,9 @@
 
     async function loadQueueStatus(): Promise<void> {
         try {
-            const response = await client.get({
-                url: '/api/v1/admin/executions/queue',
-            });
-            if (response.data) {
-                queueStatus = response.data as QueueStatus;
+            const data = unwrapOr(await getQueueStatusApiV1AdminExecutionsQueueGet({}), null);
+            if (data) {
+                queueStatus = data;
             }
         } catch {
             // Non-critical
@@ -96,18 +77,20 @@
 
     async function updatePriority(executionId: string, newPriority: QueuePriority): Promise<void> {
         try {
-            const response = await client.put({
-                url: `/api/v1/admin/executions/${executionId}/priority`,
+            const { data, error } = await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
+                path: { execution_id: executionId },
                 body: { priority: newPriority },
             });
-            if (response.error) {
+            if (error) {
                 toast.error('Failed to update priority');
+                await loadExecutions();
                 return;
             }
             toast.success(`Priority updated to ${newPriority}`);
             await loadData();
         } catch {
             toast.error('Failed to update priority');
+            await loadExecutions();
         }
     }
 
@@ -118,8 +101,6 @@
         statusFilter = 'all';
         priorityFilter = 'all';
         userSearch = '';
-        currentPage = 1;
-        loadExecutions();
     }
 
     const statusColors: Record<string, string> = {
@@ -135,8 +116,7 @@
 
     const priorityOptions: QueuePriority[] = ['critical', 'high', 'normal', 'low', 'background'];
 
-    function formatDate(dateStr: string | null): string {
-        if (!dateStr) return '-';
+    function formatDate(dateStr: string): string {
         return new Date(dateStr).toLocaleString();
     }
 
@@ -179,7 +159,7 @@
                 <div class="card p-4 {STATS_BG_COLORS.purple}">
                     <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">By Priority</div>
                     <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
-                        {#each Object.entries(queueStatus.by_priority) as [priority, count]}
+                        {#each Object.entries(queueStatus.by_priority ?? {}) as [priority, count]}
                             <span class="mr-2">{priority}: {count}</span>
                         {:else}
                             <span class="text-fg-muted dark:text-dark-fg-muted">Empty</span>

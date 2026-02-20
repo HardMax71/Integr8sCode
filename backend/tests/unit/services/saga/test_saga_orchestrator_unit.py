@@ -9,7 +9,13 @@ import pytest
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import SagaState
-from app.domain.events import DomainEvent, ExecutionRequestedEvent
+from app.domain.events import (
+    DomainEvent,
+    EventMetadata,
+    ExecutionCompletedEvent,
+    ExecutionRequestedEvent,
+    ResourceUsageDomain,
+)
 from app.domain.saga import (
     DomainResourceAllocation,
     DomainResourceAllocationCreate,
@@ -35,6 +41,7 @@ class _FakeRepo(SagaRepository):
     def __init__(self) -> None:
         self.saved: list[Saga] = []
         self.existing: dict[tuple[str, str], Saga] = {}
+        self.fail_on_create: bool = False
 
     def _find_by_id(self, saga_id: str) -> Saga | None:
         for saga in [*self.saved, *self.existing.values()]:
@@ -43,6 +50,8 @@ class _FakeRepo(SagaRepository):
         return None
 
     async def get_or_create_saga(self, saga: Saga) -> tuple[Saga, bool]:
+        if self.fail_on_create:
+            raise RuntimeError("Simulated DB failure")
         key = (saga.execution_id, saga.saga_name)
         if key in self.existing:
             return self.existing[key], False
@@ -209,7 +218,6 @@ async def test_resolve_completion_releases_queue() -> None:
     await orch.handle_execution_requested(event)
 
     # Now complete it
-    from app.domain.events import ExecutionCompletedEvent, EventMetadata, ResourceUsageDomain
     completed_event = ExecutionCompletedEvent(
         execution_id="e1",
         aggregate_id="e1",
@@ -228,3 +236,82 @@ async def test_resolve_completion_releases_queue() -> None:
 
     # Execution should be released from queue
     assert "e1" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_start_saga_failure_releases_queue_slot() -> None:
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    fake_repo.fail_on_create = True
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    event = make_execution_requested_event(execution_id="e1")
+    await orch.handle_execution_requested(event)
+
+    # Event was enqueued
+    assert len(fake_queue.enqueued) == 1
+    # Slot was released despite _start_saga failure
+    assert "e1" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_resolve_completion_releases_slot_when_saga_already_terminal() -> None:
+    """Slot must be released even when the saga is already in a terminal state."""
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    # Create a saga and move it to TIMEOUT (simulating check_timeouts)
+    event = make_execution_requested_event(execution_id="e1")
+    await orch.handle_execution_requested(event)
+    saga = fake_repo.saved[0]
+    saga.state = SagaState.TIMEOUT
+
+    fake_queue.released.clear()
+
+    # Now a COMPLETED event arrives — saga is already terminal
+    completed_event = ExecutionCompletedEvent(
+        execution_id="e1",
+        aggregate_id="e1",
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        resource_usage=ResourceUsageDomain(
+            execution_time_wall_seconds=1.0,
+            cpu_time_jiffies=100,
+            clk_tck_hertz=100,
+            peak_memory_kb=1024,
+        ),
+        metadata=EventMetadata(service_name="test", service_version="1.0.0", user_id="u"),
+    )
+    await orch.handle_execution_completed(completed_event)
+
+    # Slot released despite saga being already terminal
+    assert "e1" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
+    """Slot must be released even when no saga record exists."""
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    completed_event = ExecutionCompletedEvent(
+        execution_id="orphan",
+        aggregate_id="orphan",
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        resource_usage=ResourceUsageDomain(
+            execution_time_wall_seconds=1.0,
+            cpu_time_jiffies=100,
+            clk_tck_hertz=100,
+            peak_memory_kb=1024,
+        ),
+        metadata=EventMetadata(service_name="test", service_version="1.0.0", user_id="u"),
+    )
+    await orch.handle_execution_completed(completed_event)
+
+    # Slot released even though no saga was found
+    assert "orphan" in fake_queue.released

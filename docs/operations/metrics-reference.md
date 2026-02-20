@@ -41,7 +41,7 @@ Track execution queue scheduling and depth.
 | `queue.active`         | UpDownCounter | -      | Currently active (scheduled) executions|
 | `queue.enqueue.total`  | Counter       | -      | Total executions enqueued              |
 | `queue.schedule.total` | Counter       | -      | Total executions scheduled             |
-| `queue.wait_time`      | Histogram     | -      | Time spent waiting in queue (seconds)  |
+| `queue.wait_time`      | Histogram     | priority | Time spent waiting in queue (seconds)  |
 
 ### Rate Limit Metrics
 

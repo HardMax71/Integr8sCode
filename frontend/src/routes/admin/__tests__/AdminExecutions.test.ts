@@ -196,7 +196,7 @@ describe('AdminExecutions', () => {
       await renderWithExecutions();
       vi.clearAllMocks();
 
-      const prioritySelect = screen.getByLabelText(/priority/i);
+      const prioritySelect = screen.getByLabelText('Priority');
       await user.selectOptions(prioritySelect, 'high');
 
       await waitFor(() => {
@@ -295,11 +295,11 @@ describe('AdminExecutions', () => {
       });
     });
 
-    it('failed update shows error toast', async () => {
+    it('failed update calls API and does not show success toast', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
       mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-        data: null,
+        data: undefined,
         error: { detail: 'Not found' },
       });
       await renderWithExecutions(execs);
@@ -308,8 +308,14 @@ describe('AdminExecutions', () => {
       await user.selectOptions(prioritySelects[0], 'critical');
 
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to update priority');
+        expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
+          expect.objectContaining({
+            path: { execution_id: 'e1' },
+            body: { priority: 'critical' },
+          }),
+        );
       });
+      expect(mocks.addToast).not.toHaveBeenCalledWith('success', expect.anything());
     });
   });
 

@@ -9,7 +9,7 @@
         type QueuePriority,
         type ExecutionStatus,
     } from '$lib/api';
-    import { unwrapOr } from '$lib/api-interceptors';
+    import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
@@ -34,7 +34,7 @@
     let totalPages = $derived(Math.ceil(total / pageSize));
 
     onMount(() => {
-        loadData();
+        loadQueueStatus();
         const interval = setInterval(loadData, 5000);
         return () => clearInterval(interval);
     });
@@ -45,53 +45,34 @@
 
     async function loadExecutions(): Promise<void> {
         loading = true;
-        try {
-            const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
-                query: {
-                    limit: pageSize,
-                    skip: (currentPage - 1) * pageSize,
-                    status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
-                    priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
-                    user_id: userSearch || undefined,
-                },
-            }), null);
-            executions = data?.executions || [];
-            total = data?.total || 0;
-        } catch {
-            // Auto-refresh may fail silently
-        } finally {
-            loading = false;
-        }
+        const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
+            query: {
+                limit: pageSize,
+                skip: (currentPage - 1) * pageSize,
+                status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
+                priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
+                user_id: userSearch || undefined,
+            },
+        }), null);
+        executions = data?.executions || [];
+        total = data?.total || 0;
+        loading = false;
     }
 
     async function loadQueueStatus(): Promise<void> {
-        try {
-            const data = unwrapOr(await getQueueStatusApiV1AdminExecutionsQueueGet({}), null);
-            if (data) {
-                queueStatus = data;
-            }
-        } catch {
-            // Non-critical
+        const data = unwrapOr(await getQueueStatusApiV1AdminExecutionsQueueGet({}), null);
+        if (data) {
+            queueStatus = data;
         }
     }
 
     async function updatePriority(executionId: string, newPriority: QueuePriority): Promise<void> {
-        try {
-            const { data, error } = await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
-                path: { execution_id: executionId },
-                body: { priority: newPriority },
-            });
-            if (error) {
-                toast.error('Failed to update priority');
-                await loadExecutions();
-                return;
-            }
-            toast.success(`Priority updated to ${newPriority}`);
-            await loadData();
-        } catch {
-            toast.error('Failed to update priority');
-            await loadExecutions();
-        }
+        unwrap(await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
+            path: { execution_id: executionId },
+            body: { priority: newPriority },
+        }));
+        toast.success(`Priority updated to ${newPriority}`);
+        await loadData();
     }
 
     function handlePageChange(page: number): void { currentPage = page; loadExecutions(); }
@@ -240,6 +221,7 @@
                                                 value={exec.priority}
                                                 onchange={(e) => updatePriority(exec.execution_id, (e.target as HTMLSelectElement).value as QueuePriority)}
                                                 class="input-field text-xs py-1 px-2"
+                                                aria-label="Priority for {exec.execution_id}"
                                             >
                                                 {#each priorityOptions as p}
                                                     <option value={p}>{p}</option>

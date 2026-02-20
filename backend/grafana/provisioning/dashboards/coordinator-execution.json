@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Coordinator & Execution",
+  "description": "Queue & Execution",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
@@ -18,7 +18,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "Coordinator",
+      "title": "Queue",
       "type": "row"
     },
     {
@@ -37,19 +37,19 @@
       "id": 1,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(coordinator_scheduling_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(queue_wait_time_seconds_bucket[5m])) by (le, priority))",
+          "legendFormat": "p95 {{priority}}",
           "refId": "A"
         }
       ],
-      "title": "Scheduling Duration",
+      "title": "Queue Wait Time (by Priority)",
       "type": "timeseries"
     },
     {
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "short"
         }
       },
       "gridPos": {
@@ -61,12 +61,17 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(coordinator_queue_wait_time_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
+          "expr": "queue_depth",
+          "legendFormat": "Depth",
           "refId": "A"
+        },
+        {
+          "expr": "queue_active",
+          "legendFormat": "Active",
+          "refId": "B"
         }
       ],
-      "title": "Queue Wait Time",
+      "title": "Queue Depth & Active",
       "type": "timeseries"
     },
     {
@@ -85,7 +90,7 @@
       "id": 3,
       "targets": [
         {
-          "expr": "coordinator_executions_active",
+          "expr": "queue_active",
           "refId": "A"
         }
       ],
@@ -108,7 +113,7 @@
       "id": 4,
       "targets": [
         {
-          "expr": "rate(coordinator_executions_scheduled_total[5m])",
+          "expr": "rate(queue_schedule_total[5m])",
           "refId": "A"
         }
       ],
@@ -257,7 +262,7 @@
   "schemaVersion": 33,
   "style": "dark",
   "tags": [
-    "coordinator",
+    "queue",
     "execution"
   ],
   "templating": {
@@ -269,7 +274,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Coordinator & Execution",
+  "title": "Queue & Execution",
   "uid": "coordinator-execution",
   "version": 1
 }

@@ -19,6 +19,8 @@ class ExecutionBase(BaseModel):
     lang: str = "python"
     lang_version: str = "3.11"
 
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
 
 class ExecutionInDB(ExecutionBase):
     """Model for execution as stored in database."""
@@ -32,7 +34,7 @@ class ExecutionInDB(ExecutionBase):
     error_type: ExecutionErrorType | None = None
     priority: QueuePriority = QueuePriority.NORMAL
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class ResourceUsage(BaseModel):
@@ -43,7 +45,7 @@ class ResourceUsage(BaseModel):
     clk_tck_hertz: int = 0
     peak_memory_kb: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class ExecutionRequest(BaseModel):
@@ -70,7 +72,7 @@ class ExecutionResponse(BaseModel):
     execution_id: str
     status: ExecutionStatus
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class ExecutionResult(BaseModel):
@@ -87,7 +89,7 @@ class ExecutionResult(BaseModel):
     error_type: ExecutionErrorType | None = None
     priority: QueuePriority = QueuePriority.NORMAL
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class LanguageInfo(BaseModel):
@@ -96,7 +98,7 @@ class LanguageInfo(BaseModel):
     versions: list[str]
     file_ext: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class ResourceLimits(BaseModel):
@@ -109,7 +111,7 @@ class ResourceLimits(BaseModel):
     execution_timeout: int
     supported_runtimes: dict[str, LanguageInfo]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class ExampleScripts(BaseModel):
@@ -142,7 +144,7 @@ class CancelResponse(BaseModel):
     message: str
     event_id: str | None = Field(None, description="Event ID for the cancellation event, if published")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class DeleteResponse(BaseModel):

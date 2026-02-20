@@ -58,21 +58,21 @@ export type AdminExecutionResponse = {
     /**
      * Stdout
      */
-    stdout?: string | null;
+    stdout: string | null;
     /**
      * Stderr
      */
-    stderr?: string | null;
+    stderr: string | null;
     /**
      * Exit Code
      */
-    exit_code?: number | null;
-    error_type?: ExecutionErrorType | null;
-    priority?: QueuePriority;
+    exit_code: number | null;
+    error_type: ExecutionErrorType | null;
+    priority: QueuePriority;
     /**
      * User Id
      */
-    user_id?: string | null;
+    user_id: string | null;
     /**
      * Created At
      */
@@ -94,7 +94,7 @@ export type AdminUserOverview = {
     /**
      * Recent Events
      */
-    recent_events?: Array<({
+    recent_events: Array<({
         event_type: 'execution_requested';
     } & ExecutionRequestedEvent) | ({
         event_type: 'execution_accepted';
@@ -353,7 +353,7 @@ export type CancelResponse = {
      *
      * Event ID for the cancellation event, if published
      */
-    event_id?: string | null;
+    event_id: string | null;
 };
 
 /**
@@ -715,27 +715,27 @@ export type DeleteUserResponse = {
     /**
      * Executions
      */
-    executions?: number;
+    executions: number;
     /**
      * Saved Scripts
      */
-    saved_scripts?: number;
+    saved_scripts: number;
     /**
      * Notifications
      */
-    notifications?: number;
+    notifications: number;
     /**
      * User Settings
      */
-    user_settings?: number;
+    user_settings: number;
     /**
      * Events
      */
-    events?: number;
+    events: number;
     /**
      * Sagas
      */
-    sagas?: number;
+    sagas: number;
 };
 
 /**
@@ -745,23 +745,23 @@ export type DerivedCounts = {
     /**
      * Succeeded
      */
-    succeeded?: number;
+    succeeded: number;
     /**
      * Failed
      */
-    failed?: number;
+    failed: number;
     /**
      * Timeout
      */
-    timeout?: number;
+    timeout: number;
     /**
      * Cancelled
      */
-    cancelled?: number;
+    cancelled: number;
     /**
      * Terminal Total
      */
-    terminal_total?: number;
+    terminal_total: number;
 };
 
 /**
@@ -769,7 +769,7 @@ export type DerivedCounts = {
  *
  * Code editor preferences
  */
-export type EditorSettings = {
+export type EditorSettingsInput = {
     theme?: Theme;
     /**
      * Font Size
@@ -791,6 +791,35 @@ export type EditorSettings = {
      * Show Line Numbers
      */
     show_line_numbers?: boolean;
+};
+
+/**
+ * EditorSettings
+ *
+ * Code editor preferences
+ */
+export type EditorSettingsOutput = {
+    theme: Theme;
+    /**
+     * Font Size
+     */
+    font_size: number;
+    /**
+     * Tab Size
+     */
+    tab_size: number;
+    /**
+     * Use Tabs
+     */
+    use_tabs: boolean;
+    /**
+     * Word Wrap
+     */
+    word_wrap: boolean;
+    /**
+     * Show Line Numbers
+     */
+    show_line_numbers: boolean;
 };
 
 /**
@@ -831,7 +860,7 @@ export type ErrorResponse = {
      *
      * Error type identifier
      */
-    type?: string | null;
+    type: string | null;
 };
 
 /**
@@ -1247,12 +1276,12 @@ export type EventReplayResponse = {
     /**
      * Session Id
      */
-    session_id?: string | null;
+    session_id: string | null;
     status: ReplayStatus;
     /**
      * Events Preview
      */
-    events_preview?: Array<EventSummary> | null;
+    events_preview: Array<EventSummary> | null;
 };
 
 /**
@@ -1293,23 +1322,23 @@ export type EventReplayStatusResponse = {
     /**
      * Started At
      */
-    started_at?: string | null;
+    started_at: string | null;
     /**
      * Completed At
      */
-    completed_at?: string | null;
+    completed_at: string | null;
     /**
      * Errors
      */
-    errors?: Array<ReplayError> | null;
+    errors: Array<ReplayError> | null;
     /**
      * Estimated Completion
      */
-    estimated_completion?: string | null;
+    estimated_completion: string | null;
     /**
      * Execution Results
      */
-    execution_results?: Array<ExecutionResult> | null;
+    execution_results: Array<ExecutionResult> | null;
     /**
      * Progress Percentage
      */
@@ -1329,35 +1358,35 @@ export type EventStatistics = {
     /**
      * Events By Type
      */
-    events_by_type?: Array<EventTypeCount>;
+    events_by_type: Array<EventTypeCount>;
     /**
      * Events By Service
      */
-    events_by_service?: Array<ServiceEventCount>;
+    events_by_service: Array<ServiceEventCount>;
     /**
      * Events By Hour
      */
-    events_by_hour?: Array<HourlyEventCount>;
+    events_by_hour: Array<HourlyEventCount>;
     /**
      * Top Users
      */
-    top_users?: Array<UserEventCount>;
+    top_users: Array<UserEventCount>;
     /**
      * Error Rate
      */
-    error_rate?: number;
+    error_rate: number;
     /**
      * Avg Processing Time
      */
-    avg_processing_time?: number;
+    avg_processing_time: number;
     /**
      * Start Time
      */
-    start_time?: string | null;
+    start_time: string | null;
     /**
      * End Time
      */
-    end_time?: string | null;
+    end_time: string | null;
 };
 
 /**
@@ -1818,15 +1847,15 @@ export type ExecutionResult = {
      * Execution Id
      */
     execution_id: string;
-    status?: ExecutionStatus | null;
+    status: ExecutionStatus | null;
     /**
      * Stdout
      */
-    stdout?: string | null;
+    stdout: string | null;
     /**
      * Stderr
      */
-    stderr?: string | null;
+    stderr: string | null;
     /**
      * Lang
      */
@@ -1835,13 +1864,13 @@ export type ExecutionResult = {
      * Lang Version
      */
     lang_version: string;
-    resource_usage?: ResourceUsage | null;
+    resource_usage: ResourceUsage | null;
     /**
      * Exit Code
      */
-    exit_code?: number | null;
-    error_type?: ExecutionErrorType | null;
-    priority?: QueuePriority;
+    exit_code: number | null;
+    error_type: ExecutionErrorType | null;
+    priority: QueuePriority;
 };
 
 /**
@@ -2447,7 +2476,7 @@ export type NotificationResponse = {
     /**
      * Read At
      */
-    read_at?: string | null;
+    read_at: string | null;
     severity: NotificationSeverity;
     /**
      * Tags
@@ -2500,7 +2529,7 @@ export type NotificationSentEvent = {
  *
  * User notification preferences
  */
-export type NotificationSettings = {
+export type NotificationSettingsInput = {
     /**
      * Execution Completed
      */
@@ -2521,6 +2550,34 @@ export type NotificationSettings = {
      * Channels
      */
     channels?: Array<NotificationChannel>;
+};
+
+/**
+ * NotificationSettings
+ *
+ * User notification preferences
+ */
+export type NotificationSettingsOutput = {
+    /**
+     * Execution Completed
+     */
+    execution_completed: boolean;
+    /**
+     * Execution Failed
+     */
+    execution_failed: boolean;
+    /**
+     * System Updates
+     */
+    system_updates: boolean;
+    /**
+     * Security Alerts
+     */
+    security_alerts: boolean;
+    /**
+     * Channels
+     */
+    channels: Array<NotificationChannel>;
 };
 
 /**
@@ -2551,55 +2608,55 @@ export type NotificationSubscription = {
     /**
      * Severities
      */
-    severities?: Array<NotificationSeverity>;
+    severities: Array<NotificationSeverity>;
     /**
      * Include Tags
      */
-    include_tags?: Array<string>;
+    include_tags: Array<string>;
     /**
      * Exclude Tags
      */
-    exclude_tags?: Array<string>;
+    exclude_tags: Array<string>;
     /**
      * Enabled
      */
-    enabled?: boolean;
+    enabled: boolean;
     /**
      * Webhook Url
      */
-    webhook_url?: string | null;
+    webhook_url: string | null;
     /**
      * Slack Webhook
      */
-    slack_webhook?: string | null;
+    slack_webhook: string | null;
     /**
      * Quiet Hours Enabled
      */
-    quiet_hours_enabled?: boolean;
+    quiet_hours_enabled: boolean;
     /**
      * Quiet Hours Start
      */
-    quiet_hours_start?: string | null;
+    quiet_hours_start: string | null;
     /**
      * Quiet Hours End
      */
-    quiet_hours_end?: string | null;
+    quiet_hours_end: string | null;
     /**
      * Timezone
      */
-    timezone?: string;
+    timezone: string;
     /**
      * Batch Interval Minutes
      */
-    batch_interval_minutes?: number;
+    batch_interval_minutes: number;
     /**
      * Created At
      */
-    created_at?: string;
+    created_at: string;
     /**
      * Updated At
      */
-    updated_at?: string;
+    updated_at: string;
 };
 
 /**
@@ -2969,7 +3026,7 @@ export type QueueStatusResponse = {
      *
      * Pending count per priority
      */
-    by_priority?: {
+    by_priority: {
         [key: string]: number;
     };
 };
@@ -3122,15 +3179,15 @@ export type RateLimitRuleResponse = {
     /**
      * Burst Multiplier
      */
-    burst_multiplier?: number;
+    burst_multiplier: number;
     /**
      * Priority
      */
-    priority?: number;
+    priority: number;
     /**
      * Enabled
      */
-    enabled?: boolean;
+    enabled: boolean;
 };
 
 /**
@@ -3140,15 +3197,15 @@ export type RateLimitSummary = {
     /**
      * Bypass Rate Limit
      */
-    bypass_rate_limit?: boolean | null;
+    bypass_rate_limit: boolean | null;
     /**
      * Global Multiplier
      */
-    global_multiplier?: number | null;
+    global_multiplier: number | null;
     /**
      * Has Custom Limits
      */
-    has_custom_limits?: boolean | null;
+    has_custom_limits: boolean | null;
 };
 
 /**
@@ -3236,50 +3293,50 @@ export type ReleaseResourcesCommandEvent = {
  */
 export type ReplayConfigSchema = {
     replay_type: ReplayType;
-    target?: ReplayTarget;
-    filter?: ReplayFilterSchema;
+    target: ReplayTarget;
+    filter: ReplayFilterSchema;
     /**
      * Speed Multiplier
      */
-    speed_multiplier?: number;
+    speed_multiplier: number;
     /**
      * Preserve Timestamps
      */
-    preserve_timestamps?: boolean;
+    preserve_timestamps: boolean;
     /**
      * Batch Size
      */
-    batch_size?: number;
+    batch_size: number;
     /**
      * Max Events
      */
-    max_events?: number | null;
+    max_events: number | null;
     /**
      * Target Topics
      */
-    target_topics?: {
+    target_topics: {
         [key: string]: string;
     } | null;
     /**
      * Target File Path
      */
-    target_file_path?: string | null;
+    target_file_path: string | null;
     /**
      * Skip Errors
      */
-    skip_errors?: boolean;
+    skip_errors: boolean;
     /**
      * Retry Failed
      */
-    retry_failed?: boolean;
+    retry_failed: boolean;
     /**
      * Retry Attempts
      */
-    retry_attempts?: number;
+    retry_attempts: number;
     /**
      * Enable Progress Tracking
      */
-    enable_progress_tracking?: boolean;
+    enable_progress_tracking: boolean;
 };
 
 /**
@@ -3353,39 +3410,39 @@ export type ReplayFilterSchema = {
     /**
      * Event Ids
      */
-    event_ids?: Array<string> | null;
+    event_ids: Array<string> | null;
     /**
      * Execution Id
      */
-    execution_id?: string | null;
+    execution_id: string | null;
     /**
      * Aggregate Id
      */
-    aggregate_id?: string | null;
+    aggregate_id: string | null;
     /**
      * Event Types
      */
-    event_types?: Array<EventType> | null;
+    event_types: Array<EventType> | null;
     /**
      * Exclude Event Types
      */
-    exclude_event_types?: Array<EventType> | null;
+    exclude_event_types: Array<EventType> | null;
     /**
      * Start Time
      */
-    start_time?: string | null;
+    start_time: string | null;
     /**
      * End Time
      */
-    end_time?: string | null;
+    end_time: string | null;
     /**
      * User Id
      */
-    user_id?: string | null;
+    user_id: string | null;
     /**
      * Service Name
      */
-    service_name?: string | null;
+    service_name: string | null;
 };
 
 /**
@@ -3465,45 +3522,45 @@ export type ReplaySession = {
     /**
      * Session Id
      */
-    session_id?: string;
+    session_id: string;
     config: ReplayConfigSchema;
-    status?: ReplayStatus;
+    status: ReplayStatus;
     /**
      * Total Events
      */
-    total_events?: number;
+    total_events: number;
     /**
      * Replayed Events
      */
-    replayed_events?: number;
+    replayed_events: number;
     /**
      * Failed Events
      */
-    failed_events?: number;
+    failed_events: number;
     /**
      * Skipped Events
      */
-    skipped_events?: number;
+    skipped_events: number;
     /**
      * Created At
      */
-    created_at?: string;
+    created_at: string;
     /**
      * Started At
      */
-    started_at?: string | null;
+    started_at: string | null;
     /**
      * Completed At
      */
-    completed_at?: string | null;
+    completed_at: string | null;
     /**
      * Last Event At
      */
-    last_event_at?: string | null;
+    last_event_at: string | null;
     /**
      * Errors
      */
-    errors?: Array<ReplayError>;
+    errors: Array<ReplayError>;
 };
 
 /**
@@ -3607,19 +3664,19 @@ export type ResourceUsage = {
     /**
      * Execution Time Wall Seconds
      */
-    execution_time_wall_seconds?: number;
+    execution_time_wall_seconds: number;
     /**
      * Cpu Time Jiffies
      */
-    cpu_time_jiffies?: number;
+    cpu_time_jiffies: number;
     /**
      * Clk Tck Hertz
      */
-    clk_tck_hertz?: number;
+    clk_tck_hertz: number;
     /**
      * Peak Memory Kb
      */
-    peak_memory_kb?: number;
+    peak_memory_kb: number;
 };
 
 /**
@@ -3766,61 +3823,61 @@ export type SseExecutionEventSchema = {
      *
      * Event timestamp
      */
-    timestamp?: string | null;
+    timestamp: string | null;
     /**
      * Event Id
      *
      * Unique event identifier
      */
-    event_id?: string | null;
+    event_id: string | null;
     /**
      * Connection Id
      *
      * SSE connection ID (connected event)
      */
-    connection_id?: string | null;
+    connection_id: string | null;
     /**
      * Message
      *
      * Human-readable message (subscribed event)
      */
-    message?: string | null;
+    message: string | null;
     /**
      * Current execution status
      */
-    status?: ExecutionStatus | null;
+    status: ExecutionStatus | null;
     /**
      * Stdout
      *
      * Standard output from execution
      */
-    stdout?: string | null;
+    stdout: string | null;
     /**
      * Stderr
      *
      * Standard error from execution
      */
-    stderr?: string | null;
+    stderr: string | null;
     /**
      * Exit Code
      *
      * Process exit code
      */
-    exit_code?: number | null;
+    exit_code: number | null;
     /**
      * Timeout Seconds
      *
      * Timeout duration in seconds
      */
-    timeout_seconds?: number | null;
+    timeout_seconds: number | null;
     /**
      * CPU/memory usage metrics
      */
-    resource_usage?: ResourceUsageDomain | null;
+    resource_usage: ResourceUsageDomain | null;
     /**
      * Execution result
      */
-    result?: ExecutionResult | null;
+    result: ExecutionResult | null;
 };
 
 /**
@@ -4272,7 +4329,7 @@ export type SavedScriptResponse = {
     /**
      * Description
      */
-    description?: string | null;
+    description: string | null;
     /**
      * Created At
      */
@@ -4655,7 +4712,7 @@ export type SettingsHistoryEntry = {
     /**
      * Reason
      */
-    reason?: string | null;
+    reason: string | null;
 };
 
 /**
@@ -4793,7 +4850,7 @@ export type SystemErrorEvent = {
  *
  * API schema for system settings with validation.
  */
-export type SystemSettingsSchema = {
+export type SystemSettingsSchemaInput = {
     /**
      * Max Timeout Seconds
      */
@@ -4839,6 +4896,59 @@ export type SystemSettingsSchema = {
      * Sampling Rate
      */
     sampling_rate?: number;
+};
+
+/**
+ * SystemSettingsSchema
+ *
+ * API schema for system settings with validation.
+ */
+export type SystemSettingsSchemaOutput = {
+    /**
+     * Max Timeout Seconds
+     */
+    max_timeout_seconds: number;
+    /**
+     * Memory Limit
+     */
+    memory_limit: string;
+    /**
+     * Cpu Limit
+     */
+    cpu_limit: string;
+    /**
+     * Max Concurrent Executions
+     */
+    max_concurrent_executions: number;
+    /**
+     * Password Min Length
+     */
+    password_min_length: number;
+    /**
+     * Session Timeout Minutes
+     */
+    session_timeout_minutes: number;
+    /**
+     * Max Login Attempts
+     */
+    max_login_attempts: number;
+    /**
+     * Lockout Duration Minutes
+     */
+    lockout_duration_minutes: number;
+    /**
+     * Metrics Retention Days
+     */
+    metrics_retention_days: number;
+    log_level: LogLevel;
+    /**
+     * Enable Tracing
+     */
+    enable_tracing: boolean;
+    /**
+     * Sampling Rate
+     */
+    sampling_rate: number;
 };
 
 /**
@@ -5127,15 +5237,15 @@ export type UserRateLimitConfigResponse = {
     /**
      * Created At
      */
-    created_at?: string | null;
+    created_at: string | null;
     /**
      * Updated At
      */
-    updated_at?: string | null;
+    updated_at: string | null;
     /**
      * Notes
      */
-    notes?: string | null;
+    notes: string | null;
 };
 
 /**
@@ -5148,7 +5258,7 @@ export type UserRateLimitsResponse = {
      * User Id
      */
     user_id: string;
-    rate_limit_config?: UserRateLimitConfigResponse | null;
+    rate_limit_config: UserRateLimitConfigResponse | null;
     /**
      * Current Usage
      */
@@ -5234,15 +5344,15 @@ export type UserResponse = {
     /**
      * Bypass Rate Limit
      */
-    bypass_rate_limit?: boolean | null;
+    bypass_rate_limit: boolean | null;
     /**
      * Global Multiplier
      */
-    global_multiplier?: number | null;
+    global_multiplier: number | null;
     /**
      * Has Custom Limits
      */
-    has_custom_limits?: boolean | null;
+    has_custom_limits: boolean | null;
 };
 
 /**
@@ -5262,39 +5372,39 @@ export type UserSettings = {
      * User Id
      */
     user_id: string;
-    theme?: Theme;
+    theme: Theme;
     /**
      * Timezone
      */
-    timezone?: string;
+    timezone: string;
     /**
      * Date Format
      */
-    date_format?: string;
+    date_format: string;
     /**
      * Time Format
      */
-    time_format?: string;
-    notifications?: NotificationSettings;
-    editor?: EditorSettings;
+    time_format: string;
+    notifications: NotificationSettingsOutput;
+    editor: EditorSettingsOutput;
     /**
      * Custom Settings
      */
-    custom_settings?: {
+    custom_settings: {
         [key: string]: unknown;
     };
     /**
      * Version
      */
-    version?: number;
+    version: number;
     /**
      * Created At
      */
-    created_at?: string;
+    created_at: string;
     /**
      * Updated At
      */
-    updated_at?: string;
+    updated_at: string;
 };
 
 /**
@@ -5316,8 +5426,8 @@ export type UserSettingsUpdate = {
      * Time Format
      */
     time_format?: string | null;
-    notifications?: NotificationSettings | null;
-    editor?: EditorSettings | null;
+    notifications?: NotificationSettingsInput | null;
+    editor?: EditorSettingsInput | null;
     /**
      * Custom Settings
      */
@@ -5486,23 +5596,23 @@ export type EventReplayStatusResponseWritable = {
     /**
      * Started At
      */
-    started_at?: string | null;
+    started_at: string | null;
     /**
      * Completed At
      */
-    completed_at?: string | null;
+    completed_at: string | null;
     /**
      * Errors
      */
-    errors?: Array<ReplayError> | null;
+    errors: Array<ReplayError> | null;
     /**
      * Estimated Completion
      */
-    estimated_completion?: string | null;
+    estimated_completion: string | null;
     /**
      * Execution Results
      */
-    execution_results?: Array<ExecutionResult> | null;
+    execution_results: Array<ExecutionResult> | null;
 };
 
 /**
@@ -6908,13 +7018,13 @@ export type GetSystemSettingsApiV1AdminSettingsGetResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettingsSchema;
+    200: SystemSettingsSchemaOutput;
 };
 
 export type GetSystemSettingsApiV1AdminSettingsGetResponse = GetSystemSettingsApiV1AdminSettingsGetResponses[keyof GetSystemSettingsApiV1AdminSettingsGetResponses];
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutData = {
-    body: SystemSettingsSchema;
+    body: SystemSettingsSchemaInput;
     path?: never;
     query?: never;
     url: '/api/v1/admin/settings/';
@@ -6941,7 +7051,7 @@ export type UpdateSystemSettingsApiV1AdminSettingsPutResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettingsSchema;
+    200: SystemSettingsSchemaOutput;
 };
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutResponse = UpdateSystemSettingsApiV1AdminSettingsPutResponses[keyof UpdateSystemSettingsApiV1AdminSettingsPutResponses];
@@ -6966,7 +7076,7 @@ export type ResetSystemSettingsApiV1AdminSettingsResetPostResponses = {
     /**
      * Successful Response
      */
-    200: SystemSettingsSchema;
+    200: SystemSettingsSchemaOutput;
 };
 
 export type ResetSystemSettingsApiV1AdminSettingsResetPostResponse = ResetSystemSettingsApiV1AdminSettingsResetPostResponses[keyof ResetSystemSettingsApiV1AdminSettingsResetPostResponses];
@@ -7414,7 +7524,7 @@ export type UpdateThemeApiV1UserSettingsThemePutResponses = {
 export type UpdateThemeApiV1UserSettingsThemePutResponse = UpdateThemeApiV1UserSettingsThemePutResponses[keyof UpdateThemeApiV1UserSettingsThemePutResponses];
 
 export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData = {
-    body: NotificationSettings;
+    body: NotificationSettingsInput;
     path?: never;
     query?: never;
     url: '/api/v1/user/settings/notifications';
@@ -7439,7 +7549,7 @@ export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses
 export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponse = UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses[keyof UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses];
 
 export type UpdateEditorSettingsApiV1UserSettingsEditorPutData = {
-    body: EditorSettings;
+    body: EditorSettingsInput;
     path?: never;
     query?: never;
     url: '/api/v1/user/settings/editor';

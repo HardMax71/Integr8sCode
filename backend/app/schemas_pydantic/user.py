@@ -14,7 +14,7 @@ class UserBase(BaseModel):
     role: UserRole = UserRole.USER
     is_active: bool = True
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class UserCreate(UserBase):
@@ -22,7 +22,7 @@ class UserCreate(UserBase):
 
     password: str = Field(..., min_length=8)
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class UserUpdate(BaseModel):
@@ -34,7 +34,7 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     password: str | None = Field(None, min_length=8)
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class UserResponse(UserBase):
@@ -53,6 +53,7 @@ class UserResponse(UserBase):
 
     model_config = ConfigDict(
         from_attributes=True,
+        json_schema_serialization_defaults_required=True,
     )
 
 
@@ -71,6 +72,7 @@ class User(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         arbitrary_types_allowed=True,
+        json_schema_serialization_defaults_required=True,
     )
 
 
@@ -82,7 +84,7 @@ class UserListResponse(BaseModel):
     offset: int
     limit: int
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class PasswordResetRequest(BaseModel):
@@ -90,7 +92,7 @@ class PasswordResetRequest(BaseModel):
 
     new_password: str = Field(..., min_length=8, description="New password for the user")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class MessageResponse(BaseModel):
@@ -98,7 +100,7 @@ class MessageResponse(BaseModel):
 
     message: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class LoginResponse(BaseModel):
@@ -109,7 +111,7 @@ class LoginResponse(BaseModel):
     role: UserRole
     csrf_token: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 
@@ -120,7 +122,7 @@ class UnlockResponse(BaseModel):
     user_id: str
     message: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class DeleteUserResponse(BaseModel):
@@ -134,7 +136,7 @@ class DeleteUserResponse(BaseModel):
     events: int = 0
     sagas: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class RateLimitRuleResponse(BaseModel):
@@ -149,7 +151,7 @@ class RateLimitRuleResponse(BaseModel):
     priority: int = 0
     enabled: bool = True
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class RateLimitRuleRequest(BaseModel):
@@ -185,7 +187,7 @@ class UserRateLimitConfigResponse(BaseModel):
     updated_at: datetime | None = None
     notes: str | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class UserRateLimitsResponse(BaseModel):
@@ -195,7 +197,7 @@ class UserRateLimitsResponse(BaseModel):
     rate_limit_config: UserRateLimitConfigResponse | None = None
     current_usage: dict[str, EndpointUsageStats]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class RateLimitUpdateResponse(BaseModel):
@@ -205,4 +207,4 @@ class RateLimitUpdateResponse(BaseModel):
     updated: bool
     config: UserRateLimitConfigResponse
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)

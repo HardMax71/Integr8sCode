@@ -133,7 +133,7 @@
             if (status.status === 'completed') {
                 toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
             } else if (status.status === 'failed') {
-                toast.error(`Replay failed: ${(status as { errors?: string[] }).errors?.[0] || 'Unknown error'}`);
+                toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
             }
         }
     }
@@ -167,7 +167,12 @@
                     failed_events: 0,
                     skipped_events: 0,
                     replay_id: response.replay_id,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    started_at: null,
+                    completed_at: null,
+                    errors: null,
+                    estimated_completion: null,
+                    execution_results: null,
                 };
                 checkReplayStatus(sessionId);
                 replayCheckInterval = setInterval(() => { checkReplayStatus(sessionId); }, 2000);

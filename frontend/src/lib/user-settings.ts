@@ -20,9 +20,7 @@ export async function loadUserSettings(): Promise<UserSettings | undefined> {
 
         setUserSettings(data);
 
-        if (data.theme) {
-            setTheme(data.theme);
-        }
+        setTheme(data.theme);
 
         return data;
     } catch (err) {
@@ -38,9 +36,7 @@ export async function saveUserSettings(partial: UserSettingsUpdate): Promise<boo
         const data = unwrap(await updateUserSettingsApiV1UserSettingsPut({ body: partial }));
         setUserSettings(data);
 
-        if (data.theme) {
-            setTheme(data.theme);
-        }
+        setTheme(data.theme);
 
         return true;
     } catch (err) {

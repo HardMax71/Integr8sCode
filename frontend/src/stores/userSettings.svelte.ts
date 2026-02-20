@@ -1,6 +1,6 @@
-import type { UserSettings, EditorSettings } from '$lib/api';
+import type { UserSettings, EditorSettingsOutput } from '$lib/api';
 
-const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+const FALLBACK_EDITOR_SETTINGS: EditorSettingsOutput = {
     theme: 'auto',
     font_size: 14,
     tab_size: 4,
@@ -11,7 +11,7 @@ const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
 
 class UserSettingsStore {
     settings = $state<UserSettings | null>(null);
-    editorSettings = $derived<EditorSettings>({ ...DEFAULT_EDITOR_SETTINGS, ...this.settings?.editor });
+    editorSettings = $derived<EditorSettingsOutput>(this.settings?.editor ?? FALLBACK_EDITOR_SETTINGS);
 
     setUserSettings(s: UserSettings | null): void {
         this.settings = s;

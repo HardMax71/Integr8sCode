@@ -43,10 +43,11 @@ describe('userSettings store', () => {
         });
 
         it.each([
-            ['partial override', { font_size: 20, tab_size: 2 }, { ...DEFAULTS, font_size: 20, tab_size: 2 }],
+            ['complete settings', { theme: 'auto', font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true },
+                { theme: 'auto', font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true }],
             ['full override', { theme: 'dark', font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false },
                 { theme: 'dark', font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false }],
-        ])('merges %s with defaults', async (_, editor, expected) => {
+        ])('returns %s from API', async (_, editor, expected) => {
             const { userSettingsStore, setUserSettings } = await import('$stores/userSettings.svelte');
             setUserSettings({ editor } as UserSettings);
             expect(userSettingsStore.editorSettings).toEqual(expected);

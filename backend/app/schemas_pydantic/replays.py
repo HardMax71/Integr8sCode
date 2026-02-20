@@ -8,7 +8,7 @@ from app.domain.replay.models import ReplayError, ReplayFilter
 
 
 class ReplayFilterSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     event_ids: list[str] | None = None
     execution_id: str | None = None
@@ -22,7 +22,7 @@ class ReplayFilterSchema(BaseModel):
 
 
 class ReplayConfigSchema(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     replay_type: ReplayType
     target: ReplayTarget = ReplayTarget.KAFKA
@@ -44,7 +44,7 @@ class ReplayConfigSchema(BaseModel):
 
 
 class ReplaySession(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     session_id: str = Field(default_factory=lambda: str(uuid4()))
     config: ReplayConfigSchema
@@ -85,7 +85,7 @@ class ReplayRequest(BaseModel):
 class ReplayResponse(BaseModel):
     """Response schema for replay operations"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     session_id: str
     status: ReplayStatus
@@ -95,7 +95,7 @@ class ReplayResponse(BaseModel):
 class SessionConfigSummary(BaseModel):
     """Lightweight config included in session listings."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     replay_type: ReplayType
     target: ReplayTarget
@@ -104,7 +104,7 @@ class SessionConfigSummary(BaseModel):
 class SessionSummary(BaseModel):
     """Summary information for replay sessions"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     session_id: str
     config: SessionConfigSummary
@@ -128,7 +128,7 @@ class SessionSummary(BaseModel):
 class CleanupResponse(BaseModel):
     """Response schema for cleanup operations"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     removed_sessions: int
     message: str

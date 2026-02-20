@@ -9,12 +9,12 @@
     import { githubLight } from '@uiw/codemirror-theme-github';
     import { themeStore } from '$stores/theme.svelte';
     import { getLanguageExtension } from '$lib/editor/languages';
-    import type { EditorSettings } from '$lib/api';
+    import type { EditorSettingsOutput } from '$lib/api';
 
     interface Props {
         content: string;
         lang: string;
-        settings: EditorSettings;
+        settings: EditorSettingsOutput;
         onchange?: (content: string) => void;
     }
 
@@ -46,11 +46,11 @@
             bracketMatching(),
             autocompletion(),
             EditorState.allowMultipleSelections.of(true),
-            tabSizeCompartment.of(EditorState.tabSize.of(settings.tab_size ?? 4)),
+            tabSizeCompartment.of(EditorState.tabSize.of(settings.tab_size)),
             keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
             languageCompartment.of(getLanguageExtension(lang)),
             lineWrappingCompartment.of(settings.word_wrap ? EditorView.lineWrapping : []),
-            fontSizeCompartment.of(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size ?? 14}px` } })),
+            fontSizeCompartment.of(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size}px` } })),
             EditorView.theme({
                 "&": { height: "100%", maxHeight: "100%" },
                 ".cm-content": { minHeight: "100%" },
@@ -69,8 +69,8 @@
     function applySettings() {
         if (!view) return;
         view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
-        view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size ?? 14}px` } })) });
-        view.dispatch({ effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(settings.tab_size ?? 4)) });
+        view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size}px` } })) });
+        view.dispatch({ effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(settings.tab_size)) });
         view.dispatch({ effects: lineNumbersCompartment.reconfigure(settings.show_line_numbers ? lineNumbers() : []) });
         view.dispatch({ effects: lineWrappingCompartment.reconfigure(settings.word_wrap ? EditorView.lineWrapping : []) });
     }

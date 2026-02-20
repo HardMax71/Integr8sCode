@@ -4,13 +4,13 @@
         getSystemSettingsApiV1AdminSettingsGet,
         updateSystemSettingsApiV1AdminSettingsPut,
         resetSystemSettingsApiV1AdminSettingsResetPost,
-        type SystemSettingsSchema,
+        type SystemSettingsSchemaInput,
     } from '$lib/api';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
 
-    let settings = $state<SystemSettingsSchema>({});
+    let settings = $state<SystemSettingsSchemaInput>({});
     let loading = $state(false);
     let saving = $state(false);
     let resetting = $state(false);

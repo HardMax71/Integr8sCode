@@ -2349,7 +2349,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettingsSchema"
+                  "$ref": "#/components/schemas/SystemSettingsSchema-Output"
                 }
               }
             }
@@ -2378,7 +2378,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SystemSettingsSchema"
+                "$ref": "#/components/schemas/SystemSettingsSchema-Input"
               }
             }
           },
@@ -2390,7 +2390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettingsSchema"
+                  "$ref": "#/components/schemas/SystemSettingsSchema-Output"
                 }
               }
             }
@@ -2443,7 +2443,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemSettingsSchema"
+                  "$ref": "#/components/schemas/SystemSettingsSchema-Output"
                 }
               }
             }
@@ -3214,7 +3214,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationSettings"
+                "$ref": "#/components/schemas/NotificationSettings-Input"
               }
             }
           },
@@ -3256,7 +3256,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EditorSettings"
+                "$ref": "#/components/schemas/EditorSettings-Input"
               }
             }
           },
@@ -4195,6 +4195,12 @@
           "status",
           "lang",
           "lang_version",
+          "stdout",
+          "stderr",
+          "exit_code",
+          "error_type",
+          "priority",
+          "user_id",
           "created_at",
           "updated_at"
         ],
@@ -4463,7 +4469,8 @@
           "user",
           "stats",
           "derived_counts",
-          "rate_limit_summary"
+          "rate_limit_summary",
+          "recent_events"
         ],
         "title": "AdminUserOverview"
       },
@@ -4707,7 +4714,8 @@
         "required": [
           "execution_id",
           "status",
-          "message"
+          "message",
+          "event_id"
         ],
         "title": "CancelResponse",
         "description": "Model for execution cancellation response."
@@ -5252,7 +5260,13 @@
         },
         "type": "object",
         "required": [
-          "user_deleted"
+          "user_deleted",
+          "executions",
+          "saved_scripts",
+          "notifications",
+          "user_settings",
+          "events",
+          "sagas"
         ],
         "title": "DeleteUserResponse",
         "description": "Response model for user deletion."
@@ -5286,9 +5300,16 @@
           }
         },
         "type": "object",
+        "required": [
+          "succeeded",
+          "failed",
+          "timeout",
+          "cancelled",
+          "terminal_total"
+        ],
         "title": "DerivedCounts"
       },
-      "EditorSettings": {
+      "EditorSettings-Input": {
         "properties": {
           "theme": {
             "$ref": "#/components/schemas/Theme",
@@ -5321,6 +5342,50 @@
           }
         },
         "type": "object",
+        "title": "EditorSettings",
+        "description": "Code editor preferences"
+      },
+      "EditorSettings-Output": {
+        "properties": {
+          "theme": {
+            "$ref": "#/components/schemas/Theme",
+            "default": "auto"
+          },
+          "font_size": {
+            "type": "integer",
+            "title": "Font Size",
+            "default": 14
+          },
+          "tab_size": {
+            "type": "integer",
+            "title": "Tab Size",
+            "default": 4
+          },
+          "use_tabs": {
+            "type": "boolean",
+            "title": "Use Tabs",
+            "default": false
+          },
+          "word_wrap": {
+            "type": "boolean",
+            "title": "Word Wrap",
+            "default": true
+          },
+          "show_line_numbers": {
+            "type": "boolean",
+            "title": "Show Line Numbers",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "theme",
+          "font_size",
+          "tab_size",
+          "use_tabs",
+          "word_wrap",
+          "show_line_numbers"
+        ],
         "title": "EditorSettings",
         "description": "Code editor preferences"
       },
@@ -5387,7 +5452,8 @@
         },
         "type": "object",
         "required": [
-          "detail"
+          "detail",
+          "type"
         ],
         "title": "ErrorResponse"
       },
@@ -6199,7 +6265,9 @@
           "dry_run",
           "total_events",
           "replay_id",
-          "status"
+          "session_id",
+          "status",
+          "events_preview"
         ],
         "title": "EventReplayResponse",
         "description": "Response model for event replay"
@@ -6318,6 +6386,11 @@
           "skipped_events",
           "replay_id",
           "created_at",
+          "started_at",
+          "completed_at",
+          "errors",
+          "estimated_completion",
+          "execution_results",
           "progress_percentage"
         ],
         "title": "EventReplayStatusResponse",
@@ -6394,7 +6467,15 @@
         },
         "type": "object",
         "required": [
-          "total_events"
+          "total_events",
+          "events_by_type",
+          "events_by_service",
+          "events_by_hour",
+          "top_users",
+          "error_rate",
+          "avg_processing_time",
+          "start_time",
+          "end_time"
         ],
         "title": "EventStatistics",
         "description": "Event statistics with API schema extras.",
@@ -7289,8 +7370,15 @@
         "type": "object",
         "required": [
           "execution_id",
+          "status",
+          "stdout",
+          "stderr",
           "lang",
-          "lang_version"
+          "lang_version",
+          "resource_usage",
+          "exit_code",
+          "error_type",
+          "priority"
         ],
         "title": "ExecutionResult",
         "description": "Model for execution result."
@@ -8270,6 +8358,7 @@
           "body",
           "action_url",
           "created_at",
+          "read_at",
           "severity",
           "tags"
         ],
@@ -8342,7 +8431,7 @@
         ],
         "title": "NotificationSentEvent"
       },
-      "NotificationSettings": {
+      "NotificationSettings-Input": {
         "properties": {
           "execution_completed": {
             "type": "boolean",
@@ -8376,6 +8465,50 @@
           }
         },
         "type": "object",
+        "title": "NotificationSettings",
+        "description": "User notification preferences"
+      },
+      "NotificationSettings-Output": {
+        "properties": {
+          "execution_completed": {
+            "type": "boolean",
+            "title": "Execution Completed",
+            "default": true
+          },
+          "execution_failed": {
+            "type": "boolean",
+            "title": "Execution Failed",
+            "default": true
+          },
+          "system_updates": {
+            "type": "boolean",
+            "title": "System Updates",
+            "default": true
+          },
+          "security_alerts": {
+            "type": "boolean",
+            "title": "Security Alerts",
+            "default": true
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationChannel"
+            },
+            "type": "array",
+            "title": "Channels",
+            "default": [
+              "in_app"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_completed",
+          "execution_failed",
+          "system_updates",
+          "security_alerts",
+          "channels"
+        ],
         "title": "NotificationSettings",
         "description": "User notification preferences"
       },
@@ -8513,7 +8646,20 @@
         "type": "object",
         "required": [
           "user_id",
-          "channel"
+          "channel",
+          "severities",
+          "include_tags",
+          "exclude_tags",
+          "enabled",
+          "webhook_url",
+          "slack_webhook",
+          "quiet_hours_enabled",
+          "quiet_hours_start",
+          "quiet_hours_end",
+          "timezone",
+          "batch_interval_minutes",
+          "created_at",
+          "updated_at"
         ],
         "title": "NotificationSubscription",
         "description": "User subscription preferences for notifications"
@@ -9127,7 +9273,8 @@
         "required": [
           "queue_depth",
           "active_count",
-          "max_concurrent"
+          "max_concurrent",
+          "by_priority"
         ],
         "title": "QueueStatusResponse",
         "description": "Queue status summary."
@@ -9370,7 +9517,10 @@
           "group",
           "requests",
           "window_seconds",
-          "algorithm"
+          "algorithm",
+          "burst_multiplier",
+          "priority",
+          "enabled"
         ],
         "title": "RateLimitRuleResponse",
         "description": "Response model for rate limit rule."
@@ -9412,6 +9562,11 @@
           }
         },
         "type": "object",
+        "required": [
+          "bypass_rate_limit",
+          "global_multiplier",
+          "has_custom_limits"
+        ],
         "title": "RateLimitSummary"
       },
       "RateLimitUpdateRequest": {
@@ -9626,7 +9781,19 @@
         },
         "type": "object",
         "required": [
-          "replay_type"
+          "replay_type",
+          "target",
+          "filter",
+          "speed_multiplier",
+          "preserve_timestamps",
+          "batch_size",
+          "max_events",
+          "target_topics",
+          "target_file_path",
+          "skip_errors",
+          "retry_failed",
+          "retry_attempts",
+          "enable_progress_tracking"
         ],
         "title": "ReplayConfigSchema"
       },
@@ -9901,6 +10068,17 @@
           }
         },
         "type": "object",
+        "required": [
+          "event_ids",
+          "execution_id",
+          "aggregate_id",
+          "event_types",
+          "exclude_event_types",
+          "start_time",
+          "end_time",
+          "user_id",
+          "service_name"
+        ],
         "title": "ReplayFilterSchema"
       },
       "ReplayRequest": {
@@ -10108,7 +10286,18 @@
         },
         "type": "object",
         "required": [
-          "config"
+          "session_id",
+          "config",
+          "status",
+          "total_events",
+          "replayed_events",
+          "failed_events",
+          "skipped_events",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "last_event_at",
+          "errors"
         ],
         "title": "ReplaySession"
       },
@@ -10286,6 +10475,12 @@
           }
         },
         "type": "object",
+        "required": [
+          "execution_time_wall_seconds",
+          "cpu_time_jiffies",
+          "clk_tck_hertz",
+          "peak_memory_kb"
+        ],
         "title": "ResourceUsage",
         "description": "Model for execution resource usage."
       },
@@ -10647,7 +10842,18 @@
         "type": "object",
         "required": [
           "event_type",
-          "execution_id"
+          "execution_id",
+          "timestamp",
+          "event_id",
+          "connection_id",
+          "message",
+          "status",
+          "stdout",
+          "stderr",
+          "exit_code",
+          "timeout_seconds",
+          "resource_usage",
+          "result"
         ],
         "title": "SSEExecutionEventSchema",
         "description": "API schema for SSE execution stream event payload (OpenAPI docs)."
@@ -11374,6 +11580,7 @@
           "script",
           "lang",
           "lang_version",
+          "description",
           "created_at",
           "updated_at"
         ],
@@ -12013,7 +12220,8 @@
           "event_type",
           "field",
           "old_value",
-          "new_value"
+          "new_value",
+          "reason"
         ],
         "title": "SettingsHistoryEntry",
         "description": "Single entry in settings history"
@@ -12237,7 +12445,7 @@
         ],
         "title": "SystemErrorEvent"
       },
-      "SystemSettingsSchema": {
+      "SystemSettingsSchema-Input": {
         "properties": {
           "max_timeout_seconds": {
             "type": "integer",
@@ -12316,6 +12524,102 @@
           }
         },
         "type": "object",
+        "title": "SystemSettingsSchema",
+        "description": "API schema for system settings with validation."
+      },
+      "SystemSettingsSchema-Output": {
+        "properties": {
+          "max_timeout_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Max Timeout Seconds",
+            "default": 300
+          },
+          "memory_limit": {
+            "type": "string",
+            "title": "Memory Limit",
+            "default": "512Mi"
+          },
+          "cpu_limit": {
+            "type": "string",
+            "title": "Cpu Limit",
+            "default": "2000m"
+          },
+          "max_concurrent_executions": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Max Concurrent Executions",
+            "default": 10
+          },
+          "password_min_length": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 8.0,
+            "title": "Password Min Length",
+            "default": 8
+          },
+          "session_timeout_minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 5.0,
+            "title": "Session Timeout Minutes",
+            "default": 60
+          },
+          "max_login_attempts": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 3.0,
+            "title": "Max Login Attempts",
+            "default": 5
+          },
+          "lockout_duration_minutes": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 5.0,
+            "title": "Lockout Duration Minutes",
+            "default": 15
+          },
+          "metrics_retention_days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 7.0,
+            "title": "Metrics Retention Days",
+            "default": 30
+          },
+          "log_level": {
+            "$ref": "#/components/schemas/LogLevel",
+            "default": "INFO"
+          },
+          "enable_tracing": {
+            "type": "boolean",
+            "title": "Enable Tracing",
+            "default": true
+          },
+          "sampling_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Sampling Rate",
+            "default": 0.1
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_timeout_seconds",
+          "memory_limit",
+          "cpu_limit",
+          "max_concurrent_executions",
+          "password_min_length",
+          "session_timeout_minutes",
+          "max_login_attempts",
+          "lockout_duration_minutes",
+          "metrics_retention_days",
+          "log_level",
+          "enable_tracing",
+          "sampling_rate"
+        ],
         "title": "SystemSettingsSchema",
         "description": "API schema for system settings with validation."
       },
@@ -12821,7 +13125,10 @@
           "user_id",
           "bypass_rate_limit",
           "global_multiplier",
-          "rules"
+          "rules",
+          "created_at",
+          "updated_at",
+          "notes"
         ],
         "title": "UserRateLimitConfigResponse",
         "description": "Response model for user rate limit config."
@@ -12853,6 +13160,7 @@
         "type": "object",
         "required": [
           "user_id",
+          "rate_limit_config",
           "current_usage"
         ],
         "title": "UserRateLimitsResponse",
@@ -12999,7 +13307,10 @@
           "user_id",
           "is_superuser",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "bypass_rate_limit",
+          "global_multiplier",
+          "has_custom_limits"
         ],
         "title": "UserResponse",
         "description": "User model for API responses (without password)"
@@ -13040,10 +13351,10 @@
             "default": "24h"
           },
           "notifications": {
-            "$ref": "#/components/schemas/NotificationSettings"
+            "$ref": "#/components/schemas/NotificationSettings-Output"
           },
           "editor": {
-            "$ref": "#/components/schemas/EditorSettings"
+            "$ref": "#/components/schemas/EditorSettings-Output"
           },
           "custom_settings": {
             "type": "object",
@@ -13067,7 +13378,17 @@
         },
         "type": "object",
         "required": [
-          "user_id"
+          "user_id",
+          "theme",
+          "timezone",
+          "date_format",
+          "time_format",
+          "notifications",
+          "editor",
+          "custom_settings",
+          "version",
+          "created_at",
+          "updated_at"
         ],
         "title": "UserSettings",
         "description": "Complete user settings model"
@@ -13120,7 +13441,7 @@
           "notifications": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/NotificationSettings"
+                "$ref": "#/components/schemas/NotificationSettings-Input"
               },
               {
                 "type": "null"
@@ -13130,7 +13451,7 @@
           "editor": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EditorSettings"
+                "$ref": "#/components/schemas/EditorSettings-Input"
               },
               {
                 "type": "null"

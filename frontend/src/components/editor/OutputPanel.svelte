@@ -137,7 +137,7 @@
 
                 {#if result.resource_usage}
                     {@const clkTck = result.resource_usage.clk_tck_hertz ?? 100}
-                    {@const cpuMs = (result.resource_usage.cpu_time_jiffies ?? 0) * 1000 / clkTck}
+                    {@const cpuMs = result.resource_usage.cpu_time_jiffies * 1000 / clkTck}
                     <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
                         <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">Resource Usage:</h4>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
@@ -152,13 +152,13 @@
                             <div class="flex flex-col">
                                 <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Memory:</span>
                                 <span class="text-fg-default dark:text-dark-fg-default font-medium">
-                                    {`${((result.resource_usage.peak_memory_kb ?? 0) / 1024).toFixed(3)} MiB`}
+                                    {`${(result.resource_usage.peak_memory_kb / 1024).toFixed(3)} MiB`}
                                 </span>
                             </div>
                             <div class="flex flex-col">
                                 <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Time:</span>
                                 <span class="text-fg-default dark:text-dark-fg-default font-medium">
-                                    {`${(result.resource_usage.execution_time_wall_seconds ?? 0).toFixed(3)} s`}
+                                    {`${result.resource_usage.execution_time_wall_seconds.toFixed(3)} s`}
                                 </span>
                             </div>
                         </div>

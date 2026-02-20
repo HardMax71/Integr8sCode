@@ -7,26 +7,21 @@ vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('List', 'Trash2'));
 
 import SavedScripts from '../SavedScripts.svelte';
+import type { SavedScriptResponse } from '$lib/api';
 
-interface SavedScript {
-  id: string;
-  name: string;
-  script: string;
-  lang?: string;
-  lang_version?: string;
-}
-
-function createScripts(count: number): SavedScript[] {
+function createScripts(count: number): SavedScriptResponse[] {
   return Array.from({ length: count }, (_, i) => ({
-    id: `script-${i + 1}`,
+    script_id: `script-${i + 1}`,
     name: `Script ${i + 1}`,
     script: `print("hello ${i + 1}")`,
     lang: 'python',
     lang_version: '3.11',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   }));
 }
 
-function renderScripts(scripts: SavedScript[] = []) {
+function renderScripts(scripts: SavedScriptResponse[] = []) {
   const onload = vi.fn();
   const ondelete = vi.fn();
   const onrefresh = vi.fn();
@@ -34,7 +29,7 @@ function renderScripts(scripts: SavedScript[] = []) {
   return { ...result, onload, ondelete, onrefresh };
 }
 
-async function renderAndExpand(scripts: SavedScript[] = []) {
+async function renderAndExpand(scripts: SavedScriptResponse[] = []) {
   const user = userEvent.setup();
   const result = renderScripts(scripts);
   await user.click(screen.getByRole('button', { name: /Show Saved Scripts/i }));
@@ -79,9 +74,9 @@ describe('SavedScripts', () => {
 
   it.each([
     { lang: 'go', lang_version: '1.21', expected: 'go 1.21' },
-    { lang: undefined, lang_version: undefined, expected: 'python 3.11' },
+    { lang: 'python', lang_version: '3.12', expected: 'python 3.12' },
   ])('displays "$expected" for lang=$lang version=$lang_version', async ({ lang, lang_version, expected }) => {
-    await renderAndExpand([{ id: '1', name: 'Test', script: 'x', lang, lang_version }]);
+    await renderAndExpand([{ script_id: '1', name: 'Test', script: 'x', lang, lang_version, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
@@ -103,7 +98,7 @@ describe('SavedScripts', () => {
   });
 
   it('renders load button title with lang info', async () => {
-    await renderAndExpand([{ id: '1', name: 'Go App', script: 'x', lang: 'go', lang_version: '1.21' }]);
+    await renderAndExpand([{ script_id: '1', name: 'Go App', script: 'x', lang: 'go', lang_version: '1.21', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
     expect(screen.getByTitle('Load Go App (go 1.21)')).toBeInTheDocument();
   });
 });

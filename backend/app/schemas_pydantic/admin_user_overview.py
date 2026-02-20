@@ -14,7 +14,7 @@ class DerivedCounts(BaseModel):
     cancelled: int = 0
     terminal_total: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class RateLimitSummary(BaseModel):
@@ -22,7 +22,7 @@ class RateLimitSummary(BaseModel):
     global_multiplier: float | None = None
     has_custom_limits: bool | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class AdminUserOverview(BaseModel):
@@ -32,4 +32,4 @@ class AdminUserOverview(BaseModel):
     rate_limit_summary: RateLimitSummary
     recent_events: list[DomainEvent] = []
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)

@@ -11,6 +11,7 @@
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
+        type UserUpdate,
         type EndpointUsageStats,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -58,7 +59,7 @@
     let savingRateLimits = $state(false);
 
     // User form state
-    let userForm = $state({ username: '', email: '', password: '', role: 'user', is_active: true });
+    let userForm = $state<{ username: string; email: string; password: string; role: UserRole; is_active: boolean }>({ username: '', email: '', password: '', role: 'user', is_active: true });
     let savingUser = $state(false);
     let cascadeDelete = $state(false);
     let deletingUser = $state(false);
@@ -147,14 +148,14 @@
         savingUser = true;
         let result;
         if (editingUser) {
-            const updateData: Record<string, string | boolean | null> = {
+            const updateData: UserUpdate = {
                 username: userForm.username, email: userForm.email || null, role: userForm.role, is_active: userForm.is_active
             };
             if (userForm.password) updateData.password = userForm.password;
             result = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
         } else {
             result = await createUserApiV1AdminUsersPost({
-                body: { username: userForm.username, email: userForm.email, password: userForm.password, role: userForm.role as 'user' | 'admin' | undefined, is_active: userForm.is_active }
+                body: { username: userForm.username, email: userForm.email, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
             });
         }
         savingUser = false;
@@ -188,7 +189,8 @@
             });
             const response = unwrap(result);
             rateLimitConfig = response?.rate_limit_config ?? {
-                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
+                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: '',
+                created_at: null, updated_at: null,
             };
             rateLimitUsage = response?.current_usage || {};
         } catch {

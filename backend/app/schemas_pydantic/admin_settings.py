@@ -11,7 +11,7 @@ _CPU_PATTERN = re.compile(r"^\d+m$")
 class SystemSettingsSchema(BaseModel):
     """API schema for system settings with validation."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     max_timeout_seconds: int = Field(default=300, ge=1, le=3600)
     memory_limit: str = "512Mi"

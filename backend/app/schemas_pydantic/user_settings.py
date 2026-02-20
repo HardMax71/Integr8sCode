@@ -9,7 +9,7 @@ from app.domain.enums import EventType, NotificationChannel, Theme
 class NotificationSettings(BaseModel):
     """User notification preferences"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     execution_completed: bool = True
     execution_failed: bool = True
@@ -21,7 +21,7 @@ class NotificationSettings(BaseModel):
 class EditorSettings(BaseModel):
     """Code editor preferences"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     theme: Theme = Theme.AUTO
     font_size: int = 14
@@ -48,7 +48,7 @@ class EditorSettings(BaseModel):
 class UserSettings(BaseModel):
     """Complete user settings model"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     user_id: str
     theme: Theme = Theme.AUTO
@@ -66,7 +66,7 @@ class UserSettings(BaseModel):
 class UserSettingsUpdate(BaseModel):
     """Partial update model for user settings"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     theme: Theme | None = None
     timezone: str | None = None
@@ -86,7 +86,7 @@ class ThemeUpdateRequest(BaseModel):
 class SettingsHistoryEntry(BaseModel):
     """Single entry in settings history"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     timestamp: datetime
     event_type: EventType
@@ -99,7 +99,7 @@ class SettingsHistoryEntry(BaseModel):
 class SettingsHistoryResponse(BaseModel):
     """Response model for settings history (limited snapshot of recent changes)"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     history: list[SettingsHistoryEntry]
     limit: int

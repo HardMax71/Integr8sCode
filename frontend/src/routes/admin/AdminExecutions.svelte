@@ -23,8 +23,8 @@
     let queueStatus = $state<QueueStatusResponse | null>(null);
 
     // Filters
-    let statusFilter = $state<string>('all');
-    let priorityFilter = $state<string>('all');
+    let statusFilter = $state<'all' | ExecutionStatus>('all');
+    let priorityFilter = $state<'all' | QueuePriority>('all');
     let userSearch = $state('');
 
     // Pagination
@@ -50,8 +50,8 @@
                 query: {
                     limit: pageSize,
                     skip: (currentPage - 1) * pageSize,
-                    status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
-                    priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
+                    status: statusFilter !== 'all' ? statusFilter : undefined,
+                    priority: priorityFilter !== 'all' ? priorityFilter : undefined,
                     user_id: userSearch || undefined,
                 },
             }), null);
@@ -143,7 +143,7 @@
                 <div class="card p-4 {STATS_BG_COLORS.purple}">
                     <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">By Priority</div>
                     <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
-                        {#each Object.entries(queueStatus.by_priority ?? {}) as [priority, count]}
+                        {#each Object.entries(queueStatus.by_priority) as [priority, count]}
                             <span class="mr-2">{priority}: {count}</span>
                         {:else}
                             <span class="text-fg-muted dark:text-dark-fg-muted">Empty</span>

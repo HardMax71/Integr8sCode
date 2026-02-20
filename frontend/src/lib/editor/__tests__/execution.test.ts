@@ -3,12 +3,10 @@ import type { ExecutionResult } from '$lib/api';
 
 const mockCreateExecution = vi.fn();
 const mockSseFn = vi.fn();
-const mockGetResult = vi.fn();
 
 vi.mock('$lib/api', () => ({
     createExecutionApiV1ExecutePost: (...a: unknown[]) => mockCreateExecution(...a),
     executionEventsApiV1EventsExecutionsExecutionIdGet: (...a: unknown[]) => mockSseFn(...a),
-    getResultApiV1ExecutionsExecutionIdResultGet: (...a: unknown[]) => mockGetResult(...a),
 }));
 
 vi.mock('$lib/api-interceptors', () => ({
@@ -41,7 +39,6 @@ describe('createExecutionState', () => {
     beforeEach(() => {
         mockCreateExecution.mockReset();
         mockSseFn.mockReset();
-        mockGetResult.mockReset();
     });
 
     describe('initial state', () => {
@@ -75,76 +72,86 @@ describe('createExecutionState', () => {
             expect(s.phase).toBe('idle');
             expect(s.error).toBeNull();
         });
+
+        it('sets result to null when result_stored has no result', async () => {
+            mockCreateExecution.mockResolvedValue({
+                data: { execution_id: 'exec-1', status: 'queued' },
+                error: null,
+            });
+
+            mockSseEvents({ event_type: 'result_stored' });
+
+            const s = createExecutionState();
+            await s.execute('x', 'python', '3.12');
+
+            expect(s.result).toBeNull();
+            expect(s.error).toBe('Connection to server lost.');
+        });
     });
 
-    describe('execute → terminal failure falls back to fetchResult', () => {
+    describe('execute → terminal failure sets error', () => {
         it.each(['execution_failed', 'execution_timeout', 'result_failed'])(
-            'fetches result on %s event',
+            'sets error on %s event',
             async (eventType) => {
                 mockCreateExecution.mockResolvedValue({
                     data: { execution_id: 'exec-1', status: 'queued' },
                     error: null,
                 });
 
-                mockSseEvents({ event_type: eventType });
-                mockGetResult.mockResolvedValue({ data: RESULT, error: null });
+                mockSseEvents({ event_type: eventType, message: 'something went wrong' });
 
                 const s = createExecutionState();
                 await s.execute('x', 'python', '3.12');
 
-                expect(mockGetResult).toHaveBeenCalledOnce();
-                expect(s.result).toEqual(RESULT);
+                expect(s.error).toBe('something went wrong');
+                expect(s.phase).toBe('idle');
             },
         );
+
+        it('uses result from terminal failure event when available', async () => {
+            mockCreateExecution.mockResolvedValue({
+                data: { execution_id: 'exec-1', status: 'queued' },
+                error: null,
+            });
+
+            mockSseEvents({ event_type: 'execution_failed', result: RESULT, message: 'failed' });
+
+            const s = createExecutionState();
+            await s.execute('x', 'python', '3.12');
+
+            expect(s.result).toEqual(RESULT);
+            expect(s.error).toBe('failed');
+        });
+
+        it('uses default message when terminal failure has no message', async () => {
+            mockCreateExecution.mockResolvedValue({
+                data: { execution_id: 'exec-1', status: 'queued' },
+                error: null,
+            });
+
+            mockSseEvents({ event_type: 'execution_failed' });
+
+            const s = createExecutionState();
+            await s.execute('x', 'python', '3.12');
+
+            expect(s.error).toBe('Execution failed.');
+        });
     });
 
     describe('execute → stream ends without terminal event', () => {
-        it('falls back to fetchResult', async () => {
+        it('sets connection lost error', async () => {
             mockCreateExecution.mockResolvedValue({
                 data: { execution_id: 'exec-1', status: 'queued' },
                 error: null,
             });
 
             mockSseEvents({ event_type: 'status', status: 'running' });
-            mockGetResult.mockResolvedValue({ data: RESULT, error: null });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');
 
-            expect(mockGetResult).toHaveBeenCalledOnce();
-            expect(s.result).toEqual(RESULT);
-        });
-    });
-
-    describe('execute → SSE connection failure falls back to fetchResult', () => {
-        it('fetches result on SSE error', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: null,
-            });
-
-            mockSseFn.mockRejectedValue(new Error('SSE failed: 500'));
-            mockGetResult.mockResolvedValue({ data: RESULT, error: null });
-
-            const s = createExecutionState();
-            await s.execute('x', 'python', '3.12');
-
-            expect(s.result).toEqual(RESULT);
-        });
-
-        it('sets error when both SSE and fetchResult fail', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: null,
-            });
-
-            mockSseFn.mockRejectedValue(new Error('Unauthorized'));
-            mockGetResult.mockResolvedValue({ data: undefined, error: { detail: 'Unauthorized' } });
-
-            const s = createExecutionState();
-            await s.execute('x', 'python', '3.12');
-
-            expect(s.error).toBe('Error executing script.');
+            expect(s.error).toBe('Connection to server lost.');
+            expect(s.result).toBeNull();
         });
     });
 
@@ -158,7 +165,7 @@ describe('createExecutionState', () => {
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');
 
-            expect(s.error).toBe('Error executing script.');
+            expect(s.error).toBe('Failed to start execution.');
             expect(s.phase).toBe('idle');
         });
     });

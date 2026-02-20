@@ -1,7 +1,6 @@
 import {
     createExecutionApiV1ExecutePost,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
-    getResultApiV1ExecutionsExecutionIdResultGet,
     type ExecutionResult,
     type ExecutionStatus,
     type EventType,
@@ -19,94 +18,75 @@ function isTerminalFailure(e: EventType | SseControlEvent): boolean {
     return e === 'execution_failed' || e === 'execution_timeout' || e === 'result_failed';
 }
 
-export function createExecutionState() {
-    let phase = $state<ExecutionPhase>('idle');
-    let result = $state<ExecutionResult | null>(null);
-    let error = $state<string | null>(null);
-    let abortController: AbortController | null = null;
+class ExecutionState {
+    phase = $state<ExecutionPhase>('idle');
+    result = $state<ExecutionResult | null>(null);
+    error = $state<string | null>(null);
+    #controller: AbortController | null = null;
 
-    function reset() {
-        phase = 'idle';
-        result = null;
-        error = null;
+    get isExecuting() { return this.phase !== 'idle'; }
+
+    reset() {
+        this.phase = 'idle';
+        this.result = null;
+        this.error = null;
     }
 
-    function abort() {
-        abortController?.abort();
-        abortController = null;
-        phase = 'idle';
+    abort() {
+        this.#controller?.abort();
+        this.#controller = null;
+        this.phase = 'idle';
     }
 
-    async function execute(script: string, lang: string, langVersion: string): Promise<void> {
-        abort();
-        reset();
-        phase = 'starting';
+    async execute(script: string, lang: string, langVersion: string): Promise<void> {
+        this.abort();
+        this.reset();
+        this.phase = 'starting';
 
-        try {
-            const { data, error: execError } = await createExecutionApiV1ExecutePost({
-                body: { script, lang, lang_version: langVersion }
-            });
-            if (execError) throw execError;
-
-            const executionId = data.execution_id;
-            phase = isActivePhase(data.status) ? data.status : 'queued';
-
-            result = await streamResult(executionId);
-        } catch (err) {
-            error = getErrorMessage(err, 'Error executing script.');
-        } finally {
-            abortController = null;
-            phase = 'idle';
-        }
-    }
-
-    async function streamResult(executionId: string): Promise<ExecutionResult> {
-        abortController = new AbortController();
-
-        try {
-            const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
-                path: { execution_id: executionId },
-                signal: abortController.signal,
-                sseMaxRetryAttempts: 0,
-            });
-
-            for await (const ev of stream) {
-                if (ev.status && isActivePhase(ev.status)) {
-                    phase = ev.status;
-                }
-
-                if (ev.event_type === 'result_stored' && ev.result) {
-                    return ev.result;
-                }
-
-                if (isTerminalFailure(ev.event_type)) {
-                    return await fetchResult(executionId);
-                }
-            }
-        } catch {
-            // SSE connection failed — fall back to polling
-        }
-
-        return fetchResult(executionId);
-    }
-
-    async function fetchResult(executionId: string): Promise<ExecutionResult> {
-        const { data, error } = await getResultApiV1ExecutionsExecutionIdResultGet({
-            path: { execution_id: executionId }
+        const { data, error } = await createExecutionApiV1ExecutePost({
+            body: { script, lang, lang_version: langVersion },
         });
-        if (error) throw error;
-        return data;
-    }
+        if (error) {
+            this.error = getErrorMessage(error, 'Failed to start execution.');
+            this.phase = 'idle';
+            return;
+        }
 
-    return {
-        get phase() { return phase; },
-        get result() { return result; },
-        get error() { return error; },
-        get isExecuting() { return phase !== 'idle'; },
-        execute,
-        abort,
-        reset
-    };
+        const controller = new AbortController();
+        this.#controller = controller;
+        this.phase = isActivePhase(data.status) ? data.status : 'queued';
+
+        const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
+            path: { execution_id: data.execution_id },
+            signal: controller.signal,
+            sseMaxRetryAttempts: 3,
+        });
+
+        for await (const ev of stream) {
+            if (ev.status && isActivePhase(ev.status)) {
+                this.phase = ev.status;
+            }
+
+            if (ev.event_type === 'result_stored') {
+                this.result = ev.result ?? null;
+                break;
+            }
+
+            if (isTerminalFailure(ev.event_type)) {
+                this.result = ev.result ?? null;
+                this.error = ev.message ?? 'Execution failed.';
+                break;
+            }
+        }
+
+        if (!this.result && !this.error && !controller.signal.aborted) {
+            this.error = 'Connection to server lost.';
+        }
+        this.#controller = null;
+        this.phase = 'idle';
+    }
 }
 
-export type ExecutionState = ReturnType<typeof createExecutionState>;
+export function createExecutionState() { return new ExecutionState(); }
+
+export type { ExecutionState };

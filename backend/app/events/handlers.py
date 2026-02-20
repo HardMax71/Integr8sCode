@@ -17,7 +17,6 @@ from app.domain.events import (
     ExecutionTimeoutEvent,
 )
 from app.domain.idempotency import KeyStrategy
-from app.services.coordinator import ExecutionCoordinator
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
@@ -52,68 +51,6 @@ async def with_idempotency(
         )
         raise
 # --8<-- [end:with_idempotency]
-
-
-def register_coordinator_subscriber(broker: KafkaBroker) -> None:
-    @broker.subscriber(
-        EventType.EXECUTION_REQUESTED,
-        group_id="execution-coordinator",
-        ack_policy=AckPolicy.ACK,
-    )
-    async def on_execution_requested(
-            body: ExecutionRequestedEvent,
-            coordinator: FromDishka[ExecutionCoordinator],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-    ) -> None:
-        await with_idempotency(
-            body, coordinator.handle_execution_requested, idem, KeyStrategy.EVENT_BASED, 7200, logger,
-        )
-
-    @broker.subscriber(
-        EventType.EXECUTION_COMPLETED,
-        group_id="execution-coordinator",
-        ack_policy=AckPolicy.ACK,
-    )
-    async def on_execution_completed(
-            body: ExecutionCompletedEvent,
-            coordinator: FromDishka[ExecutionCoordinator],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-    ) -> None:
-        await with_idempotency(
-            body, coordinator.handle_execution_completed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
-        )
-
-    @broker.subscriber(
-        EventType.EXECUTION_FAILED,
-        group_id="execution-coordinator",
-        ack_policy=AckPolicy.ACK,
-    )
-    async def on_execution_failed(
-            body: ExecutionFailedEvent,
-            coordinator: FromDishka[ExecutionCoordinator],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-    ) -> None:
-        await with_idempotency(
-            body, coordinator.handle_execution_failed, idem, KeyStrategy.EVENT_BASED, 7200, logger,
-        )
-
-    @broker.subscriber(
-        EventType.EXECUTION_CANCELLED,
-        group_id="execution-coordinator",
-        ack_policy=AckPolicy.ACK,
-    )
-    async def on_execution_cancelled(
-            body: ExecutionCancelledEvent,
-            coordinator: FromDishka[ExecutionCoordinator],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-    ) -> None:
-        await with_idempotency(
-            body, coordinator.handle_execution_cancelled, idem, KeyStrategy.EVENT_BASED, 7200, logger,
-        )
 
 
 def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:

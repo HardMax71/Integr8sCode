@@ -46,7 +46,7 @@ body:
         - Frontend (UI)
         - Backend API
         - Execution (K8s pods)
-        - Workers (Coordinator, DLQ, etc.)
+        - Workers (Saga, DLQ, etc.)
         - SSE / Real-time updates
         - Authentication
         - Other

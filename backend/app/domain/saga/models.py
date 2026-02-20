@@ -89,9 +89,7 @@ class SagaConfig:
     enable_compensation: bool = True
     store_events: bool = True
     # When True, saga steps publish orchestration commands (e.g., to k8s worker).
-    # Keep False when another component (e.g., coordinator) publishes commands
-    # to avoid duplicate actions while still creating saga instances.
-    publish_commands: bool = False
+    publish_commands: bool = True
 
 
 @dataclass

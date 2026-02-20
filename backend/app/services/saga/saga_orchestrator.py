@@ -26,6 +26,8 @@ from app.domain.saga import (
     SagaContextData,
 )
 from app.events.core import UnifiedProducer
+from app.services.execution_queue import ExecutionQueueService
+from app.services.runtime_settings import RuntimeSettingsLoader
 
 from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
@@ -43,18 +45,23 @@ class SagaOrchestrator:
         producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: structlog.stdlib.BoundLogger,
+        queue_service: ExecutionQueueService,
+        runtime_settings: RuntimeSettingsLoader,
     ):
         self.config = config
         self._producer = producer
         self._repo: SagaRepository = saga_repository
         self._alloc_repo: ResourceAllocationRepository = resource_allocation_repository
         self.logger = logger
+        self._queue = queue_service
+        self._runtime_settings = runtime_settings
 
     async def handle_execution_requested(self, event: DomainEvent) -> None:
-        """Handle EXECUTION_REQUESTED — starts a new saga."""
+        """Handle EXECUTION_REQUESTED — enqueue and attempt to schedule."""
         if not isinstance(event, ExecutionRequestedEvent):
             raise TypeError(f"Expected ExecutionRequestedEvent, got {type(event).__name__}")
-        await self._start_saga(event)
+        await self._queue.enqueue(event)
+        await self.try_schedule_from_queue()
 
     async def handle_execution_completed(self, event: DomainEvent) -> None:
         """Handle EXECUTION_COMPLETED — marks saga as completed."""
@@ -79,9 +86,10 @@ class SagaOrchestrator:
         )
 
     async def handle_execution_cancelled(self, event: DomainEvent) -> None:
-        """Handle EXECUTION_CANCELLED — marks saga as cancelled."""
+        """Handle EXECUTION_CANCELLED — remove from queue and mark saga as cancelled."""
         if not isinstance(event, ExecutionCancelledEvent):
             raise TypeError(f"Expected ExecutionCancelledEvent, got {type(event).__name__}")
+        await self._queue.remove(event.execution_id)
         await self._resolve_completion(
             event.execution_id, SagaState.CANCELLED, event.reason
         )
@@ -103,6 +111,19 @@ class SagaOrchestrator:
         await self._repo.save_saga(
             saga.saga_id, state=state, error_message=error_message, completed_at=datetime.now(UTC),
         )
+
+        await self._queue.release(execution_id)
+        await self.try_schedule_from_queue()
+
+    async def try_schedule_from_queue(self) -> None:
+        """Try to schedule pending executions from the queue."""
+        settings = await self._runtime_settings.get_effective_settings()
+        while True:
+            result = await self._queue.try_schedule(settings.max_concurrent_executions)
+            if result is None:
+                break
+            execution_id, event = result
+            await self._start_saga(event)
 
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
         """Start a new saga instance."""

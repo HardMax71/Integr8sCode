@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.core.metrics import (
     ConnectionMetrics,
-    CoordinatorMetrics,
     DatabaseMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
     KubernetesMetrics,
     NotificationMetrics,
+    QueueMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -194,8 +194,8 @@ def connection_metrics(test_settings: Settings) -> ConnectionMetrics:
 
 
 @pytest.fixture
-def coordinator_metrics(test_settings: Settings) -> CoordinatorMetrics:
-    return CoordinatorMetrics(test_settings)
+def queue_metrics(test_settings: Settings) -> QueueMetrics:
+    return QueueMetrics(test_settings)
 
 
 @pytest.fixture

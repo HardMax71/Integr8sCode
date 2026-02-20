@@ -47,7 +47,6 @@ Each worker subscribes to only the topics it needs, with its own consumer group:
 
 | Consumer Group | Subscribed Topics |
 |---------------|-------------------|
-| `execution-coordinator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_cancelled` |
 | `k8s-worker` | `create_pod_command`, `delete_pod_command` |
 | `result-processor` | `execution_completed`, `execution_failed`, `execution_timeout` |
 | `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
@@ -60,11 +59,10 @@ Multiple consumer groups can subscribe to the same topic — Kafka delivers each
 
 When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to the `execution_requested` topic. Multiple consumers receive it:
 
-1. **Coordinator**: Validates, rate-limits, orchestrates the execution flow
-2. **Saga orchestrator**: Creates a saga to track the distributed transaction
-3. **SSE bridge**: Pushes the event to the user's browser in real-time
+1. **Saga orchestrator**: Creates a saga, enqueues the execution in a Redis-backed priority queue, and publishes a `CreatePodCommandEvent`
+2. **SSE bridge**: Pushes the event to the user's browser in real-time
 
-The coordinator publishes `CreatePodCommandEvent` to the `create_pod_command` topic. The K8s worker — the sole consumer — creates the pod. Pod lifecycle events flow back through their respective topics.
+The saga orchestrator publishes `CreatePodCommandEvent` to the `create_pod_command` topic. The K8s worker — the sole consumer — creates the pod. Pod lifecycle events flow back through their respective topics.
 
 ## Scaling
 
@@ -76,7 +74,7 @@ With dedicated topics per event type, each can be scaled independently:
 
 ## Failure isolation
 
-If the K8s worker crashes, only `create_pod_command` and `delete_pod_command` topics accumulate messages. The rest of the system continues normally — SSE streams updates, the coordinator processes requests, notifications fire.
+If the K8s worker crashes, only `create_pod_command` and `delete_pod_command` topics accumulate messages. The rest of the system continues normally — SSE streams updates, the saga orchestrator processes requests, notifications fire.
 
 ## Sagas
 

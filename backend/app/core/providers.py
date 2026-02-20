@@ -13,13 +13,13 @@ from kubernetes_asyncio import config as k8s_config
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
-    CoordinatorMetrics,
     DatabaseMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
     KubernetesMetrics,
     NotificationMetrics,
+    QueueMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -45,10 +45,11 @@ from app.dlq.manager import DLQManager
 from app.domain.saga import SagaConfig
 from app.events.core import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
+from app.services.admin.admin_execution_service import AdminExecutionService
 from app.services.auth_service import AuthService
-from app.services.coordinator import ExecutionCoordinator
 from app.services.event_replay import EventReplayService
 from app.services.event_service import EventService
+from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
@@ -259,8 +260,8 @@ class MetricsProvider(Provider):
         return KubernetesMetrics(settings)
 
     @provide
-    def get_coordinator_metrics(self, settings: Settings) -> CoordinatorMetrics:
-        return CoordinatorMetrics(settings)
+    def get_queue_metrics(self, settings: Settings) -> QueueMetrics:
+        return QueueMetrics(settings)
 
     @provide
     def get_dlq_metrics(self, settings: Settings) -> DLQMetrics:
@@ -507,12 +508,7 @@ class AdminServicesProvider(Provider):
 
 
 def _create_default_saga_config() -> SagaConfig:
-    """Factory for default SagaConfig used by orchestrators.
-
-    Note: publish_commands=False because the coordinator worker handles
-    publishing CreatePodCommand events. The saga orchestrator tracks state
-    and handles completion events without duplicating command publishing.
-    """
+    """Factory for default SagaConfig used by orchestrators."""
     return SagaConfig(
         name="main-orchestrator",
         timeout_seconds=300,
@@ -520,8 +516,21 @@ def _create_default_saga_config() -> SagaConfig:
         retry_delay_seconds=5,
         enable_compensation=True,
         store_events=True,
-        publish_commands=False,
+        publish_commands=True,
     )
+
+
+class ExecutionQueueProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def get_execution_queue_service(
+        self,
+        redis_client: redis.Redis,
+        logger: structlog.stdlib.BoundLogger,
+        queue_metrics: QueueMetrics,
+    ) -> ExecutionQueueService:
+        return ExecutionQueueService(redis_client, logger, queue_metrics)
 
 
 class BusinessServicesProvider(Provider):
@@ -590,23 +599,19 @@ class BusinessServicesProvider(Provider):
             logger=logger,
         )
 
-
-class CoordinatorProvider(Provider):
-    scope = Scope.APP
-
     @provide
-    def get_execution_coordinator(
-        self,
-        producer: UnifiedProducer,
-        execution_repository: ExecutionRepository,
-        logger: structlog.stdlib.BoundLogger,
-        coordinator_metrics: CoordinatorMetrics,
-    ) -> ExecutionCoordinator:
-        return ExecutionCoordinator(
-            producer=producer,
-            execution_repository=execution_repository,
+    def get_admin_execution_service(
+            self,
+            execution_repository: ExecutionRepository,
+            queue_service: ExecutionQueueService,
+            runtime_settings: RuntimeSettingsLoader,
+            logger: structlog.stdlib.BoundLogger,
+    ) -> AdminExecutionService:
+        return AdminExecutionService(
+            execution_repo=execution_repository,
+            queue_service=queue_service,
+            runtime_settings=runtime_settings,
             logger=logger,
-            coordinator_metrics=coordinator_metrics,
         )
 
 
@@ -679,6 +684,8 @@ class SagaOrchestratorProvider(Provider):
         kafka_producer: UnifiedProducer,
         resource_allocation_repository: ResourceAllocationRepository,
         logger: structlog.stdlib.BoundLogger,
+        queue_service: ExecutionQueueService,
+        runtime_settings: RuntimeSettingsLoader,
     ) -> SagaOrchestrator:
         return SagaOrchestrator(
             config=_create_default_saga_config(),
@@ -686,6 +693,8 @@ class SagaOrchestratorProvider(Provider):
             producer=kafka_producer,
             resource_allocation_repository=resource_allocation_repository,
             logger=logger,
+            queue_service=queue_service,
+            runtime_settings=runtime_settings,
         )
 
 
@@ -727,5 +736,3 @@ class EventReplayProvider(Provider):
             replay_metrics=replay_metrics,
             logger=logger,
         )
-
-

@@ -1,6 +1,6 @@
 # Workers
 
-The execution pipeline is split across seven background workers, each running as a separate container. This separation
+The execution pipeline is split across six background workers, each running as a separate container. This separation
 keeps concerns isolated - the API doesn't block waiting for pods to finish, the saga orchestrator doesn't care how pods
 are created, and the result processor doesn't know anything about Kubernetes.
 
@@ -10,8 +10,6 @@ MongoDB and Redis provide shared state where needed.
 ```mermaid
 graph LR
     API[Backend API] -->|execution_requested| Kafka[(Kafka)]
-    Kafka --> Coord[Coordinator]
-    Coord -->|execution_accepted| Kafka
     Kafka --> Saga[Saga Orchestrator]
     Saga -->|create_pod_command| Kafka
     Kafka --> K8s[K8s Worker]
@@ -27,8 +25,7 @@ graph LR
 
 | Worker                                    | What it does                                              | Entry point                |
 |-------------------------------------------|-----------------------------------------------------------|----------------------------|
-| [Coordinator](coordinator.md)             | Admits executions, manages the priority queue             | `run_coordinator.py`       |
-| [Saga Orchestrator](saga_orchestrator.md) | Drives the execution state machine, issues pod commands   | `run_saga_orchestrator.py` |
+| [Saga Orchestrator](saga_orchestrator.md) | Drives the execution state machine, manages execution queue, issues pod commands | `run_saga_orchestrator.py` |
 | [K8s Worker](k8s_worker.md)               | Creates ConfigMaps and Pods with security hardening       | `run_k8s_worker.py`        |
 | [Pod Monitor](pod_monitor.md)             | Watches pods, translates K8s events to domain events      | `run_pod_monitor.py`       |
 | [Result Processor](result_processor.md)   | Persists execution results, cleans up resources           | `run_result_processor.py`  |
@@ -49,11 +46,11 @@ For debugging a specific worker, run it directly:
 
 ```bash
 cd backend
-python -m workers.run_coordinator
+python -m workers.run_saga_orchestrator
 ```
 
 ## Scaling
 
-Most workers can run as single replicas. The stateful ones (Coordinator, Saga Orchestrator) use event sourcing to
+Most workers can run as single replicas. The stateful one (Saga Orchestrator) uses event sourcing to
 recover after restarts. The stateless ones (K8s Worker, Pod Monitor, Result Processor) can scale horizontally if
 throughput becomes an issue.

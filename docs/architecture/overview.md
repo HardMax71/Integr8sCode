@@ -22,7 +22,7 @@ Integr8sCode lets users submit Python scripts through a Svelte SPA. The FastAPI 
 
 -   :material-robot-industrial-outline:{ .lg .middle } **[Workers](../components/workers/index.md)**
 
-    Background processes — coordinator, K8s, pod monitor, result processor, saga
+    Background processes — K8s, pod monitor, result processor, saga, DLQ, event replay
 
 </div>
 

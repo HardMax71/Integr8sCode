@@ -1,13 +1,15 @@
 import dataclasses
 from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import AsyncMock
 
 import structlog
 
 import pytest
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
+from app.domain.admin import SystemSettings
 from app.domain.enums import SagaState
-from app.domain.events import DomainEvent
+from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import (
     DomainResourceAllocation,
     DomainResourceAllocationCreate,
@@ -16,6 +18,8 @@ from app.domain.saga import (
     SagaNotFoundError,
 )
 from app.events.core import UnifiedProducer
+from app.services.execution_queue import ExecutionQueueService
+from app.services.runtime_settings import RuntimeSettingsLoader
 from app.services.saga import ExecutionSaga, SagaOrchestrator
 
 from tests.conftest import make_execution_requested_event
@@ -95,21 +99,82 @@ class _FakeAlloc(ResourceAllocationRepository):
         return True
 
 
-def _orch(repo: SagaRepository | None = None) -> SagaOrchestrator:
+class _FakeQueue(ExecutionQueueService):
+    """Fake ExecutionQueueService for testing."""
+
+    def __init__(self) -> None:
+        self.enqueued: list[ExecutionRequestedEvent] = []
+        self._pending: list[tuple[str, ExecutionRequestedEvent]] = []
+        self.released: list[str] = []
+
+    async def enqueue(self, event: ExecutionRequestedEvent) -> int:
+        self.enqueued.append(event)
+        self._pending.append((event.execution_id, event))
+        return len(self._pending) - 1
+
+    async def try_schedule(self, max_active: int) -> tuple[str, ExecutionRequestedEvent] | None:
+        if not self._pending:
+            return None
+        return self._pending.pop(0)
+
+    async def release(self, execution_id: str) -> None:
+        self.released.append(execution_id)
+
+    async def remove(self, execution_id: str) -> bool:
+        self._pending = [(eid, ev) for eid, ev in self._pending if eid != execution_id]
+        return True
+
+    async def update_priority(self, execution_id: str, new_priority: Any) -> bool:
+        return True
+
+    async def get_queue_status(self) -> dict[str, int]:
+        return {"queue_depth": len(self._pending), "active_count": 0}
+
+    async def get_pending_by_priority(self) -> dict[str, int]:
+        return {}
+
+
+class _FakeRuntimeSettings(RuntimeSettingsLoader):
+    """Fake RuntimeSettingsLoader for testing."""
+
+    def __init__(self) -> None:
+        pass  # Skip parent __init__
+
+    async def get_effective_settings(self) -> SystemSettings:
+        return SystemSettings(
+            max_timeout_seconds=30,
+            memory_limit="128Mi",
+            cpu_limit="100m",
+            max_concurrent_executions=10,
+            session_timeout_minutes=30,
+        )
+
+
+def _orch(
+    repo: SagaRepository | None = None,
+    queue: _FakeQueue | None = None,
+) -> SagaOrchestrator:
     return SagaOrchestrator(
-        config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=False),
+        config=SagaConfig(name="t", enable_compensation=True, store_events=True, publish_commands=True),
         saga_repository=repo or _FakeRepo(),
         producer=_FakeProd(),
         resource_allocation_repository=_FakeAlloc(),
         logger=_test_logger,
+        queue_service=queue or _FakeQueue(),
+        runtime_settings=_FakeRuntimeSettings(),
     )
 
 
 @pytest.mark.asyncio
-async def test_handle_event_triggers_saga() -> None:
+async def test_handle_event_enqueues_and_starts_saga() -> None:
     fake_repo = _FakeRepo()
-    orch = _orch(repo=fake_repo)
-    await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
+    fake_queue = _FakeQueue()
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+    event = make_execution_requested_event(execution_id="e")
+    await orch.handle_execution_requested(event)
+    # Event was enqueued
+    assert len(fake_queue.enqueued) == 1
+    assert fake_queue.enqueued[0].execution_id == "e"
     # The saga is created and fully executed (steps run to completion)
     assert len(fake_repo.saved) >= 1
     first_saved = fake_repo.saved[0]
@@ -120,11 +185,46 @@ async def test_handle_event_triggers_saga() -> None:
 @pytest.mark.asyncio
 async def test_existing_saga_short_circuits() -> None:
     fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
     saga_name = ExecutionSaga.get_name()
     s = Saga(saga_id="sX", saga_name=saga_name, execution_id="e", state=SagaState.RUNNING)
     fake_repo.existing[("e", saga_name)] = s
-    orch = _orch(repo=fake_repo)
+    orch = _orch(repo=fake_repo, queue=fake_queue)
     # Should not create a duplicate — returns existing
     await orch.handle_execution_requested(make_execution_requested_event(execution_id="e"))
+    # Event was still enqueued (queue is separate from saga)
+    assert len(fake_queue.enqueued) == 1
     # No new sagas saved — existing saga was returned as-is
     assert fake_repo.saved == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_completion_releases_queue() -> None:
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    # First create a saga
+    event = make_execution_requested_event(execution_id="e1")
+    await orch.handle_execution_requested(event)
+
+    # Now complete it
+    from app.domain.events import ExecutionCompletedEvent, EventMetadata, ResourceUsageDomain
+    completed_event = ExecutionCompletedEvent(
+        execution_id="e1",
+        aggregate_id="e1",
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        resource_usage=ResourceUsageDomain(
+            execution_time_wall_seconds=1.0,
+            cpu_time_jiffies=100,
+            clk_tck_hertz=100,
+            peak_memory_kb=1024,
+        ),
+        metadata=EventMetadata(service_name="test", service_version="1.0.0", user_id="u"),
+    )
+    await orch.handle_execution_completed(completed_event)
+
+    # Execution should be released from queue
+    assert "e1" in fake_queue.released

@@ -53,11 +53,10 @@ await app.run()
 
 FastStream calls `on_startup` after the broker connects and `on_shutdown` when the process receives a signal. The worker blocks on `app.run()` until termination.
 
-All seven workers follow this pattern:
+All six workers follow this pattern:
 
 | Worker | Startup hook | Has APScheduler |
 |--------|-------------|-----------------|
-| coordinator | — | No |
 | k8s-worker | Pre-pull daemonset | No |
 | pod-monitor | Start watch loop | Yes |
 | result-processor | — | No |

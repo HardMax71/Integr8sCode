@@ -1,13 +1,13 @@
 import pytest
 from app.core.metrics import (
     ConnectionMetrics,
-    CoordinatorMetrics,
     DatabaseMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
     KubernetesMetrics,
     NotificationMetrics,
+    QueueMetrics,
     RateLimitMetrics,
     ReplayMetrics,
     SecurityMetrics,
@@ -50,7 +50,7 @@ def test_event_metrics_smoke(test_settings: Settings) -> None:
 
 def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     """Test other metrics classes smoke test with no-op metrics."""
-    CoordinatorMetrics(test_settings).record_coordinator_scheduling_duration(0.01)
+    QueueMetrics(test_settings).record_enqueue()
     DatabaseMetrics(test_settings).record_mongodb_operation("read", "ok")
     DLQMetrics(test_settings).record_dlq_message_received("topic", "type")
     ExecutionMetrics(test_settings).record_script_execution(ExecutionStatus.QUEUED, "python")

@@ -45,18 +45,21 @@
 
     async function loadExecutions(): Promise<void> {
         loading = true;
-        const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
-            query: {
-                limit: pageSize,
-                skip: (currentPage - 1) * pageSize,
-                status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
-                priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
-                user_id: userSearch || undefined,
-            },
-        }), null);
-        executions = data?.executions || [];
-        total = data?.total || 0;
-        loading = false;
+        try {
+            const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
+                query: {
+                    limit: pageSize,
+                    skip: (currentPage - 1) * pageSize,
+                    status: statusFilter !== 'all' ? statusFilter as ExecutionStatus : undefined,
+                    priority: priorityFilter !== 'all' ? priorityFilter as QueuePriority : undefined,
+                    user_id: userSearch || undefined,
+                },
+            }), null);
+            executions = data?.executions || [];
+            total = data?.total || 0;
+        } finally {
+            loading = false;
+        }
     }
 
     async function loadQueueStatus(): Promise<void> {
@@ -164,6 +167,7 @@
                         <option value="failed">Failed</option>
                         <option value="timeout">Timeout</option>
                         <option value="cancelled">Cancelled</option>
+                        <option value="error">Error</option>
                     </select>
                 </div>
                 <div>

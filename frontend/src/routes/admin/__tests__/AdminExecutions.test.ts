@@ -28,7 +28,7 @@ const DEFAULT_EXECUTION = {
   updated_at: null as string | null,
 };
 
-const STATUSES = ['queued', 'scheduled', 'running', 'completed', 'failed', 'timeout', 'cancelled'];
+const STATUSES = ['queued', 'scheduled', 'running', 'completed', 'failed', 'timeout', 'cancelled', 'error'];
 const PRIORITIES = ['critical', 'high', 'normal', 'low', 'background'];
 
 const createMockExecution = (overrides: MockExecutionOverrides = {}) => ({ ...DEFAULT_EXECUTION, ...overrides });

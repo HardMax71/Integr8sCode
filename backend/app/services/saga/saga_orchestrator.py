@@ -129,9 +129,11 @@ class SagaOrchestrator:
                 await self._start_saga(event)
             except Exception:
                 self.logger.error(
-                    "Failed to start saga, releasing queue slot", execution_id=execution_id, exc_info=True,
+                    "Failed to start saga, re-enqueueing execution", execution_id=execution_id, exc_info=True,
                 )
                 await self._queue.release(execution_id)
+                await self._queue.enqueue(event)
+                break
 
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
         """Start a new saga instance."""

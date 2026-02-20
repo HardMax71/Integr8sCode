@@ -203,6 +203,8 @@ async def test_existing_saga_short_circuits() -> None:
     assert len(fake_queue.enqueued) == 1
     # No new sagas saved — existing saga was returned as-is
     assert fake_repo.saved == []
+    # Slot stays held — execution is already running, released on completion
+    assert fake_queue.released == []
 
 
 @pytest.mark.asyncio
@@ -237,7 +239,7 @@ async def test_resolve_completion_releases_queue() -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_saga_failure_releases_queue_slot() -> None:
+async def test_start_saga_failure_requeues_execution() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
     fake_repo.fail_on_create = True
@@ -246,10 +248,13 @@ async def test_start_saga_failure_releases_queue_slot() -> None:
     event = make_execution_requested_event(execution_id="e1")
     await orch.handle_execution_requested(event)
 
-    # Event was enqueued
-    assert len(fake_queue.enqueued) == 1
-    # Slot was released despite _start_saga failure
+    # Event was enqueued initially
+    assert fake_queue.enqueued[0].execution_id == "e1"
+    # Slot was released on failure
     assert "e1" in fake_queue.released
+    # Event was re-enqueued so the execution is not lost
+    assert len(fake_queue.enqueued) == 2
+    assert fake_queue.enqueued[1].execution_id == "e1"
 
 
 @pytest.mark.asyncio

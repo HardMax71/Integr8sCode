@@ -46,7 +46,7 @@ test.describe('Admin Events', () => {
     test('can manually refresh events', async ({ adminPage }) => {
       await adminPage.goto(PATH);
       const [response] = await Promise.all([
-        adminPage.waitForResponse(resp => resp.url().includes('/events') && resp.status() === 200),
+        adminPage.waitForResponse(resp => resp.url().includes('/api/v1/admin/events') && resp.status() === 200),
         adminPage.getByRole('button', { name: /Refresh/i }).click(),
       ]);
       expect(response.ok()).toBe(true);

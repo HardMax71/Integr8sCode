@@ -23,7 +23,7 @@ test.describe('Admin Executions', () => {
       await adminPage.goto(PATH);
       const statusSelect = adminPage.getByLabel(/Status/i);
       await expect(statusSelect).toBeVisible();
-      await expect(statusSelect.locator('option')).toHaveCount(8); // All + 7 statuses
+      await expect(statusSelect.locator('option')).toHaveCount(9); // All + 8 statuses
     });
 
     test('priority filter dropdown has expected options', async ({ adminPage }) => {
@@ -50,7 +50,7 @@ test.describe('Admin Executions', () => {
     test('can manually refresh executions', async ({ adminPage }) => {
       await adminPage.goto(PATH);
       const [response] = await Promise.all([
-        adminPage.waitForResponse(resp => resp.url().includes('/executions') && resp.status() === 200),
+        adminPage.waitForResponse(resp => resp.url().includes('/api/v1/admin/executions') && resp.status() === 200),
         adminPage.getByRole('button', { name: /Refresh/i }).click(),
       ]);
       expect(response.ok()).toBe(true);

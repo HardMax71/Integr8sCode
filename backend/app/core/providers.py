@@ -435,7 +435,7 @@ class UserServicesProvider(Provider):
         return UserSettingsService(repository, kafka_event_service, settings, logger)
 
 
-class AdminServicesProvider(Provider):
+class RuntimeSettingsProvider(Provider):
     scope = Scope.APP
 
     @provide
@@ -446,6 +446,10 @@ class AdminServicesProvider(Provider):
             logger: structlog.stdlib.BoundLogger,
     ) -> RuntimeSettingsLoader:
         return RuntimeSettingsLoader(admin_settings_repository, settings, logger)
+
+
+class AdminServicesProvider(Provider):
+    scope = Scope.APP
 
     @provide
     def get_login_lockout_service(

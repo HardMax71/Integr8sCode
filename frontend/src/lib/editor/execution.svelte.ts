@@ -1,11 +1,11 @@
 import {
     createExecutionApiV1ExecutePost,
+    executionEventsApiV1EventsExecutionsExecutionIdGet,
     getResultApiV1ExecutionsExecutionIdResultGet,
     type ExecutionResult,
     type ExecutionStatus,
     type EventType,
     type SseControlEvent,
-    type SseExecutionEventSchema,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
 
@@ -63,63 +63,30 @@ export function createExecutionState() {
     async function streamResult(executionId: string): Promise<ExecutionResult> {
         abortController = new AbortController();
 
-        const response = await fetch(`/api/v1/events/executions/${executionId}`, {
-            headers: { 'Accept': 'text/event-stream' },
-            credentials: 'include',
-            signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-            if (response.status === 401) throw new Error('Unauthorized');
-            return fetchResult(executionId);
-        }
-
-        if (!response.body) return fetchResult(executionId);
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
         try {
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
+                path: { execution_id: executionId },
+                signal: abortController.signal,
+                sseMaxRetryAttempts: 0,
+            });
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
+            for await (const ev of stream) {
+                if (ev.status && isActivePhase(ev.status)) {
+                    phase = ev.status;
+                }
 
-                for (const line of lines) {
-                    if (!line.startsWith('data:')) continue;
+                if (ev.event_type === 'result_stored' && ev.result) {
+                    return ev.result;
+                }
 
-                    let eventData: SseExecutionEventSchema;
-                    try {
-                        eventData = JSON.parse(line.slice(5).trim()) as SseExecutionEventSchema;
-                    } catch {
-                        continue; // Skip malformed SSE events
-                    }
-                    const eventType = eventData.event_type;
-
-                    // Update phase from status events
-                    if (eventData.status && isActivePhase(eventData.status)) {
-                        phase = eventData.status;
-                    }
-
-                    // Terminal: result received
-                    if (eventType === 'result_stored' && eventData.result) {
-                        return eventData.result;
-                    }
-
-                    // Terminal: failure - fetch result (may have partial output)
-                    if (isTerminalFailure(eventType)) {
-                        return await fetchResult(executionId);
-                    }
+                if (isTerminalFailure(ev.event_type)) {
+                    return await fetchResult(executionId);
                 }
             }
-        } finally {
-            await reader.cancel().catch(() => {}); // Close stream and release lock
+        } catch {
+            // SSE connection failed — fall back to polling
         }
 
-        // Stream ended without terminal event - fetch result
         return fetchResult(executionId);
     }
 

@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExecutionResult } from '$lib/api';
 
-// ── Mocks ──────────────────────────────────────────────────────────────
 const mockCreateExecution = vi.fn();
+const mockSseFn = vi.fn();
 const mockGetResult = vi.fn();
 
 vi.mock('$lib/api', () => ({
     createExecutionApiV1ExecutePost: (...a: unknown[]) => mockCreateExecution(...a),
+    executionEventsApiV1EventsExecutionsExecutionIdGet: (...a: unknown[]) => mockSseFn(...a),
     getResultApiV1ExecutionsExecutionIdResultGet: (...a: unknown[]) => mockGetResult(...a),
 }));
 
@@ -16,7 +17,6 @@ vi.mock('$lib/api-interceptors', () => ({
 
 const { createExecutionState } = await import('../execution.svelte');
 
-// ── Helpers ────────────────────────────────────────────────────────────
 const RESULT: ExecutionResult = {
     execution_id: 'exec-1',
     status: 'completed',
@@ -29,37 +29,20 @@ const RESULT: ExecutionResult = {
     memory_used_kb: 64,
 };
 
-/** Build an SSE ReadableStream from a list of "data: …" lines. */
-function sseStream(lines: string[]): ReadableStream<Uint8Array> {
-    const text = lines.map((l) => `data: ${l}\n\n`).join('');
-    const encoder = new TextEncoder();
-    return new ReadableStream({
-        start(controller) {
-            controller.enqueue(encoder.encode(text));
-            controller.close();
-        },
+function mockSseEvents(...events: unknown[]) {
+    mockSseFn.mockResolvedValue({
+        stream: (async function* () {
+            for (const e of events) yield e;
+        })(),
     });
 }
 
-function mockFetchSSE(lines: string[]) {
-    vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            body: sseStream(lines),
-        }),
-    );
-}
-
-// ── Tests ──────────────────────────────────────────────────────────────
 describe('createExecutionState', () => {
     beforeEach(() => {
         mockCreateExecution.mockReset();
+        mockSseFn.mockReset();
         mockGetResult.mockReset();
     });
-
-    afterEach(() => vi.unstubAllGlobals());
 
     describe('initial state', () => {
         it.each([
@@ -80,10 +63,10 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockFetchSSE([
-                JSON.stringify({ event_type: 'status', status: 'running' }),
-                JSON.stringify({ event_type: 'result_stored', result: RESULT }),
-            ]);
+            mockSseEvents(
+                { event_type: 'status', status: 'running' },
+                { event_type: 'result_stored', result: RESULT },
+            );
 
             const s = createExecutionState();
             await s.execute('print("hi")', 'python', '3.12');
@@ -103,7 +86,7 @@ describe('createExecutionState', () => {
                     error: null,
                 });
 
-                mockFetchSSE([JSON.stringify({ event_type: eventType })]);
+                mockSseEvents({ event_type: eventType });
                 mockGetResult.mockResolvedValue({ data: RESULT, error: null });
 
                 const s = createExecutionState();
@@ -122,7 +105,7 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockFetchSSE([JSON.stringify({ event_type: 'status', status: 'running' })]);
+            mockSseEvents({ event_type: 'status', status: 'running' });
             mockGetResult.mockResolvedValue({ data: RESULT, error: null });
 
             const s = createExecutionState();
@@ -133,14 +116,14 @@ describe('createExecutionState', () => {
         });
     });
 
-    describe('execute → non-OK fetch falls back to fetchResult', () => {
-        it('fetches result on 500', async () => {
+    describe('execute → SSE connection failure falls back to fetchResult', () => {
+        it('fetches result on SSE error', async () => {
             mockCreateExecution.mockResolvedValue({
                 data: { execution_id: 'exec-1', status: 'queued' },
                 error: null,
             });
 
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+            mockSseFn.mockRejectedValue(new Error('SSE failed: 500'));
             mockGetResult.mockResolvedValue({ data: RESULT, error: null });
 
             const s = createExecutionState();
@@ -149,13 +132,14 @@ describe('createExecutionState', () => {
             expect(s.result).toEqual(RESULT);
         });
 
-        it('sets error on 401', async () => {
+        it('sets error when both SSE and fetchResult fail', async () => {
             mockCreateExecution.mockResolvedValue({
                 data: { execution_id: 'exec-1', status: 'queued' },
                 error: null,
             });
 
-            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+            mockSseFn.mockRejectedValue(new Error('Unauthorized'));
+            mockGetResult.mockResolvedValue({ data: undefined, error: { detail: 'Unauthorized' } });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');
@@ -201,17 +185,17 @@ describe('createExecutionState', () => {
         });
     });
 
-    describe('malformed SSE', () => {
-        it('skips invalid JSON and continues', async () => {
+    describe('malformed SSE data', () => {
+        it('skips non-object events and continues', async () => {
             mockCreateExecution.mockResolvedValue({
                 data: { execution_id: 'exec-1', status: 'queued' },
                 error: null,
             });
 
-            mockFetchSSE([
+            mockSseEvents(
                 '{broken',
-                JSON.stringify({ event_type: 'result_stored', result: RESULT }),
-            ]);
+                { event_type: 'result_stored', result: RESULT },
+            );
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');

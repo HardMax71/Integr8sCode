@@ -1,25 +1,14 @@
 <script lang="ts">
-    import { EVENT_TYPES, type EventFilters as EventFiltersType } from '$lib/admin/events';
+    import { EVENT_TYPES } from '$lib/admin/events';
+    import type { EventFilter, EventType } from '$lib/api';
 
     interface Props {
-        filters: EventFiltersType;
+        filters: EventFilter;
         onApply: () => void;
         onClear: () => void;
     }
 
-    let {
-        filters = $bindable({
-            event_types: [],
-            aggregate_id: '',
-            user_id: '',
-            service_name: '',
-            search_text: '',
-            start_time: '',
-            end_time: ''
-        }),
-        onApply,
-        onClear
-    }: Props = $props();
+    let { filters = $bindable({}), onApply, onClear }: Props = $props();
 </script>
 
 <div class="card mb-6">
@@ -47,8 +36,12 @@
                     </label>
                     <select
                         id="event-types-filter"
-                        bind:value={filters.event_types}
+                        value={filters.event_types ?? []}
                         multiple
+                        onchange={(e) => {
+                            const sel = Array.from((e.currentTarget as HTMLSelectElement).selectedOptions).map(o => o.value as EventType);
+                            filters.event_types = sel.length ? sel : null;
+                        }}
                         class="form-select-standard text-sm h-20"
                         title="Hold Ctrl/Cmd to select multiple"
                     >
@@ -65,7 +58,8 @@
                     <input
                         id="search-filter"
                         type="text"
-                        bind:value={filters.search_text}
+                        value={filters.search_text ?? ''}
+                        oninput={(e) => { filters.search_text = (e.currentTarget as HTMLInputElement).value || null; }}
                         placeholder="Search events..."
                         class="form-input-standard text-sm"
                     />
@@ -78,7 +72,8 @@
                     <input
                         id="aggregate-filter"
                         type="text"
-                        bind:value={filters.aggregate_id}
+                        value={filters.aggregate_id ?? ''}
+                        oninput={(e) => { filters.aggregate_id = (e.currentTarget as HTMLInputElement).value || null; }}
                         placeholder="exec_id"
                         class="form-input-standard text-sm font-mono"
                     />
@@ -91,7 +86,8 @@
                     <input
                         id="user-filter"
                         type="text"
-                        bind:value={filters.user_id}
+                        value={filters.user_id ?? ''}
+                        oninput={(e) => { filters.user_id = (e.currentTarget as HTMLInputElement).value || null; }}
                         placeholder="user_123"
                         class="form-input-standard text-sm font-mono"
                     />
@@ -107,7 +103,8 @@
                     <input
                         id="service-filter"
                         type="text"
-                        bind:value={filters.service_name}
+                        value={filters.service_name ?? ''}
+                        oninput={(e) => { filters.service_name = (e.currentTarget as HTMLInputElement).value || null; }}
                         placeholder="execution-service"
                         class="form-input-standard text-sm"
                     />
@@ -120,7 +117,8 @@
                     <input
                         id="start-time-filter"
                         type="datetime-local"
-                        bind:value={filters.start_time}
+                        value={filters.start_time ?? ''}
+                        oninput={(e) => { filters.start_time = (e.currentTarget as HTMLInputElement).value || null; }}
                         class="form-input-standard text-sm"
                     />
                 </div>
@@ -132,7 +130,8 @@
                     <input
                         id="end-time-filter"
                         type="datetime-local"
-                        bind:value={filters.end_time}
+                        value={filters.end_time ?? ''}
+                        oninput={(e) => { filters.end_time = (e.currentTarget as HTMLInputElement).value || null; }}
                         class="form-input-standard text-sm"
                     />
                 </div>

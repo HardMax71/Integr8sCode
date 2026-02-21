@@ -415,6 +415,7 @@ describe('notificationStore', () => {
             createMockNotification({ notification_id: 'n2', status: 'read' }),
             createMockNotification({ notification_id: 'n3', status: 'pending' }),
           ],
+          unread_count: 2,
         },
         error: null,
       });
@@ -431,6 +432,7 @@ describe('notificationStore', () => {
           notifications: [
             createMockNotification({ notification_id: 'n1', status: 'read' }),
           ],
+          unread_count: 0,
         },
         error: null,
       });
@@ -447,6 +449,7 @@ describe('notificationStore', () => {
           notifications: [
             createMockNotification({ notification_id: 'n1', status: 'pending' }),
           ],
+          unread_count: 1,
         },
         error: null,
       });

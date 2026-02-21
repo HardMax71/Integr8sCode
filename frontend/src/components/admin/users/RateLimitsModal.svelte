@@ -1,12 +1,14 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { Plus, X } from '@lucide/svelte';
-    import type { UserResponse, UserRateLimitConfigResponse, RateLimitRuleResponse, EndpointUsageStats } from '$lib/api';
     import {
-        getGroupColor,
-        getDefaultRulesWithMultiplier,
-        detectGroupFromEndpoint,
-        createEmptyRule
-    } from '$lib/admin/users';
+        getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+        type UserResponse,
+        type UserRateLimitConfigResponse,
+        type RateLimitRuleResponse,
+        type EndpointUsageStats,
+    } from '$lib/api';
+    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/users';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
 
@@ -34,9 +36,20 @@
         onReset
     }: Props = $props();
 
-    let defaultRulesWithEffective = $derived(
-        config ? getDefaultRulesWithMultiplier(config.global_multiplier) : []
-    );
+    let defaultRules = $state<RateLimitRuleResponse[]>([]);
+
+    onMount(async () => {
+        const { data } = await getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet({});
+        if (data) defaultRules = data;
+    });
+
+    let defaultRulesWithEffective = $derived.by(() => {
+        const multiplier = config && config.global_multiplier > 0 ? config.global_multiplier : 1;
+        return defaultRules.map(rule => ({
+            ...rule,
+            effective_requests: Math.floor(rule.requests * multiplier),
+        }));
+    });
 
     function handleEndpointChange(rule: RateLimitRuleResponse): void {
         if (rule.endpoint_pattern) {

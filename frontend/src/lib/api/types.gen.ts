@@ -6996,6 +6996,24 @@ export type GetQueueStatusApiV1AdminExecutionsQueueGetResponses = {
 
 export type GetQueueStatusApiV1AdminExecutionsQueueGetResponse = GetQueueStatusApiV1AdminExecutionsQueueGetResponses[keyof GetQueueStatusApiV1AdminExecutionsQueueGetResponses];
 
+export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/rate-limits/defaults';
+};
+
+export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses = {
+    /**
+     * Response Get Default Rate Limit Rules Api V1 Admin Rate Limits Defaults Get
+     *
+     * Successful Response
+     */
+    200: Array<RateLimitRuleResponse>;
+};
+
+export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponse = GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses[keyof GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses];
+
 export type GetSystemSettingsApiV1AdminSettingsGetData = {
     body?: never;
     path?: never;

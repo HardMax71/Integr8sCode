@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet: vi.fn(),
   updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut: vi.fn(),
   resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost: vi.fn(),
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: vi.fn(),
   addToast: vi.fn(),
 }));
 
@@ -63,6 +64,7 @@ vi.mock('../../../lib/api', () => ({
   getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet: (...args: unknown[]) => mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet(...args),
   updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut: (...args: unknown[]) => mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut(...args),
   resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost: (...args: unknown[]) => mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost(...args),
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: (...args: unknown[]) => mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet(...args),
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -98,7 +100,7 @@ vi.mock('../AdminLayout.svelte', async () => {
 import AdminUsers from '$routes/admin/AdminUsers.svelte';
 
 async function renderWithUsers(users = createMockUsers(3)) {
-  mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: users, error: null });
+  mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users, total: users.length }, error: null });
   const result = render(AdminUsers);
   await tick();
   await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
@@ -109,7 +111,8 @@ describe('AdminUsers', () => {
   beforeEach(() => {
     mockElementAnimate();
     vi.clearAllMocks();
-    mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: [], error: null });
+    mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
+    mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });
   });
 
   afterEach(() => {
@@ -182,11 +185,19 @@ describe('AdminUsers', () => {
   describe('search and filtering', () => {
     it('filters users by search query', async () => {
       const user = userEvent.setup();
-      const users = [
+      const allUsers = [
         createMockUser({ username: 'alice', email: 'alice@test.com' }),
         createMockUser({ user_id: 'u2', username: 'bob', email: 'bob@test.com' }),
       ];
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const search = (query as Record<string, unknown>)?.search as string | null;
+        const filtered = search ? allUsers.filter(u => u.username.includes(search)) : allUsers;
+        return { data: { users: filtered, total: filtered.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
       await user.type(searchInput, 'alice');
       await waitFor(() => {
@@ -197,11 +208,19 @@ describe('AdminUsers', () => {
 
     it('filters users by role', async () => {
       const user = userEvent.setup();
-      const users = [
+      const allUsers = [
         createMockUser({ username: 'admin1', role: 'admin' }),
         createMockUser({ user_id: 'u2', username: 'user1', role: 'user' }),
       ];
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const role = (query as Record<string, unknown>)?.role as string | null;
+        const filtered = role ? allUsers.filter(u => u.role === role) : allUsers;
+        return { data: { users: filtered, total: filtered.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const roleSelect = screen.getByRole('combobox', { name: /Role/i });
       await user.selectOptions(roleSelect, 'admin');
       await waitFor(() => {
@@ -228,7 +247,17 @@ describe('AdminUsers', () => {
     it('resets filters on Reset button click', async () => {
       const user = userEvent.setup();
       const users = createMockUsers(3);
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const search = (query as Record<string, unknown>)?.search as string | null;
+        if (search === 'nonexistent') {
+          return { data: { users: [], total: 0 }, error: null };
+        }
+        return { data: { users, total: users.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
       await user.type(searchInput, 'nonexistent');
       await waitFor(() => expect(screen.getByText(/No users found/i)).toBeInTheDocument());
@@ -650,14 +679,17 @@ describe('AdminUsers', () => {
 
     it('shows filtered count when filters applied', async () => {
       const user = userEvent.setup();
-      const users = createMockUsers(10);
+      const users = [
+        createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
+        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
+      ];
       await renderWithUsers(users);
 
-      const roleSelect = screen.getByRole('combobox', { name: /Role/i });
-      await user.selectOptions(roleSelect, 'admin');
+      const statusSelect = screen.getByRole('combobox', { name: /Status/i });
+      await user.selectOptions(statusSelect, 'active');
 
       await waitFor(() => {
-        expect(screen.getByText(/Users \(1 of 10\)/)).toBeInTheDocument();
+        expect(screen.getByText(/Users \(1 of 2\)/)).toBeInTheDocument();
       });
     });
   });

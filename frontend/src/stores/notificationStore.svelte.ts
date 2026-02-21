@@ -3,17 +3,20 @@ import {
     markNotificationReadApiV1NotificationsNotificationIdReadPut,
     markAllReadApiV1NotificationsMarkAllReadPost,
     deleteNotificationApiV1NotificationsNotificationIdDelete,
+    type GetNotificationsApiV1NotificationsGetData,
     type NotificationResponse,
 } from '$lib/api';
 import { getErrorMessage } from '$lib/api-interceptors';
+
+type NotificationQueryOpts = Omit<NonNullable<GetNotificationsApiV1NotificationsGetData['query']>, 'limit' | 'offset'>;
 
 class NotificationStore {
     notifications = $state.raw<NotificationResponse[]>([]);
     loading = $state(false);
     error = $state<string | null>(null);
-    unreadCount = $derived(this.notifications.filter(n => n.status !== 'read').length);
+    unreadCount = $state(0);
 
-    async load(limit = 20, options: { include_tags?: string[]; exclude_tags?: string[]; tag_prefix?: string } = {}) {
+    async load(limit = 20, options: NotificationQueryOpts = {}) {
         this.loading = true;
         this.error = null;
         const { data, error } = await getNotificationsApiV1NotificationsGet({
@@ -30,6 +33,7 @@ class NotificationStore {
             return [];
         }
         this.notifications = data.notifications;
+        this.unreadCount = data.unread_count;
         this.error = null;
         this.loading = false;
         return data.notifications;
@@ -37,6 +41,7 @@ class NotificationStore {
 
     add(notification: NotificationResponse) {
         this.notifications = [notification, ...this.notifications].slice(0, 100);
+        if (notification.status !== 'read') this.unreadCount++;
     }
 
     async markAsRead(notificationId: string) {
@@ -44,9 +49,11 @@ class NotificationStore {
             path: { notification_id: notificationId }
         });
         if (error) return false;
+        const wasUnread = this.notifications.find(n => n.notification_id === notificationId)?.status !== 'read';
         this.notifications = this.notifications.map(n =>
             n.notification_id === notificationId ? { ...n, status: 'read' as const } : n
         );
+        if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1);
         return true;
     }
 
@@ -54,6 +61,7 @@ class NotificationStore {
         const { error } = await markAllReadApiV1NotificationsMarkAllReadPost({});
         if (error) return false;
         this.notifications = this.notifications.map(n => ({ ...n, status: 'read' as const }));
+        this.unreadCount = 0;
         return true;
     }
 
@@ -62,12 +70,15 @@ class NotificationStore {
             path: { notification_id: notificationId }
         });
         if (error) return false;
+        const wasUnread = this.notifications.find(n => n.notification_id === notificationId)?.status !== 'read';
         this.notifications = this.notifications.filter(n => n.notification_id !== notificationId);
+        if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1);
         return true;
     }
 
     clear() {
         this.notifications = [];
+        this.unreadCount = 0;
     }
 
     refresh() {

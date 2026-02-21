@@ -2334,6 +2334,33 @@
         }
       }
     },
+    "/api/v1/admin/rate-limits/defaults": {
+      "get": {
+        "tags": [
+          "admin",
+          "rate-limits"
+        ],
+        "summary": "Get Default Rate Limit Rules",
+        "description": "Get the system-level default rate limit rules applied to all users.",
+        "operationId": "get_default_rate_limit_rules_api_v1_admin_rate_limits_defaults_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RateLimitRuleResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Default Rate Limit Rules Api V1 Admin Rate Limits Defaults Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/settings/": {
       "get": {
         "tags": [

@@ -80,7 +80,7 @@
     });
 
     // Derived state
-    let filteredUsers = $derived(filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters));
+    let filteredUsers = $derived(filterUsers(users, statusFilter, advancedFilters));
     let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
     let paginatedUsers = $derived(filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize));
     let hasFiltersActive = $derived(
@@ -96,28 +96,23 @@
 
     async function loadUsers(): Promise<void> {
         loading = true;
-        const data = unwrapOr(await listUsersApiV1AdminUsersGet({}), null);
+        const data = unwrapOr(await listUsersApiV1AdminUsersGet({
+            query: {
+                search: searchQuery || null,
+                role: roleFilter !== 'all' ? roleFilter : null,
+            }
+        }), null);
         loading = false;
-        users = data ? (Array.isArray(data) ? data : data?.users || []) : [];
+        users = data?.users ?? [];
     }
 
     function filterUsers(
         userList: UserResponse[],
-        search: string,
-        role: RoleFilter,
         status: StatusFilter,
         advanced: AdvancedFilters
     ): UserResponse[] {
         let filtered = [...userList];
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filtered = filtered.filter(user =>
-                user.username?.toLowerCase().includes(searchLower) ||
-                user.email?.toLowerCase().includes(searchLower) ||
-                user.user_id?.toLowerCase().includes(searchLower)
-            );
-        }
-        if (role !== 'all') filtered = filtered.filter(user => user.role === role);
+        // search and role are handled server-side in loadUsers()
         if (status === 'active') filtered = filtered.filter(user => user.is_active !== false);
         else if (status === 'disabled') filtered = filtered.filter(user => user.is_active === false);
         if (advanced.bypassRateLimit === 'yes') filtered = filtered.filter(user => user.bypass_rate_limit === true);
@@ -237,12 +232,17 @@
         showDeleteModal = true;
     }
 
-    // Reset page when filter changes
-    let prevFilters = { searchQuery: '', roleFilter: 'all', statusFilter: 'all' };
+    // Reset page on filter changes; re-fetch from server when search or role changes
+    let prevFilters = { searchQuery: '', roleFilter: 'all' as RoleFilter, statusFilter: 'all' as StatusFilter };
     $effect(() => {
-        if (searchQuery !== prevFilters.searchQuery || roleFilter !== prevFilters.roleFilter || statusFilter !== prevFilters.statusFilter) {
+        const searchChanged = searchQuery !== prevFilters.searchQuery;
+        const roleChanged = roleFilter !== prevFilters.roleFilter;
+        if (searchChanged || roleChanged || statusFilter !== prevFilters.statusFilter) {
             prevFilters = { searchQuery, roleFilter, statusFilter };
             currentPage = 1;
+        }
+        if (searchChanged || roleChanged) {
+            void loadUsers();
         }
     });
 </script>

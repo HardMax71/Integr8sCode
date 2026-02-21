@@ -37,32 +37,6 @@ export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
     return 'api';
 }
 
-// Default rate limit rules
-export interface DefaultRateLimitRule extends Omit<RateLimitRuleResponse, 'enabled' | 'burst_multiplier'> {
-    effective_requests?: number;
-}
-
-export function getDefaultRules(): DefaultRateLimitRule[] {
-    return [
-        { endpoint_pattern: '^/api/v1/execute', group: 'execution', requests: 10, window_seconds: 60, algorithm: 'sliding_window', priority: 10 },
-        { endpoint_pattern: '^/api/v1/admin/.*', group: 'admin', requests: 100, window_seconds: 60, algorithm: 'sliding_window', priority: 5 },
-        { endpoint_pattern: '^/api/v1/events/.*', group: 'sse', requests: 5, window_seconds: 60, algorithm: 'sliding_window', priority: 8 },
-        { endpoint_pattern: '^/api/v1/ws', group: 'websocket', requests: 5, window_seconds: 60, algorithm: 'sliding_window', priority: 8 },
-        { endpoint_pattern: '^/api/v1/auth/.*', group: 'auth', requests: 20, window_seconds: 60, algorithm: 'sliding_window', priority: 7 },
-        { endpoint_pattern: '^/api/v1/.*', group: 'api', requests: 60, window_seconds: 60, algorithm: 'sliding_window', priority: 1 }
-    ];
-}
-
-export function getDefaultRulesWithMultiplier(multiplier: number = 1): DefaultRateLimitRule[] {
-    const rules = getDefaultRules();
-    // Only positive multipliers are valid; 0 and negative values fall back to 1
-    const effectiveMultiplier = multiplier > 0 ? multiplier : 1;
-    return rules.map(rule => ({
-        ...rule,
-        effective_requests: Math.floor(rule.requests * effectiveMultiplier)
-    }));
-}
-
 // Create a new empty rate limit rule
 export function createEmptyRule(): RateLimitRuleResponse {
     return {

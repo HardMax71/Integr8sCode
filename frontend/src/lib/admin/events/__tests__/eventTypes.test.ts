@@ -3,15 +3,13 @@ import {
   EVENT_TYPES,
   getEventTypeColor,
   getEventTypeLabel,
-  createDefaultEventFilters,
   hasActiveFilters,
   getActiveFilterCount,
   getActiveFilterSummary,
-  type EventFilters
 } from '$lib/admin/events/eventTypes';
+import type { EventFilter } from '$lib/api';
 
-const withFilter = (override: Partial<EventFilters>): EventFilters =>
-  ({ ...createDefaultEventFilters(), ...override });
+const withFilter = (override: Partial<EventFilter>): EventFilter => ({ ...override });
 
 describe('eventTypes', () => {
   describe('EVENT_TYPES', () => {
@@ -57,27 +55,9 @@ describe('eventTypes', () => {
     });
   });
 
-  describe('createDefaultEventFilters', () => {
-    it('returns object with all empty values', () => {
-      expect(createDefaultEventFilters()).toEqual({
-        event_types: [],
-        aggregate_id: '',
-        user_id: '',
-        service_name: '',
-        search_text: '',
-        start_time: '',
-        end_time: ''
-      });
-    });
-
-    it('returns new object each time', () => {
-      expect(createDefaultEventFilters()).not.toBe(createDefaultEventFilters());
-    });
-  });
-
   describe('hasActiveFilters', () => {
     it('returns false for empty filters', () => {
-      expect(hasActiveFilters(createDefaultEventFilters())).toBe(false);
+      expect(hasActiveFilters({})).toBe(false);
     });
 
     it.each([
@@ -89,13 +69,13 @@ describe('eventTypes', () => {
       ['start_time', { start_time: '2024-01-01' }],
       ['end_time', { end_time: '2024-01-02' }],
     ])('returns true when %s has value', (_, override) => {
-      expect(hasActiveFilters(withFilter(override as Partial<EventFilters>))).toBe(true);
+      expect(hasActiveFilters(withFilter(override as Partial<EventFilter>))).toBe(true);
     });
   });
 
   describe('getActiveFilterCount', () => {
     it.each([
-      [createDefaultEventFilters(), 0],
+      [{}, 0],
       [withFilter({ event_types: ['x'], search_text: 'y' }), 2],
       [withFilter({
         event_types: ['x'], search_text: 'y',
@@ -109,7 +89,7 @@ describe('eventTypes', () => {
 
   describe('getActiveFilterSummary', () => {
     it('returns empty array for empty filters', () => {
-      expect(getActiveFilterSummary(createDefaultEventFilters())).toEqual([]);
+      expect(getActiveFilterSummary({})).toEqual([]);
     });
 
     it.each([
@@ -119,7 +99,7 @@ describe('eventTypes', () => {
       [{ start_time: '2024-01-01' }, 'time range'],
       [{ end_time: '2024-01-02' }, 'time range'],
     ])('includes expected label', (override, expected) => {
-      expect(getActiveFilterSummary(withFilter(override as Partial<EventFilters>))).toContain(expected);
+      expect(getActiveFilterSummary(withFilter(override as Partial<EventFilter>))).toContain(expected);
     });
 
     it('includes all active filter labels', () => {

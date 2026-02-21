@@ -1,12 +1,13 @@
 /**
  * Event type configurations and utilities
  */
-import type { EventType } from '$lib/api';
+import type { EventFilter, EventType } from '$lib/api';
 
 // Re-export EventType from generated types
 export type { EventType } from '$lib/api';
 
-// Common event types for filtering UI (subset of all EventType values)
+// Common event types for filtering UI (manually curated subset of all EventType values).
+// Keep in sync with EventType in types.gen.ts when adding new event types to the backend.
 export const EVENT_TYPES: EventType[] = [
     'execution_requested',
     'execution_started',
@@ -54,32 +55,9 @@ export function getEventTypeLabel(eventType: EventType): string {
     return eventType;
 }
 
-// Default filter state for events
-export interface EventFilters {
-    event_types: EventType[];
-    aggregate_id: string;
-    user_id: string;
-    service_name: string;
-    search_text: string;
-    start_time: string;
-    end_time: string;
-}
-
-export function createDefaultEventFilters(): EventFilters {
-    return {
-        event_types: [],
-        aggregate_id: '',
-        user_id: '',
-        service_name: '',
-        search_text: '',
-        start_time: '',
-        end_time: ''
-    };
-}
-
-export function hasActiveFilters(filters: EventFilters): boolean {
+export function hasActiveFilters(filters: EventFilter): boolean {
     return (
-        filters.event_types.length > 0 ||
+        (filters.event_types?.length ?? 0) > 0 ||
         !!filters.search_text ||
         !!filters.aggregate_id ||
         !!filters.user_id ||
@@ -89,9 +67,9 @@ export function hasActiveFilters(filters: EventFilters): boolean {
     );
 }
 
-export function getActiveFilterCount(filters: EventFilters): number {
+export function getActiveFilterCount(filters: EventFilter): number {
     let count = 0;
-    if (filters.event_types.length > 0) count++;
+    if (filters.event_types?.length) count++;
     if (filters.search_text) count++;
     if (filters.aggregate_id) count++;
     if (filters.user_id) count++;
@@ -101,9 +79,9 @@ export function getActiveFilterCount(filters: EventFilters): number {
     return count;
 }
 
-export function getActiveFilterSummary(filters: EventFilters): string[] {
+export function getActiveFilterSummary(filters: EventFilter): string[] {
     const items: string[] = [];
-    if (filters.event_types.length > 0) {
+    if (filters.event_types?.length) {
         items.push(`${filters.event_types.length} event type${filters.event_types.length > 1 ? 's' : ''}`);
     }
     if (filters.search_text) items.push('search');

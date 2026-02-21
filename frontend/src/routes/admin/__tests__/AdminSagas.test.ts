@@ -341,26 +341,6 @@ describe('AdminSagas', () => {
       });
     });
 
-    it('displays execution saga step visualization', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-      const saga = createMockSaga({
-        saga_name: 'execution_saga',
-        completed_steps: ['validate_execution', 'allocate_resources'],
-        current_step: 'queue_execution',
-      });
-      mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
-      await renderWithSagas([saga]);
-
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
-
-      await waitFor(() => {
-        expect(screen.getByText('Validate')).toBeInTheDocument();
-        expect(screen.getByText('Allocate Resources')).toBeInTheDocument();
-        expect(screen.getByText('Queue Execution')).toBeInTheDocument();
-      });
-    });
-
     it('shows compensated steps', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga({

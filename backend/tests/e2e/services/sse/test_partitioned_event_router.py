@@ -4,8 +4,9 @@ from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
-from app.domain.sse import RedisSSEMessage
+from app.domain.sse import SSEExecutionEventData
 from app.services.sse import SSERedisBus
+from app.services.sse.redis_bus import _sse_event_adapter
 from app.settings import Settings
 
 from tests.conftest import make_execution_requested_event
@@ -29,8 +30,8 @@ async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_setting
     subscription = await bus.open_subscription(execution_id)
 
     ev = make_execution_requested_event(execution_id=execution_id)
-    await bus.route_domain_event(ev)
+    await bus.publish_event(execution_id, ev)
 
-    msg = await asyncio.wait_for(subscription.get(RedisSSEMessage), timeout=2.0)
+    msg = await asyncio.wait_for(subscription.get(SSEExecutionEventData, _sse_event_adapter), timeout=2.0)
     assert msg is not None
     assert str(msg.event_type) == str(ev.event_type)

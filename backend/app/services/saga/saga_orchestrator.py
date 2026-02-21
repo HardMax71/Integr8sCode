@@ -74,7 +74,7 @@ class SagaOrchestrator:
         if not isinstance(event, ExecutionFailedEvent):
             raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
         await self._resolve_completion(
-            event.execution_id, SagaState.FAILED, event.error_message or f"Execution {event.event_type}"
+            event.execution_id, SagaState.FAILED, event.message or f"Execution {event.event_type}"
         )
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
@@ -91,7 +91,7 @@ class SagaOrchestrator:
             raise TypeError(f"Expected ExecutionCancelledEvent, got {type(event).__name__}")
         await self._queue.remove(event.execution_id)
         await self._resolve_completion(
-            event.execution_id, SagaState.CANCELLED, event.reason
+            event.execution_id, SagaState.CANCELLED, event.message
         )
 
     async def _resolve_completion(

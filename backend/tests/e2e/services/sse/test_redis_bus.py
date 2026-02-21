@@ -7,8 +7,9 @@ import pytest
 import redis.asyncio as redis_async
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus
 from app.domain.events import EventMetadata, ExecutionCompletedEvent
-from app.domain.sse import RedisNotificationMessage, RedisSSEMessage
+from app.domain.sse import RedisNotificationMessage, SSEExecutionEventData
 from app.services.sse import SSERedisBus
+from app.services.sse.redis_bus import _sse_event_adapter
 
 pytestmark = pytest.mark.e2e
 
@@ -87,13 +88,13 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert ch.endswith("exec-1")
     # Push to pubsub and read from subscription
     await r._pubsub.push(ch, payload)
-    msg = await sub.get(RedisSSEMessage)
+    msg = await sub.get(SSEExecutionEventData, _sse_event_adapter)
     assert msg and msg.event_type == EventType.EXECUTION_COMPLETED
     assert msg.execution_id == "exec-1"
 
     # Non-message / invalid JSON paths
     await r._pubsub.push(ch, b"not-json")
-    assert await sub.get(RedisSSEMessage) is None
+    assert await sub.get(SSEExecutionEventData, _sse_event_adapter) is None
 
     # Close
     await sub.close()

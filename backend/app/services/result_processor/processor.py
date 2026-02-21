@@ -9,15 +9,12 @@ from app.domain.events import (
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
-    ResourceUsageDomain,
     ResultFailedEvent,
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events.core import UnifiedProducer
 from app.settings import Settings
-
-_result_fields = set(ExecutionResultDomain.__dataclass_fields__)
 
 
 class ResultProcessor:
@@ -66,12 +63,15 @@ class ResultProcessor:
             memory_percent, attributes={"lang_and_version": lang_and_version}
         )
 
-        data = {k: v for k, v in event.model_dump().items() if k in _result_fields}
-        if isinstance(data.get("resource_usage"), dict):
-            data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
-        if isinstance(data.get("metadata"), dict):
-            data["metadata"] = EventMetadata(**data["metadata"])
-        result = ExecutionResultDomain(**data, status=ExecutionStatus.COMPLETED)
+        result = ExecutionResultDomain(
+            execution_id=event.execution_id,
+            exit_code=event.exit_code,
+            stdout=event.stdout,
+            stderr=event.stderr,
+            resource_usage=event.resource_usage,
+            metadata=event.metadata,
+            status=ExecutionStatus.COMPLETED,
+        )
 
         meta = event.metadata
         try:
@@ -90,14 +90,21 @@ class ResultProcessor:
         if exec_obj is None:
             raise ExecutionNotFoundError(event.execution_id)
 
-        self._metrics.record_error(event.error_type)
+        if event.error_type is not None:
+            self._metrics.record_error(event.error_type)
         lang_and_version = f"{exec_obj.lang}-{exec_obj.lang_version}"
 
         self._metrics.record_script_execution(ExecutionStatus.FAILED, lang_and_version)
-        data = {k: v for k, v in event.model_dump().items() if k in _result_fields}
-        if isinstance(data.get("metadata"), dict):
-            data["metadata"] = EventMetadata(**data["metadata"])
-        result = ExecutionResultDomain(**data, status=ExecutionStatus.FAILED)
+        result = ExecutionResultDomain(
+            execution_id=event.execution_id,
+            exit_code=event.exit_code,
+            stdout=event.stdout,
+            stderr=event.stderr,
+            resource_usage=event.resource_usage,
+            error_type=event.error_type,
+            metadata=event.metadata,
+            status=ExecutionStatus.FAILED,
+        )
         meta = event.metadata
         try:
             await self._execution_repo.write_terminal_result(result)
@@ -121,11 +128,15 @@ class ResultProcessor:
         self._metrics.record_script_execution(ExecutionStatus.TIMEOUT, lang_and_version)
         self._metrics.record_execution_duration(event.timeout_seconds, lang_and_version)
 
-        data = {k: v for k, v in event.model_dump().items() if k in _result_fields}
-        if isinstance(data.get("metadata"), dict):
-            data["metadata"] = EventMetadata(**data["metadata"])
         result = ExecutionResultDomain(
-            **data, status=ExecutionStatus.TIMEOUT, exit_code=-1, error_type=ExecutionErrorType.TIMEOUT,
+            execution_id=event.execution_id,
+            exit_code=-1,
+            stdout=event.stdout,
+            stderr=event.stderr,
+            resource_usage=event.resource_usage,
+            error_type=ExecutionErrorType.TIMEOUT,
+            metadata=event.metadata,
+            status=ExecutionStatus.TIMEOUT,
         )
         meta = event.metadata
         try:
@@ -157,7 +168,7 @@ class ResultProcessor:
         """Publish result processing failed event."""
         event = ResultFailedEvent(
             execution_id=execution_id,
-            error=error_message,
+            message=error_message,
             metadata=EventMetadata(
                 service_name="result-processor",
                 service_version="1.0.0",

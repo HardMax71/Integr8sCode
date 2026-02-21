@@ -230,7 +230,9 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
             body: DomainEvent,
             sse_bus: FromDishka[SSERedisBus],
     ) -> None:
-        await sse_bus.route_domain_event(body)
+        execution_id = getattr(body, "execution_id", None)
+        if execution_id:
+            await sse_bus.publish_event(execution_id, body)
 
 
 def register_notification_subscriber(broker: KafkaBroker) -> None:

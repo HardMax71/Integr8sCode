@@ -109,7 +109,7 @@ async def test_execution_stream_closes_on_failed_event(connection_metrics: Conne
     assert _decode(stat)["event_type"] == "status"
 
     # Push a failed event and ensure stream ends after yielding it
-    await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1", "data": {}})
+    await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1"})
     failed = await agen.__anext__()
     assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
@@ -144,7 +144,7 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
     await agen.__anext__()  # subscribed
     await agen.__anext__()  # status
 
-    await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2", "data": {}})
+    await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2"})
     evt = await agen.__anext__()
     data = _decode(evt)
     assert data["event_type"] == EventType.RESULT_STORED

@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
@@ -13,13 +14,11 @@ from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import (
     DomainNotificationSSEPayload,
     RedisNotificationMessage,
-    RedisSSEMessage,
     SSEExecutionEventData,
 )
-from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription, _notif_msg_adapter, _sse_msg_adapter
+from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription, _notif_msg_adapter, _sse_event_adapter
 from app.settings import Settings
 
-_sse_event_adapter = TypeAdapter(SSEExecutionEventData)
 _notif_payload_adapter = TypeAdapter(DomainNotificationSSEPayload)
 _exec_result_fields = set(ExecutionResultDomain.__dataclass_fields__)
 
@@ -34,12 +33,12 @@ class SSEService:
     """
 
     # Terminal event types that should close the SSE stream
-    TERMINAL_EVENT_TYPES: set[EventType] = {
+    TERMINAL_EVENT_TYPES: frozenset[EventType | SSEControlEvent] = frozenset({
         EventType.RESULT_STORED,
         EventType.EXECUTION_FAILED,
         EventType.EXECUTION_TIMEOUT,
         EventType.RESULT_FAILED,
-    }
+    })
 
     def __init__(
         self,
@@ -91,31 +90,34 @@ class SSEService:
                 self.metrics.record_sse_message_sent("executions", "status")
 
             while True:
-                msg: RedisSSEMessage | None = await subscription.get(RedisSSEMessage, _sse_msg_adapter)
-                if not msg:
+                sse_event: SSEExecutionEventData | None = await subscription.get(
+                    SSEExecutionEventData, _sse_event_adapter
+                )
+                if not sse_event:
                     continue
 
                 self.logger.info(
                     "Received Redis message for execution",
                     execution_id=execution_id,
-                    event_type=msg.event_type,
+                    event_type=sse_event.event_type,
                 )
                 try:
-                    sse_event = await self._build_sse_event_from_redis(execution_id, msg)
+                    if sse_event.event_type == EventType.RESULT_STORED:
+                        sse_event = dataclasses.replace(sse_event, result=await self._fetch_result(execution_id))
                     yield self._format_sse_event(sse_event)
 
-                    if msg.event_type in self.TERMINAL_EVENT_TYPES:
+                    if sse_event.event_type in self.TERMINAL_EVENT_TYPES:
                         self.logger.info(
                             "Terminal event for execution",
                             execution_id=execution_id,
-                            event_type=msg.event_type,
+                            event_type=sse_event.event_type,
                         )
                         return
                 except Exception as e:
                     self.logger.warning(
                         "Failed to process SSE message",
                         execution_id=execution_id,
-                        event_type=msg.event_type,
+                        event_type=sse_event.event_type,
                         error=str(e),
                     )
         finally:
@@ -126,32 +128,15 @@ class SSEService:
             self.metrics.decrement_sse_connections("executions")
             self.logger.info("SSE connection closed", execution_id=execution_id)
 
-    async def _build_sse_event_from_redis(self, execution_id: str, msg: RedisSSEMessage) -> SSEExecutionEventData:
-        """Build typed SSE event from Redis message.
-
-        Uses validate_python to coerce JSON primitives (str → enum, ISO str → datetime,
-        dict → dataclass) back to proper types after the Redis JSON round-trip.
-        Extra keys from the original domain event are ignored.
-        """
-        result: ExecutionResultDomain | None = None
-        if msg.event_type == EventType.RESULT_STORED:
-            execution = await self.repository.get_execution(execution_id)
-            if execution:
-                result = ExecutionResultDomain(**{
-                    k: v for k, v in execution.__dict__.items() if k in _exec_result_fields
-                })
-            else:
-                self.logger.warning(
-                    "Execution not found for RESULT_STORED event",
-                    execution_id=execution_id,
-                )
-
-        return _sse_event_adapter.validate_python({
-            **msg.data,
-            "event_type": msg.event_type,
-            "execution_id": execution_id,
-            "result": result,
-        })
+    async def _fetch_result(self, execution_id: str) -> ExecutionResultDomain | None:
+        """Fetch execution result from DB for RESULT_STORED events."""
+        execution = await self.repository.get_execution(execution_id)
+        if execution:
+            return ExecutionResultDomain(**{
+                k: v for k, v in execution.__dict__.items() if k in _exec_result_fields
+            })
+        self.logger.warning("Execution not found for RESULT_STORED event", execution_id=execution_id)
+        return None
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         subscription: SSERedisSubscription | None = None
@@ -184,4 +169,4 @@ class SSEService:
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:
         """Format typed SSE event for sse-starlette."""
-        return {"data": _sse_event_adapter.dump_json(event, exclude_none=True).decode()}
+        return {"data": _sse_event_adapter.dump_json(event).decode()}

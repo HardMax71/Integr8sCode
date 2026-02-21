@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 from app.domain.enums import (
     EventType,
@@ -12,7 +11,6 @@ from app.domain.enums import (
     NotificationStatus,
     SSEControlEvent,
 )
-from app.domain.events.typed import ResourceUsageDomain
 from app.domain.execution.models import ExecutionResultDomain
 
 
@@ -27,15 +25,6 @@ class SSEExecutionStatusDomain:
 class SSEEventDomain:
     aggregate_id: str
     timestamp: datetime
-
-
-@dataclass
-class RedisSSEMessage:
-    """Message structure published to Redis for execution SSE delivery."""
-
-    event_type: EventType
-    data: dict[str, Any]
-    execution_id: str | None = None
 
 
 @dataclass
@@ -56,23 +45,18 @@ class RedisNotificationMessage:
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 
-    This represents the JSON data sent inside each SSE message for execution streams.
-    All fields except event_type and execution_id are optional since different
-    event types carry different data.
+    All 7 fields are always present in the wire JSON. Nullable fields carry null
+    when not applicable: event_id is null for control events; status only for the
+    status control event; message only for failure/cancellation events; result only
+    for result_stored.
     """
 
     event_type: EventType | SSEControlEvent
     execution_id: str
     timestamp: datetime | None = None
     event_id: str | None = None
-    connection_id: str | None = None
-    message: str | None = None
     status: ExecutionStatus | None = None
-    stdout: str | None = None
-    stderr: str | None = None
-    exit_code: int | None = None
-    timeout_seconds: int | None = None
-    resource_usage: ResourceUsageDomain | None = None
+    message: str | None = None
     result: ExecutionResultDomain | None = None
 
 

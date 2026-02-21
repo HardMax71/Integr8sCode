@@ -251,7 +251,7 @@ exec "$@"
             stderr=f"Failed to create pod: {error}",
             resource_usage=None,
             metadata=command.metadata,
-            error_message=str(error),
+            message=str(error),
         )
         await self.producer.produce(event_to_produce=event, key=command.execution_id)
 

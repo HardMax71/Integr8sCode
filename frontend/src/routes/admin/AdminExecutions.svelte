@@ -45,21 +45,18 @@
 
     async function loadExecutions(): Promise<void> {
         loading = true;
-        try {
-            const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
-                query: {
-                    limit: pageSize,
-                    skip: (currentPage - 1) * pageSize,
-                    status: statusFilter !== 'all' ? statusFilter : undefined,
-                    priority: priorityFilter !== 'all' ? priorityFilter : undefined,
-                    user_id: userSearch || undefined,
-                },
-            }), null);
-            executions = data?.executions || [];
-            total = data?.total || 0;
-        } finally {
-            loading = false;
-        }
+        const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
+            query: {
+                limit: pageSize,
+                skip: (currentPage - 1) * pageSize,
+                status: statusFilter !== 'all' ? statusFilter : undefined,
+                priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+                user_id: userSearch || undefined,
+            },
+        }), null);
+        executions = data?.executions || [];
+        total = data?.total || 0;
+        loading = false;
     }
 
     async function loadQueueStatus(): Promise<void> {

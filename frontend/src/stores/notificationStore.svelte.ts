@@ -16,28 +16,23 @@ class NotificationStore {
     async load(limit = 20, options: { include_tags?: string[]; exclude_tags?: string[]; tag_prefix?: string } = {}) {
         this.loading = true;
         this.error = null;
-        try {
-            const { data, error } = await getNotificationsApiV1NotificationsGet({
-                query: {
-                    limit,
-                    include_tags: options.include_tags?.filter(Boolean),
-                    exclude_tags: options.exclude_tags?.filter(Boolean),
-                    tag_prefix: options.tag_prefix
-                }
-            });
-            if (error) {
-                this.error = getErrorMessage(error);
-                return [];
+        const { data, error } = await getNotificationsApiV1NotificationsGet({
+            query: {
+                limit,
+                include_tags: options.include_tags?.filter(Boolean),
+                exclude_tags: options.exclude_tags?.filter(Boolean),
+                tag_prefix: options.tag_prefix
             }
-            this.notifications = data.notifications;
-            this.error = null;
-            return data.notifications;
-        } catch (err) {
-            this.error = String(err);
-            return [];
-        } finally {
+        });
+        if (error) {
+            this.error = getErrorMessage(error);
             this.loading = false;
+            return [];
         }
+        this.notifications = data.notifications;
+        this.error = null;
+        this.loading = false;
+        return data.notifications;
     }
 
     add(notification: NotificationResponse) {

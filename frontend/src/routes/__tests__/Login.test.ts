@@ -110,7 +110,7 @@ describe('Login', () => {
     expect(sessionStorage.getItem('redirectAfterLogin')).toBeNull();
   });
 
-  it('shows error message in DOM and toast on login failure', async () => {
+  it('shows error message in DOM on login failure (no duplicate toast)', async () => {
     mocks.mockAuthStore.login = vi.fn().mockRejectedValue(new Error('Invalid credentials'));
     mocks.mockGetErrorMessage.mockReturnValue('Login failed. Please check your credentials.');
 
@@ -122,7 +122,7 @@ describe('Login', () => {
     await waitFor(() => {
       expect(screen.getByText('Login failed. Please check your credentials.')).toBeInTheDocument();
     });
-    expect(mocks.addToast).toHaveBeenCalledWith('error', 'Login failed. Please check your credentials.');
+    expect(mocks.addToast).not.toHaveBeenCalledWith('error', expect.anything());
   });
 
   it('disables button and shows "Logging in..." during loading', async () => {

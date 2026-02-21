@@ -196,7 +196,6 @@
         } catch {
             showRateLimitModal = false;
             rateLimitUser = null;
-            toast.error('Failed to load rate limits');
         } finally {
             loadingRateLimits = false;
         }

@@ -37,7 +37,8 @@ function mockStream(): { readonly onSseEvent: ((event: any) => void) | undefined
         onSseEvent = options?.onSseEvent;
         return {
             stream: (async function* () {
-                await new Promise<void>(() => {}); // hang until aborted
+                yield; // keep generator alive until aborted
+                await new Promise<void>(() => {});
             })(),
         };
     });

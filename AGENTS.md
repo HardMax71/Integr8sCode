@@ -19,7 +19,7 @@ Users submit code through a Svelte 5 frontend → FastAPI backend → K8s pods.
 
 ## Key Directory Map
 
-```
+```text
 backend/app/
 ├── api/routes/         # FastAPI route handlers (DishkaRoute)
 ├── domain/             # Domain models (stdlib dataclasses), events, enums, exceptions
@@ -59,10 +59,10 @@ npm run test            # Vitest unit tests
 npm run test:e2e        # Playwright E2E
 npm run generate:api    # Regenerate API client after backend OpenAPI changes
 
-# Full stack
-docker-compose up --build
-docker-compose --profile observability up       # + Grafana, Jaeger, Victoria Metrics
-./deploy.sh dev --wait
+# Full stack (from project root)
+./deploy.sh dev --build          # rebuild and start
+./deploy.sh dev --observability  # + Grafana, Jaeger, Victoria Metrics
+./deploy.sh dev --wait           # start and wait for healthy
 ```
 
 ---
@@ -73,7 +73,7 @@ These layer boundaries are enforced throughout the codebase:
 
 | Layer | Technology | Rule |
 |-------|-----------|------|
-| **Domain models** | stdlib `@dataclass` in `domain/` | Business logic only — services use ONLY these |
+| **Domain models** | stdlib `@dataclass` in `domain/` | Business logic — services use ONLY these |
 | **Schema models** | Pydantic `BaseModel` in `schemas_pydantic/` | API boundary only (request/response) |
 | **ODM models** | Beanie `Document` in `db/docs/` | Database layer only |
 
@@ -184,25 +184,39 @@ class InfrastructureError(DomainError):# → HTTP 500; DB, Kafka, K8s failures
 Global exception handler in `app/core/exceptions/handlers.py` automatically maps all `DomainError` subclasses to HTTP status codes and returns `{"detail": exc.message, "type": "ClassName"}`.
 
 **Rules:**
-- Raise domain exceptions from services and repositories — **never** from route handlers
-- Use `raise SpecificError(...) from original_exc` to preserve chains
+- Repositories return `T | None` for reads — **never raise `NotFoundError`**; raise only for write-constraint violations (e.g. `ConflictError` for a duplicate key)
+- Services check `None` from the repo, log, and raise a domain-specific `NotFoundError` subclass — services never return `None` to route handlers
+- Route handlers call the service and return the schema — they **never** raise `HTTPException` for domain-not-found cases; the global handler converts the exception to HTTP 404 automatically
+- Use `raise SpecificError(...) from original_exc` to preserve exception chains
 - Never catch `Exception` broadly; catch specific exception types
-- Route handlers should only catch domain exceptions when needing to add context
 
 ```python
-# Repository — raises domain exceptions
+# Repository — returns None for reads; raises only on write constraints
+async def get_user(self, username: str) -> User | None:
+    doc = await UserDocument.find_one(UserDocument.username == username)
+    return User(**doc.model_dump(include=_user_fields)) if doc else None
+
 async def create_user(self, data: UserCreate) -> User:
+    doc = UserDocument(**dataclasses.asdict(data))
     try:
         await doc.insert()
     except DuplicateKeyError as e:
         raise ConflictError("User already exists") from e
+    return User(**doc.model_dump(include=_user_fields))
 
-# Route — no try/except needed; global handler catches DomainError
-@router.get("/{user_id}", response_model=UserResponse)
+# Service — checks None and raises domain exception (global handler → HTTP 404)
+async def get_user(self, user_id: str) -> User:
+    user = await self.user_repo.get_user_by_id(user_id)
+    if not user:
+        self.logger.warning("User not found", user_id=user_id)
+        raise UserNotFoundError(user_id)
+    return user
+
+# Route — no None check, no HTTPException; service already raises if missing
+@router.get("/{user_id}", response_model=UserResponse,
+            responses={404: {"model": ErrorResponse}})
 async def get_user(user_id: str, service: FromDishka[AdminUserService]) -> UserResponse:
     user = await service.get_user(user_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")  # only for non-domain cases
     return UserResponse.model_validate(user)
 ```
 
@@ -387,7 +401,7 @@ class UserRepository:
 - `doc.model_dump(include=_user_fields)` — filter to domain model fields only
 - `dataclasses.asdict(domain)` — convert domain→document on write
 - Inject `structlog.stdlib.BoundLogger` via constructor
-- Raise domain exceptions (`ConflictError`, `NotFoundError`) not raw DB errors
+- Raise domain exceptions for write-constraint violations only (e.g. `ConflictError` for a duplicate key) — **not** for missing entities; return `None` instead
 
 ---
 
@@ -417,6 +431,7 @@ class ExecutionService:
 - Record all significant operations: `self.metrics.record_*(…)`
 - Publish events via `UnifiedProducer`: `await self.producer.produce(event, key=execution_id)`
 - Services orchestrate domain logic — no direct DB or HTTP calls
+- Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`) — never return `None` to a route
 
 ---
 
@@ -482,7 +497,7 @@ async def handle_execution_requested(event: ExecutionRequestedEvent) -> None:
 - One `@broker.subscriber(topic)` per handler — no multiplexing, no catch-alls
 
 ### Worker Pattern
-```
+```text
 create container → init_beanie() → register handlers → start broker → run loop
 ```
 
@@ -578,14 +593,9 @@ Use `interface` for object shapes, `type` for unions/intersections/aliases. Defi
 
 Generated from OpenAPI spec — **do not edit `src/lib/api/`**. Regenerate after backend changes:
 ```bash
-# First regenerate OpenAPI spec (from backend/)
-uv run python -c "
-import json; from app.main import create_app
-app = create_app(); print(json.dumps(app.openapi(), indent=2))
-" > ../docs/reference/openapi.json 2>/dev/null
-
-# Then regenerate client (from frontend/)
-npm run generate:api
+# From project root
+./deploy.sh openapi   # writes docs/reference/openapi.json; fails loudly on error
+./deploy.sh types     # regenerates frontend/src/lib/api/ from the spec
 ```
 
 Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimitsUserIdGet`.
@@ -625,7 +635,7 @@ Auth endpoints (login/register) bypass error toasts. CSRF token (`X-CSRF-Token`)
 
 ## Frontend: Auth Store
 
-- Auth state in `$stores/auth.ts` — session persisted to `sessionStorage`
+- Auth state in `$stores/auth.svelte.ts` — session persisted to `sessionStorage`
 - `verifyAuth()` — 30-second cache; returns cached state on network error (offline-first)
 - `authStore.waitForInit()` — awaits one-time initialization before checking auth
 - CSRF token attached to all non-GET requests automatically by interceptor
@@ -658,7 +668,7 @@ Navigation: `goto('/path')` programmatic, `route` directive on links.
 
 ### Backend (pytest)
 
-```
+```text
 backend/tests/
 ├── unit/        # No infra — fast
 ├── integration/ # Requires MongoDB, Redis, Kafka
@@ -676,11 +686,12 @@ All test functions are `async def`. Key fixtures: `test_settings`, `app`, `clien
 - Prefer DI over `monkeypatch`/patching
 
 ```python
-@pytest.mark.parametrize("role,expected_status,expected_detail", [
-    ("user", 403, "Forbidden"),
-    ("admin", 200, None),
+@pytest.mark.parametrize("client_fixture,expected_status,expected_detail", [
+    ("test_user", 403, "Forbidden"),
+    ("test_admin", 200, None),
 ])
-async def test_admin_endpoint(client, role, expected_status, expected_detail):
+async def test_admin_endpoint(request, client_fixture, expected_status, expected_detail):
+    client = request.getfixturevalue(client_fixture)
     response = await client.get("/api/v1/admin/users/")
     assert response.status_code == expected_status
     if expected_detail:
@@ -719,7 +730,7 @@ vi.mock('../../../lib/api', () => ({
 
 ```bash
 # Backend
-uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293, B904
+uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293
 uv run mypy --config-file pyproject.toml --strict . # 318 source files
 uv run vulture app/ vulture_whitelist.py            # framework patterns in whitelist
 

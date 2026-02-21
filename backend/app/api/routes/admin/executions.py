@@ -2,11 +2,10 @@ from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import ExecutionNotFoundError
 from app.domain.user import User
 from app.schemas_pydantic.admin_executions import (
     AdminExecutionListResponse,
@@ -61,10 +60,7 @@ async def update_priority(
     _: Annotated[User, Depends(admin_user)],
     service: FromDishka[AdminExecutionService],
 ) -> AdminExecutionResponse:
-    try:
-        updated = await service.update_priority(execution_id, body.priority)
-    except ExecutionNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Execution {execution_id} not found")
+    updated = await service.update_priority(execution_id, body.priority)
     return AdminExecutionResponse.model_validate(updated)
 
 

@@ -73,7 +73,7 @@ describe('createExecutionState', () => {
             expect(s.error).toBeNull();
         });
 
-        it('sets result to null when result_stored has no result', async () => {
+        it('sets result to null and no error when result_stored has no result', async () => {
             mockCreateExecution.mockResolvedValue({
                 data: { execution_id: 'exec-1', status: 'queued' },
                 error: null,
@@ -85,7 +85,8 @@ describe('createExecutionState', () => {
             await s.execute('x', 'python', '3.12');
 
             expect(s.result).toBeNull();
-            expect(s.error).toBe('Connection to server lost.');
+            expect(s.error).toBeNull();
+            expect(s.phase).toBe('idle');
         });
     });
 

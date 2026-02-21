@@ -230,7 +230,7 @@ The API error response schema is `ErrorResponse(detail: str, type: str | None)` 
 from typing import Annotated
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Request
 
 router = APIRouter(
     prefix="/admin/users",

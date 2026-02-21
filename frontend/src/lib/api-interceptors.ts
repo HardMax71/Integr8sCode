@@ -1,4 +1,5 @@
 import { client } from '$lib/api/client.gen';
+import type { ValidationError } from '$lib/api';
 import { toast } from 'svelte-sonner';
 import { goto } from '@mateothegreat/svelte5-router';
 import { authStore } from '$stores/auth.svelte';
@@ -12,28 +13,31 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 
+function isValidationErrorArray(value: unknown): value is ValidationError[] {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    const first = value[0] as Record<string, unknown>;
+    return typeof first.msg === 'string' && Array.isArray(first.loc);
+}
+
+function formatValidationErrors(errors: ValidationError[]): string {
+    return errors.map(e => {
+        if (!e.loc.length) return e.msg;
+        const field = e.loc[e.loc.length - 1];
+        return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
+    }).join(', ');
+}
+
 export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
     if (!err) return fallback;
     if (typeof err === 'string') return err;
-    if (err instanceof Error) return err.message;
-    if (typeof err !== 'object') return fallback;
 
-    const obj = err as Record<string, unknown>;
-
-    if (typeof obj.detail === 'string') return obj.detail;
-    if (typeof obj.message === 'string') return obj.message;
-
-    // FastAPI ValidationError[] or [{msg: '...'}]
-    if (Array.isArray(obj.detail)) {
-        return (obj.detail as Array<{ loc?: unknown[]; msg?: string }>)
-            .map(e => {
-                const msg = e.msg ?? 'Unknown error';
-                if (!e.loc?.length) return msg;
-                const field = e.loc[e.loc.length - 1];
-                return `${typeof field === 'string' ? field : 'field'}: ${msg}`;
-            })
-            .join(', ');
+    if (typeof err === 'object' && 'detail' in err) {
+        const { detail } = err as { detail: unknown };
+        if (typeof detail === 'string') return detail;
+        if (isValidationErrorArray(detail)) return formatValidationErrors(detail);
     }
+
+    if (err instanceof Error) return err.message;
 
     return fallback;
 }
@@ -76,12 +80,9 @@ function handleErrorStatus(status: number | undefined, error: unknown, isAuthEnd
         return true;
     }
 
-    if (status === 422 && typeof error === 'object' && error !== null) {
-        const detail = (error as Record<string, unknown>).detail;
-        if (Array.isArray(detail) && detail.length > 0) {
-            toast.error(`Validation error: ${getErrorMessage(error)}`);
-            return true;
-        }
+    if (status === 422) {
+        toast.error(`Validation error: ${getErrorMessage(error)}`);
+        return true;
     }
 
     if (status >= 500) {

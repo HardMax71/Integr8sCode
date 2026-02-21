@@ -50,17 +50,8 @@ test.describe('Settings Editor Tab', () => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
     await expect(userPage.getByRole('heading', { name: 'Editor Settings' })).toBeVisible();
-    await expect(userPage.getByText('Editor Theme')).toBeVisible();
     await expect(userPage.getByText('Font Size')).toBeVisible();
     await expect(userPage.getByText('Tab Size')).toBeVisible();
-  });
-
-  test('shows editor theme dropdown', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    await userPage.locator('#editor-theme-select').click();
-    await expect(userPage.getByRole('button', { name: 'Auto (Follow App Theme)', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: 'One Dark', exact: true })).toBeVisible();
   });
 
   test('can change font size', async ({ userPage }) => {

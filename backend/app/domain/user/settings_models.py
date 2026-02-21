@@ -18,7 +18,6 @@ class DomainNotificationSettings:
 
 @dataclass
 class DomainEditorSettings:
-    theme: Theme = Theme.AUTO
     font_size: int = 14
     tab_size: int = 4
     use_tabs: bool = False

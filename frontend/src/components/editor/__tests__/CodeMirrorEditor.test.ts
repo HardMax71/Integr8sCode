@@ -74,7 +74,7 @@ vi.mock('$lib/editor/languages', () => ({ getLanguageExtension: mocks.getLanguag
 import CodeMirrorEditor from '../CodeMirrorEditor.svelte';
 
 const defaultSettings: EditorSettingsOutput = {
-  font_size: 14, tab_size: 4, show_line_numbers: true, word_wrap: false, theme: 'auto', use_tabs: false,
+  font_size: 14, tab_size: 4, show_line_numbers: true, word_wrap: false, use_tabs: false,
 };
 
 function renderEditor(overrides: Partial<{ content: string; lang: string; settings: EditorSettingsOutput }> = {}) {
@@ -116,23 +116,12 @@ describe('CodeMirrorEditor', () => {
 
   describe('theme selection', () => {
     it.each([
-      { theme: 'light', darkClass: false, expectedTheme: 'githubLight-theme' },
-      { theme: 'dark', darkClass: false, expectedTheme: 'oneDark-theme' },
-      { theme: 'auto', darkClass: true, expectedTheme: 'oneDark-theme' },
-      { theme: 'auto', darkClass: false, expectedTheme: 'githubLight-theme' },
-    ])('selects $expectedTheme for theme=$theme dark=$darkClass', async ({ theme, darkClass, expectedTheme }) => {
+      { darkClass: false, expectedTheme: 'githubLight-theme' },
+      { darkClass: true, expectedTheme: 'oneDark-theme' },
+    ])('selects $expectedTheme when dark=$darkClass', async ({ darkClass, expectedTheme }) => {
       if (darkClass) document.documentElement.classList.add('dark');
-      renderEditor({ settings: { ...defaultSettings, theme } });
+      renderEditor();
       await waitFor(() => {
-        // applySettings dispatches theme reconfigure; verify the last theme-related extension
-        const themeArgs = mocks.dispatchFn.mock.calls.find(
-          (call: unknown[]) => {
-            const effect = (call[0] as { effects?: { ext?: unknown } })?.effects;
-            return effect && 'type' in effect && (effect as { type: string }).type === 'reconfigure'
-              && (effect as { ext?: unknown }).ext === expectedTheme;
-          },
-        );
-        // At minimum verify the view was initialized with the right theme in extensions
         expect(mocks.editorStateCreate).toHaveBeenCalled();
         const extensions = mocks.editorStateCreate.mock.calls[0]![0].extensions;
         expect(extensions).toContain(expectedTheme);

@@ -28,10 +28,9 @@
 
     // Dropdown states
     let showThemeDropdown = $state(false);
-    let showEditorThemeDropdown = $state(false);
 
     // Form state (single source of truth for UI)
-    let formData = $state<{ theme: Theme; notifications: { execution_completed: boolean; execution_failed: boolean; system_updates: boolean; security_alerts: boolean; channels: NotificationChannel[] }; editor: { theme: string; font_size: number; tab_size: number; use_tabs: boolean; word_wrap: boolean; show_line_numbers: boolean } }>({
+    let formData = $state<{ theme: Theme; notifications: { execution_completed: boolean; execution_failed: boolean; system_updates: boolean; security_alerts: boolean; channels: NotificationChannel[] }; editor: { font_size: number; tab_size: number; use_tabs: boolean; word_wrap: boolean; show_line_numbers: boolean } }>({
         theme: 'auto',
         notifications: {
             execution_completed: true,
@@ -41,7 +40,6 @@
             channels: ['in_app']
         },
         editor: {
-            theme: 'auto',
             font_size: 14,
             tab_size: 4,
             use_tabs: false,
@@ -65,12 +63,6 @@
     ];
     
     
-    const editorThemes = [
-        { value: 'auto', label: 'Auto (Follow App Theme)' },
-        { value: 'one-dark', label: 'One Dark' },
-        { value: 'github', label: 'GitHub' }
-    ];
-    
     function apiToFormData(data: UserSettings): typeof formData {
         return {
             theme: data.theme,
@@ -92,7 +84,6 @@
             const target = event.target as Element | null;
             if (!target?.closest('.dropdown-container')) {
                 showThemeDropdown = false;
-                showEditorThemeDropdown = false;
             }
         };
 
@@ -130,14 +121,7 @@
         if (JSON.stringify(current.notifications) !== JSON.stringify(savedSnapshot.notifications))
             updates.notifications = current.notifications;
         if (JSON.stringify(current.editor) !== JSON.stringify(savedSnapshot.editor))
-            updates.editor = {
-                theme: current.editor.theme as Theme,
-                font_size: current.editor.font_size,
-                tab_size: current.editor.tab_size,
-                use_tabs: current.editor.use_tabs,
-                word_wrap: current.editor.word_wrap,
-                show_line_numbers: current.editor.show_line_numbers,
-            };
+            updates.editor = current.editor;
 
         const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
         if (error) {
@@ -309,37 +293,6 @@
                     <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">Editor Settings</h2>
                     
                     <div class="flex flex-wrap gap-4">
-                        <div class="form-control flex-1 min-w-[150px]">
-                            <label for="editor-theme-select" class="block mb-2">
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Editor Theme</span>
-                            </label>
-                            <div class="relative dropdown-container">
-                                <button id="editor-theme-select" onclick={() => showEditorThemeDropdown = !showEditorThemeDropdown}
-                                        class="form-dropdown-button"
-                                        aria-expanded={showEditorThemeDropdown}>
-                                    <span class="truncate">{editorThemes.find(t => t.value === formData.editor.theme)?.label || 'Select theme'}</span>
-                                    <ChevronDown class="w-5 h-5" />
-                                </button>
-
-                                {#if showEditorThemeDropdown}
-                                    <div transition:fly={{ y: 5, duration: 150 }}
-                                         class="form-dropdown-menu">
-                                        <ul class="py-1">
-                                            {#each editorThemes as theme}
-                                                <li>
-                                                    <button onclick={() => { formData.editor.theme = theme.value; showEditorThemeDropdown = false; }}
-                                                            class:selected={formData.editor.theme === theme.value}
-                                                    >
-                                                        {theme.label}
-                                                    </button>
-                                                </li>
-                                            {/each}
-                                        </ul>
-                                    </div>
-                                {/if}
-                            </div>
-                        </div>
-                        
                         <div class="form-control flex-1 min-w-[100px]">
                             <label for="font-size" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Font Size</span>

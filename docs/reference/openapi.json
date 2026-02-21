@@ -5311,10 +5311,6 @@
       },
       "EditorSettings-Input": {
         "properties": {
-          "theme": {
-            "$ref": "#/components/schemas/Theme",
-            "default": "auto"
-          },
           "font_size": {
             "type": "integer",
             "title": "Font Size",
@@ -5347,10 +5343,6 @@
       },
       "EditorSettings-Output": {
         "properties": {
-          "theme": {
-            "$ref": "#/components/schemas/Theme",
-            "default": "auto"
-          },
           "font_size": {
             "type": "integer",
             "title": "Font Size",
@@ -5379,7 +5371,6 @@
         },
         "type": "object",
         "required": [
-          "theme",
           "font_size",
           "tab_size",
           "use_tabs",

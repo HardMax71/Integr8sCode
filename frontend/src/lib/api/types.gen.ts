@@ -770,7 +770,6 @@ export type DerivedCounts = {
  * Code editor preferences
  */
 export type EditorSettingsInput = {
-    theme?: Theme;
     /**
      * Font Size
      */
@@ -799,7 +798,6 @@ export type EditorSettingsInput = {
  * Code editor preferences
  */
 export type EditorSettingsOutput = {
-    theme: Theme;
     /**
      * Font Size
      */

@@ -31,10 +31,7 @@
     const languageCompartment = new Compartment();
 
     function getThemeExtension() {
-        // Only use dark theme if explicitly set OR auto + dark mode active
-        const useDark = settings.theme === 'dark' ||
-            (settings.theme !== 'light' && document.documentElement.classList.contains('dark'));
-        return useDark ? oneDark : githubLight;
+        return document.documentElement.classList.contains('dark') ? oneDark : githubLight;
     }
 
     function getStaticExtensions() {
@@ -91,10 +88,10 @@
         view = null;
     });
 
-    // React to app theme changes for auto-theme mode
+    // React to app theme changes
     $effect(() => {
         void themeStore.value;
-        if (view && (settings.theme === 'auto' || !settings.theme)) {
+        if (view) {
             view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
         }
     });

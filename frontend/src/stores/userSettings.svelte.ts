@@ -1,7 +1,6 @@
 import type { UserSettings, EditorSettingsOutput } from '$lib/api';
 
 const FALLBACK_EDITOR_SETTINGS: EditorSettingsOutput = {
-    theme: 'auto',
     font_size: 14,
     tab_size: 4,
     use_tabs: false,

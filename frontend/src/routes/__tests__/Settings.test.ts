@@ -14,7 +14,6 @@ function createMockSettings() {
       channels: ['in_app'],
     },
     editor: {
-      theme: 'one-dark',
       font_size: 16,
       tab_size: 2,
       use_tabs: true,

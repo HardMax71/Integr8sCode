@@ -53,7 +53,7 @@ class Notification(BaseModel):
             raise ValueError("scheduled_for must be in the future")
         return v
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 # Rules removed in unified model
@@ -85,7 +85,7 @@ class NotificationSubscription(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class NotificationResponse(BaseModel):
@@ -102,7 +102,7 @@ class NotificationResponse(BaseModel):
     severity: NotificationSeverity
     tags: list[str]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class NotificationListResponse(BaseModel):
@@ -112,7 +112,7 @@ class NotificationListResponse(BaseModel):
     total: int
     unread_count: int
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class SubscriptionUpdate(BaseModel):
@@ -130,7 +130,7 @@ class SubscriptionUpdate(BaseModel):
     timezone: str = "UTC"
     batch_interval_minutes: int = 60
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 # TestNotificationRequest removed in unified model; use Notification schema directly for test endpoints
@@ -141,7 +141,7 @@ class SubscriptionsResponse(BaseModel):
 
     subscriptions: list[NotificationSubscription]
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class UnreadCountResponse(BaseModel):
@@ -149,7 +149,7 @@ class UnreadCountResponse(BaseModel):
 
     unread_count: int
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class DeleteNotificationResponse(BaseModel):
@@ -157,4 +157,4 @@ class DeleteNotificationResponse(BaseModel):
 
     message: str
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)

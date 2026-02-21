@@ -5,12 +5,13 @@
         createUserApiV1AdminUsersPost,
         updateUserApiV1AdminUsersUserIdPut,
         deleteUserApiV1AdminUsersUserIdDelete,
-        getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet,
-        updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
-        resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
+        updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
+        resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
+        type UserUpdate,
         type EndpointUsageStats,
     } from '$lib/api';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -58,7 +59,7 @@
     let savingRateLimits = $state(false);
 
     // User form state
-    let userForm = $state({ username: '', email: '', password: '', role: 'user', is_active: true });
+    let userForm = $state<{ username: string; email: string; password: string; role: UserRole; is_active: boolean }>({ username: '', email: '', password: '', role: 'user', is_active: true });
     let savingUser = $state(false);
     let cascadeDelete = $state(false);
     let deletingUser = $state(false);
@@ -79,7 +80,7 @@
     });
 
     // Derived state
-    let filteredUsers = $derived(filterUsers(users, searchQuery, roleFilter, statusFilter, advancedFilters));
+    let filteredUsers = $derived(filterUsers(users, statusFilter, advancedFilters));
     let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
     let paginatedUsers = $derived(filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize));
     let hasFiltersActive = $derived(
@@ -95,28 +96,23 @@
 
     async function loadUsers(): Promise<void> {
         loading = true;
-        const data = unwrapOr(await listUsersApiV1AdminUsersGet({}), null);
+        const data = unwrapOr(await listUsersApiV1AdminUsersGet({
+            query: {
+                search: searchQuery || null,
+                role: roleFilter !== 'all' ? roleFilter : null,
+            }
+        }), null);
         loading = false;
-        users = data ? (Array.isArray(data) ? data : data?.users || []) : [];
+        users = data?.users ?? [];
     }
 
     function filterUsers(
         userList: UserResponse[],
-        search: string,
-        role: RoleFilter,
         status: StatusFilter,
         advanced: AdvancedFilters
     ): UserResponse[] {
         let filtered = [...userList];
-        if (search) {
-            const searchLower = search.toLowerCase();
-            filtered = filtered.filter(user =>
-                user.username?.toLowerCase().includes(searchLower) ||
-                user.email?.toLowerCase().includes(searchLower) ||
-                user.user_id?.toLowerCase().includes(searchLower)
-            );
-        }
-        if (role !== 'all') filtered = filtered.filter(user => user.role === role);
+        // search and role are handled server-side in loadUsers()
         if (status === 'active') filtered = filtered.filter(user => user.is_active !== false);
         else if (status === 'disabled') filtered = filtered.filter(user => user.is_active === false);
         if (advanced.bypassRateLimit === 'yes') filtered = filtered.filter(user => user.bypass_rate_limit === true);
@@ -147,14 +143,14 @@
         savingUser = true;
         let result;
         if (editingUser) {
-            const updateData: Record<string, string | boolean | null> = {
+            const updateData: UserUpdate = {
                 username: userForm.username, email: userForm.email || null, role: userForm.role, is_active: userForm.is_active
             };
             if (userForm.password) updateData.password = userForm.password;
             result = await updateUserApiV1AdminUsersUserIdPut({ path: { user_id: editingUser.user_id }, body: updateData });
         } else {
             result = await createUserApiV1AdminUsersPost({
-                body: { username: userForm.username, email: userForm.email, password: userForm.password, role: userForm.role as 'user' | 'admin' | undefined, is_active: userForm.is_active }
+                body: { username: userForm.username, email: userForm.email, password: userForm.password, role: userForm.role, is_active: userForm.is_active }
             });
         }
         savingUser = false;
@@ -182,28 +178,27 @@
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        try {
-            const result = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
-                path: { user_id: user.user_id }
-            });
-            const response = unwrap(result);
-            rateLimitConfig = response?.rate_limit_config ?? {
-                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: ''
-            };
-            rateLimitUsage = response?.current_usage || {};
-        } catch {
+        const result = await getUserRateLimitsApiV1AdminRateLimitsUserIdGet({
+            path: { user_id: user.user_id }
+        });
+        loadingRateLimits = false;
+        if (result.error) {
             showRateLimitModal = false;
             rateLimitUser = null;
-            toast.error('Failed to load rate limits');
-        } finally {
-            loadingRateLimits = false;
+            return;
         }
+        const response = unwrap(result);
+        rateLimitConfig = response?.rate_limit_config ?? {
+            user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: '',
+            created_at: null, updated_at: null,
+        };
+        rateLimitUsage = response?.current_usage || {};
     }
 
     async function saveRateLimits(): Promise<void> {
         if (!rateLimitUser || !rateLimitConfig) return;
         savingRateLimits = true;
-        const result = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
+        const result = await updateUserRateLimitsApiV1AdminRateLimitsUserIdPut({
             path: { user_id: rateLimitUser.user_id },
             body: rateLimitConfig
         });
@@ -214,7 +209,7 @@
 
     async function resetRateLimits(): Promise<void> {
         if (!rateLimitUser) return;
-        unwrap(await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
+        unwrap(await resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost({
             path: { user_id: rateLimitUser.user_id }
         }));
         rateLimitUsage = {};
@@ -236,12 +231,17 @@
         showDeleteModal = true;
     }
 
-    // Reset page when filter changes
-    let prevFilters = { searchQuery: '', roleFilter: 'all', statusFilter: 'all' };
+    // Reset page on filter changes; re-fetch from server when search or role changes
+    let prevFilters = { searchQuery: '', roleFilter: 'all' as RoleFilter, statusFilter: 'all' as StatusFilter };
     $effect(() => {
-        if (searchQuery !== prevFilters.searchQuery || roleFilter !== prevFilters.roleFilter || statusFilter !== prevFilters.statusFilter) {
+        const searchChanged = searchQuery !== prevFilters.searchQuery;
+        const roleChanged = roleFilter !== prevFilters.roleFilter;
+        if (searchChanged || roleChanged || statusFilter !== prevFilters.statusFilter) {
             prevFilters = { searchQuery, roleFilter, statusFilter };
             currentPage = 1;
+        }
+        if (searchChanged || roleChanged) {
+            void loadUsers();
         }
     });
 </script>

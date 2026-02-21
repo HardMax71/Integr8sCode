@@ -30,7 +30,6 @@ class EditorSettings(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    theme: Theme = Theme.AUTO
     font_size: int = 14
     tab_size: int = 4
     use_tabs: bool = False

@@ -9,6 +9,7 @@
         deleteEventApiV1AdminEventsEventIdDelete,
         getUserOverviewApiV1AdminUsersUserIdOverviewGet,
         type EventBrowseResponse,
+        type EventFilter,
         type EventStatsResponse,
         type EventDetailResponse,
         type EventReplayStatusResponse,
@@ -32,11 +33,9 @@
         UserOverviewModal
     } from '$components/admin/events';
     import {
-        createDefaultEventFilters,
         hasActiveFilters,
         getActiveFilterCount,
         getActiveFilterSummary,
-        type EventFilters as EventFiltersType
     } from '$lib/admin/events';
     import {
         Filter, Download, RefreshCw, X,
@@ -58,7 +57,7 @@
 
     // Filters
     let showFilters = $state(false);
-    let filters = $state<EventFiltersType>(createDefaultEventFilters());
+    let filters = $state<EventFilter>({});
 
     // Modals
     let selectedEvent = $state<EventDetailResponse | null>(null);
@@ -98,6 +97,7 @@
             body: {
                 filters: {
                     ...filters,
+                    // Convert datetime-local format to ISO string for the backend
                     start_time: filters.start_time ? new Date(filters.start_time).toISOString() : null,
                     end_time: filters.end_time ? new Date(filters.end_time).toISOString() : null
                 },
@@ -133,7 +133,7 @@
             if (status.status === 'completed') {
                 toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
             } else if (status.status === 'failed') {
-                toast.error(`Replay failed: ${(status as { errors?: string[] }).errors?.[0] || 'Unknown error'}`);
+                toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
             }
         }
     }
@@ -167,7 +167,12 @@
                     failed_events: 0,
                     skipped_events: 0,
                     replay_id: response.replay_id,
-                    created_at: new Date().toISOString()
+                    created_at: new Date().toISOString(),
+                    started_at: null,
+                    completed_at: null,
+                    errors: null,
+                    estimated_completion: null,
+                    execution_results: null,
                 };
                 checkReplayStatus(sessionId);
                 replayCheckInterval = setInterval(() => { checkReplayStatus(sessionId); }, 2000);
@@ -186,7 +191,7 @@
 
     function exportEvents(format: 'csv' | 'json' = 'csv'): void {
         const params = new URLSearchParams();
-        if (filters.event_types.length > 0) params.append('event_types', filters.event_types.join(','));
+        if (filters.event_types?.length) params.append('event_types', filters.event_types.join(','));
         if (filters.start_time) params.append('start_time', new Date(filters.start_time).toISOString());
         if (filters.end_time) params.append('end_time', new Date(filters.end_time).toISOString());
         if (filters.aggregate_id) params.append('aggregate_id', filters.aggregate_id);
@@ -209,7 +214,7 @@
     }
 
     function clearFilters(): void {
-        filters = createDefaultEventFilters();
+        filters = {};
         currentPage = 1;
         loadEvents();
     }

@@ -62,7 +62,7 @@ vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 vi.mock('$stores/userSettings.svelte', () => ({
   userSettingsStore: {
     settings: null,
-    editorSettings: { theme: 'auto', font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true },
+    editorSettings: { font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true },
   },
 }));
 

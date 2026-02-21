@@ -28,12 +28,7 @@ vi.mock('../../stores/auth.svelte', () => ({
   authStore: mockAuthStore,
 }));
 
-vi.mock('../api-interceptors', () => ({
-  unwrap: <T>(result: { data?: T; error?: unknown }): T => {
-    if (result.error) throw result.error;
-    return result.data as T;
-  },
-}));
+vi.mock('../api-interceptors', () => ({}));
 
 describe('user-settings', () => {
   beforeEach(async () => {
@@ -103,7 +98,7 @@ describe('user-settings', () => {
     });
 
     it('returns undefined on network error', async () => {
-      mockGetUserSettings.mockRejectedValue(new Error('Network error'));
+      mockGetUserSettings.mockResolvedValue({ data: undefined, error: new Error('Network error') });
 
       const { loadUserSettings } = await import('$lib/user-settings');
       const result = await loadUserSettings();
@@ -111,16 +106,16 @@ describe('user-settings', () => {
       expect(result).toBeUndefined();
     });
 
-    it('does not apply theme when not in settings', async () => {
+    it('always applies theme from response', async () => {
       mockGetUserSettings.mockResolvedValue({
-        data: { editor: {} },
+        data: { theme: 'auto', editor: {} },
         error: null
       });
 
       const { loadUserSettings } = await import('$lib/user-settings');
       await loadUserSettings();
 
-      expect(mockSetTheme).not.toHaveBeenCalled();
+      expect(mockSetTheme).toHaveBeenCalledWith('auto');
     });
   });
 
@@ -190,14 +185,14 @@ describe('user-settings', () => {
       expect(mockSetTheme).toHaveBeenCalledWith('dark');
     });
 
-    it('does not apply theme when only editor settings saved', async () => {
-      const responseData = { user_id: '123', editor: { font_size: 16 } };
+    it('applies theme from response even when only editor settings saved', async () => {
+      const responseData = { user_id: '123', theme: 'auto', editor: { font_size: 16 } };
       mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
       const { saveUserSettings } = await import('$lib/user-settings');
       await saveUserSettings({ editor: { font_size: 16 } });
 
-      expect(mockSetTheme).not.toHaveBeenCalled();
+      expect(mockSetTheme).toHaveBeenCalledWith('auto');
     });
 
     it('returns true on success', async () => {
@@ -222,7 +217,7 @@ describe('user-settings', () => {
     });
 
     it('returns false on network error', async () => {
-      mockUpdateUserSettings.mockRejectedValue(new Error('Network error'));
+      mockUpdateUserSettings.mockResolvedValue({ data: undefined, error: new Error('Network error') });
 
       const { saveUserSettings } = await import('$lib/user-settings');
       const result = await saveUserSettings({ theme: 'dark' });

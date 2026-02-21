@@ -11,6 +11,7 @@
         deleteSavedScriptApiV1ScriptsScriptIdDelete,
         type ResourceLimits,
         type LanguageInfo,
+        type SavedScriptResponse,
     } from '$lib/api';
     import { toast } from 'svelte-sonner';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -28,14 +29,6 @@
         ScriptActions,
         SavedScripts
     } from '$components/editor';
-
-    interface SavedScript {
-        id: string;
-        name: string;
-        script: string;
-        lang?: string;
-        lang_version?: string;
-    }
 
     function loadFromStorage<T>(key: string, defaultValue: T): T {
         if (typeof localStorage === 'undefined') return defaultValue;
@@ -69,9 +62,9 @@
     let k8sLimits = $state<ResourceLimits | null>(null);
     let supportedRuntimes = $state<Record<string, LanguageInfo>>({});
     let exampleScripts: Record<string, string> = {};
-    let savedScripts = $state<SavedScript[]>([]);
+    let savedScripts = $state<SavedScriptResponse[]>([]);
     let showOptions = $state(false);
-    let editorSettings = $derived({ ...{ theme: 'auto' as const, font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true }, ...userSettingsStore.editorSettings });
+    let editorSettings = $derived(userSettingsStore.editorSettings);
     let fileInput: HTMLInputElement;
     let editorRef: CodeMirrorEditor;
     let nameEditedByUser = false;
@@ -82,7 +75,7 @@
 
     $effect(() => {
         if (nameEditedByUser && typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
-            const saved = savedScripts.find(s => s.id === currentScriptId);
+            const saved = savedScripts.find(s => s.script_id === currentScriptId);
             if (saved && saved.name !== scriptName) {
                 currentScriptId = null;
                 toast.info('Script name changed. Next save will create a new script.');
@@ -130,15 +123,15 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-        savedScripts = (data?.scripts || []).map((s, i) => ({ ...s, id: s.script_id || `temp_${i}_${Date.now()}` }));
+        savedScripts = data?.scripts || [];
     }
 
-    function loadScript(s: SavedScript) {
+    function loadScript(s: SavedScriptResponse) {
         script = s.script;
         scriptName = s.name;
-        currentScriptId = s.id;
-        if (s.lang) selectedLang = s.lang;
-        if (s.lang_version) selectedVersion = s.lang_version;
+        currentScriptId = s.script_id;
+        selectedLang = s.lang;
+        selectedVersion = s.lang_version;
         editorRef?.setContent(s.script);
         execution.reset();
         toast.info(`Loaded script: ${s.name}`);
@@ -172,7 +165,7 @@
     }
 
     async function deleteScript(id: string) {
-        const s = savedScripts.find(x => x.id === id);
+        const s = savedScripts.find(x => x.script_id === id);
         if (!confirm(s ? `Are you sure you want to delete "${s.name}"?` : 'Are you sure you want to delete this script?')) return;
         unwrap(await deleteSavedScriptApiV1ScriptsScriptIdDelete({ path: { script_id: id } }));
         toast.success('Script deleted successfully.');

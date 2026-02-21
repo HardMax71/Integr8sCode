@@ -25,6 +25,7 @@ class EventStatistics(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
+        json_schema_serialization_defaults_required=True,
         json_schema_extra={
             "example": {
                 "total_events": 1543,
@@ -59,7 +60,7 @@ class EventStatistics(BaseModel):
 class EventProjection(BaseModel):
     """Configuration for event projections."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     name: str
     pipeline: list[dict[str, Any]]
@@ -73,7 +74,7 @@ class EventProjection(BaseModel):
 class ExecutionEventsResult(BaseModel):
     """Result of execution events query."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     events: list[DomainEvent]
     access_allowed: bool

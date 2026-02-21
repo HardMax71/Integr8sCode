@@ -48,9 +48,10 @@ const mocks = vi.hoisted(() => ({
   createUserApiV1AdminUsersPost: vi.fn(),
   updateUserApiV1AdminUsersUserIdPut: vi.fn(),
   deleteUserApiV1AdminUsersUserIdDelete: vi.fn(),
-  getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet: vi.fn(),
-  updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut: vi.fn(),
-  resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost: vi.fn(),
+  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: vi.fn(),
+  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: vi.fn(),
+  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: vi.fn(),
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: vi.fn(),
   addToast: vi.fn(),
 }));
 
@@ -60,9 +61,10 @@ vi.mock('../../../lib/api', () => ({
   createUserApiV1AdminUsersPost: (...args: unknown[]) => mocks.createUserApiV1AdminUsersPost(...args),
   updateUserApiV1AdminUsersUserIdPut: (...args: unknown[]) => mocks.updateUserApiV1AdminUsersUserIdPut(...args),
   deleteUserApiV1AdminUsersUserIdDelete: (...args: unknown[]) => mocks.deleteUserApiV1AdminUsersUserIdDelete(...args),
-  getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet: (...args: unknown[]) => mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet(...args),
-  updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut: (...args: unknown[]) => mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut(...args),
-  resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost: (...args: unknown[]) => mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost(...args),
+  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: (...args: unknown[]) => mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet(...args),
+  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: (...args: unknown[]) => mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut(...args),
+  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: (...args: unknown[]) => mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost(...args),
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: (...args: unknown[]) => mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet(...args),
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -98,7 +100,7 @@ vi.mock('../AdminLayout.svelte', async () => {
 import AdminUsers from '$routes/admin/AdminUsers.svelte';
 
 async function renderWithUsers(users = createMockUsers(3)) {
-  mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: users, error: null });
+  mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users, total: users.length }, error: null });
   const result = render(AdminUsers);
   await tick();
   await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
@@ -109,7 +111,8 @@ describe('AdminUsers', () => {
   beforeEach(() => {
     mockElementAnimate();
     vi.clearAllMocks();
-    mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: [], error: null });
+    mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
+    mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });
   });
 
   afterEach(() => {
@@ -182,11 +185,19 @@ describe('AdminUsers', () => {
   describe('search and filtering', () => {
     it('filters users by search query', async () => {
       const user = userEvent.setup();
-      const users = [
+      const allUsers = [
         createMockUser({ username: 'alice', email: 'alice@test.com' }),
         createMockUser({ user_id: 'u2', username: 'bob', email: 'bob@test.com' }),
       ];
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const search = (query as Record<string, unknown>)?.search as string | null;
+        const filtered = search ? allUsers.filter(u => u.username.includes(search)) : allUsers;
+        return { data: { users: filtered, total: filtered.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
       await user.type(searchInput, 'alice');
       await waitFor(() => {
@@ -197,11 +208,19 @@ describe('AdminUsers', () => {
 
     it('filters users by role', async () => {
       const user = userEvent.setup();
-      const users = [
+      const allUsers = [
         createMockUser({ username: 'admin1', role: 'admin' }),
         createMockUser({ user_id: 'u2', username: 'user1', role: 'user' }),
       ];
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const role = (query as Record<string, unknown>)?.role as string | null;
+        const filtered = role ? allUsers.filter(u => u.role === role) : allUsers;
+        return { data: { users: filtered, total: filtered.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const roleSelect = screen.getByRole('combobox', { name: /Role/i });
       await user.selectOptions(roleSelect, 'admin');
       await waitFor(() => {
@@ -228,7 +247,17 @@ describe('AdminUsers', () => {
     it('resets filters on Reset button click', async () => {
       const user = userEvent.setup();
       const users = createMockUsers(3);
-      await renderWithUsers(users);
+      mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
+        const search = (query as Record<string, unknown>)?.search as string | null;
+        if (search === 'nonexistent') {
+          return { data: { users: [], total: 0 }, error: null };
+        }
+        return { data: { users, total: users.length }, error: null };
+      });
+      render(AdminUsers);
+      await tick();
+      await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
+
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
       await user.type(searchInput, 'nonexistent');
       await waitFor(() => expect(screen.getByText(/No users found/i)).toBeInTheDocument());
@@ -515,7 +544,7 @@ describe('AdminUsers', () => {
     };
 
     it('opens rate limit modal for user', async () => {
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: {} },
         error: null,
       });
@@ -529,12 +558,12 @@ describe('AdminUsers', () => {
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
-        expect(mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet).toHaveBeenCalled();
+        expect(mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet).toHaveBeenCalled();
       });
     });
 
     it('displays default rules in rate limit modal', async () => {
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: {} },
         error: null,
       });
@@ -551,11 +580,11 @@ describe('AdminUsers', () => {
     });
 
     it('saves rate limit changes', async () => {
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: {} },
         error: null,
       });
-      mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut.mockResolvedValue({ data: {}, error: null });
+      mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut.mockResolvedValue({ data: {}, error: null });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
       const user = userEvent.setup();
       await renderWithUsers(users);
@@ -567,7 +596,7 @@ describe('AdminUsers', () => {
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
       await waitFor(() => {
-        expect(mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut).toHaveBeenCalledWith({
+        expect(mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).toHaveBeenCalledWith({
           path: { user_id: 'u1' },
           body: expect.any(Object),
         });
@@ -576,11 +605,11 @@ describe('AdminUsers', () => {
 
     it('handles rate limit save error and shows toast', async () => {
       const error = { status: 422, detail: 'Invalid config' };
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: {} },
         error: null,
       });
-      mocks.updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut.mockImplementation(async () => {
+      mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut.mockImplementation(async () => {
         mocks.addToast('Failed to save rate limits');
         return { data: null, error };
       });
@@ -598,7 +627,7 @@ describe('AdminUsers', () => {
     });
 
     it('adds new rate limit rule', async () => {
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: {} },
         error: null,
       });
@@ -618,11 +647,11 @@ describe('AdminUsers', () => {
     });
 
     it('resets rate limit counters', async () => {
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: { rate_limit_config: mockRateLimitConfig, current_usage: { '/api/test': { count: 5 } } },
         error: null,
       });
-      mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost.mockResolvedValue({ data: {}, error: null });
+      mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost.mockResolvedValue({ data: {}, error: null });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
       const user = userEvent.setup();
       await renderWithUsers(users);
@@ -634,7 +663,7 @@ describe('AdminUsers', () => {
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
 
       await waitFor(() => {
-        expect(mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost).toHaveBeenCalledWith({
+        expect(mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).toHaveBeenCalledWith({
           path: { user_id: 'u1' },
         });
       });
@@ -650,14 +679,17 @@ describe('AdminUsers', () => {
 
     it('shows filtered count when filters applied', async () => {
       const user = userEvent.setup();
-      const users = createMockUsers(10);
+      const users = [
+        createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
+        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
+      ];
       await renderWithUsers(users);
 
-      const roleSelect = screen.getByRole('combobox', { name: /Role/i });
-      await user.selectOptions(roleSelect, 'admin');
+      const statusSelect = screen.getByRole('combobox', { name: /Status/i });
+      await user.selectOptions(statusSelect, 'active');
 
       await waitFor(() => {
-        expect(screen.getByText(/Users \(1 of 10\)/)).toBeInTheDocument();
+        expect(screen.getByText(/Users \(1 of 2\)/)).toBeInTheDocument();
       });
     });
   });
@@ -739,7 +771,7 @@ describe('AdminUsers', () => {
   describe('error handling', () => {
     it('handles API error when loading rate limits and shows toast', async () => {
       const error = { message: 'Failed to load' };
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockImplementation(async () => {
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockImplementation(async () => {
         mocks.addToast('Failed to load rate limits');
         return { data: null, error };
       });
@@ -755,14 +787,14 @@ describe('AdminUsers', () => {
 
     it('handles API error when resetting rate limits and shows toast', async () => {
       const resetError = { message: 'Reset failed' };
-      mocks.getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet.mockResolvedValue({
+      mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet.mockResolvedValue({
         data: {
           rate_limit_config: { user_id: 'u1', rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: '' },
           current_usage: { '/api': { count: 1 } }
         },
         error: null,
       });
-      mocks.resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost.mockImplementation(async () => {
+      mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost.mockImplementation(async () => {
         mocks.addToast('Failed to reset rate limits');
         return { data: null, error: resetError };
       });

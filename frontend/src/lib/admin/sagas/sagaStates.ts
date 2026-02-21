@@ -62,24 +62,3 @@ export function getSagaStateInfo(state: SagaState): SagaStateConfig {
 
 // Filter type for saga state filters - empty string means "all"
 export type SagaStateFilter = '' | SagaState;
-
-// Execution saga step definitions
-export interface SagaStep {
-    name: string;
-    label: string;
-    compensation: string | null;
-}
-
-export const EXECUTION_SAGA_STEPS: SagaStep[] = [
-    { name: 'validate_execution', label: 'Validate', compensation: null },
-    { name: 'allocate_resources', label: 'Allocate Resources', compensation: 'release_resources' },
-    { name: 'queue_execution', label: 'Queue Execution', compensation: 'remove_from_queue' },
-    { name: 'create_pod', label: 'Create Pod', compensation: 'delete_pod' },
-    { name: 'monitor_execution', label: 'Monitor', compensation: null }
-];
-
-export function getSagaProgressPercentage(completedSteps: string[], sagaName: string): number {
-    if (!completedSteps.length) return 0;
-    const totalSteps = sagaName === 'execution_saga' ? 5 : 3;
-    return Math.min(100, (completedSteps.length / totalSteps) * 100);
-}

@@ -4,14 +4,10 @@ import {
   getGroupColor,
   ENDPOINT_GROUP_PATTERNS,
   detectGroupFromEndpoint,
-  getDefaultRules,
-  getDefaultRulesWithMultiplier,
   createEmptyRule
-} from '$lib/admin/users/rateLimits';
+} from '$lib/admin/rate-limits/rateLimits';
 
 const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
-const findRuleByGroup = (rules: ReturnType<typeof getDefaultRules>, group: string) =>
-  rules.find(r => r.group === group);
 
 describe('rateLimits', () => {
   describe('GROUP_COLORS', () => {
@@ -60,52 +56,6 @@ describe('rateLimits', () => {
       ['/some/random/path', 'api'],
     ])('detects %s as %s', (endpoint, expected) => {
       expect(detectGroupFromEndpoint(endpoint)).toBe(expected);
-    });
-  });
-
-  describe('getDefaultRules', () => {
-    const rules = getDefaultRules();
-
-    it('returns array of rules with required properties', () => {
-      expect(rules.length).toBeGreaterThan(0);
-      const requiredProps = ['endpoint_pattern', 'group', 'requests', 'window_seconds', 'algorithm', 'priority'];
-      rules.forEach(rule => requiredProps.forEach(prop => expect(rule).toHaveProperty(prop)));
-    });
-
-    it.each([
-      ['execution', 10],
-      ['api', 60],
-    ])('includes %s rule with %d req/min', (group, requests) => {
-      const rule = findRuleByGroup(rules, group);
-      expect(rule).toBeDefined();
-      expect(rule?.requests).toBe(requests);
-    });
-  });
-
-  describe('getDefaultRulesWithMultiplier', () => {
-    it('returns rules with effective_requests', () => {
-      getDefaultRulesWithMultiplier(1).forEach(rule => {
-        expect(rule).toHaveProperty('effective_requests');
-      });
-    });
-
-    it.each([
-      [2, 20, 120],
-      [0.5, 5, 30],
-      [1, 10, 60],
-      [1.5, 15, 90],
-      [1.3, 13, 78],
-    ])('with multiplier %d: execution=%d, api=%d', (multiplier, execExpected, apiExpected) => {
-      const rules = getDefaultRulesWithMultiplier(multiplier);
-      expect(findRuleByGroup(rules, 'execution')?.effective_requests).toBe(execExpected);
-      expect(findRuleByGroup(rules, 'api')?.effective_requests).toBe(apiExpected);
-    });
-
-    it('handles non-positive multipliers as 1', () => {
-      [undefined, 0, -1, -0.5].forEach(mult => {
-        const rules = getDefaultRulesWithMultiplier(mult);
-        expect(findRuleByGroup(rules, 'execution')?.effective_requests).toBe(10);
-      });
     });
   });
 

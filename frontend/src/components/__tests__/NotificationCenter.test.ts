@@ -43,7 +43,6 @@ const mocks = vi.hoisted(() => {
     // Mock notification stream
     mockStreamConnect: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
     mockStreamDisconnect: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    mockStreamConnected: false,
   };
 });
 
@@ -70,7 +69,6 @@ vi.mock('../../stores/notificationStore.svelte', () => ({
 // Mock the notification stream module
 vi.mock('../../lib/notifications/stream.svelte', () => ({
   notificationStream: {
-    get connected() { return mocks.mockStreamConnected; },
     connect: (...args: unknown[]) => mocks.mockStreamConnect(...args),
     disconnect: () => mocks.mockStreamDisconnect(),
   },
@@ -188,7 +186,6 @@ describe('NotificationCenter', () => {
     mocks.mockNotificationStore.add.mockReset();
     mocks.mockStreamConnect.mockReset();
     mocks.mockStreamDisconnect.mockReset();
-    mocks.mockStreamConnected = false;
     mockNotificationPermission = 'default';
     mockRequestPermission.mockReset().mockResolvedValue('granted');
     vi.spyOn(console, 'log').mockImplementation(() => {});

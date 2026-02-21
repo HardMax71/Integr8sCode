@@ -104,7 +104,7 @@ describe('Register', () => {
     expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
   });
 
-  it('shows error in DOM and toast on API error', async () => {
+  it('shows error in DOM on API error (no duplicate toast)', async () => {
     mocks.registerApiV1AuthRegisterPost.mockResolvedValue({
       data: undefined,
       error: { detail: 'Username taken' },
@@ -121,7 +121,7 @@ describe('Register', () => {
     await waitFor(() => {
       expect(screen.getByText('Registration failed. Please try again.')).toBeInTheDocument();
     });
-    expect(mocks.addToast).toHaveBeenCalledWith('error', 'Registration failed. Please try again.');
+    expect(mocks.addToast).not.toHaveBeenCalledWith('error', expect.anything());
   });
 
   it('disables button and shows "Registering..." during loading', async () => {

@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { EVENT_TYPES, createDefaultEventFilters } from '$lib/admin/events/eventTypes';
+import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
+import type { EventFilter } from '$lib/api';
 
 import EventFilters from '../EventFilters.svelte';
 
-function renderFilters(overrides: Partial<{ onApply: () => void; onClear: () => void }> = {}) {
+function renderFilters(overrides: Partial<{ onApply: () => void; onClear: () => void; filters: EventFilter }> = {}) {
   const onApply = overrides.onApply ?? vi.fn();
   const onClear = overrides.onClear ?? vi.fn();
-  const filters = createDefaultEventFilters();
+  const filters: EventFilter = overrides.filters ?? {};
   const result = render(EventFilters, { props: { filters, onApply, onClear } });
   return { ...result, onApply, onClear };
 }

@@ -47,7 +47,7 @@
     } catch (err: unknown) {
       const message = getErrorMessage(err, "Login failed. Please check your credentials.");
       error = message;
-      toast.error(error);
+      // Interceptor already toasts for 422/429/5xx; inline error message handles 401
     } finally {
       loading = false;
     }

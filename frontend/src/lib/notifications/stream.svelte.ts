@@ -1,68 +1,44 @@
-import { EventSourcePlus } from 'event-source-plus';
-import type { NotificationResponse } from '$lib/api';
+import {
+    notificationStreamApiV1EventsNotificationsStreamGet,
+    type NotificationResponse,
+} from '$lib/api';
 
 type NotificationCallback = (data: NotificationResponse) => void;
 
 class NotificationStream {
-    #controller: ReturnType<EventSourcePlus['listen']> | null = null;
-    #onNotification: NotificationCallback | null = null;
-
-    connected = $state(false);
-    error = $state<string | null>(null);
+    #abortController: AbortController | null = null;
 
     connect(onNotification: NotificationCallback): void {
         this.disconnect();
-        this.#onNotification = onNotification;
-        this.error = null;
+        this.#abortController = new AbortController();
+        void this.#start(onNotification);
+    }
 
-        const sse = new EventSourcePlus('/api/v1/events/notifications/stream', {
-            maxRetryCount: 3,
-            maxRetryInterval: 20000,
-            headers: {
-                'Accept': 'text/event-stream',
-            },
-        });
+    async #start(onNotification: NotificationCallback): Promise<void> {
+        const { stream } = await notificationStreamApiV1EventsNotificationsStreamGet({
+            signal: this.#abortController!.signal,
+            sseMaxRetryAttempts: 3,
+            sseDefaultRetryDelay: 5000,
+            sseMaxRetryDelay: 20000,
+            onSseEvent: (event) => {
+                if (event.event !== 'notification') return;
 
-        this.#controller = sse.listen({
-            onResponse: () => {
-                this.connected = true;
-                this.error = null;
-                console.log('Notification stream connected');
-            },
-            onMessage: (message) => {
-                if (message.event !== 'notification') return;
-                try {
-                    const data = JSON.parse(message.data) as NotificationResponse;
-                    this.#onNotification?.(data);
+                const data = event.data as NotificationResponse;
+                onNotification(data);
 
-                    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                        new Notification(data.subject, { body: data.body, icon: '/favicon.png' });
-                    }
-                } catch (err) {
-                    console.error('Error processing notification:', err);
-                }
-            },
-            onRequestError: ({ error }) => {
-                console.error('Notification stream request error:', error);
-                this.connected = false;
-                this.error = (error as Error | null)?.message ?? 'Connection failed';
-            },
-            onResponseError: ({ response }) => {
-                console.error('Notification stream response error:', response.status);
-                this.connected = false;
-                if (response.status === 401) {
-                    this.error = 'Unauthorized';
-                    this.disconnect();
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                    new Notification(data.subject, { body: data.body, icon: '/favicon.png' });
                 }
             },
         });
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        for await (const _ of stream) { /* events dispatched via onSseEvent */ }
     }
 
     disconnect(): void {
-        this.#controller?.abort();
-        this.#controller = null;
-        this.#onNotification = null;
-        this.connected = false;
+        this.#abortController?.abort();
+        this.#abortController = null;
     }
 }
 

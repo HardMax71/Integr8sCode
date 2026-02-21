@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { SagaStatusResponse } from '$lib/api';
     import { formatTimestamp, formatDurationBetween } from '$lib/formatters';
-    import { getSagaStateInfo, getSagaProgressPercentage } from '$lib/admin/sagas';
+    import { getSagaStateInfo } from '$lib/admin/sagas';
     import Spinner from '$components/Spinner.svelte';
 
     interface Props {
@@ -27,7 +27,6 @@
         <div class="block lg:hidden">
             {#each sagas as saga}
                 {@const stateInfo = getSagaStateInfo(saga.state)}
-                {@const progress = getSagaProgressPercentage(saga.completed_steps, saga.saga_name)}
                 <div class="p-4 border-b border-border-default dark:border-dark-border-default hover:bg-bg-alt">
                     <div class="flex justify-between items-start mb-2">
                         <div class="flex-1 min-w-0 mr-2">
@@ -49,14 +48,11 @@
                             <div>{formatDurationBetween(saga.created_at, saga.completed_at || saga.updated_at)}</div>
                         </div>
                     </div>
-                    <div class="mb-2">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs text-fg-muted">Progress: {saga.completed_steps.length} steps</span>
-                            <span class="text-xs text-fg-muted">{Math.round(progress)}%</span>
-                        </div>
-                        <div class="progress-container">
-                            <div class="progress-bar" style="width: {progress}%"></div>
-                        </div>
+                    <div class="mb-2 text-xs text-fg-muted">
+                        Steps completed: {saga.completed_steps.length}
+                        {#if saga.current_step}
+                            <span class="ml-2 text-blue-500">▶ {saga.current_step}</span>
+                        {/if}
                     </div>
                     <div class="flex gap-2">
                         <button
@@ -92,7 +88,6 @@
                 <tbody class="table-body">
                     {#each sagas as saga}
                         {@const stateInfo = getSagaStateInfo(saga.state)}
-                        {@const progress = getSagaProgressPercentage(saga.completed_steps, saga.saga_name)}
                         <tr class="table-row">
                             <td class="table-cell">
                                 <div class="font-medium">{saga.saga_name}</div>
@@ -111,13 +106,8 @@
                                 {/if}
                             </td>
                             <td class="table-cell">
-                                <div class="w-32">
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex-1 progress-container">
-                                            <div class="progress-bar" style="width: {progress}%"></div>
-                                        </div>
-                                        <span class="text-xs text-fg-muted">{saga.completed_steps.length}</span>
-                                    </div>
+                                <div class="text-sm">
+                                    <span class="text-fg-muted">{saga.completed_steps.length} steps</span>
                                     {#if saga.current_step}
                                         <div class="text-xs text-fg-muted mt-1 truncate">Current: {saga.current_step}</div>
                                     {/if}

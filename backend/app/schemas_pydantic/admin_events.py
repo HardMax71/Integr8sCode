@@ -43,7 +43,7 @@ class EventReplayRequest(BaseModel):
 class EventBrowseResponse(BaseModel):
     """Response model for browsing events"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     events: list[DomainEvent]
     total: int
@@ -54,7 +54,7 @@ class EventBrowseResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     """Response model for event detail"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     event: DomainEvent
     related_events: list[EventSummary]
@@ -64,7 +64,7 @@ class EventDetailResponse(BaseModel):
 class EventReplayResponse(BaseModel):
     """Response model for event replay"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     dry_run: bool
     total_events: int
@@ -77,7 +77,7 @@ class EventReplayResponse(BaseModel):
 class EventReplayStatusResponse(BaseModel):
     """Response model for replay status"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     session_id: str
     status: ReplayStatus
@@ -102,7 +102,7 @@ class EventReplayStatusResponse(BaseModel):
 class EventDeleteResponse(BaseModel):
     """Response model for event deletion"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     message: str
     event_id: str
@@ -111,7 +111,7 @@ class EventDeleteResponse(BaseModel):
 class EventStatsResponse(BaseModel):
     """Response model for event statistics"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     total_events: int
     events_by_type: list[EventTypeCount]

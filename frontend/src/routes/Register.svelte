@@ -40,7 +40,7 @@
             goto("/login");
         } catch (err: unknown) {
             error = getErrorMessage(err, "Registration failed. Please try again.");
-            toast.error(error);
+            // Interceptor already toasts for 422/429/5xx; inline error message handles the rest
         } finally {
             loading = false;
         }

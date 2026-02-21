@@ -8,7 +8,7 @@ from app.domain.enums import SagaState
 class SagaStatusResponse(BaseModel):
     """Response schema for saga status"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     saga_id: str
     saga_name: str
@@ -27,7 +27,7 @@ class SagaStatusResponse(BaseModel):
 class SagaListResponse(BaseModel):
     """Response schema for saga list"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     sagas: list[SagaStatusResponse]
     total: int
@@ -39,7 +39,7 @@ class SagaListResponse(BaseModel):
 class SagaCancellationResponse(BaseModel):
     """Response schema for saga cancellation"""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     success: bool
     message: str

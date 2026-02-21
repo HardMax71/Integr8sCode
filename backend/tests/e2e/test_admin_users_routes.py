@@ -573,7 +573,7 @@ class TestResetPassword:
 
 
 class TestGetUserRateLimits:
-    """Tests for GET /api/v1/admin/users/{user_id}/rate-limits."""
+    """Tests for GET /api/v1/admin/rate-limits/{user_id}."""
 
     @pytest.mark.asyncio
     async def test_get_user_rate_limits(
@@ -589,7 +589,7 @@ class TestGetUserRateLimits:
 
         # Get rate limits
         response = await test_admin.get(
-            f"/api/v1/admin/users/{user_id}/rate-limits"
+            f"/api/v1/admin/rate-limits/{user_id}"
         )
 
         assert response.status_code == 200
@@ -612,13 +612,13 @@ class TestGetUserRateLimits:
 
         # Try as regular user
         response = await test_user.get(
-            f"/api/v1/admin/users/{user_id}/rate-limits"
+            f"/api/v1/admin/rate-limits/{user_id}"
         )
         assert response.status_code == 403
 
 
 class TestUpdateUserRateLimits:
-    """Tests for PUT /api/v1/admin/users/{user_id}/rate-limits."""
+    """Tests for PUT /api/v1/admin/rate-limits/{user_id}."""
 
     @pytest.mark.asyncio
     async def test_update_user_rate_limits(
@@ -639,7 +639,7 @@ class TestUpdateUserRateLimits:
             rules=[],
         )
         response = await test_admin.put(
-            f"/api/v1/admin/users/{user_id}/rate-limits",
+            f"/api/v1/admin/rate-limits/{user_id}",
             json=update_request.model_dump(),
         )
 
@@ -670,7 +670,7 @@ class TestUpdateUserRateLimits:
             rules=[],
         )
         response = await test_admin.put(
-            f"/api/v1/admin/users/{user_id}/rate-limits",
+            f"/api/v1/admin/rate-limits/{user_id}",
             json=update_request.model_dump(),
         )
 
@@ -692,7 +692,7 @@ class TestUpdateUserRateLimits:
 
         # Try as regular user (raw dict - testing forbidden access)
         response = await test_user.put(
-            f"/api/v1/admin/users/{user_id}/rate-limits",
+            f"/api/v1/admin/rate-limits/{user_id}",
             json={
                 "bypass_rate_limit": True,
                 "global_multiplier": 2.0,
@@ -703,7 +703,7 @@ class TestUpdateUserRateLimits:
 
 
 class TestResetUserRateLimits:
-    """Tests for POST /api/v1/admin/users/{user_id}/rate-limits/reset."""
+    """Tests for POST /api/v1/admin/rate-limits/{user_id}/reset."""
 
     @pytest.mark.asyncio
     async def test_reset_user_rate_limits(
@@ -719,7 +719,7 @@ class TestResetUserRateLimits:
 
         # Reset rate limits
         response = await test_admin.post(
-            f"/api/v1/admin/users/{user_id}/rate-limits/reset"
+            f"/api/v1/admin/rate-limits/{user_id}/reset"
         )
 
         assert response.status_code == 200
@@ -741,7 +741,7 @@ class TestResetUserRateLimits:
 
         # Try as regular user
         response = await test_user.post(
-            f"/api/v1/admin/users/{user_id}/rate-limits/reset"
+            f"/api/v1/admin/rate-limits/{user_id}/reset"
         )
         assert response.status_code == 403
 

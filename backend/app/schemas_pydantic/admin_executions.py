@@ -22,7 +22,7 @@ class AdminExecutionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
 class AdminExecutionListResponse(BaseModel):
@@ -48,3 +48,5 @@ class QueueStatusResponse(BaseModel):
     active_count: int = Field(description="Number of actively running executions")
     max_concurrent: int = Field(description="Maximum concurrent executions allowed")
     by_priority: dict[str, int] = Field(default_factory=dict, description="Pending count per priority")
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)

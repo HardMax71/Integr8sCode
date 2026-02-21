@@ -19,8 +19,6 @@ describe('getErrorMessage', () => {
         ['string error', 'something broke', 'something broke'],
         ['Error instance', new Error('boom'), 'boom'],
         ['object with .detail string', { detail: 'Not found' }, 'Not found'],
-        ['object with .message string', { message: 'Oops' }, 'Oops'],
-        ['object with both (detail wins)', { detail: 'detail wins', message: 'msg' }, 'detail wins'],
         ['ValidationError[] with locs', {
             detail: [
                 { loc: ['body', 'email'], msg: 'invalid email', type: 'value_error' },
@@ -30,9 +28,9 @@ describe('getErrorMessage', () => {
         ['ValidationError[] with empty loc', {
             detail: [{ loc: [], msg: 'bad', type: 'value_error' }],
         }, 'bad'],
-        ['detail[] without loc', {
-            detail: [{ msg: 'Error' }],
-        }, 'Error'],
+        ['ValidationError[] with single loc', {
+            detail: [{ loc: ['body'], msg: 'Error', type: 'value_error' }],
+        }, 'body: Error'],
     ] as [string, unknown, string][])('extracts message from %s', (_label, input, expected) => {
         expect(getErrorMessage(input)).toBe(expected);
     });

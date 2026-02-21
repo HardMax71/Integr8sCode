@@ -2,7 +2,7 @@
     import { Check, X, Undo2 } from '@lucide/svelte';
     import type { SagaStatusResponse } from '$lib/api';
     import { formatTimestamp, formatDurationBetween } from '$lib/formatters';
-    import { getSagaStateInfo, EXECUTION_SAGA_STEPS } from '$lib/admin/sagas';
+    import { getSagaStateInfo } from '$lib/admin/sagas';
     import Modal from '$components/Modal.svelte';
 
     interface Props {
@@ -84,56 +84,6 @@
 
             <div class="mt-6">
                 <h3 class="font-semibold mb-3">Execution Steps</h3>
-
-                {#if saga.saga_name === 'execution_saga'}
-                    <div class="mb-4 p-4 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg overflow-x-auto">
-                        <div class="flex items-start justify-between gap-0 min-w-[600px] pb-2">
-                            {#each EXECUTION_SAGA_STEPS as step, index}
-                                {@const isCompleted = saga.completed_steps.includes(step.name)}
-                                {@const isCompensated = step.compensation && saga.compensated_steps.includes(step.compensation)}
-                                {@const isCurrent = saga.current_step === step.name}
-                                {@const isFailed = saga.state === 'failed' && isCurrent}
-
-                                <div class="flex flex-col items-center flex-1 relative">
-                                    <div class="flex items-center w-full relative h-12">
-                                        <div class="flex-1 flex items-center justify-end">
-                                            {#if index > 0}
-                                                {@const prevCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index - 1]!.name)}
-                                                <div class="h-0.5 w-full {prevCompleted && (isCompleted || isCompensated) ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
-                                            {/if}
-                                        </div>
-                                        <div class="relative z-10 mx-1">
-                                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold border-2
-                                                {isCompleted ? 'bg-green-100 text-green-600 border-green-300 dark:bg-green-900/30 dark:border-green-600' :
-                                                 isCompensated ? 'bg-yellow-100 text-yellow-600 border-yellow-300' :
-                                                 isCurrent ? 'bg-blue-100 text-blue-600 border-blue-300 animate-pulse' :
-                                                 isFailed ? 'bg-red-100 text-red-600 border-red-300' :
-                                                 'bg-neutral-100 text-neutral-400 border-neutral-300 dark:bg-neutral-800'}">
-                                                {#if isCompleted}<Check class="w-5 h-5" />
-                                                {:else if isCompensated}<Undo2 class="w-4 h-4" />
-                                                {:else if isCurrent}<div class="w-2 h-2 bg-current rounded-full"></div>
-                                                {:else if isFailed}<X class="w-5 h-5" />
-                                                {:else}<span class="text-sm font-bold">{index + 1}</span>{/if}
-                                            </div>
-                                        </div>
-                                        <div class="flex-1 flex items-center justify-start">
-                                            {#if index < EXECUTION_SAGA_STEPS.length - 1}
-                                                {@const nextCompleted = saga.completed_steps.includes(EXECUTION_SAGA_STEPS[index + 1]!.name)}
-                                                <div class="h-0.5 w-full {isCompleted && nextCompleted ? 'bg-green-400' : 'bg-neutral-300 dark:bg-neutral-600'}"></div>
-                                            {/if}
-                                        </div>
-                                    </div>
-                                    <div class="mt-2 text-xs font-medium text-center px-1">
-                                        {step.label}
-                                        {#if step.compensation && isCompensated}
-                                            <div class="text-xs text-yellow-600 mt-1">(compensated)</div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
 
                 {#if saga.current_step}
                     <div class="mb-4 p-3 alert alert-info">

@@ -10,7 +10,7 @@ from app.schemas_pydantic.execution import ExecutionResult
 class SSEExecutionEventSchema(BaseModel):
     """API schema for SSE execution stream event payload (OpenAPI docs)."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     event_type: EventType | SSEControlEvent = Field(
         description="Event type identifier (business event or control event)"

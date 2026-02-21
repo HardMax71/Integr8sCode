@@ -178,22 +178,21 @@
         rateLimitUser = user;
         showRateLimitModal = true;
         loadingRateLimits = true;
-        try {
-            const result = await getUserRateLimitsApiV1AdminRateLimitsUserIdGet({
-                path: { user_id: user.user_id }
-            });
-            const response = unwrap(result);
-            rateLimitConfig = response?.rate_limit_config ?? {
-                user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: '',
-                created_at: null, updated_at: null,
-            };
-            rateLimitUsage = response?.current_usage || {};
-        } catch {
+        const result = await getUserRateLimitsApiV1AdminRateLimitsUserIdGet({
+            path: { user_id: user.user_id }
+        });
+        loadingRateLimits = false;
+        if (result.error) {
             showRateLimitModal = false;
             rateLimitUser = null;
-        } finally {
-            loadingRateLimits = false;
+            return;
         }
+        const response = unwrap(result);
+        rateLimitConfig = response?.rate_limit_config ?? {
+            user_id: user.user_id, rules: [], global_multiplier: 1.0, bypass_rate_limit: false, notes: '',
+            created_at: null, updated_at: null,
+        };
+        rateLimitUsage = response?.current_usage || {};
     }
 
     async function saveRateLimits(): Promise<void> {

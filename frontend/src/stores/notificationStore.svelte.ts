@@ -34,7 +34,6 @@ class NotificationStore {
         }
         this.notifications = data.notifications;
         this.unreadCount = data.unread_count;
-        this.error = null;
         this.loading = false;
         return data.notifications;
     }
@@ -49,7 +48,7 @@ class NotificationStore {
             path: { notification_id: notificationId }
         });
         if (error) return false;
-        const wasUnread = this.notifications.find(n => n.notification_id === notificationId)?.status !== 'read';
+        const wasUnread = this.notifications.some(n => n.notification_id === notificationId && n.status !== 'read');
         this.notifications = this.notifications.map(n =>
             n.notification_id === notificationId ? { ...n, status: 'read' as const } : n
         );
@@ -70,7 +69,7 @@ class NotificationStore {
             path: { notification_id: notificationId }
         });
         if (error) return false;
-        const wasUnread = this.notifications.find(n => n.notification_id === notificationId)?.status !== 'read';
+        const wasUnread = this.notifications.some(n => n.notification_id === notificationId && n.status !== 'read');
         this.notifications = this.notifications.filter(n => n.notification_id !== notificationId);
         if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1);
         return true;

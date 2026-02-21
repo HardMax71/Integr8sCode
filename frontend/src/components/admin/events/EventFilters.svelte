@@ -36,7 +36,6 @@
                     </label>
                     <select
                         id="event-types-filter"
-                        value={filters.event_types ?? []}
                         multiple
                         onchange={(e) => {
                             const sel = Array.from((e.currentTarget as HTMLSelectElement).selectedOptions).map(o => o.value as EventType);
@@ -46,7 +45,7 @@
                         title="Hold Ctrl/Cmd to select multiple"
                     >
                         {#each EVENT_TYPES as type}
-                            <option value={type} class="text-xs">{type}</option>
+                            <option value={type} selected={filters.event_types?.includes(type) ?? false} class="text-xs">{type}</option>
                         {/each}
                     </select>
                 </div>

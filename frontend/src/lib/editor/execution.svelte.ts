@@ -62,6 +62,7 @@ class ExecutionState {
             sseMaxRetryAttempts: 3,
         });
 
+        let terminalReceived = false;
         for await (const ev of stream) {
             if (ev.status && isActivePhase(ev.status)) {
                 this.phase = ev.status;
@@ -69,17 +70,19 @@ class ExecutionState {
 
             if (ev.event_type === 'result_stored') {
                 this.result = ev.result ?? null;
+                terminalReceived = true;
                 break;
             }
 
             if (isTerminalFailure(ev.event_type)) {
                 this.result = ev.result ?? null;
                 this.error = ev.message ?? 'Execution failed.';
+                terminalReceived = true;
                 break;
             }
         }
 
-        if (!this.result && !this.error && !controller.signal.aborted) {
+        if (!terminalReceived && !controller.signal.aborted) {
             this.error = 'Connection to server lost.';
         }
         this.#controller = null;

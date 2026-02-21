@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NotificationResponse } from '$lib/api';
 
 const mockSseFn = vi.fn();
@@ -55,6 +55,10 @@ describe('NotificationStream', () => {
         notificationStream.disconnect();
     });
 
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('calls callback with parsed NotificationResponse', async () => {
         const mock = mockStream();
         notificationStream.connect(callback);
@@ -94,7 +98,6 @@ describe('NotificationStream', () => {
 
         mock.onSseEvent!({ event: 'notification', data: validPayload() });
         expect(MockNotification).toHaveBeenCalledWith('Test', { body: 'Hello', icon: '/favicon.png' });
-        vi.unstubAllGlobals();
     });
 
     it('passes abort signal to SSE client', async () => {

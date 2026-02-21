@@ -8,7 +8,7 @@
         type RateLimitRuleResponse,
         type EndpointUsageStats,
     } from '$lib/api';
-    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/users';
+    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/rate-limits';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
 

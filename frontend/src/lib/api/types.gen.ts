@@ -7014,6 +7014,96 @@ export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses = {
 
 export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponse = GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses[keyof GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses];
 
+export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/rate-limits/{user_id}';
+};
+
+export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetError = GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors[keyof GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors];
+
+export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserRateLimitsResponse;
+};
+
+export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponse = GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses[keyof GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses];
+
+export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData = {
+    body: RateLimitUpdateRequest;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/rate-limits/{user_id}';
+};
+
+export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutError = UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors[keyof UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors];
+
+export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: RateLimitUpdateResponse;
+};
+
+export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponse = UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses[keyof UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses];
+
+export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/rate-limits/{user_id}/reset';
+};
+
+export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostError = ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors[keyof ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors];
+
+export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MessageResponse;
+};
+
+export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponse = ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses[keyof ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses];
+
 export type GetSystemSettingsApiV1AdminSettingsGetData = {
     body?: never;
     path?: never;
@@ -7348,96 +7438,6 @@ export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses = {
 };
 
 export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponse = ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses[keyof ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses];
-
-export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/users/{user_id}/rate-limits';
-};
-
-export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetError = GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetErrors[keyof GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetErrors];
-
-export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserRateLimitsResponse;
-};
-
-export type GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponse = GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses[keyof GetUserRateLimitsApiV1AdminUsersUserIdRateLimitsGetResponses];
-
-export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutData = {
-    body: RateLimitUpdateRequest;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/users/{user_id}/rate-limits';
-};
-
-export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutError = UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutErrors[keyof UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutErrors];
-
-export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses = {
-    /**
-     * Successful Response
-     */
-    200: RateLimitUpdateResponse;
-};
-
-export type UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponse = UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses[keyof UpdateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPutResponses];
-
-export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/v1/admin/users/{user_id}/rate-limits/reset';
-};
-
-export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostError = ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostErrors[keyof ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostErrors];
-
-export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: MessageResponse;
-};
-
-export type ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponse = ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses[keyof ResetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPostResponses];
 
 export type UnlockUserApiV1AdminUsersUserIdUnlockPostData = {
     body?: never;

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums import UserRole
-from app.domain.rate_limit import RateLimitRule, UserRateLimitUpdate
 from app.domain.user import User
 from app.domain.user import UserUpdate as UserUpdateDomain
 from app.schemas_pydantic.admin_user_overview import AdminUserOverview
@@ -15,12 +14,9 @@ from app.schemas_pydantic.user import (
     DeleteUserResponse,
     MessageResponse,
     PasswordResetRequest,
-    RateLimitUpdateRequest,
-    RateLimitUpdateResponse,
     UnlockResponse,
     UserCreate,
     UserListResponse,
-    UserRateLimitsResponse,
     UserResponse,
     UserUpdate,
 )
@@ -172,45 +168,6 @@ async def reset_user_password(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to reset password")
     return MessageResponse(message=f"Password reset successfully for user {user_id}")
-
-
-@router.get("/{user_id}/rate-limits", response_model=UserRateLimitsResponse)
-async def get_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
-    admin_user_service: FromDishka[AdminUserService],
-    user_id: str,
-) -> UserRateLimitsResponse:
-    """Get rate limit configuration for a user."""
-    result = await admin_user_service.get_user_rate_limits(admin_user_id=admin.user_id, user_id=user_id)
-    return UserRateLimitsResponse.model_validate(result)
-
-
-@router.put("/{user_id}/rate-limits", response_model=RateLimitUpdateResponse)
-async def update_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
-    admin_user_service: FromDishka[AdminUserService],
-    user_id: str,
-    request: RateLimitUpdateRequest,
-) -> RateLimitUpdateResponse:
-    """Update rate limit rules for a user."""
-    data = request.model_dump(include=set(UserRateLimitUpdate.__dataclass_fields__))
-    data["rules"] = [RateLimitRule(**r) for r in data.get("rules", [])]
-    update = UserRateLimitUpdate(**data)
-    result = await admin_user_service.update_user_rate_limits(
-        admin_user_id=admin.user_id, user_id=user_id, update=update
-    )
-    return RateLimitUpdateResponse.model_validate(result)
-
-
-@router.post("/{user_id}/rate-limits/reset")
-async def reset_user_rate_limits(
-    admin: Annotated[User, Depends(admin_user)],
-    admin_user_service: FromDishka[AdminUserService],
-    user_id: str,
-) -> MessageResponse:
-    """Reset a user's rate limits to defaults."""
-    await admin_user_service.reset_user_rate_limits(admin_user_id=admin.user_id, user_id=user_id)
-    return MessageResponse(message=f"Rate limits reset successfully for user {user_id}")
 
 
 @router.post(

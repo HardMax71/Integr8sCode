@@ -5,7 +5,7 @@ import {
   ENDPOINT_GROUP_PATTERNS,
   detectGroupFromEndpoint,
   createEmptyRule
-} from '$lib/admin/users/rateLimits';
+} from '$lib/admin/rate-limits/rateLimits';
 
 const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
 

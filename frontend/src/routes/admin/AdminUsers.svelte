@@ -5,9 +5,9 @@
         createUserApiV1AdminUsersPost,
         updateUserApiV1AdminUsersUserIdPut,
         deleteUserApiV1AdminUsersUserIdDelete,
-        getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet,
-        updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut,
-        resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
+        updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
+        resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
@@ -179,7 +179,7 @@
         showRateLimitModal = true;
         loadingRateLimits = true;
         try {
-            const result = await getUserRateLimitsApiV1AdminUsersUserIdRateLimitsGet({
+            const result = await getUserRateLimitsApiV1AdminRateLimitsUserIdGet({
                 path: { user_id: user.user_id }
             });
             const response = unwrap(result);
@@ -199,7 +199,7 @@
     async function saveRateLimits(): Promise<void> {
         if (!rateLimitUser || !rateLimitConfig) return;
         savingRateLimits = true;
-        const result = await updateUserRateLimitsApiV1AdminUsersUserIdRateLimitsPut({
+        const result = await updateUserRateLimitsApiV1AdminRateLimitsUserIdPut({
             path: { user_id: rateLimitUser.user_id },
             body: rateLimitConfig
         });
@@ -210,7 +210,7 @@
 
     async function resetRateLimits(): Promise<void> {
         if (!rateLimitUser) return;
-        unwrap(await resetUserRateLimitsApiV1AdminUsersUserIdRateLimitsResetPost({
+        unwrap(await resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost({
             path: { user_id: rateLimitUser.user_id }
         }));
         rateLimitUsage = {};

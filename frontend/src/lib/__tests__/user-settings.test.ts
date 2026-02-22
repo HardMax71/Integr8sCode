@@ -4,8 +4,8 @@ const mockGetUserSettings = vi.fn();
 const mockUpdateUserSettings = vi.fn();
 
 vi.mock('../api', () => ({
-  getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) => mockGetUserSettings(...args),
-  updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) => mockUpdateUserSettings(...args),
+  getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) => (mockGetUserSettings as (...a: unknown[]) => unknown)(...args),
+  updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) => (mockUpdateUserSettings as (...a: unknown[]) => unknown)(...args),
 }));
 
 const mockSetUserSettings = vi.fn();
@@ -170,7 +170,7 @@ describe('user-settings', () => {
       mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
       const { saveUserSettings } = await import('$lib/user-settings');
-      await saveUserSettings({ theme: 'system' });
+      await saveUserSettings({ theme: 'system' as import('$lib/api').Theme });
 
       expect(mockSetUserSettings).toHaveBeenCalledWith(responseData);
     });

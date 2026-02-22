@@ -119,7 +119,7 @@
     <div class="container mx-auto px-2 sm:px-4 pb-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">Execution Management</h1>
-            <button onclick={() => loadData()} class="btn btn-outline flex items-center gap-2" disabled={loading}>
+            <button type="button" onclick={() => loadData()} class="btn btn-outline flex items-center gap-2" disabled={loading}>
                 {#if loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
             </button>
         </div>
@@ -180,7 +180,7 @@
                     <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">User ID</label>
                     <input id="user-search" type="text" bind:value={userSearch} placeholder="Filter by user ID" class="input-field" />
                 </div>
-                <button onclick={resetFilters} class="btn btn-outline text-sm">Reset</button>
+                <button type="button" onclick={resetFilters} class="btn btn-outline text-sm">Reset</button>
             </div>
         </div>
 

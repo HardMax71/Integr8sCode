@@ -20,9 +20,10 @@ function renderModal(overrides: Partial<{
   open: boolean;
 }> = {}) {
   const onClose = vi.fn();
+  const rawOverview = 'overview' in overrides ? overrides.overview : createMockUserOverview();
   const result = render(UserOverviewModal, {
     props: {
-      overview: 'overview' in overrides ? overrides.overview : createMockUserOverview(),
+      overview: rawOverview as unknown as import('$lib/api').AdminUserOverview | null,
       loading: overrides.loading ?? false,
       open: overrides.open ?? true,
       onClose,

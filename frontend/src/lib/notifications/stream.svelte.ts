@@ -11,7 +11,7 @@ class NotificationStream {
     connect(onNotification: NotificationCallback): void {
         this.disconnect();
         this.#abortController = new AbortController();
-        void this.#start(onNotification);
+        void this.#start(onNotification).catch(() => {});
     }
 
     async #start(onNotification: NotificationCallback): Promise<void> {

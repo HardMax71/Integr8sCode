@@ -18,7 +18,8 @@ function renderModal(overrides: Partial<{
   const onClose = vi.fn();
   const onReplay = vi.fn();
   const onViewRelated = vi.fn();
-  const event = 'event' in overrides ? overrides.event : createMockEventDetail();
+  const rawEvent = ('event' in overrides ? overrides.event : createMockEventDetail()) ?? null;
+  const event = rawEvent as unknown as import('$lib/api').EventDetailResponse | null;
   const open = overrides.open ?? true;
   const result = render(EventDetailsModal, { props: { event, open, onClose, onReplay, onViewRelated } });
   return { ...result, onClose, onReplay, onViewRelated };

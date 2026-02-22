@@ -116,6 +116,8 @@ export function createMockStats(overrides: Partial<{
     error_rate: 2.5,
     avg_processing_time: 1.23,
     top_users: [{ user_id: 'user-1', count: 50 }],
+    events_by_type: [] as Array<{ event_type: string; count: number }>,
+    events_by_hour: [] as Array<{ hour: string; count: number }>,
     ...overrides,
   };
 }

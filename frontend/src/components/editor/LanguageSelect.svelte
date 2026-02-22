@@ -86,7 +86,7 @@
 </script>
 
 <div class="relative">
-    <button onclick={() => { showOptions = !showOptions; if (showOptions) focusedLangIndex = 0; }}
+    <button type="button" onclick={() => { showOptions = !showOptions; if (showOptions) focusedLangIndex = 0; }}
             onkeydown={handleTriggerKeydown}
             disabled={!available}
             aria-haspopup="menu"
@@ -132,7 +132,7 @@
                                 <ul class="py-1 max-h-60 overflow-y-auto custom-scrollbar">
                                     {#each info.versions as v, vi (v)}
                                         <li role="none">
-                                            <button onclick={() => selectVersion(l, v)}
+                                            <button type="button" onclick={() => selectVersion(l, v)}
                                                     role="menuitemradio"
                                                     aria-checked={l === lang && v === version}
                                                     tabindex={focusedVersionIndex === vi ? 0 : -1}

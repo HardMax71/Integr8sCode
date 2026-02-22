@@ -66,7 +66,7 @@
                     <h4 class="font-semibold mb-2">Related Events</h4>
                     <div class="space-y-1">
                         {#each relatedEvents as related}
-                            <button
+                            <button type="button"
                                 onclick={() => onViewRelated(related.event_id)}
                                 class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                             >
@@ -85,7 +85,7 @@
     {/if}
 
     {#snippet footer()}
-        <button
+        <button type="button"
             onclick={() => {
                 const id = eventData?.event_id;
                 if (id) onReplay(id);
@@ -94,7 +94,7 @@
         >
             Replay Event
         </button>
-        <button onclick={onClose} class="btn btn-secondary-outline">
+        <button type="button" onclick={onClose} class="btn btn-secondary-outline">
             Close
         </button>
     {/snippet}

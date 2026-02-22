@@ -32,7 +32,7 @@ vi.mock('$lib/user-settings', () => ({
 }));
 
 vi.mock('$lib/api-interceptors', () => ({
-  getErrorMessage: (...args: unknown[]) => mocks.mockGetErrorMessage(...args),
+  getErrorMessage: (...args: unknown[]) => (mocks.mockGetErrorMessage as (...a: unknown[]) => unknown)(...args),
 }));
 
 vi.mock('$utils/meta', async () =>

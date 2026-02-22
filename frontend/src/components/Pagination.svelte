@@ -48,7 +48,7 @@
 
       {#if totalPages > 1}
         <div class="pagination-controls">
-          <button
+          <button type="button"
             class="pagination-button"
             onclick={() => onPageChange(1)}
             disabled={currentPage === 1}
@@ -56,7 +56,7 @@
           >
             <ChevronsLeft size={16} />
           </button>
-          <button
+          <button type="button"
             class="pagination-button"
             onclick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
@@ -67,7 +67,7 @@
           <span class="pagination-text">
             <span class="font-medium">{currentPage}</span> / <span class="font-medium">{totalPages}</span>
           </span>
-          <button
+          <button type="button"
             class="pagination-button"
             onclick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
@@ -75,7 +75,7 @@
           >
             <ChevronRight size={16} />
           </button>
-          <button
+          <button type="button"
             class="pagination-button"
             onclick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}

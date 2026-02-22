@@ -185,7 +185,7 @@ describe('Settings', () => {
       await waitFor(() => {
         expect(mocks.updateUserSettingsApiV1UserSettingsPut).toHaveBeenCalled();
       });
-      const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0][0];
+      const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0]![0];
       expect(callArgs.body).toHaveProperty('editor');
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings saved successfully');

@@ -39,19 +39,19 @@
                     Created: {formatTimestamp(user.created_at)}
                 </div>
                 <div class="flex gap-2">
-                    <button
+                    <button type="button"
                         onclick={() => onEdit(user)}
                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                     >
                         <Pencil class="w-4 h-4" />Edit
                     </button>
-                    <button
+                    <button type="button"
                         onclick={() => onRateLimits(user)}
                         class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1"
                     >
                         <Clock class="w-4 h-4" />Limits
                     </button>
-                    <button
+                    <button type="button"
                         onclick={() => onDelete(user)}
                         class="btn btn-sm btn-danger flex items-center justify-center gap-1"
                     >
@@ -91,21 +91,21 @@
                         </td>
                         <td class="table-cell">
                             <div class="flex gap-2">
-                                <button
+                                <button type="button"
                                     onclick={() => onEdit(user)}
                                     class="text-green-600 hover:text-green-800 dark:text-green-400"
                                     title="Edit User"
                                 >
                                     <Pencil class="w-5 h-5" />
                                 </button>
-                                <button
+                                <button type="button"
                                     onclick={() => onRateLimits(user)}
                                     class="text-blue-600 hover:text-blue-800 dark:text-blue-400"
                                     title="Manage Rate Limits"
                                 >
                                     <Clock class="w-5 h-5" />
                                 </button>
-                                <button
+                                <button type="button"
                                     onclick={() => onDelete(user)}
                                     class="text-red-600 hover:text-red-800 dark:text-red-400"
                                     title="Delete User"

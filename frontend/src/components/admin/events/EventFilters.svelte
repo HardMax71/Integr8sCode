@@ -18,10 +18,10 @@
                 Filter Events
             </h3>
             <div class="flex gap-2">
-                <button onclick={onClear} class="btn btn-ghost btn-sm">
+                <button type="button" onclick={onClear} class="btn btn-ghost btn-sm">
                     Clear All
                 </button>
-                <button onclick={onApply} class="btn btn-primary btn-sm">
+                <button type="button" onclick={onApply} class="btn btn-primary btn-sm">
                     Apply
                 </button>
             </div>

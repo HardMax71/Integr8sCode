@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NotificationResponse } from '$lib/api';
 
+type NotificationCallback = (data: NotificationResponse) => void;
+
 const mockSseFn = vi.fn();
 
 vi.mock('$lib/api', () => ({
@@ -61,13 +63,13 @@ describe('NotificationStream', () => {
 
     it('calls callback with parsed NotificationResponse', async () => {
         const mock = mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
         mock.onSseEvent!({ event: 'notification', data: validPayload() });
 
         expect(callback).toHaveBeenCalledOnce();
-        expect(callback.mock.calls[0][0]).toMatchObject({
+        expect(callback.mock.calls[0]![0]).toMatchObject({
             notification_id: 'n-1',
             channel: 'in_app',
             subject: 'Test',
@@ -78,7 +80,7 @@ describe('NotificationStream', () => {
 
     it('ignores non-notification events', async () => {
         const mock = mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
         mock.onSseEvent!({ event: 'ping', data: {} });
@@ -93,7 +95,7 @@ describe('NotificationStream', () => {
         vi.stubGlobal('Notification', MockNotification);
 
         const mock = mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
         mock.onSseEvent!({ event: 'notification', data: validPayload() });
@@ -102,10 +104,10 @@ describe('NotificationStream', () => {
 
     it('passes abort signal to SSE client', async () => {
         mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
-        const signal = mockSseFn.mock.calls[0][0].signal as AbortSignal;
+        const signal = (mockSseFn.mock.calls[0]![0] as Record<string, unknown>).signal as AbortSignal;
         expect(signal.aborted).toBe(false);
 
         notificationStream.disconnect();
@@ -114,13 +116,13 @@ describe('NotificationStream', () => {
 
     it('aborts previous connection on reconnect', async () => {
         mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
-        const firstSignal = mockSseFn.mock.calls[0][0].signal as AbortSignal;
+        const firstSignal = (mockSseFn.mock.calls[0]![0] as Record<string, unknown>).signal as AbortSignal;
 
         mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
         expect(firstSignal.aborted).toBe(true);
@@ -129,10 +131,10 @@ describe('NotificationStream', () => {
 
     it('configures SSE retry options', async () => {
         mockStream();
-        notificationStream.connect(callback);
+        notificationStream.connect(callback as unknown as NotificationCallback);
         await tick();
 
-        const options = mockSseFn.mock.calls[0][0];
+        const options = mockSseFn.mock.calls[0]![0] as Record<string, unknown>;
         expect(options.sseMaxRetryAttempts).toBe(3);
         expect(options.sseDefaultRetryDelay).toBe(5000);
         expect(options.sseMaxRetryDelay).toBe(20000);

@@ -137,7 +137,7 @@ describe('AdminSettings', () => {
       await waitFor(() => {
         expect(mocks.updateSystemSettingsApiV1AdminSettingsPut).toHaveBeenCalled();
       });
-      const callArgs = mocks.updateSystemSettingsApiV1AdminSettingsPut.mock.calls[0][0];
+      const callArgs = mocks.updateSystemSettingsApiV1AdminSettingsPut.mock.calls[0]![0];
       expect(callArgs.body).toHaveProperty('max_timeout_seconds');
       expect(callArgs.body).toHaveProperty('password_min_length');
       expect(callArgs.body).toHaveProperty('metrics_retention_days');

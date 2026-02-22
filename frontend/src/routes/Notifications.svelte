@@ -116,14 +116,14 @@
                            bind:value={prefixInput}>
                 </div>
                 <div class="flex items-end">
-                    <button class="btn btn-primary w-full" onclick={applyFilters}>Filter</button>
+                    <button type="button" class="btn btn-primary w-full" onclick={applyFilters}>Filter</button>
                 </div>
             </div>
         </div>
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
             {#if notificationStore.notifications.length > 0 && notificationStore.unreadCount > 0}
-                <button
+                <button type="button"
                     onclick={markAllAsRead}
                     class="btn btn-secondary-outline btn-sm"
                 >
@@ -180,10 +180,11 @@
                                             </p>
                                         </div>
                                         
-                                        <button
+                                        <button type="button"
                                             onclick={(e) => { e.stopPropagation(); deleteNotification(notification.notification_id); }}
                                             class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ml-4"
                                             disabled={deleting[notification.notification_id]}
+                                            aria-label="Delete notification"
                                         >
                                             {#if deleting[notification.notification_id]}
                                                 <Spinner size="small" />

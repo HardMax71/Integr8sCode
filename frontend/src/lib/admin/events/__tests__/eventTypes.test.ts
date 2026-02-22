@@ -37,7 +37,7 @@ describe('eventTypes', () => {
       ['pod_terminated', 'text-orange'],
       ['unknown_event', 'text-neutral'],
     ])('%s returns %s', (eventType, expectedColor) => {
-      const color = getEventTypeColor(eventType);
+      const color = getEventTypeColor(eventType as import('$lib/api').EventType);
       expect(color).toContain(expectedColor);
       expect(color).toContain('dark:');
     });
@@ -51,7 +51,7 @@ describe('eventTypes', () => {
       ['single', 'single'],
       ['a_b_c', 'a_b_c'],
     ])('%s returns %s', (input, expected) => {
-      expect(getEventTypeLabel(input)).toBe(expected);
+      expect(getEventTypeLabel(input as import('$lib/api').EventType)).toBe(expected);
     });
   });
 
@@ -76,9 +76,9 @@ describe('eventTypes', () => {
   describe('getActiveFilterCount', () => {
     it.each([
       [{}, 0],
-      [withFilter({ event_types: ['x'], search_text: 'y' }), 2],
+      [withFilter({ event_types: ['x' as import('$lib/api').EventType], search_text: 'y' }), 2],
       [withFilter({
-        event_types: ['x'], search_text: 'y',
+        event_types: ['x' as import('$lib/api').EventType], search_text: 'y',
         aggregate_id: 'a', user_id: 'u', service_name: 's',
         start_time: 't1', end_time: 't2'
       }), 7],
@@ -104,7 +104,7 @@ describe('eventTypes', () => {
 
     it('includes all active filter labels', () => {
       const summary = getActiveFilterSummary(withFilter({
-        event_types: ['x'], search_text: 'y',
+        event_types: ['x' as import('$lib/api').EventType], search_text: 'y',
         aggregate_id: 'a', user_id: 'u', service_name: 's', start_time: 't'
       }));
       ['1 event type', 'search', 'aggregate', 'user', 'service', 'time range']

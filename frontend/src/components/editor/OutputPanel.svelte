@@ -83,7 +83,7 @@
 
                     {#if result.execution_id}
                         <div class="relative group">
-                            <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
+                            <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
                                     aria-label="Click to copy execution ID"
                                     onclick={() => copyToClipboard(result!.execution_id, 'Execution ID')}>
                                 <FileText class="w-4 h-4" />
@@ -101,7 +101,7 @@
                         <div class="relative">
                             <pre class="output-pre custom-scrollbar">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
                             <div class="absolute bottom-2 right-2 group">
-                                <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy output to clipboard"
                                         onclick={() => copyToClipboard(result!.stdout!, 'Output')}>
                                     <Copy class="w-4 h-4" />
@@ -122,7 +122,7 @@
                                 <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(ansiConverter.toHtml(result.stderr || ''))}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">
-                                <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy error text to clipboard"
                                         onclick={() => copyToClipboard(result!.stderr!, 'Error text')}>
                                     <Copy class="w-4 h-4" />

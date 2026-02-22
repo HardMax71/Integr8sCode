@@ -18,6 +18,7 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "outDir": "./public/build",
+    "types": ["@testing-library/jest-dom"],
     "baseUrl": ".",
     "paths": {
       "$lib": ["src/lib"],
@@ -31,9 +32,11 @@
       "$utils": ["src/utils"],
       "$utils/*": ["src/utils/*"],
       "$styles": ["src/styles"],
-      "$styles/*": ["src/styles/*"]
+      "$styles/*": ["src/styles/*"],
+      "$test": ["src/__tests__"],
+      "$test/*": ["src/__tests__/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.js", "src/**/*.svelte"],
-  "exclude": ["node_modules", "public", "src/**/__tests__/**", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "public"]
 }

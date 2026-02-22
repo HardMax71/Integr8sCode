@@ -281,7 +281,7 @@ describe('AdminSagas', () => {
       await renderWithSagas([saga]);
 
       const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      await user.click(viewButtons[0]!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       expect(screen.getByText('Saga Details')).toBeInTheDocument();
@@ -300,7 +300,7 @@ describe('AdminSagas', () => {
       await renderWithSagas([saga]);
 
       const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      await user.click(viewButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByText('saga-detail-test')).toBeInTheDocument();
@@ -317,7 +317,7 @@ describe('AdminSagas', () => {
       await renderWithSagas([saga]);
 
       const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      await user.click(viewButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByText(/pod creation failed/i)).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe('AdminSagas', () => {
       await renderWithSagas([saga]);
 
       const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      await user.click(viewButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByLabelText(/close modal/i));
@@ -353,7 +353,7 @@ describe('AdminSagas', () => {
       await renderWithSagas([saga]);
 
       const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      await user.click(viewButtons[0]!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       expect(screen.getByText('release_resources')).toBeInTheDocument();

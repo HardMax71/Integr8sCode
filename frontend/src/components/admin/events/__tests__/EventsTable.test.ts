@@ -16,8 +16,9 @@ function renderTable(events = createMockEvents(3)) {
   const onReplay = vi.fn();
   const onDelete = vi.fn();
   const onViewUser = vi.fn();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result = render(EventsTable, {
-    props: { events, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser },
+    props: { events: events as any, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser },
   });
   return { ...result, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser };
 }
@@ -90,7 +91,7 @@ describe('EventsTable', () => {
       const events = [createMockEvent({ event_id: 'evt-click' })];
       const { onViewDetails } = renderTable(events);
       const rows = screen.getAllByRole('button', { name: 'View event details' });
-      await user.click(rows[0]);
+      await user.click(rows[0]!);
       expect(onViewDetails).toHaveBeenCalledWith('evt-click');
     });
 
@@ -98,7 +99,7 @@ describe('EventsTable', () => {
       const events = [createMockEvent({ event_id: 'evt-key' })];
       const { onViewDetails } = renderTable(events);
       const rows = screen.getAllByRole('button', { name: 'View event details' });
-      await fireEvent.keyDown(rows[0], { key: 'Enter' });
+      await fireEvent.keyDown(rows[0]!, { key: 'Enter' });
       expect(onViewDetails).toHaveBeenCalledWith('evt-key');
     });
   });
@@ -113,7 +114,7 @@ describe('EventsTable', () => {
       const events = [createMockEvent({ event_id: 'evt-action' })];
       const handlers = renderTable(events);
       const buttons = screen.getAllByTitle(title);
-      await user.click(buttons[0]);
+      await user.click(buttons[0]!);
       expect(handlers[callback]).toHaveBeenCalledWith('evt-action');
       expect(handlers.onViewDetails).not.toHaveBeenCalled();
     });
@@ -124,7 +125,7 @@ describe('EventsTable', () => {
     const event = createMockEvent({ metadata: { user_id: 'user-linked' } });
     const { onViewUser, onViewDetails } = renderTable([event]);
     const userButtons = screen.getAllByTitle('View user overview');
-    await user.click(userButtons[0]);
+    await user.click(userButtons[0]!);
     expect(onViewUser).toHaveBeenCalledWith('user-linked');
     expect(onViewDetails).not.toHaveBeenCalled();
   });

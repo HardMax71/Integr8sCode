@@ -53,7 +53,7 @@
     </div>
     <div>
         <span class="block text-sm font-medium mb-2 text-fg-muted">Actions</span>
-        <button onclick={onClear} class="w-full btn btn-secondary-outline">
+        <button type="button" onclick={onClear} class="w-full btn btn-secondary-outline">
             <X class="w-4 h-4 mr-1.5" />Clear Filters
         </button>
     </div>

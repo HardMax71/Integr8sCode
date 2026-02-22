@@ -10,7 +10,7 @@
 
 {#if limits}
     <div class="relative shrink-0">
-        <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5 w-full sm:w-auto justify-center"
+        <button type="button" class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5 w-full sm:w-auto justify-center"
                 onclick={() => show = !show} aria-expanded={show}>
             <MessageSquare class="w-4 h-4" />
             <span>Resource Limits</span>

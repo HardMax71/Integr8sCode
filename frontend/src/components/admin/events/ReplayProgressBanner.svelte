@@ -13,7 +13,7 @@
 {#if session}
     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 relative">
         <!-- Close button -->
-        <button
+        <button type="button"
             onclick={onClose}
             class="absolute top-2 right-2 p-1 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-lg transition-colors"
             title="Close"

@@ -58,7 +58,7 @@ mocks.mockGoto = vi.fn();
 mocks.mockStreamConnect = vi.fn();
 mocks.mockStreamDisconnect = vi.fn();
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); } }));
+vi.mock('@mateothegreat/svelte5-router', () => ({ get goto() { return (...args: unknown[]) => (mocks.mockGoto as (...a: unknown[]) => unknown)(...args); } }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
@@ -69,8 +69,8 @@ vi.mock('../../stores/notificationStore.svelte', () => ({
 // Mock the notification stream module
 vi.mock('../../lib/notifications/stream.svelte', () => ({
   notificationStream: {
-    connect: (...args: unknown[]) => mocks.mockStreamConnect(...args),
-    disconnect: () => mocks.mockStreamDisconnect(),
+    connect: (...args: unknown[]) => (mocks.mockStreamConnect as (...a: unknown[]) => unknown)(...args),
+    disconnect: () => (mocks.mockStreamDisconnect as () => unknown)(),
   },
 }));
 

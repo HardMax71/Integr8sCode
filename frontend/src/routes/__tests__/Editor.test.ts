@@ -70,8 +70,8 @@ vi.mock('svelte-sonner', async () =>
   (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
-  unwrap: (...args: unknown[]) => mocks.mockUnwrap(...args),
-  unwrapOr: (...args: unknown[]) => mocks.mockUnwrapOr(...args),
+  unwrap: (...args: unknown[]) => (mocks.mockUnwrap as (...a: unknown[]) => unknown)(...args),
+  unwrapOr: (...args: unknown[]) => (mocks.mockUnwrapOr as (...a: unknown[]) => unknown)(...args),
 }));
 
 vi.mock('$utils/meta', async () =>

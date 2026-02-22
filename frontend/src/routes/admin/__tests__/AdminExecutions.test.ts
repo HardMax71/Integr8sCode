@@ -279,7 +279,7 @@ describe('AdminExecutions', () => {
       await renderWithExecutions(execs);
 
       const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0], 'high');
+      await user.selectOptions(prioritySelects[0]!, 'high');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
@@ -305,7 +305,7 @@ describe('AdminExecutions', () => {
       await renderWithExecutions(execs);
 
       const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0], 'critical');
+      await user.selectOptions(prioritySelects[0]!, 'critical');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(

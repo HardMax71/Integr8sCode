@@ -13,8 +13,8 @@ describe('rateLimits', () => {
   describe('GROUP_COLORS', () => {
     it('has all expected groups with dark mode', () => {
       EXPECTED_GROUPS.forEach(group => {
-        expect(GROUP_COLORS[group]).toBeDefined();
-        expect(GROUP_COLORS[group]).toContain('dark:');
+        expect(GROUP_COLORS[group as import('$lib/api').EndpointGroup]).toBeDefined();
+        expect(GROUP_COLORS[group as import('$lib/api').EndpointGroup]).toContain('dark:');
       });
     });
   });

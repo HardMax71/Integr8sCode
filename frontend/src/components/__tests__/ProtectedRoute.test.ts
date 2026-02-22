@@ -23,7 +23,7 @@ mocks.mockGoto = vi.fn();
 
 // Mock router - use getter to defer access
 vi.mock('@mateothegreat/svelte5-router', () => ({
-  get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); },
+  get goto() { return (...args: unknown[]) => (mocks.mockGoto as (...args: unknown[]) => unknown)(...args); },
 }));
 
 // Mock auth store - direct object, not writable stores

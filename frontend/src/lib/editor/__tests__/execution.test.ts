@@ -23,8 +23,9 @@ const RESULT: ExecutionResult = {
     exit_code: 0,
     lang: 'python',
     lang_version: '3.12',
-    execution_time: 0.1,
-    memory_used_kb: 64,
+    resource_usage: null,
+    error_type: null,
+    priority: 'normal',
 };
 
 function mockSseEvents(...events: unknown[]) {

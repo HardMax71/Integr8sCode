@@ -219,7 +219,7 @@
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Settings</h1>
             
-            <button
+            <button type="button"
                 onclick={loadHistory}
                 class="btn btn-secondary-outline btn-sm"
             >
@@ -229,7 +229,7 @@
         
         <div class="flex space-x-1 mb-6 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
             {#each tabs as tab}
-                <button
+                <button type="button"
                     class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
                     class:bg-white={activeTab === tab.id}
                     class:dark:bg-neutral-700={activeTab === tab.id}
@@ -257,7 +257,7 @@
                             <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Theme</span>
                         </label>
                         <div class="relative dropdown-container">
-                            <button id="theme-select" onclick={() => showThemeDropdown = !showThemeDropdown}
+                            <button type="button" id="theme-select" onclick={() => showThemeDropdown = !showThemeDropdown}
                                     class="form-dropdown-button"
                                     aria-expanded={showThemeDropdown}>
                                 <span class="truncate">{themes.find(t => t.value === formData.theme)?.label || 'Select theme'}</span>
@@ -270,7 +270,7 @@
                                     <ul class="py-1">
                                         {#each themes as theme}
                                             <li>
-                                                <button onclick={() => {
+                                                <button type="button" onclick={() => {
                                     formData.theme = theme.value;
                                     showThemeDropdown = false;
                                     if (theme.value) {
@@ -403,7 +403,7 @@
                 {/if}
                 
                 <div class="flex justify-end mt-6">
-                    <button
+                    <button type="button"
                         onclick={saveSettings}
                         class="btn btn-primary"
                         disabled={saving}
@@ -424,7 +424,7 @@
 
 {#if showHistory}
     <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-        <button class="fixed inset-0 bg-black/50 cursor-default" onclick={() => showHistory = false} aria-label="Close modal"></button>
+        <button type="button" class="fixed inset-0 bg-black/50 cursor-default" onclick={() => showHistory = false} aria-label="Close modal"></button>
         <div class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
             <div class="p-6">
                 <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Settings History</h3>
@@ -465,7 +465,7 @@
                                             </div>
                                         </td>
                                         <td class="px-4 py-2">
-                                            <button
+                                            <button type="button"
                                                 onclick={() => restoreSettings(item.timestamp)}
                                                 class="btn btn-ghost btn-xs"
                                             >
@@ -480,7 +480,7 @@
                 </div>
             
                 <div class="mt-5 sm:mt-6 flex justify-end">
-                    <button
+                    <button type="button"
                         onclick={() => showHistory = false}
                         class="btn btn-secondary-outline"
                     >

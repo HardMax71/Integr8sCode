@@ -51,13 +51,13 @@
 
     <!-- Actions -->
     <div class="flex flex-col sm:flex-row gap-3">
-      <button
+      <button type="button"
         onclick={reload}
         class="flex-1 btn btn-primary py-2.5 text-sm font-medium"
       >
         Reload Page
       </button>
-      <button
+      <button type="button"
         onclick={goHome}
         class="flex-1 btn py-2.5 text-sm font-medium bg-bg-default dark:bg-dark-bg-default border border-border-default dark:border-dark-border-default text-fg-default dark:text-dark-fg-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover transition-colors"
       >

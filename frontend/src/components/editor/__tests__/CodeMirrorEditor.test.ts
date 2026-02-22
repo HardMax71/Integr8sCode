@@ -103,7 +103,7 @@ describe('CodeMirrorEditor', () => {
       expect(mocks.editorStateCreate).toHaveBeenCalled();
       expect(mocks.editorStateCreate.mock.calls[0]![0].doc).toBe('print("hi")');
       expect(mocks.editorViewConstructor).toHaveBeenCalled();
-      expect(mocks.editorViewConstructor.mock.calls[0]![0].parent).toBeInstanceOf(HTMLElement);
+      expect((mocks.editorViewConstructor.mock.calls[0]![0] as Record<string, unknown>).parent).toBeInstanceOf(HTMLElement);
     });
   });
 

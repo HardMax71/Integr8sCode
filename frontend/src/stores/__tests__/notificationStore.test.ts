@@ -41,7 +41,7 @@ const createMockNotification = (overrides: Record<string, unknown> = {}) => ({
   status: 'pending' as const,
   subject: 'Test Notification',
   body: 'Test message body',
-  action_url: null,
+  action_url: '',
   created_at: new Date().toISOString(),
   read_at: null,
   severity: 'medium' as const,
@@ -111,7 +111,7 @@ describe('notificationStore', () => {
       await notificationStore.load();
 
       expect(notificationStore.notifications).toHaveLength(2);
-      expect(notificationStore.notifications[0].subject).toBe('First');
+      expect(notificationStore.notifications[0]!.subject).toBe('First');
     });
 
     it('sets loading false after success', async () => {
@@ -214,7 +214,7 @@ describe('notificationStore', () => {
       const newNotification = createMockNotification({ notification_id: 'new', subject: 'New' });
       notificationStore.add(newNotification);
 
-      expect(notificationStore.notifications[0].notification_id).toBe('new');
+      expect(notificationStore.notifications[0]!.notification_id).toBe('new');
       expect(notificationStore.notifications).toHaveLength(2);
     });
 
@@ -232,7 +232,7 @@ describe('notificationStore', () => {
       notificationStore.add(createMockNotification({ notification_id: 'new' }));
 
       expect(notificationStore.notifications).toHaveLength(100);
-      expect(notificationStore.notifications[0].notification_id).toBe('new');
+      expect(notificationStore.notifications[0]!.notification_id).toBe('new');
     });
   });
 
@@ -254,7 +254,7 @@ describe('notificationStore', () => {
       const result = await notificationStore.markAsRead('n1');
 
       expect(result).toBe(true);
-      expect(notificationStore.notifications[0].status).toBe('read');
+      expect(notificationStore.notifications[0]!.status).toBe('read');
     });
 
     it('returns false on failure', async () => {
@@ -270,7 +270,7 @@ describe('notificationStore', () => {
       const result = await notificationStore.markAsRead('n1');
 
       expect(result).toBe(false);
-      expect(notificationStore.notifications[0].status).toBe('pending');
+      expect(notificationStore.notifications[0]!.status).toBe('pending');
     });
 
     it('calls API with correct notification ID', async () => {
@@ -337,7 +337,7 @@ describe('notificationStore', () => {
 
       expect(result).toBe(true);
       expect(notificationStore.notifications).toHaveLength(1);
-      expect(notificationStore.notifications[0].notification_id).toBe('n2');
+      expect(notificationStore.notifications[0]!.notification_id).toBe('n2');
     });
 
     it('returns false on failure', async () => {

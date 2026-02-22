@@ -64,6 +64,7 @@ export default [
     },
     rules: {
       ...svelte.configs.recommended.rules,
+      'svelte/button-has-type': 'warn',
       'no-unused-vars': 'off',
       'no-undef': 'off',
     },

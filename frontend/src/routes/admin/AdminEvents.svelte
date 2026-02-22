@@ -249,7 +249,7 @@
             <h1 class="text-2xl sm:text-3xl font-bold">Event Browser</h1>
 
             <div class="flex flex-wrap gap-2">
-                <button
+                <button type="button"
                     onclick={() => showFilters = !showFilters}
                     class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
                     class:btn-primary={showFilters}
@@ -272,7 +272,7 @@
 
                 <!-- Export dropdown -->
                 <div class="relative">
-                    <button
+                    <button type="button"
                         onclick={() => showExportMenu = !showExportMenu}
                         onblur={() => setTimeout(() => showExportMenu = false, 200)}
                         class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
@@ -284,14 +284,14 @@
 
                     {#if showExportMenu}
                         <div class="absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50">
-                            <button
+                            <button type="button"
                                 onclick={() => { exportEvents('csv'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-t-lg transition-colors"
                             >
                                 <FileText size={16} class="text-green-600 dark:text-green-400" />
                                 <span>Export as CSV</span>
                             </button>
-                            <button
+                            <button type="button"
                                 onclick={() => { exportEvents('json'); showExportMenu = false; }}
                                 class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-b-lg transition-colors"
                             >
@@ -302,7 +302,7 @@
                     {/if}
                 </div>
 
-                <button onclick={loadEvents} class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2" disabled={loading}>
+                <button type="button" onclick={loadEvents} class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2" disabled={loading}>
                     {#if loading}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
                     <span class="hidden sm:inline">Refresh</span>
                 </button>
@@ -322,7 +322,7 @@
                         {filter}
                     </span>
                 {/each}
-                <button
+                <button type="button"
                     onclick={clearFilters}
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
@@ -376,10 +376,10 @@
 
                                 {#if totalPages > 1}
                                     <div class="flex items-center gap-1">
-                                        <button onclick={() => { currentPage = 1; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="First page">
+                                        <button type="button" onclick={() => { currentPage = 1; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="First page">
                                             <ChevronsLeft size={16} />
                                         </button>
-                                        <button onclick={() => { currentPage--; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="Previous page">
+                                        <button type="button" onclick={() => { currentPage--; loadEvents(); }} disabled={currentPage === 1} class="pagination-button" title="Previous page">
                                             <ChevronLeft size={16} />
                                         </button>
                                         <div class="pagination-text">
@@ -387,10 +387,10 @@
                                             <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
                                             <span class="font-medium">{totalPages}</span>
                                         </div>
-                                        <button onclick={() => { currentPage++; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Next page">
+                                        <button type="button" onclick={() => { currentPage++; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Next page">
                                             <ChevronRight size={16} />
                                         </button>
-                                        <button onclick={() => { currentPage = totalPages; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Last page">
+                                        <button type="button" onclick={() => { currentPage = totalPages; loadEvents(); }} disabled={currentPage === totalPages} class="pagination-button" title="Last page">
                                             <ChevronsRight size={16} />
                                         </button>
                                     </div>

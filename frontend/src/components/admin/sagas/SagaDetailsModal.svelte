@@ -41,7 +41,7 @@
                         <div>
                             <dt class="text-fg-muted">Execution ID</dt>
                             <dd>
-                                <button
+                                <button type="button"
                                     onclick={handleViewExecution}
                                     class="text-primary hover:text-primary-dark font-mono"
                                 >

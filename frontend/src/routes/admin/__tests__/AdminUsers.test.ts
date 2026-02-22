@@ -299,7 +299,7 @@ describe('AdminUsers', () => {
       await renderWithUsers();
       // Header has the Create User button
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
@@ -310,7 +310,7 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'newuser');
@@ -342,7 +342,7 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'test');
@@ -359,7 +359,7 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -377,7 +377,7 @@ describe('AdminUsers', () => {
 
       // Multiple edit buttons exist (mobile + desktop views)
       const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      await user.click(editButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -393,7 +393,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      await user.click(editButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       const usernameInput = screen.getByDisplayValue('editme');
@@ -418,7 +418,7 @@ describe('AdminUsers', () => {
 
       // Multiple delete buttons exist (mobile + desktop views)
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -432,7 +432,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
@@ -454,7 +454,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       // Enable cascade delete (defaults to false for safety)
@@ -485,7 +485,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
@@ -501,7 +501,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -518,7 +518,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      await user.click(deleteButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       // Warning should not show when cascade is disabled (default)
@@ -554,7 +554,7 @@ describe('AdminUsers', () => {
 
       // Multiple rate limit buttons exist (mobile + desktop views)
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -572,7 +572,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
 
       await waitFor(() => {
         expect(screen.getByText(/Default Global Rules/i)).toBeInTheDocument();
@@ -590,7 +590,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
@@ -618,7 +618,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Save Changes/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
@@ -636,7 +636,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Add Rule/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Add Rule/i }));
@@ -657,7 +657,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
       await waitFor(() => expect(screen.getByText(/Current Usage/i)).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
@@ -714,7 +714,7 @@ describe('AdminUsers', () => {
       await renderWithUsers();
 
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/^Password/i), 'password123');
@@ -733,7 +733,7 @@ describe('AdminUsers', () => {
       await renderWithUsers();
 
       const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      await user.click(createButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'newuser');
@@ -754,7 +754,7 @@ describe('AdminUsers', () => {
 
       // Desktop view has one edit button per user
       const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      await user.click(editButtons[0]!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Update User/i }));
@@ -780,7 +780,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
 
       await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load rate limits'));
     });
@@ -803,7 +803,7 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      await user.click(rateLimitButtons[0]!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Reset All Counters/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));

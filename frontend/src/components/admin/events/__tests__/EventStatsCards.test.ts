@@ -5,7 +5,7 @@ import { createMockStats } from '$routes/admin/__tests__/test-utils';
 import EventStatsCards from '../EventStatsCards.svelte';
 
 function renderCards(stats: ReturnType<typeof createMockStats> | null, totalEvents = 500) {
-  return render(EventStatsCards, { props: { stats, totalEvents } });
+  return render(EventStatsCards, { props: { stats: stats as unknown as import('$lib/api').EventStatsResponse | null, totalEvents } });
 }
 
 describe('EventStatsCards', () => {

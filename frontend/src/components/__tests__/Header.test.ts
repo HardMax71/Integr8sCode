@@ -34,13 +34,13 @@ mocks.mockAuthStore.fetchUserProfile = vi.fn();
 mocks.mockToggleTheme = vi.fn();
 mocks.mockGoto = vi.fn();
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: (...args: unknown[]) => mocks.mockGoto(...args) }));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: (...args: unknown[]) => (mocks.mockGoto as (...a: unknown[]) => unknown)(...args) }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
 vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
-  get toggleTheme() { return () => mocks.mockToggleTheme(); },
+  get toggleTheme() { return () => (mocks.mockToggleTheme as () => unknown)(); },
 }));
 vi.mock('../NotificationCenter.svelte', async () =>
   (await import('$test/test-utils')).createMockSvelteComponent(

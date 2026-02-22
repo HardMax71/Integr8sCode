@@ -9,9 +9,9 @@ vi.mock('@lucide/svelte', async () =>
 import LanguageSelect from '../LanguageSelect.svelte';
 
 const RUNTIMES = {
-  python: { versions: ['3.11', '3.10', '3.9'], image: '', display_name: 'Python' },
-  node: { versions: ['20', '18'], image: '', display_name: 'Node' },
-  go: { versions: ['1.21'], image: '', display_name: 'Go' },
+  python: { versions: ['3.11', '3.10', '3.9'], file_ext: 'py' },
+  node: { versions: ['20', '18'], file_ext: 'js' },
+  go: { versions: ['1.21'], file_ext: 'go' },
 };
 
 const defaultProps = { runtimes: RUNTIMES, lang: 'python', version: '3.11', onselect: vi.fn() };
@@ -42,7 +42,8 @@ describe('LanguageSelect', () => {
     });
 
     it('shows "Unavailable" and is disabled when no runtimes', () => {
-      renderSelect({ runtimes: {} });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      renderSelect({ runtimes: {} as any });
       expect(screen.getByText('Unavailable')).toBeInTheDocument();
       expect(screen.getByRole('button')).toBeDisabled();
     });

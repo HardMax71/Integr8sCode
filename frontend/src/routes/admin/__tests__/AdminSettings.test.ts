@@ -95,21 +95,20 @@ describe('AdminSettings', () => {
 
   describe('Form population', () => {
     it.each([
-      ['max-timeout', '60'],
-      ['memory-limit', '512Mi'],
-      ['cpu-limit', '2000m'],
-      ['max-concurrent', '10'],
-      ['min-password', '8'],
-      ['session-timeout', '30'],
-      ['max-login', '5'],
-      ['lockout-duration', '15'],
-      ['metrics-retention', '30'],
-      ['sampling-rate', '0.5'],
-    ])('input #%s has value %s', async (id, expectedValue) => {
+      ['Max Timeout (seconds)', '60'],
+      ['Memory Limit (e.g. 512Mi)', '512Mi'],
+      ['CPU Limit (e.g. 2000m)', '2000m'],
+      ['Max Concurrent Executions', '10'],
+      ['Min Password Length', '8'],
+      ['Session Timeout (minutes)', '30'],
+      ['Max Login Attempts', '5'],
+      ['Lockout Duration (minutes)', '15'],
+      ['Metrics Retention Days', '30'],
+      ['Sampling Rate', '0.5'],
+    ])('field "%s" is populated with "%s"', async (label, expectedValue) => {
       await renderAdminSettings();
       await waitFor(() => {
-        const input = document.getElementById(id) as HTMLInputElement;
-        expect(input).toBeTruthy();
+        const input = screen.getByLabelText(label) as HTMLInputElement;
         expect(input.value).toBe(expectedValue);
       });
     });
@@ -117,9 +116,7 @@ describe('AdminSettings', () => {
     it('log-level select has value "INFO"', async () => {
       await renderAdminSettings();
       await waitFor(() => {
-        const select = document.getElementById('log-level') as HTMLSelectElement;
-        expect(select).toBeTruthy();
-        expect(select.value).toBe('INFO');
+        expect(screen.getByLabelText('Log Level')).toHaveValue('INFO');
       });
     });
   });

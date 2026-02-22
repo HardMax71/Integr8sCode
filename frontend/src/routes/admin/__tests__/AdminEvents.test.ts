@@ -166,7 +166,7 @@ describe('AdminEvents', () => {
       const events = [createMockEvent({ event_type: 'execution_completed', metadata: { user_id: 'user-1', service_name: 'test-service' } })];
       await renderWithEvents(events);
       // Events are displayed (multiple due to mobile + desktop views)
-      expect(screen.getAllByText('test-service').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('test-service')).toHaveLength(2);
     });
 
     it('displays multiple events', async () => {
@@ -379,8 +379,8 @@ describe('AdminEvents', () => {
       await renderWithEvents(events);
 
       // Multiple view detail buttons may exist (mobile + desktop views)
-      const eventRows = screen.getAllByRole('button', { name: /View event details/i });
-      await user.click(eventRows[0]!);
+      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      await user.click(eventRow!);
 
       await waitFor(() => {
         expect(mocks.getEventDetailApiV1AdminEventsEventIdGet).toHaveBeenCalledWith({
@@ -400,8 +400,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const eventRows = screen.getAllByRole('button', { name: /View event details/i });
-      await user.click(eventRows[0]!);
+      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      await user.click(eventRow!);
 
       await waitFor(() => {
         // Using getAllByText because values may appear in table + modal
@@ -420,8 +420,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const eventRows = screen.getAllByRole('button', { name: /View event details/i });
-      await user.click(eventRows[0]!);
+      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      await user.click(eventRow!);
 
       await waitFor(() => {
         expect(screen.getByText(/Related Events/i)).toBeInTheDocument();
@@ -440,8 +440,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const eventRows = screen.getAllByRole('button', { name: /View event details/i });
-      await user.click(eventRows[0]!);
+      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      await user.click(eventRow!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
@@ -462,8 +462,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const previewBtns = screen.getAllByTitle('Preview replay');
-      await user.click(previewBtns[0]!);
+      const [previewBtn] = screen.getAllByTitle('Preview replay');
+      await user.click(previewBtn!);
 
       await waitFor(() => {
         expect(mocks.replayEventsApiV1AdminEventsReplayPost).toHaveBeenCalledWith({
@@ -483,8 +483,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const replayBtns = screen.getAllByTitle('Replay');
-      await user.click(replayBtns[0]!);
+      const [replayBtn] = screen.getAllByTitle('Replay');
+      await user.click(replayBtn!);
 
       expect(mocks.windowConfirm).toHaveBeenCalled();
       await waitFor(() => {
@@ -501,8 +501,8 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const replayBtns = screen.getAllByTitle('Replay');
-      await user.click(replayBtns[0]!);
+      const [replayBtn] = screen.getAllByTitle('Replay');
+      await user.click(replayBtn!);
 
       expect(mocks.replayEventsApiV1AdminEventsReplayPost).not.toHaveBeenCalled();
     });
@@ -527,8 +527,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const replayBtns = screen.getAllByTitle('Replay');
-      await user.click(replayBtns[0]!);
+      const [replayBtn] = screen.getAllByTitle('Replay');
+      await user.click(replayBtn!);
 
       await waitFor(() => {
         expect(screen.getByText(/Replay in Progress/i)).toBeInTheDocument();
@@ -544,8 +544,8 @@ describe('AdminEvents', () => {
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
       await renderWithEvents(events);
 
-      const deleteBtns = screen.getAllByTitle('Delete');
-      await user.click(deleteBtns[0]!);
+      const [deleteBtn] = screen.getAllByTitle('Delete');
+      await user.click(deleteBtn!);
 
       expect(mocks.windowConfirm).toHaveBeenCalled();
       await waitFor(() => {
@@ -562,8 +562,8 @@ describe('AdminEvents', () => {
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
       await renderWithEvents(events);
 
-      const deleteBtns = screen.getAllByTitle('Delete');
-      await user.click(deleteBtns[0]!);
+      const [deleteBtn] = screen.getAllByTitle('Delete');
+      await user.click(deleteBtn!);
 
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('Event deleted successfully');
@@ -577,8 +577,8 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const deleteBtns = screen.getAllByTitle('Delete');
-      await user.click(deleteBtns[0]!);
+      const [deleteBtn] = screen.getAllByTitle('Delete');
+      await user.click(deleteBtn!);
 
       expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).not.toHaveBeenCalled();
     });
@@ -594,8 +594,8 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const deleteBtns = screen.getAllByTitle('Delete');
-      await user.click(deleteBtns[0]!);
+      const [deleteBtn] = screen.getAllByTitle('Delete');
+      await user.click(deleteBtn!);
 
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete event');
@@ -664,8 +664,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const userLinks = screen.getAllByText('user-overview-1');
-      await user.click(userLinks[0]!);
+      const [userLink] = screen.getAllByText('user-overview-1');
+      await user.click(userLink!);
 
       await waitFor(() => {
         expect(mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet).toHaveBeenCalledWith({
@@ -686,8 +686,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const userLinks = screen.getAllByText('user-info');
-      await user.click(userLinks[0]!);
+      const [userLink] = screen.getAllByText('user-info');
+      await user.click(userLink!);
 
       await waitFor(() => {
         expect(screen.getByText('testuser')).toBeInTheDocument();
@@ -705,11 +705,11 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const userLinks = screen.getAllByText('user-stats');
-      await user.click(userLinks[0]!);
+      const [userLink] = screen.getAllByText('user-stats');
+      await user.click(userLink!);
 
       await waitFor(() => {
-        // Using getAllByText because mobile + desktop views may render these multiple times
+        // Using getAllByText because values may appear in table + modal + page controls
         expect(screen.getAllByText('Succeeded').length).toBeGreaterThan(0);
         expect(screen.getAllByText('80').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
@@ -728,8 +728,8 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents(events);
 
-      const userLinks = screen.getAllByText('user-error');
-      await user.click(userLinks[0]!);
+      const [userLink] = screen.getAllByText('user-error');
+      await user.click(userLink!);
 
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('Failed to load user overview');
@@ -742,25 +742,27 @@ describe('AdminEvents', () => {
       vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_completed' })];
       await renderWithEvents(events);
-      // The icon container should have green color class
-      const iconSpan = document.querySelector('.text-green-600');
-      expect(iconSpan).toBeInTheDocument();
+      const [icon] = screen.getAllByTestId('event-type-icon');
+      expect(icon).toHaveAttribute('data-event-type', 'execution_completed');
+      expect(icon).toHaveClass('text-green-600');
     });
 
     it('shows correct color for failed events', async () => {
       vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_failed' })];
       await renderWithEvents(events);
-      const iconSpan = document.querySelector('.text-red-600');
-      expect(iconSpan).toBeInTheDocument();
+      const [icon] = screen.getAllByTestId('event-type-icon');
+      expect(icon).toHaveAttribute('data-event-type', 'execution_failed');
+      expect(icon).toHaveClass('text-red-600');
     });
 
     it('shows correct color for started events', async () => {
       vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_started' })];
       await renderWithEvents(events);
-      const iconSpan = document.querySelector('.text-blue-600');
-      expect(iconSpan).toBeInTheDocument();
+      const [icon] = screen.getAllByTestId('event-type-icon');
+      expect(icon).toHaveAttribute('data-event-type', 'execution_started');
+      expect(icon).toHaveClass('text-blue-600');
     });
   });
 
@@ -792,8 +794,8 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const eventRows = screen.getAllByRole('button', { name: /View event details/i });
-      await user.click(eventRows[0]!);
+      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      await user.click(eventRow!);
 
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('Failed to load event details');
@@ -811,8 +813,8 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const replayBtns = screen.getAllByTitle('Replay');
-      await user.click(replayBtns[0]!);
+      const [replayBtn] = screen.getAllByTitle('Replay');
+      await user.click(replayBtn!);
 
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('Failed to replay event');

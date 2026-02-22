@@ -28,9 +28,6 @@ async function openMenu() {
 }
 
 describe('LanguageSelect', () => {
-  beforeEach(() => {
-  });
-
   describe('trigger button', () => {
     it('shows current language and version with aria-haspopup', () => {
       renderSelect();

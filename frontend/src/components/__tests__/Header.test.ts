@@ -54,10 +54,9 @@ const openUserDropdown = async (_username: string) => {
 
 const openMobileMenu = async () => {
   const user = userEvent.setup();
-  const { container } = render(Header);
-  const menuButton = container.querySelector('.block.lg\\:hidden')?.querySelector('button');
-  await user.click(menuButton!);
-  return { user, container };
+  render(Header);
+  await user.click(screen.getByRole('button', { name: 'Open menu' }));
+  return { user };
 };
 
 describe('Header', () => {
@@ -182,8 +181,8 @@ describe('Header', () => {
     });
 
     it('shows hamburger menu and toggles on click', async () => {
-      const { container } = await openMobileMenu();
-      await waitFor(() => { expect(container.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await openMobileMenu();
+      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
     });
 
     it.each([
@@ -192,9 +191,9 @@ describe('Header', () => {
       { isAuth: true, username: 'admin', role: 'admin', expectedContent: ['Admin Panel', 'Administrator'] },
     ])('shows correct content for auth=$isAuth role=$role', async ({ isAuth, username, role, expectedContent }) => {
       setAuth(isAuth, username, role);
-      const { container } = await openMobileMenu();
+      await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = container.querySelector('.lg\\:hidden.absolute');
+        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
         expectedContent.forEach(text => expect(mobileMenu?.textContent).toContain(text));
       });
     });
@@ -202,13 +201,13 @@ describe('Header', () => {
 
   describe('header structure', () => {
     it('has fixed header with nav and backdrop blur', () => {
-      const { container } = render(Header);
-      const header = container.querySelector('header');
+      render(Header);
+      const header = screen.getByRole('banner');
       expect(header).toBeInTheDocument();
-      expect(header?.classList.contains('fixed')).toBe(true);
-      expect(header?.classList.contains('top-0')).toBe(true);
-      expect(header?.classList.contains('backdrop-blur-md')).toBe(true);
-      expect(container.querySelector('nav')).toBeInTheDocument();
+      expect(header).toHaveClass('fixed');
+      expect(header).toHaveClass('top-0');
+      expect(header).toHaveClass('backdrop-blur-md');
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
   });
 
@@ -242,15 +241,15 @@ describe('Header', () => {
       // Start in mobile mode
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
 
-      const { container } = await openMobileMenu();
-      await waitFor(() => { expect(container.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await openMobileMenu();
+      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
 
       // Resize to desktop width
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
       window.dispatchEvent(new Event('resize'));
 
       await waitFor(() => {
-        expect(container.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
+        expect(document.body.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
       });
     });
 
@@ -268,9 +267,9 @@ describe('Header', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
       setAuth(true, 'mobileuser', 'user');
 
-      const { user, container } = await openMobileMenu();
+      const { user } = await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = container.querySelector('.lg\\:hidden.absolute');
+        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
         expect(mobileMenu?.textContent).toContain('Logout');
       });
 

@@ -50,8 +50,8 @@
                                 </button>
                                 <button type="button" class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
                                         onclick={(e) => { e.stopPropagation(); ondelete(item.script_id); }}
+                                        aria-label={`Delete ${item.name}`}
                                         title={`Delete ${item.name}`}>
-                                    <span class="sr-only">Delete</span>
                                     <Trash2 class="w-4 h-4" />
                                 </button>
                             </li>

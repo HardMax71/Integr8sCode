@@ -197,28 +197,18 @@ describe('Notifications', () => {
   });
 
   describe('Delete', () => {
-    async function findDeleteButton(): Promise<HTMLElement> {
-      const btn = await waitFor(() => {
-        const buttons = screen.getAllByRole('button');
-        const found = buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
-        expect(found).toBeDefined();
-        return found!;
-      });
-      return btn;
-    }
-
     it('calls delete with exact id and shows success toast', async () => {
       mocks.mockNotificationStore.notifications = [
         createMockNotification({ notification_id: 'del-1' }),
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await waitFor(() => {
         expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
+        expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
     });
 
     it('shows error toast on delete failure', async () => {
@@ -228,7 +218,7 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to delete notification');
@@ -245,7 +235,7 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await user.click(deleteBtn);
       expect(mocks.mockNotificationStore.delete).toHaveBeenCalledTimes(1);

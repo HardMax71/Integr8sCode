@@ -195,7 +195,7 @@ describe('AdminExecutions', () => {
       vi.clearAllMocks();
 
       const prioritySelect = screen.getByLabelText('Priority');
-      await user.selectOptions(prioritySelect, 'high');
+      await user.selectOptions(prioritySelect!, 'high');
 
       await waitFor(() => {
         expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
@@ -276,8 +276,8 @@ describe('AdminExecutions', () => {
       });
       await renderWithExecutions(execs);
 
-      const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0]!, 'high');
+      const [prioritySelect] = screen.getAllByDisplayValue('normal');
+      await user.selectOptions(prioritySelect!, 'high');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
@@ -302,8 +302,8 @@ describe('AdminExecutions', () => {
       });
       await renderWithExecutions(execs);
 
-      const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0]!, 'critical');
+      const [prioritySelect] = screen.getAllByDisplayValue('normal');
+      await user.selectOptions(prioritySelect!, 'critical');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(

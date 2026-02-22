@@ -51,7 +51,9 @@
                     </td>
                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help">
+                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                  data-testid="event-type-icon"
+                                  data-event-type={event.event_type}>
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
                             <!-- Tooltip on hover -->
@@ -130,7 +132,9 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help">
+                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                  data-testid="event-type-icon"
+                                  data-event-type={event.event_type}>
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
                             <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">

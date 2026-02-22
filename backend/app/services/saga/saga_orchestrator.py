@@ -74,7 +74,7 @@ class SagaOrchestrator:
         if not isinstance(event, ExecutionFailedEvent):
             raise TypeError(f"Expected ExecutionFailedEvent, got {type(event).__name__}")
         await self._resolve_completion(
-            event.execution_id, SagaState.FAILED, event.message or f"Execution {event.event_type}"
+            event.execution_id, SagaState.FAILED, f"{event.error_type} (exit code {event.exit_code})"
         )
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:

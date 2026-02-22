@@ -295,7 +295,6 @@ class PodEventMapper:
             exit_code=exit_code,
             stdout=stdout,
             stderr=stderr,
-            message=stderr,
             resource_usage=logs.resource_usage if logs else None,
             metadata=ctx.metadata,
         )

@@ -473,7 +473,7 @@ class NotificationService:
         event_data["stderr"] = event_data["stderr"][:200]
 
         title = f"Execution Failed: {event.execution_id}"
-        body = f"Your execution failed: {event.message}"
+        body = f"Your execution failed: {event.error_type} (exit code {event.exit_code})."
         await self.create_notification(
             user_id=user_id,
             subject=title,

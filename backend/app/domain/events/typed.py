@@ -120,9 +120,8 @@ class ExecutionCompletedEvent(BaseEvent):
 class ExecutionFailedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_FAILED] = EventType.EXECUTION_FAILED
     execution_id: str
-    exit_code: int = 0
-    error_type: ExecutionErrorType | None = None
-    message: str = ""
+    exit_code: int = 1
+    error_type: ExecutionErrorType
     resource_usage: ResourceUsageDomain | None = None
     stdout: str = ""
     stderr: str = ""

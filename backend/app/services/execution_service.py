@@ -235,7 +235,6 @@ class ExecutionService:
         event = ExecutionCancelledEvent(
             execution_id=execution_id,
             aggregate_id=execution_id,
-            message=reason,
             cancelled_by=user_id,
             metadata=metadata,
         )
@@ -534,7 +533,6 @@ class ExecutionService:
         event = ExecutionCancelledEvent(
             execution_id=execution_id,
             aggregate_id=execution_id,
-            message="user_requested",
             cancelled_by=metadata.user_id,
             metadata=metadata,
         )

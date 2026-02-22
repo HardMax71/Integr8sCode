@@ -18,10 +18,9 @@ from app.domain.execution.models import ExecutionResultDomain
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 
-    All 7 fields are always present in the wire JSON. Nullable fields carry null
+    All fields are always present in the wire JSON. Nullable fields carry null
     when not applicable: event_id is null for control events; status only for the
-    status control event; message only for failure/cancellation events; result only
-    for result_stored.
+    status control event; result only for result_stored.
     """
 
     event_type: EventType | SSEControlEvent
@@ -29,7 +28,6 @@ class SSEExecutionEventData:
     timestamp: datetime | None = None
     event_id: str | None = None
     status: ExecutionStatus | None = None
-    message: str | None = None
     result: ExecutionResultDomain | None = None
 
 

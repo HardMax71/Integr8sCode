@@ -91,7 +91,7 @@ class SagaOrchestrator:
             raise TypeError(f"Expected ExecutionCancelledEvent, got {type(event).__name__}")
         await self._queue.remove(event.execution_id)
         await self._resolve_completion(
-            event.execution_id, SagaState.CANCELLED, event.message
+            event.execution_id, SagaState.CANCELLED, f"cancelled by {event.cancelled_by}"
         )
 
     async def _resolve_completion(

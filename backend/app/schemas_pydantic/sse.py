@@ -9,9 +9,9 @@ from app.schemas_pydantic.execution import ExecutionResult
 class SSEExecutionEventSchema(BaseModel):
     """API schema for SSE execution stream events.
 
-    All 7 fields are always present. Nullable fields carry null when not applicable:
+    All fields are always present. Nullable fields carry null when not applicable:
     event_id is null for control events; status only for the status control event;
-    message only for failure/cancellation events; result only for result_stored.
+    result only for result_stored.
     """
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
@@ -21,9 +21,6 @@ class SSEExecutionEventSchema(BaseModel):
     timestamp: datetime | None = Field(default=None, description="Event timestamp")
     event_id: str | None = Field(default=None, description="Kafka event ID (null for control events)")
     status: ExecutionStatus | None = Field(default=None, description="Execution status (status control event only)")
-    message: str | None = Field(
-        default=None, description="Human-readable message (failure / cancellation / timeout events)"
-    )
     result: ExecutionResult | None = Field(default=None, description="Full execution result (result_stored only)")
 
 

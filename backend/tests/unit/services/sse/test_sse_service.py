@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, SSEControlEvent
+from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, SSEControlEvent, UserRole
 from app.domain.execution.models import DomainExecution, ExecutionResultDomain
 from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
@@ -92,7 +92,7 @@ async def test_execution_stream_prepends_status_from_db() -> None:
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=execution))
 
-    agen = svc.create_execution_stream("exec-1", user_id="u1")
+    agen = svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
     # Signal end of live stream so the generator can finish
     await bus.push_exec(None)
@@ -110,16 +110,11 @@ async def test_execution_stream_prepends_status_from_db() -> None:
 @pytest.mark.asyncio
 async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
-    svc = _make_service(bus)
+    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)))
 
-    agen = svc.create_execution_stream("exec-1", user_id="u1")
+    agen = svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
-    await bus.push_exec(SSEExecutionEventData(
-        event_type=SSEControlEvent.STATUS,
-        execution_id="exec-1",
-        timestamp=_NOW,
-        status=ExecutionStatus.RUNNING,
-    ))
+    # DB status prepend is always yielded first
     stat = await agen.__anext__()
     assert _decode(stat)["event_type"] == "status"
 
@@ -144,9 +139,12 @@ async def test_execution_stream_enriches_result_stored() -> None:
         stderr="",
     )
     bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(result=result))
+    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result))
 
-    agen = svc.create_execution_stream("exec-2", user_id="u1")
+    agen = svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
+
+    # Consume DB status prepend
+    await agen.__anext__()
 
     await bus.push_exec(SSEExecutionEventData(
         event_type=EventType.RESULT_STORED,
@@ -168,7 +166,7 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     bus = _FakeBus()
     svc = _make_service(bus)
 
-    agen = svc.create_notification_stream("u1")
+    agen = svc.create_notification_stream(user_id="u1")
 
     await bus.push_notif(DomainNotificationSSEPayload(
         notification_id="n1",

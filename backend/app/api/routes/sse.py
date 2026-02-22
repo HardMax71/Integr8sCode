@@ -51,5 +51,5 @@ async def execution_events(
 ) -> EventSourceResponse:
     """Stream events for specific execution."""
     return EventSourceResponse(
-        sse_service.create_execution_stream(execution_id=execution_id, user_id=user.user_id)
+        sse_service.create_execution_stream(execution_id=execution_id, user_id=user.user_id, user_role=user.role)
     )

@@ -59,6 +59,7 @@ class SSERedisBus:
             self.logger.info("SSE execution stream closed", execution_id=execution_id)
 
     async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:
+        start = datetime.now(timezone.utc)
         self._metrics.increment_sse_connections("notifications")
         self.logger.info("SSE notification stream opened", user_id=user_id)
         try:
@@ -67,5 +68,7 @@ class SSERedisBus:
                 async for message in pubsub.listen():
                     yield _notif_payload_adapter.validate_json(message["data"])
         finally:
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
+            self._metrics.record_sse_connection_duration(duration, "notifications")
             self._metrics.decrement_sse_connections("notifications")
             self.logger.info("SSE notification stream closed", user_id=user_id)

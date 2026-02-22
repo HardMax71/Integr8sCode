@@ -1,13 +1,14 @@
 import dataclasses
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from pydantic import TypeAdapter
 
 from app.db.repositories import ExecutionRepository
-from app.domain.enums import EventType, SSEControlEvent
+from app.domain.enums import EventType, SSEControlEvent, UserRole
+from app.domain.exceptions import ForbiddenError
+from app.domain.execution import ExecutionNotFoundError
 from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse.redis_bus import SSERedisBus
 
@@ -36,16 +37,19 @@ class SSEService:
         self._logger = logger
 
     async def create_execution_stream(
-        self, execution_id: str, user_id: str
+        self, execution_id: str, user_id: str, user_role: UserRole
     ) -> AsyncGenerator[dict[str, Any], None]:
         execution = await self._execution_repository.get_execution(execution_id)
-        if execution:
-            yield {"data": _exec_adapter.dump_json(SSEExecutionEventData(
-                event_type=SSEControlEvent.STATUS,
-                execution_id=execution.execution_id,
-                timestamp=datetime.now(timezone.utc),
-                status=execution.status,
-            )).decode()}
+        if not execution:
+            raise ExecutionNotFoundError(execution_id)
+        if execution.user_id and execution.user_id != user_id and user_role != UserRole.ADMIN:
+            raise ForbiddenError("Access denied")
+        yield {"data": _exec_adapter.dump_json(SSEExecutionEventData(
+            event_type=SSEControlEvent.STATUS,
+            execution_id=execution.execution_id,
+            timestamp=execution.updated_at,
+            status=execution.status,
+        )).decode()}
         async for event in self._bus.listen_execution(execution_id):
             if event.event_type == EventType.RESULT_STORED:
                 result = await self._execution_repository.get_execution_result(execution_id)

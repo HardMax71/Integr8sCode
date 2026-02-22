@@ -346,7 +346,6 @@ class PodEventMapper:
             execution_id=ctx.execution_id,
             aggregate_id=ctx.execution_id,
             timeout_seconds=timeout_seconds,
-            message=f"Execution timed out after {timeout_seconds}s",
             resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,

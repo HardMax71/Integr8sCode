@@ -168,7 +168,6 @@ class ResultProcessor:
         """Publish result processing failed event."""
         event = ResultFailedEvent(
             execution_id=execution_id,
-            message=error_message,
             metadata=EventMetadata(
                 service_name="result-processor",
                 service_version="1.0.0",

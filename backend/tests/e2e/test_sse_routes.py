@@ -165,20 +165,10 @@ class TestExecutionStream:
         sse_client_another: SSETestClient,
         created_execution: ExecutionResponse,
     ) -> None:
-        """Another user's execution stream still opens (auth at event level).
-
-        SSE endpoints return 200 and start streaming. The status control event
-        is always sent; business events are filtered by ownership.
-        """
+        """Another user cannot stream a different user's execution — returns 403."""
         async with sse_client_another:
             response = await sse_client_another.get(
                 f"/api/v1/events/executions/{created_execution.execution_id}",
-                stream=True,
             )
 
-            assert response.status_code == 200
-            assert "text/event-stream" in response.headers.get("content-type", "")
-
-            # Another user still receives the initial status event
-            first_chunk = response.raw.read()
-            assert b"status" in first_chunk
+            assert response.status_code == 403

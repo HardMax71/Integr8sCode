@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 
 from app.db.docs import ExecutionDocument
 from app.domain.events import ResourceUsageDomain
-from app.domain.execution import DomainExecution
+from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import SSEExecutionStatusDomain
 
-_exec_fields = set(DomainExecution.__dataclass_fields__)
+_result_fields = set(ExecutionResultDomain.__dataclass_fields__)
 
 
 class SSERepository:
@@ -19,11 +19,11 @@ class SSERepository:
             timestamp=datetime.now(timezone.utc),
         )
 
-    async def get_execution(self, execution_id: str) -> DomainExecution | None:
+    async def get_execution_result(self, execution_id: str) -> ExecutionResultDomain | None:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
         if not doc:
             return None
-        data = doc.model_dump(include=_exec_fields)
+        data = doc.model_dump(include=_result_fields)
         if data.get("resource_usage"):
             data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
-        return DomainExecution(**data)
+        return ExecutionResultDomain(**data)

@@ -348,25 +348,22 @@ class SSEProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: structlog.stdlib.BoundLogger) -> SSERedisBus:
-        return SSERedisBus(redis_client, logger)
+    def get_sse_redis_bus(
+        self,
+        redis_client: redis.Redis,
+        logger: structlog.stdlib.BoundLogger,
+        connection_metrics: ConnectionMetrics,
+    ) -> SSERedisBus:
+        return SSERedisBus(redis_client, logger, connection_metrics)
 
-    @provide(scope=Scope.REQUEST)
+    @provide
     def get_sse_service(
             self,
-            sse_repository: SSERepository,
-            sse_redis_bus: SSERedisBus,
-            settings: Settings,
+            bus: SSERedisBus,
+            repository: SSERepository,
             logger: structlog.stdlib.BoundLogger,
-            connection_metrics: ConnectionMetrics,
     ) -> SSEService:
-        return SSEService(
-            repository=sse_repository,
-            sse_bus=sse_redis_bus,
-            settings=settings,
-            logger=logger,
-            connection_metrics=connection_metrics,
-        )
+        return SSEService(bus=bus, repository=repository, logger=logger)
 
 
 class AuthProvider(Provider):

@@ -1,3 +1,4 @@
+import dataclasses
 from collections.abc import Awaitable, Callable
 
 import structlog
@@ -17,6 +18,7 @@ from app.domain.events import (
     ExecutionTimeoutEvent,
 )
 from app.domain.idempotency import KeyStrategy
+from app.domain.sse import SSEExecutionEventData
 from app.services.idempotency import IdempotencyManager
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
@@ -24,6 +26,8 @@ from app.services.result_processor import ResultProcessor
 from app.services.saga import SagaOrchestrator
 from app.services.sse import SSERedisBus
 from app.settings import Settings
+
+_sse_field_names: frozenset[str] = frozenset(f.name for f in dataclasses.fields(SSEExecutionEventData))
 
 
 # --8<-- [start:with_idempotency]
@@ -232,7 +236,10 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     ) -> None:
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
-            await sse_bus.publish_event(execution_id, body)
+            sse_data = SSEExecutionEventData(**{
+                k: v for k, v in body.model_dump().items() if k in _sse_field_names
+            })
+            await sse_bus.publish_event(execution_id, sse_data)
 
 
 def register_notification_subscriber(broker: KafkaBroker) -> None:

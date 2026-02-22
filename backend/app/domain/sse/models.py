@@ -22,26 +22,6 @@ class SSEExecutionStatusDomain:
 
 
 @dataclass
-class SSEEventDomain:
-    aggregate_id: str
-    timestamp: datetime
-
-
-@dataclass
-class RedisNotificationMessage:
-    """Message structure published to Redis for notification SSE delivery."""
-
-    notification_id: str
-    severity: NotificationSeverity
-    status: NotificationStatus
-    subject: str
-    body: str
-    created_at: datetime
-    tags: list[str] = field(default_factory=list)
-    action_url: str = ""
-
-
-@dataclass
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 
@@ -62,15 +42,15 @@ class SSEExecutionEventData:
 
 @dataclass
 class DomainNotificationSSEPayload:
-    """Domain model for notification SSE payload."""
+    """Notification payload for Redis transport and SSE wire. Defaults cover invariants."""
 
     notification_id: str
-    channel: NotificationChannel
     status: NotificationStatus
     subject: str
     body: str
     action_url: str
     created_at: datetime
     severity: NotificationSeverity
-    tags: list[str]
+    tags: list[str] = field(default_factory=list)
+    channel: NotificationChannel = NotificationChannel.IN_APP
     read_at: datetime | None = None

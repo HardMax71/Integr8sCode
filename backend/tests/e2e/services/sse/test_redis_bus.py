@@ -5,14 +5,15 @@ import structlog
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 import redis.asyncio as redis_async
+from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus
-from app.domain.events import EventMetadata, ExecutionCompletedEvent
-from app.domain.sse import RedisNotificationMessage, SSEExecutionEventData
+from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse import SSERedisBus
-from app.services.sse.redis_bus import _notif_msg_adapter, _sse_event_adapter
+from app.services.sse.redis_bus import _sse_event_adapter
 
 pytestmark = pytest.mark.e2e
 
@@ -35,7 +36,7 @@ class _FakePubSub:
         self.subscribed.add(channel)
 
     async def push(self, channel: str, payload: str | bytes) -> None:
-        self._queue.put_nowait({"type": "message", "channel": channel, "data": payload})
+        self._queue.put_nowait({"data": payload, "channel": channel})
 
     async def listen(self) -> AsyncGenerator[dict[str, Any], None]:
         while True:
@@ -62,26 +63,19 @@ class _FakeRedis:
         self.published.append((channel, payload))
         return 1
 
-    def pubsub(self) -> _FakePubSub:
+    def pubsub(self, ignore_subscribe_messages: bool = False) -> _FakePubSub:  # noqa: ARG002
         return self._pubsub
-
-
-def _make_metadata() -> EventMetadata:
-    return EventMetadata(service_name="test", service_version="1.0")
 
 
 @pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
 
-    # Publish event
-    evt = ExecutionCompletedEvent(
+    # Publish event as SSEExecutionEventData (field projection happens in handlers.py)
+    evt = SSEExecutionEventData(
+        event_type=EventType.EXECUTION_COMPLETED,
         execution_id="exec-1",
-        exit_code=0,
-        stdout="",
-        stderr="",
-        metadata=_make_metadata(),
     )
     await bus.publish_event("exec-1", evt)
     assert r.published, "nothing published"
@@ -100,9 +94,10 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert msg.execution_id == "exec-1"
 
     # A second valid message passes through cleanly
-    good_payload = _sse_event_adapter.dump_json(
-        _sse_event_adapter.validate_python({"event_type": EventType.EXECUTION_COMPLETED, "execution_id": "exec-1"})
-    )
+    good_payload = _sse_event_adapter.dump_json(SSEExecutionEventData(
+        event_type=EventType.EXECUTION_COMPLETED,
+        execution_id="exec-1",
+    ))
     await r._pubsub.push(ch, good_payload)
     msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
     assert msg2.event_type == EventType.EXECUTION_COMPLETED
@@ -115,9 +110,9 @@ async def test_publish_and_subscribe_round_trip() -> None:
 @pytest.mark.asyncio
 async def test_notifications_channels() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
 
-    notif = RedisNotificationMessage(
+    notif = DomainNotificationSSEPayload(
         notification_id="n1",
         severity=NotificationSeverity.LOW,
         status=NotificationStatus.PENDING,

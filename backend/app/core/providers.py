@@ -37,7 +37,6 @@ from app.db.repositories import (
     ResourceAllocationRepository,
     SagaRepository,
     SavedScriptRepository,
-    SSERepository,
     UserRepository,
     UserSettingsRepository,
 )
@@ -334,10 +333,6 @@ class RepositoryProvider(Provider):
         return NotificationRepository(logger)
 
     @provide
-    def get_sse_repository(self) -> SSERepository:
-        return SSERepository()
-
-    @provide
     def get_user_repository(self) -> UserRepository:
         return UserRepository()
 
@@ -348,25 +343,22 @@ class SSEProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_sse_redis_bus(self, redis_client: redis.Redis, logger: structlog.stdlib.BoundLogger) -> SSERedisBus:
-        return SSERedisBus(redis_client, logger)
+    def get_sse_redis_bus(
+        self,
+        redis_client: redis.Redis,
+        logger: structlog.stdlib.BoundLogger,
+        connection_metrics: ConnectionMetrics,
+    ) -> SSERedisBus:
+        return SSERedisBus(redis_client, logger, connection_metrics)
 
-    @provide(scope=Scope.REQUEST)
+    @provide
     def get_sse_service(
             self,
-            sse_repository: SSERepository,
-            sse_redis_bus: SSERedisBus,
-            settings: Settings,
+            bus: SSERedisBus,
+            execution_repository: ExecutionRepository,
             logger: structlog.stdlib.BoundLogger,
-            connection_metrics: ConnectionMetrics,
     ) -> SSEService:
-        return SSEService(
-            repository=sse_repository,
-            sse_bus=sse_redis_bus,
-            settings=settings,
-            logger=logger,
-            connection_metrics=connection_metrics,
-        )
+        return SSEService(bus=bus, execution_repository=execution_repository, logger=logger)
 
 
 class AuthProvider(Provider):

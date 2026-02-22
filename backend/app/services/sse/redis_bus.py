@@ -1,49 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from collections.abc import AsyncGenerator
+from datetime import datetime, timezone
 
 import redis.asyncio as redis
 import structlog
 from pydantic import TypeAdapter
 
-from app.domain.events import DomainEvent
-from app.domain.sse import RedisNotificationMessage, RedisSSEMessage
+from app.core.metrics import ConnectionMetrics
+from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 
-T = TypeVar("T")
-
-_sse_msg_adapter = TypeAdapter(RedisSSEMessage)
-_notif_msg_adapter = TypeAdapter(RedisNotificationMessage)
-
-
-class SSERedisSubscription:
-    """Subscription wrapper for Redis pubsub with typed message parsing."""
-
-    def __init__(self, pubsub: redis.client.PubSub, channel: str, logger: structlog.stdlib.BoundLogger) -> None:
-        self._pubsub = pubsub
-        self._channel = channel
-        self.logger = logger
-
-    async def get(self, model: type[T], adapter: TypeAdapter[Any] | None = None) -> T | None:
-        """Get next typed message from the subscription."""
-        msg = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=0.5)
-        if not msg or msg.get("type") != "message":
-            return None
-        try:
-            ta = adapter or TypeAdapter(model)
-            return ta.validate_json(msg["data"])  # type: ignore[no-any-return]
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to parse Redis message on channel {self._channel}: {e}",
-                channel=self._channel,
-                model=model.__name__,
-            )
-            return None
-
-    async def close(self) -> None:
-        try:
-            await self._pubsub.unsubscribe(self._channel)
-        finally:
-            await self._pubsub.aclose()  # type: ignore[no-untyped-call]
+_sse_event_adapter = TypeAdapter(SSEExecutionEventData)
+_notif_payload_adapter = TypeAdapter(DomainNotificationSSEPayload)
 
 
 class SSERedisBus:
@@ -53,11 +21,13 @@ class SSERedisBus:
         self,
         redis_client: redis.Redis,
         logger: structlog.stdlib.BoundLogger,
+        connection_metrics: ConnectionMetrics,
         exec_prefix: str = "sse:exec:",
         notif_prefix: str = "sse:notif:",
     ) -> None:
         self._redis = redis_client
         self.logger = logger
+        self._metrics = connection_metrics
         self._exec_prefix = exec_prefix
         self._notif_prefix = notif_prefix
 
@@ -67,45 +37,38 @@ class SSERedisBus:
     def _notif_channel(self, user_id: str) -> str:
         return f"{self._notif_prefix}{user_id}"
 
-    async def publish_event(self, execution_id: str, event: DomainEvent) -> None:
-        message = RedisSSEMessage(
-            event_type=event.event_type,
-            execution_id=execution_id,
-            data=event.model_dump(mode="json"),
-        )
-        await self._redis.publish(self._exec_channel(execution_id), _sse_msg_adapter.dump_json(message))
+    async def publish_event(self, execution_id: str, event: SSEExecutionEventData) -> None:
+        await self._redis.publish(self._exec_channel(execution_id), _sse_event_adapter.dump_json(event))
 
-    async def route_domain_event(self, event: DomainEvent) -> None:
-        """Route a domain event to its Redis execution channel by execution_id."""
-        data = event.model_dump()
-        execution_id = data.get("execution_id")
-        if not execution_id:
-            self.logger.debug("Event %s has no execution_id, skipping", event.event_type)
-            return
+    async def publish_notification(self, user_id: str, notification: DomainNotificationSSEPayload) -> None:
+        await self._redis.publish(self._notif_channel(user_id), _notif_payload_adapter.dump_json(notification))
+
+    async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:
+        start = datetime.now(timezone.utc)
+        self._metrics.increment_sse_connections("executions")
+        self.logger.info("SSE execution stream opened", execution_id=execution_id)
         try:
-            await self.publish_event(execution_id, event)
-        except Exception as e:
-            self.logger.error(
-                "Failed to publish %s to Redis for %s: %s",
-                event.event_type, execution_id, e,
-                exc_info=True,
+            async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
+                await pubsub.subscribe(self._exec_channel(execution_id))
+                async for message in pubsub.listen():
+                    yield _sse_event_adapter.validate_json(message["data"])
+        finally:
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
+            self._metrics.record_sse_connection_duration(duration, "executions")
+            self._metrics.decrement_sse_connections("executions")
+            self.logger.info("SSE execution stream closed", execution_id=execution_id)
 
-            )
-
-    async def open_subscription(self, execution_id: str) -> SSERedisSubscription:
-        pubsub = self._redis.pubsub()
-        channel = self._exec_channel(execution_id)
-        await pubsub.subscribe(channel)
-        await pubsub.get_message(timeout=1.0)
-        return SSERedisSubscription(pubsub, channel, self.logger)
-
-    async def publish_notification(self, user_id: str, notification: RedisNotificationMessage) -> None:
-        """Publish a typed notification message to Redis for SSE delivery."""
-        await self._redis.publish(self._notif_channel(user_id), _notif_msg_adapter.dump_json(notification))
-
-    async def open_notification_subscription(self, user_id: str) -> SSERedisSubscription:
-        pubsub = self._redis.pubsub()
-        channel = self._notif_channel(user_id)
-        await pubsub.subscribe(channel)
-        await pubsub.get_message(timeout=1.0)
-        return SSERedisSubscription(pubsub, channel, self.logger)
+    async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:
+        start = datetime.now(timezone.utc)
+        self._metrics.increment_sse_connections("notifications")
+        self.logger.info("SSE notification stream opened", user_id=user_id)
+        try:
+            async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
+                await pubsub.subscribe(self._notif_channel(user_id))
+                async for message in pubsub.listen():
+                    yield _notif_payload_adapter.validate_json(message["data"])
+        finally:
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
+            self._metrics.record_sse_connection_duration(duration, "notifications")
+            self._metrics.decrement_sse_connections("notifications")
+            self.logger.info("SSE notification stream closed", user_id=user_id)

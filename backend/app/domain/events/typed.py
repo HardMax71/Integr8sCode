@@ -120,9 +120,8 @@ class ExecutionCompletedEvent(BaseEvent):
 class ExecutionFailedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_FAILED] = EventType.EXECUTION_FAILED
     execution_id: str
-    exit_code: int
+    exit_code: int = 1
     error_type: ExecutionErrorType
-    error_message: str = ""
     resource_usage: ResourceUsageDomain | None = None
     stdout: str = ""
     stderr: str = ""
@@ -140,8 +139,7 @@ class ExecutionTimeoutEvent(BaseEvent):
 class ExecutionCancelledEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_CANCELLED] = EventType.EXECUTION_CANCELLED
     execution_id: str
-    reason: str
-    cancelled_by: str | None = None
+    cancelled_by: str
     force_terminated: bool = False
 
 
@@ -229,7 +227,6 @@ class ResultStoredEvent(BaseEvent):
 class ResultFailedEvent(BaseEvent):
     event_type: Literal[EventType.RESULT_FAILED] = EventType.RESULT_FAILED
     execution_id: str
-    error: str = ""
     storage_type: StorageType | None = None
 
 

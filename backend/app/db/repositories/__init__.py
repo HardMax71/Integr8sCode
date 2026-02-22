@@ -8,7 +8,6 @@ from app.db.repositories.replay_repository import ReplayRepository
 from app.db.repositories.resource_allocation_repository import ResourceAllocationRepository
 from app.db.repositories.saga_repository import SagaRepository
 from app.db.repositories.saved_script_repository import SavedScriptRepository
-from app.db.repositories.sse_repository import SSERepository
 from app.db.repositories.user_repository import UserRepository
 from app.db.repositories.user_settings_repository import UserSettingsRepository
 
@@ -23,7 +22,6 @@ __all__ = [
     "ResourceAllocationRepository",
     "SagaRepository",
     "SavedScriptRepository",
-    "SSERepository",
     "UserSettingsRepository",
     "UserRepository",
 ]

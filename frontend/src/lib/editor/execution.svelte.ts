@@ -76,7 +76,9 @@ class ExecutionState {
 
             if (isTerminalFailure(ev.event_type)) {
                 this.result = ev.result ?? null;
-                this.error = ev.message ?? 'Execution failed.';
+                this.error = ev.event_type === 'execution_timeout' ? 'Execution timed out.'
+                    : ev.event_type === 'result_failed' ? 'Failed to store execution results.'
+                    : 'Execution failed.';
                 terminalReceived = true;
                 break;
             }

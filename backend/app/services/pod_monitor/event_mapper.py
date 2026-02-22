@@ -295,7 +295,6 @@ class PodEventMapper:
             exit_code=exit_code,
             stdout=stdout,
             stderr=stderr,
-            error_message=stderr,
             resource_usage=logs.resource_usage if logs else None,
             metadata=ctx.metadata,
         )
@@ -342,10 +341,11 @@ class PodEventMapper:
             self.logger.error(f"POD-EVENT: failed to extract logs for timed out pod exec={ctx.execution_id}")
             return None
 
+        timeout_seconds = ctx.pod.spec.active_deadline_seconds or 0
         evt = ExecutionTimeoutEvent(
             execution_id=ctx.execution_id,
             aggregate_id=ctx.execution_id,
-            timeout_seconds=ctx.pod.spec.active_deadline_seconds or 0,
+            timeout_seconds=timeout_seconds,
             resource_usage=logs.resource_usage,
             stdout=logs.stdout,
             stderr=logs.stderr,

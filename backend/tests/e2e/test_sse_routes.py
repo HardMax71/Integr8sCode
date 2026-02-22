@@ -132,7 +132,7 @@ class TestExecutionStream:
 
         async-asgi-testclient waits for the first http.response.body ASGI
         message before returning the response object. For execution streams
-        this is the ``connected`` control event, confirming the SSE generator
+        this is the ``status`` control event, confirming the SSE generator
         started and yielded data.
         """
         async with sse_client:
@@ -145,10 +145,10 @@ class TestExecutionStream:
             assert "text/event-stream" in response.headers.get("content-type", "")
 
             # The first body chunk (buffered by async-asgi-testclient during
-            # response construction) contains the ``connected`` SSE event.
+            # response construction) contains the ``status`` SSE event.
             first_chunk = response.raw.read()
             body = first_chunk.decode("utf-8")
-            assert "connected" in body
+            assert "status" in body
             assert created_execution.execution_id in body
 
     @pytest.mark.asyncio
@@ -165,20 +165,10 @@ class TestExecutionStream:
         sse_client_another: SSETestClient,
         created_execution: ExecutionResponse,
     ) -> None:
-        """Another user's execution stream still opens (auth at event level).
-
-        SSE endpoints return 200 and start streaming. The connected/subscribed
-        control events are always sent; business events are filtered by ownership.
-        """
+        """Another user cannot stream a different user's execution — returns 403."""
         async with sse_client_another:
             response = await sse_client_another.get(
                 f"/api/v1/events/executions/{created_execution.execution_id}",
-                stream=True,
             )
 
-            assert response.status_code == 200
-            assert "text/event-stream" in response.headers.get("content-type", "")
-
-            # Another user still receives the initial connected event
-            first_chunk = response.raw.read()
-            assert b"connected" in first_chunk
+            assert response.status_code == 403

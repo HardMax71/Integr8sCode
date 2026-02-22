@@ -31,7 +31,7 @@ from app.domain.notification import (
     NotificationThrottledError,
     NotificationValidationError,
 )
-from app.domain.sse import RedisNotificationMessage
+from app.domain.sse import DomainNotificationSSEPayload
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse import SSERedisBus
 from app.settings import Settings
@@ -473,7 +473,7 @@ class NotificationService:
         event_data["stderr"] = event_data["stderr"][:200]
 
         title = f"Execution Failed: {event.execution_id}"
-        body = f"Your execution failed: {event.error_message}"
+        body = f"Your execution failed: {event.error_type} (exit code {event.exit_code})."
         await self.create_notification(
             user_id=user_id,
             subject=title,
@@ -566,7 +566,7 @@ class NotificationService:
 
     async def _publish_notification_sse(self, notification: DomainNotification) -> None:
         """Publish an in-app notification to the SSE bus for realtime delivery."""
-        message = RedisNotificationMessage(
+        payload = DomainNotificationSSEPayload(
             notification_id=notification.notification_id,
             severity=notification.severity,
             status=notification.status,
@@ -576,7 +576,7 @@ class NotificationService:
             action_url=notification.action_url,
             created_at=notification.created_at,
         )
-        await self.sse_bus.publish_notification(notification.user_id, message)
+        await self.sse_bus.publish_notification(notification.user_id, payload)
 
     # --8<-- [start:should_skip_notification]
     async def _should_skip_notification(

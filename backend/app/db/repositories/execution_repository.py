@@ -15,6 +15,7 @@ from app.domain.execution import (
 )
 
 _exec_fields = set(DomainExecution.__dataclass_fields__)
+_result_fields = set(ExecutionResultDomain.__dataclass_fields__)
 
 
 class ExecutionRepository:
@@ -85,6 +86,15 @@ class ExecutionRepository:
             return None
         await doc.set({"priority": priority, "updated_at": datetime.now(timezone.utc)})
         return self._to_domain(doc)
+
+    async def get_execution_result(self, execution_id: str) -> ExecutionResultDomain | None:
+        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
+        if not doc:
+            return None
+        data = doc.model_dump(include=_result_fields)
+        if data.get("resource_usage"):
+            data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
+        return ExecutionResultDomain(**data)
 
     async def delete_execution(self, execution_id: str) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)

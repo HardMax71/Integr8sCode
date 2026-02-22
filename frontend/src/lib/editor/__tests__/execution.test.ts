@@ -91,20 +91,24 @@ describe('createExecutionState', () => {
     });
 
     describe('execute → terminal failure sets error', () => {
-        it.each(['execution_failed', 'execution_timeout', 'result_failed'])(
+        it.each([
+            ['execution_failed', 'Execution failed.'],
+            ['execution_timeout', 'Execution timed out.'],
+            ['result_failed', 'Failed to store execution results.'],
+        ] as const)(
             'sets error on %s event',
-            async (eventType) => {
+            async (eventType, expectedError) => {
                 mockCreateExecution.mockResolvedValue({
                     data: { execution_id: 'exec-1', status: 'queued' },
                     error: null,
                 });
 
-                mockSseEvents({ event_type: eventType, message: 'something went wrong' });
+                mockSseEvents({ event_type: eventType });
 
                 const s = createExecutionState();
                 await s.execute('x', 'python', '3.12');
 
-                expect(s.error).toBe('something went wrong');
+                expect(s.error).toBe(expectedError);
                 expect(s.phase).toBe('idle');
             },
         );
@@ -115,26 +119,12 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockSseEvents({ event_type: 'execution_failed', result: RESULT, message: 'failed' });
+            mockSseEvents({ event_type: 'execution_failed', result: RESULT });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.result).toEqual(RESULT);
-            expect(s.error).toBe('failed');
-        });
-
-        it('uses default message when terminal failure has no message', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: null,
-            });
-
-            mockSseEvents({ event_type: 'execution_failed' });
-
-            const s = createExecutionState();
-            await s.execute('x', 'python', '3.12');
-
             expect(s.error).toBe('Execution failed.');
         });
     });

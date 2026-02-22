@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
 from app.domain.enums import (
     EventType,
@@ -12,81 +11,37 @@ from app.domain.enums import (
     NotificationStatus,
     SSEControlEvent,
 )
-from app.domain.events.typed import ResourceUsageDomain
 from app.domain.execution.models import ExecutionResultDomain
-
-
-@dataclass
-class SSEExecutionStatusDomain:
-    execution_id: str
-    status: ExecutionStatus
-    timestamp: datetime
-
-
-@dataclass
-class SSEEventDomain:
-    aggregate_id: str
-    timestamp: datetime
-
-
-@dataclass
-class RedisSSEMessage:
-    """Message structure published to Redis for execution SSE delivery."""
-
-    event_type: EventType
-    data: dict[str, Any]
-    execution_id: str | None = None
-
-
-@dataclass
-class RedisNotificationMessage:
-    """Message structure published to Redis for notification SSE delivery."""
-
-    notification_id: str
-    severity: NotificationSeverity
-    status: NotificationStatus
-    subject: str
-    body: str
-    created_at: datetime
-    tags: list[str] = field(default_factory=list)
-    action_url: str = ""
 
 
 @dataclass
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 
-    This represents the JSON data sent inside each SSE message for execution streams.
-    All fields except event_type and execution_id are optional since different
-    event types carry different data.
+    All fields are always present in the wire JSON. Nullable fields carry null
+    when not applicable: event_id is null for control events; status only for the
+    status control event; result only for result_stored.
     """
 
     event_type: EventType | SSEControlEvent
     execution_id: str
     timestamp: datetime | None = None
     event_id: str | None = None
-    connection_id: str | None = None
-    message: str | None = None
     status: ExecutionStatus | None = None
-    stdout: str | None = None
-    stderr: str | None = None
-    exit_code: int | None = None
-    timeout_seconds: int | None = None
-    resource_usage: ResourceUsageDomain | None = None
     result: ExecutionResultDomain | None = None
 
 
 @dataclass
 class DomainNotificationSSEPayload:
-    """Domain model for notification SSE payload."""
+    """Notification payload for Redis transport and SSE wire. Defaults cover invariants."""
 
     notification_id: str
-    channel: NotificationChannel
     status: NotificationStatus
     subject: str
     body: str
     action_url: str
     created_at: datetime
     severity: NotificationSeverity
-    tags: list[str]
+    tags: list[str] = field(default_factory=list)
+    channel: NotificationChannel = NotificationChannel.IN_APP
     read_at: datetime | None = None

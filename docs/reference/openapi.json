@@ -6831,19 +6831,8 @@
             "type": "string",
             "title": "Execution Id"
           },
-          "reason": {
-            "type": "string",
-            "title": "Reason"
-          },
           "cancelled_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Cancelled By"
           },
           "force_terminated": {
@@ -6997,15 +6986,11 @@
           },
           "exit_code": {
             "type": "integer",
-            "title": "Exit Code"
+            "title": "Exit Code",
+            "default": 1
           },
           "error_type": {
             "$ref": "#/components/schemas/ExecutionErrorType"
-          },
-          "error_message": {
-            "type": "string",
-            "title": "Error Message",
-            "default": ""
           },
           "resource_usage": {
             "anyOf": [
@@ -10597,11 +10582,6 @@
             "type": "string",
             "title": "Execution Id"
           },
-          "error": {
-            "type": "string",
-            "title": "Error",
-            "default": ""
-          },
           "storage_type": {
             "anyOf": [
               {
@@ -10700,10 +10680,9 @@
       "SSEControlEvent": {
         "type": "string",
         "enum": [
-          "connected",
-          "subscribed",
           "status"
         ],
+        "const": "status",
         "title": "SSEControlEvent",
         "description": "Control events for execution SSE streams (not from Kafka)."
       },
@@ -10719,12 +10698,12 @@
               }
             ],
             "title": "Event Type",
-            "description": "Event type identifier (business event or control event)"
+            "description": "Event type identifier"
           },
           "execution_id": {
             "type": "string",
             "title": "Execution Id",
-            "description": "Execution ID this event relates to"
+            "description": "Execution ID"
           },
           "timestamp": {
             "anyOf": [
@@ -10749,31 +10728,7 @@
               }
             ],
             "title": "Event Id",
-            "description": "Unique event identifier"
-          },
-          "connection_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Connection Id",
-            "description": "SSE connection ID (connected event)"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message",
-            "description": "Human-readable message (subscribed event)"
+            "description": "Kafka event ID (null for control events)"
           },
           "status": {
             "anyOf": [
@@ -10784,66 +10739,7 @@
                 "type": "null"
               }
             ],
-            "description": "Current execution status"
-          },
-          "stdout": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stdout",
-            "description": "Standard output from execution"
-          },
-          "stderr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stderr",
-            "description": "Standard error from execution"
-          },
-          "exit_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exit Code",
-            "description": "Process exit code"
-          },
-          "timeout_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timeout Seconds",
-            "description": "Timeout duration in seconds"
-          },
-          "resource_usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResourceUsageDomain"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "CPU/memory usage metrics"
+            "description": "Execution status (status control event only)"
           },
           "result": {
             "anyOf": [
@@ -10854,7 +10750,7 @@
                 "type": "null"
               }
             ],
-            "description": "Execution result"
+            "description": "Full execution result (result_stored only)"
           }
         },
         "type": "object",
@@ -10863,18 +10759,11 @@
           "execution_id",
           "timestamp",
           "event_id",
-          "connection_id",
-          "message",
           "status",
-          "stdout",
-          "stderr",
-          "exit_code",
-          "timeout_seconds",
-          "resource_usage",
           "result"
         ],
         "title": "SSEExecutionEventSchema",
-        "description": "API schema for SSE execution stream event payload (OpenAPI docs)."
+        "description": "API schema for SSE execution stream events.\n\nAll fields are always present. Nullable fields carry null when not applicable:\nevent_id is null for control events; status only for the status control event;\nresult only for result_stored."
       },
       "SagaCancellationResponse": {
         "properties": {

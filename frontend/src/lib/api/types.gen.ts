@@ -1540,13 +1540,9 @@ export type ExecutionCancelledEvent = {
      */
     execution_id?: string;
     /**
-     * Reason
-     */
-    reason?: string;
-    /**
      * Cancelled By
      */
-    cancelled_by?: string | null;
+    cancelled_by?: string;
     /**
      * Force Terminated
      */
@@ -1638,10 +1634,6 @@ export type ExecutionFailedEvent = {
      */
     exit_code?: number;
     error_type?: ExecutionErrorType;
-    /**
-     * Error Message
-     */
-    error_message?: string;
     resource_usage?: ResourceUsageDomain | null;
     /**
      * Stdout
@@ -3744,10 +3736,6 @@ export type ResultFailedEvent = {
      * Execution Id
      */
     execution_id?: string;
-    /**
-     * Error
-     */
-    error?: string;
     storage_type?: StorageType | null;
 };
 
@@ -3796,24 +3784,28 @@ export type ResultStoredEvent = {
  *
  * Control events for execution SSE streams (not from Kafka).
  */
-export type SseControlEvent = 'connected' | 'subscribed' | 'status';
+export type SseControlEvent = 'status';
 
 /**
  * SSEExecutionEventSchema
  *
- * API schema for SSE execution stream event payload (OpenAPI docs).
+ * API schema for SSE execution stream events.
+ *
+ * All fields are always present. Nullable fields carry null when not applicable:
+ * event_id is null for control events; status only for the status control event;
+ * result only for result_stored.
  */
 export type SseExecutionEventSchema = {
     /**
      * Event Type
      *
-     * Event type identifier (business event or control event)
+     * Event type identifier
      */
     event_type: EventType | SseControlEvent;
     /**
      * Execution Id
      *
-     * Execution ID this event relates to
+     * Execution ID
      */
     execution_id: string;
     /**
@@ -3825,55 +3817,15 @@ export type SseExecutionEventSchema = {
     /**
      * Event Id
      *
-     * Unique event identifier
+     * Kafka event ID (null for control events)
      */
     event_id: string | null;
     /**
-     * Connection Id
-     *
-     * SSE connection ID (connected event)
-     */
-    connection_id: string | null;
-    /**
-     * Message
-     *
-     * Human-readable message (subscribed event)
-     */
-    message: string | null;
-    /**
-     * Current execution status
+     * Execution status (status control event only)
      */
     status: ExecutionStatus | null;
     /**
-     * Stdout
-     *
-     * Standard output from execution
-     */
-    stdout: string | null;
-    /**
-     * Stderr
-     *
-     * Standard error from execution
-     */
-    stderr: string | null;
-    /**
-     * Exit Code
-     *
-     * Process exit code
-     */
-    exit_code: number | null;
-    /**
-     * Timeout Seconds
-     *
-     * Timeout duration in seconds
-     */
-    timeout_seconds: number | null;
-    /**
-     * CPU/memory usage metrics
-     */
-    resource_usage: ResourceUsageDomain | null;
-    /**
-     * Execution result
+     * Full execution result (result_stored only)
      */
     result: ExecutionResult | null;
 };

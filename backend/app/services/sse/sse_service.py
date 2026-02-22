@@ -9,6 +9,7 @@ from app.db.repositories import ExecutionRepository
 from app.domain.enums import EventType, SSEControlEvent, UserRole
 from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError
+from app.domain.execution.models import DomainExecution
 from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse.redis_bus import SSERedisBus
 
@@ -39,14 +40,26 @@ class SSEService:
     async def create_execution_stream(
         self, execution_id: str, user_id: str, user_role: UserRole
     ) -> AsyncGenerator[dict[str, Any], None]:
+        """Eagerly validate access then return the event stream generator.
+
+        Raises ExecutionNotFoundError or ForbiddenError before any streaming
+        begins, so FastAPI's exception handlers can return a proper HTTP error
+        response instead of crashing inside the SSE task group.
+        """
         execution = await self._execution_repository.get_execution(execution_id)
         if not execution:
             raise ExecutionNotFoundError(execution_id)
         if execution.user_id and execution.user_id != user_id and user_role != UserRole.ADMIN:
             raise ForbiddenError("Access denied")
+        return self._execution_pipeline(execution)
+
+    async def _execution_pipeline(
+        self, execution: DomainExecution
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        execution_id = execution.execution_id
         yield {"data": _exec_adapter.dump_json(SSEExecutionEventData(
             event_type=SSEControlEvent.STATUS,
-            execution_id=execution.execution_id,
+            execution_id=execution_id,
             timestamp=execution.updated_at,
             status=execution.status,
         )).decode()}

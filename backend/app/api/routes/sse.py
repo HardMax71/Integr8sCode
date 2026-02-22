@@ -50,6 +50,7 @@ async def execution_events(
     sse_service: FromDishka[SSEService],
 ) -> EventSourceResponse:
     """Stream events for specific execution."""
-    return EventSourceResponse(
-        sse_service.create_execution_stream(execution_id=execution_id, user_id=user.user_id, user_role=user.role)
+    stream = await sse_service.create_execution_stream(
+        execution_id=execution_id, user_id=user.user_id, user_role=user.role
     )
+    return EventSourceResponse(stream)

@@ -92,7 +92,7 @@ async def test_execution_stream_prepends_status_from_db() -> None:
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=execution))
 
-    agen = svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
+    agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
     # Signal end of live stream so the generator can finish
     await bus.push_exec(None)
@@ -112,7 +112,7 @@ async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)))
 
-    agen = svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
+    agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
     # DB status prepend is always yielded first
     stat = await agen.__anext__()
@@ -141,7 +141,7 @@ async def test_execution_stream_enriches_result_stored() -> None:
     bus = _FakeBus()
     svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result))
 
-    agen = svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
+    agen = await svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
 
     # Consume DB status prepend
     await agen.__anext__()

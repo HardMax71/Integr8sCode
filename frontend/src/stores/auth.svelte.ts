@@ -168,11 +168,11 @@ class AuthStore {
 
     async fetchUserProfile() {
         const { data, error } = await getCurrentUserProfileApiV1AuthMeGet({});
-        if (error) throw error;
-        this.userId = data!.user_id;
-        this.userEmail = data!.email;
+        if (error || !data) throw error ?? new Error('No profile data returned');
+        this.userId = data.user_id;
+        this.userEmail = data.email;
         const current = getPersistedAuthState();
-        if (current) persistAuthState({ ...current, userId: data!.user_id, userEmail: data!.email });
+        if (current) persistAuthState({ ...current, userId: data.user_id, userEmail: data.email });
         return data;
     }
 

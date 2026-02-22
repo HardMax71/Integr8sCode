@@ -69,7 +69,7 @@
       <input type="hidden" name="remember" value="true" hidden>
 
       {#if error}
-        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
+        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" data-testid="error-message" in:fly={{y: -10, duration: 200}}>{error}</p>
       {/if}
 
       <div class="space-y-2">

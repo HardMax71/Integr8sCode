@@ -99,7 +99,7 @@
                     <div class="output-section">
                         <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">Output:</h4>
                         <div class="relative">
-                            <pre class="output-pre custom-scrollbar">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
+                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
                             <div class="absolute bottom-2 right-2 group">
                                 <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy output to clipboard"

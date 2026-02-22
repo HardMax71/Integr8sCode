@@ -91,6 +91,7 @@
             disabled={!available}
             aria-haspopup="menu"
             aria-expanded={showOptions}
+            aria-label="Select language and version"
             class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left"
             class:opacity-50={!available}
             class:cursor-not-allowed={!available}>

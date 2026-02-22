@@ -1,4 +1,4 @@
-import { test, expect, describeAdminCommonTests, describeAdminAccessControl } from './fixtures';
+import { test, expect, describeAdminCommonTests, describeAdminAccessControl, TIMEOUTS } from './fixtures';
 
 const PATH = '/admin/users' as const;
 
@@ -6,7 +6,7 @@ const PATH = '/admin/users' as const;
 async function gotoAndWaitForUsers(adminPage: import('@playwright/test').Page) {
   await adminPage.goto(PATH);
   // Wait for table rows to appear (seeded users exist), not "Users (0)" empty state
-  await adminPage.locator('table tbody tr').first().waitFor({ timeout: 15000 });
+  await adminPage.locator('table tbody tr').first().waitFor({ timeout: TIMEOUTS.adminTable });
 }
 
 test.describe('Admin Users', () => {

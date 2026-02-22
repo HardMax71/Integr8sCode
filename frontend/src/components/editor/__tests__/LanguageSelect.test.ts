@@ -23,7 +23,7 @@ function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
 async function openMenu() {
   const user = userEvent.setup();
   const result = renderSelect();
-  await user.click(screen.getByRole('button', { name: /python 3\.11/i }));
+  await user.click(screen.getByRole('button', { name: /Select language/i }));
   return { user, ...result };
 }
 
@@ -34,7 +34,7 @@ describe('LanguageSelect', () => {
   describe('trigger button', () => {
     it('shows current language and version with aria-haspopup', () => {
       renderSelect();
-      const btn = screen.getByRole('button', { name: /python 3\.11/i });
+      const btn = screen.getByRole('button', { name: /Select language/i });
       expect(btn).toBeInTheDocument();
       expect(btn).toHaveAttribute('aria-haspopup', 'menu');
     });
@@ -58,7 +58,7 @@ describe('LanguageSelect', () => {
 
     it('closes menu on second click', async () => {
       const { user } = await openMenu();
-      await user.click(screen.getByRole('button', { name: /python 3\.11/i }));
+      await user.click(screen.getByRole('button', { name: /Select language/i }));
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
       });
@@ -107,14 +107,14 @@ describe('LanguageSelect', () => {
     ])('opens menu with $label on trigger', async ({ key }) => {
       const user = userEvent.setup();
       renderSelect();
-      screen.getByRole('button', { name: /python 3\.11/i }).focus();
+      screen.getByRole('button', { name: /Select language/i }).focus();
       await user.keyboard(key);
       expect(screen.getByRole('menu', { name: 'Select language and version' })).toBeInTheDocument();
     });
 
     it('closes menu with Escape on trigger', async () => {
       await openMenu();
-      const trigger = screen.getByRole('button', { name: /python 3\.11/i });
+      const trigger = screen.getByRole('button', { name: /Select language/i });
       await fireEvent.keyDown(trigger, { key: 'Escape' });
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();

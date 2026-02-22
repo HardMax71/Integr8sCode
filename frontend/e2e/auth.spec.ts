@@ -5,13 +5,12 @@ const PATH = '/login';
 async function navigateToLogin(page: import('@playwright/test').Page): Promise<void> {
   await clearSession(page);
   await page.goto(PATH);
-  await page.waitForSelector('#username');
 }
 
 async function fillLoginForm(page: import('@playwright/test').Page, username: string, password: string): Promise<void> {
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.click('button[type="submit"]');
+  await page.locator('#username').fill(username);
+  await page.locator('#password').fill(password);
+  await page.locator('button[type="submit"]').click();
 }
 
 test.describe('Authentication', () => {
@@ -27,7 +26,7 @@ test.describe('Authentication', () => {
   });
 
   test('prevents submission and shows validation for empty form', async ({ page }) => {
-    await page.click('button[type="submit"]');
+    await page.locator('button[type="submit"]').click();
     await expect(page).toHaveURL(/\/login/);
     const usernameInput = page.locator('#username');
     await expect(usernameInput).toBeFocused();
@@ -39,7 +38,7 @@ test.describe('Authentication', () => {
 
   test('shows error with invalid credentials', async ({ page }) => {
     await fillLoginForm(page, 'invaliduser', 'wrongpassword');
-    await expect(page.locator('p.text-red-600, p.text-red-400')).toBeVisible();
+    await expect(page.getByTestId('error-message')).toBeVisible();
   });
 
   test('redirects to editor on successful login', async ({ page }) => {
@@ -49,22 +48,20 @@ test.describe('Authentication', () => {
   });
 
   test('shows loading state during login', async ({ page }) => {
-    await page.fill('#username', TEST_USERS.user.username);
-    await page.fill('#password', TEST_USERS.user.password);
+    await page.locator('#username').fill(TEST_USERS.user.username);
+    await page.locator('#password').fill(TEST_USERS.user.password);
     const submitButton = page.locator('button[type="submit"]');
     await submitButton.click();
-    await expect(submitButton).toContainText(/Logging in|Sign in/);
+    await expect(submitButton).toContainText(/Logging in/);
   });
 
   test('redirects unauthenticated users from protected routes', async ({ page }) => {
     await page.goto('/editor');
-    await page.waitForSelector('#username');
     await expect(page).toHaveURL(/\/login/);
   });
 
   test('preserves redirect path after login', async ({ page }) => {
     await page.goto('/settings');
-    await page.waitForSelector('#username');
     await expect(page).toHaveURL(/\/login/);
     await fillLoginForm(page, TEST_USERS.user.username, TEST_USERS.user.password);
     await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
@@ -88,10 +85,10 @@ test.describe('Logout', () => {
   });
 
   test('can logout from authenticated state', async ({ page }) => {
-    const userDropdown = page.locator('.user-dropdown-container button').first();
-    await expect(userDropdown).toBeVisible();
-    await userDropdown.click();
-    const logoutButton = page.locator('button:has-text("Logout")').first();
+    const userMenuButton = page.getByRole('button', { name: 'User menu' });
+    await expect(userMenuButton).toBeVisible();
+    await userMenuButton.click();
+    const logoutButton = page.getByRole('button', { name: 'Logout' });
     await expect(logoutButton).toBeVisible();
     await logoutButton.click();
     await expect(page).toHaveURL(/\/login/);

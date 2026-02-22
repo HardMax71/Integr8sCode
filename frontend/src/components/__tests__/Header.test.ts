@@ -45,10 +45,10 @@ const setAuth = (isAuth: boolean, username: string | null = null, role: string |
   mocks.mockAuthStore.userEmail = email;
 };
 
-const openUserDropdown = async (username: string) => {
+const openUserDropdown = async (_username: string) => {
   const user = userEvent.setup();
   render(Header);
-  await user.click(screen.getByRole('button', { name: new RegExp(username, 'i') }));
+  await user.click(screen.getByRole('button', { name: 'User menu' }));
   return user;
 };
 

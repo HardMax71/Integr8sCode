@@ -111,6 +111,7 @@
             <div class="relative user-dropdown-container">
               <button type="button"
                 onclick={(e) => { e.stopPropagation(); showUserDropdown = !showUserDropdown; }}
+                aria-label="User menu"
                 class="flex items-center space-x-2 btn btn-ghost btn-sm"
               >
                 <div class="flex items-center space-x-2">

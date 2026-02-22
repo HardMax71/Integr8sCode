@@ -52,69 +52,58 @@ test.describe('Notifications Page', () => {
   });
 });
 
+// The following tests require at least one notification to be present.
+// They are skipped in clean environments where no notifications have been generated.
+// To run these tests: execute a script first to generate a completion notification,
+// then re-run this suite.
 test.describe('Notifications Interaction', () => {
-  test('notification cards show severity badges when present', async ({ userPage }) => {
+  test.skip('notification cards show severity badges when present', async ({ userPage }) => {
     await gotoAndWaitForNotifications(userPage);
-    // Notification cards have aria-label="Mark notification as read"
     const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
-    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Severity badges show the severity text (low, medium, high, urgent)
-      const severityBadge = notificationCard.locator('span').filter({ hasText: /^(low|medium|high|urgent)$/i }).first();
-      const hasBadge = await severityBadge.isVisible({ timeout: 2000 }).catch(() => false);
-      if (hasBadge) {
-        await expect(severityBadge).toContainText(/low|medium|high|urgent/i);
-      }
+    await expect(notificationCard).toBeVisible({ timeout: 5000 });
+    const severityBadge = notificationCard.locator('span').filter({ hasText: /^(low|medium|high|urgent)$/i }).first();
+    const hasBadge = await severityBadge.isVisible().catch(() => false);
+    if (hasBadge) {
+      await expect(severityBadge).toContainText(/low|medium|high|urgent/i);
     }
   });
 
-  test('notification cards show timestamp when present', async ({ userPage }) => {
+  test.skip('notification cards show timestamp when present', async ({ userPage }) => {
     await gotoAndWaitForNotifications(userPage);
-    // Notification cards have aria-label="Mark notification as read"
     const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
-    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const timeIndicator = notificationCard.locator('text=/ago|Just now|\\d{1,2}:\\d{2}|\\d{4}-\\d{2}-\\d{2}/').first();
-      const hasTime = await timeIndicator.isVisible({ timeout: 2000 }).catch(() => false);
-      if (hasTime) {
-        await expect(timeIndicator).toBeVisible();
-      }
-    }
+    await expect(notificationCard).toBeVisible({ timeout: 5000 });
+    await expect(notificationCard.getByText(/ago|Just now|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2}/)).toBeVisible();
   });
 });
 
 test.describe('Notification Actions', () => {
-  test('can mark notification as read by clicking', async ({ userPage }) => {
+  test.skip('can mark notification as read by clicking', async ({ userPage }) => {
     await gotoAndWaitForNotifications(userPage);
     const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
-    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Check if it's unread (has blue background class)
-      const hasBlue = await notificationCard.evaluate(el => el.classList.toString().includes('bg-blue'));
-      await notificationCard.click();
-      // After clicking, check if styling changed or "Read" label appeared
-      if (hasBlue) {
-        await expect(notificationCard.locator('text=Read')).toBeVisible({ timeout: 3000 });
-      }
+    await expect(notificationCard).toBeVisible({ timeout: 5000 });
+    const hasBlue = await notificationCard.evaluate(el => el.classList.toString().includes('bg-blue'));
+    await notificationCard.click();
+    if (hasBlue) {
+      await expect(notificationCard.getByText('Read')).toBeVisible({ timeout: 3000 });
     }
   });
 
-  test('can delete a notification', async ({ userPage }) => {
+  test.skip('can delete a notification', async ({ userPage }) => {
     await gotoAndWaitForNotifications(userPage);
     const notificationCard = userPage.locator('[aria-label="Mark notification as read"]').first();
-    if (await notificationCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const deleteBtn = notificationCard.locator('button').filter({ has: userPage.locator('svg') }).first();
-      if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await deleteBtn.click();
-        await expectToastVisible(userPage);
-      }
-    }
+    await expect(notificationCard).toBeVisible({ timeout: 5000 });
+    const deleteBtn = notificationCard.locator('button').filter({ has: userPage.locator('svg') }).first();
+    await expect(deleteBtn).toBeVisible();
+    await deleteBtn.click();
+    await expectToastVisible(userPage);
   });
 
-  test('can mark all as read', async ({ userPage }) => {
+  test.skip('can mark all as read', async ({ userPage }) => {
     await gotoAndWaitForNotifications(userPage);
     const markAllBtn = userPage.getByRole('button', { name: /mark all as read/i });
-    if (await markAllBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await markAllBtn.click();
-      await expectToastVisible(userPage);
-    }
+    await expect(markAllBtn).toBeVisible({ timeout: 5000 });
+    await markAllBtn.click();
+    await expectToastVisible(userPage);
   });
 });
 

@@ -60,7 +60,7 @@
 
     <form class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default" onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
       {#if error}
-        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" in:fly={{y: -10, duration: 200}}>{error}</p>
+        <p class="mt-0 text-sm text-red-600 dark:text-red-400 text-center" data-testid="error-message" in:fly={{y: -10, duration: 200}}>{error}</p>
       {/if}
 
       <div class="space-y-2">

@@ -1,64 +1,57 @@
 import asyncio
 import json
 import structlog
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any, TypeVar
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import TypeAdapter
 
 from app.core.metrics import ConnectionMetrics
 from app.db.repositories import SSERepository
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import DomainExecution
-from app.domain.sse import SSEExecutionStatusDomain
-from app.services.sse import SSERedisBus, SSERedisSubscription, SSEService
+from app.domain.sse import RedisNotificationMessage, SSEExecutionEventData, SSEExecutionStatusDomain
+from app.services.sse import SSERedisBus, SSEService
+from app.services.sse.redis_bus import _notif_msg_adapter, _sse_event_adapter
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.sse.sse_service")
 
-T = TypeVar("T")
-
-
-class _FakeSubscription(SSERedisSubscription):
-    def __init__(self) -> None:
-        # Skip parent __init__ - no real Redis pubsub
-        self._q: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
-        self.closed = False
-
-    async def get(self, model: type[T], adapter: TypeAdapter[Any] | None = None) -> T | None:
-        try:
-            raw = await asyncio.wait_for(self._q.get(), timeout=0.5)
-            if raw is None:
-                return None
-            return TypeAdapter(model).validate_python(raw)
-        except asyncio.TimeoutError:
-            return None
-        except Exception:
-            return None
-
-    async def push(self, msg: dict[str, Any] | None) -> None:
-        self._q.put_nowait(msg)
-
-    async def close(self) -> None:
-        self.closed = True
-
 
 class _FakeBus(SSERedisBus):
     def __init__(self) -> None:
         # Skip parent __init__
-        self.exec_sub = _FakeSubscription()
-        self.notif_sub = _FakeSubscription()
+        self._exec_q: asyncio.Queue[SSEExecutionEventData | None] = asyncio.Queue()
+        self._notif_q: asyncio.Queue[RedisNotificationMessage | None] = asyncio.Queue()
+        self.notif_closed = False
 
-    async def open_subscription(self, execution_id: str) -> SSERedisSubscription:  # noqa: ARG002
-        return self.exec_sub
+    async def push_exec(self, data: dict[str, Any] | None) -> None:
+        self._exec_q.put_nowait(_sse_event_adapter.validate_python(data) if data is not None else None)
 
-    async def open_notification_subscription(self, user_id: str) -> SSERedisSubscription:  # noqa: ARG002
-        return self.notif_sub
+    async def push_notif(self, data: dict[str, Any]) -> None:
+        self._notif_q.put_nowait(_notif_msg_adapter.validate_python(data))
+
+    async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:  # noqa: ARG002
+        while True:
+            item = await self._exec_q.get()
+            if item is None:
+                return
+            yield item
+
+    async def listen_notifications(self, user_id: str) -> AsyncGenerator[RedisNotificationMessage, None]:  # noqa: ARG002
+        try:
+            while True:
+                item = await self._notif_q.get()
+                if item is None:
+                    return
+                yield item
+        finally:
+            self.notif_closed = True
 
 
 class _FakeRepo(SSERepository):
@@ -97,19 +90,13 @@ async def test_execution_stream_closes_on_failed_event(connection_metrics: Conne
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
-    first = await agen.__anext__()
-    assert _decode(first)["event_type"] == "connected"
 
-    # Should emit subscribed after Redis subscription is ready
-    subscribed = await agen.__anext__()
-    assert _decode(subscribed)["event_type"] == "subscribed"
-
-    # Should emit initial status
+    # First event is now STATUS (no connected/subscribed preamble)
     stat = await agen.__anext__()
     assert _decode(stat)["event_type"] == "status"
 
     # Push a failed event and ensure stream ends after yielding it
-    await bus.exec_sub.push({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1"})
+    await bus.push_exec({"event_type": EventType.EXECUTION_FAILED, "execution_id": "exec-1"})
     failed = await agen.__anext__()
     assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
@@ -120,7 +107,6 @@ async def test_execution_stream_closes_on_failed_event(connection_metrics: Conne
 @pytest.mark.asyncio
 async def test_execution_stream_result_stored_includes_result_payload(connection_metrics: ConnectionMetrics) -> None:
     repo = _FakeRepo()
-    # DomainExecution with RU to_dict
     repo.exec_for_result = DomainExecution(
         execution_id="exec-2",
         script="",
@@ -140,11 +126,9 @@ async def test_execution_stream_result_stored_includes_result_payload(connection
                      settings=_make_fake_settings(), logger=_test_logger, connection_metrics=connection_metrics)
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
-    await agen.__anext__()  # connected
-    await agen.__anext__()  # subscribed
     await agen.__anext__()  # status
 
-    await bus.exec_sub.push({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2"})
+    await bus.push_exec({"event_type": EventType.RESULT_STORED, "execution_id": "exec-2"})
     evt = await agen.__anext__()
     data = _decode(evt)
     assert data["event_type"] == EventType.RESULT_STORED
@@ -170,7 +154,7 @@ async def test_notification_stream_yields_notification_and_cleans_up(connection_
     agen = svc.create_notification_stream("u1")
 
     # Push a notification payload before advancing (avoids blocking on empty queue)
-    await bus.notif_sub.push({
+    await bus.push_notif({
         "notification_id": "n1",
         "severity": "low",
         "status": "pending",
@@ -193,6 +177,4 @@ async def test_notification_stream_yields_notification_and_cleans_up(connection_
     await agen.aclose()
 
     # Subscription should be closed during cleanup
-    assert bus.notif_sub.closed is True
-
-
+    assert bus.notif_closed is True

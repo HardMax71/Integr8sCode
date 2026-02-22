@@ -1,4 +1,3 @@
-import asyncio
 import dataclasses
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -13,10 +12,9 @@ from app.domain.enums import EventType, NotificationChannel, SSEControlEvent
 from app.domain.execution.models import ExecutionResultDomain
 from app.domain.sse import (
     DomainNotificationSSEPayload,
-    RedisNotificationMessage,
     SSEExecutionEventData,
 )
-from app.services.sse.redis_bus import SSERedisBus, SSERedisSubscription, _notif_msg_adapter, _sse_event_adapter
+from app.services.sse.redis_bus import SSERedisBus, _sse_event_adapter
 from app.settings import Settings
 
 _notif_payload_adapter = TypeAdapter(DomainNotificationSSEPayload)
@@ -55,74 +53,30 @@ class SSEService:
         self.metrics = connection_metrics
 
     async def create_execution_stream(self, execution_id: str, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
-        subscription: SSERedisSubscription | None = None
         start_time = datetime.now(timezone.utc)
         self.metrics.increment_sse_connections("executions")
+        exec_stream = self.sse_bus.listen_execution(execution_id)
         try:
-            yield self._format_sse_event(
-                SSEExecutionEventData(
-                    event_type=SSEControlEvent.CONNECTED,
-                    execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc),
-                )
-            )
-
-            subscription = await self.sse_bus.open_subscription(execution_id)
-            yield self._format_sse_event(
-                SSEExecutionEventData(
-                    event_type=SSEControlEvent.SUBSCRIBED,
-                    execution_id=execution_id,
-                    timestamp=datetime.now(timezone.utc),
-                    message="Redis subscription established",
-                )
-            )
-
             initial_status = await self.repository.get_execution_status(execution_id)
             if initial_status:
-                yield self._format_sse_event(
-                    SSEExecutionEventData(
-                        event_type=SSEControlEvent.STATUS,
-                        execution_id=initial_status.execution_id,
-                        timestamp=initial_status.timestamp,
-                        status=initial_status.status,
-                    )
-                )
+                yield self._format_sse_event(SSEExecutionEventData(
+                    event_type=SSEControlEvent.STATUS,
+                    execution_id=initial_status.execution_id,
+                    timestamp=initial_status.timestamp,
+                    status=initial_status.status,
+                ))
                 self.metrics.record_sse_message_sent("executions", "status")
 
-            while True:
-                sse_event: SSEExecutionEventData | None = await subscription.get(
-                    SSEExecutionEventData, _sse_event_adapter
-                )
-                if not sse_event:
-                    continue
-
-                self.logger.info(
-                    "Received Redis message for execution",
-                    execution_id=execution_id,
-                    event_type=sse_event.event_type,
-                )
-                try:
-                    if sse_event.event_type == EventType.RESULT_STORED:
-                        sse_event = dataclasses.replace(sse_event, result=await self._fetch_result(execution_id))
-                    yield self._format_sse_event(sse_event)
-
-                    if sse_event.event_type in self.TERMINAL_EVENT_TYPES:
-                        self.logger.info(
-                            "Terminal event for execution",
-                            execution_id=execution_id,
-                            event_type=sse_event.event_type,
-                        )
-                        return
-                except Exception as e:
-                    self.logger.warning(
-                        "Failed to process SSE message",
-                        execution_id=execution_id,
-                        event_type=sse_event.event_type,
-                        error=str(e),
-                    )
+            async for sse_event in exec_stream:
+                self.logger.info("Received SSE event", execution_id=execution_id, event_type=sse_event.event_type)
+                if sse_event.event_type == EventType.RESULT_STORED:
+                    sse_event = dataclasses.replace(sse_event, result=await self._fetch_result(execution_id))
+                yield self._format_sse_event(sse_event)
+                if sse_event.event_type in self.TERMINAL_EVENT_TYPES:
+                    self.logger.info("Terminal event", execution_id=execution_id, event_type=sse_event.event_type)
+                    return
         finally:
-            if subscription is not None:
-                await asyncio.shield(subscription.close())
+            await exec_stream.aclose()
             duration = (datetime.now(timezone.utc) - start_time).total_seconds()
             self.metrics.record_sse_connection_duration(duration, "executions")
             self.metrics.decrement_sse_connections("executions")
@@ -139,16 +93,10 @@ class SSEService:
         return None
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
-        subscription: SSERedisSubscription | None = None
+        notif_stream = self.sse_bus.listen_notifications(user_id)
         try:
-            subscription = await self.sse_bus.open_notification_subscription(user_id)
             self.logger.info("Notification subscription opened", user_id=user_id)
-
-            while True:
-                redis_msg = await subscription.get(RedisNotificationMessage, _notif_msg_adapter)
-                if not redis_msg:
-                    continue
-
+            async for redis_msg in notif_stream:
                 payload = DomainNotificationSSEPayload(
                     notification_id=redis_msg.notification_id,
                     channel=NotificationChannel.IN_APP,
@@ -163,8 +111,7 @@ class SSEService:
                 )
                 yield {"event": "notification", "data": _notif_payload_adapter.dump_json(payload).decode()}
         finally:
-            if subscription is not None:
-                await asyncio.shield(subscription.close())
+            await notif_stream.aclose()
             self.logger.info("Notification stream closed", user_id=user_id)
 
     def _format_sse_event(self, event: SSEExecutionEventData) -> dict[str, Any]:

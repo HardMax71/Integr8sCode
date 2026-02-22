@@ -6,7 +6,6 @@ from app.db.repositories import (
     ReplayRepository,
     SagaRepository,
     SavedScriptRepository,
-    SSERepository,
     UserRepository,
     UserSettingsRepository,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "ReplayRepository",
     "SagaRepository",
     "SavedScriptRepository",
-    "SSERepository",
     "UserRepository",
     "UserSettingsRepository",
 ]

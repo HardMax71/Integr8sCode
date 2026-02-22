@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 
 from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, SSEControlEvent
-from app.domain.execution.models import ExecutionResultDomain
-from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData, SSEExecutionStatusDomain
+from app.domain.execution.models import DomainExecution, ExecutionResultDomain
+from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
 
 pytestmark = pytest.mark.unit
@@ -55,19 +55,19 @@ class _FakeBus:
             self.notif_closed = True
 
 
-class _FakeRepo:
-    """Fake SSERepository with configurable return values."""
+class _FakeExecRepo:
+    """Fake ExecutionRepository with configurable return values."""
 
     def __init__(
         self,
-        status: SSEExecutionStatusDomain | None = None,
+        execution: DomainExecution | None = None,
         result: ExecutionResultDomain | None = None,
     ) -> None:
-        self._status = status
+        self._execution = execution
         self._result = result
 
-    async def get_execution_status(self, execution_id: str) -> SSEExecutionStatusDomain | None:  # noqa: ARG002
-        return self._status
+    async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
+        return self._execution
 
     async def get_execution_result(self, execution_id: str) -> ExecutionResultDomain | None:  # noqa: ARG002
         return self._result
@@ -78,20 +78,19 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _make_service(bus: _FakeBus, repo: _FakeRepo) -> SSEService:
-    return SSEService(bus=bus, repository=repo, logger=_test_logger)  # type: ignore[arg-type]
+def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo = _FakeExecRepo()) -> SSEService:
+    return SSEService(
+        bus=bus,  # type: ignore[arg-type]
+        execution_repository=exec_repo,  # type: ignore[arg-type]
+        logger=_test_logger,
+    )
 
 
 @pytest.mark.asyncio
 async def test_execution_stream_prepends_status_from_db() -> None:
-    status = SSEExecutionStatusDomain(
-        execution_id="exec-1",
-        status=ExecutionStatus.RUNNING,
-        timestamp=_NOW,
-    )
+    execution = DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)
     bus = _FakeBus()
-    repo = _FakeRepo(status=status)
-    svc = _make_service(bus, repo)
+    svc = _make_service(bus, _FakeExecRepo(execution=execution))
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
 
@@ -111,8 +110,7 @@ async def test_execution_stream_prepends_status_from_db() -> None:
 @pytest.mark.asyncio
 async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
-    repo = _FakeRepo(status=None)
-    svc = _make_service(bus, repo)
+    svc = _make_service(bus)
 
     agen = svc.create_execution_stream("exec-1", user_id="u1")
 
@@ -146,8 +144,7 @@ async def test_execution_stream_enriches_result_stored() -> None:
         stderr="",
     )
     bus = _FakeBus()
-    repo = _FakeRepo(status=None, result=result)
-    svc = _make_service(bus, repo)
+    svc = _make_service(bus, _FakeExecRepo(result=result))
 
     agen = svc.create_execution_stream("exec-2", user_id="u1")
 
@@ -169,8 +166,7 @@ async def test_execution_stream_enriches_result_stored() -> None:
 async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     """Notification stream yields {"event": "notification", "data": ...} for each message."""
     bus = _FakeBus()
-    repo = _FakeRepo()
-    svc = _make_service(bus, repo)
+    svc = _make_service(bus)
 
     agen = svc.create_notification_stream("u1")
 

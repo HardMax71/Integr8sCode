@@ -37,7 +37,6 @@ from app.db.repositories import (
     ResourceAllocationRepository,
     SagaRepository,
     SavedScriptRepository,
-    SSERepository,
     UserRepository,
     UserSettingsRepository,
 )
@@ -334,10 +333,6 @@ class RepositoryProvider(Provider):
         return NotificationRepository(logger)
 
     @provide
-    def get_sse_repository(self) -> SSERepository:
-        return SSERepository()
-
-    @provide
     def get_user_repository(self) -> UserRepository:
         return UserRepository()
 
@@ -360,10 +355,10 @@ class SSEProvider(Provider):
     def get_sse_service(
             self,
             bus: SSERedisBus,
-            repository: SSERepository,
+            execution_repository: ExecutionRepository,
             logger: structlog.stdlib.BoundLogger,
     ) -> SSEService:
-        return SSEService(bus=bus, repository=repository, logger=logger)
+        return SSEService(bus=bus, execution_repository=execution_repository, logger=logger)
 
 
 class AuthProvider(Provider):

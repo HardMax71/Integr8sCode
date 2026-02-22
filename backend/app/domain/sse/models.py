@@ -15,13 +15,6 @@ from app.domain.execution.models import ExecutionResultDomain
 
 
 @dataclass
-class SSEExecutionStatusDomain:
-    execution_id: str
-    status: ExecutionStatus
-    timestamp: datetime
-
-
-@dataclass
 class SSEExecutionEventData:
     """Typed model for SSE execution stream event payload.
 

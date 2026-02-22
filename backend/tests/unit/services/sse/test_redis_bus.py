@@ -15,7 +15,7 @@ from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
 from app.services.sse import SSERedisBus
 from app.services.sse.redis_bus import _sse_event_adapter
 
-pytestmark = pytest.mark.e2e
+pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.sse.redis_bus")
 

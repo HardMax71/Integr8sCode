@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockUserOverrides {
   user_id?: string;
@@ -42,7 +41,6 @@ const createMockUsers = (count: number) =>
     is_disabled: i % 3 === 0,
   }));
 
-// Hoisted mocks - must be self-contained
 const mocks = vi.hoisted(() => ({
   listUsersApiV1AdminUsersGet: vi.fn(),
   createUserApiV1AdminUsersPost: vi.fn(),
@@ -55,16 +53,15 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
 }));
 
-// Mock API module
 vi.mock('../../../lib/api', () => ({
-  listUsersApiV1AdminUsersGet: (...args: unknown[]) => mocks.listUsersApiV1AdminUsersGet(...args),
-  createUserApiV1AdminUsersPost: (...args: unknown[]) => mocks.createUserApiV1AdminUsersPost(...args),
-  updateUserApiV1AdminUsersUserIdPut: (...args: unknown[]) => mocks.updateUserApiV1AdminUsersUserIdPut(...args),
-  deleteUserApiV1AdminUsersUserIdDelete: (...args: unknown[]) => mocks.deleteUserApiV1AdminUsersUserIdDelete(...args),
-  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: (...args: unknown[]) => mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet(...args),
-  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: (...args: unknown[]) => mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut(...args),
-  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: (...args: unknown[]) => mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost(...args),
-  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: (...args: unknown[]) => mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet(...args),
+  listUsersApiV1AdminUsersGet: mocks.listUsersApiV1AdminUsersGet,
+  createUserApiV1AdminUsersPost: mocks.createUserApiV1AdminUsersPost,
+  updateUserApiV1AdminUsersUserIdPut: mocks.updateUserApiV1AdminUsersUserIdPut,
+  deleteUserApiV1AdminUsersUserIdDelete: mocks.deleteUserApiV1AdminUsersUserIdDelete,
+  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
+  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
+  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -85,7 +82,6 @@ vi.mock('../../../lib/formatters', () => ({
   },
 }));
 
-// Mock @mateothegreat/svelte5-router
 vi.mock('@mateothegreat/svelte5-router', () => ({
   route: () => {},
   goto: vi.fn(),
@@ -109,7 +105,6 @@ async function renderWithUsers(users = createMockUsers(3)) {
 
 describe('AdminUsers', () => {
   beforeEach(() => {
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
     mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });

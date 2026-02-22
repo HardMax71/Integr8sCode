@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
-
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('List', 'Trash2'));
 
@@ -38,9 +36,6 @@ async function renderAndExpand(scripts: SavedScriptResponse[] = []) {
 }
 
 describe('SavedScripts', () => {
-  beforeEach(() => {
-    setupAnimationMock();
-  });
 
   it('renders collapsed with heading, toggle button, and scripts hidden', () => {
     renderScripts(createScripts(2));

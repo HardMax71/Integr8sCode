@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('AlertTriangle', 'X'));
@@ -43,7 +42,6 @@ function renderModal(overrides: Partial<{ preview: ReplayPreview | null; open: b
 
 describe('ReplayPreviewModal', () => {
   beforeEach(() => {
-    setupAnimationMock();
     vi.clearAllMocks();
   });
 

@@ -1,46 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, suppressConsoleError } from '$test/test-utils';
+import { suppressConsoleError } from '$test/test-utils';
 
-// vi.hoisted must contain self-contained code - cannot import external modules
-const mocks = vi.hoisted(() => {
-  return {
-    mockAuthStore: {
-      isAuthenticated: false as boolean | null,
-      username: null as string | null,
-      userRole: null as string | null,
-      userEmail: null as string | null,
-      userId: null as string | null,
-      csrfToken: null as string | null,
-      logout: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      login: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      verifyAuth: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      fetchUserProfile: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    },
-    mockThemeStore: {
-      value: 'auto' as string,
-    },
-    mockToggleTheme: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    mockGoto: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-  };
-});
+const mocks = vi.hoisted(() => ({
+  mockAuthStore: {
+    isAuthenticated: false as boolean | null,
+    username: null as string | null,
+    userRole: null as string | null,
+    userEmail: null as string | null,
+    userId: null as string | null,
+    csrfToken: null as string | null,
+    logout: vi.fn(),
+    login: vi.fn(),
+    verifyAuth: vi.fn(),
+    fetchUserProfile: vi.fn(),
+  },
+  mockThemeStore: {
+    value: 'auto' as string,
+  },
+  mockToggleTheme: vi.fn(),
+  mockGoto: vi.fn(),
+}));
 
-// Initialize vi.fn() mocks outside hoisted context
-mocks.mockAuthStore.logout = vi.fn();
-mocks.mockAuthStore.login = vi.fn();
-mocks.mockAuthStore.verifyAuth = vi.fn();
-mocks.mockAuthStore.fetchUserProfile = vi.fn();
-mocks.mockToggleTheme = vi.fn();
-mocks.mockGoto = vi.fn();
-
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: (...args: unknown[]) => (mocks.mockGoto as (...a: unknown[]) => unknown)(...args) }));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
 vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
-  get toggleTheme() { return () => (mocks.mockToggleTheme as () => unknown)(); },
+  get toggleTheme() { return mocks.mockToggleTheme; },
 }));
 vi.mock('../NotificationCenter.svelte', async () =>
   (await import('$test/test-utils')).createMockSvelteComponent(
@@ -75,7 +64,6 @@ describe('Header', () => {
   let originalInnerWidth: number;
 
   beforeEach(() => {
-    setupAnimationMock();
     setAuth(false);
     mocks.mockThemeStore.value = 'auto';
     mocks.mockAuthStore.logout.mockReset();

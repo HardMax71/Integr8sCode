@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { createMockEvent, createMockEvents } from '$routes/admin/__tests__/test-utils';
+import { createMockEvent, createMockEvents } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('Eye', 'Play', 'Trash2'));
@@ -71,8 +71,8 @@ describe('EventsTable', () => {
     expect(userButtons.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows "-" when user_id is null', () => {
-    const event = createMockEvent({ metadata: { user_id: null } });
+  it('shows "-" when user_id is absent', () => {
+    const event = createMockEvent({ metadata: { user_id: undefined } });
     renderTable([event]);
     const dashes = screen.getAllByText('-');
     expect(dashes.length).toBeGreaterThanOrEqual(1);

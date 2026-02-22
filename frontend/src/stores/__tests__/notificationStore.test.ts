@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock the API functions
 const mockGetNotifications = vi.fn();
 const mockMarkRead = vi.fn();
 const mockMarkAllRead = vi.fn();

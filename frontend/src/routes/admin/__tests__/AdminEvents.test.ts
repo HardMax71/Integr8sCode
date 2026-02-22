@@ -3,14 +3,13 @@ import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
 import {
-  mockElementAnimate,
   mockWindowGlobals,
   createMockEvent,
   createMockEvents,
   createMockStats,
   createMockEventDetail,
   createMockUserOverview,
-} from '$routes/admin/__tests__/test-utils';
+} from '$test/test-utils';
 
 // Hoisted mocks
 const mocks = vi.hoisted(() => ({
@@ -78,7 +77,6 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
 describe('AdminEvents', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockElementAnimate();
     mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
     vi.clearAllMocks();
     mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
@@ -165,7 +163,7 @@ describe('AdminEvents', () => {
   describe('event list rendering', () => {
     it('displays events in table', async () => {
       vi.useRealTimers();
-      const events = [createMockEvent({ event_type: 'execution.completed', metadata: { user_id: 'user-1', service_name: 'test-service' } })];
+      const events = [createMockEvent({ event_type: 'execution_completed', metadata: { user_id: 'user-1', service_name: 'test-service' } })];
       await renderWithEvents(events);
       // Events are displayed (multiple due to mobile + desktop views)
       expect(screen.getAllByText('test-service').length).toBeGreaterThan(0);

@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
-
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule(
     'MessageSquare', 'ChevronUp', 'ChevronDown', 'Cpu', 'MemoryStick', 'Clock',
@@ -20,9 +18,6 @@ const LIMITS = {
 };
 
 describe('ResourceLimits', () => {
-  beforeEach(() => {
-    setupAnimationMock();
-  });
 
   it('renders nothing when limits is null', () => {
     const { container } = render(ResourceLimits, { props: { limits: null } });

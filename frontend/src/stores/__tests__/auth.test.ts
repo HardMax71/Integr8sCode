@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { suppressConsoleError, suppressConsoleWarn } from '$test/test-utils';
 
-// Mock the API functions
 const mockLoginApi = vi.fn();
 const mockLogoutApi = vi.fn();
 const mockGetProfileApi = vi.fn();

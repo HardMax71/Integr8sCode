@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 function createMockLimits() {
   return {
@@ -120,7 +119,6 @@ describe('Editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    setupAnimationMock();
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.mockAuthStore.verifyAuth.mockResolvedValue(true);

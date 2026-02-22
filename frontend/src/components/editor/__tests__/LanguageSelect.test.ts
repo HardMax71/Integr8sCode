@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('ChevronDown', 'ChevronRight'));
@@ -30,7 +29,6 @@ async function openMenu() {
 
 describe('LanguageSelect', () => {
   beforeEach(() => {
-    setupAnimationMock();
   });
 
   describe('trigger button', () => {

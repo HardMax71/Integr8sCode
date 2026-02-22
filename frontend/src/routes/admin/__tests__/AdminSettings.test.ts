@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 function createMockSystemSettings() {
   return {
@@ -62,7 +61,6 @@ describe('AdminSettings', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockElementAnimate();
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.getSystemSettingsApiV1AdminSettingsGet.mockResolvedValue({
       data: createMockSystemSettings(),

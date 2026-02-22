@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockExecutionOverrides {
   execution_id?: string;
@@ -116,7 +115,6 @@ async function renderWithExecutions(
 describe('AdminExecutions', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
       data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },

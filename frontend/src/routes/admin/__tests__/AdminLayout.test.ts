@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
-
 const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
   mockGoto: vi.fn(),
@@ -33,7 +31,6 @@ vi.mock('@lucide/svelte', async () =>
 describe('AdminLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockElementAnimate();
     mocks.mockAuthStore.userRole = 'admin';
     mocks.mockAuthStore.username = 'adminuser';
   });

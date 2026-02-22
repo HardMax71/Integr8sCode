@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -85,7 +84,6 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
 describe('AdminSagas', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
     mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });

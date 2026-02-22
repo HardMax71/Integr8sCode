@@ -15,14 +15,12 @@ describe('theme store', () => {
   let localStorageData: Record<string, string> = {};
 
   beforeEach(async () => {
-    // Reset localStorage mock
     localStorageData = {};
     vi.mocked(localStorage.getItem).mockImplementation((key: string) => localStorageData[key] ?? null);
     vi.mocked(localStorage.setItem).mockImplementation((key: string, value: string) => {
       localStorageData[key] = value;
     });
 
-    // Reset document mock
     document.documentElement.classList.remove('dark');
 
     // Clear module cache to reset store state

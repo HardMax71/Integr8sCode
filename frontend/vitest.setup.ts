@@ -77,3 +77,27 @@ export function resetStorageMocks() {
   Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
   vi.clearAllMocks();
 }
+
+// Mock Element.prototype.animate for Svelte transitions (canonical global stub)
+Element.prototype.animate = vi.fn().mockImplementation(() => {
+  const mock = {
+    _onfinish: null as (() => void) | null,
+    get onfinish() { return this._onfinish; },
+    set onfinish(fn: (() => void) | null) {
+      this._onfinish = fn;
+      if (fn) setTimeout(fn, 0);
+    },
+    cancel: vi.fn(), finish: vi.fn(), pause: vi.fn(), play: vi.fn(), reverse: vi.fn(),
+    commitStyles: vi.fn(), persist: vi.fn(),
+    currentTime: 0, playbackRate: 1, pending: false,
+    playState: 'running' as AnimationPlayState,
+    replaceState: 'active' as AnimationReplaceState,
+    startTime: 0, timeline: null, id: '', effect: null,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true), updatePlaybackRate: vi.fn(),
+    get finished() { return Promise.resolve(this as unknown as Animation); },
+    get ready() { return Promise.resolve(this as unknown as Animation); },
+    oncancel: null, onremove: null,
+  };
+  return mock as unknown as Animation;
+});

@@ -7,7 +7,7 @@ dependencies = [
     "aiohappyeyeballs==2.6.1",
     "aiohttp==3.13.3",
     "aiosignal==1.4.0",
-    "aiosmtplib==3.0.2",
+    "aiosmtplib==5.1.0",
     "annotated-doc==0.0.4",
     "annotated-types==0.7.0",
     "anyio==4.12.1",

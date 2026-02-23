@@ -154,7 +154,6 @@ jobs:
             export GF_SMTP_HOST="$MAILJET_HOST"
             export GRAFANA_ALERT_RECIPIENTS="$GRAFANA_ALERT_RECIPIENTS"
             docker compose pull
-            docker compose --profile observability rm -f grafana || true
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"

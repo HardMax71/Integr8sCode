@@ -4,6 +4,7 @@ providers:
   - name: 'integr8scode'
     orgId: 1
     folder: 'Integr8sCode'
+    folderUid: 'integr8scode'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

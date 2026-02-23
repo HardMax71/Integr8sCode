@@ -1,3 +1,4 @@
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -69,7 +70,7 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
     event = make_execution_requested_event(execution_id="e1")
     event_json = event.model_dump_json()
 
-    script = AsyncMock(return_value=b"e1")
+    script = AsyncMock(return_value=[b"e1", str(time.time() - 1.5).encode(), 0])
     mock_redis.register_script = MagicMock(return_value=script)
     mock_redis.get = AsyncMock(return_value=event_json)
 

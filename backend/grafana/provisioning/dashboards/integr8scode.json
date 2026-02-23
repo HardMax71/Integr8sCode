@@ -531,7 +531,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "sum(execution_queue_depth)",
+          "expr": "sum(queue_depth)",
           "legendFormat": "Queue Depth",
           "refId": "A"
         }

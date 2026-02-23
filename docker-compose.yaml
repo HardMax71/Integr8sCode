@@ -157,6 +157,7 @@ services:
       - app-network
     environment:
       - BACKEND_URL=https://backend:443
+      - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
     mem_limit: 128m
     restart: unless-stopped
     healthcheck:
@@ -189,7 +190,7 @@ services:
         condition: service_started
     environment:
       - GF_LOG_LEVEL=warn
-      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
       - GF_SMTP_USER=${MAILJET_API_KEY:-}

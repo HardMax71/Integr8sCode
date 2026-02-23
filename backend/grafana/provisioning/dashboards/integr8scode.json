@@ -30,6 +30,31 @@
   ],
   "panels": [
     {
+      "type": "dashlist",
+      "title": "All Dashboards",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "showStarred": false,
+        "showRecentlyViewed": false,
+        "showSearch": true,
+        "showHeadings": false,
+        "showFolderNames": false,
+        "maxItems": 20,
+        "query": "",
+        "tags": [],
+        "includeVars": false,
+        "keepTime": true,
+        "folderId": null
+      },
+      "id": 100,
+      "pluginVersion": "12.3.1"
+    },
+    {
       "datasource": "Victoria Metrics",
       "description": "Total rate of script execution requests",
       "fieldConfig": {
@@ -62,7 +87,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 8
       },
       "id": 1,
       "options": {
@@ -125,7 +150,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -185,7 +210,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -245,7 +270,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 8
       },
       "id": 4,
       "options": {
@@ -326,7 +351,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 14
       },
       "id": 5,
       "options": {
@@ -409,7 +434,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 14
       },
       "id": 6,
       "options": {
@@ -511,7 +536,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 14
+        "y": 22
       },
       "id": 7,
       "options": {
@@ -593,7 +618,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 14
+        "y": 22
       },
       "id": 8,
       "options": {
@@ -657,7 +682,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 14
+        "y": 22
       },
       "id": 9,
       "options": {
@@ -723,7 +748,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 22
+        "y": 30
       },
       "id": 11,
       "options": {
@@ -785,7 +810,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 22
+        "y": 30
       },
       "id": 12,
       "options": {
@@ -848,7 +873,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 22
+        "y": 30
       },
       "id": 13,
       "options": {

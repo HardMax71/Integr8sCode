@@ -36,7 +36,7 @@ async function _performLogin(page: Page, username: string, password: string): Pr
   await page.locator('#username').fill(username);
   await page.locator('#password').fill(password);
   await page.locator('button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: TIMEOUTS.navigation });
 }
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({

@@ -85,7 +85,7 @@ Element.prototype.animate = vi.fn().mockImplementation(() => {
     get onfinish() { return this._onfinish; },
     set onfinish(fn: (() => void) | null) {
       this._onfinish = fn;
-      if (fn) setTimeout(fn, 0);
+      if (fn) queueMicrotask(fn);
     },
     cancel: vi.fn(), finish: vi.fn(), pause: vi.fn(), play: vi.fn(), reverse: vi.fn(),
     commitStyles: vi.fn(), persist: vi.fn(),

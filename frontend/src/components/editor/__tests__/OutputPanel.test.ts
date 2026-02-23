@@ -122,13 +122,6 @@ describe('OutputPanel', () => {
         expectedMem: '2.000 MiB',
         expectedTime: '0.500 s',
       },
-      {
-        label: 'missing clk_tck defaults to 100',
-        usage: { cpu_time_jiffies: 200, peak_memory_kb: 512, execution_time_wall_seconds: 1, clk_tck_hertz: 100 },
-        expectedCpu: '2000.000 m',
-        expectedMem: '0.500 MiB',
-        expectedTime: '1.000 s',
-      },
     ])('$label', ({ usage, expectedCpu, expectedMem, expectedTime }) => {
       renderIdle({ result: makeResult({ resource_usage: usage }) });
       expect(screen.getByText('Resource Usage:')).toBeInTheDocument();

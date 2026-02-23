@@ -4,14 +4,18 @@ import {
 } from '$lib/api';
 
 type NotificationCallback = (data: NotificationResponse) => void;
+type ErrorCallback = (err: unknown) => void;
 
 class NotificationStream {
     #abortController: AbortController | null = null;
 
-    connect(onNotification: NotificationCallback): void {
+    connect(onNotification: NotificationCallback, onError?: ErrorCallback): void {
         this.disconnect();
         this.#abortController = new AbortController();
-        void this.#start(onNotification).catch(() => {});
+        void this.#start(onNotification).catch((err: unknown) => {
+            console.error('[NotificationStream] connection failed:', err);
+            onError?.(err);
+        });
     }
 
     async #start(onNotification: NotificationCallback): Promise<void> {

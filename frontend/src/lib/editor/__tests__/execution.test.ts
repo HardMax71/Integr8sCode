@@ -80,7 +80,7 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockSseEvents({ event_type: 'result_stored' });
+            mockSseEvents({ event_type: 'result_stored', result: null });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');

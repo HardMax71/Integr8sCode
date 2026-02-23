@@ -133,7 +133,7 @@
 
     function openEditUserModal(user: UserResponse): void {
         editingUser = user;
-        userForm = { username: user.username, email: user.email || '', password: '', role: user.role ?? 'user', is_active: user.is_active !== false };
+        userForm = { username: user.username, email: user.email || '', password: '', role: user.role, is_active: user.is_active !== false };
         showUserModal = true;
     }
 

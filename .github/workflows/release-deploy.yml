@@ -154,19 +154,7 @@ jobs:
             export GF_SMTP_HOST="$MAILJET_HOST"
             export GRAFANA_ALERT_RECIPIENTS="$GRAFANA_ALERT_RECIPIENTS"
             docker compose pull
-            docker compose --profile observability rm -f grafana || true
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
-
-            FOLDER_UID=$(curl -sf -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
-              http://localhost:3000/api/folders | grep -o '"uid":"[^"]*"' | head -1 | cut -d'"' -f4)
-            if [ -n "$FOLDER_UID" ]; then
-              curl -sf -X POST \
-                -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
-                -H "Content-Type: application/json" \
-                http://localhost:3000/api/folders/$FOLDER_UID/permissions \
-                -d '{"items":[{"role":"Viewer","permission":1},{"role":"Editor","permission":2}]}'
-              echo "Grafana folder permissions set (uid=$FOLDER_UID)"
-            fi
 
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 

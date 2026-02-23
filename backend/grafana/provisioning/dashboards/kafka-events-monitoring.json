@@ -30,7 +30,7 @@
       "title": "System Overview",
       "tooltip": "View system overview dashboard",
       "type": "link",
-      "url": "/d/integr8scode-main"
+      "url": "/d/integr8scode"
     },
     {
       "asDropdown": false,

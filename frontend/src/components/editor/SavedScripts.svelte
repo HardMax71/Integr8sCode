@@ -23,7 +23,7 @@
 <div class="space-y-3">
     <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Saved Scripts</h4>
     <div>
-        <button class="btn btn-secondary-outline btn-sm w-full inline-flex items-center justify-center space-x-1.5"
+        <button type="button" class="btn btn-secondary-outline btn-sm w-full inline-flex items-center justify-center space-x-1.5"
                 onclick={toggle}
                 aria-expanded={show}
                 title={show ? "Hide Saved Scripts" : "Show Saved Scripts"}>
@@ -38,7 +38,7 @@
                     <ul class="divide-y divide-border-default dark:divide-dark-border-default">
                         {#each scripts as item (item.script_id)}
                             <li class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/50 text-sm group transition-colors duration-100">
-                                <button class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
+                                <button type="button" class="flex-grow text-left px-3 py-2 text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light font-medium min-w-0"
                                         onclick={() => onload(item)}
                                         title={`Load ${item.name} (${item.lang} ${item.lang_version})`}>
                                     <div class="flex flex-col min-w-0">
@@ -48,10 +48,10 @@
                                         </span>
                                     </div>
                                 </button>
-                                <button class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
+                                <button type="button" class="p-2 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-150 mr-1"
                                         onclick={(e) => { e.stopPropagation(); ondelete(item.script_id); }}
+                                        aria-label={`Delete ${item.name}`}
                                         title={`Delete ${item.name}`}>
-                                    <span class="sr-only">Delete</span>
                                     <Trash2 class="w-4 h-4" />
                                 </button>
                             </li>

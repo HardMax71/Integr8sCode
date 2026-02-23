@@ -8,13 +8,11 @@ test.describe('Home Page', () => {
   });
 
   test('displays hero section with main heading', async ({ page }) => {
-    await page.waitForSelector('h1');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Code, Run');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Integrate');
   });
 
   test('shows welcome message with product name', async ({ page }) => {
-    await page.waitForSelector('h1'); // Wait for hero to render
     await expect(page.getByText('Welcome to Integr8sCode')).toBeVisible();
     await expect(page.getByText('seamless online execution environment')).toBeVisible();
   });
@@ -55,7 +53,6 @@ test.describe('Home Page Header', () => {
   });
 
   test('shows login and register buttons when not authenticated', async ({ page }) => {
-    await page.waitForSelector('header'); // Wait for header to render
     await expect(page.locator('header').getByRole('link', { name: 'Login' })).toBeVisible();
     await expect(page.locator('header').getByRole('link', { name: 'Register' })).toBeVisible();
   });
@@ -72,10 +69,10 @@ test.describe('Home Page Navigation', () => {
     await page.waitForLoadState('domcontentloaded');
   });
 
-  test('clicking CTA navigates to login or editor', async ({ page }) => {
+  test('clicking CTA navigates to login when unauthenticated', async ({ page }) => {
     await expect(page.getByRole('link', { name: 'Start Coding Now' })).toBeVisible();
     await page.getByRole('link', { name: 'Start Coding Now' }).click();
-    await expect(page).toHaveURL(/\/login|\/editor/);
+    await expect(page).toHaveURL(/\/login/);
   });
 
   test('can navigate to login from header', async ({ page }) => {

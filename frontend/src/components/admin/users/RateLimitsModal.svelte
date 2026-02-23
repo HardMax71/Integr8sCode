@@ -121,7 +121,7 @@
                 <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Endpoint Rate Limits</h4>
-                        <button
+                        <button type="button"
                             onclick={addNewRule}
                             class="btn btn-sm btn-primary flex items-center gap-1"
                             disabled={config.bypass_rate_limit}
@@ -223,7 +223,7 @@
                                                 />
                                                 <span class="text-xs font-medium">{rule.enabled ? 'Enabled' : 'Disabled'}</span>
                                             </label>
-                                            <button
+                                            <button type="button"
                                                 onclick={() => removeRule(index)}
                                                 class="text-red-600 hover:text-red-800 dark:text-red-400 p-1"
                                                 disabled={config.bypass_rate_limit}
@@ -244,7 +244,7 @@
                     <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-3">
                             <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Current Usage</h4>
-                            <button onclick={onReset} class="btn btn-sm btn-secondary">Reset All Counters</button>
+                            <button type="button" onclick={onReset} class="btn btn-sm btn-secondary">Reset All Counters</button>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {#each Object.entries(usage) as [endpoint, usageData]}
@@ -263,8 +263,8 @@
                 {/if}
             </div>
             <div class="flex gap-3 justify-end mt-6">
-                <button onclick={onClose} class="btn btn-secondary" disabled={saving}>Cancel</button>
-                <button onclick={onSave} class="btn btn-primary flex items-center gap-2" disabled={saving || loading}>
+                <button type="button" onclick={onClose} class="btn btn-secondary" disabled={saving}>Cancel</button>
+                <button type="button" onclick={onSave} class="btn btn-primary flex items-center gap-2" disabled={saving || loading}>
                     {#if saving}
                         <Spinner size="small" />Saving...
                     {:else}

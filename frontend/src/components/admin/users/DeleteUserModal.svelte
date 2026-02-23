@@ -55,8 +55,8 @@
                 </div>
             {/if}
             <div class="flex gap-3 justify-end">
-                <button onclick={onClose} class="btn btn-secondary" disabled={deleting}>Cancel</button>
-                <button onclick={onDelete} class="btn btn-danger flex items-center gap-2" disabled={deleting}>
+                <button type="button" onclick={onClose} class="btn btn-secondary" disabled={deleting}>Cancel</button>
+                <button type="button" onclick={onDelete} class="btn btn-danger flex items-center gap-2" disabled={deleting}>
                     {#if deleting}
                         <Spinner size="small" />Deleting...
                     {:else}

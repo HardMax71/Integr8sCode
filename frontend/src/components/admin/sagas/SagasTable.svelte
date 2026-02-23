@@ -55,13 +55,13 @@
                         {/if}
                     </div>
                     <div class="flex gap-2">
-                        <button
+                        <button type="button"
                             onclick={() => onViewExecution(saga.execution_id)}
                             class="flex-1 btn btn-sm btn-secondary-outline"
                         >
                             Execution
                         </button>
-                        <button
+                        <button type="button"
                             onclick={() => onViewDetails(saga.saga_id)}
                             class="flex-1 btn btn-sm btn-primary"
                         >
@@ -92,7 +92,7 @@
                             <td class="table-cell">
                                 <div class="font-medium">{saga.saga_name}</div>
                                 <div class="text-sm text-fg-muted">ID: {saga.saga_id.slice(0, 8)}...</div>
-                                <button
+                                <button type="button"
                                     onclick={() => onViewExecution(saga.execution_id)}
                                     class="text-xs text-primary hover:text-primary-dark"
                                 >
@@ -118,7 +118,7 @@
                                 {formatDurationBetween(saga.created_at, saga.completed_at || saga.updated_at)}
                             </td>
                             <td class="table-cell text-center">
-                                <button
+                                <button type="button"
                                     onclick={() => onViewDetails(saga.saga_id)}
                                     class="text-primary hover:text-primary-dark"
                                 >

@@ -16,7 +16,7 @@ test.describe('Editor Page', () => {
 
   test('shows language selector with available languages', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const languageButton = userPage.locator('button[aria-haspopup="menu"]').first();
+    const languageButton = userPage.getByRole('button', { name: 'Select language and version' });
     await expect(languageButton).toBeVisible();
     await languageButton.click();
     await expect(userPage.getByRole('menu', { name: 'Select language and version' })).toBeVisible();
@@ -24,7 +24,7 @@ test.describe('Editor Page', () => {
 
   test('can select different language', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const languageButton = userPage.locator('button[aria-haspopup="menu"]').first();
+    const languageButton = userPage.getByRole('button', { name: 'Select language and version' });
     await languageButton.click();
     const pythonButton = userPage.getByRole('menuitem', { name: /python/i });
     await expect(pythonButton).toBeVisible();
@@ -79,8 +79,8 @@ test.describe('Editor Execution', () => {
   test('shows execution output on successful run', async ({ userPage }) => {
     await userPage.goto(PATH);
     const result = await runExampleAndExecute(userPage);
-    await expect(userPage.locator('text=Output:').first()).toBeVisible({ timeout: 5000 });
-    await expect(userPage.locator('.output-pre').first()).toContainText('Hello from a Python');
+    await expect(userPage.getByText('Output:', { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(userPage.getByTestId('output-pre').first()).toContainText('Hello from a Python');
     expect(result.stdout ?? '').toContain('Hello from a Python');
   });
 
@@ -136,7 +136,7 @@ test.describe('Editor Script Management', () => {
     // Expand the saved scripts list to find the saved script
     await expandSavedScripts(userPage);
 
-    const savedScript = userPage.locator(`text="${scriptName}"`).first();
+    const savedScript = userPage.getByText(scriptName, { exact: true }).first();
     await expect(savedScript).toBeVisible({ timeout: 3000 });
     await savedScript.click();
     await expectToastVisible(userPage);
@@ -151,9 +151,9 @@ test.describe('Editor Script Management', () => {
     // Expand the saved scripts list to find the saved script
     await expandSavedScripts(userPage);
 
-    const scriptRow = userPage.locator(`text="${scriptName}"`).first();
+    const scriptRow = userPage.getByText(scriptName, { exact: true }).first();
     await expect(scriptRow).toBeVisible({ timeout: 3000 });
-    const deleteBtn = userPage.locator(`button[title="Delete ${scriptName}"]`);
+    const deleteBtn = userPage.getByRole('button', { name: `Delete ${scriptName}` });
     await expect(deleteBtn).toBeVisible({ timeout: 2000 });
     userPage.on('dialog', dialog => dialog.accept());
     await deleteBtn.click();

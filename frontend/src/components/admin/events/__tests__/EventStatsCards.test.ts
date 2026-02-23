@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { createMockStats } from '$routes/admin/__tests__/test-utils';
+import { createMockStats } from '$test/test-utils';
 
 import EventStatsCards from '../EventStatsCards.svelte';
 
@@ -51,9 +51,9 @@ describe('EventStatsCards', () => {
   it('shows active user count from top_users array length', () => {
     renderCards(createMockStats({
       top_users: [
-        { user_id: 'u1', count: 10 },
-        { user_id: 'u2', count: 5 },
-        { user_id: 'u3', count: 2 },
+        { user_id: 'u1', event_count: 10 },
+        { user_id: 'u2', event_count: 5 },
+        { user_id: 'u3', event_count: 2 },
       ],
     }));
     expect(screen.getByText('3')).toBeInTheDocument();

@@ -83,7 +83,7 @@
 
                     {#if result.execution_id}
                         <div class="relative group">
-                            <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
+                            <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer"
                                     aria-label="Click to copy execution ID"
                                     onclick={() => copyToClipboard(result!.execution_id, 'Execution ID')}>
                                 <FileText class="w-4 h-4" />
@@ -99,9 +99,9 @@
                     <div class="output-section">
                         <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">Output:</h4>
                         <div class="relative">
-                            <pre class="output-pre custom-scrollbar">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
+                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
                             <div class="absolute bottom-2 right-2 group">
-                                <button class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy output to clipboard"
                                         onclick={() => copyToClipboard(result!.stdout!, 'Output')}>
                                     <Copy class="w-4 h-4" />
@@ -122,7 +122,7 @@
                                 <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(ansiConverter.toHtml(result.stderr || ''))}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">
-                                <button class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
+                                <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy error text to clipboard"
                                         onclick={() => copyToClipboard(result!.stderr!, 'Error text')}>
                                     <Copy class="w-4 h-4" />
@@ -136,7 +136,7 @@
                 {/if}
 
                 {#if result.resource_usage}
-                    {@const clkTck = result.resource_usage.clk_tck_hertz ?? 100}
+                    {@const clkTck = result.resource_usage.clk_tck_hertz}
                     {@const cpuMs = result.resource_usage.cpu_time_jiffies * 1000 / clkTck}
                     <div class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1">
                         <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">Resource Usage:</h4>

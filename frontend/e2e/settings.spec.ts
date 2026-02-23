@@ -173,9 +173,9 @@ test.describe('Settings Access Control', () => {
     await clearSession(page);
     await page.goto(PATH);
     await expect(page).toHaveURL(/\/login/);
-    await page.fill('#username', TEST_USERS.user.username);
-    await page.fill('#password', TEST_USERS.user.password);
-    await page.click('button[type="submit"]');
+    await page.locator('#username').fill(TEST_USERS.user.username);
+    await page.locator('#password').fill(TEST_USERS.user.password);
+    await page.locator('button[type="submit"]').click();
     await expect(page.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible({ timeout: 10000 });
   });
 });

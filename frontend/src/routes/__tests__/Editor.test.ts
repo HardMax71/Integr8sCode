@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 function createMockLimits() {
   return {
@@ -70,8 +69,8 @@ vi.mock('svelte-sonner', async () =>
   (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
-  unwrap: (...args: unknown[]) => mocks.mockUnwrap(...args),
-  unwrapOr: (...args: unknown[]) => mocks.mockUnwrapOr(...args),
+  unwrap: (...args: unknown[]) => (mocks.mockUnwrap as (...a: unknown[]) => unknown)(...args),
+  unwrapOr: (...args: unknown[]) => (mocks.mockUnwrapOr as (...a: unknown[]) => unknown)(...args),
 }));
 
 vi.mock('$utils/meta', async () =>
@@ -120,7 +119,6 @@ describe('Editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    setupAnimationMock();
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.mockAuthStore.verifyAuth.mockResolvedValue(true);

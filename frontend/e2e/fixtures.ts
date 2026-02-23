@@ -9,6 +9,16 @@ export const TEST_USERS = {
   admin: { username: 'admin', password: 'admin123' },
 } as const;
 
+export const TIMEOUTS = {
+  toast: 5_000,
+  navigation: 10_000,
+  adminTable: 15_000,
+  executionStart: 5_000,
+  executionComplete: 45_000,
+  executionStatus: 10_000,
+  coverageLoad: 2_000,
+} as const;
+
 // Worker-scoped fixtures: authenticate ONCE per worker, reuse context for all tests
 type WorkerFixtures = {
   userContext: BrowserContext;
@@ -20,6 +30,14 @@ type TestFixtures = {
   adminPage: Page;
   page: Page;
 };
+
+async function _performLogin(page: Page, username: string, password: string): Promise<void> {
+  await page.goto('/login');
+  await page.locator('#username').fill(username);
+  await page.locator('#password').fill(password);
+  await page.locator('button[type="submit"]').click();
+  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: TIMEOUTS.navigation });
+}
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   // Override default page fixture to collect coverage
@@ -39,11 +57,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   userContext: [async ({ browser }, use) => {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    await page.goto('/login');
-    await page.locator('#username').fill(TEST_USERS.user.username);
-    await page.locator('#password').fill(TEST_USERS.user.password);
-    await page.locator('button[type="submit"]').click();
-    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+    await _performLogin(page, TEST_USERS.user.username, TEST_USERS.user.password);
     await page.close();
     await use(context);
     await context.close();
@@ -52,11 +66,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   adminContext: [async ({ browser }, use) => {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    await page.goto('/login');
-    await page.locator('#username').fill(TEST_USERS.admin.username);
-    await page.locator('#password').fill(TEST_USERS.admin.password);
-    await page.locator('button[type="submit"]').click();
-    await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+    await _performLogin(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
     await page.close();
     await use(context);
     await context.close();
@@ -94,19 +104,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
 // Helper functions using the default page (for tests that don't need pre-auth)
 export async function loginAsUser(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.locator('#username').fill(TEST_USERS.user.username);
-  await page.locator('#password').fill(TEST_USERS.user.password);
-  await page.locator('button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+  await _performLogin(page, TEST_USERS.user.username, TEST_USERS.user.password);
 }
 
 export async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.locator('#username').fill(TEST_USERS.admin.username);
-  await page.locator('#password').fill(TEST_USERS.admin.password);
-  await page.locator('button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
+  await _performLogin(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
 }
 
 export async function clearSession(page: Page): Promise<void> {
@@ -136,7 +138,7 @@ export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<
 }
 
 export async function expectAdminSidebar(page: Page): Promise<void> {
-  await expect(page.getByText('Admin Panel')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText('Admin Panel')).toBeVisible({ timeout: TIMEOUTS.navigation });
   for (const route of ADMIN_ROUTES) {
     await expect(page.getByRole('link', { name: route.sidebarLabel })).toBeVisible();
   }
@@ -146,7 +148,7 @@ export async function expectActiveNavLink(page: Page, linkName: string): Promise
   await expect(page.getByRole('link', { name: linkName })).toHaveClass(/bg-primary/);
 }
 
-export async function expectToastVisible(page: Page, timeout = 5000): Promise<void> {
+export async function expectToastVisible(page: Page, timeout = TIMEOUTS.toast): Promise<void> {
   // svelte-sonner uses data-sonner-toast attribute
   await expect(page.locator('[data-sonner-toast]').first()).toBeVisible({ timeout });
 }
@@ -162,7 +164,7 @@ export async function expectRedirectToHome(page: Page): Promise<void> {
 export async function expectTableOrEmptyState(
   page: Page,
   emptyTextPattern: RegExp,
-  timeout = 10000
+  timeout = TIMEOUTS.navigation
 ): Promise<boolean> {
   const tableRow = page.locator('table tbody tr').first();
   const emptyState = page.getByText(emptyTextPattern).first();
@@ -179,7 +181,7 @@ export async function expectTableColumn(page: Page, columnName: string, emptyPat
 
 const TERMINAL_EXEC_STATUSES = new Set(['completed', 'failed', 'timeout', 'cancelled', 'error']);
 
-async function waitForExecutionResult(page: Page, executionId: string, timeoutMs = 45000): Promise<ExecutionResult> {
+async function waitForExecutionResult(page: Page, executionId: string, timeoutMs = TIMEOUTS.executionComplete): Promise<ExecutionResult> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -205,7 +207,7 @@ async function waitForExecutionResult(page: Page, executionId: string, timeoutMs
 
 export async function runExampleAndExecute(page: Page): Promise<ExecutionResult> {
   await page.getByRole('button', { name: 'Example', exact: true }).click();
-  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 2000 });
+  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: TIMEOUTS.coverageLoad });
 
   const executeResponsePromise = page.waitForResponse((response) =>
     response.request().method() === 'POST' && response.url().includes('/api/v1/execute')
@@ -217,12 +219,12 @@ export async function runExampleAndExecute(page: Page): Promise<ExecutionResult>
   const executeBody = await executeResponse.json() as { execution_id: string; status: string };
   expect(executeBody.execution_id).toBeTruthy();
 
-  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: 5000 });
-  const success = page.locator('text=Status:').first();
+  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: TIMEOUTS.executionStart });
+  const success = page.getByText(/Status:/).first();
   const failure = page.getByText('Execution Failed');
   // K8s pod creation + execution can take 20-30s in CI
-  await expect(success.or(failure).first()).toBeVisible({ timeout: 45000 });
-  await expect(page.getByText(/Status:\s*completed/i).first()).toBeVisible({ timeout: 10000 });
+  await expect(success.or(failure).first()).toBeVisible({ timeout: TIMEOUTS.executionComplete });
+  await expect(page.getByText(/Status:\s*completed/i).first()).toBeVisible({ timeout: TIMEOUTS.executionStatus });
 
   const result = await waitForExecutionResult(page, executeBody.execution_id);
   expect(result.status).toBe('completed');
@@ -290,7 +292,7 @@ export function describeAdminCommonTests(testFn: typeof base, path: AdminPath): 
 
   testFn('displays page with header', async ({ adminPage }) => {
     await adminPage.goto(path);
-    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: 10000 });
+    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: TIMEOUTS.navigation });
   });
 
   testFn('shows admin sidebar navigation', async ({ adminPage }) => {

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { setupAnimationMock } from '$test/test-utils';
-import { createMockUserOverview } from '$routes/admin/__tests__/test-utils';
+import { createMockUserOverview } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('X'));
@@ -12,17 +11,16 @@ vi.mock('$components/EventTypeIcon.svelte', async () =>
 
 import UserOverviewModal from '../UserOverviewModal.svelte';
 
-type UserOverview = ReturnType<typeof createMockUserOverview>;
-
 function renderModal(overrides: Partial<{
-  overview: UserOverview | null;
+  overview: ReturnType<typeof createMockUserOverview> | null;
   loading: boolean;
   open: boolean;
 }> = {}) {
   const onClose = vi.fn();
+  const overview = ('overview' in overrides ? overrides.overview : createMockUserOverview()) ?? null;
   const result = render(UserOverviewModal, {
     props: {
-      overview: 'overview' in overrides ? overrides.overview : createMockUserOverview(),
+      overview,
       loading: overrides.loading ?? false,
       open: overrides.open ?? true,
       onClose,
@@ -33,7 +31,6 @@ function renderModal(overrides: Partial<{
 
 describe('UserOverviewModal', () => {
   beforeEach(() => {
-    setupAnimationMock();
     vi.clearAllMocks();
   });
 

@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { setupAnimationMock } from '$test/test-utils';
-
 const mocks = vi.hoisted(() => ({
   mockUpdateMetaTags: vi.fn(),
 }));
@@ -19,7 +17,6 @@ vi.mock('@lucide/svelte', async () =>
 describe('Home', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setupAnimationMock();
   });
 
   async function renderHome() {

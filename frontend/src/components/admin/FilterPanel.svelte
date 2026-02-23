@@ -33,7 +33,7 @@
 </script>
 
 {#if showToggleButton}
-    <button
+    <button type="button"
         onclick={handleToggle}
         class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
         class:btn-primary={open}
@@ -64,12 +64,12 @@
                 </h3>
                 <div class="flex gap-2">
                     {#if onClear}
-                        <button onclick={onClear} class="btn btn-ghost btn-sm">
+                        <button type="button" onclick={onClear} class="btn btn-ghost btn-sm">
                             Clear All
                         </button>
                     {/if}
                     {#if onApply}
-                        <button onclick={onApply} class="btn btn-primary btn-sm">
+                        <button type="button" onclick={onApply} class="btn btn-primary btn-sm">
                             Apply
                         </button>
                     {/if}

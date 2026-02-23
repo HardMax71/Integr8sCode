@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
-
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('List', 'Trash2'));
 
@@ -16,6 +14,7 @@ function createScripts(count: number): SavedScriptResponse[] {
     script: `print("hello ${i + 1}")`,
     lang: 'python',
     lang_version: '3.11',
+    description: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }));
@@ -37,9 +36,6 @@ async function renderAndExpand(scripts: SavedScriptResponse[] = []) {
 }
 
 describe('SavedScripts', () => {
-  beforeEach(() => {
-    setupAnimationMock();
-  });
 
   it('renders collapsed with heading, toggle button, and scripts hidden', () => {
     renderScripts(createScripts(2));
@@ -76,7 +72,7 @@ describe('SavedScripts', () => {
     { lang: 'go', lang_version: '1.21', expected: 'go 1.21' },
     { lang: 'python', lang_version: '3.12', expected: 'python 3.12' },
   ])('displays "$expected" for lang=$lang version=$lang_version', async ({ lang, lang_version, expected }) => {
-    await renderAndExpand([{ script_id: '1', name: 'Test', script: 'x', lang, lang_version, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
+    await renderAndExpand([{ script_id: '1', name: 'Test', script: 'x', lang, lang_version, description: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
@@ -98,7 +94,7 @@ describe('SavedScripts', () => {
   });
 
   it('renders load button title with lang info', async () => {
-    await renderAndExpand([{ script_id: '1', name: 'Go App', script: 'x', lang: 'go', lang_version: '1.21', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
+    await renderAndExpand([{ script_id: '1', name: 'Go App', script: 'x', lang: 'go', lang_version: '1.21', description: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
     expect(screen.getByTitle('Load Go App (go 1.21)')).toBeInTheDocument();
   });
 });

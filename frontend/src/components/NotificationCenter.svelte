@@ -102,7 +102,7 @@
 </script>
 
 <div class="relative z-40">
-    <button
+    <button type="button"
         onclick={toggleDropdown}
         class="btn btn-ghost btn-icon relative"
         aria-label="Notifications"
@@ -124,7 +124,7 @@
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
                     {#if notificationStore.unreadCount > 0}
-                        <button
+                        <button type="button"
                             onclick={markAllAsRead}
                             class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                         >
@@ -133,7 +133,7 @@
                     {/if}
                 </div>
                 {#if notificationPermission === 'default'}
-                    <button
+                    <button type="button"
                         onclick={requestNotificationPermission}
                         class="mt-2 w-full text-xs text-fg-muted dark:text-dark-fg-muted hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1"
                     >
@@ -212,7 +212,7 @@
             </div>
 
             <div class="p-3 border-t border-border-default dark:border-dark-border-default">
-                <button
+                <button type="button"
                     onclick={() => {
                         showDropdown = false;
                         goto('/notifications');

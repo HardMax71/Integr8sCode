@@ -52,7 +52,7 @@
     <div class="modal-container {sizeClasses[size]}">
       <div class="modal-header">
         <h2 id="modal-title" class="modal-title">{title}</h2>
-        <button onclick={onClose} class="modal-close" aria-label="Close modal">
+        <button type="button" onclick={onClose} class="modal-close" aria-label="Close modal">
           <X size={24} />
         </button>
       </div>

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -85,7 +84,6 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
 describe('AdminSagas', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
     mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });
@@ -121,13 +119,13 @@ describe('AdminSagas', () => {
     it('displays saga data in table', async () => {
       const sagas = [createMockSaga({ saga_name: 'test_saga', state: 'running' })];
       await renderWithSagas(sagas);
-      expect(screen.getAllByText('test_saga').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('test_saga')).toHaveLength(2);
     });
 
     it('displays multiple sagas', async () => {
       const sagas = createMockSagas(3);
       await renderWithSagas(sagas);
-      expect(screen.getAllByText(/saga-1/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/saga-1/)).toHaveLength(2);
     });
 
     it('shows state badges with correct labels', async () => {
@@ -137,6 +135,7 @@ describe('AdminSagas', () => {
         createMockSaga({ saga_id: 's3', state: 'running' }),
       ];
       await renderWithSagas(sagas);
+      // State labels appear in both table rows and stats cards
       expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Running').length).toBeGreaterThan(0);
@@ -229,7 +228,7 @@ describe('AdminSagas', () => {
       await user.type(searchInput, 'alpha');
 
       await waitFor(() => {
-        expect(screen.getAllByText('alpha_saga').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('alpha_saga')).toHaveLength(2);
       });
     });
 
@@ -280,8 +279,8 @@ describe('AdminSagas', () => {
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
 
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
+      await user.click(viewBtn!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       expect(screen.getByText('Saga Details')).toBeInTheDocument();
@@ -299,8 +298,8 @@ describe('AdminSagas', () => {
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
 
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
+      await user.click(viewBtn!);
 
       await waitFor(() => {
         expect(screen.getByText('saga-detail-test')).toBeInTheDocument();
@@ -316,8 +315,8 @@ describe('AdminSagas', () => {
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
 
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
+      await user.click(viewBtn!);
 
       await waitFor(() => {
         expect(screen.getByText(/pod creation failed/i)).toBeInTheDocument();
@@ -330,8 +329,8 @@ describe('AdminSagas', () => {
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
 
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
+      await user.click(viewBtn!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByLabelText(/close modal/i));
@@ -352,8 +351,8 @@ describe('AdminSagas', () => {
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
 
-      const viewButtons = screen.getAllByText(/view details/i);
-      await user.click(viewButtons[0]);
+      const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
+      await user.click(viewBtn!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
       expect(screen.getByText('release_resources')).toBeInTheDocument();
@@ -370,14 +369,11 @@ describe('AdminSagas', () => {
       });
       await renderWithSagas([createMockSaga({ execution_id: 'exec-target' })]);
 
-      const execButtons = screen.getAllByText(/execution/i);
-      const clickableButton = execButtons.find(el => el.tagName === 'BUTTON');
-      if (clickableButton) {
-        await user.click(clickableButton);
-        await waitFor(() => {
-          expect(mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet).toHaveBeenCalled();
-        });
-      }
+      const [execButton] = screen.getAllByRole('button', { name: /execution/i });
+      await user.click(execButton!);
+      await waitFor(() => {
+        expect(mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet).toHaveBeenCalled();
+      });
     });
   });
 

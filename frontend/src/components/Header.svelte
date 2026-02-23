@@ -94,7 +94,7 @@
       </div>
 
       <div class="flex items-center space-x-3">
-        <button onclick={toggleTheme} title="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
+        <button type="button" onclick={toggleTheme} title="Toggle theme" aria-label="Toggle theme" class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
           {#if themeStore.value === 'light'}
             <Sun class="w-5 h-5" />
           {:else if themeStore.value === 'dark'}
@@ -109,8 +109,9 @@
             <NotificationCenter />
             <!-- User dropdown for all authenticated users -->
             <div class="relative user-dropdown-container">
-              <button
+              <button type="button"
                 onclick={(e) => { e.stopPropagation(); showUserDropdown = !showUserDropdown; }}
+                aria-label="User menu"
                 class="flex items-center space-x-2 btn btn-ghost btn-sm"
               >
                 <div class="flex items-center space-x-2">
@@ -148,7 +149,7 @@
                     </div>
                     <div class="mt-3 flex flex-col sm:flex-row gap-2">
                       {#if authStore.userRole === 'admin'}
-                        <button
+                        <button type="button"
                           onclick={() => {
                             showUserDropdown = false;
                             goto('/admin/events');
@@ -166,7 +167,7 @@
                       >
                         Settings
                       </a>
-                      <button
+                      <button type="button"
                         onclick={handleLogout}
                         class="btn btn-danger-outline btn-sm flex-1"
                       >
@@ -188,7 +189,7 @@
         </div>
 
         <div class="block lg:hidden">
-          <button onclick={toggleMenu} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
+          <button type="button" onclick={toggleMenu} aria-label={isMenuActive ? 'Close menu' : 'Open menu'} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
             {#if isMenuActive}
               <X class="h-5 w-5" />
             {:else}
@@ -225,7 +226,7 @@
             <a href="/settings" use:route onclick={closeMenu} class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700">
               Settings
             </a>
-            <button onclick={handleLogout} class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300 flex items-center">
+            <button type="button" onclick={handleLogout} class="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-800 dark:hover:text-red-300 flex items-center">
               <LogOut class="w-5 h-5 mr-2 -ml-1" /> Logout
             </button>
           {:else}

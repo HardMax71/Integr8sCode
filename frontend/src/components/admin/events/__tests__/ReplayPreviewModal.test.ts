@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('AlertTriangle', 'X'));
@@ -34,15 +33,15 @@ function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
 function renderModal(overrides: Partial<{ preview: ReplayPreview | null; open: boolean }> = {}) {
   const onClose = vi.fn();
   const onConfirm = vi.fn();
-  const preview = 'preview' in overrides ? overrides.preview : makePreview();
+  const preview = ('preview' in overrides ? overrides.preview : makePreview()) ?? null;
   const open = overrides.open ?? true;
-  const result = render(ReplayPreviewModal, { props: { preview, open, onClose, onConfirm } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = render(ReplayPreviewModal, { props: { preview: preview as any, open, onClose, onConfirm } });
   return { ...result, onClose, onConfirm };
 }
 
 describe('ReplayPreviewModal', () => {
   beforeEach(() => {
-    setupAnimationMock();
     vi.clearAllMocks();
   });
 

@@ -49,12 +49,16 @@
     let selectedLang = $state(loadFromStorage('selectedLang', 'python'));
     let selectedVersion = $state(loadFromStorage('selectedVersion', '3.11'));
 
-    // Persist to localStorage
-    $effect(() => { localStorage.setItem('script', JSON.stringify(script)); });
-    $effect(() => { localStorage.setItem('scriptName', JSON.stringify(scriptName)); });
-    $effect(() => { localStorage.setItem('currentScriptId', JSON.stringify(currentScriptId)); });
-    $effect(() => { localStorage.setItem('selectedLang', JSON.stringify(selectedLang)); });
-    $effect(() => { localStorage.setItem('selectedVersion', JSON.stringify(selectedVersion)); });
+    // Persist to localStorage (debounced to avoid serializing on every keystroke)
+    $effect(() => {
+        const snapshot = { script, scriptName, currentScriptId, selectedLang, selectedVersion };
+        const timer = setTimeout(() => {
+            for (const [key, value] of Object.entries(snapshot)) {
+                localStorage.setItem(key, JSON.stringify(value));
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    });
 
     // State
     let prevAuth = false;
@@ -102,7 +106,10 @@
 
         await authStore.verifyAuth();
 
-        const { data: limitsData } = await getK8sResourceLimitsApiV1K8sLimitsGet({});
+        const [{ data: limitsData }, { data: examplesData }] = await Promise.all([
+            getK8sResourceLimitsApiV1K8sLimitsGet({}),
+            getExampleScriptsApiV1ExampleScriptsGet({}),
+        ]);
         k8sLimits = limitsData ?? null;
         supportedRuntimes = k8sLimits?.supported_runtimes || {};
         const info = supportedRuntimes[selectedLang];
@@ -113,8 +120,6 @@
                 selectedVersion = supportedRuntimes[first]!.versions[0] ?? '';
             }
         }
-
-        const { data: examplesData } = await getExampleScriptsApiV1ExampleScriptsGet({});
         exampleScripts = examplesData?.scripts || {};
 
         if (authenticated) await loadSavedScripts();
@@ -279,7 +284,7 @@
                 <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none">
                     <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">Start typing, upload a file, or use an example to begin.</p>
-                    <button class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto" onclick={loadExampleScript}>
+                    <button type="button" class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto" onclick={loadExampleScript}>
                         <Lightbulb class="w-4 h-4" />
                         <span>Start with an Example</span>
                     </button>
@@ -301,12 +306,12 @@
                     version={selectedVersion}
                     onselect={(l, v) => { selectedLang = l; selectedVersion = v; }}
                 />
-                <button class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={handleExecute}
+                <button type="button" class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={handleExecute}
                         disabled={execution.isExecuting || !runtimesAvailable}>
                     <CirclePlay class="w-5 h-5" />
                     <span class="ml-1.5">{execution.isExecuting ? 'Executing...' : 'Run Script'}</span>
                 </button>
-                <button class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
+                <button type="button" class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
                         onclick={() => showOptions = !showOptions}
                         aria-expanded={showOptions}
                         title={showOptions ? 'Hide Options' : 'Show Options'}>

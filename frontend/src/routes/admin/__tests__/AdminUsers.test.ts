@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
+import { render, screen, waitFor, cleanup, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockUserOverrides {
   user_id?: string;
@@ -42,7 +41,6 @@ const createMockUsers = (count: number) =>
     is_disabled: i % 3 === 0,
   }));
 
-// Hoisted mocks - must be self-contained
 const mocks = vi.hoisted(() => ({
   listUsersApiV1AdminUsersGet: vi.fn(),
   createUserApiV1AdminUsersPost: vi.fn(),
@@ -55,16 +53,15 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
 }));
 
-// Mock API module
 vi.mock('../../../lib/api', () => ({
-  listUsersApiV1AdminUsersGet: (...args: unknown[]) => mocks.listUsersApiV1AdminUsersGet(...args),
-  createUserApiV1AdminUsersPost: (...args: unknown[]) => mocks.createUserApiV1AdminUsersPost(...args),
-  updateUserApiV1AdminUsersUserIdPut: (...args: unknown[]) => mocks.updateUserApiV1AdminUsersUserIdPut(...args),
-  deleteUserApiV1AdminUsersUserIdDelete: (...args: unknown[]) => mocks.deleteUserApiV1AdminUsersUserIdDelete(...args),
-  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: (...args: unknown[]) => mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet(...args),
-  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: (...args: unknown[]) => mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut(...args),
-  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: (...args: unknown[]) => mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost(...args),
-  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: (...args: unknown[]) => mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet(...args),
+  listUsersApiV1AdminUsersGet: mocks.listUsersApiV1AdminUsersGet,
+  createUserApiV1AdminUsersPost: mocks.createUserApiV1AdminUsersPost,
+  updateUserApiV1AdminUsersUserIdPut: mocks.updateUserApiV1AdminUsersUserIdPut,
+  deleteUserApiV1AdminUsersUserIdDelete: mocks.deleteUserApiV1AdminUsersUserIdDelete,
+  getUserRateLimitsApiV1AdminRateLimitsUserIdGet: mocks.getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
+  updateUserRateLimitsApiV1AdminRateLimitsUserIdPut: mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
+  resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost: mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
+  getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -85,7 +82,6 @@ vi.mock('../../../lib/formatters', () => ({
   },
 }));
 
-// Mock @mateothegreat/svelte5-router
 vi.mock('@mateothegreat/svelte5-router', () => ({
   route: () => {},
   goto: vi.fn(),
@@ -109,7 +105,6 @@ async function renderWithUsers(users = createMockUsers(3)) {
 
 describe('AdminUsers', () => {
   beforeEach(() => {
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
     mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });
@@ -142,15 +137,15 @@ describe('AdminUsers', () => {
       const users = [createMockUser({ username: 'johndoe', email: 'john@test.com', role: 'admin' })];
       await renderWithUsers(users);
       // Component has both mobile and desktop views, so use getAllByText
-      expect(screen.getAllByText('johndoe').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('john@test.com').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('johndoe')).toHaveLength(2);
+      expect(screen.getAllByText('john@test.com')).toHaveLength(2);
     });
 
     it('displays multiple users', async () => {
       const users = createMockUsers(5);
       await renderWithUsers(users);
-      expect(screen.getAllByText('user1').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('user5').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('user1')).toHaveLength(2);
+      expect(screen.getAllByText('user5')).toHaveLength(2);
     });
 
     it('shows role badges for admin and user', async () => {
@@ -159,8 +154,8 @@ describe('AdminUsers', () => {
         createMockUser({ user_id: 'u2', username: 'normaluser', role: 'user' }),
       ];
       await renderWithUsers(users);
-      expect(screen.getAllByText('adminuser').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('normaluser').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('adminuser')).toHaveLength(2);
+      expect(screen.getAllByText('normaluser')).toHaveLength(2);
     });
 
     it('shows dash for missing email', async () => {
@@ -201,8 +196,8 @@ describe('AdminUsers', () => {
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
       await user.type(searchInput, 'alice');
       await waitFor(() => {
-        expect(screen.getAllByText('alice').length).toBeGreaterThan(0);
-        expect(screen.queryAllByText('bob').length).toBe(0);
+        expect(screen.getAllByText('alice')).toHaveLength(2);
+        expect(screen.queryAllByText('bob')).toHaveLength(0);
       });
     });
 
@@ -224,8 +219,8 @@ describe('AdminUsers', () => {
       const roleSelect = screen.getByRole('combobox', { name: /Role/i });
       await user.selectOptions(roleSelect, 'admin');
       await waitFor(() => {
-        expect(screen.getAllByText('admin1').length).toBeGreaterThan(0);
-        expect(screen.queryAllByText('user1').length).toBe(0);
+        expect(screen.getAllByText('admin1')).toHaveLength(2);
+        expect(screen.queryAllByText('user1')).toHaveLength(0);
       });
     });
 
@@ -239,8 +234,8 @@ describe('AdminUsers', () => {
       const statusSelect = screen.getByRole('combobox', { name: /Status/i });
       await user.selectOptions(statusSelect, 'disabled');
       await waitFor(() => {
-        expect(screen.getAllByText('disableduser').length).toBeGreaterThan(0);
-        expect(screen.queryAllByText('activeuser').length).toBe(0);
+        expect(screen.getAllByText('disableduser')).toHaveLength(2);
+        expect(screen.queryAllByText('activeuser')).toHaveLength(0);
       });
     });
 
@@ -263,7 +258,7 @@ describe('AdminUsers', () => {
       await waitFor(() => expect(screen.getByText(/No users found/i)).toBeInTheDocument());
       const resetBtn = screen.getByRole('button', { name: /^Reset$/i });
       await user.click(resetBtn);
-      await waitFor(() => expect(screen.getAllByText('user1').length).toBeGreaterThan(0));
+      await waitFor(() => expect(screen.getAllByText('user1')).toHaveLength(2));
     });
 
     it('toggles advanced filters panel', async () => {
@@ -287,8 +282,8 @@ describe('AdminUsers', () => {
       const bypassSelect = screen.getByRole('combobox', { name: /Bypass Rate Limit/i });
       await user.selectOptions(bypassSelect, 'yes');
       await waitFor(() => {
-        expect(screen.getAllByText('bypassed').length).toBeGreaterThan(0);
-        expect(screen.queryAllByText('limited').length).toBe(0);
+        expect(screen.getAllByText('bypassed')).toHaveLength(2);
+        expect(screen.queryAllByText('limited')).toHaveLength(0);
       });
     });
   });
@@ -298,8 +293,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
       // Header has the Create User button
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
       });
@@ -309,8 +304,8 @@ describe('AdminUsers', () => {
       mocks.createUserApiV1AdminUsersPost.mockResolvedValue({ data: {}, error: null });
       const user = userEvent.setup();
       await renderWithUsers();
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'newuser');
@@ -318,9 +313,8 @@ describe('AdminUsers', () => {
       await user.type(screen.getByLabelText(/^Password/i), 'password123');
 
       // Click the submit button in the dialog
-      const allCreateButtons = screen.getAllByRole('button', { name: /Create User/i });
-      const submitBtn = allCreateButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(submitBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
       await waitFor(() => {
         expect(mocks.createUserApiV1AdminUsersPost).toHaveBeenCalledWith({
@@ -341,16 +335,15 @@ describe('AdminUsers', () => {
       });
       const user = userEvent.setup();
       await renderWithUsers();
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'test');
       await user.type(screen.getByLabelText(/^Password/i), 'pass');
 
-      const allCreateButtons = screen.getAllByRole('button', { name: /Create User/i });
-      const submitBtn = allCreateButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(submitBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
       await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Validation error: username: Required'));
     });
@@ -358,8 +351,8 @@ describe('AdminUsers', () => {
     it('closes modal on cancel', async () => {
       const user = userEvent.setup();
       await renderWithUsers();
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -376,8 +369,8 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       // Multiple edit buttons exist (mobile + desktop views)
-      const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      const [editButton] = screen.getAllByTitle('Edit User');
+      await user.click(editButton!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -392,8 +385,8 @@ describe('AdminUsers', () => {
       const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
       await renderWithUsers(users);
 
-      const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      const [editButton] = screen.getAllByTitle('Edit User');
+      await user.click(editButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       const usernameInput = screen.getByDisplayValue('editme');
@@ -417,8 +410,8 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       // Multiple delete buttons exist (mobile + desktop views)
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -431,13 +424,12 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-      const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
-      const confirmDeleteBtn = allDeleteButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(confirmDeleteBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
       await waitFor(() => {
         expect(mocks.deleteUserApiV1AdminUsersUserIdDelete).toHaveBeenCalledWith({
@@ -453,18 +445,17 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       // Enable cascade delete (defaults to false for safety)
       const cascadeCheckbox = screen.getByRole('checkbox');
       await user.click(cascadeCheckbox);
 
-      // Find the delete button in the modal (not the action button)
-      const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
-      const confirmDeleteBtn = allDeleteButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(confirmDeleteBtn!);
+      // Find the delete button in the modal
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
       await waitFor(() => {
         expect(mocks.deleteUserApiV1AdminUsersUserIdDelete).toHaveBeenCalledWith({
@@ -484,13 +475,12 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-      const allDeleteButtons = screen.getAllByRole('button', { name: /Delete User/i });
-      const confirmDeleteBtn = allDeleteButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(confirmDeleteBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
       await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete user'));
     });
@@ -500,8 +490,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -517,8 +507,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const deleteButtons = screen.getAllByTitle('Delete User');
-      await user.click(deleteButtons[0]);
+      const [deleteButton] = screen.getAllByTitle('Delete User');
+      await user.click(deleteButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       // Warning should not show when cascade is disabled (default)
@@ -553,8 +543,8 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       // Multiple rate limit buttons exist (mobile + desktop views)
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -571,8 +561,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
 
       await waitFor(() => {
         expect(screen.getByText(/Default Global Rules/i)).toBeInTheDocument();
@@ -589,8 +579,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
@@ -617,8 +607,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Save Changes/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Save Changes/i }));
@@ -635,8 +625,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Add Rule/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Add Rule/i }));
@@ -656,8 +646,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
       await waitFor(() => expect(screen.getByText(/Current Usage/i)).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
@@ -713,15 +703,14 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
 
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/^Password/i), 'password123');
 
-      const dialogButtons = screen.getAllByRole('button', { name: /Create User/i });
-      const submitBtn = dialogButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(submitBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
       expect(mocks.addToast).toHaveBeenCalledWith('Username is required');
@@ -732,15 +721,14 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers();
 
-      const createButtons = screen.getAllByRole('button', { name: /Create User/i });
-      await user.click(createButtons[0]);
+      const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+      await user.click(createButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.type(screen.getByLabelText(/Username/i), 'newuser');
 
-      const dialogButtons = screen.getAllByRole('button', { name: /Create User/i });
-      const submitBtn = dialogButtons.find(btn => btn.closest('[role="dialog"]'));
-      await user.click(submitBtn!);
+      const dialog = screen.getByRole('dialog');
+      await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
       expect(mocks.addToast).toHaveBeenCalledWith('Password is required');
@@ -753,8 +741,8 @@ describe('AdminUsers', () => {
       await renderWithUsers(users);
 
       // Desktop view has one edit button per user
-      const editButtons = screen.getAllByTitle('Edit User');
-      await user.click(editButtons[0]);
+      const [editButton] = screen.getAllByTitle('Edit User');
+      await user.click(editButton!);
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Update User/i }));
@@ -779,8 +767,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
 
       await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load rate limits'));
     });
@@ -802,8 +790,8 @@ describe('AdminUsers', () => {
       const user = userEvent.setup();
       await renderWithUsers(users);
 
-      const rateLimitButtons = screen.getAllByTitle('Manage Rate Limits');
-      await user.click(rateLimitButtons[0]);
+      const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
+      await user.click(rateLimitButton!);
       await waitFor(() => expect(screen.getByRole('button', { name: /Reset All Counters/i })).toBeInTheDocument());
 
       await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));

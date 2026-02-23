@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 function createMockSettings() {
   return {
@@ -68,7 +67,6 @@ describe('Settings', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setupAnimationMock();
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.getUserSettingsApiV1UserSettingsGet.mockResolvedValue({
@@ -185,7 +183,7 @@ describe('Settings', () => {
       await waitFor(() => {
         expect(mocks.updateUserSettingsApiV1UserSettingsPut).toHaveBeenCalled();
       });
-      const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0][0];
+      const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0]![0];
       expect(callArgs.body).toHaveProperty('editor');
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings saved successfully');

@@ -79,10 +79,10 @@
     {/if}
 
     {#snippet footer()}
-        <button onclick={handleConfirm} class="btn btn-primary">
+        <button type="button" onclick={handleConfirm} class="btn btn-primary">
             Proceed with Replay
         </button>
-        <button onclick={onClose} class="btn btn-secondary-outline">
+        <button type="button" onclick={onClose} class="btn btn-secondary-outline">
             Cancel
         </button>
     {/snippet}

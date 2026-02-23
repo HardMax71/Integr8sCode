@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
-import { mockElementAnimate } from '$routes/admin/__tests__/test-utils';
 
 interface MockExecutionOverrides {
   execution_id?: string;
@@ -116,7 +115,6 @@ async function renderWithExecutions(
 describe('AdminExecutions', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockElementAnimate();
     vi.clearAllMocks();
     mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
       data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
@@ -197,7 +195,7 @@ describe('AdminExecutions', () => {
       vi.clearAllMocks();
 
       const prioritySelect = screen.getByLabelText('Priority');
-      await user.selectOptions(prioritySelect, 'high');
+      await user.selectOptions(prioritySelect!, 'high');
 
       await waitFor(() => {
         expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
@@ -278,8 +276,8 @@ describe('AdminExecutions', () => {
       });
       await renderWithExecutions(execs);
 
-      const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0], 'high');
+      const [prioritySelect] = screen.getAllByDisplayValue('normal');
+      await user.selectOptions(prioritySelect!, 'high');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
@@ -304,8 +302,8 @@ describe('AdminExecutions', () => {
       });
       await renderWithExecutions(execs);
 
-      const prioritySelects = screen.getAllByDisplayValue('normal');
-      await user.selectOptions(prioritySelects[0], 'critical');
+      const [prioritySelect] = screen.getAllByDisplayValue('normal');
+      await user.selectOptions(prioritySelect!, 'critical');
 
       await waitFor(() => {
         expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(

@@ -17,7 +17,7 @@
                placeholder="Unnamed Script" value={name} oninput={(e) => onchange(e.currentTarget.value)} />
     </div>
     <div class="flex items-center space-x-2">
-        <button class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
+        <button type="button" class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
                 onclick={onexample} title="Load an example script for the selected language">
             <Lightbulb class="w-4 h-4" />
             <span class="hidden sm:inline">Example</span>

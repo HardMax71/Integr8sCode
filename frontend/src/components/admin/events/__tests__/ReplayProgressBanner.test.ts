@@ -11,9 +11,18 @@ import ReplayProgressBanner from '../ReplayProgressBanner.svelte';
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
   return {
     session_id: 'session-1',
-    status: 'in_progress',
+    status: 'running',
     total_events: 10,
     replayed_events: 5,
+    failed_events: 0,
+    skipped_events: 0,
+    replay_id: 'replay-1',
+    created_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+    completed_at: null,
+    errors: null,
+    estimated_completion: null,
+    execution_results: null,
     progress_percentage: 50,
     ...overrides,
   };
@@ -36,9 +45,9 @@ describe('ReplayProgressBanner', () => {
   });
 
   it('shows title and status', () => {
-    renderBanner(makeSession({ status: 'in_progress' }));
+    renderBanner(makeSession({ status: 'running' }));
     expect(screen.getByText('Replay in Progress')).toBeInTheDocument();
-    expect(screen.getByText('in_progress')).toBeInTheDocument();
+    expect(screen.getByText('running')).toBeInTheDocument();
   });
 
   it('shows progress text and percentage', () => {
@@ -76,8 +85,8 @@ describe('ReplayProgressBanner', () => {
     it('shows errors with event_id and error message', () => {
       renderBanner(makeSession({
         errors: [
-          { event_id: 'err-evt-1', error: 'Timeout exceeded' },
-          { error: 'Connection refused' },
+          { event_id: 'err-evt-1', error: 'Timeout exceeded', timestamp: new Date().toISOString() },
+          { error: 'Connection refused', timestamp: new Date().toISOString() },
         ],
       }));
       expect(screen.getByText('err-evt-1')).toBeInTheDocument();
@@ -102,9 +111,10 @@ describe('ReplayProgressBanner', () => {
             stderr: null,
             lang: 'python',
             lang_version: '3.11',
-            resource_usage: { execution_time_wall_seconds: 1.23, cpu_time_jiffies: 10, peak_memory_kb: 1024 },
+            resource_usage: { execution_time_wall_seconds: 1.23, cpu_time_jiffies: 10, peak_memory_kb: 1024, clk_tck_hertz: 100 },
             exit_code: 0,
             error_type: null,
+            priority: 'normal',
           },
         ],
       }));
@@ -123,7 +133,7 @@ describe('ReplayProgressBanner', () => {
       const { container } = renderBanner(makeSession({
         execution_results: [{
           execution_id: 'exec-x',
-          status,
+          status: status as import('$lib/api').ExecutionStatus | null,
           stdout: null,
           stderr: null,
           lang: 'python',
@@ -131,6 +141,7 @@ describe('ReplayProgressBanner', () => {
           resource_usage: null,
           exit_code: 0,
           error_type: null,
+          priority: 'normal',
         }],
       }));
       expect(container.querySelector(`.${expectedClass}`)).not.toBeNull();
@@ -148,6 +159,7 @@ describe('ReplayProgressBanner', () => {
           resource_usage: null,
           exit_code: 1,
           error_type: null,
+          priority: 'normal',
         }],
       }));
       expect(screen.getByText('NameError')).toBeInTheDocument();

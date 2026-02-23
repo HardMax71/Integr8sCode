@@ -1,32 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 
-// vi.hoisted must contain self-contained code - cannot import external modules
-const mocks = vi.hoisted(() => {
-  return {
-    mockAuthStore: {
-      isAuthenticated: null as boolean | null,
-      username: null as string | null,
-      userId: null as string | null,
-      userRole: null as string | null,
-      userEmail: null as string | null,
-      csrfToken: null as string | null,
-      waitForInit: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
-    },
-    mockGoto: (null as unknown) as ReturnType<typeof import('vitest').vi.fn>,
-  };
-});
-
-// Initialize mocks that need vi.fn() outside of hoisted context
-mocks.mockAuthStore.waitForInit = vi.fn().mockResolvedValue(true);
-mocks.mockGoto = vi.fn();
-
-// Mock router - use getter to defer access
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); },
+const mocks = vi.hoisted(() => ({
+  mockAuthStore: {
+    isAuthenticated: null as boolean | null,
+    username: null as string | null,
+    userId: null as string | null,
+    userRole: null as string | null,
+    userEmail: null as string | null,
+    csrfToken: null as string | null,
+    waitForInit: vi.fn().mockResolvedValue(true),
+  },
+  mockGoto: vi.fn(),
 }));
 
-// Mock auth store - direct object, not writable stores
+vi.mock('@mateothegreat/svelte5-router', () => ({ goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
@@ -42,7 +30,6 @@ describe('ProtectedRoute', () => {
   let originalSessionStorage: Storage;
 
   beforeEach(() => {
-    // Reset stores
     mocks.mockAuthStore.isAuthenticated = null;
     mocks.mockAuthStore.username = null;
     mocks.mockAuthStore.userId = null;
@@ -50,11 +37,9 @@ describe('ProtectedRoute', () => {
     mocks.mockAuthStore.userEmail = null;
     mocks.mockAuthStore.csrfToken = null;
 
-    // Reset mocks
     mocks.mockGoto.mockReset();
     mocks.mockAuthStore.waitForInit.mockReset().mockResolvedValue(true);
 
-    // Mock window.location
     Object.defineProperty(window, 'location', {
       value: {
         pathname: '/protected-page',
@@ -65,7 +50,6 @@ describe('ProtectedRoute', () => {
       configurable: true,
     });
 
-    // Mock sessionStorage by replacing the entire object
     sessionStorageData = {};
     originalSessionStorage = window.sessionStorage;
     const mockSessionStorage = {

@@ -165,14 +165,14 @@
 
                         <!-- Actions -->
                         <div class="flex justify-end gap-3 pt-4 border-t border-border-default dark:border-dark-border-default">
-                            <button
+                            <button type="button"
                                 onclick={resetSettings}
                                 class="btn btn-ghost"
                                 disabled={saving || resetting}
                             >
                                 {resetting ? 'Resetting...' : 'Reset to Defaults'}
                             </button>
-                            <button
+                            <button type="button"
                                 onclick={saveSettings}
                                 class="btn btn-primary"
                                 disabled={saving || resetting}

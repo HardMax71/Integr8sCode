@@ -31,7 +31,7 @@
     <div class="flex gap-2">
         {#each actions as action}
             {@const IconComponent = action.icon}
-            <button
+            <button type="button"
                 onclick={action.onclick}
                 class="flex-1 btn btn-sm btn-outline flex items-center justify-center gap-1 {action.disabled ? 'opacity-50 cursor-not-allowed' : ''}"
                 disabled={action.disabled}
@@ -46,7 +46,7 @@
     <div class="flex gap-2">
         {#each actions as action}
             {@const IconComponent = action.icon}
-            <button
+            <button type="button"
                 onclick={action.onclick}
                 class="btn btn-sm btn-outline flex items-center gap-1 {colorClasses[action.color || 'default']} {action.disabled ? 'opacity-50 cursor-not-allowed' : ''}"
                 disabled={action.disabled}
@@ -61,7 +61,7 @@
     <div class="flex gap-2">
         {#each actions as action}
             {@const IconComponent = action.icon}
-            <button
+            <button type="button"
                 onclick={action.onclick}
                 class="{colorClasses[action.color || 'default']} {action.disabled ? 'opacity-50 cursor-not-allowed' : ''}"
                 disabled={action.disabled}

@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
-
 const mocks = vi.hoisted(() => ({
   registerApiV1AuthRegisterPost: vi.fn(),
   mockGoto: vi.fn(),
@@ -12,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/api', () => ({
-  registerApiV1AuthRegisterPost: (...args: unknown[]) => mocks.registerApiV1AuthRegisterPost(...args),
+  registerApiV1AuthRegisterPost: mocks.registerApiV1AuthRegisterPost,
 }));
 
 vi.mock('@mateothegreat/svelte5-router', async () =>
@@ -22,7 +20,7 @@ vi.mock('svelte-sonner', async () =>
   (await import('$test/test-utils')).createToastMock(mocks.addToast));
 
 vi.mock('$lib/api-interceptors', () => ({
-  getErrorMessage: (...args: unknown[]) => mocks.mockGetErrorMessage(...args),
+  getErrorMessage: mocks.mockGetErrorMessage,
 }));
 
 vi.mock('$utils/meta', async () =>
@@ -37,7 +35,6 @@ describe('Register', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setupAnimationMock();
     mocks.registerApiV1AuthRegisterPost.mockResolvedValue({ data: {}, error: undefined });
   });
 

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('ChevronDown', 'ChevronRight'));
@@ -9,9 +8,9 @@ vi.mock('@lucide/svelte', async () =>
 import LanguageSelect from '../LanguageSelect.svelte';
 
 const RUNTIMES = {
-  python: { versions: ['3.11', '3.10', '3.9'], image: '', display_name: 'Python' },
-  node: { versions: ['20', '18'], image: '', display_name: 'Node' },
-  go: { versions: ['1.21'], image: '', display_name: 'Go' },
+  python: { versions: ['3.11', '3.10', '3.9'], file_ext: 'py' },
+  node: { versions: ['20', '18'], file_ext: 'js' },
+  go: { versions: ['1.21'], file_ext: 'go' },
 };
 
 const defaultProps = { runtimes: RUNTIMES, lang: 'python', version: '3.11', onselect: vi.fn() };
@@ -24,25 +23,22 @@ function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
 async function openMenu() {
   const user = userEvent.setup();
   const result = renderSelect();
-  await user.click(screen.getByRole('button', { name: /python 3\.11/i }));
+  await user.click(screen.getByRole('button', { name: /Select language/i }));
   return { user, ...result };
 }
 
 describe('LanguageSelect', () => {
-  beforeEach(() => {
-    setupAnimationMock();
-  });
-
   describe('trigger button', () => {
     it('shows current language and version with aria-haspopup', () => {
       renderSelect();
-      const btn = screen.getByRole('button', { name: /python 3\.11/i });
+      const btn = screen.getByRole('button', { name: /Select language/i });
       expect(btn).toBeInTheDocument();
       expect(btn).toHaveAttribute('aria-haspopup', 'menu');
     });
 
     it('shows "Unavailable" and is disabled when no runtimes', () => {
-      renderSelect({ runtimes: {} });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      renderSelect({ runtimes: {} as any });
       expect(screen.getByText('Unavailable')).toBeInTheDocument();
       expect(screen.getByRole('button')).toBeDisabled();
     });
@@ -59,7 +55,7 @@ describe('LanguageSelect', () => {
 
     it('closes menu on second click', async () => {
       const { user } = await openMenu();
-      await user.click(screen.getByRole('button', { name: /python 3\.11/i }));
+      await user.click(screen.getByRole('button', { name: /Select language/i }));
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
       });
@@ -108,14 +104,14 @@ describe('LanguageSelect', () => {
     ])('opens menu with $label on trigger', async ({ key }) => {
       const user = userEvent.setup();
       renderSelect();
-      screen.getByRole('button', { name: /python 3\.11/i }).focus();
+      screen.getByRole('button', { name: /Select language/i }).focus();
       await user.keyboard(key);
       expect(screen.getByRole('menu', { name: 'Select language and version' })).toBeInTheDocument();
     });
 
     it('closes menu with Escape on trigger', async () => {
       await openMenu();
-      const trigger = screen.getByRole('button', { name: /python 3\.11/i });
+      const trigger = screen.getByRole('button', { name: /Select language/i });
       await fireEvent.keyDown(trigger, { key: 'Escape' });
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();

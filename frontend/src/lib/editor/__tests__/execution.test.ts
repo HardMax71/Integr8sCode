@@ -23,8 +23,9 @@ const RESULT: ExecutionResult = {
     exit_code: 0,
     lang: 'python',
     lang_version: '3.12',
-    execution_time: 0.1,
-    memory_used_kb: 64,
+    resource_usage: null,
+    error_type: null,
+    priority: 'normal',
 };
 
 function mockSseEvents(...events: unknown[]) {
@@ -79,7 +80,7 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockSseEvents({ event_type: 'result_stored' });
+            mockSseEvents({ event_type: 'result_stored', result: null });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');

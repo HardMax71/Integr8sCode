@@ -73,7 +73,7 @@
             </div>
         {/if}
 
-        <button
+        <button type="button"
             onclick={onRefresh}
             class="sm:ml-auto btn btn-primary btn-sm w-full sm:w-auto"
             disabled={loading}

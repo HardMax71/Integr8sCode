@@ -5,17 +5,16 @@ const PATH = '/register';
 async function navigateToRegister(page: import('@playwright/test').Page): Promise<void> {
   await clearSession(page);
   await page.goto(PATH);
-  await page.waitForSelector('#username');
 }
 
 async function fillRegistrationForm(
   page: import('@playwright/test').Page,
   data: { username: string; email: string; password: string; confirmPassword: string }
 ): Promise<void> {
-  await page.fill('#username', data.username);
-  await page.fill('#email', data.email);
-  await page.fill('#password', data.password);
-  await page.fill('#confirm-password', data.confirmPassword);
+  await page.locator('#username').fill(data.username);
+  await page.locator('#email').fill(data.email);
+  await page.locator('#password').fill(data.password);
+  await page.locator('#confirm-password').fill(data.confirmPassword);
 }
 
 test.describe('Registration', () => {
@@ -42,7 +41,7 @@ test.describe('Registration', () => {
   });
 
   test('validates required fields on empty submission', async ({ page }) => {
-    await page.click('button[type="submit"]');
+    await page.locator('button[type="submit"]').click();
     await expect(page).toHaveURL(/\/register/);
     const usernameInput = page.locator('#username');
     await expect(usernameInput).toBeFocused();
@@ -57,8 +56,8 @@ test.describe('Registration', () => {
       password: 'Password123!',
       confirmPassword: 'DifferentPassword123!',
     });
-    await page.click('button[type="submit"]');
-    await expect(page.locator('p.text-red-600, p.text-red-400')).toContainText('Passwords do not match');
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByTestId('error-message')).toContainText('Passwords do not match');
   });
 
   test('shows error when password is too short', async ({ page }) => {
@@ -68,8 +67,8 @@ test.describe('Registration', () => {
       password: 'short',
       confirmPassword: 'short',
     });
-    await page.click('button[type="submit"]');
-    await expect(page.locator('p.text-red-600, p.text-red-400')).toContainText('at least 8 characters');
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByTestId('error-message')).toContainText('at least 8 characters');
   });
 
   test('submits form and shows loading or redirects', async ({ page }) => {
@@ -97,8 +96,8 @@ test.describe('Registration', () => {
       password: 'ValidPassword123!',
       confirmPassword: 'ValidPassword123!',
     });
-    await page.click('button[type="submit"]');
-    await expect(page.locator('p.text-red-600, p.text-red-400')).toBeVisible({ timeout: 5000 });
+    await page.locator('button[type="submit"]').click();
+    await expect(page.getByTestId('error-message')).toBeVisible({ timeout: 5000 });
   });
 
   test('successful registration redirects to login', async ({ page }) => {
@@ -109,7 +108,7 @@ test.describe('Registration', () => {
       password: 'ValidPassword123!',
       confirmPassword: 'ValidPassword123!',
     });
-    await page.click('button[type="submit"]');
+    await page.locator('button[type="submit"]').click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 });

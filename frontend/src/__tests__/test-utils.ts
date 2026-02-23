@@ -6,66 +6,18 @@
  * This is a Vitest limitation, not a design choice.
  */
 
-import { vi } from 'vitest';
-
-// ============================================================================
-// Animation Mock for Svelte 5 Transitions
-// ============================================================================
-
-/**
- * Creates a mock Animation object compatible with Svelte 5 transitions.
- * Immediately invokes onfinish callback to simulate instant animation completion.
- */
-export function createAnimationMock(): Animation {
-  const mock = {
-    _onfinish: null as (() => void) | null,
-    get onfinish() {
-      return this._onfinish;
-    },
-    set onfinish(fn: (() => void) | null) {
-      this._onfinish = fn;
-      // Immediately call onfinish to simulate instant animation completion
-      if (fn) setTimeout(fn, 0);
-    },
-    cancel: vi.fn(),
-    finish: vi.fn(),
-    pause: vi.fn(),
-    play: vi.fn(),
-    reverse: vi.fn(),
-    commitStyles: vi.fn(),
-    persist: vi.fn(),
-    currentTime: 0,
-    playbackRate: 1,
-    pending: false,
-    playState: 'running' as AnimationPlayState,
-    replaceState: 'active' as AnimationReplaceState,
-    startTime: 0,
-    timeline: null,
-    id: '',
-    effect: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(() => true),
-    updatePlaybackRate: vi.fn(),
-    get finished() {
-      return Promise.resolve(this as unknown as Animation);
-    },
-    get ready() {
-      return Promise.resolve(this as unknown as Animation);
-    },
-    oncancel: null,
-    onremove: null,
-  };
-  return mock as unknown as Animation;
-}
-
-/**
- * Sets up Element.prototype.animate mock for Svelte transitions.
- * Call this in beforeEach() for components that use transitions.
- */
-export function setupAnimationMock(): void {
-  Element.prototype.animate = vi.fn().mockImplementation(() => createAnimationMock());
-}
+import { vi, type Mock } from 'vitest';
+import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
+import type {
+  ExecutionCompletedEvent,
+  EventBrowseResponse,
+  EventDetailResponse,
+  EventStatsResponse,
+  AdminUserOverview,
+  NotificationResponse,
+  EventMetadata,
+  EventType,
+} from '$lib/api';
 
 // ============================================================================
 // Mock Svelte Component Factory
@@ -141,40 +93,6 @@ export function suppressConsoleWarn(): () => void {
   const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   return () => spy.mockRestore();
 }
-
-// ============================================================================
-// Mock Store Factory Template
-// ============================================================================
-
-/**
- * Template for createMockStore function.
- * Copy this into vi.hoisted() blocks since external imports aren't allowed there.
- *
- * @example
- * const mocks = vi.hoisted(() => {
- *   function createMockStore<T>(initial: T) {
- *     let value = initial;
- *     const subscribers = new Set<(v: T) => void>();
- *     return {
- *       set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
- *       subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
- *       update(fn: (v: T) => T) { this.set(fn(value)); },
- *     };
- *   }
- *   return { mockStore: createMockStore<string>('initial') };
- * });
- */
-export const MOCK_STORE_TEMPLATE = `
-function createMockStore<T>(initial: T) {
-  let value = initial;
-  const subscribers = new Set<(v: T) => void>();
-  return {
-    set(v: T) { value = v; subscribers.forEach(fn => fn(v)); },
-    subscribe(fn: (v: T) => void) { fn(value); subscribers.add(fn); return () => subscribers.delete(fn); },
-    update(fn: (v: T) => T) { this.set(fn(value)); },
-  };
-}
-`;
 
 // ============================================================================
 // Mock Module Factories (for use with async vi.mock() factories)
@@ -254,36 +172,18 @@ export function createMetaMock(
 /**
  * Creates a mock notification for testing.
  */
-export function createMockNotification(overrides: Partial<{
-  notification_id: string;
-  subject: string;
-  body: string;
-  channel: string;
-  status: 'unread' | 'read';
-  severity: 'low' | 'medium' | 'high' | 'urgent';
-  tags: string[];
-  created_at: string;
-  action_url?: string;
-}> = {}): {
-  notification_id: string;
-  subject: string;
-  body: string;
-  channel: string;
-  status: 'unread' | 'read';
-  severity: 'low' | 'medium' | 'high' | 'urgent';
-  tags: string[];
-  created_at: string;
-  action_url?: string;
-} {
+export function createMockNotification(overrides: Partial<NotificationResponse> = {}): NotificationResponse {
   return {
     notification_id: 'notif-1',
     subject: 'Test Notification',
     body: 'This is a test notification body',
     channel: 'in_app',
-    status: 'unread',
+    status: 'delivered',
     severity: 'medium',
     tags: [],
     created_at: new Date().toISOString(),
+    action_url: '',
+    read_at: null,
     ...overrides,
   };
 }
@@ -291,13 +191,123 @@ export function createMockNotification(overrides: Partial<{
 /**
  * Creates multiple mock notifications for testing.
  */
-export function createMockNotifications(count: number): ReturnType<typeof createMockNotification>[] {
+export function createMockNotifications(count: number): NotificationResponse[] {
   return Array.from({ length: count }, (_, i) =>
     createMockNotification({
       notification_id: `notif-${i + 1}`,
       subject: `Notification ${i + 1}`,
       body: `Body for notification ${i + 1}`,
-      status: i % 2 === 0 ? 'unread' : 'read',
+      status: i % 2 === 0 ? 'delivered' : 'read',
     })
   );
+}
+
+// ============================================================================
+// Admin Event Mock Helpers
+// ============================================================================
+
+export function mockWindowGlobals(openMock: Mock, confirmMock: Mock): void {
+  vi.stubGlobal('open', openMock);
+  vi.stubGlobal('confirm', confirmMock);
+}
+
+export type MockEventOverrides = Omit<Partial<ExecutionCompletedEvent>, 'event_type' | 'metadata'> & {
+  event_type?: EventType;
+  metadata?: Partial<EventMetadata>;
+};
+
+export const DEFAULT_EVENT: ExecutionCompletedEvent = {
+  event_id: 'evt-1',
+  event_type: 'execution_completed',
+  event_version: '1',
+  timestamp: '2024-01-15T10:30:00Z',
+  aggregate_id: 'exec-456',
+  metadata: {
+    service_name: 'test-service',
+    service_version: '1.0.0',
+    user_id: 'user-1',
+  },
+  execution_id: 'exec-456',
+  exit_code: 0,
+  stdout: 'hello',
+};
+
+export { EVENT_TYPES };
+
+export const createMockEvent = (overrides: MockEventOverrides = {}): ExecutionCompletedEvent => {
+  const { metadata: metadataOverrides, ...rest } = overrides;
+  return {
+    ...DEFAULT_EVENT,
+    ...rest,
+    metadata: { ...DEFAULT_EVENT.metadata, ...metadataOverrides },
+  } as ExecutionCompletedEvent;
+};
+
+export const createMockEvents = (count: number): EventBrowseResponse['events'] =>
+  Array.from({ length: count }, (_, i) => ({
+    ...createMockEvent({
+      event_id: `evt-${i + 1}`,
+      aggregate_id: `exec-${i + 1}`,
+      metadata: {
+        user_id: `user-${(i % 3) + 1}`,
+        service_name: 'execution-service',
+      },
+    }),
+    event_type: EVENT_TYPES[i % EVENT_TYPES.length],
+    timestamp: new Date(Date.now() - i * 60000).toISOString(),
+  } as EventBrowseResponse['events'][number]));
+
+export function createMockStats(overrides: Partial<EventStatsResponse> = {}): EventStatsResponse {
+  return {
+    total_events: 150,
+    error_rate: 2.5,
+    avg_processing_time: 1.23,
+    top_users: [{ user_id: 'user-1', event_count: 50 }],
+    events_by_type: [],
+    events_by_hour: [],
+    ...overrides,
+  };
+}
+
+export function createMockEventDetail(event = createMockEvent()): EventDetailResponse {
+  return {
+    event: event as EventDetailResponse['event'],
+    related_events: [
+      { event_id: 'rel-1', event_type: 'execution_started', timestamp: '2024-01-15T10:29:00Z' },
+      { event_id: 'rel-2', event_type: 'pod_created', timestamp: '2024-01-15T10:29:30Z' },
+    ],
+    timeline: [],
+  };
+}
+
+export function createMockUserOverview(): AdminUserOverview {
+  return {
+    user: {
+      user_id: 'user-1',
+      username: 'testuser',
+      email: 'test@example.com',
+      role: 'user',
+      is_active: true,
+      is_superuser: false,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+      bypass_rate_limit: null,
+      global_multiplier: null,
+      has_custom_limits: null,
+    },
+    stats: {
+      total_events: 100,
+      events_by_type: [],
+      events_by_service: [],
+      events_by_hour: [],
+      top_users: [],
+      error_rate: 0,
+      avg_processing_time: 0,
+      start_time: null,
+      end_time: null,
+    },
+    derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
+    rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1, has_custom_limits: false },
+    recent_events: [createMockEvent() as AdminUserOverview['recent_events'][number]],
+  };
 }

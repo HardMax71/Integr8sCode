@@ -1,46 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, suppressConsoleError } from '$test/test-utils';
+import { suppressConsoleError } from '$test/test-utils';
 
-// vi.hoisted must contain self-contained code - cannot import external modules
-const mocks = vi.hoisted(() => {
-  return {
-    mockAuthStore: {
-      isAuthenticated: false as boolean | null,
-      username: null as string | null,
-      userRole: null as string | null,
-      userEmail: null as string | null,
-      userId: null as string | null,
-      csrfToken: null as string | null,
-      logout: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      login: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      verifyAuth: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      fetchUserProfile: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    },
-    mockThemeStore: {
-      value: 'auto' as string,
-    },
-    mockToggleTheme: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    mockGoto: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-  };
-});
+const mocks = vi.hoisted(() => ({
+  mockAuthStore: {
+    isAuthenticated: false as boolean | null,
+    username: null as string | null,
+    userRole: null as string | null,
+    userEmail: null as string | null,
+    userId: null as string | null,
+    csrfToken: null as string | null,
+    logout: vi.fn(),
+    login: vi.fn(),
+    verifyAuth: vi.fn(),
+    fetchUserProfile: vi.fn(),
+  },
+  mockThemeStore: {
+    value: 'auto' as string,
+  },
+  mockToggleTheme: vi.fn(),
+  mockGoto: vi.fn(),
+}));
 
-// Initialize vi.fn() mocks outside hoisted context
-mocks.mockAuthStore.logout = vi.fn();
-mocks.mockAuthStore.login = vi.fn();
-mocks.mockAuthStore.verifyAuth = vi.fn();
-mocks.mockAuthStore.fetchUserProfile = vi.fn();
-mocks.mockToggleTheme = vi.fn();
-mocks.mockGoto = vi.fn();
-
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: (...args: unknown[]) => mocks.mockGoto(...args) }));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
 vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
-  get toggleTheme() { return () => mocks.mockToggleTheme(); },
+  get toggleTheme() { return mocks.mockToggleTheme; },
 }));
 vi.mock('../NotificationCenter.svelte', async () =>
   (await import('$test/test-utils')).createMockSvelteComponent(
@@ -56,26 +45,24 @@ const setAuth = (isAuth: boolean, username: string | null = null, role: string |
   mocks.mockAuthStore.userEmail = email;
 };
 
-const openUserDropdown = async (username: string) => {
+const openUserDropdown = async (_username: string) => {
   const user = userEvent.setup();
   render(Header);
-  await user.click(screen.getByRole('button', { name: new RegExp(username, 'i') }));
+  await user.click(screen.getByRole('button', { name: 'User menu' }));
   return user;
 };
 
 const openMobileMenu = async () => {
   const user = userEvent.setup();
-  const { container } = render(Header);
-  const menuButton = container.querySelector('.block.lg\\:hidden')?.querySelector('button');
-  await user.click(menuButton!);
-  return { user, container };
+  render(Header);
+  await user.click(screen.getByRole('button', { name: 'Open menu' }));
+  return { user };
 };
 
 describe('Header', () => {
   let originalInnerWidth: number;
 
   beforeEach(() => {
-    setupAnimationMock();
     setAuth(false);
     mocks.mockThemeStore.value = 'auto';
     mocks.mockAuthStore.logout.mockReset();
@@ -194,8 +181,8 @@ describe('Header', () => {
     });
 
     it('shows hamburger menu and toggles on click', async () => {
-      const { container } = await openMobileMenu();
-      await waitFor(() => { expect(container.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await openMobileMenu();
+      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
     });
 
     it.each([
@@ -204,9 +191,9 @@ describe('Header', () => {
       { isAuth: true, username: 'admin', role: 'admin', expectedContent: ['Admin Panel', 'Administrator'] },
     ])('shows correct content for auth=$isAuth role=$role', async ({ isAuth, username, role, expectedContent }) => {
       setAuth(isAuth, username, role);
-      const { container } = await openMobileMenu();
+      await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = container.querySelector('.lg\\:hidden.absolute');
+        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
         expectedContent.forEach(text => expect(mobileMenu?.textContent).toContain(text));
       });
     });
@@ -214,13 +201,13 @@ describe('Header', () => {
 
   describe('header structure', () => {
     it('has fixed header with nav and backdrop blur', () => {
-      const { container } = render(Header);
-      const header = container.querySelector('header');
+      render(Header);
+      const header = screen.getByRole('banner');
       expect(header).toBeInTheDocument();
-      expect(header?.classList.contains('fixed')).toBe(true);
-      expect(header?.classList.contains('top-0')).toBe(true);
-      expect(header?.classList.contains('backdrop-blur-md')).toBe(true);
-      expect(container.querySelector('nav')).toBeInTheDocument();
+      expect(header).toHaveClass('fixed');
+      expect(header).toHaveClass('top-0');
+      expect(header).toHaveClass('backdrop-blur-md');
+      expect(screen.getByRole('navigation')).toBeInTheDocument();
     });
   });
 
@@ -254,15 +241,15 @@ describe('Header', () => {
       // Start in mobile mode
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
 
-      const { container } = await openMobileMenu();
-      await waitFor(() => { expect(container.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await openMobileMenu();
+      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
 
       // Resize to desktop width
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
       window.dispatchEvent(new Event('resize'));
 
       await waitFor(() => {
-        expect(container.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
+        expect(document.body.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
       });
     });
 
@@ -280,9 +267,9 @@ describe('Header', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
       setAuth(true, 'mobileuser', 'user');
 
-      const { user, container } = await openMobileMenu();
+      const { user } = await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = container.querySelector('.lg\\:hidden.absolute');
+        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
         expect(mobileMenu?.textContent).toContain('Logout');
       });
 

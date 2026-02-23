@@ -133,7 +133,7 @@
 
     function openEditUserModal(user: UserResponse): void {
         editingUser = user;
-        userForm = { username: user.username, email: user.email || '', password: '', role: user.role ?? 'user', is_active: user.is_active !== false };
+        userForm = { username: user.username, email: user.email || '', password: '', role: user.role, is_active: user.is_active !== false };
         showUserModal = true;
     }
 
@@ -251,10 +251,10 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">User Management</h1>
             <div class="flex gap-2 w-full sm:w-auto">
-                <button onclick={openCreateUserModal} class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center">
+                <button type="button" onclick={openCreateUserModal} class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center">
                     <Plus class="w-4 h-4" />Create User
                 </button>
-                <button onclick={loadUsers} class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center" disabled={loading}>
+                <button type="button" onclick={loadUsers} class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center" disabled={loading}>
                     {#if loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
                 </button>
             </div>

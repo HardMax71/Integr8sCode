@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock, createMockNotification, createMockNotifications } from '$test/test-utils';
+import { createMockNotification, createMockNotifications } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
@@ -36,7 +36,6 @@ describe('Notifications', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setupAnimationMock();
     mocks.mockNotificationStore.notifications = [];
     mocks.mockNotificationStore.unreadCount = 0;
     mocks.mockNotificationStore.loading = false;
@@ -71,10 +70,10 @@ describe('Notifications', () => {
       const notif = createMockNotification({
         subject: 'Execution Complete',
         body: 'Your script finished running',
-        channel: 'email',
+        channel: 'webhook',
         severity: 'high',
         tags: ['completed', 'exec:abc123'],
-        status: 'unread',
+        status: 'delivered',
       });
       mocks.mockNotificationStore.notifications = [notif as never];
       mocks.mockNotificationStore.unreadCount = 1;
@@ -84,7 +83,7 @@ describe('Notifications', () => {
         expect(screen.getByText('Execution Complete')).toBeInTheDocument();
       });
       expect(screen.getByText('Your script finished running')).toBeInTheDocument();
-      expect(screen.getByText('email')).toBeInTheDocument();
+      expect(screen.getByText('webhook')).toBeInTheDocument();
       expect(screen.getByText('high')).toBeInTheDocument();
       expect(screen.getByText('completed')).toBeInTheDocument();
     });
@@ -134,7 +133,7 @@ describe('Notifications', () => {
   describe('Mark as read', () => {
     it('calls markAsRead with exact id when clicking unread notification', async () => {
       mocks.mockNotificationStore.notifications = [
-        createMockNotification({ notification_id: 'n-42', status: 'unread' }),
+        createMockNotification({ notification_id: 'n-42', status: 'delivered' }),
       ] as never[];
       mocks.mockNotificationStore.unreadCount = 1;
 
@@ -198,28 +197,18 @@ describe('Notifications', () => {
   });
 
   describe('Delete', () => {
-    async function findDeleteButton(): Promise<HTMLElement> {
-      const btn = await waitFor(() => {
-        const buttons = screen.getAllByRole('button');
-        const found = buttons.find(b => b.classList.contains('text-red-600') || b.querySelector('[data-testid="trash-icon"]'));
-        expect(found).toBeDefined();
-        return found!;
-      });
-      return btn;
-    }
-
     it('calls delete with exact id and shows success toast', async () => {
       mocks.mockNotificationStore.notifications = [
         createMockNotification({ notification_id: 'del-1' }),
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await waitFor(() => {
         expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
+        expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
     });
 
     it('shows error toast on delete failure', async () => {
@@ -229,7 +218,7 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await waitFor(() => {
         expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to delete notification');
@@ -246,7 +235,7 @@ describe('Notifications', () => {
       ] as never[];
 
       await renderNotifications();
-      const deleteBtn = await findDeleteButton();
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await user.click(deleteBtn);
       expect(mocks.mockNotificationStore.delete).toHaveBeenCalledTimes(1);

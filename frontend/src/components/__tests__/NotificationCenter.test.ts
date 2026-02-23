@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
-import { setupAnimationMock } from '$test/test-utils';
-
 // Types for mock notification state
 interface MockNotification {
   notification_id: string;
@@ -15,62 +13,44 @@ interface MockNotification {
   action_url?: string;
 }
 
-// vi.hoisted must contain self-contained code - cannot import external modules
-const mocks = vi.hoisted(() => {
-  return {
-    mockAuthStore: {
-      isAuthenticated: true as boolean | null,
-      username: 'testuser' as string | null,
-      userId: 'user-123' as string | null,
-      userRole: null as string | null,
-      userEmail: null as string | null,
-      csrfToken: null as string | null,
-    },
-    mockNotificationStore: {
-      notifications: [] as MockNotification[],
-      loading: false,
-      error: null as string | null,
-      unreadCount: 0,
-      load: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      add: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      markAsRead: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      markAllAsRead: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      delete: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      clear: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-      refresh: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    },
-    mockGoto: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    // Mock notification stream
-    mockStreamConnect: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-    mockStreamDisconnect: null as unknown as ReturnType<typeof import('vitest').vi.fn>,
-  };
-});
+const mocks = vi.hoisted(() => ({
+  mockAuthStore: {
+    isAuthenticated: true as boolean | null,
+    username: 'testuser' as string | null,
+    userId: 'user-123' as string | null,
+    userRole: null as string | null,
+    userEmail: null as string | null,
+    csrfToken: null as string | null,
+  },
+  mockNotificationStore: {
+    notifications: [] as MockNotification[],
+    loading: false,
+    error: null as string | null,
+    unreadCount: 0,
+    load: vi.fn().mockResolvedValue([]),
+    add: vi.fn(),
+    markAsRead: vi.fn().mockResolvedValue(true),
+    markAllAsRead: vi.fn().mockResolvedValue(true),
+    delete: vi.fn().mockResolvedValue(true),
+    clear: vi.fn(),
+    refresh: vi.fn(),
+  },
+  mockGoto: vi.fn(),
+  mockStreamConnect: vi.fn(),
+  mockStreamDisconnect: vi.fn(),
+}));
 
-// Initialize vi.fn() mocks outside hoisted context
-mocks.mockNotificationStore.load = vi.fn().mockResolvedValue([]);
-mocks.mockNotificationStore.add = vi.fn();
-mocks.mockNotificationStore.markAsRead = vi.fn().mockResolvedValue(true);
-mocks.mockNotificationStore.markAllAsRead = vi.fn().mockResolvedValue(true);
-mocks.mockNotificationStore.delete = vi.fn().mockResolvedValue(true);
-mocks.mockNotificationStore.clear = vi.fn();
-mocks.mockNotificationStore.refresh = vi.fn();
-mocks.mockGoto = vi.fn();
-mocks.mockStreamConnect = vi.fn();
-mocks.mockStreamDisconnect = vi.fn();
-
-vi.mock('@mateothegreat/svelte5-router', () => ({ get goto() { return (...args: unknown[]) => mocks.mockGoto(...args); } }));
+vi.mock('@mateothegreat/svelte5-router', () => ({ goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
 vi.mock('../../stores/notificationStore.svelte', () => ({
   get notificationStore() { return mocks.mockNotificationStore; },
 }));
-
-// Mock the notification stream module
 vi.mock('../../lib/notifications/stream.svelte', () => ({
   notificationStream: {
-    connect: (...args: unknown[]) => mocks.mockStreamConnect(...args),
-    disconnect: () => mocks.mockStreamDisconnect(),
+    connect: mocks.mockStreamConnect,
+    disconnect: mocks.mockStreamDisconnect,
   },
 }));
 
@@ -173,7 +153,6 @@ const interactionTestCases = [
 // Tests
 describe('NotificationCenter', () => {
   beforeEach(() => {
-    setupAnimationMock();
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.mockAuthStore.username = 'testuser';
     mocks.mockAuthStore.userId = 'user-123';

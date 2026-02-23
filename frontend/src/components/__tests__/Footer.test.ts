@@ -7,7 +7,7 @@ describe('Footer', () => {
 
   beforeEach(() => {
     // Mock Date to have consistent year in tests
-    originalDate = global.Date;
+    originalDate = globalThis.Date;
     const mockDate = class extends Date {
       constructor() {
         super('2025-01-01T00:00:00.000Z');

@@ -51,7 +51,9 @@
                     </td>
                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help">
+                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                  data-testid="event-type-icon"
+                                  data-event-type={event.event_type}>
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
                             <!-- Tooltip on hover -->
@@ -66,7 +68,7 @@
                     </td>
                     <td class="table-cell-sm hidden lg:table-cell">
                         {#if event.metadata?.user_id}
-                            <button
+                            <button type="button"
                                 class="text-blue-600 dark:text-blue-400 hover:underline text-left"
                                 title="View user overview"
                                 onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}
@@ -86,21 +88,21 @@
                     </td>
                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                         <div class="flex gap-1 justify-center">
-                            <button
+                            <button type="button"
                                 onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
                                 title="Preview replay"
                             >
                                 <Eye size={16} />
                             </button>
-                            <button
+                            <button type="button"
                                 onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
                                 title="Replay"
                             >
                                 <Play size={16} />
                             </button>
-                            <button
+                            <button type="button"
                                 onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
                                 title="Delete"
@@ -130,7 +132,9 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help">
+                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                  data-testid="event-type-icon"
+                                  data-event-type={event.event_type}>
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
                             <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
@@ -147,21 +151,21 @@
                     </div>
                 </div>
                 <div class="flex gap-1 ml-2">
-                    <button
+                    <button type="button"
                         onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1"
                         title="Preview replay"
                     >
                         <Eye size={16} />
                     </button>
-                    <button
+                    <button type="button"
                         onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
                         title="Replay"
                     >
                         <Play size={16} />
                     </button>
-                    <button
+                    <button type="button"
                         onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
                         title="Delete"
@@ -174,7 +178,7 @@
                 <div>
                     <span class="text-fg-muted dark:text-dark-fg-muted">User:</span>
                     {#if event.metadata?.user_id}
-                        <button
+                        <button type="button"
                             class="ml-1 text-blue-600 dark:text-blue-400 hover:underline font-mono"
                             title="View user overview"
                             onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}

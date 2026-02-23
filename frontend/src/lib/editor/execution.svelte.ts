@@ -69,13 +69,13 @@ class ExecutionState {
             }
 
             if (ev.event_type === 'result_stored') {
-                this.result = ev.result ?? null;
+                this.result = ev.result;
                 terminalReceived = true;
                 break;
             }
 
             if (isTerminalFailure(ev.event_type)) {
-                this.result = ev.result ?? null;
+                this.result = ev.result;
                 this.error = ev.event_type === 'execution_timeout' ? 'Execution timed out.'
                     : ev.event_type === 'result_failed' ? 'Failed to store execution results.'
                     : 'Execution failed.';

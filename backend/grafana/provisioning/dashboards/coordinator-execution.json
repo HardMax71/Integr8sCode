@@ -149,7 +149,7 @@
       "id": 5,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(execution_queue_wait_time_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(queue_wait_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -173,12 +173,12 @@
       "id": 6,
       "targets": [
         {
-          "expr": "rate(executions_assigned_total[5m])",
+          "expr": "rate(queue_schedule_total[5m])",
           "legendFormat": "Assigned",
           "refId": "A"
         },
         {
-          "expr": "rate(executions_queued_total[5m])",
+          "expr": "rate(queue_enqueue_total[5m])",
           "legendFormat": "Queued",
           "refId": "B"
         }

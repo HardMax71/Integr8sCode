@@ -61,8 +61,10 @@ for i = 2, #KEYS do
     local result = redis.call('ZPOPMIN', KEYS[i], 1)
     if #result > 0 then
         local exec_id = result[1]
+        local enqueue_score = result[2]
+        local priority_idx = i - 2
         redis.call('SADD', active_key, exec_id)
-        return exec_id
+        return {exec_id, enqueue_score, priority_idx}
     end
 end
 
@@ -123,7 +125,11 @@ class ExecutionQueueService:
         if result is None:
             return None
 
-        execution_id = result if isinstance(result, str) else result.decode()
+        raw_id, raw_score, raw_priority_idx = result
+        execution_id = raw_id if isinstance(raw_id, str) else raw_id.decode()
+        enqueue_score = float(raw_score)
+        priority = PRIORITY_ORDER[int(raw_priority_idx)]
+
         event_json = await self._redis.get(_event_key(execution_id))
         if event_json is None:
             self._logger.warning("Event data missing for scheduled execution", execution_id=execution_id)
@@ -133,8 +139,12 @@ class ExecutionQueueService:
         event_str = event_json if isinstance(event_json, str) else event_json.decode()
         event = ExecutionRequestedEvent.model_validate_json(event_str)
 
+        wait_seconds = time.time() - enqueue_score
+        self._metrics.record_wait_time(wait_seconds, str(priority))
         self._metrics.record_schedule()
-        self._logger.info("Scheduled execution from queue", execution_id=execution_id)
+        self._logger.info(
+            "Scheduled execution from queue", execution_id=execution_id, wait_seconds=round(wait_seconds, 3)
+        )
         return execution_id, event
 
     async def release(self, execution_id: str) -> None:
@@ -142,6 +152,7 @@ class ExecutionQueueService:
         pipe.srem(_ACTIVE_KEY, execution_id)
         pipe.delete(_event_key(execution_id))
         await pipe.execute()
+        self._metrics.record_release()
         self._logger.debug("Released execution from active set", execution_id=execution_id)
 
     async def update_priority(self, execution_id: str, new_priority: QueuePriority) -> bool:

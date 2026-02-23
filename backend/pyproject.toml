@@ -82,7 +82,7 @@ dependencies = [
     "prometheus_client==0.21.0",
     "propcache==0.4.1",
     "protobuf==6.33.5",
-    "psutil==6.1.0",
+    "psutil==7.2.2",
     "pyasn1==0.6.2",
     "pyasn1_modules==0.4.2",
     "pydantic==2.9.2",

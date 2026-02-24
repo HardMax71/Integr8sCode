@@ -110,7 +110,14 @@ def setup_log_exporter(settings: Settings, logger: structlog.stdlib.BoundLogger)
 
     Adds an OTLP handler to stdlib logging so structlog output flows to both
     stdout (existing StreamHandler) and the OTel Collector (new OTLP handler).
-    Skipped in tests or when no OTLP endpoint is configured.
+    No-ops when ``settings.OTEL_EXPORTER_OTLP_ENDPOINT`` is empty.
+
+    Args:
+        settings: Application settings providing the OTLP endpoint and service metadata.
+        logger: Bound logger used to confirm successful configuration.
+
+    Returns:
+        None
     """
     if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         return

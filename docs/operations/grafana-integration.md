@@ -6,7 +6,9 @@ rules — no custom backend endpoints involved.
 
 ## Dashboards
 
-Grafana is available at `http://localhost:3000` when the stack is running (anonymous viewer access enabled by default).
+Grafana is available at `http://localhost:3000` when the stack is running. Login is required — anonymous access is
+disabled. Admin credentials are set via `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` environment variables in
+`docker-compose.yaml` (defaults: `admin` / `admin123`).
 Victoria Metrics serves as the Prometheus-compatible data source. See [Metrics Reference](metrics-reference.md) for the
 full metric catalog and example PromQL queries.
 
@@ -111,15 +113,14 @@ groups:
 
 ## Configuration
 
-Unified alerting is enabled in `backend/grafana/grafana.ini`:
+The full Grafana server configuration lives in `backend/grafana/grafana.ini`:
 
 ```ini
-[unified_alerting]
-enabled = true
-
-[alerting]
-enabled = false
+--8<-- "backend/grafana/grafana.ini:grafana_ini"
 ```
+
+Anonymous access is disabled and basic auth is enabled. Admin credentials are injected via `GF_SECURITY_ADMIN_USER`
+and `GF_SECURITY_ADMIN_PASSWORD` environment variables in `docker-compose.yaml`.
 
 The `[alerting]` section controls the legacy alerting engine (Grafana < 9) and stays disabled. `[unified_alerting]`
 is the modern engine used for all provisioned rules.

@@ -313,8 +313,10 @@ class RepositoryProvider(Provider):
         return ReplayRepository(logger)
 
     @provide
-    def get_event_repository(self, logger: structlog.stdlib.BoundLogger) -> EventRepository:
-        return EventRepository(logger)
+    def get_event_repository(
+            self, logger: structlog.stdlib.BoundLogger, database_metrics: DatabaseMetrics,
+    ) -> EventRepository:
+        return EventRepository(logger, database_metrics)
 
     @provide
     def get_user_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> UserSettingsRepository:

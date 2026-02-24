@@ -53,12 +53,14 @@
         {
           "expr": "rate(pod_creations_total[5m])",
           "legendFormat": "Created",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "rate(pod_creation_failures_total[5m])",
           "legendFormat": "Failed",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Pod Creations",
@@ -68,7 +70,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -82,7 +84,8 @@
         {
           "expr": "histogram_quantile(0.95, sum(rate(pod_creation_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Pod Creation Duration",
@@ -105,7 +108,8 @@
       "targets": [
         {
           "expr": "pod_creations_active",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Active Creations",
@@ -128,7 +132,8 @@
       "targets": [
         {
           "expr": "increase(configmaps_created_total[24h])",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "ConfigMaps Created (24h)",
@@ -165,7 +170,8 @@
         {
           "expr": "rate(pod_phase_transitions_total[5m])",
           "legendFormat": "{{phase}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Phase Transitions",
@@ -175,7 +181,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -189,12 +195,14 @@
         {
           "expr": "histogram_quantile(0.50, sum(rate(pod_lifetime_seconds_bucket[5m])) by (le))",
           "legendFormat": "p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(pod_lifetime_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Pod Lifetime",
@@ -217,7 +225,8 @@
       "targets": [
         {
           "expr": "pods_by_phase",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Pods by Phase",
@@ -240,7 +249,8 @@
       "targets": [
         {
           "expr": "pods_monitored",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Pods Monitored",
@@ -277,12 +287,14 @@
         {
           "expr": "rate(pod_monitor_events_total[5m])",
           "legendFormat": "Events",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "rate(pod_monitor_reconciliations_total[5m])",
           "legendFormat": "Reconciliations",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Monitor Events",
@@ -292,7 +304,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         }
       },
       "gridPos": {
@@ -306,7 +318,8 @@
         {
           "expr": "histogram_quantile(0.95, sum(rate(pod_monitor_processing_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Monitor Processing Duration",
@@ -330,12 +343,14 @@
         {
           "expr": "rate(pod_monitor_watch_errors_total[5m])",
           "legendFormat": "Errors",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "rate(pod_monitor_watch_reconnects_total[5m])",
           "legendFormat": "Reconnects",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Watch Errors",

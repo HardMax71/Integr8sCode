@@ -6,6 +6,7 @@ from dishka.integrations.faststream import FromDishka
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 
+from app.core.metrics import EventMetrics
 from app.domain.enums import EventType
 from app.domain.events import (
     CreatePodCommandEvent,
@@ -28,6 +29,24 @@ from app.services.sse import SSERedisBus
 from app.settings import Settings
 
 _sse_field_names: frozenset[str] = frozenset(f.name for f in dataclasses.fields(SSEExecutionEventData))
+
+
+async def _track_consumed(
+        metrics: EventMetrics, event: DomainEvent, consumer_group: str, coro: Awaitable[None],
+) -> None:
+    """Record consumption metric, await *coro*, and record failure metric on error."""
+    metrics.record_kafka_message_consumed(topic=event.event_type, consumer_group=consumer_group)
+    try:
+        await coro
+    except Exception as e:
+        metrics.record_events_processing_failed(
+            topic=event.event_type, event_type=event.event_type,
+            consumer_group=consumer_group, error_type=type(e).__name__,
+        )
+        metrics.record_kafka_consumption_error(
+            topic=event.event_type, consumer_group=consumer_group, error_type=type(e).__name__,
+        )
+        raise
 
 
 # --8<-- [start:with_idempotency]
@@ -68,10 +87,10 @@ def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:
             worker: FromDishka[KubernetesWorker],
             idem: FromDishka[IdempotencyManager],
             logger: FromDishka[structlog.stdlib.BoundLogger],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await with_idempotency(
-            body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger,
-        )
+        await _track_consumed(event_metrics, body, "k8s-worker",
+            with_idempotency(body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger))
 
     @broker.subscriber(
         EventType.DELETE_POD_COMMAND,
@@ -83,10 +102,10 @@ def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:
             worker: FromDishka[KubernetesWorker],
             idem: FromDishka[IdempotencyManager],
             logger: FromDishka[structlog.stdlib.BoundLogger],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await with_idempotency(
-            body, worker.handle_delete_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger,
-        )
+        await _track_consumed(event_metrics, body, "k8s-worker",
+            with_idempotency(body, worker.handle_delete_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger))
 
 
 def register_result_processor_subscriber(broker: KafkaBroker) -> None:
@@ -102,10 +121,10 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
             logger: FromDishka[structlog.stdlib.BoundLogger],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await with_idempotency(
-            body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
-        )
+        await _track_consumed(event_metrics, body, "result-processor",
+            with_idempotency(body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -119,10 +138,10 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
             logger: FromDishka[structlog.stdlib.BoundLogger],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await with_idempotency(
-            body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
-        )
+        await _track_consumed(event_metrics, body, "result-processor",
+            with_idempotency(body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -136,10 +155,10 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
             processor: FromDishka[ResultProcessor],
             idem: FromDishka[IdempotencyManager],
             logger: FromDishka[structlog.stdlib.BoundLogger],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await with_idempotency(
-            body, processor.handle_execution_timeout, idem, KeyStrategy.CONTENT_HASH, 7200, logger,
-        )
+        await _track_consumed(event_metrics, body, "result-processor",
+            with_idempotency(body, processor.handle_execution_timeout, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
 
 
 def register_saga_subscriber(broker: KafkaBroker) -> None:
@@ -153,8 +172,10 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_requested(
             body: ExecutionRequestedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await orchestrator.handle_execution_requested(body)
+        await _track_consumed(event_metrics, body, "saga-orchestrator",
+            orchestrator.handle_execution_requested(body))
 
     @broker.subscriber(
         EventType.EXECUTION_COMPLETED,
@@ -164,8 +185,10 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await orchestrator.handle_execution_completed(body)
+        await _track_consumed(event_metrics, body, "saga-orchestrator",
+            orchestrator.handle_execution_completed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -175,8 +198,10 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await orchestrator.handle_execution_failed(body)
+        await _track_consumed(event_metrics, body, "saga-orchestrator",
+            orchestrator.handle_execution_failed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -186,8 +211,10 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_timeout(
             body: ExecutionTimeoutEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await orchestrator.handle_execution_timeout(body)
+        await _track_consumed(event_metrics, body, "saga-orchestrator",
+            orchestrator.handle_execution_timeout(body))
 
     @broker.subscriber(
         EventType.EXECUTION_CANCELLED,
@@ -197,8 +224,10 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_cancelled(
             body: ExecutionCancelledEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await orchestrator.handle_execution_cancelled(body)
+        await _track_consumed(event_metrics, body, "saga-orchestrator",
+            orchestrator.handle_execution_cancelled(body))
 
 
 _SSE_EVENT_TYPES = [
@@ -233,7 +262,9 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     async def on_sse_event(
             body: DomainEvent,
             sse_bus: FromDishka[SSERedisBus],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
+        event_metrics.record_kafka_message_consumed(topic=body.event_type, consumer_group="sse-bridge-pool")
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
             sse_data = SSEExecutionEventData(**{
@@ -253,8 +284,10 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_completed(
             body: ExecutionCompletedEvent,
             service: FromDishka[NotificationService],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await service.handle_execution_completed(body)
+        await _track_consumed(event_metrics, body, "notification-service",
+            service.handle_execution_completed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -266,8 +299,10 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_failed(
             body: ExecutionFailedEvent,
             service: FromDishka[NotificationService],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await service.handle_execution_failed(body)
+        await _track_consumed(event_metrics, body, "notification-service",
+            service.handle_execution_failed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -279,7 +314,9 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_timeout(
             body: ExecutionTimeoutEvent,
             service: FromDishka[NotificationService],
+            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await service.handle_execution_timeout(body)
+        await _track_consumed(event_metrics, body, "notification-service",
+            service.handle_execution_timeout(body))
 
 

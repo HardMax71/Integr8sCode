@@ -12,9 +12,10 @@
       }
     ]
   },
+  "description": "System overview dashboard — execution rates, latency percentiles, queue depth, errors, and resource utilization",
   "editable": true,
   "gnetId": null,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [
     {
@@ -84,13 +85,16 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 0,
         "y": 8
       },
       "id": 1,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -99,11 +103,10 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -147,13 +150,16 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 6,
         "y": 8
       },
       "id": 2,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -162,11 +168,10 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -207,13 +212,16 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 12,
         "y": 8
       },
       "id": 3,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -222,11 +230,10 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -267,13 +274,16 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 6,
         "x": 18,
         "y": 8
       },
       "id": 4,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -282,11 +292,10 @@
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -299,14 +308,13 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Execution rate broken down by language and version",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "Executions/sec",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -325,7 +333,7 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -351,7 +359,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 12
       },
       "id": 5,
       "options": {
@@ -368,6 +376,7 @@
           "sort": "desc"
         }
       },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -382,14 +391,13 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "P50, P95, and P99 execution latency over time",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "Duration (s)",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -408,7 +416,7 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -434,7 +442,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 12
       },
       "id": 6,
       "options": {
@@ -451,6 +459,7 @@
           "sort": "desc"
         }
       },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -476,14 +485,13 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Number of executions waiting in the queue",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "Queue Depth",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -502,7 +510,7 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -536,7 +544,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 22
+        "y": 20
       },
       "id": 7,
       "options": {
@@ -553,6 +561,7 @@
           "sort": "desc"
         }
       },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -566,14 +575,13 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Error rate broken down by error type",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "continuous-GrYlRd"
           },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
             "axisLabel": "Errors/min",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -592,7 +600,7 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "normal"
@@ -618,7 +626,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 22
+        "y": 20
       },
       "id": 8,
       "options": {
@@ -632,6 +640,7 @@
           "sort": "desc"
         }
       },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -645,6 +654,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "System memory utilization percentage",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -682,7 +692,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 22
+        "y": 20
       },
       "id": 9,
       "options": {
@@ -699,12 +709,9 @@
         "text": {
           "titleSize": 16,
           "valueSize": 24
-        },
-        "neutral": 50,
-        "minVizHeight": 75,
-        "minVizWidth": 75
+        }
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -748,7 +755,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 30
+        "y": 28
       },
       "id": 11,
       "options": {
@@ -766,7 +773,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -810,7 +817,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 30
+        "y": 28
       },
       "id": 12,
       "options": {
@@ -828,7 +835,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -873,7 +880,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 30
+        "y": 28
       },
       "id": 13,
       "options": {
@@ -891,7 +898,7 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "10.2.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "datasource": "Victoria Metrics",
@@ -904,7 +911,7 @@
     }
   ],
   "refresh": "10s",
-  "schemaVersion": 38,
+  "schemaVersion": 33,
   "style": "dark",
   "tags": [
     "overview",

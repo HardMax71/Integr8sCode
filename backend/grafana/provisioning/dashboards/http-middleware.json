@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "HTTP & Middleware",
+  "description": "HTTP and middleware monitoring dashboard for tracking request rates, database operations, and system health metrics",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
@@ -24,6 +24,7 @@
   "panels": [
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -43,7 +44,7 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 1
@@ -51,9 +52,10 @@
       "id": 1,
       "targets": [
         {
-          "expr": "rate(http_requests_total[5m])",
+          "expr": "rate(http_requests_total[5m]) or vector(0)",
           "legendFormat": "Requests",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Request Rate",
@@ -67,7 +69,7 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
         "y": 1
@@ -75,9 +77,10 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Request Duration",
@@ -91,16 +94,17 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 8,
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 7
+        "y": 9
       },
       "id": 3,
       "targets": [
         {
-          "expr": "http_requests_active_requests",
-          "refId": "A"
+          "expr": "http_requests_active_requests or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Active Requests",
@@ -114,22 +118,24 @@
         }
       },
       "gridPos": {
-        "h": 6,
-        "w": 16,
-        "x": 8,
-        "y": 7
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
       },
       "id": 4,
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_size_bytes_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_size_bytes_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Request p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_response_size_bytes_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_response_size_bytes_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Response p50",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Request/Response Size",
@@ -137,11 +143,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 17
       },
       "id": 101,
       "panels": [],
@@ -156,22 +163,24 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 18
       },
       "id": 5,
       "targets": [
         {
-          "expr": "rate(mongodb_event_operations_total[5m])",
+          "expr": "rate(mongodb_event_operations_total[5m]) or vector(0)",
           "legendFormat": "Operations",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(database_connection_errors_total[5m])",
+          "expr": "rate(database_connection_errors_total[5m]) or vector(0)",
           "legendFormat": "Connection Errors",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "MongoDB Operations",
@@ -185,17 +194,18 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 18
       },
       "id": 6,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(mongodb_event_query_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(mongodb_event_query_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "MongoDB Query Duration",
@@ -209,16 +219,17 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
+        "h": 8,
+        "w": 8,
         "x": 0,
-        "y": 20
+        "y": 26
       },
       "id": 7,
       "targets": [
         {
-          "expr": "database_connections_active",
-          "refId": "A"
+          "expr": "database_connections_active or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Active DB Connections",
@@ -232,17 +243,18 @@
         }
       },
       "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 6,
-        "y": 20
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 26
       },
       "id": 8,
       "targets": [
         {
-          "expr": "rate(event_store_operations_total[5m])",
+          "expr": "rate(event_store_operations_total[5m]) or vector(0)",
           "legendFormat": "Store Ops",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Event Store Operations",
@@ -256,17 +268,18 @@
         }
       },
       "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 15,
-        "y": 20
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 26
       },
       "id": 13,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Idempotency Processing Duration",
@@ -274,11 +287,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 34
       },
       "id": 102,
       "panels": [],
@@ -293,22 +307,24 @@
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 35
       },
       "id": 9,
       "targets": [
         {
-          "expr": "rate(kafka_production_errors_total[5m])",
+          "expr": "rate(kafka_production_errors_total[5m]) or vector(0)",
           "legendFormat": "Production",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(kafka_consumption_errors_total[5m])",
+          "expr": "rate(kafka_consumption_errors_total[5m]) or vector(0)",
           "legendFormat": "Consumption",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Kafka Errors",
@@ -322,16 +338,17 @@
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 35
       },
       "id": 10,
       "targets": [
         {
-          "expr": "event_bus_queue_size",
-          "refId": "A"
+          "expr": "event_bus_queue_size or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Event Bus Queue Size",
@@ -339,11 +356,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 43
       },
       "id": 103,
       "panels": [],
@@ -359,15 +377,16 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
+        "w": 12,
         "x": 0,
-        "y": 34
+        "y": 44
       },
       "id": 11,
       "targets": [
         {
-          "expr": "system_cpu_percent",
-          "refId": "A"
+          "expr": "system_cpu_percent or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "CPU",
@@ -382,15 +401,16 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 34
+        "w": 12,
+        "x": 12,
+        "y": 44
       },
       "id": 12,
       "targets": [
         {
-          "expr": "process_metrics_mixed",
-          "refId": "A"
+          "expr": "process_metrics_mixed or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Process Metrics",
@@ -412,7 +432,20 @@
     "from": "now-3h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
   "timezone": "",
   "title": "HTTP & Middleware",
   "uid": "http-middleware",

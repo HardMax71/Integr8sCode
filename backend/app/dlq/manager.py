@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -78,6 +79,7 @@ class DLQManager:
 
     async def handle_message(self, message: DLQMessage) -> None:
         """Process a single DLQ message: filter -> store -> decide retry/discard."""
+        start = time.monotonic()
         for filter_func in self._filters:
             if not filter_func(message):
                 self.logger.info("Message filtered out", event_id=message.event.event_id)
@@ -86,6 +88,9 @@ class DLQManager:
         message.status = DLQMessageStatus.PENDING
         message.last_updated = datetime.now(timezone.utc)
         await self.repository.save_message(message)
+        self.metrics.record_dlq_message_received(message.original_topic, message.event.event_type)
+        age_seconds = (datetime.now(timezone.utc) - message.failed_at).total_seconds()
+        self.metrics.record_dlq_message_age(age_seconds)
 
         await self._broker.publish(
             DLQMessageReceivedEvent(
@@ -120,11 +125,14 @@ class DLQManager:
         if retry_policy.strategy == RetryStrategy.IMMEDIATE:
             await self.retry_message(message)
 
+        self.metrics.record_dlq_processing_duration(time.monotonic() - start, "handle")
+
     async def retry_message(self, message: DLQMessage) -> None:
         """Retry a DLQ message by republishing to the original topic.
 
         FastStream handles JSON serialization of Pydantic models natively.
         """
+        start = time.monotonic()
         await self._broker.publish(
             message=message.event,
             topic=message.original_topic,
@@ -158,10 +166,12 @@ class DLQManager:
             ),
             topic=EventType.DLQ_MESSAGE_RETRIED,
         )
+        self.metrics.record_dlq_processing_duration(time.monotonic() - start, "retry")
         self.logger.info("Successfully retried message", event_id=message.event.event_id)
 
     async def discard_message(self, message: DLQMessage, reason: str) -> None:
         """Discard a DLQ message, updating status and emitting an event."""
+        start = time.monotonic()
         self.metrics.record_dlq_message_discarded(message.original_topic, message.event.event_type, reason)
 
         await self.repository.update_status(
@@ -188,6 +198,7 @@ class DLQManager:
             ),
             topic=EventType.DLQ_MESSAGE_DISCARDED,
         )
+        self.metrics.record_dlq_processing_duration(time.monotonic() - start, "discard")
         self.logger.warning("Discarded message", event_id=message.event.event_id, reason=reason)
 
     async def process_due_retries(self) -> int:

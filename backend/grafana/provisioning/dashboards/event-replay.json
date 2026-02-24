@@ -1,8 +1,18 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
-  "description": "Event Replay",
+  "description": "Event Replay monitoring dashboard for tracking replay sessions, event processing, performance, and target delivery",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
@@ -24,6 +34,7 @@
   "panels": [
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -37,8 +48,50 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of new replay sessions being created",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         }
       },
@@ -49,11 +102,23 @@
         "y": 1
       },
       "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(replay_sessions_created_total[5m])",
+          "expr": "rate(replay_sessions_created_total[5m]) or vector(0)",
           "legendFormat": "Created",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Sessions Created",
@@ -61,22 +126,61 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Number of currently active replay sessions",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
           "unit": "short"
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 6,
         "x": 12,
         "y": 1
       },
       "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_sessions_active",
-          "refId": "A"
+          "expr": "replay_sessions_active or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Active Sessions",
@@ -84,22 +188,61 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Replay sessions broken down by current status",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
           "unit": "short"
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 6,
         "x": 18,
         "y": 1
       },
       "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_sessions_by_status",
-          "refId": "A"
+          "expr": "replay_sessions_by_status or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "By Status",
@@ -107,6 +250,7 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -120,33 +264,89 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of events processed, failed, and skipped during replay",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
         "y": 8
       },
       "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(replay_events_processed_total[5m])",
+          "expr": "rate(replay_events_processed_total[5m]) or vector(0)",
           "legendFormat": "Processed",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(replay_events_failed_total[5m])",
+          "expr": "rate(replay_events_failed_total[5m]) or vector(0)",
           "legendFormat": "Failed",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(replay_events_skipped_total[5m])",
+          "expr": "rate(replay_events_skipped_total[5m]) or vector(0)",
           "legendFormat": "Skipped",
-          "refId": "C"
+          "refId": "C",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Events Processed",
@@ -154,23 +354,77 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of replay session status transitions",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
         "y": 8
       },
       "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(replay_status_changes_total[5m])",
+          "expr": "rate(replay_status_changes_total[5m]) or vector(0)",
           "legendFormat": "Changes",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Status Changes",
@@ -178,11 +432,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 16
       },
       "id": 102,
       "panels": [],
@@ -191,23 +446,80 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "P95 total duration of replay sessions from start to completion",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 17
       },
       "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(replay_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(replay_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Replay Duration",
@@ -215,23 +527,80 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "P95 time to process individual replay events",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 17
       },
       "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(replay_event_processing_time_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(replay_event_processing_time_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p95",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Event Processing Time",
@@ -239,23 +608,77 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Median events replayed per second (throughput)",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 25
       },
       "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(replay_throughput_event_per_second_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_throughput_event_per_second_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Throughput",
@@ -263,23 +686,77 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Median number of events loaded per batch",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 25
       },
       "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(replay_batch_size_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_batch_size_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Batch Size",
@@ -287,11 +764,12 @@
     },
     {
       "collapsed": false,
+      "datasource": null,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 33
       },
       "id": 103,
       "panels": [],
@@ -300,28 +778,83 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Replay event delivery rate by target type and errors",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 34
       },
       "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(replay_by_target_total[5m])",
+          "expr": "rate(replay_by_target_total[5m]) or vector(0)",
           "legendFormat": "{{target}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(replay_target_errors_total[5m])",
+          "expr": "rate(replay_target_errors_total[5m]) or vector(0)",
           "legendFormat": "Errors",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "By Target",
@@ -329,28 +862,83 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Speed multiplier and inter-event delay applied during replay",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         }
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 34
       },
       "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(replay_speed_multiplier_x_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_speed_multiplier_x_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Multiplier p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(replay_delay_applied_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(replay_delay_applied_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "Delay p50",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Speed Control",
@@ -358,8 +946,30 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Number of events buffered in the replay queue awaiting dispatch",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          },
           "unit": "short"
         }
       },
@@ -367,13 +977,30 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 42
       },
       "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_queue_size",
-          "refId": "A"
+          "expr": "replay_queue_size or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Queue Size",
@@ -384,7 +1011,8 @@
   "schemaVersion": 33,
   "style": "dark",
   "tags": [
-    "replay"
+    "replay",
+    "events"
   ],
   "templating": {
     "list": []
@@ -393,9 +1021,23 @@
     "from": "now-3h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
   "timezone": "",
   "title": "Event Replay",
   "uid": "event-replay",
-  "version": 1
+  "version": 1,
+  "weekStart": ""
 }

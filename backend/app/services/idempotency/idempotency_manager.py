@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -78,16 +79,21 @@ class IdempotencyManager:
         ttl_seconds: int | None = None,
         fields: set[str] | None = None,
     ) -> IdempotencyResult:
+        start = time.monotonic()
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         ttl = ttl_seconds or self.config.default_ttl_seconds
 
         existing = await self._repo.find_by_key(full_key)
         if existing:
             self.metrics.record_idempotency_cache_hit(event.event_type, "check_and_reserve")
-            return await self._handle_existing_key(existing, full_key, event.event_type)
+            result = await self._handle_existing_key(existing, full_key, event.event_type)
+            self.metrics.record_idempotency_processing_duration(time.monotonic() - start, "check_and_reserve")
+            return result
 
         self.metrics.record_idempotency_cache_miss(event.event_type, "check_and_reserve")
-        return await self._create_new_key(full_key, event, ttl)
+        result = await self._create_new_key(full_key, event, ttl)
+        self.metrics.record_idempotency_processing_duration(time.monotonic() - start, "check_and_reserve")
+        return result
 
     async def _handle_existing_key(
         self,

@@ -112,14 +112,14 @@ def setup_log_exporter(settings: Settings, logger: structlog.stdlib.BoundLogger)
     stdout (existing StreamHandler) and the OTel Collector (new OTLP handler).
     Skipped in tests or when no OTLP endpoint is configured.
     """
-    if settings.TESTING or not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+    if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         return
 
     resource = Resource.create({
         SERVICE_NAME: settings.SERVICE_NAME,
         SERVICE_VERSION: settings.SERVICE_VERSION,
         "service.namespace": "integr8scode",
-        "deployment.environment": "test" if settings.TESTING else "production",
+        "deployment.environment": settings.ENVIRONMENT,
         "service.instance.id": settings.HOSTNAME,
     })
 

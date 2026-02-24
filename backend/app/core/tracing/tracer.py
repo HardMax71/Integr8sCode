@@ -24,7 +24,7 @@ class Tracer:
         resource = Resource.create({
             SERVICE_NAME: name,
             SERVICE_VERSION: settings.TRACING_SERVICE_VERSION,
-            "deployment.environment": "test" if settings.TESTING else "production",
+            "deployment.environment": settings.ENVIRONMENT,
             "service.namespace": "integr8scode",
             "service.instance.id": settings.HOSTNAME,
         })

@@ -2,7 +2,7 @@
 # Differences from config.toml: lower timeouts, faster bcrypt, relaxed rate limits
 # Secrets (SECRET_KEY, MONGODB_URL) live in secrets.toml — use secrets.test.toml in CI.
 
-TESTING = true
+ENVIRONMENT = "test"
 PROJECT_NAME = "integr8scode"
 DATABASE_NAME = "integr8scode_db"
 ALGORITHM = "HS256"

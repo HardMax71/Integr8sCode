@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(
         "Starting application with dishka DI",
         project_name=settings.PROJECT_NAME,
-        environment="test" if settings.TESTING else "production",
+        environment=settings.ENVIRONMENT,
     )
 
     # Get unstarted broker from DI (BrokerProvider yields without starting)

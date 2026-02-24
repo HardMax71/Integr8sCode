@@ -90,20 +90,37 @@ server {
     }
     # --8<-- [end:static_caching]
 
-    # --8<-- [start:grafana_proxy]
-    location /grafana/ {
-        resolver 127.0.0.11 valid=30s ipv6=off;
-        set $grafana_upstream ${GRAFANA_URL};
-        rewrite ^/grafana/(.*) /$1 break;
-        proxy_pass $grafana_upstream;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    # --8<-- [end:grafana_proxy]
-
     location / {
         try_files $uri $uri/ /index.html;
     }
 }
+
+# --8<-- [start:grafana_proxy]
+server {
+    listen 5001 ssl;
+    server_name grafana.integr8scode.cc;
+
+    ssl_certificate /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    set $grafana_upstream ${GRAFANA_URL};
+
+    location / {
+        proxy_pass $grafana_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    location /api/live/ {
+        proxy_pass $grafana_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+# --8<-- [end:grafana_proxy]

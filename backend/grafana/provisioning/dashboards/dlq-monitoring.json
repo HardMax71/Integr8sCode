@@ -729,13 +729,13 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation)) or vector(0)",
+          "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p50 {{operation}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation)) or vector(0)",
+          "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p95 {{operation}}",
           "refId": "B",
           "datasource": "Victoria Metrics"

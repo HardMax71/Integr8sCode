@@ -13,10 +13,10 @@ from kubernetes_asyncio import config as k8s_config
 from app.core.logging import setup_logger
 from app.core.metrics import (
     ConnectionMetrics,
-    DatabaseMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
+    IdempotencyMetrics,
     KubernetesMetrics,
     NotificationMetrics,
     QueueMetrics,
@@ -184,9 +184,9 @@ class MessagingProvider(Provider):
             self,
             repo: RedisIdempotencyRepository,
             logger: structlog.stdlib.BoundLogger,
-            database_metrics: DatabaseMetrics,
+            idempotency_metrics: IdempotencyMetrics,
     ) -> IdempotencyManager:
-        return IdempotencyManager(IdempotencyConfig(), repo, logger, database_metrics)
+        return IdempotencyManager(IdempotencyConfig(), repo, logger, idempotency_metrics)
 
 
 class DLQProvider(Provider):
@@ -251,8 +251,8 @@ class MetricsProvider(Provider):
         return ExecutionMetrics(settings)
 
     @provide
-    def get_database_metrics(self, settings: Settings) -> DatabaseMetrics:
-        return DatabaseMetrics(settings)
+    def get_idempotency_metrics(self, settings: Settings) -> IdempotencyMetrics:
+        return IdempotencyMetrics(settings)
 
     @provide
     def get_kubernetes_metrics(self, settings: Settings) -> KubernetesMetrics:
@@ -313,10 +313,8 @@ class RepositoryProvider(Provider):
         return ReplayRepository(logger)
 
     @provide
-    def get_event_repository(
-            self, logger: structlog.stdlib.BoundLogger, database_metrics: DatabaseMetrics,
-    ) -> EventRepository:
-        return EventRepository(logger, database_metrics)
+    def get_event_repository(self, logger: structlog.stdlib.BoundLogger) -> EventRepository:
+        return EventRepository(logger)
 
     @provide
     def get_user_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> UserSettingsRepository:

@@ -1,0 +1,907 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Comprehensive MongoDB monitoring: health, storage, memory, cache, network, locking, latency, and index performance",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Back to Overview",
+      "tooltip": "Return to main dashboard",
+      "type": "link",
+      "url": "/d/integr8scode-overview"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "HTTP & Middleware",
+      "tooltip": "HTTP and middleware monitoring dashboard",
+      "type": "link",
+      "url": "/d/http-middleware"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Health Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "mongodb_health or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "MongoDB Health",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "(mongodb_uptime / 1000) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Server Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "mongodb_session_count or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Active Sessions",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "mongodb_cursor_count or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Open Cursors",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "mongodb_active_reads or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Active Reads",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 5
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "mongodb_active_writes or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Active Writes",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "rate(mongodb_cursor_timeout_count[5m]) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Cursor Timeouts",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "mongodb_database_count or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Total Databases",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Storage",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 10
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "sum(mongodb_data_size) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Data Size by Database",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "sum(mongodb_storage_size) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Storage Size by Database",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "sum(mongodb_index_size) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Index Size by Database",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "sum(mongodb_object_count) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Object Count by Database",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 14,
+      "targets": [
+        {
+          "expr": "sum(mongodb_collection_count) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Collection Count by Database",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Memory & Cache",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "id": 20,
+      "targets": [
+        {
+          "expr": "sum(mongodb_memory_usage) by (memory_type) or vector(0)",
+          "legendFormat": "{{memory_type}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Memory Usage by Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.8 },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "id": 21,
+      "targets": [
+        {
+          "expr": "rate(mongodb_cache_operations{type=\"hit\"}[5m]) / (rate(mongodb_cache_operations{type=\"hit\"}[5m]) + rate(mongodb_cache_operations{type=\"miss\"}[5m]) + 0.001) or vector(0)",
+          "legendFormat": "Hit Ratio",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Cache Hit Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 22,
+      "targets": [
+        {
+          "expr": "rate(mongodb_page_faults[5m]) or vector(0)",
+          "legendFormat": "Page Faults/s",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Page Faults",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 23,
+      "targets": [
+        {
+          "expr": "rate(mongodb_cache_operations{type=\"hit\"}[5m]) or vector(0)",
+          "legendFormat": "Hits",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "rate(mongodb_cache_operations{type=\"miss\"}[5m]) or vector(0)",
+          "legendFormat": "Misses",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Cache Operations Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "id": 24,
+      "targets": [
+        {
+          "expr": "rate(mongodb_wtcache_bytes_read[5m]) or vector(0)",
+          "legendFormat": "WT Cache Bytes Read/s",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "WiredTiger Cache Read Throughput",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Network I/O",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 30,
+      "targets": [
+        {
+          "expr": "rate(mongodb_network_io_receive[5m]) or vector(0)",
+          "legendFormat": "Receive",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "rate(mongodb_network_io_transmit[5m]) or vector(0)",
+          "legendFormat": "Transmit",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Network Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 31,
+      "targets": [
+        {
+          "expr": "rate(mongodb_network_request_count[5m]) or vector(0)",
+          "legendFormat": "Requests/s",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Network Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 104,
+      "panels": [],
+      "title": "Locking & Latency",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 61
+      },
+      "id": 40,
+      "targets": [
+        {
+          "expr": "rate(mongodb_global_lock_time[5m]) or vector(0)",
+          "legendFormat": "Global Lock Time",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Global Lock Hold Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 61
+      },
+      "id": 41,
+      "targets": [
+        {
+          "expr": "mongodb_operation_latency_time or vector(0)",
+          "legendFormat": "{{operation_latency}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Operation Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 61
+      },
+      "id": 42,
+      "targets": [
+        {
+          "expr": "rate(mongodb_lock_acquire_count[5m]) or vector(0)",
+          "legendFormat": "Acquires/s",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "rate(mongodb_lock_acquire_wait_count[5m]) or vector(0)",
+          "legendFormat": "Waits/s",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "rate(mongodb_lock_deadlock_count[5m]) or vector(0)",
+          "legendFormat": "Deadlocks/s",
+          "refId": "C",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Lock Acquisition",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "id": 105,
+      "panels": [],
+      "title": "Operations & Index Performance",
+      "type": "row"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 70
+      },
+      "id": 50,
+      "targets": [
+        {
+          "expr": "mongodb_commands_rate or vector(0)",
+          "legendFormat": "Commands",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "mongodb_queries_rate or vector(0)",
+          "legendFormat": "Queries",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "mongodb_inserts_rate or vector(0)",
+          "legendFormat": "Inserts",
+          "refId": "C",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "mongodb_updates_rate or vector(0)",
+          "legendFormat": "Updates",
+          "refId": "D",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "mongodb_deletes_rate or vector(0)",
+          "legendFormat": "Deletes",
+          "refId": "E",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "mongodb_getmores_rate or vector(0)",
+          "legendFormat": "Getmores",
+          "refId": "F",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Operation Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 70
+      },
+      "id": 51,
+      "targets": [
+        {
+          "expr": "mongodb_flushes_rate or vector(0)",
+          "legendFormat": "Flushes/s",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Flush Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 78
+      },
+      "id": 52,
+      "targets": [
+        {
+          "expr": "topk(10, sum(rate(mongodb_index_access_count[5m])) by (collection, db_namespace)) or vector(0)",
+          "legendFormat": "{{db_namespace}}.{{collection}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Index Access Frequency (Top 10)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 78
+      },
+      "id": 53,
+      "targets": [
+        {
+          "expr": "sum(mongodb_index_count) by (db_namespace) or vector(0)",
+          "legendFormat": "{{db_namespace}}",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Index Count by Database",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 33,
+  "style": "dark",
+  "tags": [
+    "mongodb",
+    "database"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "MongoDB Monitoring",
+  "uid": "mongodb-monitoring",
+  "version": 1
+}

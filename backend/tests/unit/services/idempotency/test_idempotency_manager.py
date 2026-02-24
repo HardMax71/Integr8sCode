@@ -2,7 +2,7 @@ import structlog
 from unittest.mock import MagicMock
 
 import pytest
-from app.core.metrics import DatabaseMetrics
+from app.core.metrics import IdempotencyMetrics
 from app.domain.events import BaseEvent
 from app.domain.idempotency import KeyStrategy
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager
@@ -37,9 +37,9 @@ class TestIdempotencyConfig:
         assert config.max_result_size_bytes == 2048
 
 
-def test_manager_generate_key_variants(database_metrics: DatabaseMetrics) -> None:
+def test_manager_generate_key_variants(idempotency_metrics: IdempotencyMetrics) -> None:
     repo = MagicMock()
-    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, database_metrics=database_metrics)
+    mgr = IdempotencyManager(IdempotencyConfig(), repo, _test_logger, idempotency_metrics=idempotency_metrics)
     ev = MagicMock(spec=BaseEvent)
     ev.event_type = "t"
     ev.event_id = "e"

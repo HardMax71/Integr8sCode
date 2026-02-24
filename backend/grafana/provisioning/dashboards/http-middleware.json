@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "HTTP and middleware monitoring dashboard for tracking request rates, database operations, and system health metrics",
+  "description": "HTTP and middleware monitoring dashboard for tracking request rates, event processing, and system health metrics",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
@@ -19,6 +19,18 @@
       "tooltip": "Return to main dashboard",
       "type": "link",
       "url": "/d/integr8scode-overview"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "MongoDB Detail",
+      "tooltip": "Full MongoDB monitoring dashboard",
+      "type": "link",
+      "url": "/d/mongodb-monitoring"
     }
   ],
   "panels": [
@@ -152,126 +164,21 @@
       },
       "id": 101,
       "panels": [],
-      "title": "Database & Event Store",
+      "title": "Middleware",
       "type": "row"
     },
     {
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 18
-      },
-      "id": 5,
-      "targets": [
-        {
-          "expr": "rate(mongodb_event_operations_total[5m]) or vector(0)",
-          "legendFormat": "Operations",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(database_connection_errors_total[5m]) or vector(0)",
-          "legendFormat": "Connection Errors",
-          "refId": "B",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "MongoDB Operations",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
           "unit": "s"
         }
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 18
-      },
-      "id": 6,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(mongodb_event_query_duration_seconds_bucket[5m])) by (le)) or vector(0)",
-          "legendFormat": "p95",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "MongoDB Query Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
+        "w": 24,
         "x": 0,
-        "y": 26
-      },
-      "id": 7,
-      "targets": [
-        {
-          "expr": "database_connections_active or vector(0)",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Active DB Connections",
-      "type": "stat"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 26
-      },
-      "id": 8,
-      "targets": [
-        {
-          "expr": "rate(event_store_operations_total[5m]) or vector(0)",
-          "legendFormat": "Store Ops",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Event Store Operations",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 26
+        "y": 18
       },
       "id": 13,
       "targets": [
@@ -292,7 +199,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 26
       },
       "id": 102,
       "panels": [],
@@ -310,7 +217,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 27
       },
       "id": 9,
       "targets": [
@@ -341,7 +248,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 27
       },
       "id": 10,
       "targets": [
@@ -361,7 +268,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 35
       },
       "id": 103,
       "panels": [],
@@ -379,7 +286,7 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 36
       },
       "id": 11,
       "targets": [
@@ -403,7 +310,7 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 36
       },
       "id": 12,
       "targets": [
@@ -422,8 +329,7 @@
   "style": "dark",
   "tags": [
     "http",
-    "middleware",
-    "database"
+    "middleware"
   ],
   "templating": {
     "list": []

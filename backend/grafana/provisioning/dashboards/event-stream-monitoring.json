@@ -855,23 +855,7 @@
           },
           "unit": "ops"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Failed"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -905,15 +889,6 @@
           "legendFormat": "{{operation}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": "Victoria Metrics",
-          "editorMode": "code",
-          "expr": "sum(rate(event_store_failures_total[5m]))",
-          "instant": false,
-          "legendFormat": "Failed",
-          "range": true,
-          "refId": "B"
         }
       ],
       "title": "Event Store Operations",

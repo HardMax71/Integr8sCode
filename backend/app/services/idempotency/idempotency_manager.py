@@ -7,7 +7,7 @@ import structlog
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
 
-from app.core.metrics import DatabaseMetrics
+from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.events import BaseEvent
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
@@ -41,10 +41,10 @@ class IdempotencyManager:
         config: IdempotencyConfig,
         repository: RedisIdempotencyRepository,
         logger: structlog.stdlib.BoundLogger,
-        database_metrics: DatabaseMetrics,
+        idempotency_metrics: IdempotencyMetrics,
     ) -> None:
         self.config = config
-        self.metrics = database_metrics
+        self.metrics = idempotency_metrics
         self._repo = repository
         self.logger = logger
         self.logger.info("Idempotency manager initialized")

@@ -507,6 +507,8 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
+      mongo:
+        condition: service_healthy
     restart: unless-stopped
 
 # --8<-- [start:dev_volumes]

@@ -15,7 +15,7 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 1,
+  "id": null,
   "links": [
     {
       "asDropdown": true,
@@ -933,7 +933,7 @@
   },
   "timezone": "",
   "title": "System Overview",
-  "uid": "integr8scode",
+  "uid": "integr8scode-overview",
   "version": 1,
   "weekStart": ""
 }

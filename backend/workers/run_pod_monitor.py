@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from app.core.container import create_pod_monitor_container
-from app.core.logging import setup_logger
+from app.core.logging import setup_log_exporter, setup_logger
 from app.core.metrics import KubernetesMetrics
 from app.db.docs import ALL_DOCUMENTS
 from app.services.pod_monitor import ErrorType, PodMonitor
@@ -21,6 +21,7 @@ def main() -> None:
     settings = Settings(override_path="config.pod-monitor.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
+    setup_log_exporter(settings, logger)
 
     logger.info("Starting PodMonitor worker...")
 

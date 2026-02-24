@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from app.core.container import create_saga_orchestrator_container
-from app.core.logging import setup_logger
+from app.core.logging import setup_log_exporter, setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_saga_subscriber
 from app.services.saga import SagaOrchestrator
@@ -20,6 +20,7 @@ def main() -> None:
     settings = Settings(override_path="config.saga-orchestrator.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
+    setup_log_exporter(settings, logger)
 
     logger.info("Starting Saga Orchestrator worker...")
 

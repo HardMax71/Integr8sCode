@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from app.core.container import create_k8s_worker_container
-from app.core.logging import setup_logger
+from app.core.logging import setup_log_exporter, setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_k8s_worker_subscriber
 from app.services.k8s_worker import KubernetesWorker
@@ -19,6 +19,7 @@ def main() -> None:
     settings = Settings(override_path="config.k8s-worker.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
+    setup_log_exporter(settings, logger)
 
     logger.info("Starting KubernetesWorker...")
 

@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from app.core.container import create_event_replay_container
-from app.core.logging import setup_logger
+from app.core.logging import setup_log_exporter, setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.services.event_replay import EventReplayService
 from app.settings import Settings
@@ -19,6 +19,7 @@ def main() -> None:
     settings = Settings(override_path="config.event-replay.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
+    setup_log_exporter(settings, logger)
 
     logger.info("Starting Event Replay Service...")
 

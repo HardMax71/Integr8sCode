@@ -7,6 +7,20 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Back to Overview",
+      "tooltip": "Return to main dashboard",
+      "type": "link",
+      "url": "/d/integr8scode-overview"
+    }
+  ],
   "panels": [
     {
       "collapsed": false,

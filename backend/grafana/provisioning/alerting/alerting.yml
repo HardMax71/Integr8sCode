@@ -21,7 +21,7 @@ policies:
 groups:
   - orgId: 1
     name: infrastructure-alerts
-    folder: Integr8sCode
+    folder: 'Integr8sCode'
     interval: 1m
     rules:
       - uid: host-memory-warning

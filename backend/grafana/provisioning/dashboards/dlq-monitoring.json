@@ -28,7 +28,7 @@
       "title": "Back to Overview",
       "tooltip": "Return to main dashboard",
       "type": "link",
-      "url": "/d/integr8scode"
+      "url": "/d/integr8scode-overview"
     }
   ],
   "panels": [

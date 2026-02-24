@@ -26,11 +26,11 @@
       "includeVars": false,
       "keepTime": true,
       "tags": [],
-      "targetBlank": true,
-      "title": "System Overview",
-      "tooltip": "View system overview dashboard",
+      "targetBlank": false,
+      "title": "Back to Overview",
+      "tooltip": "Return to main dashboard",
       "type": "link",
-      "url": "/d/integr8scode"
+      "url": "/d/integr8scode-overview"
     },
     {
       "asDropdown": false,

@@ -197,7 +197,13 @@ services:
       - GF_SMTP_USER=${MAILJET_API_KEY:-}
       - GF_SMTP_PASSWORD=${MAILJET_SECRET_KEY:-}
       - GF_SMTP_FROM_ADDRESS=${MAILJET_FROM_ADDRESS:-noreply@integr8scode.cc}
-      - GF_SMTP_ALERT_RECIPIENTS=${GRAFANA_ALERT_RECIPIENTS:-}
+      - GF_SMTP_ALERT_RECIPIENTS=${GRAFANA_ALERT_RECIPIENTS:-noreply@integr8scode.cc}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f localhost:3000/api/health && echo 'ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # Kafka (KRaft mode — no ZooKeeper)
   kafka:

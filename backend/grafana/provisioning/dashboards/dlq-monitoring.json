@@ -1382,7 +1382,7 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "(sum(rate(dlq_messages_discarded_total[1m])) or vector(0)) * 60",
+          "expr": "(sum(rate(dlq_messages_discarded_total[5m])) or vector(0)) * 60",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }

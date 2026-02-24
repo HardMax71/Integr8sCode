@@ -144,11 +144,7 @@ class EventReplayService:
 
     async def cancel_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)
-        previous_status = session.status
-        session.status = ReplayStatus.CANCELLED
-        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.CANCELLED)
         await self._finalize_session(session, ReplayStatus.CANCELLED)
-        await self._repository.update_session_status(session_id, ReplayStatus.CANCELLED)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.CANCELLED, message="Replay session cancelled"
         )

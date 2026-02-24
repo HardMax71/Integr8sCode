@@ -36,8 +36,8 @@ receivers:
   mongodb:
     hosts:
       - endpoint: mongo:27017
-    username: root
-    password: rootpassword
+    username: ${env:MONGO_ROOT_USER}
+    password: ${env:MONGO_ROOT_PASSWORD}
     collection_interval: 15s
     initial_delay: 10s
     metrics:

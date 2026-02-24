@@ -129,19 +129,15 @@ def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> N
     (``opentelemetry.metrics.get_meter``), so this must run before them.
     When skipped (tests / missing endpoint), the default no-op provider is used.
     """
-    if settings.TESTING or not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
-        logger.info(
-            "Metrics OTLP export disabled",
-            testing=settings.TESTING,
-            endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT,
-        )
+    if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+        logger.info("Metrics OTLP export disabled", endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT)
         return
 
     resource = Resource.create(
         {
             SERVICE_NAME: settings.SERVICE_NAME,
             SERVICE_VERSION: settings.SERVICE_VERSION,
-            "service.environment": settings.ENVIRONMENT,
+            "deployment.environment": settings.ENVIRONMENT,
         }
     )
 

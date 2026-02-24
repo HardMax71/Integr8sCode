@@ -173,6 +173,12 @@ services:
     profiles: ["observability"]
     image: grafana/grafana:12.3.1
     user: "472"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        grafana-cli --homepath /usr/share/grafana admin reset-admin-password "$$GF_SECURITY_ADMIN_PASSWORD" > /dev/null 2>&1 || true
+        exec /run.sh
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -188,6 +194,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+      loki:
+        condition: service_healthy
     environment:
       - GF_LOG_LEVEL=warn
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
@@ -412,6 +420,27 @@ services:
     networks:
       - app-network
 
+  loki:
+    container_name: loki
+    profiles: ["observability"]
+    image: grafana/loki:3.4.2
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./backend/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - app-network
+    mem_limit: 256m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --output-document=- http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
   # Event replay service
   event-replay:
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
@@ -507,6 +536,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+      loki:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       mongo:
@@ -520,6 +551,7 @@ volumes:
   grafana_data:
   victoria_metrics_data:
   shared_ca:
+  loki_data:
   kafka_data:
   kafka_logs:
 # --8<-- [end:dev_volumes]

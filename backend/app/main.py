@@ -32,7 +32,7 @@ from app.api.routes.admin import (
 from app.core.container import create_app_container
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
-from app.core.logging import setup_logger
+from app.core.logging import setup_log_exporter, setup_logger
 from app.core.middlewares import (
     CacheControlMiddleware,
     CSRFMiddleware,
@@ -76,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     setup_dishka_fastapi(container, app)
 
     setup_metrics(settings, logger)
+    setup_log_exporter(settings, logger)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware)

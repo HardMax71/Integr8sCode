@@ -1,12 +1,14 @@
 # Grafana Integration
 
-Grafana connects to Victoria Metrics to visualize platform metrics and to Jaeger for trace exploration. Alerting uses
-Grafana's built-in unified alerting engine with provisioned contact points and alert rules — no custom backend endpoints
-involved.
+Grafana connects to Victoria Metrics to visualize platform metrics, to Jaeger for trace exploration, and to Loki for
+log aggregation. Alerting uses Grafana's built-in unified alerting engine with provisioned contact points and alert
+rules — no custom backend endpoints involved.
 
 ## Dashboards
 
-Grafana is available at `http://localhost:3000` when the stack is running (anonymous viewer access enabled by default).
+Grafana is available at `http://localhost:3000` when the stack is running. Login is required — anonymous access is
+disabled. Admin credentials are set via `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` environment variables in
+`docker-compose.yaml` (defaults: `admin` / `admin123`).
 Victoria Metrics serves as the Prometheus-compatible data source. See [Metrics Reference](metrics-reference.md) for the
 full metric catalog and example PromQL queries.
 
@@ -111,15 +113,14 @@ groups:
 
 ## Configuration
 
-Unified alerting is enabled in `backend/grafana/grafana.ini`:
+The full Grafana server configuration lives in `backend/grafana/grafana.ini`:
 
 ```ini
-[unified_alerting]
-enabled = true
-
-[alerting]
-enabled = false
+--8<-- "backend/grafana/grafana.ini:grafana_ini"
 ```
+
+Anonymous access is disabled and basic auth is enabled. Admin credentials are injected via `GF_SECURITY_ADMIN_USER`
+and `GF_SECURITY_ADMIN_PASSWORD` environment variables in `docker-compose.yaml`.
 
 The `[alerting]` section controls the legacy alerting engine (Grafana < 9) and stays disabled. `[unified_alerting]`
 is the modern engine used for all provisioned rules.
@@ -130,4 +131,4 @@ is the modern engine used for all provisioned rules.
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|
 | [`grafana/grafana.ini`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/grafana.ini)                                                       | Grafana server configuration      |
 | [`grafana/provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/alerting/alerting.yml)           | Alert rules and contact points    |
-| [`grafana/provisioning/datasources/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana/provisioning/datasources)                             | Victoria Metrics data source      |
+| [`grafana/provisioning/datasources/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana/provisioning/datasources)                             | Victoria Metrics, Jaeger, and Loki data sources |

@@ -3,6 +3,13 @@ import re
 
 import structlog
 from opentelemetry import trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
+
+from app.settings import Settings
 
 SENSITIVE_PATTERNS: list[tuple[str, str]] = [
     (
@@ -96,3 +103,44 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger
 # --8<-- [end:setup_logger]
+
+
+def setup_log_exporter(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
+    """Configure OTel LoggerProvider to export logs via OTLP to the collector.
+
+    Adds an OTLP handler to stdlib logging so structlog output flows to both
+    stdout (existing StreamHandler) and the OTel Collector (new OTLP handler).
+    No-ops when ``settings.OTEL_EXPORTER_OTLP_ENDPOINT`` is empty.
+
+    Args:
+        settings: Application settings providing the OTLP endpoint and service metadata.
+        logger: Bound logger used to confirm successful configuration.
+
+    Returns:
+        None
+    """
+    if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+        return
+
+    resource = Resource.create({
+        SERVICE_NAME: settings.SERVICE_NAME,
+        SERVICE_VERSION: settings.SERVICE_VERSION,
+        "service.namespace": "integr8scode",
+        "deployment.environment": settings.ENVIRONMENT,
+        "service.instance.id": settings.HOSTNAME,
+    })
+
+    endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
+    log_exporter = OTLPLogExporter(
+        endpoint=endpoint,
+        insecure=endpoint.startswith("http://"),
+    )
+
+    logger_provider = LoggerProvider(resource=resource)
+    logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
+    set_logger_provider(logger_provider)
+
+    otel_handler = LoggingHandler(level=logging.DEBUG, logger_provider=logger_provider)
+    logging.getLogger().addHandler(otel_handler)
+
+    logger.info("OTLP log export configured", endpoint=endpoint)

@@ -156,7 +156,7 @@ class NotificationService:
         )
 
         # Check throttling
-        if not self.settings.TESTING and await self._throttle_cache.check_throttle(
+        if self.settings.ENVIRONMENT != "test" and await self._throttle_cache.check_throttle(
             user_id,
             severity,
             window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,

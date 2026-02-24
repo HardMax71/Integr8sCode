@@ -83,8 +83,6 @@ class Settings(BaseModel):
 
     EXAMPLE_SCRIPTS: dict[str, str] = Field(default_factory=lambda: EXEC_EXAMPLE_SCRIPTS)
 
-    TESTING: bool = False
-
     # Security: bcrypt rounds (lower in tests for speed, higher in production for security)
     BCRYPT_ROUNDS: int = 12
 

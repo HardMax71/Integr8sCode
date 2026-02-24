@@ -1,6 +1,6 @@
 from app.core.metrics.base import BaseMetrics
 from app.core.metrics.connections import ConnectionMetrics
-from app.core.metrics.database import DatabaseMetrics
+from app.core.metrics.database import IdempotencyMetrics
 from app.core.metrics.dlq import DLQMetrics
 from app.core.metrics.events import EventMetrics
 from app.core.metrics.execution import ExecutionMetrics
@@ -14,7 +14,7 @@ from app.core.metrics.security import SecurityMetrics
 __all__ = [
     "BaseMetrics",
     "ConnectionMetrics",
-    "DatabaseMetrics",
+    "IdempotencyMetrics",
     "DLQMetrics",
     "EventMetrics",
     "ExecutionMetrics",

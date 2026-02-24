@@ -103,7 +103,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
+        "w": 6,
         "x": 0,
         "y": 1
       },
@@ -170,8 +170,8 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 4,
+        "w": 6,
+        "x": 6,
         "y": 1
       },
       "id": 52,
@@ -260,7 +260,7 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 6,
+        "w": 12,
         "x": 12,
         "y": 1
       },
@@ -662,7 +662,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 17
       },
       "id": 66,
       "options": {
@@ -759,7 +759,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 17
       },
       "id": 67,
       "options": {
@@ -797,7 +797,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 25
       },
       "id": 68,
       "panels": [],
@@ -855,29 +855,13 @@
           },
           "unit": "ops"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Failed"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 26
       },
       "id": 69,
       "options": {
@@ -905,15 +889,6 @@
           "legendFormat": "{{operation}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": "Victoria Metrics",
-          "editorMode": "code",
-          "expr": "sum(rate(event_store_failures_total[5m]))",
-          "instant": false,
-          "legendFormat": "Failed",
-          "range": true,
-          "refId": "B"
         }
       ],
       "title": "Event Store Operations",
@@ -984,7 +959,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 26
       },
       "id": 70,
       "options": {
@@ -1031,7 +1006,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 34
       },
       "id": 71,
       "panels": [],
@@ -1095,7 +1070,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 35
       },
       "id": 73,
       "options": {

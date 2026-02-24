@@ -12,6 +12,7 @@
       }
     ]
   },
+  "description": "Rate limiting monitoring — request rates, rejections, bypasses, and algorithm distribution",
   "editable": true,
   "gnetId": null,
   "graphTooltip": 1,
@@ -32,7 +33,22 @@
   ],
   "panels": [
     {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Overview",
+      "type": "row"
+    },
+    {
       "datasource": "Victoria Metrics",
+      "description": "Total incoming request rate across all endpoints",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -45,6 +61,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
               }
             ]
           },
@@ -55,7 +79,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 1
       },
       "id": 1,
       "options": {
@@ -64,18 +88,21 @@
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_requests_total[5m]))",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Request Rate",
@@ -83,6 +110,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Percentage of requests rejected by rate limiting",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -113,7 +141,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 1
       },
       "id": 2,
       "options": {
@@ -122,18 +150,21 @@
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "(sum(rate(rate_limit_rejected_total[5m])) / sum(rate(rate_limit_requests_total[5m]))) * 100",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Rejection Rate",
@@ -141,6 +172,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of requests allowed through rate limiting",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -163,7 +195,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 1
       },
       "id": 3,
       "options": {
@@ -172,18 +204,21 @@
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_allowed_total[5m]))",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Allowed Rate",
@@ -191,6 +226,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of requests that bypassed rate limiting",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -213,7 +249,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 1
       },
       "id": 4,
       "options": {
@@ -222,25 +258,43 @@
         "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_bypass_total[5m]))",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Bypass Rate",
       "type": "stat"
     },
     {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "panels": [],
+      "title": "Request Analysis",
+      "type": "row"
+    },
+    {
       "datasource": "Victoria Metrics",
+      "description": "Incoming request rate broken down by API endpoint",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -291,12 +345,15 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "id": 5,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "list",
           "placement": "bottom"
         },
@@ -304,17 +361,19 @@
           "mode": "multi"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_requests_total{endpoint!~\"/api/v1/result/.*\"}[5m])) by (endpoint)",
           "legendFormat": "{{endpoint}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "sum(rate(rate_limit_requests_total{endpoint=~\"/api/v1/result/.*\"}[5m]))",
           "legendFormat": "/api/v1/result/*",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Request Rate by Endpoint",
@@ -322,6 +381,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Request rate split by authentication status",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -372,12 +432,15 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 6
       },
       "id": 6,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "list",
           "placement": "bottom"
         },
@@ -385,19 +448,35 @@
           "mode": "multi"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_requests_total[5m])) by (authenticated)",
           "legendFormat": "authenticated={{authenticated}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Authenticated vs Anonymous Requests",
       "type": "timeseries"
     },
     {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Distribution & Groups",
+      "type": "row"
+    },
+    {
       "datasource": "Victoria Metrics",
+      "description": "Distribution of rate limiting algorithms used in the last hour",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -411,6 +490,15 @@
             }
           },
           "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         }
       },
@@ -418,31 +506,39 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 15
       },
       "id": 7,
       "options": {
-        "displayLabels": ["percent"],
+        "displayLabels": [
+          "percent"
+        ],
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "values": ["value", "percent"]
+          "values": [
+            "value",
+            "percent"
+          ]
         },
         "pieType": "donut",
         "reduceOptions": {
           "values": false,
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "single"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(increase(rate_limit_requests_total[1h])) by (algorithm)",
           "legendFormat": "{{algorithm}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Algorithm Distribution (Last Hour)",
@@ -450,6 +546,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Allowed vs rejected request rates per endpoint group",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -500,12 +597,15 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 15
       },
       "id": 8,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "list",
           "placement": "bottom"
         },
@@ -513,24 +613,41 @@
           "mode": "multi"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_allowed_total[5m])) by (group)",
           "legendFormat": "allowed: {{group}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "sum(rate(rate_limit_rejected_total[5m])) by (group)",
           "legendFormat": "rejected: {{group}}",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Allowed/Rejected by Endpoint Group",
       "type": "timeseries"
     },
     {
+      "collapsed": false,
+      "datasource": null,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Bypass & Rejections",
+      "type": "row"
+    },
+    {
       "datasource": "Victoria Metrics",
+      "description": "Rate of bypassed requests broken down by endpoint",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -581,12 +698,15 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "id": 9,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "list",
           "placement": "bottom"
         },
@@ -594,12 +714,13 @@
           "mode": "multi"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_bypass_total[5m])) by (endpoint)",
           "legendFormat": "{{endpoint}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Bypassed Requests by Endpoint",
@@ -607,6 +728,7 @@
     },
     {
       "datasource": "Victoria Metrics",
+      "description": "Rate of rejected requests broken down by endpoint",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -657,12 +779,15 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 24
       },
       "id": 10,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "list",
           "placement": "bottom"
         },
@@ -670,21 +795,25 @@
           "mode": "multi"
         }
       },
-      "pluginVersion": "8.0.0",
+      "pluginVersion": "8.3.3",
       "targets": [
         {
           "expr": "sum(rate(rate_limit_rejected_total[5m])) by (endpoint)",
           "legendFormat": "{{endpoint}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Rejected Requests by Endpoint",
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 27,
+  "refresh": "10s",
+  "schemaVersion": 33,
   "style": "dark",
-  "tags": ["rate-limiting"],
+  "tags": [
+    "rate-limiting"
+  ],
   "templating": {
     "list": []
   },
@@ -692,9 +821,23 @@
     "from": "now-1h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
   "timezone": "",
   "title": "Rate Limiting",
   "uid": "rate-limiting",
-  "version": 1
+  "version": 1,
+  "weekStart": ""
 }

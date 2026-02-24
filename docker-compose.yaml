@@ -494,6 +494,8 @@ services:
     environment:
       - HOST_PROC=/hostfs/proc
       - HOST_SYS=/hostfs/sys
+      - MONGO_ROOT_USER=${MONGO_ROOT_USER:-root}
+      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-rootpassword}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
@@ -506,6 +508,8 @@ services:
       jaeger:
         condition: service_started
       kafka:
+        condition: service_healthy
+      mongo:
         condition: service_healthy
     restart: unless-stopped
 

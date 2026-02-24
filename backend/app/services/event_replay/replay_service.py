@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -92,9 +93,11 @@ class EventReplayService:
             misfire_grace_time=None,
         )
 
+        previous_status = session.status
         session.status = ReplayStatus.RUNNING
         session.started_at = datetime.now(timezone.utc)
         self._metrics.increment_active_replays()
+        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.RUNNING)
         self._metrics.record_speed_multiplier(session.config.speed_multiplier, session.config.replay_type)
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
         return ReplayOperationResult(
@@ -105,7 +108,9 @@ class EventReplayService:
         session = self.get_session(session_id)
         if session.status != ReplayStatus.RUNNING:
             raise ReplayOperationError(session_id, "pause", "Session is not running")
+        previous_status = session.status
         session.status = ReplayStatus.PAUSED
+        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.PAUSED)
         scheduler = self._schedulers.get(session_id)
         if scheduler:
             scheduler.remove_all_jobs()
@@ -118,7 +123,9 @@ class EventReplayService:
         session = self.get_session(session_id)
         if session.status != ReplayStatus.PAUSED:
             raise ReplayOperationError(session_id, "resume", "Session is not paused")
+        previous_status = session.status
         session.status = ReplayStatus.RUNNING
+        self._metrics.record_status_change(session_id, previous_status, ReplayStatus.RUNNING)
         scheduler = self._schedulers.get(session_id)
         if scheduler:
             scheduler.add_job(
@@ -137,9 +144,7 @@ class EventReplayService:
 
     async def cancel_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)
-        session.status = ReplayStatus.CANCELLED
         await self._finalize_session(session, ReplayStatus.CANCELLED)
-        await self._repository.update_session_status(session_id, ReplayStatus.CANCELLED)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.CANCELLED, message="Replay session cancelled"
         )
@@ -188,10 +193,17 @@ class EventReplayService:
                 await self._finalize_session(session, ReplayStatus.COMPLETED)
                 return
 
+        buf = self._event_buffers.get(session.session_id, [])
+        idx = self._buffer_indices.get(session.session_id, 0)
+        self._metrics.update_replay_queue_size(session.session_id, len(buf) - idx)
+
         success = False
+        t0 = time.monotonic()
         try:
             success = await self._replay_event(session, event)
         except Exception as e:
+            processing_time = time.monotonic() - t0
+            self._metrics.record_event_processing_time(processing_time, event.event_type)
             session.errors.append(
                 ReplayError(timestamp=datetime.now(timezone.utc), event_id=str(event.event_id), error=str(e))
             )
@@ -199,6 +211,9 @@ class EventReplayService:
                 session.failed_events += 1
                 await self._finalize_session(session, ReplayStatus.FAILED)
                 return
+        else:
+            processing_time = time.monotonic() - t0
+            self._metrics.record_event_processing_time(processing_time, event.event_type)
 
         if success:
             session.replayed_events += 1
@@ -254,17 +269,25 @@ class EventReplayService:
             batch = await batch_iter.__anext__()
             self._event_buffers[session_id] = batch
             self._buffer_indices[session_id] = 0
+            session = self._sessions.get(session_id)
+            if session:
+                self._metrics.record_batch_size(len(batch), session.config.replay_type)
+            self._metrics.update_replay_queue_size(session_id, len(batch))
             return True
         except StopAsyncIteration:
             return False
 
     async def _finalize_session(self, session: ReplaySessionState, final_status: ReplayStatus) -> None:
+        previous_status = session.status
         session.status = final_status
         session.completed_at = datetime.now(timezone.utc)
         if final_status == ReplayStatus.COMPLETED and session.started_at:
             duration = (session.completed_at - session.started_at).total_seconds()
-            self._metrics.record_replay_duration(duration, session.config.replay_type)
+            total_events = session.replayed_events + session.failed_events
+            self._metrics.record_replay_duration(duration, session.config.replay_type, total_events=total_events)
+        self._metrics.record_status_change(session.session_id, previous_status, final_status)
         self._metrics.decrement_active_replays()
+        self._metrics.update_replay_queue_size(session.session_id, 0)
         await self._update_session_in_db(session)
         scheduler = self._schedulers.pop(session.session_id, None)
         if scheduler:

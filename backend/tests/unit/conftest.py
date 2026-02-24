@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from app.core.metrics import (
     ConnectionMetrics,
-    DatabaseMetrics,
+    IdempotencyMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
@@ -228,8 +228,8 @@ def queue_metrics(test_settings: Settings) -> QueueMetrics:
 
 
 @pytest.fixture
-def database_metrics(test_settings: Settings) -> DatabaseMetrics:
-    return DatabaseMetrics(test_settings)
+def idempotency_metrics(test_settings: Settings) -> IdempotencyMetrics:
+    return IdempotencyMetrics(test_settings)
 
 
 @pytest.fixture

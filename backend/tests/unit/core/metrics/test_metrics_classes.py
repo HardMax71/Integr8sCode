@@ -1,7 +1,7 @@
 import pytest
 from app.core.metrics import (
     ConnectionMetrics,
-    DatabaseMetrics,
+    IdempotencyMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
@@ -51,7 +51,7 @@ def test_event_metrics_smoke(test_settings: Settings) -> None:
 def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     """Test other metrics classes smoke test with no-op metrics."""
     QueueMetrics(test_settings).record_enqueue()
-    DatabaseMetrics(test_settings).record_mongodb_operation("read", "ok")
+    IdempotencyMetrics(test_settings).record_idempotency_cache_hit("etype", "check")
     DLQMetrics(test_settings).record_dlq_message_received("topic", "type")
     ExecutionMetrics(test_settings).record_script_execution(ExecutionStatus.QUEUED, "python")
     KubernetesMetrics(test_settings).record_k8s_pod_created("success", "python")

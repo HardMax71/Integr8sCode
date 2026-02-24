@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import redis.asyncio as redis
-from app.core.metrics import DatabaseMetrics
+from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
@@ -34,8 +34,8 @@ class TestIdempotencyManager:
             max_result_size_bytes=1024,
         )
         repo = RedisIdempotencyRepository(redis_client, key_prefix=prefix)
-        database_metrics = DatabaseMetrics(test_settings)
-        return IdempotencyManager(cfg, repo, _test_logger, database_metrics=database_metrics)
+        idempotency_metrics = IdempotencyMetrics(test_settings)
+        return IdempotencyManager(cfg, repo, _test_logger, idempotency_metrics=idempotency_metrics)
 
     @pytest.mark.asyncio
     async def test_complete_flow_new_event(self, manager: IdempotencyManager) -> None:

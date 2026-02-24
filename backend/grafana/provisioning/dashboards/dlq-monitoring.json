@@ -99,7 +99,8 @@
       "targets": [
         {
           "expr": "sum(dlq_queue_size) or vector(0)",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Total DLQ Size",
@@ -174,9 +175,10 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(dlq_messages_received_total[5m])",
+          "expr": "rate(dlq_messages_received_total[5m]) or vector(0)",
           "legendFormat": "Incoming Rate",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Incoming Rate",
@@ -190,7 +192,17 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "N/A",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -236,8 +248,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "(sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) / (sum(rate(dlq_messages_retried_total[5m])) + 0.001)) * 100",
-          "refId": "A"
+          "expr": "((sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Retry Success Rate",
@@ -290,8 +303,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(increase(dlq_messages_discarded_total[24h]))",
-          "refId": "A"
+          "expr": "sum(increase(dlq_messages_discarded_total[24h])) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Messages Discarded (24h)",
@@ -366,7 +380,8 @@
         {
           "expr": "sum by (original_topic) (dlq_queue_size)",
           "legendFormat": "{{original_topic}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Size by Topic",
@@ -443,19 +458,22 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(dlq_messages_received_total[5m]))",
+          "expr": "sum(rate(dlq_messages_received_total[5m])) or vector(0)",
           "legendFormat": "Received",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(dlq_messages_retried_total[5m]))",
+          "expr": "sum(rate(dlq_messages_retried_total[5m])) or vector(0)",
           "legendFormat": "Retried",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(dlq_messages_discarded_total[5m]))",
+          "expr": "sum(rate(dlq_messages_discarded_total[5m])) or vector(0)",
           "legendFormat": "Discarded",
-          "refId": "C"
+          "refId": "C",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Message Flow",
@@ -517,7 +535,8 @@
         {
           "expr": "sum by (reason) (increase(dlq_messages_discarded_total[24h]))",
           "legendFormat": "{{reason}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Discard Reasons (24h)",
@@ -617,19 +636,22 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p50",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.90, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p90",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "p99",
-          "refId": "C"
+          "refId": "C",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Message Age in DLQ",
@@ -709,12 +731,14 @@
         {
           "expr": "histogram_quantile(0.50, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p50 {{operation}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         },
         {
           "expr": "histogram_quantile(0.95, sum(rate(dlq_processing_duration_seconds_bucket[5m])) by (le, operation))",
           "legendFormat": "p95 {{operation}}",
-          "refId": "B"
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Processing Duration",
@@ -785,8 +809,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 24,
+        "x": 0,
         "y": 26
       },
       "id": 11,
@@ -807,7 +831,8 @@
         {
           "expr": "sum by (result) (increase(dlq_messages_retried_total[1h]))",
           "legendFormat": "{{result}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Retry Results (1h)",
@@ -903,7 +928,8 @@
         {
           "expr": "sum by (error_type) (rate(dlq_processing_errors_total[5m]))",
           "legendFormat": "{{error_type}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Processing Errors",
@@ -964,7 +990,8 @@
           "expr": "topk(10, sum by (original_topic, event_type, error_type) (increase(dlq_processing_errors_total[1h])))",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Top Error Sources (1h)",
@@ -1048,7 +1075,8 @@
           "expr": "sum by (original_topic, event_type) (increase(dlq_messages_received_total[24h]))",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "DLQ Messages by Topic & Type (24h)",
@@ -1143,7 +1171,8 @@
         {
           "expr": "sum by (original_topic) (dlq_queue_size)",
           "legendFormat": "{{original_topic}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Queue Size by Topic",
@@ -1217,8 +1246,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(dlq_queue_size) > 100",
-          "refId": "A"
+          "expr": "sum(dlq_queue_size) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "High DLQ Size Alert",
@@ -1232,7 +1262,17 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "N/A",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "max": 100,
           "min": 0,
           "thresholds": {
@@ -1280,8 +1320,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "(sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) / (sum(rate(dlq_messages_retried_total[5m])) + 0.001)) * 100",
-          "refId": "A"
+          "expr": "((sum(rate(dlq_messages_retried_total{result=\"success\"}[5m])) or vector(0)) / ((sum(rate(dlq_messages_retried_total[5m])) or vector(0)) + 0.001)) * 100",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Low Success Rate Alert",
@@ -1341,8 +1382,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "sum(rate(dlq_messages_discarded_total[1m])) * 60",
-          "refId": "A"
+          "expr": "(sum(rate(dlq_messages_discarded_total[5m])) or vector(0)) * 60",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "High Discard Rate Alert",
@@ -1402,8 +1444,9 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le))",
-          "refId": "A"
+          "expr": "histogram_quantile(0.99, sum(rate(dlq_message_age_seconds_bucket[5m])) by (le)) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
         }
       ],
       "title": "Old Messages Alert",

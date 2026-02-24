@@ -156,10 +156,6 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 
-            curl -sf -X POST \
-              -u "$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD" \
-              http://localhost:3000/api/admin/provisioning/dashboards/reload
-
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 
             docker image prune -af --filter "until=72h" || true

@@ -10,9 +10,23 @@ export default defineConfig({
   ],
   test: {
     environment: 'jsdom',
+    pool: 'threads',
+    css: false,
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
     globals: true,
+    environmentMatchGlobs: [
+      ['src/lib/**/*.test.ts', 'node'],
+      ['src/stores/**/*.test.ts', 'node'],
+      ['src/utils/**/*.test.ts', 'node'],
+    ],
+    deps: {
+      optimizer: {
+        web: {
+          include: ['@lucide/svelte', 'svelte-sonner', '@mateothegreat/svelte5-router'],
+        },
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

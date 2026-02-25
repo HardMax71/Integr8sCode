@@ -2,10 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { createMockEvent, createMockEvents, user } from '$test/test-utils';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('Eye', 'Play', 'Trash2'));
-vi.mock('$components/EventTypeIcon.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>icon</span>'));
 
 import EventsTable from '../EventsTable.svelte';
 

@@ -48,12 +48,6 @@ vi.mock('svelte-sonner', () => ({
 
 vi.mock('../../../lib/api-interceptors');
 
-// Mock @mateothegreat/svelte5-router
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-  goto: vi.fn(),
-}));
-
 // Simple mock for AdminLayout
 vi.mock('../AdminLayout.svelte', async () => {
   const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');

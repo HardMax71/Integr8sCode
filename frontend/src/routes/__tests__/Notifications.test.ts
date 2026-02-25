@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createMockNotification, createMockNotifications, user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import Notifications from '$routes/Notifications.svelte';
 
 const mocks = vi.hoisted(() => ({
-  addToast: vi.fn(),
   mockNotificationStore: {
     notifications: [] as ReturnType<typeof createMockNotification>[],
     unreadCount: 0,
@@ -18,16 +19,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$stores/notificationStore.svelte', () => ({ notificationStore: mocks.mockNotificationStore }));
 
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule(
-    'Bell', 'Trash2', 'Clock', 'CircleCheck', 'AlertCircle', 'Info'));
-
 vi.mock('$lib/api', () => ({}));
 
 describe('Notifications', () => {
@@ -37,13 +28,14 @@ describe('Notifications', () => {
     mocks.mockNotificationStore.unreadCount = 0;
     mocks.mockNotificationStore.loading = false;
     mocks.mockNotificationStore.load.mockResolvedValue([]);
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
     mocks.mockNotificationStore.markAsRead.mockResolvedValue(true);
     mocks.mockNotificationStore.markAllAsRead.mockResolvedValue(true);
     mocks.mockNotificationStore.delete.mockResolvedValue(true);
   });
 
-  async function renderNotifications() {
-    const { default: Notifications } = await import('$routes/Notifications.svelte');
+  function renderNotifications() {
     return render(Notifications);
   }
 
@@ -173,7 +165,7 @@ describe('Notifications', () => {
       await user.click(btn);
       expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('success', 'All notifications marked as read');
+        expect(toast.success).toHaveBeenCalledWith('All notifications marked as read');
       });
     });
 
@@ -188,7 +180,7 @@ describe('Notifications', () => {
       );
       await user.click(btn);
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to mark all as read');
+        expect(toast.error).toHaveBeenCalledWith('Failed to mark all as read');
       });
     });
   });
@@ -204,7 +196,7 @@ describe('Notifications', () => {
       await user.click(deleteBtn);
       await waitFor(() => {
         expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
-        expect(mocks.addToast).toHaveBeenCalledWith('success', 'Notification deleted');
+        expect(toast.success).toHaveBeenCalledWith('Notification deleted');
       });
     });
 
@@ -218,7 +210,7 @@ describe('Notifications', () => {
       const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
       await user.click(deleteBtn);
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to delete notification');
+        expect(toast.error).toHaveBeenCalledWith('Failed to delete notification');
       });
     });
 

@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule(
-    'MessageSquare', 'ChevronUp', 'ChevronDown', 'Cpu', 'MemoryStick', 'Clock',
-  ));
+
 
 import ResourceLimits from '../ResourceLimits.svelte';
 

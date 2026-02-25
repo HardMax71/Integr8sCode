@@ -82,11 +82,6 @@ vi.mock('../../../lib/formatters', () => ({
   },
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-  goto: vi.fn(),
-}));
-
 // Simple mock for AdminLayout that just renders children
 vi.mock('../AdminLayout.svelte', async () => {
   const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');

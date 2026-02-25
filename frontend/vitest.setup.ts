@@ -79,7 +79,8 @@ export function resetStorageMocks() {
 }
 
 // Mock Element.prototype.animate for Svelte transitions (canonical global stub)
-Element.prototype.animate = vi.fn().mockImplementation(() => {
+// Guarded for node environment where Element is not available
+if (typeof Element !== 'undefined') Element.prototype.animate = vi.fn().mockImplementation(() => {
   const mock = {
     _onfinish: null as (() => void) | null,
     get onfinish() { return this._onfinish; },

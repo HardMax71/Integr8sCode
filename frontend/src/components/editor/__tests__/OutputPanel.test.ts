@@ -1,19 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
 import type { ExecutionResult } from '$lib/api';
 import type { ExecutionPhase } from '$lib/editor';
-
-const mocks = vi.hoisted(() => ({
-  addToast: vi.fn(),
-}));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('AlertTriangle', 'FileText', 'Copy'));
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<div>Loading...</div>', 'spinner'));
 
 import OutputPanel from '../OutputPanel.svelte';
 
@@ -44,6 +34,8 @@ function renderIdle(overrides: Partial<IdleProps> = {}) {
 describe('OutputPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
   });
 
   it('shows heading and prompt text when idle with no result or error', () => {
@@ -161,14 +153,14 @@ describe('OutputPanel', () => {
       });
       await user.click(screen.getByLabelText(ariaLabel));
       expect(writeTextMock).toHaveBeenCalledWith(text);
-      expect(mocks.addToast).toHaveBeenCalledWith('success', `${toastLabel} copied to clipboard`);
+      expect(toast.success).toHaveBeenCalledWith(`${toastLabel} copied to clipboard`);
     });
 
     it('shows error toast when clipboard write fails', async () => {
       mockClipboard(false);
       renderIdle({ result: makeResult({ stdout: 'x' }) });
       await user.click(screen.getByLabelText('Copy output to clipboard'));
-      expect(mocks.addToast).toHaveBeenCalledWith('error', 'Failed to copy output');
+      expect(toast.error).toHaveBeenCalledWith('Failed to copy output');
     });
   });
 

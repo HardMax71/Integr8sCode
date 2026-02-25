@@ -1,26 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-const mocks = vi.hoisted(() => ({
-  mockUpdateMetaTags: vi.fn(),
-}));
+import * as meta from '$utils/meta';
+import Home from '$routes/Home.svelte';
 
-vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$test/test-utils')).createMockRouterModule());
-
-vi.mock('$utils/meta', async () =>
-  (await import('$test/test-utils')).createMetaMock(
-    mocks.mockUpdateMetaTags, { home: { title: 'Home', description: 'Home desc' } }));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('Zap', 'ShieldCheck', 'Clock'));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 
 describe('Home', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(meta, 'updateMetaTags');
   });
 
-  async function renderHome() {
-    const { default: Home } = await import('$routes/Home.svelte');
+  function renderHome() {
     return render(Home);
   }
 
@@ -58,7 +49,7 @@ describe('Home', () => {
   it('calls updateMetaTags with home meta on mount', async () => {
     await renderHome();
     await waitFor(() => {
-      expect(mocks.mockUpdateMetaTags).toHaveBeenCalledWith('Home', 'Home desc');
+      expect(meta.updateMetaTags).toHaveBeenCalledWith('Home', expect.stringContaining('Integr8sCode'));
     });
   });
 });

@@ -3,8 +3,6 @@ import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
 import type { EventReplayStatusResponse } from '$lib/api';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('X'));
 
 import ReplayProgressBanner from '../ReplayProgressBanner.svelte';
 

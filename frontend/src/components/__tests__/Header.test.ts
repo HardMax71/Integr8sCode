@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user, suppressConsoleError } from '$test/test-utils';
 
+import * as router from '@mateothegreat/svelte5-router';
+
 const mocks = vi.hoisted(() => ({
   mockAuthStore: {
     isAuthenticated: false as boolean | null,
@@ -19,10 +21,8 @@ const mocks = vi.hoisted(() => ({
     value: 'auto' as string,
   },
   mockToggleTheme: vi.fn(),
-  mockGoto: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
@@ -30,9 +30,11 @@ vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
   get toggleTheme() { return mocks.mockToggleTheme; },
 }));
-vi.mock('../NotificationCenter.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent(
-    '<div>NotificationCenter</div>', 'notification-center'));
+vi.mock('../NotificationCenter.svelte', () => {
+  const M = function() { return {}; } as any;
+  M.render = () => ({ html: '<div data-testid="notification-center">NotificationCenter</div>', css: { code: '', map: null }, head: '' });
+  return { default: M };
+});
 
 import Header from '$components/Header.svelte';
 
@@ -62,7 +64,7 @@ describe('Header', () => {
     mocks.mockThemeStore.value = 'auto';
     mocks.mockAuthStore.logout.mockReset();
     mocks.mockToggleTheme.mockReset();
-    mocks.mockGoto.mockReset();
+    vi.spyOn(router, 'goto');
     originalInnerWidth = window.innerWidth;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
     Object.defineProperty(window, 'matchMedia', {
@@ -146,7 +148,7 @@ describe('Header', () => {
       await waitFor(() => { expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument(); });
       await user.click(screen.getByRole('button', { name: /Logout/i }));
       expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+      expect(router.goto).toHaveBeenCalledWith('/login');
     });
   });
 
@@ -165,7 +167,7 @@ describe('Header', () => {
       await openUserDropdown();
       await waitFor(() => { expect(screen.getByRole('button', { name: /^Admin$/ })).toBeInTheDocument(); });
       await user.click(screen.getByRole('button', { name: /^Admin$/ }));
-      await waitFor(() => { expect(mocks.mockGoto).toHaveBeenCalledWith('/admin/events'); });
+      await waitFor(() => { expect(router.goto).toHaveBeenCalledWith('/admin/events'); });
     });
   });
 
@@ -271,7 +273,7 @@ describe('Header', () => {
       await user.click(logoutButton);
 
       expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+      expect(router.goto).toHaveBeenCalledWith('/login');
     });
   });
 });

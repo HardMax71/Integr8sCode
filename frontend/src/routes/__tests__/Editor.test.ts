@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import * as meta from '$utils/meta';
 import Editor from '$routes/Editor.svelte';
 
 function createMockLimits() {
@@ -21,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   createSavedScriptApiV1ScriptsPost: vi.fn(),
   updateSavedScriptApiV1ScriptsScriptIdPut: vi.fn(),
   deleteSavedScriptApiV1ScriptsScriptIdDelete: vi.fn(),
-  addToast: vi.fn(),
   mockConfirm: vi.fn(),
   mockExecutionState: {
     phase: 'idle' as string,
@@ -45,7 +46,6 @@ const mocks = vi.hoisted(() => ({
   mockUnwrapOr: vi.fn((result: { data?: unknown; error?: unknown }, fallback: unknown) => {
     return result.error ? fallback : result.data ?? fallback;
   }),
-  mockUpdateMetaTags: vi.fn(),
 }));
 
 vi.mock('$lib/api', () => ({
@@ -66,28 +66,12 @@ vi.mock('$stores/userSettings.svelte', () => ({
   },
 }));
 
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
 vi.mock('$lib/api-interceptors', () => ({
   unwrap: (...args: unknown[]) => (mocks.mockUnwrap as (...a: unknown[]) => unknown)(...args),
   unwrapOr: (...args: unknown[]) => (mocks.mockUnwrapOr as (...a: unknown[]) => unknown)(...args),
 }));
 
-vi.mock('$utils/meta', async () =>
-  (await import('$test/test-utils')).createMetaMock(
-    mocks.mockUpdateMetaTags, { editor: { title: 'Code Editor', description: 'Editor desc' } }));
-
 vi.mock('$lib/editor', () => ({ createExecutionState: () => mocks.mockExecutionState }));
-
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span></span>', 'spinner'));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule(
-    'CirclePlay', 'Settings', 'Lightbulb',
-    'FilePlus', 'Upload', 'Download', 'Save',
-    'List', 'Trash2'));
 
 vi.mock('$components/editor', async () => {
   const utils = await import('$test/test-utils');
@@ -118,6 +102,11 @@ describe('Editor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
+    vi.spyOn(toast, 'warning');
+    vi.spyOn(toast, 'info');
+    vi.spyOn(meta, 'updateMetaTags');
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.mockAuthStore.verifyAuth.mockResolvedValue(true);
@@ -182,7 +171,7 @@ describe('Editor', () => {
     it('calls updateMetaTags with editor meta', async () => {
       await renderEditor();
       await waitFor(() => {
-        expect(mocks.mockUpdateMetaTags).toHaveBeenCalledWith('Code Editor', 'Editor desc');
+        expect(meta.updateMetaTags).toHaveBeenCalledWith('Code Editor', expect.stringContaining('Online code editor'));
       });
     });
   });
@@ -217,7 +206,7 @@ describe('Editor', () => {
           }),
         });
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script saved successfully.');
+      expect(toast.success).toHaveBeenCalledWith('Script saved successfully.');
     });
 
     it('falls back to create when update returns 404', async () => {
@@ -247,7 +236,7 @@ describe('Editor', () => {
         expect(screen.getByTitle(/Load Existing Script/)).toBeInTheDocument();
       });
       await user.click(screen.getByTitle(/Load Existing Script/));
-      expect(mocks.addToast).toHaveBeenCalledWith('info', 'Loaded script: Existing Script');
+      expect(toast.info).toHaveBeenCalledWith('Loaded script: Existing Script');
 
       // Options closed after loadScript, reopen and click Save
       await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -272,7 +261,7 @@ describe('Editor', () => {
           }),
         });
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script saved successfully.');
+      expect(toast.success).toHaveBeenCalledWith('Script saved successfully.');
     });
   });
 
@@ -303,7 +292,7 @@ describe('Editor', () => {
           path: { script_id: 'script-99' },
         });
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Script deleted successfully.');
+      expect(toast.success).toHaveBeenCalledWith('Script deleted successfully.');
     });
   });
 
@@ -332,7 +321,7 @@ describe('Editor', () => {
       await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
       await user.click(screen.getByRole('button', { name: 'New' }));
       expect(mocks.mockExecutionState.reset).toHaveBeenCalled();
-      expect(mocks.addToast).toHaveBeenCalledWith('info', 'New script started.');
+      expect(toast.info).toHaveBeenCalledWith('New script started.');
     });
   });
 });

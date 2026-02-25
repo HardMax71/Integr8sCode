@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 import type { ExecutionResult } from '$lib/api';
 import type { ExecutionPhase } from '$lib/editor';
 
@@ -155,7 +155,6 @@ describe('OutputPanel', () => {
       { target: 'stderr', ariaLabel: 'Copy error text to clipboard', text: 'some error', toastLabel: 'Error text' },
       { target: 'execution_id', ariaLabel: 'Click to copy execution ID', text: 'uuid-abc', toastLabel: 'Execution ID' },
     ])('copies $target and shows success toast', async ({ target, ariaLabel, text, toastLabel }) => {
-      const user = userEvent.setup();
       mockClipboard();
       renderIdle({
         result: makeResult({ [target]: text }),
@@ -166,7 +165,6 @@ describe('OutputPanel', () => {
     });
 
     it('shows error toast when clipboard write fails', async () => {
-      const user = userEvent.setup();
       mockClipboard(false);
       renderIdle({ result: makeResult({ stdout: 'x' }) });
       await user.click(screen.getByLabelText('Copy output to clipboard'));

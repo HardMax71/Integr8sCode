@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 const mocks = vi.hoisted(() => ({
   registerApiV1AuthRegisterPost: vi.fn(),
   mockGoto: vi.fn(),
@@ -31,8 +31,6 @@ vi.mock('$components/Spinner.svelte', async () =>
   (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
 
 describe('Register', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.registerApiV1AuthRegisterPost.mockResolvedValue({ data: {}, error: undefined });

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
 import {
   mockWindowGlobals,
@@ -9,6 +8,7 @@ import {
   createMockStats,
   createMockEventDetail,
   createMockUserOverview,
+  userWithTimers as user,
 } from '$test/test-utils';
 
 // Hoisted mocks
@@ -96,7 +96,6 @@ describe('AdminEvents', () => {
 
   describe('initial loading', () => {
     it('calls loadEvents and loadStats on mount', async () => {
-      vi.useRealTimers();
       render(AdminEvents);
       await waitFor(() => {
         expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(1);
@@ -118,7 +117,6 @@ describe('AdminEvents', () => {
     });
 
     it('handles API error on load events and shows toast', async () => {
-      vi.useRealTimers();
       const error = { message: 'Network error' };
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockImplementation(async () => {
         mocks.addToast('Failed to load events');
@@ -129,7 +127,6 @@ describe('AdminEvents', () => {
     });
 
     it('displays empty state when no events', async () => {
-      vi.useRealTimers();
       await renderWithEvents([], createMockStats({ total_events: 0 }));
       expect(screen.getByText(/No events found/i)).toBeInTheDocument();
     });
@@ -137,7 +134,6 @@ describe('AdminEvents', () => {
 
   describe('stats display', () => {
     it('displays event statistics cards', async () => {
-      vi.useRealTimers();
       await renderWithEvents(createMockEvents(5), createMockStats({ total_events: 150, error_rate: 2.5, avg_processing_time: 1.23 }));
       expect(screen.getByText(/Events \(Last 24h\)/i)).toBeInTheDocument();
       expect(screen.getByText('150')).toBeInTheDocument();
@@ -146,14 +142,12 @@ describe('AdminEvents', () => {
     });
 
     it('shows error rate in red when > 0', async () => {
-      vi.useRealTimers();
       await renderWithEvents(createMockEvents(1), createMockStats({ error_rate: 5 }));
       const errorRateElement = screen.getByText('5%');
       expect(errorRateElement).toHaveClass('text-red-600');
     });
 
     it('shows error rate in green when 0', async () => {
-      vi.useRealTimers();
       await renderWithEvents(createMockEvents(1), createMockStats({ error_rate: 0 }));
       const errorRateElement = screen.getByText('0%');
       expect(errorRateElement).toHaveClass('text-green-600');
@@ -162,7 +156,6 @@ describe('AdminEvents', () => {
 
   describe('event list rendering', () => {
     it('displays events in table', async () => {
-      vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_completed', metadata: { user_id: 'user-1', service_name: 'test-service' } })];
       await renderWithEvents(events);
       // Events are displayed (multiple due to mobile + desktop views)
@@ -170,7 +163,6 @@ describe('AdminEvents', () => {
     });
 
     it('displays multiple events', async () => {
-      vi.useRealTimers();
       const events = createMockEvents(5);
       await renderWithEvents(events);
       // Should show events info in pagination
@@ -178,7 +170,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows user ID as clickable link', async () => {
-      vi.useRealTimers();
       const events = [createMockEvent({ metadata: { user_id: 'user-123' } })];
       await renderWithEvents(events);
       const userLinks = screen.getAllByText('user-123');
@@ -191,8 +182,6 @@ describe('AdminEvents', () => {
 
   describe('refresh functionality', () => {
     it('refresh button reloads events', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
 
@@ -205,8 +194,6 @@ describe('AdminEvents', () => {
 
   describe('filters', () => {
     it('toggles filter panel', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       const filtersBtn = screen.getByRole('button', { name: /Filters/i });
@@ -219,8 +206,6 @@ describe('AdminEvents', () => {
     });
 
     it('displays filter inputs when panel is open', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Filters/i }));
@@ -236,8 +221,6 @@ describe('AdminEvents', () => {
     });
 
     it('applies filters when Apply button is clicked', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Filters/i }));
@@ -262,8 +245,6 @@ describe('AdminEvents', () => {
     });
 
     it('clears all filters', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Filters/i }));
@@ -276,8 +257,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows active filter count badge', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Filters/i }));
@@ -298,7 +277,6 @@ describe('AdminEvents', () => {
 
   describe('pagination', () => {
     it('shows pagination info', async () => {
-      vi.useRealTimers();
       const events = createMockEvents(25);
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
         data: { events: events.slice(0, 10), total: 25 },
@@ -313,8 +291,6 @@ describe('AdminEvents', () => {
     });
 
     it('changes page when next is clicked', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
         data: { events: createMockEvents(10), total: 25 },
         error: null,
@@ -340,8 +316,6 @@ describe('AdminEvents', () => {
     });
 
     it('changes page size', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
         data: { events: createMockEvents(10), total: 50 },
         error: null,
@@ -369,8 +343,6 @@ describe('AdminEvents', () => {
 
   describe('event detail modal', () => {
     it('opens event detail modal when row is clicked', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-detail-1' })];
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(events[0]),
@@ -391,8 +363,6 @@ describe('AdminEvents', () => {
     });
 
     it('displays event information in modal', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed' });
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
@@ -411,8 +381,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows related events in modal', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const event = createMockEvent();
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
@@ -431,8 +399,6 @@ describe('AdminEvents', () => {
     });
 
     it('has close button in modal', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const event = createMockEvent();
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
         data: createMockEventDetail(event),
@@ -453,8 +419,6 @@ describe('AdminEvents', () => {
 
   describe('replay functionality', () => {
     it('shows replay preview on dry run', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-replay-1' })];
       mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
         data: { total_events: 1, events_preview: events, session_id: null },
@@ -474,8 +438,6 @@ describe('AdminEvents', () => {
     });
 
     it('confirms before actual replay', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-replay-2' })];
       mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
         data: { total_events: 1, session_id: 'session-1' },
@@ -495,8 +457,6 @@ describe('AdminEvents', () => {
     });
 
     it('does not replay if confirm is cancelled', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       mocks.windowConfirm.mockReturnValue(false);
       const events = [createMockEvent()];
       await renderWithEvents(events);
@@ -508,8 +468,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows replay progress when session is active', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-progress' })];
       mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
         data: { total_events: 5, session_id: 'session-progress' },
@@ -538,8 +496,6 @@ describe('AdminEvents', () => {
 
   describe('delete event', () => {
     it('confirms before deleting', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-delete-1' })];
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
       await renderWithEvents(events);
@@ -556,8 +512,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows success toast after deletion', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent()];
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
       await renderWithEvents(events);
@@ -571,8 +525,6 @@ describe('AdminEvents', () => {
     });
 
     it('does not delete if confirm is cancelled', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       mocks.windowConfirm.mockReturnValue(false);
       const events = [createMockEvent()];
       await renderWithEvents(events);
@@ -584,8 +536,6 @@ describe('AdminEvents', () => {
     });
 
     it('handles delete error and shows toast', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const error = { message: 'Cannot delete' };
       mocks.deleteEventApiV1AdminEventsEventIdDelete.mockImplementation(async () => {
         mocks.addToast('Failed to delete event');
@@ -605,8 +555,6 @@ describe('AdminEvents', () => {
 
   describe('export', () => {
     it('opens export dropdown menu', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       const exportBtn = screen.getByRole('button', { name: /Export/i });
@@ -619,8 +567,6 @@ describe('AdminEvents', () => {
     });
 
     it('exports as CSV', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Export/i }));
@@ -636,8 +582,6 @@ describe('AdminEvents', () => {
     });
 
     it('exports as JSON', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       await renderWithEvents();
 
       await user.click(screen.getByRole('button', { name: /Export/i }));
@@ -655,8 +599,6 @@ describe('AdminEvents', () => {
 
   describe('user overview modal', () => {
     it('opens user overview modal when user ID is clicked', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ metadata: { user_id: 'user-overview-1' } })];
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
         data: createMockUserOverview(),
@@ -676,8 +618,6 @@ describe('AdminEvents', () => {
     });
 
     it('displays user information in overview modal', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ metadata: { user_id: 'user-info' } })];
       const overview = createMockUserOverview();
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
@@ -696,8 +636,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows execution stats in overview modal', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const events = [createMockEvent({ metadata: { user_id: 'user-stats' } })];
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
         data: createMockUserOverview(),
@@ -718,8 +656,6 @@ describe('AdminEvents', () => {
     });
 
     it('handles user overview load error and shows toast', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const error = { message: 'Failed to load' };
       const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
       mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockImplementation(async () => {
@@ -739,7 +675,6 @@ describe('AdminEvents', () => {
 
   describe('event type display', () => {
     it('shows correct color for completed events', async () => {
-      vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_completed' })];
       await renderWithEvents(events);
       const [icon] = screen.getAllByTestId('event-type-icon');
@@ -748,7 +683,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows correct color for failed events', async () => {
-      vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_failed' })];
       await renderWithEvents(events);
       const [icon] = screen.getAllByTestId('event-type-icon');
@@ -757,7 +691,6 @@ describe('AdminEvents', () => {
     });
 
     it('shows correct color for started events', async () => {
-      vi.useRealTimers();
       const events = [createMockEvent({ event_type: 'execution_started' })];
       await renderWithEvents(events);
       const [icon] = screen.getAllByTestId('event-type-icon');
@@ -768,13 +701,11 @@ describe('AdminEvents', () => {
 
   describe('header and layout', () => {
     it('displays page title', async () => {
-      vi.useRealTimers();
       await renderWithEvents();
       expect(screen.getByText('Event Browser')).toBeInTheDocument();
     });
 
     it('has Filters, Export, and Refresh buttons', async () => {
-      vi.useRealTimers();
       await renderWithEvents();
       expect(screen.getByRole('button', { name: /Filters/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
@@ -784,8 +715,6 @@ describe('AdminEvents', () => {
 
   describe('error handling', () => {
     it('handles event detail load error and shows toast', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const error = { message: 'Detail not found' };
       mocks.getEventDetailApiV1AdminEventsEventIdGet.mockImplementation(async () => {
         mocks.addToast('Failed to load event details');
@@ -803,8 +732,6 @@ describe('AdminEvents', () => {
     });
 
     it('handles replay error and shows toast', async () => {
-      vi.useRealTimers();
-      const user = userEvent.setup();
       const error = { message: 'Replay failed' };
       mocks.replayEventsApiV1AdminEventsReplayPost.mockImplementation(async () => {
         mocks.addToast('Failed to replay event');

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 
 function createMockLimits() {
   return {
@@ -114,8 +114,6 @@ vi.mock('$components/editor', async () => {
 });
 
 describe('Editor', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();

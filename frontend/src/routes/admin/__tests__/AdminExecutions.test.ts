@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
+import { userWithTimers as user } from '$test/test-utils';
 
 interface MockExecutionOverrides {
   execution_id?: string;
@@ -173,7 +173,6 @@ describe('AdminExecutions', () => {
 
   describe('filters', () => {
     it('filters by status', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -190,7 +189,6 @@ describe('AdminExecutions', () => {
     });
 
     it('filters by priority', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -207,7 +205,6 @@ describe('AdminExecutions', () => {
     });
 
     it('filters by user ID', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -224,7 +221,6 @@ describe('AdminExecutions', () => {
     });
 
     it('reset button clears all filters', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
 
       const statusSelect = screen.getByLabelText(/status/i);
@@ -268,7 +264,6 @@ describe('AdminExecutions', () => {
 
   describe('priority update', () => {
     it('successful update shows success toast', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
       mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
         data: { ...execs[0], priority: 'high' },
@@ -294,7 +289,6 @@ describe('AdminExecutions', () => {
     });
 
     it('failed update calls API and does not show success toast', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
       mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
         data: undefined,
@@ -330,7 +324,6 @@ describe('AdminExecutions', () => {
     });
 
     it('manual refresh button calls loadData', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 

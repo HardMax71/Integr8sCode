@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import { createMockNotification, createMockNotifications } from '$test/test-utils';
+import { createMockNotification, createMockNotifications, user } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
@@ -32,8 +31,6 @@ vi.mock('@lucide/svelte', async () =>
 vi.mock('$lib/api', () => ({}));
 
 describe('Notifications', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.mockNotificationStore.notifications = [];

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
 import { tick } from 'svelte';
+import { userWithTimers as user } from '$test/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -174,7 +174,6 @@ describe('AdminSagas', () => {
     });
 
     it('manual refresh button works', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithSagas();
       vi.clearAllMocks();
 
@@ -185,7 +184,6 @@ describe('AdminSagas', () => {
     });
 
     it('toggling auto-refresh off stops polling', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithSagas();
 
       const checkbox = screen.getByRole('checkbox', { name: /auto-refresh/i });
@@ -200,7 +198,6 @@ describe('AdminSagas', () => {
 
   describe('filters', () => {
     it('filters by state', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithSagas();
       vi.clearAllMocks();
 
@@ -217,7 +214,6 @@ describe('AdminSagas', () => {
     });
 
     it('filters by search query', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const sagas = [
         createMockSaga({ saga_id: 's1', saga_name: 'alpha_saga' }),
         createMockSaga({ saga_id: 's2', saga_name: 'beta_saga' }),
@@ -233,7 +229,6 @@ describe('AdminSagas', () => {
     });
 
     it('filters by execution ID', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const sagas = [
         createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' }),
         createMockSaga({ saga_id: 's2', execution_id: 'exec-xyz' }),
@@ -249,7 +244,6 @@ describe('AdminSagas', () => {
     });
 
     it('clears filters on clear button click', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithSagas();
 
       const stateSelect = screen.getByLabelText(/state/i);
@@ -271,7 +265,6 @@ describe('AdminSagas', () => {
 
   describe('saga details modal', () => {
     it('opens modal on View Details click', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga({
         saga_name: 'execution_saga',
         completed_steps: ['validate_execution', 'allocate_resources'],
@@ -287,7 +280,6 @@ describe('AdminSagas', () => {
     });
 
     it('displays saga information in modal', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga({
         saga_id: 'saga-detail-test',
         saga_name: 'execution_saga',
@@ -307,7 +299,6 @@ describe('AdminSagas', () => {
     });
 
     it('shows error message when saga has error', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga({
         state: 'failed',
         error_message: 'Pod creation failed: timeout',
@@ -324,7 +315,6 @@ describe('AdminSagas', () => {
     });
 
     it('closes modal on close button click', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga();
       mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
       await renderWithSagas([saga]);
@@ -341,7 +331,6 @@ describe('AdminSagas', () => {
     });
 
     it('shows compensated steps', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const saga = createMockSaga({
         saga_name: 'execution_saga',
         state: 'failed',
@@ -361,7 +350,6 @@ describe('AdminSagas', () => {
 
   describe('view execution sagas', () => {
     it('loads sagas for specific execution', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const executionSagas = [createMockSaga({ execution_id: 'exec-target' })];
       mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({
         data: { sagas: executionSagas, total: 1 },
@@ -393,7 +381,6 @@ describe('AdminSagas', () => {
     });
 
     it('changes page size', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const sagas = createMockSagas(5);
       mocks.listSagasApiV1SagasGet.mockResolvedValue({
         data: { sagas, total: 25 },
@@ -420,7 +407,6 @@ describe('AdminSagas', () => {
 
   describe('refresh rate control', () => {
     it('changes refresh rate', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithSagas();
 
       const rateSelect = screen.getByLabelText(/every/i);

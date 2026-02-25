@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import { createMockEvent, createMockEvents } from '$test/test-utils';
+import { createMockEvent, createMockEvents, user } from '$test/test-utils';
 
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('Eye', 'Play', 'Trash2'));
@@ -87,7 +86,6 @@ describe('EventsTable', () => {
 
   describe('row click actions', () => {
     it('calls onViewDetails when clicking a table row', async () => {
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-click' })];
       const { onViewDetails } = renderTable(events);
       const rows = screen.getAllByRole('button', { name: 'View event details' });
@@ -110,7 +108,6 @@ describe('EventsTable', () => {
       { title: 'Replay', callback: 'onReplay' as const },
       { title: 'Delete', callback: 'onDelete' as const },
     ])('$title button calls $callback with event_id without triggering row click', async ({ title, callback }) => {
-      const user = userEvent.setup();
       const events = [createMockEvent({ event_id: 'evt-action' })];
       const handlers = renderTable(events);
       const buttons = screen.getAllByTitle(title);
@@ -121,7 +118,6 @@ describe('EventsTable', () => {
   });
 
   it('calls onViewUser with user_id when clicking user link (stopPropagation)', async () => {
-    const user = userEvent.setup();
     const event = createMockEvent({ metadata: { user_id: 'user-linked' } });
     const { onViewUser, onViewDetails } = renderTable([event]);
     const userButtons = screen.getAllByTitle('View user overview');

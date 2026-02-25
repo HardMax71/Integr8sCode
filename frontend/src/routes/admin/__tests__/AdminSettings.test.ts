@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 
 function createMockSystemSettings() {
   return {
@@ -57,8 +57,6 @@ vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule('ShieldCheck'));
 
 describe('AdminSettings', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('confirm', mocks.mockConfirm);

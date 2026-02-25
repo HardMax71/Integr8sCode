@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 vi.mock('@lucide/svelte', async () =>
   (await import('$test/test-utils')).createMockIconModule(
     'MessageSquare', 'ChevronUp', 'ChevronDown', 'Cpu', 'MemoryStick', 'Clock',
@@ -18,7 +18,6 @@ const LIMITS = {
 };
 
 describe('ResourceLimits', () => {
-
   it('renders nothing when limits is null', () => {
     const { container } = render(ResourceLimits, { props: { limits: null } });
     expect(container.textContent?.trim()).toBe('');
@@ -32,7 +31,6 @@ describe('ResourceLimits', () => {
   });
 
   it('expands panel on click showing all limit values', async () => {
-    const user = userEvent.setup();
     render(ResourceLimits, { props: { limits: LIMITS } });
     await user.click(screen.getByRole('button', { name: /Resource Limits/i }));
 
@@ -44,7 +42,6 @@ describe('ResourceLimits', () => {
     { label: 'Memory Limit', value: '256Mi' },
     { label: 'Timeout', value: '30s' },
   ])('shows $label = $value when expanded', async ({ label, value }) => {
-    const user = userEvent.setup();
     render(ResourceLimits, { props: { limits: LIMITS } });
     await user.click(screen.getByRole('button', { name: /Resource Limits/i }));
     expect(screen.getByText(label)).toBeInTheDocument();
@@ -52,7 +49,6 @@ describe('ResourceLimits', () => {
   });
 
   it('collapses panel on second click', async () => {
-    const user = userEvent.setup();
     render(ResourceLimits, { props: { limits: LIMITS } });
     const btn = screen.getByRole('button', { name: /Resource Limits/i });
 

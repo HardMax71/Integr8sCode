@@ -7,6 +7,7 @@
  */
 
 import { vi, type Mock } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
 import type {
   ExecutionCompletedEvent,
@@ -18,6 +19,11 @@ import type {
   EventMetadata,
   EventType,
 } from '$lib/api';
+
+export type UserEventInstance = ReturnType<typeof userEvent.setup>;
+
+export const user: UserEventInstance = userEvent.setup();
+export const userWithTimers: UserEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
 // ============================================================================
 // Mock Svelte Component Factory

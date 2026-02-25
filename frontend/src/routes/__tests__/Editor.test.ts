@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
+import Editor from '$routes/Editor.svelte';
 
 function createMockLimits() {
   return {
@@ -141,8 +142,7 @@ describe('Editor', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  async function renderEditor() {
-    const { default: Editor } = await import('$routes/Editor.svelte');
+  function renderEditor() {
     return render(Editor);
   }
 

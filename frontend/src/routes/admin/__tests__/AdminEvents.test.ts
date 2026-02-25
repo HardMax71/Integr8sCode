@@ -8,7 +8,8 @@ import {
   createMockStats,
   createMockEventDetail,
   createMockUserOverview,
-  userWithTimers as user,
+  user,
+  userWithTimers,
 } from '$test/test-utils';
 
 // Hoisted mocks
@@ -76,7 +77,6 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
 
 describe('AdminEvents', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
     vi.clearAllMocks();
     mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
@@ -89,7 +89,6 @@ describe('AdminEvents', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -104,16 +103,21 @@ describe('AdminEvents', () => {
     });
 
     it('sets up auto-refresh interval', async () => {
-      render(AdminEvents);
-      await tick();
+      vi.useFakeTimers();
+      try {
+        render(AdminEvents);
+        await tick();
 
-      // Fast-forward 30 seconds
-      await vi.advanceTimersByTimeAsync(30000);
+        // Fast-forward 30 seconds
+        await vi.advanceTimersByTimeAsync(30000);
 
-      await waitFor(() => {
-        expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
-        expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(2);
-      });
+        await waitFor(() => {
+          expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
+          expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(2);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('handles API error on load events and shows toast', async () => {

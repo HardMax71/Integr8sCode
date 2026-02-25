@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
+import Settings from '$routes/Settings.svelte';
 
 function createMockSettings() {
   return {
@@ -79,8 +80,7 @@ describe('Settings', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  async function renderSettings() {
-    const { default: Settings } = await import('$routes/Settings.svelte');
+  function renderSettings() {
     return render(Settings);
   }
 

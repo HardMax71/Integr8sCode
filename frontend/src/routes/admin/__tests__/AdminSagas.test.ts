@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { userWithTimers as user } from '$test/test-utils';
+import { user, userWithTimers } from '$test/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -83,7 +83,6 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
 
 describe('AdminSagas', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
     mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });
@@ -91,7 +90,6 @@ describe('AdminSagas', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     cleanup();
   });
 
@@ -162,6 +160,9 @@ describe('AdminSagas', () => {
   });
 
   describe('auto-refresh', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it('auto-refreshes at specified interval', async () => {
       await renderWithSagas();
       expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(1);
@@ -178,7 +179,7 @@ describe('AdminSagas', () => {
       vi.clearAllMocks();
 
       const refreshButton = screen.getByRole('button', { name: /refresh now/i });
-      await user.click(refreshButton);
+      await userWithTimers.click(refreshButton);
 
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
     });
@@ -187,7 +188,7 @@ describe('AdminSagas', () => {
       await renderWithSagas();
 
       const checkbox = screen.getByRole('checkbox', { name: /auto-refresh/i });
-      await user.click(checkbox);
+      await userWithTimers.click(checkbox);
 
       vi.clearAllMocks();
       await vi.advanceTimersByTimeAsync(10000);
@@ -406,11 +407,14 @@ describe('AdminSagas', () => {
   });
 
   describe('refresh rate control', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it('changes refresh rate', async () => {
       await renderWithSagas();
 
       const rateSelect = screen.getByLabelText(/every/i);
-      await user.selectOptions(rateSelect, '10');
+      await userWithTimers.selectOptions(rateSelect, '10');
 
       vi.clearAllMocks();
       await vi.advanceTimersByTimeAsync(10000);

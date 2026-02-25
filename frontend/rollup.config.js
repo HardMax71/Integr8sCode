@@ -131,7 +131,7 @@ function startServer() {
 export default {
     input: 'src/main.ts',
     output: {
-        sourcemap: true,
+        sourcemap: !production,
         format: 'es',
         name: 'app',
         dir: 'public/build',
@@ -178,7 +178,7 @@ export default {
             minimize: false,
         }),
         typescript({
-            sourceMap: true,
+            sourceMap: !production,
             inlineSources: !production
         }),
         json(),

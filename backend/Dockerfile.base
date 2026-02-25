@@ -1,14 +1,15 @@
 # Shared base image for all backend services
 # Contains: Python, system deps, uv, and all Python dependencies
-FROM python:3.12-slim
+# Multi-stage build: gcc + dev headers only in builder, not in final image
+
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install OS security patches + system dependencies needed by any service
-RUN apt-get update && apt-get upgrade -y \
+# Install build-time dependencies (gcc + dev headers for C extensions)
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     gcc \
-    curl \
     libsnappy-dev \
     liblzma-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -16,11 +17,36 @@ RUN apt-get update && apt-get upgrade -y \
 # Install uv (using Docker Hub mirror - ghcr.io has rate limiting issues)
 COPY --from=astral/uv:latest /uv /uvx /bin/
 
+# Pre-compile bytecode for faster startup; copy mode avoids symlink issues with cache mounts
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install Python dependencies (production only)
-RUN uv sync --locked --no-dev --no-install-project
+# Install Python dependencies with BuildKit cache mount for faster rebuilds
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install only runtime dependencies (shared libs, no -dev headers, no gcc)
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+    curl \
+    libsnappy1v5 \
+    liblzma5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy uv from builder (avoids second Docker Hub pull, guarantees version consistency)
+COPY --from=builder /bin/uv /bin/uvx /bin/
+
+# Copy pre-built virtual environment from builder stage
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy dependency files (needed for uv to recognize the project)
+COPY pyproject.toml uv.lock ./
 
 # Set paths: PYTHONPATH for imports, PATH for venv binaries (no uv run needed at runtime)
 ENV PYTHONPATH=/app

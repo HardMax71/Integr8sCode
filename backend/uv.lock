@@ -211,6 +211,16 @@ wheels = [
 ]
 
 [[package]]
+name = "async-asgi-testclient"
+version = "1.4.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "multidict" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/9a/0eb3fd37d4f9ad1e9b2b6d6b91357d3ebf7534271c32e343185a5d204903/async-asgi-testclient-1.4.11.tar.gz", hash = "sha256:4449ac85d512d661998ec61f91c9ae01851639611d748d81ae7f816736551792", size = 11716, upload-time = "2022-06-13T09:30:07.279Z" }
+
+[[package]]
 name = "async-timeout"
 version = "5.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1150,6 +1160,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "async-asgi-testclient" },
     { name = "coverage" },
     { name = "hypothesis" },
     { name = "iniconfig" },
@@ -1290,6 +1301,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "async-asgi-testclient", specifier = "==1.4.11" },
     { name = "coverage", specifier = "==7.13.0" },
     { name = "hypothesis", specifier = "==6.151.6" },
     { name = "iniconfig", specifier = "==2.3.0" },

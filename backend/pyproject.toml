@@ -131,6 +131,7 @@ packages = ["app", "workers"]
 
 [dependency-groups]
 dev = [
+    "async-asgi-testclient==1.4.11",
     "coverage==7.13.0",
     "hypothesis==6.151.6",
     "iniconfig==2.3.0",

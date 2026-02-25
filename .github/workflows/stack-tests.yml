@@ -167,18 +167,12 @@ jobs:
         if: steps.base-cache.outputs.cache-hit != 'true'
         run: docker save integr8scode-base:latest | zstd -T0 -3 > /tmp/base-image.tar.zst
 
-      # ── Backend (depends on local base image, GHA-cached) ──
+      # ── Backend (depends on local base image) ───────────────
       - name: Build backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          build-contexts: |
-            base=docker-image://integr8scode-base:latest
-          load: true
-          tags: integr8scode-backend:latest
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+        run: |
+          docker build -t integr8scode-backend:latest \
+            --build-context base=docker-image://integr8scode-base:latest \
+            -f ./backend/Dockerfile ./backend
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image

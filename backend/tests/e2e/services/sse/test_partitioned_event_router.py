@@ -1,10 +1,10 @@
 import asyncio
-import structlog
 from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 import redis.asyncio as redis
+import structlog
 from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType
 from app.domain.sse import SSEExecutionEventData
@@ -39,6 +39,7 @@ async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_setting
     pub_task = asyncio.create_task(bus.publish_event(execution_id, ev))
     msg = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
     await pub_task
+    await messages.aclose()
 
     assert msg is not None
     assert str(msg.event_type) == str(ev.event_type)

@@ -47,10 +47,17 @@ class EventWaiter:
         )
         self._task: asyncio.Task[None] | None = None
 
-    async def start(self) -> None:
+    async def start(self, assignment_timeout: float = 30.0) -> None:
         await self._consumer.start()
         # Wait for partition assignment so no events are missed
+        deadline = asyncio.get_event_loop().time() + assignment_timeout
         while not self._consumer.assignment():
+            if asyncio.get_event_loop().time() >= deadline:
+                _logger.warning(
+                    "EventWaiter: partition assignment not received within %.1fs, proceeding anyway",
+                    assignment_timeout,
+                )
+                break
             await asyncio.sleep(0.05)
         self._task = asyncio.create_task(self._consume_loop())
 

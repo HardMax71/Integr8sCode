@@ -20,7 +20,7 @@ runs:
         sudo k3s kubectl config view --raw > /home/runner/.kube/config
         sudo chmod 600 /home/runner/.kube/config
         export KUBECONFIG=/home/runner/.kube/config
-        timeout 90 bash -c 'until kubectl cluster-info 2>/dev/null; do sleep 3; done'
+        kubectl wait --for=condition=Ready node --all --timeout=90s
         kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
         sed -E 's#https://(127\.0\.0\.1|0\.0\.0\.0):6443#https://host.docker.internal:6443#g' \
           /home/runner/.kube/config > backend/kubeconfig.yaml

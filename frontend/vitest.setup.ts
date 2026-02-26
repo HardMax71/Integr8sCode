@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
+import { cleanup } from '@testing-library/svelte';
 
 // Global handler for promise rejections (mirrors main.ts behavior)
 // API errors are handled by interceptor - just silence the rejection in tests
@@ -71,7 +72,14 @@ vi.stubGlobal('IntersectionObserver', vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 })));
 
-// Helper to reset mocks between tests
+// Reset DOM and storage between every test (required for isolate: false)
+beforeEach(() => {
+  cleanup();
+  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
+  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
+});
+
+// Helper to reset mocks between tests (legacy export, kept for compatibility)
 export function resetStorageMocks() {
   Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
   Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);

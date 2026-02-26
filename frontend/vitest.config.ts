@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
+import pkg from './package.json' with { type: 'json' };
 
 // --8<-- [start:config]
 export default defineConfig({
@@ -11,6 +12,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     pool: 'threads',
+    maxWorkers: 8,
+    minWorkers: 2,
+    isolate: false,
     css: false,
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
@@ -23,7 +27,7 @@ export default defineConfig({
     deps: {
       optimizer: {
         web: {
-          include: ['@lucide/svelte', 'svelte-sonner', '@mateothegreat/svelte5-router'],
+          include: Object.keys(pkg.dependencies),
         },
       },
     },

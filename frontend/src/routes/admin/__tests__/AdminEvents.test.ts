@@ -283,9 +283,7 @@ describe('AdminEvents', () => {
       mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
 
       render(AdminEvents);
-      await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
-
-      expect(screen.getByText(/Showing 1 to 10 of 25 events/i)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/Showing 1 to 10 of 25 events/i)).toBeInTheDocument());
     });
 
     it('changes page when next is clicked', async () => {
@@ -296,10 +294,9 @@ describe('AdminEvents', () => {
       mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
 
       render(AdminEvents);
-      await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
+      const nextBtn = await waitFor(() => screen.getByTitle('Next page'));
 
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
-      const nextBtn = screen.getByTitle('Next page');
       await user.click(nextBtn);
 
       await waitFor(() => {
@@ -321,10 +318,9 @@ describe('AdminEvents', () => {
       mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
 
       render(AdminEvents);
-      await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
+      const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Show:/i));
 
       mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
-      const pageSizeSelect = screen.getByLabelText(/Show:/i);
       await user.selectOptions(pageSizeSelect, '25');
 
       await waitFor(() => {

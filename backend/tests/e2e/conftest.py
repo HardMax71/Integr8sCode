@@ -32,7 +32,7 @@ class EventWaiter:
     a predicate registered after an event was consumed still matches it.
     """
 
-    def __init__(self, bootstrap_servers: str, topics: list[str]) -> None:
+    def __init__(self, bootstrap_servers: str, topics: list[str], settings: Settings) -> None:
         self._waiters: list[tuple[Callable[[DomainEvent], bool], asyncio.Future[DomainEvent]]] = []
         self._buffer: list[DomainEvent] = []
         self._consumer = AIOKafkaConsumer(
@@ -41,6 +41,9 @@ class EventWaiter:
             group_id=f"test-event-waiter-{uuid.uuid4().hex[:6]}",
             auto_offset_reset="latest",
             enable_auto_commit=True,
+            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
+            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
+            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
         )
         self._task: asyncio.Task[None] | None = None
 
@@ -138,7 +141,7 @@ class EventWaiter:
 async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, None]:
     """Session-scoped Kafka event waiter. Starts before any test produces events."""
     topics: list[str] = list(EventType)
-    waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics)
+    waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics, test_settings)
     await waiter.start()
     _logger.info("EventWaiter started on %d topics", len(topics))
     yield waiter

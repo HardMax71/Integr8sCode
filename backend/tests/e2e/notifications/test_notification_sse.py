@@ -35,6 +35,7 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
     ))
     msg = await asyncio.wait_for(messages.__anext__(), timeout=5.0)
     await pub_task
+    await messages.aclose()
 
     assert msg is not None
     assert msg.subject == "Hello"

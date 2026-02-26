@@ -32,7 +32,10 @@ def test_settings() -> Settings:
     - Redis: Per-worker DB number (0-15) to avoid key collisions
     """
     base = Settings(config_path="config.test.toml")
-    return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
+    return base.model_copy(update={
+        "REDIS_DB": _get_worker_num() % 16,
+        "KAFKA_GROUP_SUFFIX": f"-gw{_get_worker_num()}",
+    })
 
 
 # ===== App fixture =====

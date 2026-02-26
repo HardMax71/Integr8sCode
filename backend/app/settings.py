@@ -98,6 +98,7 @@ class Settings(BaseModel):
     KAFKA_MAX_POLL_INTERVAL_MS: int = 300000
     KAFKA_MAX_POLL_RECORDS: int = 500
     KAFKA_REQUEST_TIMEOUT_MS: int = 40000
+    KAFKA_GROUP_SUFFIX: str = ""
 
     # SSE Configuration
     SSE_CONSUMER_POOL_SIZE: int = 10  # Number of consumers in the partitioned pool

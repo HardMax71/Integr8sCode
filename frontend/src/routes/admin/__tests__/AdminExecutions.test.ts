@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { userWithTimers as user } from '$test/test-utils';
+import { user } from '$test/test-utils';
 
 interface MockExecutionOverrides {
   execution_id?: string;
@@ -109,7 +109,6 @@ async function renderWithExecutions(
 
 describe('AdminExecutions', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
       data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
@@ -125,10 +124,6 @@ describe('AdminExecutions', () => {
     });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    cleanup();
-  });
 
   describe('initial loading', () => {
     it('calls API on mount', async () => {

@@ -72,6 +72,9 @@ vi.stubGlobal('IntersectionObserver', vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 })));
 
+// Enable fake timers globally (shouldAdvanceTime configured in vitest.config.ts)
+vi.useFakeTimers();
+
 // Reset DOM and storage between every test (required for isolate: false)
 beforeEach(() => {
   cleanup();

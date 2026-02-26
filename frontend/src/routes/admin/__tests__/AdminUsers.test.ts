@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup, within } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { user } from '$test/test-utils';
 
@@ -103,10 +103,6 @@ describe('AdminUsers', () => {
     vi.clearAllMocks();
     mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
     mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });
-  });
-
-  afterEach(() => {
-    cleanup();
   });
 
   describe('initial loading', () => {

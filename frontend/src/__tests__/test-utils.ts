@@ -22,8 +22,7 @@ import type {
 
 export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 
-export const user: UserEventInstance = userEvent.setup();
-export const userWithTimers: UserEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+export const user: UserEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
 // ============================================================================
 // Mock Store Type (for use with vi.hoisted)

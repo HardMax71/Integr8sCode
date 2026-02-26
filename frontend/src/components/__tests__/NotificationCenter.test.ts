@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, userWithTimers, type UserEventInstance } from '$test/test-utils';
+import { user, type UserEventInstance } from '$test/test-utils';
 // Types for mock notification state
 interface MockNotification {
   notification_id: string;
@@ -299,15 +299,12 @@ describe('NotificationCenter', () => {
     });
 
     it('ignores non-Enter keydown', async () => {
-      vi.useFakeTimers();
       setNotifications([createNotification({ subject: 'Test', action_url: '/test' })]);
-      const timerUser = userWithTimers;
       render(NotificationCenter);
-      await timerUser.click(screen.getByRole('button', { name: /Notifications/i }));
+      await user.click(screen.getByRole('button', { name: /Notifications/i }));
       screen.getByRole('button', { name: /View notification: Test/i }).focus();
-      await timerUser.keyboard('{Tab}');
+      await user.keyboard('{Tab}');
       expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
-      vi.useRealTimers();
     });
   });
 
@@ -338,14 +335,11 @@ describe('NotificationCenter', () => {
 
   describe('auto-mark as read', () => {
     it('marks notifications after 2s delay', async () => {
-      vi.useFakeTimers();
       setNotifications([createNotification({ notification_id: '1' }), createNotification({ notification_id: '2' })]);
-      const timerUser = userWithTimers;
       render(NotificationCenter);
-      await timerUser.click(screen.getByRole('button', { name: /Notifications/i }));
+      await user.click(screen.getByRole('button', { name: /Notifications/i }));
       await vi.advanceTimersByTimeAsync(2500);
       expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalled();
-      vi.useRealTimers();
     });
   });
 

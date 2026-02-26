@@ -19,6 +19,10 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
     globals: true,
+    testTimeout: 10_000,
+    fakeTimers: {
+      shouldAdvanceTime: true,
+    },
     environmentMatchGlobs: [
       ['src/lib/**/*.test.ts', 'node'],
       ['src/stores/**/*.test.ts', 'node'],

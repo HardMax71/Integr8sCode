@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, userWithTimers } from '$test/test-utils';
+import { user } from '$test/test-utils';
 
 interface MockSagaOverrides {
   saga_id?: string;
@@ -88,9 +88,6 @@ describe('AdminSagas', () => {
     mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
   });
 
-  afterEach(() => {
-    cleanup();
-  });
 
   describe('initial loading', () => {
     it('calls listSagas on mount', async () => {
@@ -159,9 +156,6 @@ describe('AdminSagas', () => {
   });
 
   describe('auto-refresh', () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
     it('auto-refreshes at specified interval', async () => {
       await renderWithSagas();
       expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(1);
@@ -178,7 +172,7 @@ describe('AdminSagas', () => {
       vi.clearAllMocks();
 
       const refreshButton = screen.getByRole('button', { name: /refresh now/i });
-      await userWithTimers.click(refreshButton);
+      await user.click(refreshButton);
 
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
     });
@@ -187,7 +181,7 @@ describe('AdminSagas', () => {
       await renderWithSagas();
 
       const checkbox = screen.getByRole('checkbox', { name: /auto-refresh/i });
-      await userWithTimers.click(checkbox);
+      await user.click(checkbox);
 
       vi.clearAllMocks();
       await vi.advanceTimersByTimeAsync(10000);
@@ -406,14 +400,11 @@ describe('AdminSagas', () => {
   });
 
   describe('refresh rate control', () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
-
     it('changes refresh rate', async () => {
       await renderWithSagas();
 
       const rateSelect = screen.getByLabelText(/every/i);
-      await userWithTimers.selectOptions(rateSelect, '10');
+      await user.selectOptions(rateSelect, '10');
 
       vi.clearAllMocks();
       await vi.advanceTimersByTimeAsync(10000);

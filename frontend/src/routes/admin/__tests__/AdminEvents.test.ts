@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import {
   mockWindowGlobals,
@@ -9,7 +9,6 @@ import {
   createMockEventDetail,
   createMockUserOverview,
   user,
-  userWithTimers,
 } from '$test/test-utils';
 
 // Hoisted mocks
@@ -71,6 +70,7 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
 
 describe('AdminEvents', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
     vi.clearAllMocks();
     mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
@@ -80,11 +80,6 @@ describe('AdminEvents', () => {
       error: null
     });
     mocks.windowConfirm.mockReturnValue(true);
-  });
-
-  afterEach(() => {
-    cleanup();
-    vi.unstubAllGlobals();
   });
 
   describe('initial loading', () => {
@@ -97,21 +92,16 @@ describe('AdminEvents', () => {
     });
 
     it('sets up auto-refresh interval', async () => {
-      vi.useFakeTimers();
-      try {
-        render(AdminEvents);
-        await tick();
+      render(AdminEvents);
+      await tick();
 
-        // Fast-forward 30 seconds
-        await vi.advanceTimersByTimeAsync(30000);
+      // Fast-forward 30 seconds
+      await vi.advanceTimersByTimeAsync(30000);
 
-        await waitFor(() => {
-          expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
-          expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(2);
-        });
-      } finally {
-        vi.useRealTimers();
-      }
+      await waitFor(() => {
+        expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
+        expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(2);
+      });
     });
 
     it('handles API error on load events and shows toast', async () => {

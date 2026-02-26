@@ -1,17 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-
-// Mock onDestroy — no component lifecycle in unit tests
-vi.mock('svelte', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('svelte')>();
-    return { ...actual, onDestroy: vi.fn() };
-});
 
 const { createAutoRefresh } = await import('../autoRefresh.svelte');
 
 describe('createAutoRefresh', () => {
-    beforeEach(() => vi.useFakeTimers());
-    afterEach(() => vi.useRealTimers());
 
     function make(overrides: Record<string, unknown> = {}) {
         const onRefresh = vi.fn();
@@ -19,7 +11,6 @@ describe('createAutoRefresh', () => {
         const teardown = effect_root(() => {
             ar = createAutoRefresh({
                 onRefresh,
-                autoCleanup: false,
                 initialEnabled: false,
                 ...overrides,
             });

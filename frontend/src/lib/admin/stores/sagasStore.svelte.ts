@@ -1,6 +1,5 @@
 import {
     listSagasApiV1SagasGet,
-    getExecutionSagasApiV1SagasExecutionExecutionIdGet,
     type SagaStatusResponse,
 } from '$lib/api';
 import { unwrapOr } from '$lib/api-interceptors';
@@ -32,6 +31,7 @@ class SagasStore {
         const data = unwrapOr(await listSagasApiV1SagasGet({
             query: {
                 state: this.stateFilter || undefined,
+                execution_id: this.executionIdFilter || undefined,
                 limit: this.pagination.pageSize,
                 skip: this.pagination.skip,
             }
@@ -42,9 +42,6 @@ class SagasStore {
         this.totalItems = data?.total || 0;
         this.serverReturnedCount = result.length;
 
-        if (this.executionIdFilter) {
-            result = result.filter(s => s.execution_id.includes(this.executionIdFilter));
-        }
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase();
             result = result.filter(s =>
@@ -58,14 +55,9 @@ class SagasStore {
     }
 
     async loadExecutionSagas(executionId: string): Promise<void> {
-        this.loading = true;
-        const data = unwrapOr(await getExecutionSagasApiV1SagasExecutionExecutionIdGet({
-            path: { execution_id: executionId }
-        }), null);
-        this.loading = false;
-        this.sagas = data?.sagas || [];
-        this.totalItems = data?.total || 0;
         this.executionIdFilter = executionId;
+        this.pagination.currentPage = 1;
+        await this.loadSagas();
     }
 
     clearFilters(): void {

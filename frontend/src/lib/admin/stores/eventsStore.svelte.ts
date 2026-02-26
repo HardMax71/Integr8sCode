@@ -2,7 +2,6 @@ import {
     browseEventsApiV1AdminEventsBrowsePost,
     getEventStatsApiV1AdminEventsStatsGet,
     getEventDetailApiV1AdminEventsEventIdGet,
-    getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
@@ -30,7 +29,7 @@ class EventsStore {
 
     activeReplaySession = $state<EventReplayStatusResponse | null>(null);
     replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventSummary[] } | null>(null);
-    private replayCheckInterval: ReturnType<typeof setInterval> | null = null;
+    private replayAbortController: AbortController | null = null;
 
     userOverview = $state<AdminUserOverview | null>(null);
     userOverviewLoading = $state(false);
@@ -108,29 +107,62 @@ class EventsStore {
                     estimated_completion: null,
                     execution_results: null,
                 };
-                void this.checkReplayStatus(sessionId);
-                this.replayCheckInterval = setInterval(() => { void this.checkReplayStatus(sessionId); }, 2000);
+                this.connectReplayStream(sessionId);
             }
         }
     }
 
-    private async checkReplayStatus(sessionId: string): Promise<void> {
-        const status = unwrapOr(await getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
-            path: { session_id: sessionId }
-        }), null);
-        if (!status) {
-            if (this.replayCheckInterval) { clearInterval(this.replayCheckInterval); this.replayCheckInterval = null; }
-            return;
-        }
-        this.activeReplaySession = status;
+    connectReplayStream(sessionId: string): void {
+        this.disconnectReplayStream();
+        const controller = new AbortController();
+        this.replayAbortController = controller;
+        this.#startReplayStream(sessionId, controller.signal);
+    }
 
-        if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
-            if (this.replayCheckInterval) { clearInterval(this.replayCheckInterval); this.replayCheckInterval = null; }
-            if (status.status === 'completed') {
-                toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
-            } else if (status.status === 'failed') {
-                toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
+    #startReplayStream(sessionId: string, signal: AbortSignal): void {
+        const eventSource = new EventSource(`/api/v1/admin/events/replay/${sessionId}/status`);
+
+        signal.addEventListener('abort', () => {
+            eventSource.close();
+        });
+
+        eventSource.onmessage = (event: MessageEvent) => {
+            if (signal.aborted) return;
+            try {
+                const payload = JSON.parse(event.data as string) as EventReplayStatusResponse;
+                const pct = payload.total_events > 0
+                    ? Math.round((payload.replayed_events / payload.total_events) * 100)
+                    : 0;
+                this.activeReplaySession = {
+                    ...this.activeReplaySession!,
+                    ...payload,
+                    progress_percentage: pct,
+                };
+
+                if (payload.status === 'completed' || payload.status === 'failed' || payload.status === 'cancelled') {
+                    if (payload.status === 'completed') {
+                        toast.success(`Replay completed! Processed ${payload.replayed_events} events successfully.`);
+                    } else if (payload.status === 'failed') {
+                        toast.error(`Replay failed: ${payload.errors?.[0]?.error || 'Unknown error'}`);
+                    }
+                    this.disconnectReplayStream();
+                }
+            } catch {
+                // Ignore malformed SSE messages (e.g. pings)
             }
+        };
+
+        eventSource.onerror = () => {
+            if (!signal.aborted) {
+                this.disconnectReplayStream();
+            }
+        };
+    }
+
+    disconnectReplayStream(): void {
+        if (this.replayAbortController) {
+            this.replayAbortController.abort();
+            this.replayAbortController = null;
         }
     }
 
@@ -177,7 +209,7 @@ class EventsStore {
 
     cleanup(): void {
         this.mainRefresh.cleanup();
-        if (this.replayCheckInterval) { clearInterval(this.replayCheckInterval); this.replayCheckInterval = null; }
+        this.disconnectReplayStream();
     }
 }
 

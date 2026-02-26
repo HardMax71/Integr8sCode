@@ -96,16 +96,25 @@ class SagaService:
         return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
 
     async def list_user_sagas(
-        self, user: User, state: SagaState | None = None, limit: int = 100, skip: int = 0
+        self,
+        user: User,
+        state: SagaState | None = None,
+        *,
+        execution_id: str | None = None,
+        limit: int = 100,
+        skip: int = 0,
     ) -> SagaListResult:
-        """List sagas accessible by user."""
+        """List sagas accessible by user, optionally filtered by execution_id."""
+        if execution_id:
+            if not await self.check_execution_access(execution_id, user):
+                raise SagaAccessDeniedError(execution_id, user.user_id)
+            return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
+
         saga_filter = SagaFilter(state=state)
 
         # Non-admin users can only see their own sagas
         if user.role != UserRole.ADMIN:
             user_execution_ids = await self.saga_repo.get_user_execution_ids(user.user_id)
-            # If user has no executions, return empty result immediately
-            # (empty list would bypass the filter in repository)
             if not user_execution_ids:
                 self.logger.debug(
                     "User has no executions, returning empty saga list",

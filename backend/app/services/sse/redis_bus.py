@@ -8,10 +8,11 @@ import structlog
 from pydantic import TypeAdapter
 
 from app.core.metrics import ConnectionMetrics
-from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
+from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 
 _sse_event_adapter = TypeAdapter(SSEExecutionEventData)
 _notif_payload_adapter = TypeAdapter(DomainNotificationSSEPayload)
+_replay_adapter = TypeAdapter(DomainReplaySSEPayload)
 
 
 class SSERedisBus:
@@ -24,12 +25,14 @@ class SSERedisBus:
         connection_metrics: ConnectionMetrics,
         exec_prefix: str = "sse:exec:",
         notif_prefix: str = "sse:notif:",
+        replay_prefix: str = "sse:replay:",
     ) -> None:
         self._redis = redis_client
         self.logger = logger
         self._metrics = connection_metrics
         self._exec_prefix = exec_prefix
         self._notif_prefix = notif_prefix
+        self._replay_prefix = replay_prefix
 
     def _exec_channel(self, execution_id: str) -> str:
         return f"{self._exec_prefix}{execution_id}"
@@ -72,3 +75,24 @@ class SSERedisBus:
             self._metrics.record_sse_connection_duration(duration, "notifications")
             self._metrics.decrement_sse_connections("notifications")
             self.logger.info("SSE notification stream closed", user_id=user_id)
+
+    def _replay_channel(self, session_id: str) -> str:
+        return f"{self._replay_prefix}{session_id}"
+
+    async def publish_replay_status(self, session_id: str, status: DomainReplaySSEPayload) -> None:
+        await self._redis.publish(self._replay_channel(session_id), _replay_adapter.dump_json(status))
+
+    async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:
+        start = datetime.now(timezone.utc)
+        self._metrics.increment_sse_connections("replay")
+        self.logger.info("SSE replay stream opened", session_id=session_id)
+        try:
+            async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
+                await pubsub.subscribe(self._replay_channel(session_id))
+                async for message in pubsub.listen():
+                    yield _replay_adapter.validate_json(message["data"])
+        finally:
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
+            self._metrics.record_sse_connection_duration(duration, "replay")
+            self._metrics.decrement_sse_connections("replay")
+            self.logger.info("SSE replay stream closed", session_id=session_id)

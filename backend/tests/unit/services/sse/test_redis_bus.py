@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 import pytest
 import redis.asyncio as redis_async
 from app.core.metrics import ConnectionMetrics
-from app.domain.enums import EventType, NotificationSeverity, NotificationStatus
-from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
+from app.domain.enums import EventType, NotificationSeverity, NotificationStatus, ReplayStatus
+from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSERedisBus
 from app.services.sse.redis_bus import _sse_event_adapter
 
@@ -134,6 +134,39 @@ async def test_notifications_channels() -> None:
     # Subscription happened inside __anext__
     assert "sse:notif:user-1" in r._pubsub.subscribed
     assert got.notification_id == "n1"
+
+    await messages.aclose()
+    assert r._pubsub.closed is True
+
+
+@pytest.mark.asyncio
+async def test_replay_publish_and_subscribe_round_trip() -> None:
+    r = _FakeRedis()
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
+
+    status = DomainReplaySSEPayload(
+        session_id="sess-1",
+        status=ReplayStatus.RUNNING,
+        total_events=10,
+        replayed_events=3,
+        failed_events=0,
+        skipped_events=0,
+        replay_id="replay-1",
+        created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+    )
+    await bus.publish_replay_status("sess-1", status)
+    assert r.published, "nothing published"
+    ch, payload = r.published[-1]
+    assert ch.endswith("sess-1")
+
+    await r._pubsub.push(ch, payload)
+
+    messages = bus.listen_replay("sess-1")
+    got = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
+    assert "sse:replay:sess-1" in r._pubsub.subscribed
+    assert got.session_id == "sess-1"
+    assert got.status == ReplayStatus.RUNNING
+    assert got.replayed_events == 3
 
     await messages.aclose()
     assert r._pubsub.closed is True

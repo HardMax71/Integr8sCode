@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
     browseEventsApiV1AdminEventsBrowsePost: vi.fn(),
     getEventStatsApiV1AdminEventsStatsGet: vi.fn(),
     getEventDetailApiV1AdminEventsEventIdGet: vi.fn(),
-    getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet: vi.fn(),
     replayEventsApiV1AdminEventsReplayPost: vi.fn(),
     deleteEventApiV1AdminEventsEventIdDelete: vi.fn(),
     getUserOverviewApiV1AdminUsersUserIdOverviewGet: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock('$lib/api', () => ({
     browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) => mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
     getEventStatsApiV1AdminEventsStatsGet: (...args: unknown[]) => mocks.getEventStatsApiV1AdminEventsStatsGet(...args),
     getEventDetailApiV1AdminEventsEventIdGet: (...args: unknown[]) => mocks.getEventDetailApiV1AdminEventsEventIdGet(...args),
-    getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet: (...args: unknown[]) => mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet(...args),
     replayEventsApiV1AdminEventsReplayPost: (...args: unknown[]) => mocks.replayEventsApiV1AdminEventsReplayPost(...args),
     deleteEventApiV1AdminEventsEventIdDelete: (...args: unknown[]) => mocks.deleteEventApiV1AdminEventsEventIdDelete(...args),
     getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) => mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
@@ -41,6 +39,37 @@ vi.mock('svelte-sonner', () => ({
         warning: vi.fn(),
     },
 }));
+
+type EventSourceHandler = ((event: MessageEvent) => void) | null;
+
+class MockEventSource {
+    url: string;
+    onmessage: EventSourceHandler = null;
+    onerror: ((event: Event) => void) | null = null;
+    closed = false;
+    static instances: MockEventSource[] = [];
+
+    constructor(url: string) {
+        this.url = url;
+        MockEventSource.instances.push(this);
+    }
+
+    close(): void {
+        this.closed = true;
+    }
+
+    simulateMessage(data: string): void {
+        if (this.onmessage) {
+            this.onmessage(new MessageEvent('message', { data }));
+        }
+    }
+
+    simulateError(): void {
+        if (this.onerror) {
+            this.onerror(new Event('error'));
+        }
+    }
+}
 
 const { createEventsStore } = await import('../eventsStore.svelte');
 
@@ -72,6 +101,8 @@ describe('EventsStore', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        MockEventSource.instances = [];
+        vi.stubGlobal('EventSource', MockEventSource);
         vi.stubGlobal('open', mocks.windowOpen);
         vi.stubGlobal('confirm', mocks.windowConfirm);
         mocks.windowConfirm.mockReturnValue(true);
@@ -199,12 +230,9 @@ describe('EventsStore', () => {
             });
         });
 
-        it('confirms before actual replay', async () => {
+        it('confirms and starts SSE stream for actual replay', async () => {
             mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
                 data: { total_events: 1, session_id: 'session-1', replay_id: 'replay-1' },
-            });
-            mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet.mockResolvedValue({
-                data: { session_id: 'session-1', status: 'in_progress', total_events: 1, replayed_events: 0, progress_percentage: 0 },
             });
 
             createStore();
@@ -213,6 +241,58 @@ describe('EventsStore', () => {
             expect(mocks.windowConfirm).toHaveBeenCalled();
             expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
             expect(store.activeReplaySession).toBeTruthy();
+            expect(MockEventSource.instances).toHaveLength(1);
+            expect(MockEventSource.instances[0]!.url).toBe('/api/v1/admin/events/replay/session-1/status');
+        });
+
+        it('updates activeReplaySession from SSE messages', async () => {
+            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
+                data: { total_events: 5, session_id: 'session-1', replay_id: 'replay-1' },
+            });
+
+            createStore();
+            await store.replayEvent('evt-1', false);
+
+            const es = MockEventSource.instances[0]!;
+            es.simulateMessage(JSON.stringify({
+                session_id: 'session-1',
+                status: 'running',
+                total_events: 5,
+                replayed_events: 3,
+                failed_events: 0,
+                skipped_events: 0,
+                replay_id: 'replay-1',
+                created_at: '2024-01-01T00:00:00Z',
+                errors: [],
+            }));
+
+            expect(store.activeReplaySession?.replayed_events).toBe(3);
+            expect(store.activeReplaySession?.progress_percentage).toBe(60);
+        });
+
+        it('disconnects SSE on terminal status', async () => {
+            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
+                data: { total_events: 5, session_id: 'session-1', replay_id: 'replay-1' },
+            });
+
+            createStore();
+            await store.replayEvent('evt-1', false);
+
+            const es = MockEventSource.instances[0]!;
+            es.simulateMessage(JSON.stringify({
+                session_id: 'session-1',
+                status: 'completed',
+                total_events: 5,
+                replayed_events: 5,
+                failed_events: 0,
+                skipped_events: 0,
+                replay_id: 'replay-1',
+                created_at: '2024-01-01T00:00:00Z',
+                errors: [],
+            }));
+
+            expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
+            expect(es.closed).toBe(true);
         });
 
         it('does not replay if confirm is cancelled', async () => {
@@ -346,22 +426,20 @@ describe('EventsStore', () => {
     });
 
     describe('cleanup', () => {
-        it('cleans up replay interval', async () => {
+        it('cleans up SSE replay stream', async () => {
             mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
                 data: { total_events: 1, session_id: 'session-1', replay_id: 'replay-1' },
-            });
-            mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet.mockResolvedValue({
-                data: { session_id: 'session-1', status: 'in_progress', total_events: 1, replayed_events: 0, progress_percentage: 0 },
             });
 
             createStore();
             await store.replayEvent('evt-1', false);
 
+            const es = MockEventSource.instances[0]!;
+            expect(es.closed).toBe(false);
+
             store.cleanup();
 
-            mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet.mockClear();
-            vi.advanceTimersByTime(10000);
-            expect(mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).not.toHaveBeenCalled();
+            expect(es.closed).toBe(true);
         });
     });
 });

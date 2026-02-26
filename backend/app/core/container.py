@@ -150,6 +150,7 @@ def create_event_replay_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
+        SSEProvider(),
         EventReplayProvider(),
         context={Settings: settings},
     )

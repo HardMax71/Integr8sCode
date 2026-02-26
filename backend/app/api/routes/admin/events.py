@@ -6,6 +6,7 @@ from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sse_starlette.sse import EventSourceResponse
 
 from app.api.dependencies import admin_user
 from app.domain.enums import EventType, ExportFormat
@@ -24,6 +25,16 @@ from app.schemas_pydantic.admin_events import (
 )
 from app.schemas_pydantic.common import ErrorResponse
 from app.services.admin import AdminEventsService
+from app.services.sse import SSEService
+
+
+class _SSEResponse(EventSourceResponse):
+    """Workaround: sse-starlette sets media_type only in __init__, not as a
+    class attribute.  FastAPI reads the class attribute for OpenAPI generation,
+    so without this subclass every SSE endpoint shows application/json."""
+
+    media_type = "text/event-stream"
+
 
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -133,16 +144,25 @@ async def replay_events(
 
 @router.get(
     "/replay/{session_id}/status",
-    responses={404: {"model": ErrorResponse, "description": "Replay session not found"}},
+    response_class=_SSEResponse,
+    responses={
+        200: {"model": EventReplayStatusResponse},
+        404: {"model": ErrorResponse, "description": "Replay session not found"},
+    },
 )
-async def get_replay_status(session_id: str, service: FromDishka[AdminEventsService]) -> EventReplayStatusResponse:
-    """Get the status and progress of a replay session."""
-    status = await service.get_replay_status(session_id)
+async def stream_replay_status(
+    session_id: str,
+    service: FromDishka[AdminEventsService],
+    sse_service: FromDishka[SSEService],
+) -> EventSourceResponse:
+    """Stream the status and progress of a replay session via SSE."""
+    status = await service.get_replay_sse_status(session_id)
 
     if not status:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
-    return EventReplayStatusResponse.model_validate(status)
+    stream = await sse_service.create_replay_stream(status)
+    return EventSourceResponse(stream, ping=15)
 
 
 @router.delete("/{event_id}", responses={404: {"model": ErrorResponse, "description": "Event not found"}})

@@ -9,9 +9,11 @@ from app.domain.enums import (
     NotificationChannel,
     NotificationSeverity,
     NotificationStatus,
+    ReplayStatus,
     SSEControlEvent,
 )
 from app.domain.execution.models import ExecutionResultDomain
+from app.domain.replay import ReplayError
 
 
 @dataclass
@@ -45,3 +47,20 @@ class DomainNotificationSSEPayload:
     tags: list[str] = field(default_factory=list)
     channel: NotificationChannel = NotificationChannel.IN_APP
     read_at: datetime | None = None
+
+
+@dataclass
+class DomainReplaySSEPayload:
+    """Replay session status payload for Redis transport and SSE wire."""
+
+    session_id: str
+    status: ReplayStatus
+    total_events: int
+    replayed_events: int
+    failed_events: int
+    skipped_events: int
+    replay_id: str
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    errors: list[ReplayError] = field(default_factory=list)

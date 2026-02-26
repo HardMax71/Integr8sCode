@@ -3,13 +3,11 @@ import { effect_root } from 'svelte/internal/client';
 
 const mocks = vi.hoisted(() => ({
     listSagasApiV1SagasGet: vi.fn(),
-    getExecutionSagasApiV1SagasExecutionExecutionIdGet: vi.fn(),
     unwrapOr: vi.fn((result: { data: unknown }, fallback: unknown) => result?.data ?? fallback),
 }));
 
 vi.mock('$lib/api', () => ({
     listSagasApiV1SagasGet: (...args: unknown[]) => mocks.listSagasApiV1SagasGet(...args),
-    getExecutionSagasApiV1SagasExecutionExecutionIdGet: (...args: unknown[]) => mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet(...args),
 }));
 
 vi.mock('$lib/api-interceptors', () => ({
@@ -42,9 +40,6 @@ describe('SagasStore', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.listSagasApiV1SagasGet.mockResolvedValue({
-            data: { sagas: [], total: 0 },
-        });
-        mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({
             data: { sagas: [], total: 0 },
         });
     });
@@ -127,21 +122,24 @@ describe('SagasStore', () => {
     });
 
     describe('client-side filtering', () => {
-        it('filters by execution ID', async () => {
+        it('passes execution_id filter as query param', async () => {
             const sagas = [
                 createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' }),
-                createMockSaga({ saga_id: 's2', execution_id: 'exec-xyz' }),
             ];
             mocks.listSagasApiV1SagasGet.mockResolvedValue({
-                data: { sagas, total: 2 },
+                data: { sagas, total: 1 },
             });
 
             createStore();
-            store.executionIdFilter = 'abc';
+            store.executionIdFilter = 'exec-abc';
             await store.loadSagas();
 
-            expect(store.sagas).toHaveLength(1);
-            expect(store.sagas[0]!.execution_id).toBe('exec-abc');
+            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    query: expect.objectContaining({ execution_id: 'exec-abc' }),
+                }),
+            );
+            expect(store.sagas).toEqual(sagas);
         });
 
         it('filters by search query', async () => {
@@ -171,17 +169,23 @@ describe('SagasStore', () => {
     });
 
     describe('loadExecutionSagas', () => {
-        it('loads sagas for specific execution', async () => {
+        it('sets filter and delegates to loadSagas with execution_id query param', async () => {
             const sagas = [createMockSaga({ execution_id: 'exec-target' })];
-            mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({
+            mocks.listSagasApiV1SagasGet.mockResolvedValue({
                 data: { sagas, total: 1 },
             });
 
             createStore();
             await store.loadExecutionSagas('exec-target');
 
-            expect(store.sagas).toEqual(sagas);
             expect(store.executionIdFilter).toBe('exec-target');
+            expect(store.pagination.currentPage).toBe(1);
+            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    query: expect.objectContaining({ execution_id: 'exec-target' }),
+                }),
+            );
+            expect(store.sagas).toEqual(sagas);
         });
     });
 
@@ -213,6 +217,29 @@ describe('SagasStore', () => {
 
             await vi.advanceTimersByTimeAsync(5000);
             expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(2);
+        });
+
+        it('passes execution_id on auto-refresh when filter is set', async () => {
+            const sagas = [createMockSaga({ execution_id: 'exec-target' })];
+            mocks.listSagasApiV1SagasGet.mockResolvedValue({
+                data: { sagas, total: 1 },
+            });
+
+            createStore();
+            await store.loadExecutionSagas('exec-target');
+            vi.clearAllMocks();
+
+            mocks.listSagasApiV1SagasGet.mockResolvedValue({
+                data: { sagas, total: 1 },
+            });
+
+            await vi.advanceTimersByTimeAsync(5000);
+
+            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    query: expect.objectContaining({ execution_id: 'exec-target' }),
+                }),
+            );
         });
 
         it('stops on cleanup', async () => {

@@ -51,13 +51,11 @@ const createMockSagas = (count: number) =>
 const mocks = vi.hoisted(() => ({
   listSagasApiV1SagasGet: vi.fn(),
   getSagaStatusApiV1SagasSagaIdGet: vi.fn(),
-  getExecutionSagasApiV1SagasExecutionExecutionIdGet: vi.fn(),
 }));
 
 vi.mock('../../../lib/api', () => ({
   listSagasApiV1SagasGet: (...args: unknown[]) => mocks.listSagasApiV1SagasGet(...args),
   getSagaStatusApiV1SagasSagaIdGet: (...args: unknown[]) => mocks.getSagaStatusApiV1SagasSagaIdGet(...args),
-  getExecutionSagasApiV1SagasExecutionExecutionIdGet: (...args: unknown[]) => mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet(...args),
 }));
 
 vi.mock('../../../lib/api-interceptors');
@@ -85,7 +83,6 @@ describe('AdminSagas', () => {
     vi.clearAllMocks();
     mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
     mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });
-    mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
   });
 
 
@@ -229,10 +226,21 @@ describe('AdminSagas', () => {
       ];
       await renderWithSagas(sagas);
 
+      const matchingSaga = [createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' })];
+      mocks.listSagasApiV1SagasGet.mockResolvedValue({
+        data: { sagas: matchingSaga, total: 1 },
+        error: null,
+      });
+
       const execInput = screen.getByLabelText(/execution id/i);
       await user.type(execInput, 'abc');
 
       await waitFor(() => {
+        expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            query: expect.objectContaining({ execution_id: 'abc' }),
+          }),
+        );
         expect(screen.getAllByText(/exec-abc/).length).toBeGreaterThan(0);
       });
     });
@@ -345,7 +353,7 @@ describe('AdminSagas', () => {
   describe('view execution sagas', () => {
     it('loads sagas for specific execution', async () => {
       const executionSagas = [createMockSaga({ execution_id: 'exec-target' })];
-      mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet.mockResolvedValue({
+      mocks.listSagasApiV1SagasGet.mockResolvedValue({
         data: { sagas: executionSagas, total: 1 },
         error: null,
       });
@@ -354,7 +362,11 @@ describe('AdminSagas', () => {
       const [execButton] = screen.getAllByRole('button', { name: /execution/i });
       await user.click(execButton!);
       await waitFor(() => {
-        expect(mocks.getExecutionSagasApiV1SagasExecutionExecutionIdGet).toHaveBeenCalled();
+        expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            query: expect.objectContaining({ execution_id: 'exec-target' }),
+          }),
+        );
       });
     });
   });

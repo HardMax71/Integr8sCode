@@ -27,7 +27,9 @@ from app.domain.events import (
     ResourceUsageDomain,
     UserEventCount,
 )
+from app.domain.replay import ReplayError as DomainReplayError
 from app.domain.replay import ReplayFilter
+from app.domain.sse import DomainReplaySSEPayload
 
 
 class AdminEventsRepository:
@@ -232,6 +234,29 @@ class AdminEventsRepository:
 
     async def get_replay_session_doc(self, session_id: str) -> ReplaySessionDocument | None:
         return await ReplaySessionDocument.find_one(ReplaySessionDocument.session_id == session_id)
+
+    async def get_replay_session_sse_status(self, session_id: str) -> DomainReplaySSEPayload | None:
+        doc = await self.get_replay_session_doc(session_id)
+        if not doc:
+            return None
+        return DomainReplaySSEPayload(
+            session_id=doc.session_id,
+            status=doc.status,
+            total_events=doc.total_events,
+            replayed_events=doc.replayed_events,
+            failed_events=doc.failed_events,
+            skipped_events=doc.skipped_events,
+            replay_id=doc.replay_id,
+            created_at=doc.created_at,
+            started_at=doc.started_at,
+            completed_at=doc.completed_at,
+            errors=[
+                e if isinstance(e, DomainReplayError)
+                else DomainReplayError(**e) if isinstance(e, dict)
+                else DomainReplayError(**dataclasses.asdict(e))
+                for e in doc.errors
+            ],
+        )
 
     async def get_execution_results_for_filter(
         self, replay_filter: ReplayFilter,

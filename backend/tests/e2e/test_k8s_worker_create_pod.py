@@ -1,80 +1,34 @@
-import structlog
-import uuid
-
 import pytest
-from app.core.metrics import EventMetrics
-from app.domain.enums import QueuePriority
-from app.domain.events import CreatePodCommandEvent, EventMetadata
-from app.events.core import UnifiedProducer
-from app.services.k8s_worker import KubernetesWorker
-from app.settings import Settings
-from dishka import AsyncContainer
-from kubernetes_asyncio import client as k8s_client
-from kubernetes_asyncio.client.rest import ApiException
+from app.domain.enums import ExecutionStatus
+from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResult
+from httpx import AsyncClient
+
+from tests.e2e.conftest import EventWaiter
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
-
-_test_logger = structlog.get_logger("test.k8s.worker_create_pod")
 
 
 @pytest.mark.asyncio
 async def test_worker_creates_configmap_and_pod(
-        scope: AsyncContainer, test_settings: Settings
+    test_user: AsyncClient, event_waiter: EventWaiter
 ) -> None:
-    api_client: k8s_client.ApiClient = await scope.get(k8s_client.ApiClient)
-    producer: UnifiedProducer = await scope.get(UnifiedProducer)
-    event_metrics: EventMetrics = await scope.get(EventMetrics)
+    """Verify k8s-worker creates ConfigMap + Pod by running through the full pipeline."""
+    request = ExecutionRequest(script="print('k8s-test')", lang="python", lang_version="3.11")
 
-    worker = KubernetesWorker(
-        api_client=api_client,
-        producer=producer,
-        settings=test_settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
+    resp = await test_user.post("/api/v1/execute", json=request.model_dump())
+    assert resp.status_code == 200
+    execution_id = resp.json()["execution_id"]
 
-    exec_id = uuid.uuid4().hex[:8]
-    cmd = CreatePodCommandEvent(
-        saga_id=uuid.uuid4().hex,
-        execution_id=exec_id,
-        script="echo hi",
-        language="python",
-        language_version="3.11",
-        runtime_image="busybox:1.36",
-        runtime_command=["echo", "done"],
-        runtime_filename="main.py",
-        timeout_seconds=60,
-        cpu_limit="100m",
-        memory_limit="128Mi",
-        cpu_request="50m",
-        memory_request="64Mi",
-        priority=QueuePriority.NORMAL,
-        metadata=EventMetadata(service_name="tests", service_version="1", user_id="u1"),
-    )
+    # Saga dispatched CREATE_POD_COMMAND → k8s-worker created ConfigMap + Pod
+    await event_waiter.wait_for_saga_command(execution_id)
 
-    # Build and create ConfigMap + Pod
-    cm = worker.pod_builder.build_config_map(
-        command=cmd,
-        script_content=cmd.script,
-        entrypoint_content=await worker._get_entrypoint_script(),  # noqa: SLF001
-    )
-    try:
-        await worker._create_config_map(cm)  # noqa: SLF001
-    except ApiException as e:
-        if e.status in (403, 404):
-            pytest.skip(f"Insufficient permissions or namespace not found: {e}")
-        raise
+    # Full pipeline completed: pod ran, result stored
+    await event_waiter.wait_for_result(execution_id, timeout=30.0)
 
-    pod = worker.pod_builder.build_pod_manifest(cmd)
-    await worker._create_pod(pod)  # noqa: SLF001
-
-    # Verify resources exist
-    ns = test_settings.K8S_NAMESPACE
-    got_cm = await worker.v1.read_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
-    assert got_cm is not None
-    got_pod = await worker.v1.read_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
-    assert got_pod is not None
-
-    # Cleanup
-    await worker.v1.delete_namespaced_pod(name=f"executor-{exec_id}", namespace=ns)
-    await worker.v1.delete_namespaced_config_map(name=f"script-{exec_id}", namespace=ns)
+    result_resp = await test_user.get(f"/api/v1/executions/{execution_id}/result")
+    assert result_resp.status_code == 200
+    result = ExecutionResult.model_validate(result_resp.json())
+    assert result.status == ExecutionStatus.COMPLETED
+    assert result.exit_code == 0
+    assert result.stdout is not None
+    assert "k8s-test" in result.stdout

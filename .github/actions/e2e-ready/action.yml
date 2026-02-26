@@ -32,9 +32,11 @@ runs:
         cp backend/config.test.toml backend/config.toml
         cp backend/secrets.example.toml backend/secrets.toml
 
-    - name: Pre-pull test runtime image into K3s
+    - name: Pre-pull test runtime images into K3s
       shell: bash
-      run: sudo k3s crictl pull docker.io/library/python:3.11-slim
+      run: |
+        sudo k3s crictl pull docker.io/library/python:3.11-slim
+        sudo k3s crictl pull docker.io/library/busybox:1.36
 
     - name: Wait for image pull and infra
       shell: bash

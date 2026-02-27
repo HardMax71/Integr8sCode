@@ -50,7 +50,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.12
-          uv sync --frozen
+          uv sync --frozen --group test --no-dev
 
       - name: Set up config
         run: cp backend/secrets.example.toml backend/secrets.toml
@@ -250,11 +250,11 @@ jobs:
         timeout-minutes: 15
         run: |
           docker compose exec -T backend \
-            uv run pytest tests/e2e -v -rs \
+            sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \
             --cov-report=xml:coverage-e2e.xml \
-            --cov-report=term
+            --cov-report=term'
 
       - name: Copy coverage
         if: always()

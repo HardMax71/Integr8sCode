@@ -248,7 +248,7 @@ cmd_test() {
 
     print_info "Running tests inside Docker..."
     if docker compose exec -T backend \
-        uv run pytest tests/integration tests/unit -v --cov=app --cov-report=term; then
+        sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/integration tests/unit -v --cov=app --cov-report=term'; then
         print_success "All tests passed!"
         TEST_RESULT=0
     else

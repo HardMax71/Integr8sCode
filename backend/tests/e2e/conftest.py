@@ -1,158 +1,75 @@
 import asyncio
-import json
-import logging
 import uuid
-from collections.abc import AsyncGenerator, Callable
-from contextlib import suppress
+from collections.abc import Callable
 
 import pytest
 import pytest_asyncio
-from aiokafka import AIOKafkaConsumer
+import redis.asyncio as redis
 from app.db.docs.saga import SagaDocument
 from app.domain.enums import EventType, UserRole
-from app.domain.events import DomainEvent, DomainEventAdapter, SagaStartedEvent
+from app.domain.sse import SSEExecutionEventData
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
-from app.settings import Settings
 from httpx import AsyncClient
+from pydantic import TypeAdapter
 
-_logger = logging.getLogger("test.event_waiter")
+_sse_adapter = TypeAdapter(SSEExecutionEventData)
 
-# Event types that indicate execution result is stored in MongoDB
 RESULT_EVENT_TYPES = frozenset({EventType.RESULT_STORED, EventType.RESULT_FAILED})
 
 
-class EventWaiter:
-    """Async Kafka consumer that resolves futures when matching events arrive.
+async def wait_for_sse_event(
+    redis_client: redis.Redis,
+    execution_id: str,
+    predicate: Callable[[SSEExecutionEventData], bool],
+    *,
+    timeout: float = 15.0,
+) -> SSEExecutionEventData:
+    """Subscribe to execution's Redis SSE channel and await matching event.
 
-    Session-scoped: one consumer shared by all tests. Events are buffered so
-    a predicate registered after an event was consumed still matches it.
+    The SSE bridge publishes all execution lifecycle events to
+    sse:exec:{execution_id}. Pure event-driven — no polling.
     """
-
-    def __init__(self, bootstrap_servers: str, topics: list[str], settings: Settings) -> None:
-        self._waiters: list[tuple[Callable[[DomainEvent], bool], asyncio.Future[DomainEvent]]] = []
-        self._buffer: list[DomainEvent] = []
-        self._consumer = AIOKafkaConsumer(
-            *topics,
-            bootstrap_servers=bootstrap_servers,
-            group_id=f"test-event-waiter-{uuid.uuid4().hex[:6]}",
-            auto_offset_reset="latest",
-            enable_auto_commit=True,
-            session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-            heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-            request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-        )
-        self._task: asyncio.Task[None] | None = None
-
-    async def start(self, assignment_timeout: float = 30.0) -> None:
-        await self._consumer.start()
-        # Wait for partition assignment so no events are missed
-        deadline = asyncio.get_event_loop().time() + assignment_timeout
-        while not self._consumer.assignment():
-            if asyncio.get_event_loop().time() >= deadline:
-                _logger.warning(
-                    "EventWaiter: partition assignment not received within %.1fs, proceeding anyway",
-                    assignment_timeout,
-                )
-                break
-            await asyncio.sleep(0.05)
-        self._task = asyncio.create_task(self._consume_loop())
-
-    async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._task
-        await self._consumer.stop()
-
-    async def _consume_loop(self) -> None:
-        async for msg in self._consumer:
-            try:
-                payload = json.loads(msg.value.decode())
-                event = DomainEventAdapter.validate_python(payload)
-            except Exception:
-                continue
-            self._buffer.append(event)
-            for predicate, future in list(self._waiters):
-                if not future.done() and predicate(event):
-                    future.set_result(event)
-
-    async def wait_for(
-        self,
-        predicate: Callable[[DomainEvent], bool],
-        timeout: float = 15.0,
-    ) -> DomainEvent:
-        """Wait for a Kafka event matching predicate. No polling — pure async."""
-        # Check buffer first (event may have arrived before this call)
-        for event in self._buffer:
-            if predicate(event):
-                return event
-        # Not in buffer — register waiter and await
-        future: asyncio.Future[DomainEvent] = asyncio.get_running_loop().create_future()
-        entry = (predicate, future)
-        self._waiters.append(entry)
-        try:
-            return await asyncio.wait_for(future, timeout=timeout)
-        finally:
-            if entry in self._waiters:
-                self._waiters.remove(entry)
-
-    async def wait_for_result(self, execution_id: str, timeout: float = 30.0) -> DomainEvent:
-        """Wait for RESULT_STORED or RESULT_FAILED for *execution_id*."""
-        return await self.wait_for(
-            lambda e: (
-                e.event_type in RESULT_EVENT_TYPES
-                and e.execution_id == execution_id  # type: ignore[union-attr]
-            ),
-            timeout=timeout,
-        )
-
-    async def wait_for_saga_command(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
-        """Wait for CREATE_POD_COMMAND for *execution_id*."""
-        return await self.wait_for(
-            lambda e: (
-                e.event_type == EventType.CREATE_POD_COMMAND
-                and e.execution_id == execution_id
-            ),
-            timeout=timeout,
-        )
-
-    async def wait_for_saga_started(self, execution_id: str, timeout: float = 15.0) -> SagaStartedEvent:
-        """Wait for SAGA_STARTED — saga document is guaranteed in MongoDB after this."""
-        event = await self.wait_for(
-            lambda e: (
-                e.event_type == EventType.SAGA_STARTED
-                and e.execution_id == execution_id
-            ),
-            timeout=timeout,
-        )
-        assert isinstance(event, SagaStartedEvent)
-        return event
-
-    async def wait_for_notification_created(self, execution_id: str, timeout: float = 15.0) -> DomainEvent:
-        """Wait for NOTIFICATION_CREATED — notification is guaranteed in MongoDB after this."""
-        exec_tag = f"exec:{execution_id}"
-        return await self.wait_for(
-            lambda e: (
-                e.event_type == EventType.NOTIFICATION_CREATED
-                and exec_tag in e.tags
-            ),
-            timeout=timeout,
-        )
+    channel = f"sse:exec:{execution_id}"
+    async with asyncio.timeout(timeout):
+        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
+            await pubsub.subscribe(channel)
+            async for message in pubsub.listen():
+                event = _sse_adapter.validate_json(message["data"])
+                if predicate(event):
+                    return event
+    raise AssertionError("unreachable")
 
 
-@pytest_asyncio.fixture(scope="session")
-async def event_waiter(test_settings: Settings) -> AsyncGenerator[EventWaiter, None]:
-    """Session-scoped Kafka event waiter. Starts before any test produces events."""
-    topics: list[str] = list(EventType)
-    waiter = EventWaiter(test_settings.KAFKA_BOOTSTRAP_SERVERS, topics, test_settings)
-    await waiter.start()
-    _logger.info("EventWaiter started on %d topics", len(topics))
-    yield waiter
-    await waiter.stop()
+async def wait_for_result(
+    redis_client: redis.Redis,
+    execution_id: str,
+    *,
+    timeout: float = 30.0,
+) -> SSEExecutionEventData:
+    """Wait for RESULT_STORED or RESULT_FAILED."""
+    return await wait_for_sse_event(
+        redis_client, execution_id,
+        lambda e: e.event_type in RESULT_EVENT_TYPES,
+        timeout=timeout,
+    )
+
+
+async def wait_for_pod_created(
+    redis_client: redis.Redis,
+    execution_id: str,
+    *,
+    timeout: float = 15.0,
+) -> SSEExecutionEventData:
+    """Wait for POD_CREATED — implies saga started + command dispatched."""
+    return await wait_for_sse_event(
+        redis_client, execution_id,
+        lambda e: e.event_type == EventType.POD_CREATED,
+        timeout=timeout,
+    )
 
 
 @pytest.fixture
@@ -243,21 +160,20 @@ async def created_execution_admin(
 
 @pytest_asyncio.fixture
 async def execution_with_saga(
-    event_waiter: EventWaiter,
+    redis_client: redis.Redis,
     created_execution: ExecutionResponse,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Execution with saga guaranteed in MongoDB (via SAGA_STARTED event).
+    """Execution with saga guaranteed in MongoDB (via POD_CREATED event).
 
-    The saga orchestrator publishes SAGA_STARTED after persisting the saga
-    document to MongoDB.  Once EventWaiter resolves the event, the document
-    is definitively in MongoDB.  We query Beanie directly (same DB, no HTTP
-    round-trip) for a deterministic, sleep-free lookup.
+    POD_CREATED arrives after the saga orchestrator has persisted the saga
+    document and dispatched the create-pod command.  We query Beanie directly
+    (same DB, no HTTP round-trip) for a deterministic, sleep-free lookup.
     """
-    await event_waiter.wait_for_saga_started(created_execution.execution_id)
+    await wait_for_pod_created(redis_client, created_execution.execution_id)
 
     doc = await SagaDocument.find_one(SagaDocument.execution_id == created_execution.execution_id)
     assert doc is not None, (
-        f"No saga document for {created_execution.execution_id} despite CREATE_POD_COMMAND received"
+        f"No saga document for {created_execution.execution_id} despite POD_CREATED received"
     )
 
     saga = SagaStatusResponse.model_validate(doc, from_attributes=True)
@@ -268,20 +184,20 @@ async def execution_with_saga(
 @pytest_asyncio.fixture
 async def execution_with_notification(
     test_user: AsyncClient,
-    event_waiter: EventWaiter,
+    redis_client: redis.Redis,
     created_execution: ExecutionResponse,
 ) -> tuple[ExecutionResponse, NotificationResponse]:
-    """Execution with notification guaranteed in MongoDB (via NOTIFICATION_CREATED event).
+    """Execution with notification guaranteed in MongoDB.
 
-    The notification service publishes NOTIFICATION_CREATED after persisting
-    the notification to MongoDB.  Once EventWaiter resolves the event, the
-    document is definitively in MongoDB.
+    The notification handler finishes before the result processor publishes
+    RESULT_STORED.  Waiting for RESULT_STORED guarantees the notification
+    document is in MongoDB.
     """
-    await event_waiter.wait_for_notification_created(created_execution.execution_id)
+    await wait_for_result(redis_client, created_execution.execution_id)
     resp = await test_user.get("/api/v1/notifications", params={"limit": 10})
     assert resp.status_code == 200
     result = NotificationListResponse.model_validate(resp.json())
-    assert result.notifications, "No notification despite NOTIFICATION_CREATED received"
+    assert result.notifications, "No notification after execution result stored"
     notification = result.notifications[0]
     assert created_execution.execution_id in (notification.subject + " ".join(notification.tags))
     return created_execution, notification

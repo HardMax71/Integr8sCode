@@ -1,4 +1,6 @@
 import pytest
+import redis.asyncio as redis
+from app.db.docs.saga import SagaDocument
 from app.domain.enums import SagaState
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.saga import (
@@ -8,7 +10,7 @@ from app.schemas_pydantic.saga import (
 )
 from httpx import AsyncClient
 
-from tests.e2e.conftest import EventWaiter
+from tests.e2e.conftest import wait_for_pod_created
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
@@ -191,7 +193,7 @@ class TestCancelSaga:
     async def test_cancel_saga(
             self,
             test_user: AsyncClient,
-            event_waiter: EventWaiter,
+            redis_client: redis.Redis,
             long_running_execution_request: ExecutionRequest,
     ) -> None:
         """Cancel a running saga."""
@@ -202,25 +204,22 @@ class TestCancelSaga:
 
         execution = ExecutionResponse.model_validate(exec_response.json())
 
-        # Get saga_id from SAGA_STARTED event (published after saga persisted)
-        started = await event_waiter.wait_for_saga_started(execution.execution_id)
+        # Wait for POD_CREATED — saga is persisted and orchestrator is idle
+        await wait_for_pod_created(redis_client, execution.execution_id)
+        doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
+        assert doc is not None
 
-        # Wait for CREATE_POD_COMMAND — the orchestrator's last step.
-        # After this the orchestrator is idle, so cancel won't race with
-        # concurrent step-processing writes to the saga document.
-        await event_waiter.wait_for_saga_command(execution.execution_id)
-
-        response = await test_user.post(f"/api/v1/sagas/{started.saga_id}/cancel")
+        response = await test_user.post(f"/api/v1/sagas/{doc.saga_id}/cancel")
 
         assert response.status_code == 200
         result = SagaCancellationResponse.model_validate(response.json())
-        assert result.saga_id == started.saga_id
+        assert result.saga_id == doc.saga_id
         assert result.success is True
         assert result.message is not None
 
         # cancel_saga sets state to CANCELLED synchronously in MongoDB
         # before returning the HTTP response (compensation also runs inline).
-        status_resp = await test_user.get(f"/api/v1/sagas/{started.saga_id}")
+        status_resp = await test_user.get(f"/api/v1/sagas/{doc.saga_id}")
         assert status_resp.status_code == 200
         updated_saga = SagaStatusResponse.model_validate(status_resp.json())
         assert updated_saga.state == SagaState.CANCELLED
@@ -241,7 +240,7 @@ class TestCancelSaga:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            event_waiter: EventWaiter,
+            redis_client: redis.Redis,
             long_running_execution_request: ExecutionRequest,
     ) -> None:
         """Cannot cancel another user's saga."""
@@ -251,9 +250,11 @@ class TestCancelSaga:
         assert exec_response.status_code == 200
 
         execution = ExecutionResponse.model_validate(exec_response.json())
-        started = await event_waiter.wait_for_saga_started(execution.execution_id)
+        await wait_for_pod_created(redis_client, execution.execution_id)
+        doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
+        assert doc is not None
 
-        response = await another_user.post(f"/api/v1/sagas/{started.saga_id}/cancel")
+        response = await another_user.post(f"/api/v1/sagas/{doc.saga_id}/cancel")
 
         assert response.status_code == 403
 

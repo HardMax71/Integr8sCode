@@ -83,10 +83,10 @@ class TestExecutionHappyPath:
 
     @pytest.mark.asyncio
     async def test_execute_simple_script_completes(
-        self, test_user: AsyncClient, redis_client: redis.Redis, simple_execution_request: ExecutionRequest
+        self, test_user: AsyncClient, redis_client: redis.Redis, exec_request: ExecutionRequest
     ) -> None:
         """Simple script executes and completes successfully."""
-        exec_response, result = await submit_and_wait(test_user, redis_client, simple_execution_request)
+        exec_response, result = await submit_and_wait(test_user, redis_client, exec_request)
 
         assert exec_response.execution_id
         assert result.status == ExecutionStatus.COMPLETED

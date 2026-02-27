@@ -3,7 +3,6 @@ import uuid
 from collections.abc import Callable
 
 import pytest
-import pytest_asyncio
 import redis.asyncio as redis
 from app.db.docs.saga import SagaDocument
 from app.domain.enums import EventType, UserRole
@@ -94,7 +93,7 @@ async def wait_for_notification(
 
 
 @pytest.fixture
-def simple_execution_request() -> ExecutionRequest:
+def exec_request() -> ExecutionRequest:
     """Simple python print execution."""
     return ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
 
@@ -155,74 +154,60 @@ def new_script_request() -> SavedScriptCreateRequest:
     )
 
 
-@pytest_asyncio.fixture
-async def created_execution(
-    test_user: AsyncClient, simple_execution_request: ExecutionRequest
+async def create_execution(
+    client: AsyncClient,
+    request: ExecutionRequest,
 ) -> ExecutionResponse:
-    """Execution created by test_user (does NOT wait for completion)."""
-    resp = await test_user.post(
-        "/api/v1/execute", json=simple_execution_request.model_dump()
-    )
+    """POST /execute and return response (does NOT wait for completion)."""
+    resp = await client.post("/api/v1/execute", json=request.model_dump())
     assert resp.status_code == 200
     return ExecutionResponse.model_validate(resp.json())
 
 
-@pytest_asyncio.fixture
-async def created_execution_admin(
-    test_admin: AsyncClient, simple_execution_request: ExecutionRequest
-) -> ExecutionResponse:
-    """Execution created by test_admin."""
-    resp = await test_admin.post(
-        "/api/v1/execute", json=simple_execution_request.model_dump()
-    )
-    assert resp.status_code == 200
-    return ExecutionResponse.model_validate(resp.json())
-
-
-@pytest_asyncio.fixture
-async def execution_with_saga(
+async def create_execution_with_saga(
+    client: AsyncClient,
     redis_client: redis.Redis,
-    created_execution: ExecutionResponse,
+    request: ExecutionRequest,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Execution with saga guaranteed in MongoDB (via POD_CREATED event).
+    """Create execution, wait for POD_CREATED, return (execution, saga).
 
-    POD_CREATED arrives after the saga orchestrator has persisted the saga
-    document and dispatched the create-pod command.  We query Beanie directly
-    (same DB, no HTTP round-trip) for a deterministic, sleep-free lookup.
+    POD_CREATED implies the saga orchestrator persisted the document and
+    dispatched the create-pod command.
     """
-    await wait_for_pod_created(redis_client, created_execution.execution_id)
+    execution = await create_execution(client, request)
+    await wait_for_pod_created(redis_client, execution.execution_id)
 
-    doc = await SagaDocument.find_one(SagaDocument.execution_id == created_execution.execution_id)
+    doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
     assert doc is not None, (
-        f"No saga document for {created_execution.execution_id} despite POD_CREATED received"
+        f"No saga document for {execution.execution_id} despite POD_CREATED received"
     )
 
     saga = SagaStatusResponse.model_validate(doc, from_attributes=True)
-    assert saga.execution_id == created_execution.execution_id
-    return created_execution, saga
+    return execution, saga
 
 
-@pytest_asyncio.fixture
-async def execution_with_notification(
-    test_user: AsyncClient,
+async def create_execution_with_notification(
+    client: AsyncClient,
     redis_client: redis.Redis,
-    created_execution: ExecutionResponse,
+    request: ExecutionRequest,
+    *,
+    timeout: float = 30.0,
 ) -> tuple[ExecutionResponse, NotificationResponse]:
-    """Execution with notification guaranteed in MongoDB.
+    """Create execution, wait for notification delivery, return (execution, notification).
 
-    Waits on sse:notif:{user_id} — the notification service publishes there
-    only after persisting to MongoDB.  Unlike RESULT_STORED (which comes from
-    an independent consumer group), this is a correct readiness signal.
+    Fetches user_id from /auth/me, waits on sse:notif:{user_id} (correct
+    signal — notification service publishes after MongoDB persist), then
+    queries the notification list.
     """
-    me_resp = await test_user.get("/api/v1/auth/me")
+    me_resp = await client.get("/api/v1/auth/me")
     assert me_resp.status_code == 200
     user_id = me_resp.json()["user_id"]
 
-    await wait_for_notification(redis_client, user_id)
+    execution = await create_execution(client, request)
+    await wait_for_notification(redis_client, user_id, timeout=timeout)
 
-    resp = await test_user.get("/api/v1/notifications", params={"limit": 10})
+    resp = await client.get("/api/v1/notifications", params={"limit": 10})
     assert resp.status_code == 200
     result = NotificationListResponse.model_validate(resp.json())
     assert result.notifications, "No notification after SSE delivery"
-    notification = result.notifications[0]
-    return created_execution, notification
+    return execution, result.notifications[0]

@@ -60,7 +60,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
     | `KUBERNETES_CA_CERTIFICATE_PATH` | Custom CA cert for K8s API | — |
     | `K8S_POD_CPU_LIMIT` | CPU limit per pod | `1000m` |
     | `K8S_POD_MEMORY_LIMIT` | Memory limit per pod | `128Mi` |
-    | `K8S_POD_CPU_REQUEST` | CPU request (guaranteed) | `1000m` |
+    | `K8S_POD_CPU_REQUEST` | CPU request (guaranteed) | `200m` |
     | `K8S_POD_MEMORY_REQUEST` | Memory request (guaranteed) | `128Mi` |
     | `K8S_POD_EXECUTION_TIMEOUT` | Max execution time in seconds | `300` |
     | `K8S_NAMESPACE` | Namespace for executor pods | `integr8scode` |
@@ -107,12 +107,10 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ??? info "Legend"
     | Key | Description | Default |
     |-----|-------------|---------|
-    | `ENABLE_TRACING` | Enable distributed tracing | `true` |
-    | `JAEGER_AGENT_HOST` | Jaeger agent hostname | `jaeger` |
-    | `JAEGER_AGENT_PORT` | Jaeger agent UDP port | `6831` |
+    | `OTLP_TRACES_ENDPOINT` | OTLP gRPC endpoint; tracing is enabled when non-empty | Code default: `""` (disabled); config.toml: `http://jaeger:4317` |
     | `TRACING_SERVICE_NAME` | Service name in traces | `integr8scode-backend` |
     | `TRACING_SERVICE_VERSION` | Version in trace metadata | `1.0.0` |
-    | `TRACING_SAMPLING_RATE` | Sample rate (0.0-1.0) | `0.1` |
+    | `TRACING_SAMPLING_RATE` | Sample rate (0.0-1.0) | `1.0` in config.toml (`0.1` code default) |
 
 ## Dead Letter Queue
 

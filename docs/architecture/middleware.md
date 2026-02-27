@@ -8,10 +8,12 @@ processing in reverse order.
 
 The middleware is applied in this order (outermost first):
 
-1. **RequestSizeLimitMiddleware** - Rejects oversized requests
-2. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
-3. **CacheControlMiddleware** - Adds cache headers to responses
-4. **MetricsMiddleware** - Collects HTTP request metrics
+1. **CORSMiddleware** - Handles Cross-Origin Resource Sharing headers
+2. **CacheControlMiddleware** - Adds cache headers to responses
+3. **RequestSizeLimitMiddleware** - Rejects oversized requests
+4. **CSRFMiddleware** - Validates CSRF tokens on state-changing requests
+5. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
+6. **MetricsMiddleware** - Collects HTTP request metrics
 
 ## Request Size Limit
 
@@ -85,6 +87,16 @@ Path templates use pattern replacement to reduce metric cardinality:
 
 UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent metric explosion.
 
+## CSRF Protection
+
+`CSRFMiddleware` implements the **double-submit cookie** pattern. At login the server issues two cookies: an httpOnly `access_token` cookie (the JWT) and a readable `csrf_token` cookie. The CSRF token is HMAC-signed against the `access_token` so it cannot be forged independently.
+
+On every mutating request (POST, PUT, DELETE, PATCH) that targets an `/api/` path, the middleware reads the `csrf_token` cookie and the `X-CSRF-Token` request header, then validates that they match (constant-time comparison) and that the token's HMAC signature is valid for the current `access_token`. Requests that fail any check receive a 403 response.
+
+Safe methods (GET, HEAD, OPTIONS), auth endpoints (`/api/v1/auth/login`, `/api/v1/auth/register`), non-API paths, and unauthenticated requests (no `access_token` cookie) are exempt.
+
+**Frontend behaviour:** The API interceptor in `api-interceptors.ts` auto-injects `authStore.csrfToken` into the `X-CSRF-Token` header for every non-GET request. The store obtains the token from the login response body and refreshes it by reading the `csrf_token` cookie on auth verification (`auth.svelte.ts`).
+
 ## System Metrics
 
 In addition to HTTP metrics, the middleware module provides system-level observables:
@@ -118,5 +130,9 @@ These expose:
 -   :material-chart-line:{ .lg .middle } **[metrics.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/metrics.py)**
 
     HTTP request telemetry and system-level observables
+
+-   :material-shield-lock:{ .lg .middle } **[csrf.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/csrf.py)**
+
+    CSRF token validation for state-changing requests
 
 </div>

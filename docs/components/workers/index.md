@@ -46,7 +46,7 @@ For debugging a specific worker, run it directly:
 
 ```bash
 cd backend
-python -m workers.run_saga_orchestrator
+uv run python -m workers.run_saga_orchestrator
 ```
 
 ## Scaling

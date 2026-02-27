@@ -10,24 +10,16 @@ export default defineConfig({
     svelteTesting(),
   ],
   test: {
-    environment: 'jsdom',
     pool: 'threads',
     maxWorkers: 8,
     minWorkers: 2,
     isolate: false,
     css: false,
+    testTimeout: 10_000,
+    environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
-    globals: true,
-    testTimeout: 10_000,
-    fakeTimers: {
-      shouldAdvanceTime: true,
-    },
-    environmentMatchGlobs: [
-      ['src/lib/**/*.test.ts', 'node'],
-      ['src/stores/**/*.test.ts', 'node'],
-      ['src/utils/**/*.test.ts', 'node'],
-    ],
+    fakeTimers: { shouldAdvanceTime: true },
     deps: {
       optimizer: {
         web: {

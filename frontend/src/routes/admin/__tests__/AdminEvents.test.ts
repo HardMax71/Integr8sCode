@@ -63,7 +63,6 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
   mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: stats, error: null });
 
   const result = render(AdminEvents);
-  await tick();
   await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
   return result;
 }

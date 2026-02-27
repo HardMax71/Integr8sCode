@@ -73,7 +73,6 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
   });
 
   const result = render(AdminSagas);
-  await tick();
   await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
   return result;
 }
@@ -89,7 +88,6 @@ describe('AdminSagas', () => {
   describe('initial loading', () => {
     it('calls listSagas on mount', async () => {
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
     });
 
@@ -380,7 +378,6 @@ describe('AdminSagas', () => {
       });
 
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
 
       expect(screen.getByText(/showing/i)).toBeInTheDocument();
@@ -394,7 +391,6 @@ describe('AdminSagas', () => {
       });
 
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
 
       vi.clearAllMocks();

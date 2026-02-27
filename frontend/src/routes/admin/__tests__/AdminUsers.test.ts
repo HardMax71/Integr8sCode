@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { tick } from 'svelte';
 import { user } from '$test/test-utils';
 
 interface MockUserOverrides {
@@ -93,7 +92,6 @@ import AdminUsers from '$routes/admin/AdminUsers.svelte';
 async function renderWithUsers(users = createMockUsers(3)) {
   mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users, total: users.length }, error: null });
   const result = render(AdminUsers);
-  await tick();
   await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
   return result;
 }
@@ -179,7 +177,6 @@ describe('AdminUsers', () => {
         return { data: { users: filtered, total: filtered.length }, error: null };
       });
       render(AdminUsers);
-      await tick();
       await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
 
       const searchInput = screen.getByPlaceholderText(/Search by username/i);
@@ -201,7 +198,6 @@ describe('AdminUsers', () => {
         return { data: { users: filtered, total: filtered.length }, error: null };
       });
       render(AdminUsers);
-      await tick();
       await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
 
       const roleSelect = screen.getByRole('combobox', { name: /Role/i });
@@ -236,7 +232,6 @@ describe('AdminUsers', () => {
         return { data: { users, total: users.length }, error: null };
       });
       render(AdminUsers);
-      await tick();
       await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
 
       const searchInput = screen.getByPlaceholderText(/Search by username/i);

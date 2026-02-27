@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { tick } from 'svelte';
 import { user } from '$test/test-utils';
 
 interface MockExecutionOverrides {
@@ -102,7 +101,6 @@ async function renderWithExecutions(
   });
 
   const result = render(AdminExecutions);
-  await tick();
   await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
   return result;
 }
@@ -128,7 +126,6 @@ describe('AdminExecutions', () => {
   describe('initial loading', () => {
     it('calls API on mount', async () => {
       render(AdminExecutions);
-      await tick();
       await waitFor(() => {
         expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
         expect(mocks.getQueueStatusApiV1AdminExecutionsQueueGet).toHaveBeenCalled();
@@ -340,7 +337,6 @@ describe('AdminExecutions', () => {
       });
 
       render(AdminExecutions);
-      await tick();
       await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
 
       expect(screen.getByText(/showing/i)).toBeInTheDocument();

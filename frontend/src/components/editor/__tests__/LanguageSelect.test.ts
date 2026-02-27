@@ -98,6 +98,7 @@ describe('LanguageSelect', () => {
     it.each([
       { key: '{ArrowDown}', label: 'ArrowDown' },
       { key: '{Enter}', label: 'Enter' },
+      { key: ' ', label: 'Space' },
     ])('opens menu with $label on trigger', async ({ key }) => {
       renderSelect();
       screen.getByRole('button', { name: /Select language/i }).focus();
@@ -109,6 +110,107 @@ describe('LanguageSelect', () => {
       await openMenu();
       const trigger = screen.getByRole('button', { name: /Select language/i });
       await fireEvent.keyDown(trigger, { key: 'Escape' });
+      await waitFor(() => {
+        expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('menu keyboard navigation', () => {
+    async function openMenuAndGetMenu() {
+      const result = renderSelect();
+      await user.click(screen.getByRole('button', { name: /Select language/i }));
+      const menu = screen.getByRole('menu', { name: 'Select language and version' });
+      return { ...result, menu };
+    }
+
+    it.each([
+      { key: 'ArrowDown', presses: 1, expectedIndex: 1, desc: 'moves focus to next language' },
+      { key: 'ArrowDown', presses: 3, expectedIndex: 2, desc: 'clamps at last language' },
+      { key: 'ArrowUp', presses: 1, expectedIndex: 0, desc: 'clamps at first language' },
+    ])('$key $desc', async ({ key, presses, expectedIndex }) => {
+      const { menu } = await openMenuAndGetMenu();
+      for (let i = 0; i < presses; i++) {
+        await fireEvent.keyDown(menu, { key });
+      }
+      const items = screen.getAllByRole('menuitem');
+      expect(items[expectedIndex]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('ArrowUp moves focus to previous language', async () => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'ArrowDown' }); // index 1
+      await fireEvent.keyDown(menu, { key: 'ArrowUp' }); // back to 0
+      const items = screen.getAllByRole('menuitem');
+      expect(items[0]).toHaveAttribute('tabindex', '0');
+    });
+
+    it.each([
+      { key: 'ArrowRight', label: 'ArrowRight' },
+      { key: 'Enter', label: 'Enter' },
+      { key: ' ', label: 'Space' },
+    ])('$label on language opens version submenu', async ({ key }) => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key });
+      expect(screen.getByRole('menu', { name: /python versions/i })).toBeInTheDocument();
+    });
+
+    it.each([
+      { key: 'ArrowDown', presses: 1, expectedIndex: 1, desc: 'moves to next version' },
+      { key: 'ArrowDown', presses: 3, expectedIndex: 2, desc: 'clamps at last version' },
+      { key: 'ArrowUp', presses: 1, expectedIndex: 0, desc: 'clamps at first version' },
+    ])('$key in submenu $desc', async ({ key, presses, expectedIndex }) => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'ArrowRight' }); // open python submenu
+      for (let i = 0; i < presses; i++) {
+        await fireEvent.keyDown(menu, { key });
+      }
+      const versionMenu = screen.getByRole('menu', { name: /python versions/i });
+      const versions = within(versionMenu).getAllByRole('menuitemradio');
+      expect(versions[expectedIndex]).toHaveAttribute('tabindex', '0');
+    });
+
+    it('ArrowUp in submenu moves to previous version', async () => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'ArrowRight' });
+      await fireEvent.keyDown(menu, { key: 'ArrowDown' }); // index 1
+      await fireEvent.keyDown(menu, { key: 'ArrowUp' }); // back to 0
+      const versionMenu = screen.getByRole('menu', { name: /python versions/i });
+      const versions = within(versionMenu).getAllByRole('menuitemradio');
+      expect(versions[0]).toHaveAttribute('tabindex', '0');
+    });
+
+    it.each([
+      { key: 'Enter', label: 'Enter' },
+      { key: ' ', label: 'Space' },
+    ])('$label in submenu selects version and closes menu', async ({ key }) => {
+      const { onselect, menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'ArrowRight' }); // open python submenu
+      await fireEvent.keyDown(menu, { key: 'ArrowDown' }); // move to version index 1 (3.10)
+      await fireEvent.keyDown(menu, { key });
+      expect(onselect).toHaveBeenCalledWith('python', '3.10');
+      await waitFor(() => {
+        expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
+      });
+    });
+
+    it.each([
+      { key: 'ArrowLeft', label: 'ArrowLeft' },
+      { key: 'Escape', label: 'Escape' },
+    ])('$label in submenu exits submenu but keeps main menu', async ({ key }) => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'ArrowRight' }); // open python submenu
+      expect(screen.getByRole('menu', { name: /python versions/i })).toBeInTheDocument();
+      await fireEvent.keyDown(menu, { key });
+      await waitFor(() => {
+        expect(screen.queryByRole('menu', { name: /python versions/i })).not.toBeInTheDocument();
+      });
+      expect(screen.getByRole('menu', { name: 'Select language and version' })).toBeInTheDocument();
+    });
+
+    it('Escape in root menu closes entire menu', async () => {
+      const { menu } = await openMenuAndGetMenu();
+      await fireEvent.keyDown(menu, { key: 'Escape' });
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
       });

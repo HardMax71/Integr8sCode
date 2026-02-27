@@ -128,7 +128,7 @@ class TestExecutionStream:
 
     @pytest.mark.asyncio
     async def test_execution_stream_returns_event_stream(
-        self, sse_client: SSETestClient, test_user: AsyncClient, redis_client: redis.Redis,
+        self, sse_client: SSETestClient, test_user: AsyncClient,
     ) -> None:
         """Execution stream returns SSE content type and first body chunk.
 
@@ -137,7 +137,7 @@ class TestExecutionStream:
         this is the ``status`` control event, confirming the SSE generator
         started and yielded data.
         """
-        execution = await create_execution(test_user, redis_client)
+        execution = await create_execution(test_user)
 
         async with sse_client:
             response = await sse_client.get(
@@ -168,10 +168,9 @@ class TestExecutionStream:
         self,
         sse_client_another: SSETestClient,
         test_user: AsyncClient,
-        redis_client: redis.Redis,
     ) -> None:
         """Another user cannot stream a different user's execution — returns 403."""
-        execution = await create_execution(test_user, redis_client)
+        execution = await create_execution(test_user)
 
         async with sse_client_another:
             response = await sse_client_another.get(
@@ -179,3 +178,6 @@ class TestExecutionStream:
             )
 
             assert response.status_code == 403
+            body = response.json()
+            assert body["detail"] == "Access denied"
+            assert body["type"] == "ForbiddenError"

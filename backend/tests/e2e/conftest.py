@@ -154,18 +154,14 @@ def new_script_request() -> SavedScriptCreateRequest:
     )
 
 
+_DEFAULT_REQUEST = ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
+
+
 async def create_execution(
     client: AsyncClient,
-    redis_client: redis.Redis,
-    request: ExecutionRequest | None = None,
-    *,
-    script: str = "print('test')",
-    lang: str = "python",
-    lang_version: str = "3.11",
+    request: ExecutionRequest = _DEFAULT_REQUEST,
 ) -> ExecutionResponse:
     """POST /execute and return response (does NOT wait for completion)."""
-    if request is None:
-        request = ExecutionRequest(script=script, lang=lang, lang_version=lang_version)
     resp = await client.post("/api/v1/execute", json=request.model_dump())
     assert resp.status_code == 200
     return ExecutionResponse.model_validate(resp.json())
@@ -174,20 +170,14 @@ async def create_execution(
 async def create_execution_with_saga(
     client: AsyncClient,
     redis_client: redis.Redis,
-    request: ExecutionRequest | None = None,
-    *,
-    script: str = "print('test')",
-    lang: str = "python",
-    lang_version: str = "3.11",
+    request: ExecutionRequest = _DEFAULT_REQUEST,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
     """Create execution, wait for POD_CREATED, return (execution, saga).
 
     POD_CREATED implies the saga orchestrator persisted the document and
     dispatched the create-pod command.
     """
-    execution = await create_execution(
-        client, redis_client, request, script=script, lang=lang, lang_version=lang_version,
-    )
+    execution = await create_execution(client, request)
     await wait_for_pod_created(redis_client, execution.execution_id)
 
     doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
@@ -202,11 +192,8 @@ async def create_execution_with_saga(
 async def create_execution_with_notification(
     client: AsyncClient,
     redis_client: redis.Redis,
-    request: ExecutionRequest | None = None,
+    request: ExecutionRequest = _DEFAULT_REQUEST,
     *,
-    script: str = "print('test')",
-    lang: str = "python",
-    lang_version: str = "3.11",
     timeout: float = 30.0,
 ) -> tuple[ExecutionResponse, NotificationResponse]:
     """Create execution, wait for notification delivery, return (execution, notification).
@@ -219,9 +206,7 @@ async def create_execution_with_notification(
     assert me_resp.status_code == 200
     user_id = me_resp.json()["user_id"]
 
-    execution = await create_execution(
-        client, redis_client, request, script=script, lang=lang, lang_version=lang_version,
-    )
+    execution = await create_execution(client, request)
     await wait_for_notification(redis_client, user_id, timeout=timeout)
 
     resp = await client.get("/api/v1/notifications", params={"limit": 10})

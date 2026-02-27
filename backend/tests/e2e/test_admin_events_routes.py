@@ -1,3 +1,4 @@
+import json as json_mod
 import uuid
 
 import pytest
@@ -16,6 +17,8 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
+from app.services.admin import AdminEventsService
+from app.services.sse import SSEService
 from dishka import AsyncContainer
 from httpx import AsyncClient
 
@@ -379,9 +382,9 @@ class TestStreamReplayStatus:
 
     @pytest.mark.asyncio
     async def test_stream_replay_status_after_replay(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+            self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
     ) -> None:
-        """Stream replay status after starting a replay returns SSE with initial status."""
+        """Replay creates a session whose SSE pipeline yields correct initial status."""
         request = EventReplayRequest(
             aggregate_id=stored_event.aggregate_id,
             dry_run=False,
@@ -394,31 +397,29 @@ class TestStreamReplayStatus:
         replay_result = EventReplayResponse.model_validate(replay_response.json())
         assert replay_result.session_id is not None
 
-        import json as json_mod
+        # httpx ASGITransport cannot stream SSE (buffers entire body).
+        # Test the pipeline directly via DI — first yield is the initial status.
+        admin_service = await scope.get(AdminEventsService)
+        initial_status = await admin_service.get_replay_sse_status(replay_result.session_id)
+        assert initial_status is not None
 
-        async with test_admin.stream(
-            "GET",
-            f"/api/v1/admin/events/replay/{replay_result.session_id}/status",
-        ) as response:
-            assert response.status_code == 200
-            content_type = response.headers.get("content-type", "")
-            assert "text/event-stream" in content_type
-
-            # Read lines until we get the first data: line
-            async for line in response.aiter_lines():
-                text = line.strip()
-                if text.startswith("data:"):
-                    payload = text[len("data:"):].strip()
-                    status = EventReplayStatusResponse.model_validate(json_mod.loads(payload))
-                    assert status.session_id == replay_result.session_id
-                    assert status.status in (
-                        ReplayStatus.SCHEDULED, ReplayStatus.CREATED, ReplayStatus.RUNNING,
-                        ReplayStatus.COMPLETED,
-                    )
-                    assert status.total_events >= 1
-                    assert status.replayed_events >= 0
-                    assert status.progress_percentage >= 0.0
-                    break
+        sse_service = await scope.get(SSEService)
+        stream = await sse_service.create_replay_stream(initial_status)
+        try:
+            first_event = await anext(stream)
+            status = EventReplayStatusResponse.model_validate(
+                json_mod.loads(first_event["data"])
+            )
+            assert status.session_id == replay_result.session_id
+            assert status.status in (
+                ReplayStatus.SCHEDULED, ReplayStatus.CREATED,
+                ReplayStatus.RUNNING, ReplayStatus.COMPLETED,
+            )
+            assert status.total_events >= 1
+            assert status.replayed_events >= 0
+            assert status.progress_percentage >= 0.0
+        finally:
+            await stream.aclose()
 
     @pytest.mark.asyncio
     async def test_stream_replay_status_forbidden_for_regular_user(

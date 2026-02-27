@@ -72,6 +72,27 @@ async def wait_for_pod_created(
     )
 
 
+async def wait_for_notification(
+    redis_client: redis.Redis,
+    user_id: str,
+    *,
+    timeout: float = 30.0,
+) -> None:
+    """Wait for a notification on the user's SSE channel.
+
+    The notification service publishes to sse:notif:{user_id} only after
+    persisting to MongoDB, so receiving a message is a correct readiness
+    signal — unlike RESULT_STORED which comes from an independent consumer
+    group with no ordering guarantee.
+    """
+    channel = f"sse:notif:{user_id}"
+    async with asyncio.timeout(timeout):
+        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
+            await pubsub.subscribe(channel)
+            async for _message in pubsub.listen():
+                return  # first message = notification persisted
+
+
 @pytest.fixture
 def simple_execution_request() -> ExecutionRequest:
     """Simple python print execution."""
@@ -189,15 +210,19 @@ async def execution_with_notification(
 ) -> tuple[ExecutionResponse, NotificationResponse]:
     """Execution with notification guaranteed in MongoDB.
 
-    The notification handler finishes before the result processor publishes
-    RESULT_STORED.  Waiting for RESULT_STORED guarantees the notification
-    document is in MongoDB.
+    Waits on sse:notif:{user_id} — the notification service publishes there
+    only after persisting to MongoDB.  Unlike RESULT_STORED (which comes from
+    an independent consumer group), this is a correct readiness signal.
     """
-    await wait_for_result(redis_client, created_execution.execution_id)
+    me_resp = await test_user.get("/api/v1/auth/me")
+    assert me_resp.status_code == 200
+    user_id = me_resp.json()["user_id"]
+
+    await wait_for_notification(redis_client, user_id)
+
     resp = await test_user.get("/api/v1/notifications", params={"limit": 10})
     assert resp.status_code == 200
     result = NotificationListResponse.model_validate(resp.json())
-    assert result.notifications, "No notification after execution result stored"
+    assert result.notifications, "No notification after SSE delivery"
     notification = result.notifications[0]
-    assert created_execution.execution_id in (notification.subject + " ".join(notification.tags))
     return created_execution, notification

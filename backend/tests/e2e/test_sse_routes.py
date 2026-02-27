@@ -92,7 +92,8 @@ class TestNotificationStream:
         execution stream). async-asgi-testclient blocks until the first
         http.response.body ASGI message. We trigger a real notification by
         creating an execution and waiting for its result — the notification
-        handler publishes to Redis before RESULT_STORED, unblocking the stream.
+        service is an independent Kafka consumer that publishes to the SSE
+        notification channel after persisting to MongoDB.
         """
         async with sse_client:
             # Start stream in background — blocks until first body chunk

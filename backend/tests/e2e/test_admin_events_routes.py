@@ -405,21 +405,18 @@ class TestStreamReplayStatus:
 
         sse_service = await scope.get(SSEService)
         stream = await sse_service.create_replay_stream(initial_status)
-        try:
-            first_event = await anext(stream)
-            status = EventReplayStatusResponse.model_validate(
-                json_mod.loads(first_event["data"])
-            )
-            assert status.session_id == replay_result.session_id
-            assert status.status in (
-                ReplayStatus.SCHEDULED, ReplayStatus.CREATED,
-                ReplayStatus.RUNNING, ReplayStatus.COMPLETED,
-            )
-            assert status.total_events >= 1
-            assert status.replayed_events >= 0
-            assert status.progress_percentage >= 0.0
-        finally:
-            await stream.aclose()
+        first_event = await anext(stream)
+        status = EventReplayStatusResponse.model_validate(
+            json_mod.loads(first_event["data"])
+        )
+        assert status.session_id == replay_result.session_id
+        assert status.status in (
+            ReplayStatus.SCHEDULED, ReplayStatus.CREATED,
+            ReplayStatus.RUNNING, ReplayStatus.COMPLETED,
+        )
+        assert status.total_events >= 1
+        assert status.replayed_events >= 0
+        assert status.progress_percentage >= 0.0
 
     @pytest.mark.asyncio
     async def test_stream_replay_status_forbidden_for_regular_user(

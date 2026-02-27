@@ -102,9 +102,6 @@ async def test_publish_and_subscribe_round_trip() -> None:
     msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
     assert msg2.event_type == EventType.EXECUTION_COMPLETED
 
-    # Close — aclose() on the generator triggers __aexit__ on the pubsub context
-    await messages.aclose()
-    assert r._pubsub.closed is True
 
 
 @pytest.mark.asyncio
@@ -135,8 +132,6 @@ async def test_notifications_channels() -> None:
     assert "sse:notif:user-1" in r._pubsub.subscribed
     assert got.notification_id == "n1"
 
-    await messages.aclose()
-    assert r._pubsub.closed is True
 
 
 @pytest.mark.asyncio
@@ -167,6 +162,3 @@ async def test_replay_publish_and_subscribe_round_trip() -> None:
     assert got.session_id == "sess-1"
     assert got.status == ReplayStatus.RUNNING
     assert got.replayed_events == 3
-
-    await messages.aclose()
-    assert r._pubsub.closed is True

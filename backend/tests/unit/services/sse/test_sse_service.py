@@ -201,7 +201,6 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     assert data["subject"] == "s"
     assert data["channel"] == "in_app"
 
-    await agen.aclose()
 
 
 @pytest.mark.asyncio

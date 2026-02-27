@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { createMockStats } from '$test/test-utils';
 
-import EventStatsCards from '../EventStatsCards.svelte';
+import EventStatsCards from '$components/admin/events/EventStatsCards.svelte';
 
 function renderCards(stats: ReturnType<typeof createMockStats> | null, totalEvents = 500) {
   return render(EventStatsCards, { props: { stats, totalEvents } });

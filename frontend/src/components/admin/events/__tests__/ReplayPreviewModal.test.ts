@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
 
 
-import ReplayPreviewModal from '../ReplayPreviewModal.svelte';
+import ReplayPreviewModal from '$components/admin/events/ReplayPreviewModal.svelte';
 
 interface ReplayPreview {
   eventId: string;

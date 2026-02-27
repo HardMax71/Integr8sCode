@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { createMockEventDetail, user } from '$test/test-utils';
 
 
-import EventDetailsModal from '../EventDetailsModal.svelte';
+import EventDetailsModal from '$components/admin/events/EventDetailsModal.svelte';
 
 function renderModal(overrides: Partial<{
   event: ReturnType<typeof createMockEventDetail> | null;

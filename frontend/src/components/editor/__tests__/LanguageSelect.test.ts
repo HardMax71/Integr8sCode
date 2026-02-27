@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent, waitFor } from '@testing-library/sve
 import { user } from '$test/test-utils';
 
 
-import LanguageSelect from '../LanguageSelect.svelte';
+import LanguageSelect from '$components/editor/LanguageSelect.svelte';
 
 const RUNTIMES = {
   python: { versions: ['3.11', '3.10', '3.9'], file_ext: 'py' },

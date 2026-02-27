@@ -1,5 +1,5 @@
 <script lang="ts">
-  import FilterPanel from '../FilterPanel.svelte';
+  import FilterPanel from '$components/admin/FilterPanel.svelte';
 
   interface Props {
     open?: boolean;

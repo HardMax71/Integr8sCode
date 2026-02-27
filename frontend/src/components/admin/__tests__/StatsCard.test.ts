@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import type { Component } from 'svelte';
-import StatsCard from '../StatsCard.svelte';
+import StatsCard from '$components/admin/StatsCard.svelte';
 
 const MockIcon: Component = (() => ({})) as unknown as Component;
 

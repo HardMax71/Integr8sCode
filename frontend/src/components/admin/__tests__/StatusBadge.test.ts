@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import StatusBadge from '../StatusBadge.svelte';
+import StatusBadge from '$components/admin/StatusBadge.svelte';
 
 describe('StatusBadge', () => {
   beforeEach(() => {

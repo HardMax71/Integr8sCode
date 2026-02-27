@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getErrorMessage, unwrap, unwrapOr } from '../api-interceptors';
+import { getErrorMessage, unwrap, unwrapOr } from '$lib/api-interceptors';
 
 describe('getErrorMessage', () => {
     it.each([

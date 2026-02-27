@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
 import type { Component } from 'svelte';
-import ActionButtons from '../ActionButtons.svelte';
+import ActionButtons from '$components/admin/ActionButtons.svelte';
 
 const MockIcon: Component = (() => ({})) as unknown as Component;
 

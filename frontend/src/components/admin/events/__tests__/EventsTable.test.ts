@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { createMockEvent, createMockEvents, user } from '$test/test-utils';
 
 
-import EventsTable from '../EventsTable.svelte';
+import EventsTable from '$components/admin/events/EventsTable.svelte';
 
 function renderTable(events = createMockEvents(3)) {
   const onViewDetails = vi.fn();

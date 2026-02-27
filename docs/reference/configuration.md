@@ -107,7 +107,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 ??? info "Legend"
     | Key | Description | Default |
     |-----|-------------|---------|
-    | `OTLP_TRACES_ENDPOINT` | OTLP gRPC endpoint; tracing is enabled when non-empty | — (`http://jaeger:4317` in config.toml) |
+    | `OTLP_TRACES_ENDPOINT` | OTLP gRPC endpoint; tracing is enabled when non-empty | Code default: `""` (disabled); config.toml: `http://jaeger:4317` |
     | `TRACING_SERVICE_NAME` | Service name in traces | `integr8scode-backend` |
     | `TRACING_SERVICE_VERSION` | Version in trace metadata | `1.0.0` |
     | `TRACING_SAMPLING_RATE` | Sample rate (0.0-1.0) | `1.0` in config.toml (`0.1` code default) |

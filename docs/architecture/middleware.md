@@ -8,12 +8,12 @@ processing in reverse order.
 
 The middleware is applied in this order (outermost first):
 
-1. **MetricsMiddleware** - Collects HTTP request metrics
-2. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
-3. **CSRFMiddleware** - Validates CSRF tokens on state-changing requests
-4. **RequestSizeLimitMiddleware** - Rejects oversized requests
-5. **CacheControlMiddleware** - Adds cache headers to responses
-6. **CORSMiddleware** - Handles Cross-Origin Resource Sharing headers
+1. **CORSMiddleware** - Handles Cross-Origin Resource Sharing headers
+2. **CacheControlMiddleware** - Adds cache headers to responses
+3. **RequestSizeLimitMiddleware** - Rejects oversized requests
+4. **CSRFMiddleware** - Validates CSRF tokens on state-changing requests
+5. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
+6. **MetricsMiddleware** - Collects HTTP request metrics
 
 ## Request Size Limit
 

@@ -89,7 +89,13 @@ UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent me
 
 ## CSRF Protection
 
-The `CSRFMiddleware` validates a CSRF token on all state-changing requests (POST, PUT, DELETE). The token is issued at login and must be sent in the `X-CSRF-Token` header. GET and other safe methods are exempt.
+`CSRFMiddleware` implements the **double-submit cookie** pattern. At login the server issues two cookies: an httpOnly `access_token` cookie (the JWT) and a readable `csrf_token` cookie. The CSRF token is HMAC-signed against the `access_token` so it cannot be forged independently.
+
+On every mutating request (POST, PUT, DELETE, PATCH) that targets an `/api/` path, the middleware reads the `csrf_token` cookie and the `X-CSRF-Token` request header, then validates that they match (constant-time comparison) and that the token's HMAC signature is valid for the current `access_token`. Requests that fail any check receive a 403 response.
+
+Safe methods (GET, HEAD, OPTIONS), auth endpoints (`/api/v1/auth/login`, `/api/v1/auth/register`), non-API paths, and unauthenticated requests (no `access_token` cookie) are exempt.
+
+**Frontend behaviour:** The API interceptor in `api-interceptors.ts` auto-injects `authStore.csrfToken` into the `X-CSRF-Token` header for every non-GET request. The store obtains the token from the login response body and refreshes it by reading the `csrf_token` cookie on auth verification (`auth.svelte.ts`).
 
 ## System Metrics
 

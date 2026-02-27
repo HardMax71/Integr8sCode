@@ -9,7 +9,7 @@ from async_asgi_testclient import TestClient as SSETestClient
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from tests.e2e.conftest import wait_for_result
+from tests.e2e.conftest import create_execution, wait_for_result
 
 pytestmark = [pytest.mark.e2e]
 
@@ -128,7 +128,7 @@ class TestExecutionStream:
 
     @pytest.mark.asyncio
     async def test_execution_stream_returns_event_stream(
-        self, sse_client: SSETestClient, created_execution: ExecutionResponse
+        self, sse_client: SSETestClient, test_user: AsyncClient, redis_client: redis.Redis,
     ) -> None:
         """Execution stream returns SSE content type and first body chunk.
 
@@ -137,9 +137,11 @@ class TestExecutionStream:
         this is the ``status`` control event, confirming the SSE generator
         started and yielded data.
         """
+        execution = await create_execution(test_user, redis_client)
+
         async with sse_client:
             response = await sse_client.get(
-                f"/api/v1/events/executions/{created_execution.execution_id}",
+                f"/api/v1/events/executions/{execution.execution_id}",
                 stream=True,
             )
 
@@ -151,7 +153,7 @@ class TestExecutionStream:
             first_chunk = response.raw.read()
             body = first_chunk.decode("utf-8")
             assert "status" in body
-            assert created_execution.execution_id in body
+            assert execution.execution_id in body
 
     @pytest.mark.asyncio
     async def test_execution_stream_unauthenticated(
@@ -165,12 +167,15 @@ class TestExecutionStream:
     async def test_execution_stream_other_users_execution(
         self,
         sse_client_another: SSETestClient,
-        created_execution: ExecutionResponse,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
     ) -> None:
         """Another user cannot stream a different user's execution — returns 403."""
+        execution = await create_execution(test_user, redis_client)
+
         async with sse_client_another:
             response = await sse_client_another.get(
-                f"/api/v1/events/executions/{created_execution.execution_id}",
+                f"/api/v1/events/executions/{execution.execution_id}",
             )
 
             assert response.status_code == 403

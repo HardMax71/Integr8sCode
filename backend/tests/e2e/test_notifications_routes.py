@@ -1,15 +1,16 @@
 import pytest
+import redis.asyncio as redis
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
-from app.schemas_pydantic.execution import ExecutionResponse
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
-    NotificationResponse,
     NotificationSubscription,
     SubscriptionsResponse,
     UnreadCountResponse,
 )
 from httpx import AsyncClient
+
+from tests.e2e.conftest import create_execution_with_notification
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
@@ -104,10 +105,10 @@ class TestMarkNotificationRead:
     async def test_mark_notification_read(
             self,
             test_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Mark existing notification as read."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await test_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -131,19 +132,18 @@ class TestMarkAllRead:
     async def test_mark_all_read(
             self,
             test_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Mark all notifications as read returns 204."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await test_user.post("/api/v1/notifications/mark-all-read")
         assert response.status_code == 204
 
         # Verify the specific notification was marked as read.
         # We assert on the individual notification rather than global unread_count
-        # because other tests create executions (via created_execution without
-        # waiting for notifications) whose async notifications can arrive between
-        # mark-all-read and any subsequent count query.
+        # because other tests create executions whose async notifications can
+        # arrive between mark-all-read and any subsequent count query.
         resp = await test_user.get("/api/v1/notifications")
         assert resp.status_code == 200
         result = NotificationListResponse.model_validate(resp.json())
@@ -284,9 +284,11 @@ class TestUnreadCount:
     async def test_get_unread_count(
             self,
             test_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Get unread notification count."""
+        await create_execution_with_notification(test_user, redis_client)
+
         response = await test_user.get("/api/v1/notifications/unread-count")
 
         assert response.status_code == 200
@@ -313,10 +315,10 @@ class TestDeleteNotification:
     async def test_delete_notification(
             self,
             test_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Delete existing notification returns success."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await test_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"
@@ -342,10 +344,10 @@ class TestNotificationIsolation:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """User's notification list does not include other users' notifications."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await another_user.get("/api/v1/notifications")
         assert response.status_code == 200
@@ -360,10 +362,10 @@ class TestNotificationIsolation:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Cannot mark another user's notification as read."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await another_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -382,10 +384,10 @@ class TestNotificationIsolation:
             self,
             test_user: AsyncClient,
             another_user: AsyncClient,
-            execution_with_notification: tuple[ExecutionResponse, NotificationResponse],
+            redis_client: redis.Redis,
     ) -> None:
         """Cannot delete another user's notification."""
-        _, notification = execution_with_notification
+        _, notification = await create_execution_with_notification(test_user, redis_client)
 
         response = await another_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"

@@ -6801,7 +6801,7 @@ export type ReplayEventsApiV1AdminEventsReplayPostResponses = {
 
 export type ReplayEventsApiV1AdminEventsReplayPostResponse = ReplayEventsApiV1AdminEventsReplayPostResponses[keyof ReplayEventsApiV1AdminEventsReplayPostResponses];
 
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
+export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
     body?: never;
     path: {
         /**
@@ -6813,7 +6813,7 @@ export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
     url: '/api/v1/admin/events/replay/{session_id}/status';
 };
 
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
+export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
     /**
      * Replay session not found
      */
@@ -6824,16 +6824,16 @@ export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
     422: HttpValidationError;
 };
 
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetError = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors];
+export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetError = StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors[keyof StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors];
 
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses = {
+export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses = {
     /**
      * Successful Response
      */
     200: EventReplayStatusResponse;
 };
 
-export type GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse = GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses[keyof GetReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses];
+export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse = StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses[keyof StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses];
 
 export type ListExecutionsApiV1AdminExecutionsGetData = {
     body?: never;
@@ -7921,6 +7921,12 @@ export type ListSagasApiV1SagasGetData = {
          * Filter by saga state
          */
         state?: SagaState | null;
+        /**
+         * Execution Id
+         *
+         * Filter by execution ID
+         */
+        execution_id?: string | null;
         /**
          * Limit
          */

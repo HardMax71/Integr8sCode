@@ -1,45 +1,38 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import * as router from '@mateothegreat/svelte5-router';
+import * as meta from '$utils/meta';
+import Register from '$routes/Register.svelte';
+
 const mocks = vi.hoisted(() => ({
   registerApiV1AuthRegisterPost: vi.fn(),
-  mockGoto: vi.fn(),
-  addToast: vi.fn(),
   mockGetErrorMessage: vi.fn((_err: unknown, fallback?: string) => fallback || 'Unknown error'),
-  mockUpdateMetaTags: vi.fn(),
 }));
 
 vi.mock('$lib/api', () => ({
   registerApiV1AuthRegisterPost: mocks.registerApiV1AuthRegisterPost,
 }));
 
-vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$test/test-utils')).createMockRouterModule(mocks.mockGoto));
-
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
 vi.mock('$lib/api-interceptors', () => ({
   getErrorMessage: mocks.mockGetErrorMessage,
 }));
 
-vi.mock('$utils/meta', async () =>
-  (await import('$test/test-utils')).createMetaMock(
-    mocks.mockUpdateMetaTags, { register: { title: 'Register', description: 'Register desc' } }));
-
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 
 describe('Register', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.registerApiV1AuthRegisterPost.mockResolvedValue({ data: {}, error: undefined });
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
+    vi.spyOn(toast, 'warning');
+    vi.spyOn(toast, 'info');
+    vi.spyOn(meta, 'updateMetaTags');
   });
 
-  async function renderRegister() {
-    const { default: Register } = await import('$routes/Register.svelte');
+  function renderRegister() {
     return render(Register);
   }
 
@@ -80,7 +73,7 @@ describe('Register', () => {
     await waitFor(() => {
       expect(screen.getByText(expectedError)).toBeInTheDocument();
     });
-    expect(mocks.addToast).toHaveBeenCalledWith(toastType, expectedError);
+    expect(toast[toastType as keyof typeof toast]).toHaveBeenCalledWith(expectedError);
     expect(mocks.registerApiV1AuthRegisterPost).not.toHaveBeenCalled();
   });
 
@@ -97,8 +90,8 @@ describe('Register', () => {
         body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
       });
     });
-    expect(mocks.addToast).toHaveBeenCalledWith('success', 'Registration successful! Please log in.');
-    expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+    expect(toast.success).toHaveBeenCalledWith('Registration successful! Please log in.');
+    expect(router.goto).toHaveBeenCalledWith('/login');
   });
 
   it('shows error in DOM on API error (no duplicate toast)', async () => {
@@ -118,7 +111,7 @@ describe('Register', () => {
     await waitFor(() => {
       expect(screen.getByText('Registration failed. Please try again.')).toBeInTheDocument();
     });
-    expect(mocks.addToast).not.toHaveBeenCalledWith('error', expect.anything());
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('disables button and shows "Registering..." during loading', async () => {
@@ -148,7 +141,7 @@ describe('Register', () => {
   it('calls updateMetaTags on mount', async () => {
     await renderRegister();
     await waitFor(() => {
-      expect(mocks.mockUpdateMetaTags).toHaveBeenCalledWith('Register', 'Register desc');
+      expect(meta.updateMetaTags).toHaveBeenCalledWith('Register', expect.stringContaining('Create a free Integr8sCode account'));
     });
   });
 });

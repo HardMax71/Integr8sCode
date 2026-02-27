@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
+import { cleanup } from '@testing-library/svelte';
 
 // Global handler for promise rejections (mirrors main.ts behavior)
 // API errors are handled by interceptor - just silence the rejection in tests
@@ -71,7 +72,17 @@ vi.stubGlobal('IntersectionObserver', vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 })));
 
-// Helper to reset mocks between tests
+// Enable fake timers globally (shouldAdvanceTime configured in vitest.config.ts)
+vi.useFakeTimers();
+
+// Reset DOM and storage between every test (required for isolate: false)
+beforeEach(() => {
+  cleanup();
+  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
+  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
+});
+
+// Helper to reset mocks between tests (legacy export, kept for compatibility)
 export function resetStorageMocks() {
   Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
   Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
@@ -79,7 +90,8 @@ export function resetStorageMocks() {
 }
 
 // Mock Element.prototype.animate for Svelte transitions (canonical global stub)
-Element.prototype.animate = vi.fn().mockImplementation(() => {
+// Guarded for node environment where Element is not available
+if (typeof Element !== 'undefined') Element.prototype.animate = vi.fn().mockImplementation(() => {
   const mock = {
     _onfinish: null as (() => void) | null,
     get onfinish() { return this._onfinish; },

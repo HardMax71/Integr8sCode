@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
 import type { EventFilter } from '$lib/api';
 
@@ -48,21 +48,18 @@ describe('EventFilters', () => {
   });
 
   it('calls onApply when Apply button is clicked', async () => {
-    const user = userEvent.setup();
     const { onApply } = renderFilters();
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     expect(onApply).toHaveBeenCalledOnce();
   });
 
   it('calls onClear when Clear All button is clicked', async () => {
-    const user = userEvent.setup();
     const { onClear } = renderFilters();
     await user.click(screen.getByRole('button', { name: 'Clear All' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
 
   it('text inputs accept user input', async () => {
-    const user = userEvent.setup();
     renderFilters();
     const searchInput = screen.getByLabelText('Search') as HTMLInputElement;
     await user.type(searchInput, 'test query');

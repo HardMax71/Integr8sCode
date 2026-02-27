@@ -23,3 +23,18 @@ htmlcov/
 # Local dev files
 *.log
 .DS_Store
+
+# Tests and docs (not needed in production image)
+tests/
+docs/
+*.md
+
+# Secrets and test/override configs (not needed in image)
+secrets.toml
+secrets.*.toml
+config.test.toml
+config.*.toml
+!config.toml
+
+# Dead code detection whitelist
+vulture_whitelist.py

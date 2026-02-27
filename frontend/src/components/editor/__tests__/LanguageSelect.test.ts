@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('ChevronDown', 'ChevronRight'));
 
 import LanguageSelect from '../LanguageSelect.svelte';
 
@@ -20,14 +18,13 @@ function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
   return { ...render(LanguageSelect, { props }), onselect: props.onselect };
 }
 
-async function openMenu() {
-  const user = userEvent.setup();
-  const result = renderSelect();
-  await user.click(screen.getByRole('button', { name: /Select language/i }));
-  return { user, ...result };
-}
-
 describe('LanguageSelect', () => {
+  async function openMenu() {
+    const result = renderSelect();
+    await user.click(screen.getByRole('button', { name: /Select language/i }));
+    return result;
+  }
+
   describe('trigger button', () => {
     it('shows current language and version with aria-haspopup', () => {
       renderSelect();
@@ -54,7 +51,7 @@ describe('LanguageSelect', () => {
     });
 
     it('closes menu on second click', async () => {
-      const { user } = await openMenu();
+      await openMenu();
       await user.click(screen.getByRole('button', { name: /Select language/i }));
       await waitFor(() => {
         expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
@@ -64,7 +61,7 @@ describe('LanguageSelect', () => {
 
   describe('version submenu', () => {
     it('shows all versions on language hover with correct aria-checked', async () => {
-      const { user } = await openMenu();
+      await openMenu();
       await user.hover(screen.getByRole('menuitem', { name: /python/i }));
       const versionMenu = screen.getByRole('menu', { name: /python versions/i });
       const versions = within(versionMenu).getAllByRole('menuitemradio');
@@ -74,7 +71,7 @@ describe('LanguageSelect', () => {
     });
 
     it('calls onselect and closes menu on version click', async () => {
-      const { user, onselect } = await openMenu();
+      const { onselect } = await openMenu();
       await user.hover(screen.getByRole('menuitem', { name: /node/i }));
       const nodeMenu = screen.getByRole('menu', { name: /node versions/i });
       await user.click(within(nodeMenu).getByRole('menuitemradio', { name: '20' }));
@@ -85,7 +82,7 @@ describe('LanguageSelect', () => {
     });
 
     it('switches version submenu when hovering different language', async () => {
-      const { user } = await openMenu();
+      await openMenu();
       await user.hover(screen.getByRole('menuitem', { name: /python/i }));
       expect(screen.getByRole('menu', { name: /python versions/i })).toBeInTheDocument();
 
@@ -102,7 +99,6 @@ describe('LanguageSelect', () => {
       { key: '{ArrowDown}', label: 'ArrowDown' },
       { key: '{Enter}', label: 'Enter' },
     ])('opens menu with $label on trigger', async ({ key }) => {
-      const user = userEvent.setup();
       renderSelect();
       screen.getByRole('button', { name: /Select language/i }).focus();
       await user.keyboard(key);

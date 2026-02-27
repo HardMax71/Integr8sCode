@@ -24,7 +24,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.12
-          uv sync --frozen
+          uv sync --frozen --group lint --no-dev
 
       - name: Run vulture
         run: |

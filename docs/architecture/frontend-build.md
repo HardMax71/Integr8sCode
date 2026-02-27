@@ -185,7 +185,7 @@ When backend endpoints change, update the backend and restart it, fetch the new 
 
 ## Production build
 
-The production build runs `npm run build`, which compiles TypeScript with source maps, processes Svelte components in production mode without dev warnings, extracts and minifies CSS, splits code into chunks, minifies JavaScript with Terser removing console.log calls, and outputs everything to `public/build/`. The Docker build copies `public/` to nginx, which serves static files and proxies `/api/` to the backend.
+The production build runs `npm run build`, which compiles TypeScript (without source maps — source maps are only generated in development), processes Svelte components in production mode without dev warnings, extracts and minifies CSS, splits code into chunks, minifies JavaScript with Terser removing console.log calls, and outputs everything to `public/build/`. The Docker build copies `public/` to nginx, which serves static files and proxies `/api/` to the backend.
 
 ## Troubleshooting
 

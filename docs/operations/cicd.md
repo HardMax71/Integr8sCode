@@ -103,7 +103,7 @@ graph TD
     end
 
     subgraph "Phase 2: Build"
-        C["Build & Push 5 Images to GHCR"]
+        C["Build & Push 4 Images to GHCR"]
     end
 
     subgraph "Phase 3: E2E (parallel runners)"
@@ -145,8 +145,8 @@ are needed. All 4 images are scanned by Trivy and promoted to `latest` in the
 [Docker Scan & Promote](#docker-scan-promote) workflow.
 
 The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
-image depends on it via `--build-context base=docker-image://integr8scode-base:latest`. Utility and frontend images
-use GHA layer caching.
+image uses `docker/build-push-action@v6` with GHA layer cache (`scope=backend`, `mode=max`), so intermediate layers
+are reused when only application code changes. Utility and frontend images also use GHA layer caching.
 
 All 4 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 

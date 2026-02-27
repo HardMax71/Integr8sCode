@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 import ErrorDisplay from '$components/ErrorDisplay.svelte';
 
 describe('ErrorDisplay', () => {
@@ -102,7 +102,6 @@ describe('ErrorDisplay', () => {
     });
 
     it('reloads page when Reload button clicked', async () => {
-      const user = userEvent.setup();
       render(ErrorDisplay, { props: { error: 'Error' } });
 
       const reloadButton = screen.getByRole('button', { name: /Reload Page/i });
@@ -112,7 +111,6 @@ describe('ErrorDisplay', () => {
     });
 
     it('navigates to home when Go to Home clicked', async () => {
-      const user = userEvent.setup();
       render(ErrorDisplay, { props: { error: 'Error' } });
 
       const homeButton = screen.getByRole('button', { name: /Go to Home/i });

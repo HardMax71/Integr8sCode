@@ -40,7 +40,7 @@ jobs:
         run: uv tool install mkdocs --with mkdocs-material --with mkdocs-mermaid2-plugin --with mkdocs-swagger-ui-tag
 
       - name: Install backend dependencies
-        run: cd backend && uv sync --frozen
+        run: cd backend && uv sync --frozen --no-dev
 
       - name: Set up config for OpenAPI generation
         run: cp backend/secrets.example.toml backend/secrets.toml

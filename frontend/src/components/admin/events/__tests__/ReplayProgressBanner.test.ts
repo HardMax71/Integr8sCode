@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 import type { EventReplayStatusResponse } from '$lib/api';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('X'));
 
 import ReplayProgressBanner from '../ReplayProgressBanner.svelte';
 
@@ -70,7 +68,6 @@ describe('ReplayProgressBanner', () => {
   });
 
   it('calls onClose when close button is clicked', async () => {
-    const user = userEvent.setup();
     const { onClose } = renderBanner();
     await user.click(screen.getByTitle('Close'));
     expect(onClose).toHaveBeenCalledOnce();

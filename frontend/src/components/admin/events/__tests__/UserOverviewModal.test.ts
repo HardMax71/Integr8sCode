@@ -2,12 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { createMockUserOverview } from '$test/test-utils';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('X'));
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<div>Loading...</div>', 'spinner'));
-vi.mock('$components/EventTypeIcon.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>icon</span>'));
 
 import UserOverviewModal from '../UserOverviewModal.svelte';
 

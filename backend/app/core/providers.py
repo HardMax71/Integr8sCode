@@ -90,6 +90,7 @@ class BrokerProvider(Provider):
             logger=logger,
             client_id=f"integr8scode-{settings.SERVICE_NAME}",
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
+            graceful_timeout=settings.KAFKA_GRACEFUL_TIMEOUT,
             middlewares=(KafkaTelemetryMiddleware(),),
         )
         logger.info("Kafka broker created")
@@ -725,10 +726,12 @@ class EventReplayProvider(Provider):
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
             logger: structlog.stdlib.BoundLogger,
+            sse_bus: SSERedisBus,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             replay_metrics=replay_metrics,
             logger=logger,
+            sse_bus=sse_bus,
         )

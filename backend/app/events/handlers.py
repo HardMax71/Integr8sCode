@@ -252,9 +252,11 @@ _SSE_EVENT_TYPES = [
 
 
 def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
+    group_id = "sse-bridge-pool"
+
     @broker.subscriber(
         *_SSE_EVENT_TYPES,
-        group_id="sse-bridge-pool",
+        group_id=group_id,
         ack_policy=AckPolicy.ACK_FIRST,
         auto_offset_reset="latest",
         max_workers=settings.SSE_CONSUMER_POOL_SIZE,
@@ -264,7 +266,7 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
             sse_bus: FromDishka[SSERedisBus],
             event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        event_metrics.record_kafka_message_consumed(topic=body.event_type, consumer_group="sse-bridge-pool")
+        event_metrics.record_kafka_message_consumed(topic=body.event_type, consumer_group=group_id)
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
             sse_data = SSEExecutionEventData(**{
@@ -274,9 +276,11 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
 
 
 def register_notification_subscriber(broker: KafkaBroker) -> None:
+    group_id = "notification-service"
+
     @broker.subscriber(
         EventType.EXECUTION_COMPLETED,
-        group_id="notification-service",
+        group_id=group_id,
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
         auto_offset_reset="latest",
@@ -286,12 +290,12 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
             service: FromDishka[NotificationService],
             event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "notification-service",
+        await _track_consumed(event_metrics, body, group_id,
             service.handle_execution_completed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
-        group_id="notification-service",
+        group_id=group_id,
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
         auto_offset_reset="latest",
@@ -301,12 +305,12 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
             service: FromDishka[NotificationService],
             event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "notification-service",
+        await _track_consumed(event_metrics, body, group_id,
             service.handle_execution_failed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
-        group_id="notification-service",
+        group_id=group_id,
         ack_policy=AckPolicy.ACK,
         max_poll_records=10,
         auto_offset_reset="latest",
@@ -316,7 +320,7 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
             service: FromDishka[NotificationService],
             event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "notification-service",
+        await _track_consumed(event_metrics, body, group_id,
             service.handle_execution_timeout(body))
 
 

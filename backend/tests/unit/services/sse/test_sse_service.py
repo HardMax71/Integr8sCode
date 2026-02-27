@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, SSEControlEvent, UserRole
+from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, ReplayStatus, SSEControlEvent, UserRole
 from app.domain.execution.models import DomainExecution, ExecutionResultDomain
-from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
+from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
 
 pytestmark = pytest.mark.unit
@@ -25,14 +25,19 @@ class _FakeBus:
     def __init__(self) -> None:
         self._exec_q: asyncio.Queue[SSEExecutionEventData | None] = asyncio.Queue()
         self._notif_q: asyncio.Queue[DomainNotificationSSEPayload | None] = asyncio.Queue()
+        self._replay_q: asyncio.Queue[DomainReplaySSEPayload | None] = asyncio.Queue()
         self.exec_closed = False
         self.notif_closed = False
+        self.replay_closed = False
 
     async def push_exec(self, event: SSEExecutionEventData | None) -> None:
         await self._exec_q.put(event)
 
     async def push_notif(self, payload: DomainNotificationSSEPayload | None) -> None:
         await self._notif_q.put(payload)
+
+    async def push_replay(self, status: DomainReplaySSEPayload | None) -> None:
+        await self._replay_q.put(status)
 
     async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:  # noqa: ARG002
         try:
@@ -53,6 +58,16 @@ class _FakeBus:
                 yield item
         finally:
             self.notif_closed = True
+
+    async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:  # noqa: ARG002
+        try:
+            while True:
+                item = await self._replay_q.get()
+                if item is None:
+                    return
+                yield item
+        finally:
+            self.replay_closed = True
 
 
 class _FakeExecRepo:
@@ -186,4 +201,92 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     assert data["subject"] == "s"
     assert data["channel"] == "in_app"
 
-    await agen.aclose()
+
+
+@pytest.mark.asyncio
+async def test_replay_stream_yields_initial_then_live() -> None:
+    """Replay pipeline yields initial status from DB then streams live updates."""
+    bus = _FakeBus()
+    svc = _make_service(bus)
+
+    initial = DomainReplaySSEPayload(
+        session_id="sess-1",
+        status=ReplayStatus.RUNNING,
+        total_events=5,
+        replayed_events=0,
+        failed_events=0,
+        skipped_events=0,
+        replay_id="replay-1",
+        created_at=_NOW,
+    )
+
+    agen = await svc.create_replay_stream(initial)
+
+    # First item is the initial status
+    first = await agen.__anext__()
+    data = _decode(first)
+    assert data["session_id"] == "sess-1"
+    assert data["status"] == "running"
+    assert data["replayed_events"] == 0
+
+    # Push a live update
+    await bus.push_replay(DomainReplaySSEPayload(
+        session_id="sess-1",
+        status=ReplayStatus.RUNNING,
+        total_events=5,
+        replayed_events=3,
+        failed_events=0,
+        skipped_events=0,
+        replay_id="replay-1",
+        created_at=_NOW,
+    ))
+
+    second = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+    data2 = _decode(second)
+    assert data2["replayed_events"] == 3
+
+    # Push terminal status
+    await bus.push_replay(DomainReplaySSEPayload(
+        session_id="sess-1",
+        status=ReplayStatus.COMPLETED,
+        total_events=5,
+        replayed_events=5,
+        failed_events=0,
+        skipped_events=0,
+        replay_id="replay-1",
+        created_at=_NOW,
+    ))
+
+    third = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
+    data3 = _decode(third)
+    assert data3["status"] == "completed"
+
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
+async def test_replay_stream_terminal_initial_closes_immediately() -> None:
+    """If the initial replay status is terminal, the stream closes after yielding it."""
+    bus = _FakeBus()
+    svc = _make_service(bus)
+
+    initial = DomainReplaySSEPayload(
+        session_id="sess-2",
+        status=ReplayStatus.COMPLETED,
+        total_events=3,
+        replayed_events=3,
+        failed_events=0,
+        skipped_events=0,
+        replay_id="replay-2",
+        created_at=_NOW,
+    )
+
+    agen = await svc.create_replay_stream(initial)
+
+    first = await agen.__anext__()
+    data = _decode(first)
+    assert data["status"] == "completed"
+
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()

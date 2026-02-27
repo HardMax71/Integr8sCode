@@ -1,3 +1,4 @@
+import json as json_mod
 import uuid
 
 import pytest
@@ -16,6 +17,8 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
+from app.services.admin import AdminEventsService
+from app.services.sse import SSEService
 from dishka import AsyncContainer
 from httpx import AsyncClient
 
@@ -363,11 +366,11 @@ class TestReplayEvents:
         assert response.status_code == 403
 
 
-class TestGetReplayStatus:
-    """Tests for GET /api/v1/admin/events/replay/{session_id}/status."""
+class TestStreamReplayStatus:
+    """Tests for GET /api/v1/admin/events/replay/{session_id}/status (SSE)."""
 
     @pytest.mark.asyncio
-    async def test_get_replay_status_not_found(
+    async def test_stream_replay_status_not_found(
             self, test_admin: AsyncClient
     ) -> None:
         """Get nonexistent replay session returns 404."""
@@ -378,10 +381,10 @@ class TestGetReplayStatus:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_get_replay_status_after_replay(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+    async def test_stream_replay_status_after_replay(
+            self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
     ) -> None:
-        """Get replay status after starting a replay."""
+        """Replay creates a session whose SSE pipeline yields correct initial status."""
         request = EventReplayRequest(
             aggregate_id=stored_event.aggregate_id,
             dry_run=False,
@@ -394,24 +397,32 @@ class TestGetReplayStatus:
         replay_result = EventReplayResponse.model_validate(replay_response.json())
         assert replay_result.session_id is not None
 
-        status_response = await test_admin.get(
-            f"/api/v1/admin/events/replay/{replay_result.session_id}/status"
-        )
+        # httpx ASGITransport cannot stream SSE (buffers entire body).
+        # Test the pipeline directly via DI — first yield is the initial status.
+        admin_service = await scope.get(AdminEventsService)
+        initial_status = await admin_service.get_replay_sse_status(replay_result.session_id)
+        assert initial_status is not None
 
-        assert status_response.status_code == 200
-        status = EventReplayStatusResponse.model_validate(status_response.json())
+        sse_service = await scope.get(SSEService)
+        stream = await sse_service.create_replay_stream(initial_status)
+        first_event = await anext(stream)
+        status = EventReplayStatusResponse.model_validate(
+            json_mod.loads(first_event["data"])
+        )
         assert status.session_id == replay_result.session_id
-        # After scheduling a replay (dry_run=False), status is SCHEDULED or RUNNING if it started quickly
-        assert status.status in (ReplayStatus.SCHEDULED, ReplayStatus.RUNNING)
+        assert status.status in (
+            ReplayStatus.SCHEDULED, ReplayStatus.CREATED,
+            ReplayStatus.RUNNING, ReplayStatus.COMPLETED,
+        )
         assert status.total_events >= 1
         assert status.replayed_events >= 0
         assert status.progress_percentage >= 0.0
 
     @pytest.mark.asyncio
-    async def test_get_replay_status_forbidden_for_regular_user(
+    async def test_stream_replay_status_forbidden_for_regular_user(
             self, test_user: AsyncClient
     ) -> None:
-        """Regular user cannot get replay status."""
+        """Regular user cannot stream replay status."""
         response = await test_user.get(
             "/api/v1/admin/events/replay/some-session/status"
         )

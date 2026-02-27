@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import { createMockEventDetail } from '$test/test-utils';
+import { createMockEventDetail, user } from '$test/test-utils';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('X'));
-vi.mock('$components/EventTypeIcon.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>icon</span>'));
 
 import EventDetailsModal from '../EventDetailsModal.svelte';
 
@@ -71,7 +66,6 @@ describe('EventDetailsModal', () => {
   });
 
   it('calls onViewRelated with event_id when clicking a related event', async () => {
-    const user = userEvent.setup();
     const { onViewRelated } = renderModal();
     await user.click(screen.getByText('execution_started'));
     expect(onViewRelated).toHaveBeenCalledWith('rel-1');
@@ -85,14 +79,12 @@ describe('EventDetailsModal', () => {
   });
 
   it('calls onReplay with event_id when Replay Event button is clicked', async () => {
-    const user = userEvent.setup();
     const { onReplay } = renderModal();
     await user.click(screen.getByRole('button', { name: 'Replay Event' }));
     expect(onReplay).toHaveBeenCalledWith('evt-1');
   });
 
   it('calls onClose when Close button in footer is clicked', async () => {
-    const user = userEvent.setup();
     const { onClose } = renderModal();
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();

@@ -21,6 +21,7 @@ from app.domain.events import (
 )
 from app.domain.exceptions import NotFoundError, ValidationError
 from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
+from app.domain.sse import DomainReplaySSEPayload
 from app.services.event_replay import EventReplayService
 
 _status_detail_fields = set(ReplaySessionStatusDetail.__dataclass_fields__)
@@ -210,6 +211,9 @@ class AdminEventsService:
 
     async def start_replay_session(self, session_id: str) -> None:
         await self._replay_service.start_session(session_id)
+
+    async def get_replay_sse_status(self, session_id: str) -> DomainReplaySSEPayload | None:
+        return await self._repo.get_replay_session_sse_status(session_id)
 
     async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail | None:
         doc = await self._repo.get_replay_session_doc(session_id)

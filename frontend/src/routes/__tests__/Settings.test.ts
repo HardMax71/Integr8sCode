@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import Settings from '$routes/Settings.svelte';
 
 function createMockSettings() {
   return {
@@ -27,7 +29,6 @@ const mocks = vi.hoisted(() => ({
   updateUserSettingsApiV1UserSettingsPut: vi.fn(),
   restoreSettingsApiV1UserSettingsRestorePost: vi.fn(),
   getSettingsHistoryApiV1UserSettingsHistoryGet: vi.fn(),
-  addToast: vi.fn(),
   mockSetTheme: vi.fn(),
   mockSetUserSettings: vi.fn(),
   mockConfirm: vi.fn(),
@@ -53,20 +54,13 @@ vi.mock('$stores/userSettings.svelte', () => ({
   userSettingsStore: { settings: null, editorSettings: {} },
 }));
 
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('ChevronDown'));
-
 describe('Settings', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
+    vi.spyOn(toast, 'warning');
+    vi.spyOn(toast, 'info');
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.getUserSettingsApiV1UserSettingsGet.mockResolvedValue({
@@ -81,8 +75,7 @@ describe('Settings', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  async function renderSettings() {
-    const { default: Settings } = await import('$routes/Settings.svelte');
+  function renderSettings() {
     return render(Settings);
   }
 
@@ -152,7 +145,7 @@ describe('Settings', () => {
       });
       await user.click(screen.getByRole('button', { name: /save settings/i }));
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('info', 'No changes to save');
+        expect(toast.info).toHaveBeenCalledWith('No changes to save');
       });
       expect(mocks.updateUserSettingsApiV1UserSettingsPut).not.toHaveBeenCalled();
     });
@@ -186,7 +179,7 @@ describe('Settings', () => {
       const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0]![0];
       expect(callArgs.body).toHaveProperty('editor');
       await waitFor(() => {
-        expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings saved successfully');
+        expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
       });
       expect(mocks.mockSetUserSettings).toHaveBeenCalled();
     });
@@ -274,7 +267,7 @@ describe('Settings', () => {
         });
       });
       expect(mocks.mockSetTheme).toHaveBeenCalledWith('light');
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings restored successfully');
+      expect(toast.success).toHaveBeenCalledWith('Settings restored successfully');
     });
 
     it('does not call API when confirm is cancelled', async () => {

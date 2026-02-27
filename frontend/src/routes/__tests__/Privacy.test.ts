@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import Privacy from '$routes/Privacy.svelte';
 
 const mocks = vi.hoisted(() => ({
   scrollTo: vi.fn(),
@@ -14,8 +15,7 @@ describe('Privacy', () => {
     vi.clearAllMocks();
   });
 
-  async function renderPrivacy() {
-    const { default: Privacy } = await import('$routes/Privacy.svelte');
+  function renderPrivacy() {
     return render(Privacy);
   }
 

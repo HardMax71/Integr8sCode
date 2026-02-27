@@ -7,6 +7,7 @@
  */
 
 import { vi, type Mock } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
 import type {
   ExecutionCompletedEvent,
@@ -19,36 +20,9 @@ import type {
   EventType,
 } from '$lib/api';
 
-// ============================================================================
-// Mock Svelte Component Factory
-// ============================================================================
+export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 
-/**
- * Creates a mock Svelte 5 component with proper $$ structure.
- * Use this for mocking child components in parent component tests.
- *
- * @param html - The HTML to render for this mock component
- * @param testId - Optional data-testid attribute
- */
-export function createMockSvelteComponent(html: string, testId?: string): {
-  default: { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
-} {
-  const htmlWithTestId = testId
-    ? html.replace('>', ` data-testid="${testId}">`)
-    : html;
-
-  const MockComponent = function () {
-    return {};
-  } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
-
-  MockComponent.render = () => ({
-    html: htmlWithTestId,
-    css: { code: '', map: null },
-    head: '',
-  });
-
-  return { default: MockComponent };
-}
+export const user: UserEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
 // ============================================================================
 // Mock Store Type (for use with vi.hoisted)
@@ -114,55 +88,6 @@ export function createMockNamedComponents(components: Record<string, string>): R
     module[name] = Mock;
   }
   return module;
-}
-
-/**
- * Creates a mock @lucide/svelte module with given icon names.
- * All icons render as `<svg></svg>`.
- */
-export function createMockIconModule(...iconNames: string[]): Record<string, unknown> {
-  return createMockNamedComponents(
-    Object.fromEntries(iconNames.map(name => [name, '<svg></svg>']))
-  );
-}
-
-/**
- * Creates a mock svelte-sonner module with toast methods that delegate to addToast.
- * Usage: `vi.mock('svelte-sonner', async () => (await import('...')).createToastMock(mocks.addToast))`
- */
-export function createToastMock(addToast: (...args: unknown[]) => void) {
-  return {
-    toast: {
-      success: (...args: unknown[]) => addToast('success', ...args),
-      error: (...args: unknown[]) => addToast('error', ...args),
-      warning: (...args: unknown[]) => addToast('warning', ...args),
-      info: (...args: unknown[]) => addToast('info', ...args),
-    },
-  };
-}
-
-/**
- * Creates a mock @mateothegreat/svelte5-router module.
- * If gotoFn is provided, goto calls are delegated to it for assertion tracking.
- */
-export function createMockRouterModule(gotoFn?: (...args: unknown[]) => void) {
-  return {
-    goto: gotoFn ? (...args: unknown[]) => gotoFn(...args) : vi.fn(),
-    route: () => {},
-  };
-}
-
-/**
- * Creates a mock $utils/meta module with updateMetaTags and pageMeta.
- */
-export function createMetaMock(
-  updateMetaTagsFn: (...args: unknown[]) => void,
-  pageMeta: Record<string, { title: string; description: string }>,
-) {
-  return {
-    updateMetaTags: (...args: unknown[]) => updateMetaTagsFn(...args),
-    pageMeta,
-  };
 }
 
 // ============================================================================

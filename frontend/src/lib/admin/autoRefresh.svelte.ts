@@ -3,8 +3,6 @@
  * Manages interval-based data reloading with configurable rates
  */
 
-import { onDestroy } from 'svelte';
-
 export interface AutoRefreshState {
     enabled: boolean;
     rate: number;
@@ -25,7 +23,6 @@ export interface AutoRefreshOptions {
     initialRate?: number;
     rateOptions?: RefreshRateOption[];
     onRefresh: () => void | Promise<void>;
-    autoCleanup?: boolean;
 }
 
 const DEFAULT_RATE_OPTIONS: RefreshRateOption[] = [
@@ -39,7 +36,6 @@ const DEFAULT_OPTIONS = {
     initialEnabled: true,
     initialRate: 5,
     rateOptions: DEFAULT_RATE_OPTIONS,
-    autoCleanup: true
 };
 
 /**
@@ -77,11 +73,6 @@ export function createAutoRefresh(options: AutoRefreshOptions): AutoRefreshState
 
     function cleanup(): void {
         stop();
-    }
-
-    // Auto-cleanup on component destroy if enabled
-    if (opts.autoCleanup) {
-        onDestroy(cleanup);
     }
 
     // Watch for changes to enabled/rate and restart

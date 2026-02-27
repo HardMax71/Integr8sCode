@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user, type UserEventInstance } from '$test/test-utils';
 // Types for mock notification state
 interface MockNotification {
   notification_id: string;
@@ -77,20 +77,6 @@ const setNotifications = (notifications: MockNotification[]) => {
   mocks.mockNotificationStore.unreadCount = notifications.filter(n => n.status !== 'read').length;
 };
 
-const openDropdown = async () => {
-  const user = userEvent.setup();
-  render(NotificationCenter);
-  await user.click(screen.getByRole('button', { name: /Notifications/i }));
-  return user;
-};
-
-const openDropdownWithContainer = async () => {
-  const user = userEvent.setup();
-  const { container } = render(NotificationCenter);
-  await user.click(screen.getByRole('button', { name: /Notifications/i }));
-  return { user, container };
-};
-
 /** Mocks window.location.href for external URL testing */
 const withMockedLocation = async (testFn: (mockHref: ReturnType<typeof vi.fn>) => Promise<void>) => {
   const originalLocation = window.location;
@@ -103,7 +89,7 @@ const withMockedLocation = async (testFn: (mockHref: ReturnType<typeof vi.fn>) =
 
 /** Interacts with a notification button via click or keyboard */
 const interactWithButton = async (
-  user: ReturnType<typeof userEvent.setup>,
+  user: UserEventInstance,
   button: HTMLElement,
   method: 'click' | 'keyboard'
 ) => {
@@ -152,6 +138,17 @@ const interactionTestCases = [
 
 // Tests
 describe('NotificationCenter', () => {
+  const openDropdown = async () => {
+    render(NotificationCenter);
+    await user.click(screen.getByRole('button', { name: /Notifications/i }));
+  };
+
+  const openDropdownWithContainer = async () => {
+    const { container } = render(NotificationCenter);
+    await user.click(screen.getByRole('button', { name: /Notifications/i }));
+    return { container };
+  };
+
   beforeEach(() => {
     mocks.mockAuthStore.isAuthenticated = true;
     mocks.mockAuthStore.username = 'testuser';
@@ -206,7 +203,7 @@ describe('NotificationCenter', () => {
     });
 
     it('navigates to /notifications when View all clicked', async () => {
-      const user = await openDropdown();
+      await openDropdown();
       await user.click(await screen.findByText('View all notifications'));
       expect(mocks.mockGoto).toHaveBeenCalledWith('/notifications');
     });
@@ -241,14 +238,14 @@ describe('NotificationCenter', () => {
 
     it('calls markAllAsRead when button clicked', async () => {
       setNotifications([createNotification()]);
-      const user = await openDropdown();
+      await openDropdown();
       await user.click(await screen.findByText('Mark all as read'));
       expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
     });
 
     it('skips markAsRead for already-read notifications', async () => {
       setNotifications([createNotification({ subject: 'Read', status: 'read' })]);
-      const user = await openDropdown();
+      await openDropdown();
       await user.click(await screen.findByRole('button', { name: /View notification: Read/i }));
       expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
     });
@@ -293,7 +290,7 @@ describe('NotificationCenter', () => {
     it.each(interactionTestCases)('$method: navigates=$hasUrl', async ({ method, hasUrl, url }) => {
       const subject = `${method}-${hasUrl}`;
       setNotifications([createNotification({ subject, action_url: url })]);
-      const user = await openDropdown();
+      await openDropdown();
       const button = await screen.findByRole('button', { name: new RegExp(`View notification: ${subject}`, 'i') });
       await interactWithButton(user, button, method);
 
@@ -302,15 +299,12 @@ describe('NotificationCenter', () => {
     });
 
     it('ignores non-Enter keydown', async () => {
-      vi.useFakeTimers();
       setNotifications([createNotification({ subject: 'Test', action_url: '/test' })]);
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(NotificationCenter);
       await user.click(screen.getByRole('button', { name: /Notifications/i }));
       screen.getByRole('button', { name: /View notification: Test/i }).focus();
       await user.keyboard('{Tab}');
       expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
-      vi.useRealTimers();
     });
   });
 
@@ -319,7 +313,7 @@ describe('NotificationCenter', () => {
       await withMockedLocation(async (mockHref) => {
         const url = `https://example.com/${method}`;
         setNotifications([createNotification({ subject: method, action_url: url })]);
-        const user = await openDropdown();
+        await openDropdown();
         const button = await screen.findByRole('button', { name: new RegExp(`View notification: ${method}`, 'i') });
         await interactWithButton(user, button, method);
         expect(mockHref).toHaveBeenCalledWith(url);
@@ -332,7 +326,7 @@ describe('NotificationCenter', () => {
       setNotifications([createNotification({ subject: 'Test' })]);
       render(NotificationCenter);
       expect(screen.getByRole('button', { name: /Notifications/i })).toHaveAttribute('aria-label', 'Notifications');
-      await userEvent.click(screen.getByRole('button', { name: /Notifications/i }));
+      await user.click(screen.getByRole('button', { name: /Notifications/i }));
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /View notification: Test/i })).toHaveAttribute('tabindex', '0');
       });
@@ -341,14 +335,11 @@ describe('NotificationCenter', () => {
 
   describe('auto-mark as read', () => {
     it('marks notifications after 2s delay', async () => {
-      vi.useFakeTimers();
       setNotifications([createNotification({ notification_id: '1' }), createNotification({ notification_id: '2' })]);
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(NotificationCenter);
       await user.click(screen.getByRole('button', { name: /Notifications/i }));
       await vi.advanceTimersByTimeAsync(2500);
       expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalled();
-      vi.useRealTimers();
     });
   });
 
@@ -390,7 +381,7 @@ describe('NotificationCenter', () => {
 
     it('calls requestPermission when enable button clicked', async () => {
       mockNotificationPermission = 'default';
-      const user = await openDropdown();
+      await openDropdown();
       await user.click(await screen.findByText('Enable desktop notifications'));
       expect(mockRequestPermission).toHaveBeenCalled();
     });

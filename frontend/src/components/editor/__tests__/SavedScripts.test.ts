@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('List', 'Trash2'));
+import { user } from '$test/test-utils';
+
 
 import SavedScripts from '../SavedScripts.svelte';
 import type { SavedScriptResponse } from '$lib/api';
@@ -28,14 +27,12 @@ function renderScripts(scripts: SavedScriptResponse[] = []) {
   return { ...result, onload, ondelete, onrefresh };
 }
 
-async function renderAndExpand(scripts: SavedScriptResponse[] = []) {
-  const user = userEvent.setup();
-  const result = renderScripts(scripts);
-  await user.click(screen.getByRole('button', { name: /Show Saved Scripts/i }));
-  return { user, ...result };
-}
-
 describe('SavedScripts', () => {
+  async function renderAndExpand(scripts: SavedScriptResponse[] = []) {
+    const result = renderScripts(scripts);
+    await user.click(screen.getByRole('button', { name: /Show Saved Scripts/i }));
+    return result;
+  }
 
   it('renders collapsed with heading, toggle button, and scripts hidden', () => {
     renderScripts(createScripts(2));
@@ -50,7 +47,6 @@ describe('SavedScripts', () => {
     expect(onrefresh).toHaveBeenCalledOnce();
     onrefresh.mockClear();
 
-    const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Hide Saved Scripts/i }));
     expect(onrefresh).not.toHaveBeenCalled();
   });
@@ -79,7 +75,6 @@ describe('SavedScripts', () => {
   it('calls onload with full script object when clicking a script name', async () => {
     const scripts = createScripts(2);
     const { onload } = await renderAndExpand(scripts);
-    const user = userEvent.setup();
     await user.click(screen.getByText('Script 2'));
     expect(onload).toHaveBeenCalledWith(scripts[1]);
   });
@@ -87,7 +82,6 @@ describe('SavedScripts', () => {
   it('calls ondelete with script id and does not trigger onload (stopPropagation)', async () => {
     const scripts = createScripts(1);
     const { onload, ondelete } = await renderAndExpand(scripts);
-    const user = userEvent.setup();
     await user.click(screen.getByTitle('Delete Script 1'));
     expect(ondelete).toHaveBeenCalledWith('script-1');
     expect(onload).not.toHaveBeenCalled();

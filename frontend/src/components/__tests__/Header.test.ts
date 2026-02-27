@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
-import { suppressConsoleError } from '$test/test-utils';
+import { user, suppressConsoleError } from '$test/test-utils';
+
+import * as router from '@mateothegreat/svelte5-router';
 
 const mocks = vi.hoisted(() => ({
   mockAuthStore: {
@@ -20,10 +21,8 @@ const mocks = vi.hoisted(() => ({
     value: 'auto' as string,
   },
   mockToggleTheme: vi.fn(),
-  mockGoto: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
@@ -31,9 +30,11 @@ vi.mock('../../stores/theme.svelte', () => ({
   get themeStore() { return mocks.mockThemeStore; },
   get toggleTheme() { return mocks.mockToggleTheme; },
 }));
-vi.mock('../NotificationCenter.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent(
-    '<div>NotificationCenter</div>', 'notification-center'));
+vi.mock('../NotificationCenter.svelte', () => {
+  const M = function() { return {}; } as any;
+  M.render = () => ({ html: '<div data-testid="notification-center">NotificationCenter</div>', css: { code: '', map: null }, head: '' });
+  return { default: M };
+});
 
 import Header from '$components/Header.svelte';
 
@@ -45,21 +46,17 @@ const setAuth = (isAuth: boolean, username: string | null = null, role: string |
   mocks.mockAuthStore.userEmail = email;
 };
 
-const openUserDropdown = async (_username: string) => {
-  const user = userEvent.setup();
-  render(Header);
-  await user.click(screen.getByRole('button', { name: 'User menu' }));
-  return user;
-};
-
-const openMobileMenu = async () => {
-  const user = userEvent.setup();
-  render(Header);
-  await user.click(screen.getByRole('button', { name: 'Open menu' }));
-  return { user };
-};
-
 describe('Header', () => {
+  const openUserDropdown = async () => {
+    render(Header);
+    await user.click(screen.getByRole('button', { name: 'User menu' }));
+  };
+
+  const openMobileMenu = async () => {
+    render(Header);
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+  };
+
   let originalInnerWidth: number;
 
   beforeEach(() => {
@@ -67,7 +64,7 @@ describe('Header', () => {
     mocks.mockThemeStore.value = 'auto';
     mocks.mockAuthStore.logout.mockReset();
     mocks.mockToggleTheme.mockReset();
-    mocks.mockGoto.mockReset();
+    vi.spyOn(router, 'goto');
     originalInnerWidth = window.innerWidth;
     Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
     Object.defineProperty(window, 'matchMedia', {
@@ -96,7 +93,6 @@ describe('Header', () => {
 
   describe('theme toggle', () => {
     it('renders and calls toggleTheme when clicked', async () => {
-      const user = userEvent.setup();
       render(Header);
       const themeButton = screen.getByTitle('Toggle theme');
       expect(themeButton).toBeInTheDocument();
@@ -131,7 +127,7 @@ describe('Header', () => {
     beforeEach(() => { setAuth(true, 'testuser', 'user', 'test@example.com'); });
 
     it('shows username and opens dropdown with user info', async () => {
-      await openUserDropdown('testuser');
+      await openUserDropdown();
       await waitFor(() => {
         expect(screen.getAllByText(/testuser/i).length).toBeGreaterThan(0);
         expect(screen.getByText('test@example.com')).toBeInTheDocument();
@@ -143,16 +139,16 @@ describe('Header', () => {
 
     it('shows "No email set" when email is null', async () => {
       mocks.mockAuthStore.userEmail = null;
-      await openUserDropdown('testuser');
+      await openUserDropdown();
       await waitFor(() => { expect(screen.getByText('No email set')).toBeInTheDocument(); });
     });
 
     it('logout calls logout and redirects', async () => {
-      const user = await openUserDropdown('testuser');
+      await openUserDropdown();
       await waitFor(() => { expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument(); });
       await user.click(screen.getByRole('button', { name: /Logout/i }));
       expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+      expect(router.goto).toHaveBeenCalledWith('/login');
     });
   });
 
@@ -160,7 +156,7 @@ describe('Header', () => {
     beforeEach(() => { setAuth(true, 'admin', 'admin', 'admin@example.com'); });
 
     it('shows Admin indicator and button in dropdown', async () => {
-      await openUserDropdown('admin');
+      await openUserDropdown();
       await waitFor(() => {
         expect(screen.getByText('(Admin)')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^Admin$/ })).toBeInTheDocument();
@@ -168,10 +164,10 @@ describe('Header', () => {
     });
 
     it('Admin button navigates to admin panel', async () => {
-      const user = await openUserDropdown('admin');
+      await openUserDropdown();
       await waitFor(() => { expect(screen.getByRole('button', { name: /^Admin$/ })).toBeInTheDocument(); });
       await user.click(screen.getByRole('button', { name: /^Admin$/ }));
-      await waitFor(() => { expect(mocks.mockGoto).toHaveBeenCalledWith('/admin/events'); });
+      await waitFor(() => { expect(router.goto).toHaveBeenCalledWith('/admin/events'); });
     });
   });
 
@@ -215,7 +211,7 @@ describe('Header', () => {
     it('closes dropdown when clicking a menu item', async () => {
       const restoreConsole = suppressConsoleError();
       setAuth(true, 'testuser', 'user');
-      const user = await openUserDropdown('testuser');
+      await openUserDropdown();
       await waitFor(() => { expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument(); });
       await user.click(screen.getByRole('link', { name: /Settings/i }));
       await waitFor(() => { expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument(); });
@@ -224,7 +220,7 @@ describe('Header', () => {
 
     it('closes dropdown when clicking outside', async () => {
       setAuth(true, 'testuser', 'user');
-      await openUserDropdown('testuser');
+      await openUserDropdown();
       await waitFor(() => { expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument(); });
 
       // Click outside the dropdown
@@ -267,7 +263,7 @@ describe('Header', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
       setAuth(true, 'mobileuser', 'user');
 
-      const { user } = await openMobileMenu();
+      await openMobileMenu();
       await waitFor(() => {
         const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
         expect(mobileMenu?.textContent).toContain('Logout');
@@ -277,7 +273,7 @@ describe('Header', () => {
       await user.click(logoutButton);
 
       expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-      expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+      expect(router.goto).toHaveBeenCalledWith('/login');
     });
   });
 });

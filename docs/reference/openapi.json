@@ -2069,9 +2069,9 @@
         "tags": [
           "admin-events"
         ],
-        "summary": "Get Replay Status",
-        "description": "Get the status and progress of a replay session.",
-        "operationId": "get_replay_status_api_v1_admin_events_replay__session_id__status_get",
+        "summary": "Stream Replay Status",
+        "description": "Stream the status and progress of a replay session via SSE.",
+        "operationId": "stream_replay_status_api_v1_admin_events_replay__session_id__status_get",
         "parameters": [
           {
             "name": "session_id",
@@ -2087,8 +2087,9 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
+                  "type": "string",
                   "$ref": "#/components/schemas/EventReplayStatusResponse"
                 }
               }
@@ -2097,7 +2098,7 @@
           "404": {
             "description": "Replay session not found",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -3963,6 +3964,24 @@
               "title": "State"
             },
             "description": "Filter by saga state"
+          },
+          {
+            "name": "execution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by execution ID",
+              "title": "Execution Id"
+            },
+            "description": "Filter by execution ID"
           },
           {
             "name": "limit",

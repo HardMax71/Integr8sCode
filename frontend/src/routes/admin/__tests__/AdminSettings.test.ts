@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import AdminSettings from '$routes/admin/AdminSettings.svelte';
 
 function createMockSystemSettings() {
   return {
@@ -23,7 +25,6 @@ const mocks = vi.hoisted(() => ({
   getSystemSettingsApiV1AdminSettingsGet: vi.fn(),
   updateSystemSettingsApiV1AdminSettingsPut: vi.fn(),
   resetSystemSettingsApiV1AdminSettingsResetPost: vi.fn(),
-  addToast: vi.fn(),
   mockConfirm: vi.fn(),
   mockAuthStore: {
     isAuthenticated: true,
@@ -41,26 +42,16 @@ vi.mock('../../../lib/api', () => ({
 
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$test/test-utils')).createMockRouterModule());
-
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
 vi.mock('$routes/admin/AdminLayout.svelte', () =>
   import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte'));
 
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('ShieldCheck'));
-
 describe('AdminSettings', () => {
-  const user = userEvent.setup();
-
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
+    vi.spyOn(toast, 'warning');
+    vi.spyOn(toast, 'info');
     vi.stubGlobal('confirm', mocks.mockConfirm);
     mocks.getSystemSettingsApiV1AdminSettingsGet.mockResolvedValue({
       data: createMockSystemSettings(),
@@ -78,8 +69,7 @@ describe('AdminSettings', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  async function renderAdminSettings() {
-    const { default: AdminSettings } = await import('$routes/admin/AdminSettings.svelte');
+  function renderAdminSettings() {
     return render(AdminSettings);
   }
 
@@ -136,7 +126,7 @@ describe('AdminSettings', () => {
       expect(callArgs.body).toHaveProperty('max_timeout_seconds');
       expect(callArgs.body).toHaveProperty('password_min_length');
       expect(callArgs.body).toHaveProperty('metrics_retention_days');
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings saved successfully');
+      expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
     });
 
     it('handles save error without crashing', async () => {
@@ -152,7 +142,7 @@ describe('AdminSettings', () => {
       await waitFor(() => {
         expect(mocks.updateSystemSettingsApiV1AdminSettingsPut).toHaveBeenCalled();
       });
-      expect(mocks.addToast).not.toHaveBeenCalledWith('success', expect.anything());
+      expect(toast.success).not.toHaveBeenCalledWith('Settings saved successfully');
     });
   });
 
@@ -188,7 +178,7 @@ describe('AdminSettings', () => {
       await waitFor(() => {
         expect(mocks.resetSystemSettingsApiV1AdminSettingsResetPost).toHaveBeenCalled();
       });
-      expect(mocks.addToast).toHaveBeenCalledWith('success', 'Settings reset to defaults');
+      expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
 
       await waitFor(() => {
         const timeoutInput = document.getElementById('max-timeout') as HTMLInputElement;

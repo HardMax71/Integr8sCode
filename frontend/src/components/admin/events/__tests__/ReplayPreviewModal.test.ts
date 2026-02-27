@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { user } from '$test/test-utils';
 
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('AlertTriangle', 'X'));
 
 import ReplayPreviewModal from '../ReplayPreviewModal.svelte';
 
@@ -101,7 +99,6 @@ describe('ReplayPreviewModal', () => {
   });
 
   it('calls onConfirm with eventId and onClose when Proceed is clicked', async () => {
-    const user = userEvent.setup();
     const { onConfirm, onClose } = renderModal();
     await user.click(screen.getByRole('button', { name: 'Proceed with Replay' }));
     expect(onClose).toHaveBeenCalledOnce();
@@ -109,7 +106,6 @@ describe('ReplayPreviewModal', () => {
   });
 
   it('calls onClose when Cancel button is clicked', async () => {
-    const user = userEvent.setup();
     const { onClose, onConfirm } = renderModal();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledOnce();

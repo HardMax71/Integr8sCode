@@ -25,7 +25,9 @@ from app.domain.replay import (
     ReplaySessionNotFoundError,
     ReplaySessionState,
 )
+from app.domain.sse import DomainReplaySSEPayload
 from app.events.core import UnifiedProducer
+from app.services.sse.redis_bus import SSERedisBus
 
 
 class EventReplayService:
@@ -35,6 +37,7 @@ class EventReplayService:
         producer: UnifiedProducer,
         replay_metrics: ReplayMetrics,
         logger: structlog.stdlib.BoundLogger,
+        sse_bus: SSERedisBus,
     ) -> None:
         self._sessions: dict[str, ReplaySessionState] = {}
         self._schedulers: dict[str, AsyncIOScheduler] = {}
@@ -46,6 +49,7 @@ class EventReplayService:
         self.logger = logger
         self._file_locks: dict[str, asyncio.Lock] = {}
         self._metrics = replay_metrics
+        self._sse_bus = sse_bus
 
     async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
         try:
@@ -100,6 +104,7 @@ class EventReplayService:
         self._metrics.record_status_change(session_id, previous_status, ReplayStatus.RUNNING)
         self._metrics.record_speed_multiplier(session.config.speed_multiplier, session.config.replay_type)
         await self._repository.update_session_status(session_id, ReplayStatus.RUNNING)
+        await self._publish_replay_status(session)
         return ReplayOperationResult(
             session_id=session_id, status=ReplayStatus.RUNNING, message="Replay session started"
         )
@@ -398,3 +403,23 @@ class EventReplayService:
             await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
         except Exception as e:
             self.logger.error(f"Failed to update session in database: {e}")
+        await self._publish_replay_status(session)
+
+    async def _publish_replay_status(self, session: ReplaySessionState) -> None:
+        try:
+            payload = DomainReplaySSEPayload(
+                session_id=session.session_id,
+                status=session.status,
+                total_events=session.total_events,
+                replayed_events=session.replayed_events,
+                failed_events=session.failed_events,
+                skipped_events=session.skipped_events,
+                replay_id=session.replay_id,
+                created_at=session.created_at,
+                started_at=session.started_at,
+                completed_at=session.completed_at,
+                errors=session.errors,
+            )
+            await self._sse_bus.publish_replay_status(session.session_id, payload)
+        except Exception as e:
+            self.logger.error("Failed to publish replay status to SSE", error=str(e))

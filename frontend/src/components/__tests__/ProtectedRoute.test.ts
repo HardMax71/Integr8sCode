@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 
+import * as router from '@mateothegreat/svelte5-router';
+
 const mocks = vi.hoisted(() => ({
   mockAuthStore: {
     isAuthenticated: null as boolean | null,
@@ -11,17 +13,11 @@ const mocks = vi.hoisted(() => ({
     csrfToken: null as string | null,
     waitForInit: vi.fn().mockResolvedValue(true),
   },
-  mockGoto: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ goto: mocks.mockGoto }));
 vi.mock('../../stores/auth.svelte', () => ({
   get authStore() { return mocks.mockAuthStore; },
 }));
-
-vi.mock('../Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent(
-    '<div role="status">Loading...</div>', 'spinner'));
 
 import ProtectedRoute from '$components/ProtectedRoute.svelte';
 
@@ -37,7 +33,7 @@ describe('ProtectedRoute', () => {
     mocks.mockAuthStore.userEmail = null;
     mocks.mockAuthStore.csrfToken = null;
 
-    mocks.mockGoto.mockReset();
+    vi.spyOn(router, 'goto');
     mocks.mockAuthStore.waitForInit.mockReset().mockResolvedValue(true);
 
     Object.defineProperty(window, 'location', {
@@ -131,7 +127,7 @@ describe('ProtectedRoute', () => {
       // Give time for any potential redirect
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      expect(mocks.mockGoto).not.toHaveBeenCalled();
+      expect(router.goto).not.toHaveBeenCalled();
     });
 
     it('does not save redirect path when authenticated', async () => {
@@ -157,7 +153,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+        expect(router.goto).toHaveBeenCalledWith('/login');
       });
     });
 
@@ -165,7 +161,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute, { props: { redirectTo: '/custom-login' } });
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/custom-login');
+        expect(router.goto).toHaveBeenCalledWith('/custom-login');
       });
     });
 
@@ -173,7 +169,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       expect(sessionStorageData['redirectAfterLogin']).toBe('/protected-page?foo=bar#section');
@@ -193,7 +189,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       expect(sessionStorageData['redirectAfterLogin']).toBeUndefined();
@@ -203,7 +199,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute, { props: { message: 'Custom auth message' } });
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       expect(sessionStorageData['authMessage']).toBe('Custom auth message');
@@ -213,7 +209,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       expect(sessionStorageData['authMessage']).toBe('Please log in to access this page');
@@ -227,7 +223,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute, { props: { redirectTo: '/signin' } });
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/signin');
+        expect(router.goto).toHaveBeenCalledWith('/signin');
       });
     });
 
@@ -237,7 +233,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute, { props: { message: 'You need to sign in first' } });
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       expect(sessionStorageData['authMessage']).toBe('You need to sign in first');
@@ -282,7 +278,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute);
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalledWith('/login');
+        expect(router.goto).toHaveBeenCalledWith('/login');
       });
     });
 
@@ -292,7 +288,7 @@ describe('ProtectedRoute', () => {
       render(ProtectedRoute, { props: { message: '' } });
 
       await waitFor(() => {
-        expect(mocks.mockGoto).toHaveBeenCalled();
+        expect(router.goto).toHaveBeenCalled();
       });
 
       // Empty message should not be saved

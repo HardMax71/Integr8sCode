@@ -6,21 +6,28 @@ import structlog
 from pydantic import TypeAdapter
 
 from app.db.repositories import ExecutionRepository
-from app.domain.enums import EventType, SSEControlEvent, UserRole
+from app.domain.enums import EventType, ReplayStatus, SSEControlEvent, UserRole
 from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
-from app.domain.sse import DomainNotificationSSEPayload, SSEExecutionEventData
+from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse.redis_bus import SSERedisBus
 
 _exec_adapter = TypeAdapter(SSEExecutionEventData)
 _notif_adapter = TypeAdapter(DomainNotificationSSEPayload)
+_replay_adapter = TypeAdapter(DomainReplaySSEPayload)
 
 _TERMINAL_TYPES: frozenset[EventType | SSEControlEvent] = frozenset({
     EventType.RESULT_STORED,
     EventType.EXECUTION_FAILED,
     EventType.EXECUTION_TIMEOUT,
     EventType.RESULT_FAILED,
+})
+
+_TERMINAL_REPLAY_STATUSES: frozenset[ReplayStatus] = frozenset({
+    ReplayStatus.COMPLETED,
+    ReplayStatus.FAILED,
+    ReplayStatus.CANCELLED,
 })
 
 
@@ -75,3 +82,25 @@ class SSEService:
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:
         async for payload in self._bus.listen_notifications(user_id):
             yield {"event": "notification", "data": _notif_adapter.dump_json(payload).decode()}
+
+    async def create_replay_stream(
+        self, initial_status: DomainReplaySSEPayload
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Return the replay event stream generator.
+
+        Caller (route) handles validation and initial DB fetch.
+        """
+        return self._replay_pipeline(initial_status)
+
+    async def _replay_pipeline(
+        self, initial_status: DomainReplaySSEPayload
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        session_id = initial_status.session_id
+        yield {"data": _replay_adapter.dump_json(initial_status).decode()}
+        if initial_status.status in _TERMINAL_REPLAY_STATUSES:
+            return
+        async for status in self._bus.listen_replay(session_id):
+            self._logger.info("SSE replay event", session_id=session_id, status=status.status)
+            yield {"data": _replay_adapter.dump_json(status).decode()}
+            if status.status in _TERMINAL_REPLAY_STATUSES:
+                return

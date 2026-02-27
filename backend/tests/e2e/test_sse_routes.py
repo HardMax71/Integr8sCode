@@ -3,12 +3,13 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
+import redis.asyncio as redis
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from async_asgi_testclient import TestClient as SSETestClient
 from fastapi import FastAPI
 from httpx import AsyncClient
 
-from tests.e2e.conftest import EventWaiter
+from tests.e2e.conftest import wait_for_result
 
 pytestmark = [pytest.mark.e2e]
 
@@ -83,7 +84,7 @@ class TestNotificationStream:
         sse_client: SSETestClient,
         test_user: AsyncClient,
         simple_execution_request: ExecutionRequest,
-        event_waiter: EventWaiter,
+        redis_client: redis.Redis,
     ) -> None:
         """Notification stream returns SSE content type when a notification arrives.
 
@@ -91,7 +92,8 @@ class TestNotificationStream:
         execution stream). async-asgi-testclient blocks until the first
         http.response.body ASGI message. We trigger a real notification by
         creating an execution and waiting for its result — the notification
-        handler publishes to Redis before RESULT_STORED, unblocking the stream.
+        service is an independent Kafka consumer that publishes to the SSE
+        notification channel after persisting to MongoDB.
         """
         async with sse_client:
             # Start stream in background — blocks until first body chunk
@@ -110,7 +112,7 @@ class TestNotificationStream:
             )
             assert resp.status_code == 200
             execution = ExecutionResponse.model_validate(resp.json())
-            await event_waiter.wait_for_result(execution.execution_id)
+            await wait_for_result(redis_client, execution.execution_id)
 
             # Notification published to Redis unblocks the SSE stream
             response = await asyncio.wait_for(stream_task, timeout=10.0)

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     formatDate,
     formatTimestamp,
@@ -98,10 +98,8 @@ describe('formatDurationBetween', () => {
 
 describe('formatRelativeTime', () => {
     beforeEach(() => {
-        vi.useFakeTimers();
         vi.setSystemTime(new Date(2025, 6, 15, 12, 0, 0));
     });
-    afterEach(() => vi.useRealTimers());
 
     it.each([
         [new Date(2025, 6, 15, 11, 59, 30), 'just now'],  // 30s ago

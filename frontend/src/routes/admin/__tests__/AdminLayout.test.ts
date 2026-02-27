@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
+import { toast } from 'svelte-sonner';
+import * as router from '@mateothegreat/svelte5-router';
+import AdminLayout from '$routes/admin/AdminLayout.svelte';
+
 const mocks = vi.hoisted(() => ({
-  addToast: vi.fn(),
-  mockGoto: vi.fn(),
   mockAuthStore: {
     isAuthenticated: true,
     username: 'adminuser',
@@ -16,27 +18,20 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('@mateothegreat/svelte5-router', async () =>
-  (await import('$test/test-utils')).createMockRouterModule(mocks.mockGoto));
-
-vi.mock('svelte-sonner', async () =>
-  (await import('$test/test-utils')).createToastMock(mocks.addToast));
-
-vi.mock('$components/Spinner.svelte', async () =>
-  (await import('$test/test-utils')).createMockSvelteComponent('<span>Loading</span>', 'spinner'));
-
-vi.mock('@lucide/svelte', async () =>
-  (await import('$test/test-utils')).createMockIconModule('ShieldCheck'));
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 
 describe('AdminLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(toast, 'success');
+    vi.spyOn(toast, 'error');
+    vi.spyOn(toast, 'warning');
+    vi.spyOn(toast, 'info');
     mocks.mockAuthStore.userRole = 'admin';
     mocks.mockAuthStore.username = 'adminuser';
   });
 
-  async function renderLayout(path = '/admin/events') {
-    const { default: AdminLayout } = await import('$routes/admin/AdminLayout.svelte');
+  function renderLayout(path = '/admin/events') {
     return render(AdminLayout, { props: { path } });
   }
 
@@ -44,9 +39,9 @@ describe('AdminLayout', () => {
     mocks.mockAuthStore.userRole = 'user';
     await renderLayout();
     await waitFor(() => {
-      expect(mocks.addToast).toHaveBeenCalledWith('error', 'Admin access required');
+      expect(toast.error).toHaveBeenCalledWith('Admin access required');
     });
-    expect(mocks.mockGoto).toHaveBeenCalledWith('/');
+    expect(router.goto).toHaveBeenCalledWith('/');
   });
 
   it('renders sidebar with "Admin Panel" heading for admin users', async () => {

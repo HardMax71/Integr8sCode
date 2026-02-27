@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
+import { user } from '$test/test-utils';
 
 interface MockExecutionOverrides {
   execution_id?: string;
@@ -81,11 +81,6 @@ vi.mock('../../../lib/api-interceptors', async (importOriginal) => {
   return { ...actual };
 });
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-  goto: vi.fn(),
-}));
-
 vi.mock('../AdminLayout.svelte', async () => {
   const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
   return { default: MockLayout };
@@ -114,7 +109,6 @@ async function renderWithExecutions(
 
 describe('AdminExecutions', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
       data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
@@ -130,10 +124,6 @@ describe('AdminExecutions', () => {
     });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    cleanup();
-  });
 
   describe('initial loading', () => {
     it('calls API on mount', async () => {
@@ -173,7 +163,6 @@ describe('AdminExecutions', () => {
 
   describe('filters', () => {
     it('filters by status', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -190,7 +179,6 @@ describe('AdminExecutions', () => {
     });
 
     it('filters by priority', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -207,7 +195,6 @@ describe('AdminExecutions', () => {
     });
 
     it('filters by user ID', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 
@@ -224,7 +211,6 @@ describe('AdminExecutions', () => {
     });
 
     it('reset button clears all filters', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
 
       const statusSelect = screen.getByLabelText(/status/i);
@@ -268,7 +254,6 @@ describe('AdminExecutions', () => {
 
   describe('priority update', () => {
     it('successful update shows success toast', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
       mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
         data: { ...execs[0], priority: 'high' },
@@ -294,7 +279,6 @@ describe('AdminExecutions', () => {
     });
 
     it('failed update calls API and does not show success toast', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
       mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
         data: undefined,
@@ -330,7 +314,6 @@ describe('AdminExecutions', () => {
     });
 
     it('manual refresh button calls loadData', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       await renderWithExecutions();
       vi.clearAllMocks();
 

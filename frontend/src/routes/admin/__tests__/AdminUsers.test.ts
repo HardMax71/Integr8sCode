@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup, within } from '@testing-library/svelte';
-import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
+import { user } from '$test/test-utils';
 
 interface MockUserOverrides {
   user_id?: string;
@@ -82,11 +82,6 @@ vi.mock('../../../lib/formatters', () => ({
   },
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({
-  route: () => {},
-  goto: vi.fn(),
-}));
-
 // Simple mock for AdminLayout that just renders children
 vi.mock('../AdminLayout.svelte', async () => {
   const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
@@ -108,10 +103,6 @@ describe('AdminUsers', () => {
     vi.clearAllMocks();
     mocks.listUsersApiV1AdminUsersGet.mockResolvedValue({ data: { users: [], total: 0 }, error: null });
     mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet.mockResolvedValue({ data: [], error: null });
-  });
-
-  afterEach(() => {
-    cleanup();
   });
 
   describe('initial loading', () => {
@@ -168,7 +159,6 @@ describe('AdminUsers', () => {
 
   describe('refresh functionality', () => {
     it('refresh button calls loadUsers', async () => {
-      const user = userEvent.setup();
       await renderWithUsers();
       mocks.listUsersApiV1AdminUsersGet.mockClear();
       const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
@@ -179,7 +169,6 @@ describe('AdminUsers', () => {
 
   describe('search and filtering', () => {
     it('filters users by search query', async () => {
-      const user = userEvent.setup();
       const allUsers = [
         createMockUser({ username: 'alice', email: 'alice@test.com' }),
         createMockUser({ user_id: 'u2', username: 'bob', email: 'bob@test.com' }),
@@ -202,7 +191,6 @@ describe('AdminUsers', () => {
     });
 
     it('filters users by role', async () => {
-      const user = userEvent.setup();
       const allUsers = [
         createMockUser({ username: 'admin1', role: 'admin' }),
         createMockUser({ user_id: 'u2', username: 'user1', role: 'user' }),
@@ -225,7 +213,6 @@ describe('AdminUsers', () => {
     });
 
     it('filters users by status', async () => {
-      const user = userEvent.setup();
       const users = [
         createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
         createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
@@ -240,7 +227,6 @@ describe('AdminUsers', () => {
     });
 
     it('resets filters on Reset button click', async () => {
-      const user = userEvent.setup();
       const users = createMockUsers(3);
       mocks.listUsersApiV1AdminUsersGet.mockImplementation(async ({ query } = {}) => {
         const search = (query as Record<string, unknown>)?.search as string | null;
@@ -262,7 +248,6 @@ describe('AdminUsers', () => {
     });
 
     it('toggles advanced filters panel', async () => {
-      const user = userEvent.setup();
       await renderWithUsers();
       const advancedBtn = screen.getByRole('button', { name: /Advanced/i });
       await user.click(advancedBtn);
@@ -272,7 +257,6 @@ describe('AdminUsers', () => {
     });
 
     it('filters by bypass rate limit', async () => {
-      const user = userEvent.setup();
       const users = [
         createMockUser({ username: 'bypassed', bypass_rate_limit: true }),
         createMockUser({ user_id: 'u2', username: 'limited', bypass_rate_limit: false }),
@@ -290,7 +274,6 @@ describe('AdminUsers', () => {
 
   describe('create user modal', () => {
     it('opens create user modal on button click', async () => {
-      const user = userEvent.setup();
       await renderWithUsers();
       // Header has the Create User button
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -302,7 +285,6 @@ describe('AdminUsers', () => {
 
     it('submits new user data', async () => {
       mocks.createUserApiV1AdminUsersPost.mockResolvedValue({ data: {}, error: null });
-      const user = userEvent.setup();
       await renderWithUsers();
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
       await user.click(createButton!);
@@ -333,7 +315,6 @@ describe('AdminUsers', () => {
         mocks.addToast('Validation error: username: Required');
         return { data: null, error };
       });
-      const user = userEvent.setup();
       await renderWithUsers();
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
       await user.click(createButton!);
@@ -349,7 +330,6 @@ describe('AdminUsers', () => {
     });
 
     it('closes modal on cancel', async () => {
-      const user = userEvent.setup();
       await renderWithUsers();
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
       await user.click(createButton!);
@@ -364,7 +344,6 @@ describe('AdminUsers', () => {
 
   describe('edit user modal', () => {
     it('opens edit modal with user data', async () => {
-      const user = userEvent.setup();
       const users = [createMockUser({ username: 'editme', email: 'edit@test.com' })];
       await renderWithUsers(users);
 
@@ -381,7 +360,6 @@ describe('AdminUsers', () => {
 
     it('submits updated user data', async () => {
       mocks.updateUserApiV1AdminUsersUserIdPut.mockResolvedValue({ data: {}, error: null });
-      const user = userEvent.setup();
       const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
       await renderWithUsers(users);
 
@@ -406,7 +384,6 @@ describe('AdminUsers', () => {
   describe('delete user modal', () => {
     it('opens delete confirmation modal', async () => {
       const users = [createMockUser({ username: 'deleteme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       // Multiple delete buttons exist (mobile + desktop views)
@@ -421,7 +398,6 @@ describe('AdminUsers', () => {
     it('confirms deletion without cascade by default', async () => {
       mocks.deleteUserApiV1AdminUsersUserIdDelete.mockResolvedValue({ data: { message: 'Deleted' }, error: null });
       const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -442,7 +418,6 @@ describe('AdminUsers', () => {
     it('confirms deletion with cascade option', async () => {
       mocks.deleteUserApiV1AdminUsersUserIdDelete.mockResolvedValue({ data: { message: 'Deleted' }, error: null });
       const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -472,7 +447,6 @@ describe('AdminUsers', () => {
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'deleteme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -487,7 +461,6 @@ describe('AdminUsers', () => {
 
     it('cancels deletion', async () => {
       const users = [createMockUser({ username: 'keepme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -504,7 +477,6 @@ describe('AdminUsers', () => {
 
     it('shows cascade warning when enabled', async () => {
       const users = [createMockUser({ username: 'deleteme' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -539,7 +511,6 @@ describe('AdminUsers', () => {
         error: null,
       });
       const users = [createMockUser({ username: 'ratelimited' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       // Multiple rate limit buttons exist (mobile + desktop views)
@@ -558,7 +529,6 @@ describe('AdminUsers', () => {
         error: null,
       });
       const users = [createMockUser({ username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -576,7 +546,6 @@ describe('AdminUsers', () => {
       });
       mocks.updateUserRateLimitsApiV1AdminRateLimitsUserIdPut.mockResolvedValue({ data: {}, error: null });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -604,7 +573,6 @@ describe('AdminUsers', () => {
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -622,7 +590,6 @@ describe('AdminUsers', () => {
         error: null,
       });
       const users = [createMockUser({ username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -643,7 +610,6 @@ describe('AdminUsers', () => {
       });
       mocks.resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost.mockResolvedValue({ data: {}, error: null });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -668,7 +634,6 @@ describe('AdminUsers', () => {
     });
 
     it('shows filtered count when filters applied', async () => {
-      const user = userEvent.setup();
       const users = [
         createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
         createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
@@ -700,7 +665,6 @@ describe('AdminUsers', () => {
   describe('user form validation', () => {
     it('requires username for new user', async () => {
       mocks.createUserApiV1AdminUsersPost.mockResolvedValue({ data: {}, error: null });
-      const user = userEvent.setup();
       await renderWithUsers();
 
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -718,7 +682,6 @@ describe('AdminUsers', () => {
 
     it('requires password for new user', async () => {
       mocks.createUserApiV1AdminUsersPost.mockResolvedValue({ data: {}, error: null });
-      const user = userEvent.setup();
       await renderWithUsers();
 
       const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -736,7 +699,6 @@ describe('AdminUsers', () => {
 
     it('password is optional for edit', async () => {
       mocks.updateUserApiV1AdminUsersUserIdPut.mockResolvedValue({ data: {}, error: null });
-      const user = userEvent.setup();
       const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
       await renderWithUsers(users);
 
@@ -764,7 +726,6 @@ describe('AdminUsers', () => {
         return { data: null, error };
       });
       const users = [createMockUser({ username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -787,7 +748,6 @@ describe('AdminUsers', () => {
         return { data: null, error: resetError };
       });
       const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
-      const user = userEvent.setup();
       await renderWithUsers(users);
 
       const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');

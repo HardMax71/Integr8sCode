@@ -150,7 +150,7 @@ Configuration is cached in Redis for 5 minutes to reduce database load while all
 
 ## Configuration
 
-Rate limiting is controlled by environment variables:
+Rate limiting is controlled by TOML settings:
 
 | Variable                  | Default          | Description                                          |
 |---------------------------|------------------|------------------------------------------------------|

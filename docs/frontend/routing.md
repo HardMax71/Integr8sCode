@@ -15,6 +15,7 @@ Routes are defined in `App.svelte` with authentication guards for protected page
 | `/settings`       | `Settings.svelte`      | Yes           | No             | User preferences           |
 | `/notifications`  | `Notifications.svelte` | Yes           | No             | Notification center        |
 | `/admin/events`   | `AdminEvents.svelte`   | Yes           | Yes            | Event browser              |
+| `/admin/executions` | `AdminExecutions.svelte` | Yes        | Yes            | Execution management       |
 | `/admin/sagas`    | `AdminSagas.svelte`    | Yes           | Yes            | Saga monitoring            |
 | `/admin/users`    | `AdminUsers.svelte`    | Yes           | Yes            | User management            |
 | `/admin/settings` | `AdminSettings.svelte` | Yes           | Yes            | System settings            |
@@ -105,6 +106,7 @@ Use the `route` directive for link navigation:
 | Component              | Path                                    | Purpose                    |
 |------------------------|-----------------------------------------|----------------------------|
 | `AdminEvents.svelte`   | `src/routes/admin/AdminEvents.svelte`   | Event browser with filters |
+| `AdminExecutions.svelte` | `src/routes/admin/AdminExecutions.svelte` | Execution list and priority management |
 | `AdminSagas.svelte`    | `src/routes/admin/AdminSagas.svelte`    | Saga status monitoring     |
 | `AdminUsers.svelte`    | `src/routes/admin/AdminUsers.svelte`    | User CRUD and rate limits  |
 | `AdminSettings.svelte` | `src/routes/admin/AdminSettings.svelte` | System configuration       |

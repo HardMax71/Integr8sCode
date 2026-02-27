@@ -8,10 +8,12 @@ processing in reverse order.
 
 The middleware is applied in this order (outermost first):
 
-1. **RequestSizeLimitMiddleware** - Rejects oversized requests
+1. **MetricsMiddleware** - Collects HTTP request metrics
 2. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
-3. **CacheControlMiddleware** - Adds cache headers to responses
-4. **MetricsMiddleware** - Collects HTTP request metrics
+3. **CSRFMiddleware** - Validates CSRF tokens on state-changing requests
+4. **RequestSizeLimitMiddleware** - Rejects oversized requests
+5. **CacheControlMiddleware** - Adds cache headers to responses
+6. **CORSMiddleware** - Handles Cross-Origin Resource Sharing headers
 
 ## Request Size Limit
 
@@ -85,6 +87,10 @@ Path templates use pattern replacement to reduce metric cardinality:
 
 UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent metric explosion.
 
+## CSRF Protection
+
+The `CSRFMiddleware` validates a CSRF token on all state-changing requests (POST, PUT, DELETE). The token is issued at login and must be sent in the `X-CSRF-Token` header. GET and other safe methods are exempt.
+
 ## System Metrics
 
 In addition to HTTP metrics, the middleware module provides system-level observables:
@@ -118,5 +124,9 @@ These expose:
 -   :material-chart-line:{ .lg .middle } **[metrics.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/metrics.py)**
 
     HTTP request telemetry and system-level observables
+
+-   :material-shield-lock:{ .lg .middle } **[csrf.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/csrf.py)**
+
+    CSRF token validation for state-changing requests
 
 </div>

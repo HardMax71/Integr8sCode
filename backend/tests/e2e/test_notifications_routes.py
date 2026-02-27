@@ -1,6 +1,7 @@
 import pytest
 import redis.asyncio as redis
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
+from app.schemas_pydantic.execution import ExecutionRequest
 from app.schemas_pydantic.notification import (
     DeleteNotificationResponse,
     NotificationListResponse,
@@ -106,9 +107,10 @@ class TestMarkNotificationRead:
             self,
             test_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Mark existing notification as read."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await test_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -133,9 +135,10 @@ class TestMarkAllRead:
             self,
             test_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Mark all notifications as read returns 204."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await test_user.post("/api/v1/notifications/mark-all-read")
         assert response.status_code == 204
@@ -285,9 +288,10 @@ class TestUnreadCount:
             self,
             test_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Get unread notification count."""
-        await create_execution_with_notification(test_user, redis_client)
+        await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await test_user.get("/api/v1/notifications/unread-count")
 
@@ -316,9 +320,10 @@ class TestDeleteNotification:
             self,
             test_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Delete existing notification returns success."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await test_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"
@@ -345,9 +350,10 @@ class TestNotificationIsolation:
             test_user: AsyncClient,
             another_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """User's notification list does not include other users' notifications."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await another_user.get("/api/v1/notifications")
         assert response.status_code == 200
@@ -363,9 +369,10 @@ class TestNotificationIsolation:
             test_user: AsyncClient,
             another_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Cannot mark another user's notification as read."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await another_user.put(
             f"/api/v1/notifications/{notification.notification_id}/read"
@@ -385,9 +392,10 @@ class TestNotificationIsolation:
             test_user: AsyncClient,
             another_user: AsyncClient,
             redis_client: redis.Redis,
+            exec_request: ExecutionRequest,
     ) -> None:
         """Cannot delete another user's notification."""
-        _, notification = await create_execution_with_notification(test_user, redis_client)
+        _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
         response = await another_user.delete(
             f"/api/v1/notifications/{notification.notification_id}"

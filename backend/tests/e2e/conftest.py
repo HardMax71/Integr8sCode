@@ -93,7 +93,7 @@ async def wait_for_notification(
 
 
 @pytest.fixture
-def simple_execution_request() -> ExecutionRequest:
+def exec_request() -> ExecutionRequest:
     """Simple python print execution."""
     return ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
 
@@ -154,12 +154,9 @@ def new_script_request() -> SavedScriptCreateRequest:
     )
 
 
-_DEFAULT_REQUEST = ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
-
-
 async def create_execution(
     client: AsyncClient,
-    request: ExecutionRequest = _DEFAULT_REQUEST,
+    request: ExecutionRequest,
 ) -> ExecutionResponse:
     """POST /execute and return response (does NOT wait for completion)."""
     resp = await client.post("/api/v1/execute", json=request.model_dump())
@@ -170,7 +167,7 @@ async def create_execution(
 async def create_execution_with_saga(
     client: AsyncClient,
     redis_client: redis.Redis,
-    request: ExecutionRequest = _DEFAULT_REQUEST,
+    request: ExecutionRequest,
 ) -> tuple[ExecutionResponse, SagaStatusResponse]:
     """Create execution, wait for POD_CREATED, return (execution, saga).
 
@@ -192,7 +189,7 @@ async def create_execution_with_saga(
 async def create_execution_with_notification(
     client: AsyncClient,
     redis_client: redis.Redis,
-    request: ExecutionRequest = _DEFAULT_REQUEST,
+    request: ExecutionRequest,
     *,
     timeout: float = 30.0,
 ) -> tuple[ExecutionResponse, NotificationResponse]:

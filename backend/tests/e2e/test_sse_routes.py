@@ -83,7 +83,7 @@ class TestNotificationStream:
         self,
         sse_client: SSETestClient,
         test_user: AsyncClient,
-        simple_execution_request: ExecutionRequest,
+        exec_request: ExecutionRequest,
         redis_client: redis.Redis,
     ) -> None:
         """Notification stream returns SSE content type when a notification arrives.
@@ -108,7 +108,7 @@ class TestNotificationStream:
             # Trigger a notification: execution → result → notification
             resp = await test_user.post(
                 "/api/v1/execute",
-                json=simple_execution_request.model_dump(),
+                json=exec_request.model_dump(),
             )
             assert resp.status_code == 200
             execution = ExecutionResponse.model_validate(resp.json())
@@ -128,7 +128,7 @@ class TestExecutionStream:
 
     @pytest.mark.asyncio
     async def test_execution_stream_returns_event_stream(
-        self, sse_client: SSETestClient, test_user: AsyncClient,
+        self, sse_client: SSETestClient, test_user: AsyncClient, exec_request: ExecutionRequest,
     ) -> None:
         """Execution stream returns SSE content type and first body chunk.
 
@@ -137,7 +137,7 @@ class TestExecutionStream:
         this is the ``status`` control event, confirming the SSE generator
         started and yielded data.
         """
-        execution = await create_execution(test_user)
+        execution = await create_execution(test_user, exec_request)
 
         async with sse_client:
             response = await sse_client.get(
@@ -168,9 +168,10 @@ class TestExecutionStream:
         self,
         sse_client_another: SSETestClient,
         test_user: AsyncClient,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Another user cannot stream a different user's execution — returns 403."""
-        execution = await create_execution(test_user)
+        execution = await create_execution(test_user, exec_request)
 
         async with sse_client_another:
             response = await sse_client_another.get(

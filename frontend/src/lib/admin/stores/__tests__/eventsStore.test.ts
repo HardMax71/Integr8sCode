@@ -79,7 +79,6 @@ describe('EventsStore', () => {
     let teardown: () => void;
 
     beforeEach(() => {
-        vi.useFakeTimers({ shouldAdvanceTime: false });
         vi.clearAllMocks();
         MockEventSource.instances = [];
         vi.stubGlobal('EventSource', MockEventSource);

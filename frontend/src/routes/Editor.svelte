@@ -20,6 +20,9 @@
     import { userSettingsStore } from '$stores/userSettings.svelte';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
     import { createExecutionState } from '$lib/editor';
+    import { logger } from '$lib/logger';
+
+    const log = logger.withTag('Editor');
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -53,9 +56,11 @@
     $effect(() => {
         const snapshot = { script, scriptName, currentScriptId, selectedLang, selectedVersion };
         const timer = setTimeout(() => {
-            for (const [key, value] of Object.entries(snapshot)) {
-                localStorage.setItem(key, JSON.stringify(value));
-            }
+            try {
+                for (const [key, value] of Object.entries(snapshot)) {
+                    localStorage.setItem(key, JSON.stringify(value));
+                }
+            } catch { /* Quota exceeded or private browsing */ }
         }, 300);
         return () => clearTimeout(timer);
     });
@@ -92,7 +97,7 @@
     $effect(() => {
         const isAuth = authenticated;
         if (!prevAuth && isAuth) {
-            loadSavedScripts().catch(console.error);
+            loadSavedScripts().catch((e) => log.error(e));
         } else if (prevAuth && !isAuth) {
             savedScripts = [];
             currentScriptId = null;

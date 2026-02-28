@@ -35,7 +35,6 @@ describe('SagasStore', () => {
     }
 
     afterEach(() => {
-        store?.cleanup();
         teardown?.();
     });
 
@@ -226,14 +225,13 @@ describe('SagasStore', () => {
             );
         });
 
-        it('stops on cleanup', async () => {
+        it('stops when refreshEnabled set to false', async () => {
             createStore();
             await vi.advanceTimersByTimeAsync(5000);
             expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled();
 
             const callsBefore = mocks.listSagasApiV1SagasGet.mock.calls.length;
-            store.autoRefresh.enabled = false;
-            store.cleanup();
+            store.refreshEnabled = false;
 
             await vi.advanceTimersByTimeAsync(10000);
             expect(mocks.listSagasApiV1SagasGet.mock.calls.length).toBe(callsBefore);

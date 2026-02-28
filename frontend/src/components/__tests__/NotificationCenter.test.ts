@@ -278,11 +278,11 @@ describe('NotificationCenter', () => {
       await waitFor(() => { expect(screen.getByText(expected)).toBeInTheDocument(); });
     });
 
-    it('shows date for >24h old notifications', async () => {
+    it('shows relative days for >24h old notifications', async () => {
       const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
       setNotifications([createNotification({ created_at: oldDate.toISOString() })]);
       await openDropdown();
-      await waitFor(() => { expect(screen.getByText(oldDate.toLocaleDateString())).toBeInTheDocument(); });
+      await waitFor(() => { expect(screen.getByText('2d ago')).toBeInTheDocument(); });
     });
   });
 

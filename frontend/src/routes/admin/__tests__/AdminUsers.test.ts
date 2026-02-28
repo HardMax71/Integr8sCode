@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
 }));
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
   listUsersApiV1AdminUsersGet: mocks.listUsersApiV1AdminUsersGet,
   createUserApiV1AdminUsersPost: mocks.createUserApiV1AdminUsersPost,
   updateUserApiV1AdminUsersUserIdPut: mocks.updateUserApiV1AdminUsersUserIdPut,
@@ -25,7 +25,7 @@ vi.mock('../../../lib/api', () => ({
   getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: mocks.getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
 }));
 
-vi.mock('../../../lib/api-interceptors');
+vi.mock('$lib/api-interceptors');
 
 vi.mock('svelte-sonner', () => ({
   toast: {
@@ -36,11 +36,8 @@ vi.mock('svelte-sonner', () => ({
   },
 }));
 
-vi.mock('../../../lib/formatters', () => ({
-  formatTimestamp: (date: string) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US');
-  },
+vi.mock('$lib/formatters', () => ({
+  formatTimestamp: (ts: string) => ts ? `formatted:${ts}` : 'N/A',
 }));
 
 // Simple mock for AdminLayout that just renders children

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, untrack } from 'svelte';
     import type { QueuePriority } from '$lib/api';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
@@ -7,6 +7,7 @@
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '$lib/admin/constants';
     import { createExecutionsStore } from '$lib/admin/stores/executionsStore.svelte';
+    import { formatTimestamp, truncate } from '$lib/formatters';
 
     const store = createExecutionsStore();
 
@@ -23,29 +24,24 @@
 
     const priorityOptions: QueuePriority[] = ['critical', 'high', 'normal', 'low', 'background'];
 
-    function formatDate(dateStr: string): string {
-        return new Date(dateStr).toLocaleString();
-    }
-
-    function truncate(text: string, maxLen: number): string {
-        return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
-    }
-
     let totalPages = $derived(Math.ceil(store.total / store.pagination.pageSize));
 
+    let prevFilters = $state({ status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch });
+
     $effect(() => {
-        void store.statusFilter;
-        void store.priorityFilter;
-        void store.userSearch;
-        store.pagination.currentPage = 1;
-        store.loadExecutions();
+        const current = { status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch };
+        if (current.status !== prevFilters.status || current.priority !== prevFilters.priority || current.search !== prevFilters.search) {
+            prevFilters = current;
+            untrack(() => {
+                store.pagination.currentPage = 1;
+                store.loadExecutions();
+            });
+        }
     });
 
     onMount(() => {
-        store.loadQueueStatus();
+        store.loadData();
     });
-
-    onDestroy(() => store.cleanup());
 </script>
 
 <AdminLayout path="/admin/executions">
@@ -162,7 +158,7 @@
                                                 {/each}
                                             </select>
                                         </td>
-                                        <td class="p-2 text-xs">{formatDate(exec.created_at)}</td>
+                                        <td class="p-2 text-xs">{formatTimestamp(exec.created_at)}</td>
                                     </tr>
                                 {/each}
                             </tbody>

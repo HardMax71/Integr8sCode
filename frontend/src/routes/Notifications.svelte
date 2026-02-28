@@ -6,6 +6,7 @@
     import Spinner from '$components/Spinner.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, Trash2, Clock, CircleCheck, AlertCircle, Info } from '@lucide/svelte';
+    import { formatRelativeTime } from '$lib/formatters';
 
     let loading = $state(false);
     let deleting = $state<Record<string, boolean>>({});
@@ -61,22 +62,6 @@
         const tag_prefix = prefixInput.trim() || undefined;
         await notificationStore.load(100, { include_tags, exclude_tags, tag_prefix });
         loading = false;
-    }
-
-    function formatTimestamp(timestamp: string): string {
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins} minutes ago`;
-        if (diffHours < 24) return `${diffHours} hours ago`;
-        if (diffDays < 7) return `${diffDays} days ago`;
-
-        return date.toLocaleDateString();
     }
 
     // New unified notification rendering: derive icons from tags and colors from severity
@@ -209,7 +194,7 @@
                                     <div class="flex items-center gap-4 mt-3">
                                         <span class="inline-flex items-center gap-1 text-xs text-fg-subtle dark:text-dark-fg-subtle">
                                             <Clock class="w-4 h-4" />
-                                            {formatTimestamp(notification.created_at)}
+                                            {formatRelativeTime(notification.created_at)}
                                         </span>
                                         
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-fg-muted dark:text-dark-fg-muted">

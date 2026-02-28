@@ -18,6 +18,8 @@
     import { setUserSettings } from '$stores/userSettings.svelte';
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
+    import { formatTimestamp } from '$lib/formatters';
+    import { parseISO } from 'date-fns';
 
     let loading = $state(true);
     let saving = $state(false);
@@ -72,26 +74,10 @@
     }
 
     onMount(() => {
-        // First verify if user is authenticated
         if (!authStore.isAuthenticated) {
             return;
         }
-
         loadSettings();
-
-        // Add click outside handler for dropdowns
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as Element | null;
-            if (!target?.closest('.dropdown-container')) {
-                showThemeDropdown = false;
-            }
-        };
-
-        document.addEventListener('click', handleClickOutside);
-
-        return () => {
-            document.removeEventListener('click', handleClickOutside);
-        };
     });
     
     async function loadSettings() {
@@ -160,7 +146,7 @@
         }
 
         history = [...(data?.history || [])]
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            .sort((a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime());
 
         historyCache = history;
         historyCacheTime = Date.now();
@@ -190,24 +176,14 @@
         toast.success('Settings restored successfully');
     }
     
-    function formatTimestamp(ts: string | number): string {
-        // Support ISO 8601 strings or epoch seconds/ms
-        let date: Date;
-        if (typeof ts === 'string') {
-            date = new Date(ts);
-        } else {
-            // Heuristic: seconds vs ms
-            date = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
-        }
-        if (isNaN(date.getTime())) return '';
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${day}/${month}/${year} ${hours}:${minutes}`;
-    }
+
 </script>
+
+<svelte:document onclick={(e) => {
+    if (!(e.target as Element)?.closest('.dropdown-container')) {
+        showThemeDropdown = false;
+    }
+}} />
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 py-8 max-w-4xl">

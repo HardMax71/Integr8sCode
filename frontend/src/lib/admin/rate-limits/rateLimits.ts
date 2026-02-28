@@ -4,7 +4,7 @@
 import type { RateLimitRuleResponse, EndpointGroup } from '$lib/api';
 
 // Group colors for rate limit endpoint groups
-export const GROUP_COLORS: Record<EndpointGroup, string> = {
+const GROUP_COLORS: Record<EndpointGroup, string> = {
     execution: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     admin: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     sse: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -19,7 +19,7 @@ export function getGroupColor(group: EndpointGroup): string {
 }
 
 // Patterns to detect endpoint groups from URL patterns
-export const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> = [
+const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> = [
     { pattern: /\/execute/i, group: 'execution' },
     { pattern: /\/admin\//i, group: 'admin' },
     { pattern: /\/events\//i, group: 'sse' },

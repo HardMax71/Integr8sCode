@@ -38,6 +38,14 @@ repos:
         files: ^frontend/src/.*\.(ts|svelte)$
         pass_filenames: false
 
+      # Stylelint - matches CI: cd frontend && npx stylelint "src/**/*.css"
+      - id: stylelint-frontend
+        name: stylelint (frontend)
+        entry: bash -c 'cd frontend && npx stylelint "src/**/*.css"'
+        language: system
+        files: ^frontend/src/.*\.css$
+        pass_filenames: false
+
       # Svelte Check - matches CI: cd frontend && npx svelte-check
       - id: svelte-check-frontend
         name: svelte-check (frontend)

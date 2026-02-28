@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Eye, Play, Trash2 } from '@lucide/svelte';
     import type { EventBrowseResponse } from '$lib/api';
-    import { formatTimestamp } from '$lib/formatters';
+    import { formatTimestamp, formatDateOnly, formatTimeOnly } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
     import EventTypeIcon from '$components/EventTypeIcon.svelte';
 
@@ -43,10 +43,10 @@
                 >
                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
                         <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
-                            {new Date(event.timestamp).toLocaleDateString()}
+                            {formatDateOnly(event.timestamp)}
                         </div>
                         <div class="text-sm">
-                            {new Date(event.timestamp).toLocaleTimeString()}
+                            {formatTimeOnly(event.timestamp)}
                         </div>
                     </td>
                     <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">

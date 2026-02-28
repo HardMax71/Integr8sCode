@@ -15,8 +15,11 @@ import {
 } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 import { toast } from 'svelte-sonner';
-import { createAutoRefresh } from '../autoRefresh.svelte';
-import { createPaginationState } from '../pagination.svelte';
+import { createPaginationState } from '$lib/admin/pagination.svelte';
+import { parseISO } from 'date-fns';
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('EventsStore');
 
 export type BrowsedEvent = EventBrowseResponse['events'][number];
 
@@ -36,11 +39,12 @@ class EventsStore {
 
     pagination = createPaginationState({ initialPageSize: 10 });
 
-    mainRefresh = createAutoRefresh({
-        onRefresh: () => this.loadAll(),
-        initialRate: 30,
-        initialEnabled: true,
-    });
+    constructor() {
+        $effect(() => {
+            const id = setInterval(() => this.loadAll(), 30_000);
+            return () => { clearInterval(id); };
+        });
+    }
 
     async loadAll(): Promise<void> {
         await Promise.all([this.loadEvents(), this.loadStats()]);
@@ -52,8 +56,8 @@ class EventsStore {
             body: {
                 filters: {
                     ...this.filters,
-                    start_time: this.filters.start_time ? new Date(this.filters.start_time).toISOString() : null,
-                    end_time: this.filters.end_time ? new Date(this.filters.end_time).toISOString() : null
+                    start_time: this.filters.start_time ? parseISO(this.filters.start_time).toISOString() : null,
+                    end_time: this.filters.end_time ? parseISO(this.filters.end_time).toISOString() : null
                 },
                 skip: this.pagination.skip,
                 limit: this.pagination.pageSize
@@ -133,8 +137,9 @@ class EventsStore {
                 const pct = payload.total_events > 0
                     ? Math.round((payload.replayed_events / payload.total_events) * 100)
                     : 0;
+                if (!this.activeReplaySession) return;
                 this.activeReplaySession = {
-                    ...this.activeReplaySession!,
+                    ...this.activeReplaySession,
                     ...payload,
                     progress_percentage: pct,
                 };
@@ -147,8 +152,10 @@ class EventsStore {
                     }
                     this.disconnectReplayStream();
                 }
-            } catch {
-                // Ignore malformed SSE messages (e.g. pings)
+            } catch (e) {
+                if (!(e instanceof SyntaxError)) {
+                    log.warn('SSE parse error:', e);
+                }
             }
         };
 
@@ -176,8 +183,8 @@ class EventsStore {
     exportEvents(format: 'csv' | 'json' = 'csv'): void {
         const params = new URLSearchParams();
         if (this.filters.event_types?.length) params.append('event_types', this.filters.event_types.join(','));
-        if (this.filters.start_time) params.append('start_time', new Date(this.filters.start_time).toISOString());
-        if (this.filters.end_time) params.append('end_time', new Date(this.filters.end_time).toISOString());
+        if (this.filters.start_time) params.append('start_time', parseISO(this.filters.start_time).toISOString());
+        if (this.filters.end_time) params.append('end_time', parseISO(this.filters.end_time).toISOString());
         if (this.filters.aggregate_id) params.append('aggregate_id', this.filters.aggregate_id);
         if (this.filters.user_id) params.append('user_id', this.filters.user_id);
         if (this.filters.service_name) params.append('service_name', this.filters.service_name);
@@ -208,7 +215,6 @@ class EventsStore {
     }
 
     cleanup(): void {
-        this.mainRefresh.cleanup();
         this.disconnectReplayStream();
     }
 }

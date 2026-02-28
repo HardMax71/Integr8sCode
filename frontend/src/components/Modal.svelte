@@ -21,29 +21,18 @@
     xl: 'max-w-6xl',
   };
 
-  // Only listen for Escape when modal is open
-  $effect(() => {
-    if (!open) return;
-
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  });
-
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
 </script>
+
+<svelte:window onkeydown={(e) => open && e.key === 'Escape' && onClose()} />
 
 {#if open}
   <div
     class="modal-backdrop"
     transition:fade={{ duration: 150 }}
     onclick={handleBackdropClick}
-    onkeydown={(e) => e.key === 'Escape' && onClose()}
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"

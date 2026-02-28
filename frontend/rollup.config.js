@@ -164,6 +164,7 @@ export default {
         replace({
             'process.env.VITE_BACKEND_URL': JSON.stringify(''),
             'process.env.VITE_GRAFANA_URL': JSON.stringify(process.env.VITE_GRAFANA_URL || '/grafana'),
+            'const isProduction = false': `const isProduction = ${production}`,
             preventAssignment: true
         }),
         svelte({
@@ -203,7 +204,6 @@ export default {
             module: true,
             compress: {
                 passes: 2,
-                drop_console: true
             },
             format: {
                 comments: false

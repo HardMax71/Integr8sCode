@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, type Component } from 'svelte';
+    import { type Component } from 'svelte';
     import { fly } from 'svelte/transition';
     import { authStore } from '$stores/auth.svelte';
     import { goto } from '@mateothegreat/svelte5-router';
@@ -7,10 +7,15 @@
     import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
+    import { formatRelativeTime } from '$lib/formatters';
+    import { logger } from '$lib/logger';
+
+    const log = logger.withTag('Notifications');
+
+    const AUTO_READ_DELAY_MS = 2000;
 
     let showDropdown = $state(false);
     let hasLoadedInitialData = false;
-    let autoMarkTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
@@ -27,25 +32,33 @@
         urgent: 'text-red-600 dark:text-red-400'
     };
 
-    // Reactive connection based on auth state
     $effect(() => {
         if (authStore.isAuthenticated) {
             if (!hasLoadedInitialData) {
                 hasLoadedInitialData = true;
                 notificationStore.load(20).then(() => {
                     notificationStream.connect((data) => notificationStore.add(data));
-                }).catch((err) => console.error('Failed to load notifications:', err));
+                }).catch((err) => log.error('Failed to load notifications:', err));
             }
         } else {
             notificationStream.disconnect();
             hasLoadedInitialData = false;
             notificationStore.clear();
         }
+        return () => {
+            notificationStream.disconnect();
+        };
     });
 
-    onDestroy(() => {
-        notificationStream.disconnect();
-        if (autoMarkTimeout) clearTimeout(autoMarkTimeout);
+    $effect(() => {
+        if (!showDropdown || notificationStore.unreadCount === 0) return;
+        const timeout = setTimeout(() => {
+            if (!showDropdown) return;
+            notificationStore.notifications.slice(0, 5).forEach(n => {
+                if (n.status !== 'read') markAsRead(n).catch((err) => log.warn('Failed to mark notification as read', err));
+            });
+        }, AUTO_READ_DELAY_MS);
+        return () => clearTimeout(timeout);
     });
 
     async function markAsRead(notification: NotificationResponse): Promise<void> {
@@ -60,32 +73,20 @@
         }
     }
 
-    function toggleDropdown(): void {
-        showDropdown = !showDropdown;
-        if (autoMarkTimeout) { clearTimeout(autoMarkTimeout); autoMarkTimeout = null; }
-
-        if (showDropdown && notificationStore.unreadCount > 0) {
-            autoMarkTimeout = setTimeout(() => {
-                if (!showDropdown) return;
-                autoMarkTimeout = null;
-                notificationStore.notifications.slice(0, 5).forEach(n => {
-                    if (n.status !== 'read') {
-                        markAsRead(n).catch(() => {});
-                    }
-                });
-            }, 2000);
+    function handleNotificationClick(notification: NotificationResponse): void {
+        markAsRead(notification);
+        if (notification.action_url) {
+            if (notification.action_url.startsWith('/')) {
+                showDropdown = false;
+                goto(notification.action_url);
+            } else {
+                window.location.href = notification.action_url;
+            }
         }
     }
 
-    function formatTime(timestamp: string): string {
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
-
-        if (diff < 60000) return 'just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-        return date.toLocaleDateString();
+    function toggleDropdown(): void {
+        showDropdown = !showDropdown;
     }
 
     let notificationPermission = $state(
@@ -159,30 +160,8 @@
                             class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
                             class:bg-blue-50={notification.status !== 'read'}
                             class:dark:bg-blue-900={notification.status !== 'read'}
-                            onclick={() => {
-                                markAsRead(notification);
-                                if (notification.action_url) {
-                                    if (notification.action_url.startsWith('/')) {
-                                        showDropdown = false;
-                                        goto(notification.action_url);
-                                    } else {
-                                        window.location.href = notification.action_url;
-                                    }
-                                }
-                            }}
-                            onkeydown={(e) => {
-                                if (e.key === 'Enter') {
-                                    markAsRead(notification);
-                                    if (notification.action_url) {
-                                        if (notification.action_url.startsWith('/')) {
-                                            showDropdown = false;
-                                            goto(notification.action_url);
-                                        } else {
-                                            window.location.href = notification.action_url;
-                                        }
-                                    }
-                                }
-                            }}
+                            onclick={() => handleNotificationClick(notification)}
+                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(notification); } }}
                             tabindex="0"
                             role="button"
                             aria-label="View notification: {notification.subject}"
@@ -199,7 +178,7 @@
                                         {notification.body}
                                     </p>
                                     <p class="text-xs text-fg-subtle dark:text-dark-fg-subtle mt-2">
-                                        {formatTime(notification.created_at)}
+                                        {formatRelativeTime(notification.created_at)}
                                     </p>
                                 </div>
                                 {#if notification.status !== 'read'}

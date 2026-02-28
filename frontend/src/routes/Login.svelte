@@ -8,6 +8,9 @@
   import { updateMetaTags, pageMeta } from '$utils/meta';
   import { loadUserSettings } from '$lib/user-settings';
   import { getErrorMessage } from '$lib/api-interceptors';
+  import { logger } from '$lib/logger';
+
+  const log = logger.withTag('Login');
 
   let username = $state("");
   let password = $state("");
@@ -32,7 +35,7 @@
       await authStore.login(username, password);
 
       // Load user settings in background (non-blocking)
-      loadUserSettings().catch(err => console.warn('Failed to load user settings:', err));
+      loadUserSettings().catch(err => log.warn('Failed to load user settings:', err));
 
       toast.success("Login successful! Welcome back.");
 

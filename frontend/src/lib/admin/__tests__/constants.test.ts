@@ -1,23 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  STATUS_COLORS,
   STATS_BG_COLORS,
   STATS_TEXT_COLORS,
-  ROLE_COLORS,
-  ACTIVE_STATUS_COLORS
 } from '$lib/admin/constants';
 
 describe('admin constants', () => {
-  describe('STATUS_COLORS', () => {
-    it('has all expected status types', () => {
-      expect(STATUS_COLORS.success).toBe('badge-success');
-      expect(STATUS_COLORS.error).toBe('badge-danger');
-      expect(STATUS_COLORS.warning).toBe('badge-warning');
-      expect(STATUS_COLORS.info).toBe('badge-info');
-      expect(STATUS_COLORS.neutral).toBe('badge-neutral');
-    });
-  });
-
   describe('STATS_BG_COLORS', () => {
     it('has all expected background colors', () => {
       expect(STATS_BG_COLORS.green).toContain('bg-green');
@@ -47,22 +34,4 @@ describe('admin constants', () => {
     });
   });
 
-  describe('ROLE_COLORS', () => {
-    it('has admin and user roles', () => {
-      expect(ROLE_COLORS.admin).toBe('badge-info');
-      expect(ROLE_COLORS.user).toBe('badge-neutral');
-    });
-
-    it('returns undefined for unknown role', () => {
-      expect(ROLE_COLORS['unknown']).toBeUndefined();
-    });
-  });
-
-  describe('ACTIVE_STATUS_COLORS', () => {
-    it('has active/inactive status colors', () => {
-      expect(ACTIVE_STATUS_COLORS.active).toBe('badge-success');
-      expect(ACTIVE_STATUS_COLORS.inactive).toBe('badge-danger');
-      expect(ACTIVE_STATUS_COLORS.disabled).toBe('badge-danger');
-    });
-  });
 });

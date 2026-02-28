@@ -55,8 +55,10 @@ describe('EventsTable', () => {
     const event = createMockEvent({ timestamp: '2024-06-15T14:30:00Z' });
     renderTable([event]);
     const date = new Date('2024-06-15T14:30:00Z');
-    expect(screen.getByText(date.toLocaleDateString())).toBeInTheDocument();
-    expect(screen.getByText(date.toLocaleTimeString())).toBeInTheDocument();
+    const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+    const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    expect(screen.getByText(date.toLocaleDateString(undefined, dateOpts))).toBeInTheDocument();
+    expect(screen.getByText(date.toLocaleTimeString(undefined, timeOpts))).toBeInTheDocument();
   });
 
   it('shows user_id as clickable link when present', () => {

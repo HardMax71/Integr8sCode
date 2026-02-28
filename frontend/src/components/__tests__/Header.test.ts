@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
     logout: vi.fn(),
     login: vi.fn(),
     verifyAuth: vi.fn(),
-    fetchUserProfile: vi.fn(),
   },
   mockThemeStore: {
     value: 'auto' as string,
@@ -178,7 +177,7 @@ describe('Header', () => {
 
     it('shows hamburger menu and toggles on click', async () => {
       await openMobileMenu();
-      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await waitFor(() => { expect(screen.getByTestId('mobile-menu')).toBeInTheDocument(); });
     });
 
     it.each([
@@ -189,8 +188,8 @@ describe('Header', () => {
       setAuth(isAuth, username, role);
       await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
-        expectedContent.forEach(text => expect(mobileMenu?.textContent).toContain(text));
+        const mobileMenu = screen.getByTestId('mobile-menu');
+        expectedContent.forEach(text => expect(mobileMenu.textContent).toContain(text));
       });
     });
   });
@@ -238,23 +237,23 @@ describe('Header', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
 
       await openMobileMenu();
-      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await waitFor(() => { expect(screen.getByTestId('mobile-menu')).toBeInTheDocument(); });
 
       // Resize to desktop width
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
       window.dispatchEvent(new Event('resize'));
 
       await waitFor(() => {
-        expect(document.body.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('mobile-menu')).not.toBeInTheDocument();
       });
     });
 
     it('detects mobile on mount when window is narrow', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
-      const { container } = render(Header);
+      render(Header);
 
       // Mobile menu toggle should be visible
-      expect(container.querySelector('.block.lg\\:hidden')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-menu-toggle')).toBeInTheDocument();
     });
   });
 
@@ -265,8 +264,8 @@ describe('Header', () => {
 
       await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
-        expect(mobileMenu?.textContent).toContain('Logout');
+        const mobileMenu = screen.getByTestId('mobile-menu');
+        expect(mobileMenu.textContent).toContain('Logout');
       });
 
       const logoutButton = screen.getByRole('button', { name: /Logout/i });

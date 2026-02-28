@@ -4,6 +4,9 @@ import {
     getCurrentUserProfileApiV1AuthMeGet,
 } from '$lib/api';
 import { clearUserSettings } from '$stores/userSettings.svelte';
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('Auth');
 
 // --8<-- [start:AuthState]
 export interface AuthState {
@@ -84,7 +87,7 @@ class AuthStore {
             this.#initialized = true;
             return result;
         } catch (err) {
-            console.error('Auth initialization failed:', err);
+            log.error('Auth initialization failed:', err);
             this.#initialized = false;
             throw err;
         } finally {
@@ -131,7 +134,7 @@ class AuthStore {
             const { loadUserSettings } = await import('$lib/user-settings');
             await loadUserSettings();
         } catch (err) {
-            console.warn('Failed to load user settings:', err);
+            log.warn('Failed to load user settings:', err);
         }
     }
 
@@ -159,28 +162,22 @@ class AuthStore {
 
         this.#authCache = { valid: true, timestamp: Date.now() };
         try {
-            await this.fetchUserProfile();
+            const verified = await this.verifyAuth(true);
+            if (!verified) {
+                log.warn('Profile verification returned false after successful login');
+                return false;
+            }
         } catch (err) {
-            console.warn('Failed to fetch user profile after login:', err);
+            log.warn('Failed to verify profile after login:', err);
         }
         return true;
-    }
-
-    async fetchUserProfile() {
-        const { data, error } = await getCurrentUserProfileApiV1AuthMeGet({});
-        if (error || !data) throw error ?? new Error('No profile data returned');
-        this.userId = data.user_id;
-        this.userEmail = data.email;
-        const current = getPersistedAuthState();
-        if (current) persistAuthState({ ...current, userId: data.user_id, userEmail: data.email });
-        return data;
     }
 
     async logout(): Promise<void> {
         try {
             await logoutApiV1AuthLogoutPost({});
         } catch (err) {
-            console.error('Logout API call failed:', err);
+            log.error('Logout API call failed:', err);
         } finally {
             this.clearAuth();
             clearUserSettings();
@@ -234,7 +231,7 @@ class AuthStore {
             } catch (err) {
                 // Network error - use cached state if available (offline-first)
                 // See function docstring for security trade-off explanation
-                console.warn('Auth verification failed (network error):', err);
+                log.warn('Auth verification failed (network error):', err);
                 if (this.#authCache.valid !== null) return this.#authCache.valid;
                 this.clearAuth();
                 return false;

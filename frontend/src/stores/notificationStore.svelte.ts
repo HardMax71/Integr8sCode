@@ -39,7 +39,7 @@ class NotificationStore {
     }
 
     add(notification: NotificationResponse) {
-        this.notifications = [notification, ...this.notifications].slice(0, 100);
+        this.notifications = [notification, ...this.notifications];
         if (notification.status !== 'read') this.unreadCount++;
     }
 

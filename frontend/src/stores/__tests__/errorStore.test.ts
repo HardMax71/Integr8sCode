@@ -25,7 +25,6 @@ describe('errorStore', () => {
 
       expect(appError.current).not.toBe(null);
       expect(appError.current?.error).toBe(error);
-      expect(appError.current?.timestamp).toBeDefined();
       expect(appError.current?.title).toBeUndefined();
     });
 
@@ -46,30 +45,26 @@ describe('errorStore', () => {
       expect(appError.current?.title).toBe('Custom Title');
     });
 
-    it('logs error to console', async () => {
+    it('logs error via consola', async () => {
       const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error', 'Error Title');
 
-      expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error Title', 'Logged error');
+      const args = consoleSpy.mock.calls[0]!;
+      expect(args[0]).toContain('ErrorStore');
+      expect(args[0]).toContain('Error Title');
+      expect(args[args.length - 1]).toBe('Logged error');
     });
 
-    it('uses default title in log when not provided', async () => {
+    it('logs error without title via consola', async () => {
       const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error without title');
 
-      expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error:', 'Logged error without title');
-    });
-
-    it('includes timestamp', async () => {
-      const { appError } = await import('$stores/errorStore.svelte');
-      const before = Date.now();
-      appError.setError('Timestamped error');
-      const after = Date.now();
-
-      expect(appError.current?.timestamp).toBeGreaterThanOrEqual(before);
-      expect(appError.current?.timestamp).toBeLessThanOrEqual(after);
+      const args = consoleSpy.mock.calls[0]!;
+      expect(args[0]).toContain('ErrorStore');
+      expect(args[0]).toContain('Error:');
+      expect(args[args.length - 1]).toBe('Logged error without title');
     });
 
     it('overwrites previous error', async () => {

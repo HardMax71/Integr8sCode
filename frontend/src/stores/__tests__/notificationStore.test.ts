@@ -376,7 +376,7 @@ describe('notificationStore', () => {
     });
   });
 
-  describe('unreadCount derived', () => {
+  describe('unreadCount', () => {
     it('counts unread notifications', async () => {
       mockGetNotifications.mockResolvedValue({
         data: {

@@ -73,6 +73,18 @@
         }
     }
 
+    function handleNotificationClick(notification: NotificationResponse): void {
+        markAsRead(notification);
+        if (notification.action_url) {
+            if (notification.action_url.startsWith('/')) {
+                showDropdown = false;
+                goto(notification.action_url);
+            } else {
+                window.location.href = notification.action_url;
+            }
+        }
+    }
+
     function toggleDropdown(): void {
         showDropdown = !showDropdown;
     }
@@ -148,30 +160,8 @@
                             class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
                             class:bg-blue-50={notification.status !== 'read'}
                             class:dark:bg-blue-900={notification.status !== 'read'}
-                            onclick={() => {
-                                markAsRead(notification);
-                                if (notification.action_url) {
-                                    if (notification.action_url.startsWith('/')) {
-                                        showDropdown = false;
-                                        goto(notification.action_url);
-                                    } else {
-                                        window.location.href = notification.action_url;
-                                    }
-                                }
-                            }}
-                            onkeydown={(e) => {
-                                if (e.key === 'Enter') {
-                                    markAsRead(notification);
-                                    if (notification.action_url) {
-                                        if (notification.action_url.startsWith('/')) {
-                                            showDropdown = false;
-                                            goto(notification.action_url);
-                                        } else {
-                                            window.location.href = notification.action_url;
-                                        }
-                                    }
-                                }
-                            }}
+                            onclick={() => handleNotificationClick(notification)}
+                            onkeydown={(e) => { if (e.key === 'Enter') handleNotificationClick(notification); }}
                             tabindex="0"
                             role="button"
                             aria-label="View notification: {notification.subject}"

@@ -62,12 +62,12 @@
     </h3>
     <div class="output-content flex-grow overflow-auto pr-2 text-sm custom-scrollbar">
         {#if phase !== 'idle'}
-            <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fadeIn">
+            <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
                 <Spinner />
                 <p class="mt-3 text-sm font-medium text-primary-dark dark:text-primary-light">{phaseLabel}</p>
             </div>
         {:else if error && !result}
-            <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fadeIn">
+            <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
                 <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-3">
                     <AlertTriangle class="w-6 h-6 text-red-600 dark:text-red-400" />
                 </div>
@@ -75,7 +75,7 @@
                 <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{error}</p>
             </div>
         {:else if result}
-            <div class="space-y-5 animate-flyIn">
+            <div class="space-y-5 animate-fly-in">
                 <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
                     <span class="inline-flex items-center rounded-lg px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap {statusClasses}">
                         Status: {result.status}

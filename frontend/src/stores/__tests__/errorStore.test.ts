@@ -50,7 +50,10 @@ describe('errorStore', () => {
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error', 'Error Title');
 
-      expect(consoleSpy).toHaveBeenCalled();
+      const args = consoleSpy.mock.calls[0]!;
+      expect(args[0]).toContain('ErrorStore');
+      expect(args[0]).toContain('Error Title');
+      expect(args[args.length - 1]).toBe('Logged error');
     });
 
     it('logs error without title via consola', async () => {
@@ -58,7 +61,10 @@ describe('errorStore', () => {
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error without title');
 
-      expect(consoleSpy).toHaveBeenCalled();
+      const args = consoleSpy.mock.calls[0]!;
+      expect(args[0]).toContain('ErrorStore');
+      expect(args[0]).toContain('Error:');
+      expect(args[args.length - 1]).toBe('Logged error without title');
     });
 
     it('overwrites previous error', async () => {

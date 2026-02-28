@@ -30,7 +30,7 @@
 
   /* Semantic Colors - Light */
   --color-bg-default: #f8fafc;
-  --color-bg-alt: #ffffff;
+  --color-bg-alt: #fff;
   --color-bg-sidebar: #f1f5f9;
   --color-fg-default: #1e293b;
   --color-fg-muted: #64748b;
@@ -49,11 +49,10 @@
   --color-dark-border-default: #334155;
   --color-dark-border-input: #475569;
   --color-dark-focus-ring: #3b82f6;
-
   --color-code-bg: #0f172a;
 
   /* Surface tokens for layered UI */
-  --color-surface-overlay: #ffffff;
+  --color-surface-overlay: #fff;
   --color-dark-surface-overlay: #1f2937;
 
   /* Interactive states */
@@ -66,11 +65,11 @@
 
   /* Tooltip */
   --color-tooltip-bg: #111827;
-  --color-tooltip-fg: #ffffff;
+  --color-tooltip-fg: #fff;
 
   /* Font Families */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-  --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
 
   /* Custom Shadow */
   --shadow-input-focus: 0 0 0 3px var(--tw-shadow-color);
@@ -79,18 +78,25 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Animations */
-  --animate-fadeIn: fadeIn 0.3s ease-out;
-  --animate-flyIn: flyIn 0.3s var(--ease-out-expo);
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-fly-in: fly-in 0.3s var(--ease-out-expo);
 }
 
-@keyframes fadeIn {
+@keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes flyIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes fly-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -103,12 +109,12 @@
 }
 
 /* Custom utilities */
-@utility animate-fadeIn {
-  animation: var(--animate-fadeIn);
+@utility animate-fade-in {
+  animation: var(--animate-fade-in);
 }
 
-@utility animate-flyIn {
-  animation: var(--animate-flyIn);
+@utility animate-fly-in {
+  animation: var(--animate-fly-in);
 }
 
 @utility form-control-base {
@@ -124,18 +130,22 @@
   border-radius: 0.375rem;
   transition-property: color, background-color, border-color;
   transition-duration: 150ms;
+
   &:focus {
     outline: none;
     box-shadow: 0 0 0 2px var(--color-primary);
     border-color: var(--color-primary);
   }
+
   &:hover {
     background-color: var(--color-neutral-50);
   }
+
   :where(.dark, .dark *) & {
     border-color: var(--color-dark-border-input);
     background-color: var(--color-dark-bg-alt);
     color: var(--color-dark-fg-default);
+
     &:hover {
       background-color: var(--color-neutral-700);
     }
@@ -145,6 +155,7 @@
 @layer base {
   body {
     @apply font-sans antialiased text-fg-default bg-bg-default dark:text-dark-fg-default dark:bg-dark-bg-default transition-colors duration-200;
+
     scroll-behavior: smooth;
   }
 
@@ -158,6 +169,7 @@
   select {
     @apply form-input border-border-input dark:border-dark-border-input bg-bg-alt dark:bg-dark-bg-alt dark:text-dark-fg-default focus:border-primary dark:focus:border-primary focus:ring-3 focus:ring-focus-ring/50 dark:focus:ring-dark-focus-ring/50 rounded-md shadow-xs text-sm;
   }
+
    [type='text']:disabled,
    [type='email']:disabled,
    [type='password']:disabled,
@@ -167,9 +179,11 @@
    select:disabled {
      @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed;
    }
+
    select {
      @apply form-select pr-10; /* Ensure space for dropdown arrow */
    }
+
    [type='checkbox'], [type='radio'] {
      @apply form-checkbox rounded text-primary focus:ring-primary focus:ring-offset-0 focus:ring-2;
    }
@@ -184,12 +198,15 @@
      width: 8px;
      height: 8px;
    }
+
    ::-webkit-scrollbar-track {
      @apply bg-neutral-200 dark:bg-neutral-700 rounded;
    }
+
    ::-webkit-scrollbar-thumb {
      @apply bg-neutral-400 dark:bg-neutral-500 rounded;
    }
+
    ::-webkit-scrollbar-thumb:hover {
      @apply bg-neutral-500 dark:bg-neutral-400;
    }
@@ -197,27 +214,35 @@
    /* CodeMirror Base Overrides */
     .cm-editor {
       @apply font-mono! text-sm border border-border-default dark:border-dark-border-default rounded-lg;
+
       height: 100% !important; /* Force height */
     }
+
     .cm-scroller {
       @apply font-mono!;
     }
+
     /* oneDark Theme specific overrides for better integration */
     .cm-theme-onedark .cm-gutters {
       @apply bg-bg-alt dark:bg-dark-bg-alt border-r border-border-default dark:border-dark-border-default text-fg-muted dark:text-dark-fg-muted;
     }
+
     .cm-theme-onedark .cm-activeLineGutter {
        @apply bg-neutral-200 dark:bg-neutral-700;
     }
+
     .cm-theme-onedark {
        @apply bg-bg-alt dark:bg-code-bg; /* Use code-bg for dark theme editor */
     }
+
     .cm-theme-onedark .cm-content {
        @apply text-fg-default dark:text-dark-fg-default; /* Adjust base text color */
     }
+
     .cm-theme-onedark .cm-cursor {
        @apply border-primary dark:border-primary-light; /* Make cursor more visible */
     }
+
     /* Selection background */
      .cm-theme-onedark .cm-selectionBackground,
      .cm-theme-onedark.cm-focused .cm-selectionBackground {
@@ -230,30 +255,39 @@
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
   }
+
   .btn-sm {
     @apply px-3 py-1.5 text-xs rounded; /* Smaller padding/text/radius */
   }
+
   .btn-xs {
     @apply px-2.5 py-1 text-xs rounded;
   }
+
   .btn-icon {
     @apply p-2!; /* Specific padding for icon-only buttons */
   }
+
   .btn-primary {
     @apply text-white bg-primary hover:bg-primary-dark focus:ring-primary;
   }
+
   .btn-secondary {
      @apply text-white bg-secondary hover:bg-secondary-dark focus:ring-secondary;
   }
+
   .btn-secondary-outline {
      @apply text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 focus:ring-primary dark:text-dark-fg-default dark:bg-dark-bg-alt dark:border-dark-border-input dark:hover:bg-neutral-700;
   }
+
   .btn-ghost {
      @apply text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 focus:ring-primary border-transparent bg-transparent shadow-none;
   }
+
   .btn-danger {
      @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
   }
+
   .btn-danger-outline {
       @apply text-red-600 border border-red-300 hover:bg-red-50 focus:ring-red-500 dark:text-red-400 dark:border-red-500 dark:hover:bg-red-900/30;
   }
@@ -272,9 +306,11 @@
   .input-group {
      @apply flex items-center;
   }
+
   .input-group > :not(:last-child) {
      @apply rounded-r-none border-r-0;
   }
+
   .input-group > :not(:first-child) {
      @apply rounded-l-none;
   }
@@ -292,7 +328,7 @@
     @apply rounded-b-md rounded-t-none;
   }
 
-  .input-group-stacked > div:not(:first-child):not(:last-child) input {
+  .input-group-stacked > div:not(:first-child, :last-child) input {
     @apply rounded-none;
   }
 
@@ -443,6 +479,7 @@
   /* Label with Required Indicator */
   .form-label-required::after {
     content: " *";
+
     @apply text-red-500;
   }
 
@@ -462,6 +499,7 @@
     @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border
            border-border-default dark:border-dark-border-default text-xs
            font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
+
     padding-right: 3rem; /* Space for copy button */
   }
 
@@ -490,6 +528,7 @@
   .output-pre::-webkit-scrollbar-track,
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+
     margin-right: 2px;
   }
 

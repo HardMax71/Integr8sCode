@@ -161,6 +161,38 @@ describe('auth store', () => {
       await expect(authStore.login('baduser', 'badpass')).rejects.toBeDefined();
     });
 
+    it('returns false when post-login verification fails', async () => {
+      mockLoginApi.mockResolvedValue({
+        data: { username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockResolvedValue({ data: null, error: { detail: 'Unauthorized' } });
+
+      const restoreConsole = suppressConsoleWarn();
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.login('testuser', 'password123');
+
+      expect(result).toBe(false);
+      expect(authStore.isAuthenticated).toBe(false);
+      restoreConsole();
+    });
+
+    it('returns true when post-login verification throws (network error)', async () => {
+      mockLoginApi.mockResolvedValue({
+        data: { username: 'testuser', role: 'user', csrf_token: 'token' },
+        error: null,
+      });
+      mockGetProfileApi.mockRejectedValue(new Error('Network error'));
+
+      const restoreConsole = suppressConsoleWarn();
+      const { authStore } = await import('$stores/auth.svelte');
+      const result = await authStore.login('testuser', 'password123');
+
+      expect(result).toBe(true);
+      expect(authStore.isAuthenticated).toBe(true);
+      restoreConsole();
+    });
+
     it('calls API with correct parameters', async () => {
       mockLoginApi.mockResolvedValue({
         data: { username: 'testuser', role: 'user', csrf_token: 'token' },

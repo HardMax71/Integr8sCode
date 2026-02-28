@@ -163,7 +163,10 @@ class AuthStore {
         this.#authCache = { valid: true, timestamp: Date.now() };
         try {
             const verified = await this.verifyAuth(true);
-            if (!verified) log.warn('Profile verification returned false after successful login');
+            if (!verified) {
+                log.warn('Profile verification returned false after successful login');
+                return false;
+            }
         } catch (err) {
             log.warn('Failed to verify profile after login:', err);
         }

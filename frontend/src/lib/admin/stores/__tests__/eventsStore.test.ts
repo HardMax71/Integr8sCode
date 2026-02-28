@@ -397,7 +397,6 @@ describe('EventsStore', () => {
 
             const callsBefore = mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length;
             teardown();
-            vi.clearAllTimers();
 
             await vi.advanceTimersByTimeAsync(60000);
             expect(mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length).toBe(callsBefore);

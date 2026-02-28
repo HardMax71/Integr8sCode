@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { format, parseISO } from 'date-fns';
 import {
     formatTimestamp,
     formatDateOnly,
@@ -10,20 +9,27 @@ import {
     truncate,
 } from '$lib/formatters';
 
+const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+};
+const LOCALE_OPTS_DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+const LOCALE_OPTS_TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
 describe('formatTimestamp', () => {
     it.each([null, undefined, 'garbage', ''] as const)('returns N/A for %j', (input) => {
         expect(formatTimestamp(input as string | null | undefined)).toBe('N/A');
     });
 
-    it('formats ISO string with PPpp', () => {
+    it('formats ISO string using browser locale', () => {
         const iso = '2025-01-15T14:30:00Z';
-        const expected = format(parseISO(iso), 'PPpp');
+        const expected = new Date(iso).toLocaleString(undefined, LOCALE_OPTS_DATETIME);
         expect(formatTimestamp(iso)).toBe(expected);
     });
 
     it('accepts Date object', () => {
         const date = new Date(2025, 0, 15);
-        expect(formatTimestamp(date)).toBe(format(date, 'PPpp'));
+        expect(formatTimestamp(date)).toBe(date.toLocaleString(undefined, LOCALE_OPTS_DATETIME));
     });
 });
 
@@ -32,15 +38,15 @@ describe('formatDateOnly', () => {
         expect(formatDateOnly(input as string | null | undefined)).toBe('N/A');
     });
 
-    it('formats ISO string with PP', () => {
+    it('formats ISO string as locale date', () => {
         const iso = '2025-01-15T14:30:00Z';
-        const expected = format(parseISO(iso), 'PP');
+        const expected = new Date(iso).toLocaleDateString(undefined, LOCALE_OPTS_DATE);
         expect(formatDateOnly(iso)).toBe(expected);
     });
 
     it('accepts Date object', () => {
         const date = new Date(2025, 0, 15);
-        expect(formatDateOnly(date)).toBe(format(date, 'PP'));
+        expect(formatDateOnly(date)).toBe(date.toLocaleDateString(undefined, LOCALE_OPTS_DATE));
     });
 });
 
@@ -49,15 +55,15 @@ describe('formatTimeOnly', () => {
         expect(formatTimeOnly(input as string | null | undefined)).toBe('N/A');
     });
 
-    it('formats ISO string with pp', () => {
+    it('formats ISO string as locale time', () => {
         const iso = '2025-01-15T14:30:00Z';
-        const expected = format(parseISO(iso), 'pp');
+        const expected = new Date(iso).toLocaleTimeString(undefined, LOCALE_OPTS_TIME);
         expect(formatTimeOnly(iso)).toBe(expected);
     });
 
     it('accepts Date object', () => {
         const date = new Date(2025, 0, 15, 9, 5);
-        expect(formatTimeOnly(date)).toBe(format(date, 'pp'));
+        expect(formatTimeOnly(date)).toBe(date.toLocaleTimeString(undefined, LOCALE_OPTS_TIME));
     });
 });
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import { format, parseISO } from 'date-fns';
 import { createMockEvent, createMockEvents, user } from '$test/test-utils';
 
 
@@ -55,9 +54,11 @@ describe('EventsTable', () => {
   it('displays formatted timestamp in table rows', () => {
     const event = createMockEvent({ timestamp: '2024-06-15T14:30:00Z' });
     renderTable([event]);
-    const date = parseISO('2024-06-15T14:30:00Z');
-    expect(screen.getByText(format(date, 'PP'))).toBeInTheDocument();
-    expect(screen.getByText(format(date, 'pp'))).toBeInTheDocument();
+    const date = new Date('2024-06-15T14:30:00Z');
+    const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+    const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    expect(screen.getByText(date.toLocaleDateString(undefined, dateOpts))).toBeInTheDocument();
+    expect(screen.getByText(date.toLocaleTimeString(undefined, timeOpts))).toBeInTheDocument();
   });
 
   it('shows user_id as clickable link when present', () => {

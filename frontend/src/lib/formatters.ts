@@ -1,4 +1,4 @@
-import { parseISO, format, differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
+import { parseISO, differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 
 function toDate(timestamp: string | Date | null | undefined): Date | null {
   if (!timestamp) return null;
@@ -12,14 +12,17 @@ function toDate(timestamp: string | Date | null | undefined): Date | null {
 }
 
 /**
- * Format a timestamp using locale-aware date+time format.
+ * Format a timestamp using the browser's locale (date + time).
  * @param timestamp - ISO timestamp string or Date object
  * @returns Formatted date/time string or 'N/A' if invalid
  */
 export function formatTimestamp(timestamp: string | Date | null | undefined): string {
   const date = toDate(timestamp);
   if (!date) return 'N/A';
-  return format(date, 'PPpp');
+  return date.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
 }
 
 /**
@@ -30,7 +33,7 @@ export function formatTimestamp(timestamp: string | Date | null | undefined): st
 export function formatDateOnly(timestamp: string | Date | null | undefined): string {
   const date = toDate(timestamp);
   if (!date) return 'N/A';
-  return format(date, 'PP');
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
@@ -41,7 +44,7 @@ export function formatDateOnly(timestamp: string | Date | null | undefined): str
 export function formatTimeOnly(timestamp: string | Date | null | undefined): string {
   const date = toDate(timestamp);
   if (!date) return 'N/A';
-  return format(date, 'pp');
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 /**
@@ -102,7 +105,7 @@ export function formatRelativeTime(timestamp: string | Date | null | undefined):
 
   const now = new Date();
 
-  if (date > now) return format(date, 'PP');
+  if (date > now) return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
   const diffSecs = differenceInSeconds(now, date);
   const diffMins = differenceInMinutes(now, date);
@@ -114,7 +117,7 @@ export function formatRelativeTime(timestamp: string | Date | null | undefined):
   if (diffHrs < 24) return `${diffHrs}h ago`;
   if (diffDys < 7) return `${diffDys}d ago`;
 
-  return format(date, 'PP');
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**

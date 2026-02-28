@@ -19,6 +19,7 @@
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '$lib/formatters';
+    import { parseISO } from 'date-fns';
 
     let loading = $state(true);
     let saving = $state(false);
@@ -145,7 +146,7 @@
         }
 
         history = [...(data?.history || [])]
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            .sort((a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime());
 
         historyCache = history;
         historyCacheTime = Date.now();

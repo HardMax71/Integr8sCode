@@ -2,6 +2,9 @@ import {
     notificationStreamApiV1EventsNotificationsStreamGet,
     type NotificationResponse,
 } from '$lib/api';
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('NotificationStream');
 
 type NotificationCallback = (data: NotificationResponse) => void;
 type ErrorCallback = (err: unknown) => void;
@@ -13,7 +16,7 @@ class NotificationStream {
         this.disconnect();
         this.#abortController = new AbortController();
         void this.#start(onNotification).catch((err: unknown) => {
-            console.error('[NotificationStream] connection failed:', err);
+            log.error('Connection failed:', err);
             onError?.(err);
         });
     }

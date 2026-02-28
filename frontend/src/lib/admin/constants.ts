@@ -14,15 +14,6 @@ export const ADMIN_ROUTES = [
 export type AdminRoute = (typeof ADMIN_ROUTES)[number];
 export type AdminPath = AdminRoute['path'];
 
-// Common badge/status color classes
-export const STATUS_COLORS = {
-    success: 'badge-success',
-    error: 'badge-danger',
-    warning: 'badge-warning',
-    info: 'badge-info',
-    neutral: 'badge-neutral'
-} as const;
-
 // Common background colors for stats cards
 export const STATS_BG_COLORS = {
     green: 'bg-green-50 dark:bg-green-900/20',
@@ -45,19 +36,5 @@ export const STATS_TEXT_COLORS = {
     neutral: 'text-neutral-600 dark:text-neutral-400'
 } as const;
 
-// Role colors
-export const ROLE_COLORS: Record<string, string> = {
-    admin: 'badge-info',
-    user: 'badge-neutral'
-};
-
-// Active/inactive status colors
-export const ACTIVE_STATUS_COLORS = {
-    active: 'badge-success',
-    inactive: 'badge-danger',
-    disabled: 'badge-danger'
-} as const;
-
-export type StatusColor = keyof typeof STATUS_COLORS;
 export type StatsBgColor = keyof typeof STATS_BG_COLORS;
 export type StatsTextColor = keyof typeof STATS_TEXT_COLORS;

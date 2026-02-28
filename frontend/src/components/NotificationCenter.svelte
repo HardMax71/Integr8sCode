@@ -8,6 +8,9 @@
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
     import { formatRelativeTime } from '$lib/formatters';
+    import { logger } from '$lib/logger';
+
+    const log = logger.withTag('Notifications');
 
     const AUTO_READ_DELAY_MS = 2000;
 
@@ -35,7 +38,7 @@
                 hasLoadedInitialData = true;
                 notificationStore.load(20).then(() => {
                     notificationStream.connect((data) => notificationStore.add(data));
-                }).catch((err) => console.error('Failed to load notifications:', err));
+                }).catch((err) => log.error('Failed to load notifications:', err));
             }
         } else {
             notificationStream.disconnect();
@@ -52,7 +55,7 @@
         const timeout = setTimeout(() => {
             if (!showDropdown) return;
             notificationStore.notifications.slice(0, 5).forEach(n => {
-                if (n.status !== 'read') markAsRead(n).catch((err) => console.warn('Failed to mark notification as read', err));
+                if (n.status !== 'read') markAsRead(n).catch((err) => log.warn('Failed to mark notification as read', err));
             });
         }, AUTO_READ_DELAY_MS);
         return () => clearTimeout(timeout);

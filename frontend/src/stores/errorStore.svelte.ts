@@ -1,3 +1,7 @@
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('ErrorStore');
+
 export interface AppError {
     error: Error | string;
     title?: string;
@@ -8,7 +12,7 @@ class ErrorStore {
     current = $state<AppError | null>(null);
 
     setError(error: Error | string, title?: string): void {
-        console.error('[ErrorStore]', title || 'Error:', error);
+        log.error(title || 'Error:', error);
         this.current = { error, title, timestamp: Date.now() };
     }
 

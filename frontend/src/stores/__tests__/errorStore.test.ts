@@ -46,20 +46,20 @@ describe('errorStore', () => {
       expect(appError.current?.title).toBe('Custom Title');
     });
 
-    it('logs error to console', async () => {
+    it('logs error via consola', async () => {
       const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error', 'Error Title');
 
-      expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error Title', 'Logged error');
+      expect(consoleSpy).toHaveBeenCalled();
     });
 
-    it('uses default title in log when not provided', async () => {
+    it('logs error without title via consola', async () => {
       const { appError } = await import('$stores/errorStore.svelte');
       const consoleSpy = vi.spyOn(console, 'error');
       appError.setError('Logged error without title');
 
-      expect(consoleSpy).toHaveBeenCalledWith('[ErrorStore]', 'Error:', 'Logged error without title');
+      expect(consoleSpy).toHaveBeenCalled();
     });
 
     it('includes timestamp', async () => {

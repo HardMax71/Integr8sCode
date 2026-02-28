@@ -1,3 +1,7 @@
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('Theme');
+
 export type ThemeValue = 'light' | 'dark' | 'auto';
 
 const browser = typeof window !== 'undefined' && typeof document !== 'undefined';
@@ -62,7 +66,7 @@ class ThemeStore {
         const next: ThemeValue = this.value === 'light' ? 'dark' : this.value === 'dark' ? 'auto' : 'light';
         this.setTheme(next);
         if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
-            void saveUserSettingsFn({ theme: next }).catch((err: unknown) => { console.warn('Failed to persist theme setting', err); });
+            void saveUserSettingsFn({ theme: next }).catch((err: unknown) => { log.warn('Failed to persist theme setting', err); });
         }
     }
 }

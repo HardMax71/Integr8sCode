@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
     logout: vi.fn(),
     login: vi.fn(),
     verifyAuth: vi.fn(),
-    fetchUserProfile: vi.fn(),
   },
   mockThemeStore: {
     value: 'auto' as string,

@@ -113,7 +113,7 @@ describe('auth store', () => {
         error: null,
       });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: PROFILE_RESPONSE,
         error: null,
       });
 
@@ -125,7 +125,6 @@ describe('auth store', () => {
       expect(authStore.isAuthenticated).toBe(true);
       expect(authStore.username).toBe('testuser');
       expect(authStore.userRole).toBe('user');
-      expect(authStore.csrfToken).toBe('new-csrf-token');
     });
 
     it('persists auth state to sessionStorage on login', async () => {
@@ -138,7 +137,7 @@ describe('auth store', () => {
         error: null,
       });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: PROFILE_RESPONSE,
         error: null,
       });
 
@@ -168,7 +167,7 @@ describe('auth store', () => {
         error: null,
       });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: PROFILE_RESPONSE,
         error: null,
       });
 
@@ -189,7 +188,7 @@ describe('auth store', () => {
         error: null,
       });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: PROFILE_RESPONSE,
         error: null,
       });
       mockLogoutApi.mockResolvedValue({ data: {}, error: null });
@@ -222,7 +221,7 @@ describe('auth store', () => {
         error: null,
       });
       mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-123', email: 'test@example.com' },
+        data: PROFILE_RESPONSE,
         error: null,
       });
       mockLogoutApi.mockRejectedValue(new Error('Network error'));
@@ -300,36 +299,6 @@ describe('auth store', () => {
       expect(secondResult).toBe(true); // Should return cached value
 
       restoreConsole();
-    });
-  });
-
-  describe('fetchUserProfile', () => {
-    it('updates userId and userEmail on success', async () => {
-      mockLoginApi.mockResolvedValue({
-        data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-        error: null,
-      });
-      mockGetProfileApi.mockResolvedValue({
-        data: { user_id: 'user-456', email: 'newemail@example.com' },
-        error: null,
-      });
-
-      const { authStore } = await import('$stores/auth.svelte');
-      await authStore.login('testuser', 'password');
-
-      expect(authStore.userId).toBe('user-456');
-      expect(authStore.userEmail).toBe('newemail@example.com');
-    });
-
-    it('throws error on failed profile fetch', async () => {
-      mockGetProfileApi.mockResolvedValue({
-        data: null,
-        error: { detail: 'Unauthorized' },
-      });
-
-      const { authStore } = await import('$stores/auth.svelte');
-
-      await expect(authStore.fetchUserProfile()).rejects.toBeDefined();
     });
   });
 

@@ -20,6 +20,9 @@
     import { userSettingsStore } from '$stores/userSettings.svelte';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
     import { createExecutionState } from '$lib/editor';
+    import { logger } from '$lib/logger';
+
+    const log = logger.withTag('Editor');
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -94,7 +97,7 @@
     $effect(() => {
         const isAuth = authenticated;
         if (!prevAuth && isAuth) {
-            loadSavedScripts().catch(console.error);
+            loadSavedScripts().catch((e) => log.error(e));
         } else if (prevAuth && !isAuth) {
             savedScripts = [];
             currentScriptId = null;

@@ -9,6 +9,9 @@
     import { themeStore } from '$stores/theme.svelte';
     import { appError } from '$stores/errorStore.svelte';
     import { authStore } from '$stores/auth.svelte';
+    import { logger } from '$lib/logger';
+
+    const log = logger.withTag('App');
 
     // Page components
     import Home from "$routes/Home.svelte";
@@ -30,9 +33,9 @@
     onMount(async () => {
         try {
             await authStore.initialize();
-            console.log('[App] Authentication initialized');
+            log.info('Authentication initialized');
         } catch (err) {
-            console.error('[App] Auth initialization failed:', err);
+            log.error('Auth initialization failed:', err);
         } finally {
             authInitialized = true;
         }

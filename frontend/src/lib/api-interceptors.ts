@@ -3,6 +3,9 @@ import type { ValidationError } from '$lib/api';
 import { toast } from 'svelte-sonner';
 import { goto } from '@mateothegreat/svelte5-router';
 import { authStore } from '$stores/auth.svelte';
+import { logger } from '$lib/logger';
+
+const log = logger.withTag('API');
 
 let isHandling401 = false;
 const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register'];
@@ -105,7 +108,7 @@ export function initializeApiInterceptors(): void {
         const url = request.url;
         const isAuthEndpoint = AUTH_ENDPOINTS.some(ep => url.includes(ep));
 
-        console.error('[API Error]', { status, url, error });
+        log.error('API Error', { status, url, error });
 
         const handled = handleErrorStatus(status, error, isAuthEndpoint);
         if (!handled && !isAuthEndpoint) {

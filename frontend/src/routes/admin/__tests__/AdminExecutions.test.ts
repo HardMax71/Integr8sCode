@@ -1,58 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { tick } from 'svelte';
-import { user } from '$test/test-utils';
-
-interface MockExecutionOverrides {
-  execution_id?: string;
-  script?: string;
-  status?: string;
-  lang?: string;
-  lang_version?: string;
-  priority?: string;
-  user_id?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
-const DEFAULT_EXECUTION = {
-  execution_id: 'exec-1',
-  script: 'print("hi")',
-  status: 'queued',
-  lang: 'python',
-  lang_version: '3.11',
-  priority: 'normal',
-  user_id: 'user-1',
-  created_at: '2024-01-15T10:30:00Z',
-  updated_at: null as string | null,
-};
-
-const STATUSES = ['queued', 'scheduled', 'running', 'completed', 'failed', 'timeout', 'cancelled', 'error'];
-const PRIORITIES = ['critical', 'high', 'normal', 'low', 'background'];
-
-const createMockExecution = (overrides: MockExecutionOverrides = {}) => ({ ...DEFAULT_EXECUTION, ...overrides });
-
-const createMockExecutions = (count: number) =>
-  Array.from({ length: count }, (_, i) => createMockExecution({
-    execution_id: `exec-${i + 1}`,
-    status: STATUSES[i % STATUSES.length],
-    priority: PRIORITIES[i % PRIORITIES.length],
-    user_id: `user-${(i % 3) + 1}`,
-    created_at: new Date(Date.now() - i * 60000).toISOString(),
-  }));
-
-const createMockQueueStatus = (overrides: Partial<{
-  queue_depth: number;
-  active_count: number;
-  max_concurrent: number;
-  by_priority: Record<string, number>;
-}> = {}) => ({
-  queue_depth: 5,
-  active_count: 2,
-  max_concurrent: 10,
-  by_priority: { normal: 3, high: 2 },
-  ...overrides,
-});
+import { user, createMockExecution, createMockExecutions, createMockQueueStatus } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   listExecutionsApiV1AdminExecutionsGet: vi.fn(),
@@ -102,7 +50,6 @@ async function renderWithExecutions(
   });
 
   const result = render(AdminExecutions);
-  await tick();
   await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
   return result;
 }
@@ -128,7 +75,6 @@ describe('AdminExecutions', () => {
   describe('initial loading', () => {
     it('calls API on mount', async () => {
       render(AdminExecutions);
-      await tick();
       await waitFor(() => {
         expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
         expect(mocks.getQueueStatusApiV1AdminExecutionsQueueGet).toHaveBeenCalled();
@@ -340,7 +286,6 @@ describe('AdminExecutions', () => {
       });
 
       render(AdminExecutions);
-      await tick();
       await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
 
       expect(screen.getByText(/showing/i)).toBeInTheDocument();

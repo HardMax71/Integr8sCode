@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { createMockUserOverview } from '$test/test-utils';
 
 
-import UserOverviewModal from '../UserOverviewModal.svelte';
+import UserOverviewModal from '$components/admin/events/UserOverviewModal.svelte';
 
 function renderModal(overrides: Partial<{
   overview: ReturnType<typeof createMockUserOverview> | null;

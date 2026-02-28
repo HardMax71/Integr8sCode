@@ -4,7 +4,7 @@ import { user } from '$test/test-utils';
 import type { EventReplayStatusResponse } from '$lib/api';
 
 
-import ReplayProgressBanner from '../ReplayProgressBanner.svelte';
+import ReplayProgressBanner from '$components/admin/events/ReplayProgressBanner.svelte';
 
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
   return {

@@ -71,7 +71,7 @@ vi.mock('@uiw/codemirror-theme-github', () => ({ githubLight: 'githubLight-theme
 vi.mock('$stores/theme.svelte', () => ({ themeStore: { value: 'light' } }));
 vi.mock('$lib/editor/languages', () => ({ getLanguageExtension: mocks.getLanguageExtensionFn }));
 
-import CodeMirrorEditor from '../CodeMirrorEditor.svelte';
+import CodeMirrorEditor from '$components/editor/CodeMirrorEditor.svelte';
 
 const defaultSettings: EditorSettingsOutput = {
   font_size: 14, tab_size: 4, show_line_numbers: true, word_wrap: false, use_tabs: false,

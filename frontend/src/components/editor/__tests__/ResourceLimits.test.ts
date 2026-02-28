@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
 
 
-import ResourceLimits from '../ResourceLimits.svelte';
+import ResourceLimits from '$components/editor/ResourceLimits.svelte';
 
 const LIMITS = {
   cpu_limit: '500m',

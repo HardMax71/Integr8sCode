@@ -8,7 +8,7 @@ import {
     formatBytes,
     formatNumber,
     truncate,
-} from '../formatters';
+} from '$lib/formatters';
 
 describe('formatDate', () => {
     it.each([

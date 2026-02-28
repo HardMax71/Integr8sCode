@@ -2,6 +2,8 @@ import '@testing-library/jest-dom/vitest';
 import { vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/svelte';
 
+vi.useFakeTimers();
+
 // Global handler for promise rejections (mirrors main.ts behavior)
 // API errors are handled by interceptor - just silence the rejection in tests
 process.on('unhandledRejection', () => {});
@@ -72,26 +74,8 @@ vi.stubGlobal('IntersectionObserver', vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 })));
 
-// Enable fake timers globally (shouldAdvanceTime configured in vitest.config.ts)
-vi.useFakeTimers();
-
-// Reset DOM and storage between every test (required for isolate: false)
-beforeEach(() => {
-  cleanup();
-  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
-  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
-});
-
-// Helper to reset mocks between tests (legacy export, kept for compatibility)
-export function resetStorageMocks() {
-  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
-  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
-  vi.clearAllMocks();
-}
-
 // Mock Element.prototype.animate for Svelte transitions (canonical global stub)
-// Guarded for node environment where Element is not available
-if (typeof Element !== 'undefined') Element.prototype.animate = vi.fn().mockImplementation(() => {
+Element.prototype.animate = vi.fn().mockImplementation(() => {
   const mock = {
     _onfinish: null as (() => void) | null,
     get onfinish() { return this._onfinish; },
@@ -112,4 +96,11 @@ if (typeof Element !== 'undefined') Element.prototype.animate = vi.fn().mockImpl
     oncancel: null, onremove: null,
   };
   return mock as unknown as Animation;
+});
+
+// Reset storage and DOM between every test (required for isolate: false)
+beforeEach(() => {
+  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
+  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
+  cleanup();
 });

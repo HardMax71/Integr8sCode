@@ -1,52 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user } from '$test/test-utils';
-
-interface MockSagaOverrides {
-  saga_id?: string;
-  saga_name?: string;
-  execution_id?: string;
-  state?: string;
-  current_step?: string;
-  completed_steps?: string[];
-  compensated_steps?: string[];
-  retry_count?: number;
-  error_message?: string | null;
-  context_data?: Record<string, unknown>;
-  created_at?: string;
-  updated_at?: string;
-  completed_at?: string | null;
-}
-
-const DEFAULT_SAGA = {
-  saga_id: 'saga-1',
-  saga_name: 'execution_saga',
-  execution_id: 'exec-123',
-  state: 'running',
-  current_step: 'create_pod',
-  completed_steps: ['validate_execution', 'allocate_resources', 'queue_execution'],
-  compensated_steps: [] as string[],
-  retry_count: 0,
-  error_message: null as string | null,
-  context_data: { key: 'value' },
-  created_at: '2024-01-15T10:30:00Z',
-  updated_at: '2024-01-15T10:31:00Z',
-  completed_at: null as string | null,
-};
-
-const SAGA_STATES = ['created', 'running', 'completed', 'failed', 'compensating', 'timeout'];
-
-const createMockSaga = (overrides: MockSagaOverrides = {}) => ({ ...DEFAULT_SAGA, ...overrides });
-
-const createMockSagas = (count: number) =>
-  Array.from({ length: count }, (_, i) => createMockSaga({
-    saga_id: `saga-${i + 1}`,
-    execution_id: `exec-${i + 1}`,
-    state: SAGA_STATES[i % SAGA_STATES.length],
-    created_at: new Date(Date.now() - i * 60000).toISOString(),
-    updated_at: new Date(Date.now() - i * 30000).toISOString(),
-  }));
+import { user, createMockSaga, createMockSagas } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   listSagasApiV1SagasGet: vi.fn(),
@@ -73,7 +28,6 @@ async function renderWithSagas(sagas = createMockSagas(5)) {
   });
 
   const result = render(AdminSagas);
-  await tick();
   await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
   return result;
 }
@@ -89,7 +43,6 @@ describe('AdminSagas', () => {
   describe('initial loading', () => {
     it('calls listSagas on mount', async () => {
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
     });
 
@@ -380,7 +333,6 @@ describe('AdminSagas', () => {
       });
 
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
 
       expect(screen.getByText(/showing/i)).toBeInTheDocument();
@@ -394,7 +346,6 @@ describe('AdminSagas', () => {
       });
 
       render(AdminSagas);
-      await tick();
       await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
 
       vi.clearAllMocks();

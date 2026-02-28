@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { user } from '$test/test-utils';
 
 
-import SavedScripts from '../SavedScripts.svelte';
+import SavedScripts from '$components/editor/SavedScripts.svelte';
 import type { SavedScriptResponse } from '$lib/api';
 
 function createScripts(count: number): SavedScriptResponse[] {

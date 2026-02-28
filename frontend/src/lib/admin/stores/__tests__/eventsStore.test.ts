@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
+import { createMockEvent, createMockStats } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     browseEventsApiV1AdminEventsBrowsePost: vi.fn(),
@@ -72,28 +73,6 @@ class MockEventSource {
 }
 
 const { createEventsStore } = await import('../eventsStore.svelte');
-
-const createMockEvent = (overrides: Record<string, unknown> = {}) => ({
-    event_id: 'evt-1',
-    event_type: 'execution_completed',
-    event_version: '1',
-    timestamp: '2024-01-15T10:30:00Z',
-    aggregate_id: 'exec-456',
-    metadata: { service_name: 'test-service', service_version: '1.0.0', user_id: 'user-1' },
-    execution_id: 'exec-456',
-    exit_code: 0,
-    stdout: 'hello',
-    ...overrides,
-});
-
-const createMockStats = () => ({
-    total_events: 150,
-    error_rate: 2.5,
-    avg_processing_time: 1.23,
-    top_users: [],
-    events_by_type: [],
-    events_by_hour: [],
-});
 
 describe('EventsStore', () => {
     let store: ReturnType<typeof createEventsStore>;

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
+import { createMockExecution, createMockQueueStatus } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     listExecutionsApiV1AdminExecutionsGet: vi.fn(),
@@ -32,26 +33,17 @@ vi.mock('svelte-sonner', () => ({
 
 const { createExecutionsStore } = await import('../executionsStore.svelte');
 
-const createMockExecution = (overrides: Record<string, unknown> = {}) => ({
-    execution_id: 'exec-1',
-    script: 'print("hi")',
-    status: 'queued',
-    lang: 'python',
-    lang_version: '3.11',
-    priority: 'normal',
-    user_id: 'user-1',
-    created_at: '2024-01-15T10:30:00Z',
-    updated_at: null,
-    ...overrides,
-});
-
-const createMockQueueStatus = (overrides: Record<string, unknown> = {}) => ({
-    queue_depth: 5,
-    active_count: 2,
-    max_concurrent: 10,
-    by_priority: { normal: 3, high: 2 },
-    ...overrides,
-});
+function setupDefaultMocks() {
+    mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
+        data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
+    });
+    mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
+        data: createMockQueueStatus(),
+    });
+    mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
+        data: null,
+    });
+}
 
 describe('ExecutionsStore', () => {
     let store: ReturnType<typeof createExecutionsStore>;
@@ -59,26 +51,38 @@ describe('ExecutionsStore', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-            data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
-        });
-        mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-            data: createMockQueueStatus(),
-        });
-        mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-            data: null,
-        });
+        setupDefaultMocks();
     });
 
+    /**
+     * Creates a store with auto-refresh immediately disabled.
+     * The $effect in createAutoRefresh fires synchronously inside effect_root,
+     * starting a setInterval. With shouldAdvanceTime: true, that interval can
+     * auto-fire during any await, contaminating test state. We immediately
+     * disable it, clear all timers, reset mocks, and re-apply defaults.
+     */
     function createStore() {
+        teardown = effect_root(() => {
+            store = createExecutionsStore();
+        });
+        store.autoRefresh.enabled = false;
+        store.autoRefresh.cleanup();
+        vi.clearAllTimers();
+        vi.clearAllMocks();
+        setupDefaultMocks();
+    }
+
+    function createStoreWithAutoRefresh() {
         teardown = effect_root(() => {
             store = createExecutionsStore();
         });
     }
 
     afterEach(() => {
+        store?.autoRefresh.stop();
         store?.cleanup();
         teardown?.();
+        vi.clearAllTimers();
     });
 
     describe('initial state', () => {
@@ -100,6 +104,7 @@ describe('ExecutionsStore', () => {
 
     describe('loadData', () => {
         it('loads executions and queue status', async () => {
+            createStore();
             const execs = [createMockExecution()];
             mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
                 data: { executions: execs, total: 1 },
@@ -108,7 +113,6 @@ describe('ExecutionsStore', () => {
                 data: createMockQueueStatus(),
             });
 
-            createStore();
             await store.loadData();
 
             expect(store.executions).toEqual(execs);
@@ -117,9 +121,9 @@ describe('ExecutionsStore', () => {
         });
 
         it('handles empty API response', async () => {
+            createStore();
             mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({ data: null });
 
-            createStore();
             await store.loadExecutions();
 
             expect(store.executions).toEqual([]);
@@ -210,8 +214,9 @@ describe('ExecutionsStore', () => {
 
     describe('auto-refresh', () => {
         it('fires loadData on interval', async () => {
-            createStore();
+            createStoreWithAutoRefresh();
             vi.clearAllMocks();
+            setupDefaultMocks();
 
             await vi.advanceTimersByTimeAsync(5000);
             expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(1);
@@ -221,8 +226,9 @@ describe('ExecutionsStore', () => {
         });
 
         it('stops on cleanup', async () => {
-            createStore();
-            // Verify interval is running
+            createStoreWithAutoRefresh();
+            setupDefaultMocks();
+
             await vi.advanceTimersByTimeAsync(5000);
             expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
 

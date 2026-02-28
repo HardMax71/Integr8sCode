@@ -18,11 +18,18 @@ import type {
   NotificationResponse,
   EventMetadata,
   EventType,
+  AdminExecutionResponse,
+  QueueStatusResponse,
+  SagaStatusResponse,
+  UserResponse,
 } from '$lib/api';
 
 export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 
-export const user: UserEventInstance = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+export const user: UserEventInstance = userEvent.setup({
+  delay: null,
+  pointerEventsCheck: 0,
+});
 
 // ============================================================================
 // Mock Store Type (for use with vi.hoisted)
@@ -236,3 +243,121 @@ export function createMockUserOverview(): AdminUserOverview {
     recent_events: [createMockEvent() as AdminUserOverview['recent_events'][number]],
   };
 }
+
+// ============================================================================
+// Admin Execution Mock Helpers
+// ============================================================================
+
+export const DEFAULT_EXECUTION: AdminExecutionResponse = {
+  execution_id: 'exec-1',
+  script: 'print("hi")',
+  status: 'queued',
+  lang: 'python',
+  lang_version: '3.11',
+  priority: 'normal',
+  user_id: 'user-1',
+  stdout: null,
+  stderr: null,
+  exit_code: null,
+  error_type: null,
+  created_at: '2024-01-15T10:30:00Z',
+  updated_at: '2024-01-15T10:30:00Z',
+};
+
+export const createMockExecution = (overrides: Partial<AdminExecutionResponse> = {}): AdminExecutionResponse => ({
+  ...DEFAULT_EXECUTION,
+  ...overrides,
+});
+
+const EXECUTION_STATUSES: AdminExecutionResponse['status'][] = [
+  'queued', 'scheduled', 'running', 'completed', 'failed', 'timeout', 'cancelled', 'error',
+];
+const EXECUTION_PRIORITIES: AdminExecutionResponse['priority'][] = [
+  'critical', 'high', 'normal', 'low', 'background',
+];
+
+export const createMockExecutions = (count: number): AdminExecutionResponse[] =>
+  Array.from({ length: count }, (_, i) => createMockExecution({
+    execution_id: `exec-${i + 1}`,
+    status: EXECUTION_STATUSES[i % EXECUTION_STATUSES.length],
+    priority: EXECUTION_PRIORITIES[i % EXECUTION_PRIORITIES.length],
+    user_id: `user-${(i % 3) + 1}`,
+    created_at: new Date(Date.now() - i * 60000).toISOString(),
+  }));
+
+export const createMockQueueStatus = (overrides: Partial<QueueStatusResponse> = {}): QueueStatusResponse => ({
+  queue_depth: 5,
+  active_count: 2,
+  max_concurrent: 10,
+  by_priority: { normal: 3, high: 2 },
+  ...overrides,
+});
+
+// ============================================================================
+// Admin Saga Mock Helpers
+// ============================================================================
+
+export const DEFAULT_SAGA: SagaStatusResponse = {
+  saga_id: 'saga-1',
+  saga_name: 'execution_saga',
+  execution_id: 'exec-123',
+  state: 'running',
+  current_step: 'create_pod',
+  completed_steps: ['validate_execution', 'allocate_resources', 'queue_execution'],
+  compensated_steps: [],
+  retry_count: 0,
+  error_message: null,
+  created_at: '2024-01-15T10:30:00Z',
+  updated_at: '2024-01-15T10:31:00Z',
+  completed_at: null,
+};
+
+export const createMockSaga = (overrides: Partial<SagaStatusResponse> = {}): SagaStatusResponse => ({
+  ...DEFAULT_SAGA,
+  ...overrides,
+});
+
+const SAGA_STATES: SagaStatusResponse['state'][] = [
+  'created', 'running', 'completed', 'failed', 'compensating', 'timeout',
+];
+
+export const createMockSagas = (count: number): SagaStatusResponse[] =>
+  Array.from({ length: count }, (_, i) => createMockSaga({
+    saga_id: `saga-${i + 1}`,
+    execution_id: `exec-${i + 1}`,
+    state: SAGA_STATES[i % SAGA_STATES.length],
+    created_at: new Date(Date.now() - i * 60000).toISOString(),
+    updated_at: new Date(Date.now() - i * 30000).toISOString(),
+  }));
+
+// ============================================================================
+// Admin User Mock Helpers
+// ============================================================================
+
+export const DEFAULT_USER: UserResponse = {
+  user_id: 'user-1',
+  username: 'testuser',
+  email: 'test@example.com',
+  role: 'user',
+  is_active: true,
+  is_superuser: false,
+  created_at: '2024-01-15T10:30:00Z',
+  updated_at: '2024-01-15T10:30:00Z',
+  bypass_rate_limit: false,
+  global_multiplier: 1.0,
+  has_custom_limits: false,
+};
+
+export const createMockUser = (overrides: Partial<UserResponse> = {}): UserResponse => ({
+  ...DEFAULT_USER,
+  ...overrides,
+});
+
+export const createMockUsers = (count: number): UserResponse[] =>
+  Array.from({ length: count }, (_, i) => createMockUser({
+    user_id: `user-${i + 1}`,
+    username: `user${i + 1}`,
+    email: `user${i + 1}@example.com`,
+    role: i === 0 ? 'admin' : 'user',
+    is_active: i % 3 !== 0,
+  }));

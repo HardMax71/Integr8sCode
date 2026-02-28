@@ -5,7 +5,7 @@ import { toast } from 'svelte-sonner';
 import type { ExecutionResult } from '$lib/api';
 import type { ExecutionPhase } from '$lib/editor';
 
-import OutputPanel from '../OutputPanel.svelte';
+import OutputPanel from '$components/editor/OutputPanel.svelte';
 
 function makeResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
   return {

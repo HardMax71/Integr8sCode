@@ -54,14 +54,6 @@
     @apply bg-transparent border-2 border-current hover:bg-neutral-50 dark:hover:bg-neutral-800;
   }
 
-  .btn-success {
-    @apply text-white bg-green-600 hover:bg-green-700 focus:ring-green-500;
-  }
-
-  .btn-warning {
-    @apply text-white bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500;
-  }
-
   /* Bare Input (for inline editing) */
   .form-input-bare {
     @apply bg-transparent border-0 border-b-2 border-neutral-300 dark:border-neutral-600
@@ -179,18 +171,6 @@
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
 
-  .badge-sm {
-    @apply px-1.5 py-0.5 text-xs;
-  }
-
-  .badge-lg {
-    @apply px-3 py-1 text-sm;
-  }
-
-  .badge-primary {
-    @apply bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light;
-  }
-
   .badge-success {
     @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
   }
@@ -220,37 +200,12 @@
     @apply bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100;
   }
 
-  .alert-success {
-    @apply bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100;
-  }
-
   .alert-warning {
     @apply bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100;
   }
 
   .alert-danger {
     @apply bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100;
-  }
-
-  /* Progress Bar */
-  .progress-container {
-    @apply w-full bg-skeleton dark:bg-dark-skeleton rounded-full h-2;
-  }
-
-  .progress-bar {
-    @apply bg-primary h-2 rounded-full transition-all duration-300;
-  }
-
-  .progress-bar-success {
-    @apply bg-green-600 dark:bg-green-400;
-  }
-
-  .progress-bar-warning {
-    @apply bg-yellow-600 dark:bg-yellow-400;
-  }
-
-  .progress-bar-danger {
-    @apply bg-red-600 dark:bg-red-400;
   }
 
   /* Dropdown Menu (Generic) */
@@ -282,18 +237,6 @@
     @apply animate-pulse bg-skeleton dark:bg-dark-skeleton rounded;
   }
 
-  .skeleton-text {
-    @apply h-4 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded mb-2;
-  }
-
-  .skeleton-title {
-    @apply h-6 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded mb-3;
-  }
-
-  .skeleton-button {
-    @apply h-10 w-24 animate-pulse bg-skeleton dark:bg-dark-skeleton rounded;
-  }
-
   /* Feature Card */
   .feature-card {
     @apply relative flex flex-col items-start text-left p-6 sm:p-8
@@ -303,122 +246,4 @@
            hover:shadow-lg hover:-translate-y-1 hover:border-primary/40;
   }
 
-  /* Empty State */
-  .empty-state {
-    @apply text-center py-8 text-fg-muted dark:text-dark-fg-muted;
-  }
-
-  .empty-state-icon {
-    @apply w-12 h-12 mx-auto mb-4 text-fg-subtle dark:text-dark-fg-subtle;
-  }
-
-  .empty-state-title {
-    @apply text-lg font-medium text-fg-default dark:text-dark-fg-default mb-2;
-  }
-
-  .empty-state-description {
-    @apply text-sm text-fg-muted dark:text-dark-fg-muted;
-  }
-
-  /* List Group */
-  .list-group {
-    @apply divide-y divide-border-default dark:divide-dark-border-default;
-  }
-
-  .list-group-item {
-    @apply p-4 hover:bg-bg-alt dark:hover:bg-dark-bg-alt transition-colors;
-  }
-
-  .list-group-item-clickable {
-    @apply p-4 hover:bg-bg-alt dark:hover:bg-dark-bg-alt cursor-pointer transition-colors;
-  }
-
-  /* Avatar */
-  .avatar {
-    @apply inline-flex items-center justify-center rounded-full bg-fg-subtle dark:bg-dark-fg-subtle text-white;
-  }
-
-  .avatar-sm {
-    @apply w-8 h-8 text-xs;
-  }
-
-  .avatar-md {
-    @apply w-10 h-10 text-sm;
-  }
-
-  .avatar-lg {
-    @apply w-12 h-12 text-base;
-  }
-
-  /* Tabs */
-  .tabs-container {
-    @apply border-b border-border-default dark:border-dark-border-default;
-  }
-
-  .tabs-list {
-    @apply flex space-x-6;
-  }
-
-  .tab-item {
-    @apply py-2 px-1 border-b-2 font-medium text-sm transition-colors;
-  }
-
-  .tab-item-active {
-    @apply border-primary text-primary dark:text-primary-light;
-  }
-
-  .tab-item-inactive {
-    @apply border-transparent text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:border-border-default dark:hover:border-dark-border-default;
-  }
-
-  /* Divider */
-  .divider {
-    @apply border-t border-border-default dark:border-dark-border-default;
-  }
-
-  .divider-vertical {
-    @apply border-l border-border-default dark:border-dark-border-default;
-  }
-
-  /* Status Indicators */
-  .status-dot {
-    @apply w-2 h-2 rounded-full;
-  }
-
-  .status-dot-success {
-    @apply bg-green-500;
-  }
-
-  .status-dot-warning {
-    @apply bg-yellow-500;
-  }
-
-  .status-dot-danger {
-    @apply bg-red-500;
-  }
-
-  .status-dot-info {
-    @apply bg-blue-500;
-  }
-
-  /* Mobile Card View for Tables */
-  .mobile-card {
-    @apply bg-bg-alt dark:bg-dark-bg-alt rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer;
-  }
-
-  .mobile-card-header {
-    @apply flex justify-between items-start mb-2;
-  }
-
-  .mobile-card-body {
-    @apply space-y-2 text-sm;
-  }
-
-  .mobile-card-label {
-    @apply text-fg-muted dark:text-dark-fg-muted;
-  }
-
-  .mobile-card-value {
-    @apply text-fg-default dark:text-dark-fg-default;
-  }
 }

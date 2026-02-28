@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  GROUP_COLORS,
   getGroupColor,
-  ENDPOINT_GROUP_PATTERNS,
   detectGroupFromEndpoint,
   createEmptyRule
 } from '$lib/admin/rate-limits/rateLimits';
@@ -10,30 +8,19 @@ import {
 const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
 
 describe('rateLimits', () => {
-  describe('GROUP_COLORS', () => {
-    it('has all expected groups with dark mode', () => {
-      EXPECTED_GROUPS.forEach(group => {
-        expect(GROUP_COLORS[group as import('$lib/api').EndpointGroup]).toBeDefined();
-        expect(GROUP_COLORS[group as import('$lib/api').EndpointGroup]).toContain('dark:');
-      });
-    });
-  });
-
   describe('getGroupColor', () => {
+    it.each(EXPECTED_GROUPS)('returns a dark-mode color string for %s', (group) => {
+      const color = getGroupColor(group as import('$lib/api').EndpointGroup);
+      expect(color).toBeDefined();
+      expect(color).toContain('dark:');
+    });
+
     it.each([
-      ['execution', GROUP_COLORS.execution],
-      ['admin', GROUP_COLORS.admin],
-      ['api', GROUP_COLORS.api],
+      ['execution', 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'],
+      ['admin', 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'],
+      ['api', 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200'],
     ] as const)('returns correct color for %s', (group, expected) => {
       expect(getGroupColor(group)).toBe(expected);
-    });
-  });
-
-  describe('ENDPOINT_GROUP_PATTERNS', () => {
-    it('has patterns for common endpoints', () => {
-      expect(ENDPOINT_GROUP_PATTERNS.length).toBeGreaterThan(0);
-      const groups = ENDPOINT_GROUP_PATTERNS.map(p => p.group);
-      ['execution', 'admin', 'auth'].forEach(g => expect(groups).toContain(g));
     });
   });
 

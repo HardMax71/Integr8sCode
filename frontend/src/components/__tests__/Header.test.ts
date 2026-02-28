@@ -250,10 +250,10 @@ describe('Header', () => {
 
     it('detects mobile on mount when window is narrow', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
-      const { container } = render(Header);
+      render(Header);
 
       // Mobile menu toggle should be visible
-      expect(container.querySelector('.block.lg\\:hidden')).toBeInTheDocument();
+      expect(screen.getByTestId('mobile-menu-toggle')).toBeInTheDocument();
     });
   });
 

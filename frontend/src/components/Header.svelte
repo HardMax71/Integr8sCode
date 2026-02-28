@@ -169,7 +169,7 @@
           {/if}
         </div>
 
-        <div class="block lg:hidden">
+        <div data-testid="mobile-menu-toggle" class="block lg:hidden">
           <button type="button" onclick={toggleMenu} aria-label={isMenuActive ? 'Close menu' : 'Open menu'} class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default">
             {#if isMenuActive}
               <X class="h-5 w-5" />

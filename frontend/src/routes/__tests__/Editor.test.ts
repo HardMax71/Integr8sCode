@@ -324,4 +324,123 @@ describe('Editor', () => {
       expect(toast.info).toHaveBeenCalledWith('New script started.');
     });
   });
+
+  describe('File upload', () => {
+    function createFileInput() {
+      const { container } = renderEditor();
+      return container.querySelector('input[type="file"]') as HTMLInputElement;
+    }
+
+    function fireFileChange(input: HTMLInputElement, file: File) {
+      Object.defineProperty(input, 'files', { value: [file], writable: true });
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    it('rejects file > 1MB with error toast', async () => {
+      const input = createFileInput();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+      const bigFile = new File(['x'.repeat(1024 * 1024 + 1)], 'large.py', { type: 'text/plain' });
+      fireFileChange(input, bigFile);
+      expect(toast.error).toHaveBeenCalledWith('File too large. Maximum size is 1MB.');
+    });
+
+    it('rejects unsupported file extension with error toast', async () => {
+      const input = createFileInput();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+      const badFile = new File(['content'], 'data.csv', { type: 'text/csv' });
+      fireFileChange(input, badFile);
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Unsupported file type'));
+    });
+
+    it('loads .py file content and shows info toast', async () => {
+      const input = createFileInput();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+      const pyFile = new File(['print("loaded")'], 'test_script.py', { type: 'text/plain' });
+      fireFileChange(input, pyFile);
+      await waitFor(() => {
+        expect(toast.info).toHaveBeenCalledWith(expect.stringContaining('Loaded python script from test_script.py'));
+      });
+    });
+  });
+
+  describe('Example script loading', () => {
+    it('loads example for selected language', async () => {
+      await renderEditor();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+      const exampleBtn = screen.getByTitle('Load an example script for the selected language');
+      await user.click(exampleBtn);
+      expect(toast.info).toHaveBeenCalledWith('Loaded example script for python.');
+      expect(mocks.mockExecutionState.reset).toHaveBeenCalled();
+    });
+
+    it('shows warning when no example available', async () => {
+      mocks.getExampleScriptsApiV1ExampleScriptsGet.mockResolvedValue({
+        data: { scripts: {} },
+        error: undefined,
+      });
+      await renderEditor();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+      const exampleBtn = screen.getByTitle('Load an example script for the selected language');
+      await user.click(exampleBtn);
+      expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('No example script available'));
+    });
+  });
+
+  describe('Export script', () => {
+    it('creates download with correct filename and extension', async () => {
+      await renderEditor();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+
+      // Spy on anchor creation without replacing createElement entirely
+      const mockClick = vi.fn();
+      const origCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+        const el = origCreateElement(tag);
+        if (tag === 'a') {
+          el.click = mockClick;
+        }
+        return el;
+      });
+      const mockCreateObjectURL = vi.fn(() => 'blob:mock-url');
+      const mockRevokeObjectURL = vi.fn();
+      vi.stubGlobal('URL', { createObjectURL: mockCreateObjectURL, revokeObjectURL: mockRevokeObjectURL });
+
+      await user.type(screen.getByLabelText('Script Name'), 'my_script');
+      await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+      await user.click(screen.getByTitle('Download current script'));
+
+      expect(mockCreateObjectURL).toHaveBeenCalled();
+      expect(mockClick).toHaveBeenCalled();
+      expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    });
+  });
+
+  describe('localStorage persistence', () => {
+    it('saves script name to localStorage after changes', async () => {
+      await renderEditor();
+      await waitFor(() => {
+        expect(mocks.getK8sResourceLimitsApiV1K8sLimitsGet).toHaveBeenCalled();
+      });
+
+      await user.type(screen.getByLabelText('Script Name'), 'Persisted');
+
+      // Wait for debounced localStorage write (300ms)
+      await vi.advanceTimersByTimeAsync(400);
+
+      const stored = localStorage.getItem('scriptName');
+      expect(stored).toContain('Persisted');
+    });
+  });
 });

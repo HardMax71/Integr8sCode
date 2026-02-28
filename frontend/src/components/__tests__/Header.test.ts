@@ -177,7 +177,7 @@ describe('Header', () => {
 
     it('shows hamburger menu and toggles on click', async () => {
       await openMobileMenu();
-      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await waitFor(() => { expect(screen.getByTestId('mobile-menu')).toBeInTheDocument(); });
     });
 
     it.each([
@@ -188,8 +188,8 @@ describe('Header', () => {
       setAuth(isAuth, username, role);
       await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
-        expectedContent.forEach(text => expect(mobileMenu?.textContent).toContain(text));
+        const mobileMenu = screen.getByTestId('mobile-menu');
+        expectedContent.forEach(text => expect(mobileMenu.textContent).toContain(text));
       });
     });
   });
@@ -237,14 +237,14 @@ describe('Header', () => {
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
 
       await openMobileMenu();
-      await waitFor(() => { expect(document.body.querySelector('.lg\\:hidden.absolute')).toBeInTheDocument(); });
+      await waitFor(() => { expect(screen.getByTestId('mobile-menu')).toBeInTheDocument(); });
 
       // Resize to desktop width
       Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
       window.dispatchEvent(new Event('resize'));
 
       await waitFor(() => {
-        expect(document.body.querySelector('.lg\\:hidden.absolute')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('mobile-menu')).not.toBeInTheDocument();
       });
     });
 
@@ -264,8 +264,8 @@ describe('Header', () => {
 
       await openMobileMenu();
       await waitFor(() => {
-        const mobileMenu = document.body.querySelector('.lg\\:hidden.absolute');
-        expect(mobileMenu?.textContent).toContain('Logout');
+        const mobileMenu = screen.getByTestId('mobile-menu');
+        expect(mobileMenu.textContent).toContain('Logout');
       });
 
       const logoutButton = screen.getByRole('button', { name: /Logout/i });

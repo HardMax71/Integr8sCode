@@ -79,18 +79,4 @@ describe('createPaginationState', () => {
         });
     });
 
-    describe('reset', () => {
-        it('restores initial values', () => {
-            const p = createPaginationState({ initialPage: 2, initialPageSize: 25 });
-            p.currentPage = 10;
-            p.pageSize = 100;
-            p.totalItems = 500;
-
-            p.reset();
-
-            expect(p.currentPage).toBe(2);
-            expect(p.pageSize).toBe(25);
-            expect(p.totalItems).toBe(0);
-        });
-    });
 });

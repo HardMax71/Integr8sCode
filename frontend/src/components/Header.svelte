@@ -183,7 +183,7 @@
   </div>
 
   {#if isMenuActive}
-    <div class="lg:hidden absolute top-16 left-0 right-0 bg-bg-alt dark:bg-dark-bg-alt shadow-lg border-t border-border-default dark:border-dark-border-default"
+    <div data-testid="mobile-menu" class="lg:hidden absolute top-16 left-0 right-0 bg-bg-alt dark:bg-dark-bg-alt shadow-lg border-t border-border-default dark:border-dark-border-default"
          in:fade={{ duration: 150 }} out:fade={{ duration: 100 }}>
       <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
 

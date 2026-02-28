@@ -5,7 +5,6 @@ const log = logger.withTag('ErrorStore');
 export interface AppError {
     error: Error | string;
     title?: string;
-    timestamp: number;
 }
 
 class ErrorStore {
@@ -13,7 +12,7 @@ class ErrorStore {
 
     setError(error: Error | string, title?: string): void {
         log.error(title || 'Error:', error);
-        this.current = { error, title, timestamp: Date.now() };
+        this.current = { error, title };
     }
 
     clear(): void {

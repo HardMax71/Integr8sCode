@@ -11,7 +11,6 @@ export interface PaginationState {
     readonly skip: number;
     handlePageChange: (page: number, onLoad?: () => void) => void;
     handlePageSizeChange: (size: number, onLoad?: () => void) => void;
-    reset: () => void;
 }
 
 export interface PaginationOptions {
@@ -54,12 +53,6 @@ export function createPaginationState(options: PaginationOptions = {}): Paginati
         onLoad?.();
     }
 
-    function reset(): void {
-        currentPage = opts.initialPage;
-        pageSize = opts.initialPageSize;
-        totalItems = 0;
-    }
-
     return {
         get currentPage() { return currentPage; },
         set currentPage(v: number) { currentPage = v; },
@@ -71,6 +64,5 @@ export function createPaginationState(options: PaginationOptions = {}): Paginati
         get skip() { return skip; },
         handlePageChange,
         handlePageSizeChange,
-        reset
     };
 }

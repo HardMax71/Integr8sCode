@@ -25,7 +25,6 @@ describe('errorStore', () => {
 
       expect(appError.current).not.toBe(null);
       expect(appError.current?.error).toBe(error);
-      expect(appError.current?.timestamp).toBeDefined();
       expect(appError.current?.title).toBeUndefined();
     });
 
@@ -60,16 +59,6 @@ describe('errorStore', () => {
       appError.setError('Logged error without title');
 
       expect(consoleSpy).toHaveBeenCalled();
-    });
-
-    it('includes timestamp', async () => {
-      const { appError } = await import('$stores/errorStore.svelte');
-      const before = Date.now();
-      appError.setError('Timestamped error');
-      const after = Date.now();
-
-      expect(appError.current?.timestamp).toBeGreaterThanOrEqual(before);
-      expect(appError.current?.timestamp).toBeLessThanOrEqual(after);
     });
 
     it('overwrites previous error', async () => {

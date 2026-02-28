@@ -102,10 +102,10 @@ describe('Notifications', () => {
 
   describe('Timestamp formatting', () => {
     it.each([
-      [0, 'Just now'],
-      [3 * 60 * 1000, '3 minutes ago'],
-      [5 * 60 * 60 * 1000, '5 hours ago'],
-      [2 * 24 * 60 * 60 * 1000, '2 days ago'],
+      [0, 'just now'],
+      [3 * 60 * 1000, '3m ago'],
+      [5 * 60 * 60 * 1000, '5h ago'],
+      [2 * 24 * 60 * 60 * 1000, '2d ago'],
     ])('formats %dms ago as "%s"', async (msAgo, expected) => {
       const date = new Date(Date.now() - msAgo);
       mocks.mockNotificationStore.notifications = [

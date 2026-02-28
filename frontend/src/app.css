@@ -93,6 +93,15 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Custom utilities */
 @utility animate-fadeIn {
   animation: var(--animate-fadeIn);
@@ -100,6 +109,37 @@
 
 @utility animate-flyIn {
   animation: var(--animate-flyIn);
+}
+
+@utility form-control-base {
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-neutral-300);
+  background-color: white;
+  color: var(--color-fg-default);
+  border-radius: 0.375rem;
+  transition-property: color, background-color, border-color;
+  transition-duration: 150ms;
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary);
+    border-color: var(--color-primary);
+  }
+  &:hover {
+    background-color: var(--color-neutral-50);
+  }
+  :where(.dark, .dark *) & {
+    border-color: var(--color-dark-border-input);
+    background-color: var(--color-dark-bg-alt);
+    color: var(--color-dark-fg-default);
+    &:hover {
+      background-color: var(--color-neutral-700);
+    }
+  }
 }
 
 @layer base {
@@ -288,10 +328,7 @@
 
   /* Standard Input Styles */
   .form-input-standard {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
+    @apply form-control-base;
   }
 
   .form-input-standard:disabled {
@@ -300,35 +337,22 @@
 
   /* Number Input with Spinner Controls */
   .form-input-number {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
+    @apply form-control-base;
   }
 
   /* Textarea Styles */
   .form-textarea {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors resize-y min-h-[80px];
+    @apply form-control-base resize-y min-h-[80px];
   }
 
   /* Select/Dropdown Styles */
   .form-select-standard {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors pr-10 cursor-pointer;
+    @apply form-control-base pr-10 cursor-pointer;
   }
 
   /* Custom Dropdown Button */
   .form-dropdown-button {
-    @apply w-full flex items-center justify-between text-left
-           px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors cursor-pointer;
+    @apply form-control-base flex items-center justify-between text-left cursor-pointer;
   }
 
   .form-dropdown-button svg {
@@ -399,10 +423,7 @@
 
   /* Date Input Styles */
   .form-input-date {
-    @apply w-full px-3 py-1.5 text-sm border border-neutral-300 dark:border-dark-border-input
-           bg-white dark:bg-dark-bg-alt text-fg-default dark:text-dark-fg-default
-           rounded-md focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-primary
-           hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors;
+    @apply form-control-base;
   }
 
   /* Error State Styles */

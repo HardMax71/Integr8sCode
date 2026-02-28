@@ -1,39 +1,47 @@
-/**
- * Format a timestamp as a localized date string (DD/MM/YYYY HH:mm).
- * @param timestamp - ISO timestamp string or Date object
- * @returns Formatted date string or 'N/A' if invalid
- */
-export function formatDate(timestamp: string | Date | null | undefined): string {
-  if (!timestamp) return 'N/A';
+import { parseISO, format, differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 
-  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-  if (isNaN(date.getTime())) return 'N/A';
-
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+function toDate(timestamp: string | Date | null | undefined): Date | null {
+  if (!timestamp) return null;
+  if (timestamp instanceof Date) return isNaN(timestamp.getTime()) ? null : timestamp;
+  try {
+    const date = parseISO(timestamp);
+    return isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Format a timestamp using the browser's locale settings.
+ * Format a timestamp using locale-aware date+time format.
  * @param timestamp - ISO timestamp string or Date object
- * @param options - Intl.DateTimeFormat options
- * @returns Localized date/time string
+ * @returns Formatted date/time string or 'N/A' if invalid
  */
-export function formatTimestamp(
-  timestamp: string | Date | null | undefined,
-  options?: Intl.DateTimeFormatOptions
-): string {
-  if (!timestamp) return 'N/A';
+export function formatTimestamp(timestamp: string | Date | null | undefined): string {
+  const date = toDate(timestamp);
+  if (!date) return 'N/A';
+  return format(date, 'PPpp');
+}
 
-  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-  if (isNaN(date.getTime())) return 'N/A';
+/**
+ * Format a timestamp as a locale-aware date only (e.g., "Jun 15, 2024").
+ * @param timestamp - ISO timestamp string or Date object
+ * @returns Formatted date string or 'N/A' if invalid
+ */
+export function formatDateOnly(timestamp: string | Date | null | undefined): string {
+  const date = toDate(timestamp);
+  if (!date) return 'N/A';
+  return format(date, 'PP');
+}
 
-  return date.toLocaleString(undefined, options);
+/**
+ * Format a timestamp as a locale-aware time only (e.g., "2:30:00 PM").
+ * @param timestamp - ISO timestamp string or Date object
+ * @returns Formatted time string or 'N/A' if invalid
+ */
+export function formatTimeOnly(timestamp: string | Date | null | undefined): string {
+  const date = toDate(timestamp);
+  if (!date) return 'N/A';
+  return format(date, 'pp');
 }
 
 /**
@@ -72,12 +80,9 @@ export function formatDurationBetween(
   startDate: string | Date | null | undefined,
   endDate: string | Date | null | undefined
 ): string {
-  if (!startDate || !endDate) return 'N/A';
-
-  const start = startDate instanceof Date ? startDate : new Date(startDate);
-  const end = endDate instanceof Date ? endDate : new Date(endDate);
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 'N/A';
+  const start = toDate(startDate);
+  const end = toDate(endDate);
+  if (!start || !end) return 'N/A';
 
   const durationMs = end.getTime() - start.getTime();
   if (durationMs < 0) return 'N/A';
@@ -87,60 +92,29 @@ export function formatDurationBetween(
 
 /**
  * Format a timestamp as relative time (e.g., "just now", "5m ago", "2h ago").
- * Falls back to date string for timestamps older than 24 hours.
+ * Falls back to date string for timestamps older than 7 days.
  * @param timestamp - ISO timestamp string or Date object
  * @returns Relative time string
  */
 export function formatRelativeTime(timestamp: string | Date | null | undefined): string {
-  if (!timestamp) return 'N/A';
+  const date = toDate(timestamp);
+  if (!date) return 'N/A';
 
-  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-  if (isNaN(date.getTime())) return 'N/A';
+  const now = new Date();
 
-  const now = Date.now();
-  const diffMs = now - date.getTime();
+  if (date > now) return format(date, 'PP');
 
-  // Future dates
-  if (diffMs < 0) return date.toLocaleDateString();
+  const diffSecs = differenceInSeconds(now, date);
+  const diffMins = differenceInMinutes(now, date);
+  const diffHrs = differenceInHours(now, date);
+  const diffDys = differenceInDays(now, date);
 
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
+  if (diffSecs < 60) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  if (diffDys < 7) return `${diffDys}d ago`;
 
-  if (diffSeconds < 60) return 'just now';
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return date.toLocaleDateString();
-}
-
-/**
- * Format bytes to human-readable size.
- * @param bytes - Size in bytes
- * @param decimals - Number of decimal places (default: 2)
- * @returns Human-readable size (e.g., "1.5 KB", "2.3 MB")
- */
-export function formatBytes(bytes: number | null | undefined, decimals = 2): string {
-  if (bytes === null || bytes === undefined || bytes < 0) return 'N/A';
-  if (bytes === 0) return '0 B';
-
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
-}
-
-/**
- * Format a number with thousand separators.
- * @param value - Number to format
- * @returns Formatted number string
- */
-export function formatNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined) return 'N/A';
-  return value.toLocaleString();
+  return format(date, 'PP');
 }
 
 /**

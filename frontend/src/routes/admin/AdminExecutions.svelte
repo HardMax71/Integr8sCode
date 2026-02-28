@@ -7,6 +7,7 @@
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '$lib/admin/constants';
     import { createExecutionsStore } from '$lib/admin/stores/executionsStore.svelte';
+    import { formatTimestamp, truncate } from '$lib/formatters';
 
     const store = createExecutionsStore();
 
@@ -22,14 +23,6 @@
     };
 
     const priorityOptions: QueuePriority[] = ['critical', 'high', 'normal', 'low', 'background'];
-
-    function formatDate(dateStr: string): string {
-        return new Date(dateStr).toLocaleString();
-    }
-
-    function truncate(text: string, maxLen: number): string {
-        return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
-    }
 
     let totalPages = $derived(Math.ceil(store.total / store.pagination.pageSize));
 
@@ -165,7 +158,7 @@
                                                 {/each}
                                             </select>
                                         </td>
-                                        <td class="p-2 text-xs">{formatDate(exec.created_at)}</td>
+                                        <td class="p-2 text-xs">{formatTimestamp(exec.created_at)}</td>
                                     </tr>
                                 {/each}
                             </tbody>

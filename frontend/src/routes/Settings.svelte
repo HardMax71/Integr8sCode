@@ -18,6 +18,7 @@
     import { setUserSettings } from '$stores/userSettings.svelte';
     import Spinner from '$components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
+    import { formatTimestamp } from '$lib/formatters';
 
     let loading = $state(true);
     let saving = $state(false);
@@ -174,23 +175,7 @@
         toast.success('Settings restored successfully');
     }
     
-    function formatTimestamp(ts: string | number): string {
-        // Support ISO 8601 strings or epoch seconds/ms
-        let date: Date;
-        if (typeof ts === 'string') {
-            date = new Date(ts);
-        } else {
-            // Heuristic: seconds vs ms
-            date = ts < 1e12 ? new Date(ts * 1000) : new Date(ts);
-        }
-        if (isNaN(date.getTime())) return '';
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${day}/${month}/${year} ${hours}:${minutes}`;
-    }
+
 </script>
 
 <svelte:document onclick={(e) => {

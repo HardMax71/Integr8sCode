@@ -198,8 +198,7 @@
                                         id="events-page-size"
                                         bind:value={store.pagination.pageSize}
                                         onchange={() => { store.pagination.currentPage = 1; store.loadEvents(); }}
-                                        class="px-3 py-1.5 pr-8 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-surface-overlay dark:bg-dark-surface-overlay text-neutral-900 dark:text-neutral-100 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer"
-                                        style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>'); background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 16px;"
+                                        class="pagination-selector"
                                     >
                                         <option value={10}>10</option>
                                         <option value={25}>25</option>

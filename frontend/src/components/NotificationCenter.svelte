@@ -7,6 +7,9 @@
     import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
+    import { formatRelativeTime } from '$lib/formatters';
+
+    const AUTO_READ_DELAY_MS = 2000;
 
     let showDropdown = $state(false);
     let hasLoadedInitialData = false;
@@ -49,9 +52,9 @@
         const timeout = setTimeout(() => {
             if (!showDropdown) return;
             notificationStore.notifications.slice(0, 5).forEach(n => {
-                if (n.status !== 'read') markAsRead(n).catch(() => {});
+                if (n.status !== 'read') markAsRead(n).catch((err) => console.warn('Failed to mark notification as read', err));
             });
-        }, 2000);
+        }, AUTO_READ_DELAY_MS);
         return () => clearTimeout(timeout);
     });
 
@@ -69,17 +72,6 @@
 
     function toggleDropdown(): void {
         showDropdown = !showDropdown;
-    }
-
-    function formatTime(timestamp: string): string {
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
-
-        if (diff < 60000) return 'just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-        return date.toLocaleDateString();
     }
 
     let notificationPermission = $state(
@@ -193,7 +185,7 @@
                                         {notification.body}
                                     </p>
                                     <p class="text-xs text-fg-subtle dark:text-dark-fg-subtle mt-2">
-                                        {formatTime(notification.created_at)}
+                                        {formatRelativeTime(notification.created_at)}
                                     </p>
                                 </div>
                                 {#if notification.status !== 'read'}

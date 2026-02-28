@@ -38,7 +38,7 @@ describe('ExecutionsStore', () => {
     let teardown: () => void;
 
     beforeEach(() => {
-        vi.clearAllTimers();
+        vi.useFakeTimers({ shouldAdvanceTime: false });
         vi.clearAllMocks();
         mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
             data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },

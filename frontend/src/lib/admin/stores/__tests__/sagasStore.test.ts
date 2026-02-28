@@ -22,6 +22,7 @@ describe('SagasStore', () => {
     let teardown: () => void;
 
     beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: false });
         vi.clearAllMocks();
         mocks.listSagasApiV1SagasGet.mockResolvedValue({
             data: { sagas: [], total: 0 },

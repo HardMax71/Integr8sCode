@@ -9,7 +9,7 @@ import {
 } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 import { toast } from 'svelte-sonner';
-import { createPaginationState } from '../pagination.svelte';
+import { createPaginationState } from '$lib/admin/pagination.svelte';
 
 class ExecutionsStore {
     executions = $state<AdminExecutionResponse[]>([]);

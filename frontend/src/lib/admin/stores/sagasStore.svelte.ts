@@ -3,7 +3,7 @@ import {
     type SagaStatusResponse,
 } from '$lib/api';
 import { unwrapOr } from '$lib/api-interceptors';
-import { createPaginationState } from '../pagination.svelte';
+import { createPaginationState } from '$lib/admin/pagination.svelte';
 import { type SagaStateFilter } from '$lib/admin/sagas';
 
 class SagasStore {

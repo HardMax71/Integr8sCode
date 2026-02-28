@@ -31,10 +31,6 @@ export const user: UserEventInstance = userEvent.setup({
   pointerEventsCheck: 0,
 });
 
-// ============================================================================
-// Mock Store Type (for use with vi.hoisted)
-// ============================================================================
-
 /**
  * Type definition for mock stores created with createMockStore.
  * Use this for type annotations in test files.
@@ -52,10 +48,6 @@ export interface MockStore<T> {
 export interface MockDerivedStore<T> {
   subscribe(fn: (v: T) => void): () => void;
 }
-
-// ============================================================================
-// Console Suppression Utilities
-// ============================================================================
 
 /**
  * Suppresses console.error for the duration of a test.
@@ -75,10 +67,6 @@ export function suppressConsoleWarn(): () => void {
   return () => spy.mockRestore();
 }
 
-// ============================================================================
-// Mock Module Factories (for use with async vi.mock() factories)
-// ============================================================================
-
 /**
  * Creates a mock module with named Svelte 5 component exports.
  * Each component has proper $$ structure for Svelte 5 compatibility.
@@ -96,10 +84,6 @@ export function createMockNamedComponents(components: Record<string, string>): R
   }
   return module;
 }
-
-// ============================================================================
-// Test Data Factories
-// ============================================================================
 
 /**
  * Creates a mock notification for testing.
@@ -133,10 +117,6 @@ export function createMockNotifications(count: number): NotificationResponse[] {
     })
   );
 }
-
-// ============================================================================
-// Admin Event Mock Helpers
-// ============================================================================
 
 export function mockWindowGlobals(openMock: Mock, confirmMock: Mock): void {
   vi.stubGlobal('open', openMock);
@@ -244,10 +224,6 @@ export function createMockUserOverview(): AdminUserOverview {
   };
 }
 
-// ============================================================================
-// Admin Execution Mock Helpers
-// ============================================================================
-
 export const DEFAULT_EXECUTION: AdminExecutionResponse = {
   execution_id: 'exec-1',
   script: 'print("hi")',
@@ -293,10 +269,6 @@ export const createMockQueueStatus = (overrides: Partial<QueueStatusResponse> = 
   ...overrides,
 });
 
-// ============================================================================
-// Admin Saga Mock Helpers
-// ============================================================================
-
 export const DEFAULT_SAGA: SagaStatusResponse = {
   saga_id: 'saga-1',
   saga_name: 'execution_saga',
@@ -329,10 +301,6 @@ export const createMockSagas = (count: number): SagaStatusResponse[] =>
     created_at: new Date(Date.now() - i * 60000).toISOString(),
     updated_at: new Date(Date.now() - i * 30000).toISOString(),
   }));
-
-// ============================================================================
-// Admin User Mock Helpers
-// ============================================================================
 
 export const DEFAULT_USER: UserResponse = {
   user_id: 'user-1',

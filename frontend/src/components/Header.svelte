@@ -3,13 +3,12 @@
   import { authStore } from "$stores/auth.svelte";
   import { themeStore, toggleTheme } from "$stores/theme.svelte";
   import { fade } from 'svelte/transition';
-  import { onMount, onDestroy } from 'svelte';
   import NotificationCenter from '$components/NotificationCenter.svelte';
   import { Sun, Moon, MonitorCog, Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, Settings } from '@lucide/svelte';
 
   let isMenuActive = $state(false);
-  let isMobile = $state(false);
-  let resizeListener: (() => void) | null = null;
+  let innerWidth = $state(0);
+  let isMobile = $derived(innerWidth < 1024);
   let showUserDropdown = $state(false);
   let logoImgClass = "h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110";
 
@@ -35,31 +34,10 @@
     }
   }
 
-  // Consolidated onMount - handles both resize and click outside listeners
-  onMount(() => {
-    if (typeof window === 'undefined') return;
-
-    // Mobile detection and resize handling
-    const checkMobile = () => {
-      isMobile = window.innerWidth < 1024;
-      if (!isMobile && isMenuActive) {
-        isMenuActive = false;
-      }
-    };
-    checkMobile();
-    resizeListener = checkMobile;
-    window.addEventListener('resize', resizeListener);
-
-    // Click outside handling for dropdown
-    document.addEventListener('click', handleClickOutside);
-  });
-
-  onDestroy(() => {
-    if (typeof window === 'undefined') return;
-    if (resizeListener) {
-      window.removeEventListener('resize', resizeListener);
+  $effect(() => {
+    if (!isMobile && isMenuActive) {
+      isMenuActive = false;
     }
-    document.removeEventListener('click', handleClickOutside);
   });
 
   const getLinkClasses = (isActive: boolean, isMobileLink = false) => {
@@ -76,6 +54,9 @@
   };
 
 </script>
+
+<svelte:window bind:innerWidth />
+<svelte:document onclick={handleClickOutside} />
 
 <header class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-xs z-50 transition-colors duration-300 h-16">
   <div class="app-container h-full">

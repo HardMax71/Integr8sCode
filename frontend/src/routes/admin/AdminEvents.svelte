@@ -72,6 +72,12 @@
     onDestroy(() => store.cleanup());
 </script>
 
+<svelte:document onclick={(e) => {
+    if (showExportMenu && !(e.target as Element)?.closest('.export-dropdown')) {
+        showExportMenu = false;
+    }
+}} />
+
 <AdminLayout path="/admin/events">
     <div class="container mx-auto px-4 pb-8">
         <!-- Header -->
@@ -101,10 +107,9 @@
                 </button>
 
                 <!-- Export dropdown -->
-                <div class="relative">
+                <div class="relative export-dropdown">
                     <button type="button"
                         onclick={() => showExportMenu = !showExportMenu}
-                        onblur={() => setTimeout(() => showExportMenu = false, 200)}
                         class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
                     >
                         <Download size={16} />

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, type Component } from 'svelte';
+    import { type Component } from 'svelte';
     import { fly } from 'svelte/transition';
     import { authStore } from '$stores/auth.svelte';
     import { goto } from '@mateothegreat/svelte5-router';
@@ -10,7 +10,6 @@
 
     let showDropdown = $state(false);
     let hasLoadedInitialData = false;
-    let autoMarkTimeout: ReturnType<typeof setTimeout> | null = null;
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
@@ -27,7 +26,6 @@
         urgent: 'text-red-600 dark:text-red-400'
     };
 
-    // Reactive connection based on auth state
     $effect(() => {
         if (authStore.isAuthenticated) {
             if (!hasLoadedInitialData) {
@@ -41,11 +39,20 @@
             hasLoadedInitialData = false;
             notificationStore.clear();
         }
+        return () => {
+            notificationStream.disconnect();
+        };
     });
 
-    onDestroy(() => {
-        notificationStream.disconnect();
-        if (autoMarkTimeout) clearTimeout(autoMarkTimeout);
+    $effect(() => {
+        if (!showDropdown || notificationStore.unreadCount === 0) return;
+        const timeout = setTimeout(() => {
+            if (!showDropdown) return;
+            notificationStore.notifications.slice(0, 5).forEach(n => {
+                if (n.status !== 'read') markAsRead(n).catch(() => {});
+            });
+        }, 2000);
+        return () => clearTimeout(timeout);
     });
 
     async function markAsRead(notification: NotificationResponse): Promise<void> {
@@ -62,19 +69,6 @@
 
     function toggleDropdown(): void {
         showDropdown = !showDropdown;
-        if (autoMarkTimeout) { clearTimeout(autoMarkTimeout); autoMarkTimeout = null; }
-
-        if (showDropdown && notificationStore.unreadCount > 0) {
-            autoMarkTimeout = setTimeout(() => {
-                if (!showDropdown) return;
-                autoMarkTimeout = null;
-                notificationStore.notifications.slice(0, 5).forEach(n => {
-                    if (n.status !== 'read') {
-                        markAsRead(n).catch(() => {});
-                    }
-                });
-            }, 2000);
-        }
     }
 
     function formatTime(timestamp: string): string {

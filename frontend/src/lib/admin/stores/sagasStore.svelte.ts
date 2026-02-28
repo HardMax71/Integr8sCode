@@ -3,7 +3,6 @@ import {
     type SagaStatusResponse,
 } from '$lib/api';
 import { unwrapOr } from '$lib/api-interceptors';
-import { createAutoRefresh } from '../autoRefresh.svelte';
 import { createPaginationState } from '../pagination.svelte';
 import { type SagaStateFilter } from '$lib/admin/sagas';
 
@@ -19,12 +18,18 @@ class SagasStore {
 
     hasClientFilters = $derived(Boolean(this.executionIdFilter || this.searchQuery));
 
+    refreshEnabled = $state(true);
+    refreshRate = $state(5);
+
     pagination = createPaginationState({ initialPageSize: 10 });
-    autoRefresh = createAutoRefresh({
-        onRefresh: () => this.loadSagas(),
-        initialRate: 5,
-        initialEnabled: true,
-    });
+
+    constructor() {
+        $effect(() => {
+            if (!this.refreshEnabled) return;
+            const id = setInterval(() => this.loadSagas(), this.refreshRate * 1000);
+            return () => { clearInterval(id); };
+        });
+    }
 
     async loadSagas(): Promise<void> {
         this.loading = true;
@@ -66,10 +71,6 @@ class SagasStore {
         this.searchQuery = '';
         this.pagination.currentPage = 1;
         void this.loadSagas();
-    }
-
-    cleanup(): void {
-        this.autoRefresh.cleanup();
     }
 }
 

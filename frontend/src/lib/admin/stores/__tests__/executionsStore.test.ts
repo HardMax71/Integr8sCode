@@ -55,18 +55,15 @@ describe('ExecutionsStore', () => {
     });
 
     /**
-     * Creates a store with auto-refresh immediately disabled.
-     * The $effect in createAutoRefresh fires synchronously inside effect_root,
-     * starting a setInterval. With shouldAdvanceTime: true, that interval can
-     * auto-fire during any await, contaminating test state. We immediately
-     * disable it, clear all timers, reset mocks, and re-apply defaults.
+     * Creates a store with auto-refresh timers immediately cleared.
+     * The $effect fires synchronously inside effect_root, starting a
+     * setInterval. We clear all timers, reset mocks, and re-apply defaults
+     * so individual tests control timing explicitly.
      */
     function createStore() {
         teardown = effect_root(() => {
             store = createExecutionsStore();
         });
-        store.autoRefresh.enabled = false;
-        store.autoRefresh.cleanup();
         vi.clearAllTimers();
         vi.clearAllMocks();
         setupDefaultMocks();
@@ -79,8 +76,6 @@ describe('ExecutionsStore', () => {
     }
 
     afterEach(() => {
-        store?.autoRefresh.stop();
-        store?.cleanup();
         teardown?.();
         vi.clearAllTimers();
     });
@@ -225,7 +220,7 @@ describe('ExecutionsStore', () => {
             expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(2);
         });
 
-        it('stops on cleanup', async () => {
+        it('stops on teardown', async () => {
             createStoreWithAutoRefresh();
             setupDefaultMocks();
 
@@ -233,8 +228,8 @@ describe('ExecutionsStore', () => {
             expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
 
             const callsBefore = mocks.listExecutionsApiV1AdminExecutionsGet.mock.calls.length;
-            store.autoRefresh.enabled = false;
-            store.cleanup();
+            teardown();
+            vi.clearAllTimers();
 
             await vi.advanceTimersByTimeAsync(10000);
             expect(mocks.listExecutionsApiV1AdminExecutionsGet.mock.calls.length).toBe(callsBefore);

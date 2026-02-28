@@ -9,7 +9,6 @@ import {
 } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 import { toast } from 'svelte-sonner';
-import { createAutoRefresh } from '../autoRefresh.svelte';
 import { createPaginationState } from '../pagination.svelte';
 
 class ExecutionsStore {
@@ -23,11 +22,13 @@ class ExecutionsStore {
     userSearch = $state('');
 
     pagination = createPaginationState({ initialPageSize: 20 });
-    autoRefresh = createAutoRefresh({
-        onRefresh: () => this.loadData(),
-        initialRate: 5,
-        initialEnabled: true,
-    });
+
+    constructor() {
+        $effect(() => {
+            const id = setInterval(() => this.loadData(), 5000);
+            return () => { clearInterval(id); };
+        });
+    }
 
     async loadData(): Promise<void> {
         await Promise.all([this.loadExecutions(), this.loadQueueStatus()]);
@@ -69,10 +70,6 @@ class ExecutionsStore {
         this.statusFilter = 'all';
         this.priorityFilter = 'all';
         this.userSearch = '';
-    }
-
-    cleanup(): void {
-        this.autoRefresh.cleanup();
     }
 }
 

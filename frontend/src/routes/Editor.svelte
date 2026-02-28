@@ -53,9 +53,11 @@
     $effect(() => {
         const snapshot = { script, scriptName, currentScriptId, selectedLang, selectedVersion };
         const timer = setTimeout(() => {
-            for (const [key, value] of Object.entries(snapshot)) {
-                localStorage.setItem(key, JSON.stringify(value));
-            }
+            try {
+                for (const [key, value] of Object.entries(snapshot)) {
+                    localStorage.setItem(key, JSON.stringify(value));
+                }
+            } catch { /* Quota exceeded or private browsing */ }
         }, 300);
         return () => clearTimeout(timer);
     });

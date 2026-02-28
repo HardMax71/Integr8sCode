@@ -62,7 +62,7 @@ class ThemeStore {
         const next: ThemeValue = this.value === 'light' ? 'dark' : this.value === 'dark' ? 'auto' : 'light';
         this.setTheme(next);
         if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
-            void saveUserSettingsFn({ theme: next });
+            void saveUserSettingsFn({ theme: next }).catch(() => {});
         }
     }
 }

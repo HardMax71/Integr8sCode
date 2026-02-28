@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, untrack } from 'svelte';
     import type { QueuePriority } from '$lib/api';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
@@ -33,19 +33,22 @@
 
     let totalPages = $derived(Math.ceil(store.total / store.pagination.pageSize));
 
+    let prevFilters = $state({ status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch });
+
     $effect(() => {
-        void store.statusFilter;
-        void store.priorityFilter;
-        void store.userSearch;
-        store.pagination.currentPage = 1;
-        store.loadExecutions();
+        const current = { status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch };
+        if (current.status !== prevFilters.status || current.priority !== prevFilters.priority || current.search !== prevFilters.search) {
+            prevFilters = current;
+            untrack(() => {
+                store.pagination.currentPage = 1;
+                store.loadExecutions();
+            });
+        }
     });
 
     onMount(() => {
-        store.loadQueueStatus();
+        store.loadData();
     });
-
-    onDestroy(() => store.cleanup());
 </script>
 
 <AdminLayout path="/admin/executions">

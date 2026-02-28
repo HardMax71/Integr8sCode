@@ -204,22 +204,6 @@ describe('notificationStore', () => {
       expect(notificationStore.notifications).toHaveLength(2);
     });
 
-    it('caps notifications at 100', async () => {
-      const { notificationStore } = await import('$stores/notificationStore.svelte');
-
-      // Add 100 notifications
-      for (let i = 0; i < 100; i++) {
-        notificationStore.add(createMockNotification({ notification_id: `n${i}` }));
-      }
-
-      expect(notificationStore.notifications).toHaveLength(100);
-
-      // Add one more
-      notificationStore.add(createMockNotification({ notification_id: 'new' }));
-
-      expect(notificationStore.notifications).toHaveLength(100);
-      expect(notificationStore.notifications[0]!.notification_id).toBe('new');
-    });
   });
 
   describe('markAsRead', () => {

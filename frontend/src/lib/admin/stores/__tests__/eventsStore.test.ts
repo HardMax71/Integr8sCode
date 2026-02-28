@@ -390,14 +390,14 @@ describe('EventsStore', () => {
             expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
         });
 
-        it('stops on cleanup', async () => {
+        it('stops on teardown', async () => {
             createStore();
             await vi.advanceTimersByTimeAsync(30000);
             expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled();
 
             const callsBefore = mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length;
-            store.mainRefresh.enabled = false;
-            store.cleanup();
+            teardown();
+            vi.clearAllTimers();
 
             await vi.advanceTimersByTimeAsync(60000);
             expect(mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length).toBe(callsBefore);

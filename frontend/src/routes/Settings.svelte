@@ -72,26 +72,10 @@
     }
 
     onMount(() => {
-        // First verify if user is authenticated
         if (!authStore.isAuthenticated) {
             return;
         }
-
         loadSettings();
-
-        // Add click outside handler for dropdowns
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as Element | null;
-            if (!target?.closest('.dropdown-container')) {
-                showThemeDropdown = false;
-            }
-        };
-
-        document.addEventListener('click', handleClickOutside);
-
-        return () => {
-            document.removeEventListener('click', handleClickOutside);
-        };
     });
     
     async function loadSettings() {
@@ -208,6 +192,12 @@
         return `${day}/${month}/${year} ${hours}:${minutes}`;
     }
 </script>
+
+<svelte:document onclick={(e) => {
+    if (!(e.target as Element)?.closest('.dropdown-container')) {
+        showThemeDropdown = false;
+    }
+}} />
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 py-8 max-w-4xl">

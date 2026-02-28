@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, untrack } from 'svelte';
     import {
         getSagaStatusApiV1SagasSagaIdGet,
         type SagaStatusResponse,
@@ -46,21 +46,20 @@
         store.pagination.handlePageSizeChange(size, () => store.loadSagas());
     }
 
-    // Reset page when state filter changes
-    let prevStateFilter = '';
+    let prevStateFilter = $state(store.stateFilter);
     $effect(() => {
         if (store.stateFilter !== prevStateFilter) {
             prevStateFilter = store.stateFilter;
-            store.pagination.currentPage = 1;
-            store.loadSagas();
+            untrack(() => {
+                store.pagination.currentPage = 1;
+                store.loadSagas();
+            });
         }
     });
 
     onMount(() => {
         store.loadSagas();
     });
-
-    onDestroy(() => store.cleanup());
 </script>
 
 <AdminLayout path="/admin/sagas">
@@ -78,8 +77,8 @@
 
         <div class="mb-6">
             <AutoRefreshControl
-                bind:enabled={store.autoRefresh.enabled}
-                bind:rate={store.autoRefresh.rate}
+                bind:enabled={store.refreshEnabled}
+                bind:rate={store.refreshRate}
                 loading={store.loading}
                 onRefresh={() => store.loadSagas()}
             />

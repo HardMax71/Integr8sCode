@@ -1,44 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
-
-interface MockUserOverrides {
-  user_id?: string;
-  username?: string;
-  email?: string | null;
-  role?: string;
-  is_active?: boolean;
-  is_disabled?: boolean;
-  created_at?: string;
-  bypass_rate_limit?: boolean;
-  has_custom_limits?: boolean;
-  global_multiplier?: number;
-}
-
-const DEFAULT_USER = {
-  user_id: 'user-1',
-  username: 'testuser',
-  email: 'test@example.com',
-  role: 'user',
-  is_active: true,
-  is_disabled: false,
-  created_at: '2024-01-15T10:30:00Z',
-  bypass_rate_limit: false,
-  has_custom_limits: false,
-  global_multiplier: 1.0,
-};
-
-const createMockUser = (overrides: MockUserOverrides = {}) => ({ ...DEFAULT_USER, ...overrides });
-
-const createMockUsers = (count: number) =>
-  Array.from({ length: count }, (_, i) => createMockUser({
-    user_id: `user-${i + 1}`,
-    username: `user${i + 1}`,
-    email: `user${i + 1}@example.com`,
-    role: i === 0 ? 'admin' : 'user',
-    is_active: i % 3 !== 0,
-    is_disabled: i % 3 === 0,
-  }));
+import { user, createMockUser, createMockUsers } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
   listUsersApiV1AdminUsersGet: vi.fn(),
@@ -148,7 +110,7 @@ describe('AdminUsers', () => {
     });
 
     it('shows dash for missing email', async () => {
-      const users = [createMockUser({ email: null })];
+      const users = [createMockUser({ email: null as unknown as string })];
       await renderWithUsers(users);
       // Desktop table shows '-' for missing email
       expect(screen.getByText('-')).toBeInTheDocument();
@@ -210,8 +172,8 @@ describe('AdminUsers', () => {
 
     it('filters users by status', async () => {
       const users = [
-        createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
-        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
+        createMockUser({ username: 'activeuser', is_active: true }),
+        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false }),
       ];
       await renderWithUsers(users);
       const statusSelect = screen.getByRole('combobox', { name: /Status/i });
@@ -630,8 +592,8 @@ describe('AdminUsers', () => {
 
     it('shows filtered count when filters applied', async () => {
       const users = [
-        createMockUser({ username: 'activeuser', is_active: true, is_disabled: false }),
-        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false, is_disabled: true }),
+        createMockUser({ username: 'activeuser', is_active: true }),
+        createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false }),
       ];
       await renderWithUsers(users);
 

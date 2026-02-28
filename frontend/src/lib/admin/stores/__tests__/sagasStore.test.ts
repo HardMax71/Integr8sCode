@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
+import { createMockSaga } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     listSagasApiV1SagasGet: vi.fn(),
@@ -15,23 +16,6 @@ vi.mock('$lib/api-interceptors', () => ({
 }));
 
 const { createSagasStore } = await import('../sagasStore.svelte');
-
-const createMockSaga = (overrides: Record<string, unknown> = {}) => ({
-    saga_id: 'saga-1',
-    saga_name: 'execution_saga',
-    execution_id: 'exec-123',
-    state: 'running',
-    current_step: 'create_pod',
-    completed_steps: ['validate_execution'],
-    compensated_steps: [],
-    retry_count: 0,
-    error_message: null,
-    context_data: {},
-    created_at: '2024-01-15T10:30:00Z',
-    updated_at: '2024-01-15T10:31:00Z',
-    completed_at: null,
-    ...overrides,
-});
 
 describe('SagasStore', () => {
     let store: ReturnType<typeof createSagasStore>;

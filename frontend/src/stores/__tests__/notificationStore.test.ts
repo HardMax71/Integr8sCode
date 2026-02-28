@@ -1,18 +1,19 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { createMockNotification } from '$test/test-utils';
 
 const mockGetNotifications = vi.fn();
 const mockMarkRead = vi.fn();
 const mockMarkAllRead = vi.fn();
 const mockDeleteNotification = vi.fn();
 
-vi.mock('../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
   getNotificationsApiV1NotificationsGet: (...args: unknown[]) => mockGetNotifications(...args),
   markNotificationReadApiV1NotificationsNotificationIdReadPut: (...args: unknown[]) => mockMarkRead(...args),
   markAllReadApiV1NotificationsMarkAllReadPost: (...args: unknown[]) => mockMarkAllRead(...args),
   deleteNotificationApiV1NotificationsNotificationIdDelete: (...args: unknown[]) => mockDeleteNotification(...args),
 }));
 
-vi.mock('../../lib/api-interceptors', () => ({
+vi.mock('$lib/api-interceptors', () => ({
   getErrorMessage: (err: unknown, fallback = 'An error occurred') => {
     if (!err) return fallback;
     if (typeof err === 'string') return err;
@@ -33,20 +34,6 @@ vi.mock('../../lib/api-interceptors', () => ({
     return fallback;
   },
 }));
-
-const createMockNotification = (overrides: Record<string, unknown> = {}) => ({
-  notification_id: `notif-${Math.random().toString(36).slice(2)}`,
-  channel: 'in_app' as const,
-  status: 'pending' as const,
-  subject: 'Test Notification',
-  body: 'Test message body',
-  action_url: '',
-  created_at: new Date().toISOString(),
-  read_at: null,
-  severity: 'medium' as const,
-  tags: [] as string[],
-  ...overrides,
-});
 
 describe('notificationStore', () => {
   beforeEach(async () => {
@@ -258,7 +245,7 @@ describe('notificationStore', () => {
 
     it('returns false on failure', async () => {
       mockGetNotifications.mockResolvedValue({
-        data: { notifications: [createMockNotification({ notification_id: 'n1' })] },
+        data: { notifications: [createMockNotification({ notification_id: 'n1', status: 'pending' })] },
         error: null,
       });
       mockMarkRead.mockResolvedValue({ error: { detail: 'Failed' } });

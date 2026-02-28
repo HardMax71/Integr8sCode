@@ -1,16 +1,17 @@
 import { describe, it, expect } from 'vitest';
+import type { EndpointGroup } from '$lib/api';
 import {
   getGroupColor,
   detectGroupFromEndpoint,
   createEmptyRule
 } from '$lib/admin/rate-limits/rateLimits';
 
-const EXPECTED_GROUPS = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
+const EXPECTED_GROUPS: EndpointGroup[] = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
 
 describe('rateLimits', () => {
   describe('getGroupColor', () => {
     it.each(EXPECTED_GROUPS)('returns a dark-mode color string for %s', (group) => {
-      const color = getGroupColor(group as import('$lib/api').EndpointGroup);
+      const color = getGroupColor(group);
       expect(color).toBeDefined();
       expect(color).toContain('dark:');
     });

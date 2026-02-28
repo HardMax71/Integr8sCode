@@ -161,7 +161,7 @@
                             class:bg-blue-50={notification.status !== 'read'}
                             class:dark:bg-blue-900={notification.status !== 'read'}
                             onclick={() => handleNotificationClick(notification)}
-                            onkeydown={(e) => { if (e.key === 'Enter') handleNotificationClick(notification); }}
+                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(notification); } }}
                             tabindex="0"
                             role="button"
                             aria-label="View notification: {notification.subject}"

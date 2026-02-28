@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
+import { proxy } from 'svelte/internal/client';
 import { user, createMockUser } from '$test/test-utils';
 import RateLimitsModal from '$components/admin/users/RateLimitsModal.svelte';
 
@@ -37,7 +38,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
     props: {
       open: true,
       user: createMockUser({ username: 'alice' }),
-      config: {
+      config: proxy({
         user_id: 'user-1',
         bypass_rate_limit: false,
         global_multiplier: 1.0,
@@ -45,7 +46,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
         rules: [],
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
-      },
+      }),
       usage: null,
       loading: false,
       saving: false,

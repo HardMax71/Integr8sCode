@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import { proxy } from 'svelte/internal/client';
 import { user } from '$test/test-utils';
 import UserFilters from '$components/admin/users/UserFilters.svelte';
 
@@ -10,7 +11,7 @@ function renderFilters(overrides: Record<string, unknown> = {}) {
       searchQuery: '',
       roleFilter: 'all',
       statusFilter: 'all',
-      advancedFilters: { bypassRateLimit: 'all', hasCustomLimits: 'all', globalMultiplier: 'all' },
+      advancedFilters: proxy({ bypassRateLimit: 'all' as const, hasCustomLimits: 'all' as const, globalMultiplier: 'all' as const }),
       showAdvancedFilters: false,
       hasFiltersActive: false,
       onReset,

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import { proxy } from 'svelte/internal/client';
 import { user, createMockUser } from '$test/test-utils';
 import UserFormModal from '$components/admin/users/UserFormModal.svelte';
 
@@ -15,7 +16,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
     props: {
       open: true,
       editingUser: null,
-      form: { username: '', email: '', password: '', role: 'user', is_active: true },
+      form: proxy({ username: '', email: '', password: '', role: 'user', is_active: true }),
       saving: false,
       onClose,
       onSave,

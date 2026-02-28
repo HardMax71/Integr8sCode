@@ -424,6 +424,8 @@ describe('Editor', () => {
       expect(mockCreateObjectURL).toHaveBeenCalled();
       expect(mockClick).toHaveBeenCalled();
       expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+
+      vi.mocked(document.createElement).mockRestore();
     });
   });
 

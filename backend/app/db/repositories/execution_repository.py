@@ -143,8 +143,9 @@ class ExecutionRepository:
             },
         })
 
-        collection = ExecutionDocument.get_motor_collection()
-        results = await collection.aggregate(pipeline).to_list(length=1)
+        collection = ExecutionDocument.get_pymongo_collection()
+        cursor = await collection.aggregate(pipeline)
+        results = await cursor.to_list(length=1)
 
         if not results:
             return {"total": 0, "by_status": {}, "by_language": {}, "average_duration_ms": 0, "success_rate": 0}

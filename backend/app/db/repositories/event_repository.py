@@ -264,8 +264,8 @@ class EventRepository:
         archive_fields = {"deleted_at": deleted_at, "deleted_by": deleted_by, "deletion_reason": deletion_reason}
         archived_doc = EventArchiveDocument.model_validate(doc).model_copy(update=archive_fields)
 
-        session = await EventDocument.get_motor_collection().database.client.start_session()
-        async with session.start_transaction():
+        session = EventDocument.get_pymongo_collection().database.client.start_session()
+        async with await session.start_transaction():
             await archived_doc.insert(session=session)
             await doc.delete(session=session)
 

@@ -135,7 +135,7 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 409
-        assert response.json()["detail"] == "User already exists"
+        assert response.json()["detail"] == "Email already registered"
 
     @pytest.mark.asyncio
     async def test_register_invalid_email_format(self, client: AsyncClient) -> None:

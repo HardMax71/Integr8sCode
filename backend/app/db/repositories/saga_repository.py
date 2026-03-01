@@ -167,7 +167,7 @@ class SagaRepository:
         )
 
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
-        collection = ExecutionDocument.get_motor_collection()
+        collection = ExecutionDocument.get_pymongo_collection()
         result: list[str] = await collection.distinct("execution_id", {"user_id": user_id})
         return result
 

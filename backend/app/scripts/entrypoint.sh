@@ -76,4 +76,4 @@ cat "$OUT"
 printf 'STDERR %d\n' "$STDERR_BYTES"
 cat "$ERR"
 
-exit 0
+exit "$EXIT_CODE"

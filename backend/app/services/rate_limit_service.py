@@ -176,11 +176,13 @@ local last_refill = now
 
 local bucket_data = redis.call('GET', key)
 if bucket_data then
-    local bucket = cjson.decode(bucket_data)
-    tokens = bucket['tokens']
-    last_refill = bucket['last_refill']
-    local time_passed = now - last_refill
-    tokens = math.min(max_tokens, tokens + time_passed * refill_rate)
+    local ok, bucket = pcall(cjson.decode, bucket_data)
+    if ok and bucket['tokens'] and bucket['last_refill'] then
+        tokens = bucket['tokens']
+        last_refill = bucket['last_refill']
+        local time_passed = now - last_refill
+        tokens = math.min(max_tokens, tokens + time_passed * refill_rate)
+    end
 end
 
 local allowed = 0

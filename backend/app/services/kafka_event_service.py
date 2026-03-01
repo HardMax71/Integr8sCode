@@ -5,7 +5,7 @@ from opentelemetry import trace
 
 from app.core.metrics import EventMetrics
 from app.domain.events import DomainEvent
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.settings import Settings
 
 tracer = trace.get_tracer(__name__)

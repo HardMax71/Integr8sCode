@@ -7,8 +7,8 @@ from typing import Any
 
 import structlog
 
+from app.db import AdminEventsRepository
 from app.db.docs.replay import ReplaySessionDocument
-from app.db.repositories import AdminEventsRepository
 from app.domain.admin import ReplaySessionData, ReplaySessionStatusDetail, ReplaySessionUpdate
 from app.domain.enums import ExportFormat, ReplayStatus, ReplayTarget, ReplayType
 from app.domain.events import (

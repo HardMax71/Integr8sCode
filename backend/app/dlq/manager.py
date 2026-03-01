@@ -6,7 +6,7 @@ import structlog
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
-from app.db.repositories import DLQRepository
+from app.db import DLQRepository
 from app.dlq.models import (
     DLQBatchRetryResult,
     DLQMessage,

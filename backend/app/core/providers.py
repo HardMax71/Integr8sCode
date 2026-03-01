@@ -26,7 +26,7 @@ from app.core.metrics import (
 )
 from app.core.security import SecurityService
 from app.core.tracing import Tracer
-from app.db.repositories import (
+from app.db import (
     AdminEventsRepository,
     AdminSettingsRepository,
     DLQRepository,
@@ -42,7 +42,7 @@ from app.db.repositories import (
 )
 from app.dlq.manager import DLQManager
 from app.domain.saga import SagaConfig
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.admin.admin_execution_service import AdminExecutionService
 from app.services.auth_service import AuthService

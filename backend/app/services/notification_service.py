@@ -10,7 +10,7 @@ import structlog
 from opentelemetry import trace
 
 from app.core.metrics import NotificationMetrics
-from app.db.repositories import NotificationRepository
+from app.db import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus, UserRole
 from app.domain.events import (
     EventMetadata,

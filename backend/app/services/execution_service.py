@@ -7,7 +7,7 @@ import structlog
 from pydantic import TypeAdapter
 
 from app.core.metrics import ExecutionMetrics
-from app.db.repositories import ExecutionRepository
+from app.db import ExecutionRepository
 from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
 from app.domain.events import (
     BaseEvent,
@@ -26,7 +26,7 @@ from app.domain.execution import (
     ResourceLimitsDomain,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader

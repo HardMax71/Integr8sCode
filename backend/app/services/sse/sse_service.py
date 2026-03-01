@@ -5,7 +5,7 @@ from typing import Any
 import structlog
 from pydantic import TypeAdapter
 
-from app.db.repositories import ExecutionRepository
+from app.db import ExecutionRepository
 from app.domain.enums import EventType, SSEControlEvent, UserRole
 from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError

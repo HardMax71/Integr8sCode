@@ -2,7 +2,7 @@ from time import monotonic
 
 import structlog
 
-from app.db.repositories import AdminSettingsRepository
+from app.db import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from app.settings import Settings
 

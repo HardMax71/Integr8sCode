@@ -6,7 +6,7 @@ import structlog
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
-from app.db.repositories import ResourceAllocationRepository, SagaRepository
+from app.db import ResourceAllocationRepository, SagaRepository
 from app.domain.enums import SagaState
 from app.domain.events import (
     DomainEvent,
@@ -25,7 +25,7 @@ from app.domain.saga import (
     SagaConfig,
     SagaContextData,
 )
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
 

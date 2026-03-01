@@ -1,7 +1,7 @@
 import structlog
 
 from app.core.metrics import ExecutionMetrics
-from app.db.repositories import ExecutionRepository
+from app.db import ExecutionRepository
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, StorageType
 from app.domain.events import (
     DomainEvent,
@@ -13,7 +13,7 @@ from app.domain.events import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.settings import Settings
 
 

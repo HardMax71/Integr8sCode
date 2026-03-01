@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  vulture:
-    name: Vulture Dead Code Check
+  grimp:
+    name: Grimp Orphan Module Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -26,7 +26,7 @@ jobs:
           uv python install 3.12
           uv sync --frozen --group lint --no-dev
 
-      - name: Run vulture
+      - name: Run grimp orphan module check
         run: |
           cd backend
-          uv run vulture app/ vulture_whitelist.py
+          uv run python scripts/check_orphan_modules.py

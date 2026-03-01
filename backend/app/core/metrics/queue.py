@@ -30,6 +30,11 @@ class QueueMetrics(BaseMetrics):
             description="Time spent waiting in queue before scheduling",
             unit="s",
         )
+        self._event_data_lost = self._meter.create_counter(
+            name="queue.event_data_lost",
+            description="Executions lost due to expired event data in Redis",
+            unit="1",
+        )
 
     def record_enqueue(self) -> None:
         self._enqueue_total.add(1)
@@ -45,3 +50,6 @@ class QueueMetrics(BaseMetrics):
 
     def record_wait_time(self, wait_seconds: float, priority: str) -> None:
         self._wait_time.record(wait_seconds, attributes={"priority": priority})
+
+    def record_event_data_lost(self) -> None:
+        self._event_data_lost.add(1)

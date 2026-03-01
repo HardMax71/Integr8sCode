@@ -1,10 +1,7 @@
-import json
-import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from kubernetes_asyncio.client import V1Pod, V1PodCondition
-
+import structlog
 from app.domain.enums import EventType, ExecutionErrorType
 from app.domain.events import (
     EventMetadata,
@@ -14,11 +11,21 @@ from app.domain.events import (
     PodRunningEvent,
 )
 from app.services.pod_monitor import PodContext, PodEventMapper, WatchEventType
+from kubernetes_asyncio.client import V1Pod, V1PodCondition
+
 from tests.unit.conftest import make_container_status, make_pod
 
 pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.pod_monitor.event_mapper")
+
+_TERM_MSG = "exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n"
+_TERM_MSG_EMPTY = "exit_code=0\ncpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n"
+
+
+def _framed(stdout: str = "", stderr: str = "") -> str:
+    """Build length-prefixed framed output string."""
+    return f"STDOUT {len(stdout)}\n{stdout}STDERR {len(stderr)}\n{stderr}"
 
 
 def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodContext:
@@ -31,7 +38,7 @@ def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodCo
     )
 
 
-def _make_mock_api(logs: str = "{}") -> MagicMock:
+def _make_mock_api(logs: str = "") -> MagicMock:
     mock = MagicMock()
     mock.read_namespaced_pod_log = AsyncMock(return_value=logs)
     return mock
@@ -39,18 +46,8 @@ def _make_mock_api(logs: str = "{}") -> MagicMock:
 
 @pytest.mark.asyncio
 async def test_pending_running_and_succeeded_mapping() -> None:
-    logs_json = json.dumps({
-        "stdout": "ok",
-        "stderr": "",
-        "exit_code": 0,
-        "resource_usage": {
-            "execution_time_wall_seconds": 0,
-            "cpu_time_jiffies": 0,
-            "clk_tck_hertz": 0,
-            "peak_memory_kb": 0,
-        },
-    })
-    pem = PodEventMapper(k8s_api=_make_mock_api(logs_json), logger=_test_logger)
+    logs = _framed("ok", "")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
 
     # Pending -> scheduled
     pend = make_pod(
@@ -81,25 +78,28 @@ async def test_pending_running_and_succeeded_mapping() -> None:
         "terminated" in s.state for s in pr.container_statuses
     )
 
-    # Succeeded -> completed
+    # Succeeded -> completed (with termination message for resource metrics)
     suc = make_pod(
         name="p",
         phase="Succeeded",
         labels={"execution-id": "e1"},
-        container_statuses=[make_container_status(terminated_exit_code=0)],
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
     )
     evts = await pem.map_pod_event(suc, WatchEventType.MODIFIED)
     comp = [e for e in evts if e.event_type == EventType.EXECUTION_COMPLETED][0]
     assert isinstance(comp, ExecutionCompletedEvent)
     assert comp.exit_code == 0 and comp.stdout == "ok"
+    assert comp.resource_usage is not None
+    assert comp.resource_usage.cpu_time_jiffies == 100
+    assert comp.resource_usage.peak_memory_kb == 1024
 
 
 @pytest.mark.asyncio
 async def test_failed_timeout_and_deleted() -> None:
-    valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 137, "resource_usage": {}})
-    pem = PodEventMapper(k8s_api=_make_mock_api(valid_logs), logger=_test_logger)
+    logs = _framed("", "")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
 
-    # Timeout via DeadlineExceeded
+    # Timeout via DeadlineExceeded (entrypoint killed, no termination message)
     pod_to = make_pod(
         name="p",
         phase="Failed",
@@ -113,13 +113,17 @@ async def test_failed_timeout_and_deleted() -> None:
     assert ev.event_type == EventType.EXECUTION_TIMEOUT and ev.timeout_seconds == 5
 
     # DeadlineExceeded with clean container exit should be treated as completed
-    valid_logs_done = json.dumps({"stdout": "ok", "stderr": "", "exit_code": 0, "resource_usage": {}})
-    pem_done = PodEventMapper(k8s_api=_make_mock_api(valid_logs_done), logger=_test_logger)
+    logs_done = _framed("ok", "")
+    pem_done = PodEventMapper(k8s_api=_make_mock_api(logs_done), logger=_test_logger)
     pod_to_done = make_pod(
         name="p0",
         phase="Failed",
         labels={"execution-id": "e0"},
-        container_statuses=[make_container_status(terminated_exit_code=0, terminated_reason="Completed")],
+        container_statuses=[
+            make_container_status(
+                terminated_exit_code=0, terminated_reason="Completed", terminated_message=_TERM_MSG
+            )
+        ],
         reason="DeadlineExceeded",
         active_deadline_seconds=5,
     )
@@ -140,13 +144,17 @@ async def test_failed_timeout_and_deleted() -> None:
     assert evf.event_type == EventType.EXECUTION_FAILED and evf.error_type in {ExecutionErrorType.SCRIPT_ERROR}
 
     # Deleted with exit code 0 returns completed
-    valid_logs_0 = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
-    pem_completed = PodEventMapper(k8s_api=_make_mock_api(valid_logs_0), logger=_test_logger)
+    logs_0 = _framed("", "")
+    pem_completed = PodEventMapper(k8s_api=_make_mock_api(logs_0), logger=_test_logger)
     pod_del = make_pod(
         name="p3",
         phase="Failed",
         labels={"execution-id": "e3"},
-        container_statuses=[make_container_status(terminated_exit_code=0, terminated_reason="Completed")],
+        container_statuses=[
+            make_container_status(
+                terminated_exit_code=0, terminated_reason="Completed", terminated_message=_TERM_MSG_EMPTY
+            )
+        ],
     )
     evd = (await pem_completed.map_pod_event(pod_del, WatchEventType.DELETED))[0]
     assert evd.event_type == EventType.EXECUTION_COMPLETED
@@ -201,35 +209,116 @@ async def test_scheduled_requires_condition() -> None:
 
 
 @pytest.mark.asyncio
-async def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.LogCaptureFixture) -> None:
-    line_json = '{"stdout":"x","stderr":"","exit_code":3,"resource_usage":{}}'
-    pem = PodEventMapper(k8s_api=_make_mock_api("junk\n" + line_json), logger=_test_logger)
+async def test_extract_logs_with_framed_output() -> None:
+    """Test log extraction with length-prefixed framing and termination message."""
+    logs = _framed("hello world", "some warning")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == "hello world"
+    assert result.stderr == "some warning"
+    assert result.exit_code == 0
+    assert result.resource_usage.cpu_time_jiffies == 100
+    assert result.resource_usage.clk_tck_hertz == 100
+    assert result.resource_usage.peak_memory_kb == 1024
+    assert result.resource_usage.execution_time_wall_seconds == 0.5
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_empty_stdout_stderr() -> None:
+    """Test extraction when both stdout and stderr are empty."""
+    logs = _framed("", "")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG_EMPTY)],
+    )
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_large_stdout() -> None:
+    """Test extraction with large stdout content."""
+    large_content = "x" * 50_000
+    logs = _framed(large_content, "err")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == large_content
+    assert result.stderr == "err"
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_missing_termination_message() -> None:
+    """Test extraction when termination message is absent — defaults to zero values."""
+    logs = _framed("out", "")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
     pod = make_pod(
         name="p",
         phase="Succeeded",
         container_statuses=[make_container_status(terminated_exit_code=0)],
     )
-    logs = await pem._extract_logs(pod)
-    assert logs is not None
-    assert logs.exit_code == 3 and logs.stdout == "x"
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == "out"
+    assert result.resource_usage.cpu_time_jiffies == 0
+    assert result.resource_usage.clk_tck_hertz == 100
+    assert result.resource_usage.peak_memory_kb == 0
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_malformed_framing_returns_empty() -> None:
+    """Test that malformed log framing returns empty strings."""
+    pem = PodEventMapper(k8s_api=_make_mock_api("garbage data"), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_error_paths() -> None:
+    """Test error paths: no API, API exceptions."""
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0)],
+    )
 
     # no api -> returns None
-    pem2 = PodEventMapper(k8s_api=None, logger=_test_logger)
-    assert await pem2._extract_logs(pod) is None
+    pem_no_api = PodEventMapper(k8s_api=None, logger=_test_logger)
+    assert await pem_no_api._extract_logs(pod) is None
 
-    # exceptions -> all return None
-    mock_404 = MagicMock()
-    mock_404.read_namespaced_pod_log = AsyncMock(side_effect=Exception("404 Not Found"))
-    mock_400 = MagicMock()
-    mock_400.read_namespaced_pod_log = AsyncMock(side_effect=Exception("400 Bad Request"))
-    mock_gen = MagicMock()
-    mock_gen.read_namespaced_pod_log = AsyncMock(side_effect=Exception("boom"))
+    # API exception -> returns None
+    mock_err = MagicMock()
+    mock_err.read_namespaced_pod_log = AsyncMock(side_effect=Exception("boom"))
+    assert await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod) is None
 
-    assert await PodEventMapper(k8s_api=mock_404, logger=_test_logger)._extract_logs(pod) is None
-    assert await PodEventMapper(k8s_api=mock_400, logger=_test_logger)._extract_logs(pod) is None
-    assert await PodEventMapper(k8s_api=mock_gen, logger=_test_logger)._extract_logs(pod) is None
 
-    # _analyze_failure: Evicted
+def test_analyze_failure_variants() -> None:
+    """Test _analyze_failure with various pod failure scenarios."""
+    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
+
+    # Evicted
     pod_e = make_pod(name="p", phase="Failed", reason="Evicted")
     assert pem._analyze_failure(pod_e).error_type == ExecutionErrorType.RESOURCE_LIMIT
 
@@ -262,16 +351,16 @@ async def test_parse_and_log_paths_and_analyze_failure_variants(caplog: pytest.L
 
 @pytest.mark.asyncio
 async def test_all_containers_succeeded_and_cache_behavior() -> None:
-    valid_logs = json.dumps({"stdout": "", "stderr": "", "exit_code": 0, "resource_usage": {}})
-    pem = PodEventMapper(k8s_api=_make_mock_api(valid_logs), logger=_test_logger)
+    logs = _framed("", "")
+    pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
 
     pod = make_pod(
         name="p",
         phase="Failed",
         labels={"execution-id": "e1"},
         container_statuses=[
-            make_container_status(terminated_exit_code=0),
-            make_container_status(terminated_exit_code=0),
+            make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG_EMPTY),
+            make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG_EMPTY),
         ],
     )
     # When all succeeded, failed mapping returns completed instead of failed
@@ -284,3 +373,46 @@ async def test_all_containers_succeeded_and_cache_behavior() -> None:
     b = await pem.map_pod_event(p2, WatchEventType.MODIFIED)
     assert a == [] or all(x.event_type for x in a)
     assert b == [] or all(x.event_type for x in b)
+
+
+def test_parse_termination_message() -> None:
+    """Test _parse_termination_message with various inputs."""
+    parse = PodEventMapper._parse_termination_message
+
+    # Normal message
+    result = parse("exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n")
+    assert result == {
+        "exit_code": "0", "cpu_jiffies": "100", "clk_tck": "100", "peak_memory_kb": "1024", "wall_seconds": "0.5",
+    }
+
+    # Empty string
+    assert parse("") == {}
+
+    # Lines without = are skipped
+    assert parse("no-equals\ncpu_jiffies=50\n") == {"cpu_jiffies": "50"}
+
+    # Value containing = sign
+    assert parse("key=val=ue\n") == {"key": "val=ue"}
+
+
+def test_parse_framed_output() -> None:
+    """Test _parse_framed_output with various inputs."""
+    parse = PodEventMapper._parse_framed_output
+
+    # Normal case
+    assert parse("STDOUT 5\nhelloSTDERR 3\nerr") == ("hello", "err")
+
+    # Empty both
+    assert parse("STDOUT 0\nSTDERR 0\n") == ("", "")
+
+    # Content with newlines
+    content = "line1\nline2\nline3"
+    assert parse(f"STDOUT {len(content)}\n{content}STDERR 0\n") == (content, "")
+
+    # Malformed input
+    assert parse("garbage") == ("", "")
+    assert parse("") == ("", "")
+
+    # Content containing STDOUT/STDERR markers (length-prefix makes this safe)
+    tricky = "STDOUT 5\nfake"
+    assert parse(f"STDOUT {len(tricky)}\n{tricky}STDERR 0\n") == (tricky, "")

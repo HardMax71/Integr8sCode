@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 
+from app.domain.enums import AllocationStatus
+
 
 class ResourceAllocationDocument(Document):
     """Resource allocation bookkeeping document used by saga steps.
@@ -17,7 +19,7 @@ class ResourceAllocationDocument(Document):
     memory_request: str
     cpu_limit: str
     memory_limit: str
-    status: Indexed(str) = "active"  # type: ignore[valid-type]  # "active" | "released"
+    status: Indexed(str) = AllocationStatus.ACTIVE  # type: ignore[valid-type]
     allocated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     released_at: datetime | None = None
 

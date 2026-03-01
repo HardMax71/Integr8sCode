@@ -38,6 +38,14 @@ class AdminAccessRequiredError(ForbiddenError):
         super().__init__(msg)
 
 
+class AccountDeactivatedError(ForbiddenError):
+    """Raised when a deactivated account attempts to log in."""
+
+    def __init__(self, username: str) -> None:
+        self.username = username
+        super().__init__(f"Account '{username}' is deactivated")
+
+
 class UserNotFoundError(NotFoundError):
     """Raised when a user is not found."""
 

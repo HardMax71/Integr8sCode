@@ -4,9 +4,10 @@ from typing import Any
 
 import structlog
 from beanie.odm.enums import SortDirection
+from beanie.operators import In
 
 from app.db.docs import ExecutionDocument
-from app.domain.enums import QueuePriority
+from app.domain.enums import EXECUTION_ACTIVE, ExecutionStatus, QueuePriority
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import (
     DomainExecution,
@@ -46,13 +47,17 @@ class ExecutionRepository:
         return self._to_domain(doc)
 
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
-        doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == result.execution_id)
-        if not doc:
-            self.logger.warning("No execution found", execution_id=result.execution_id)
-            return False
+        """Atomically write a terminal result, guarded by non-terminal status check.
 
-        await doc.set(
-            {
+        Performs a conditional update that only applies when the current status is
+        still in EXECUTION_ACTIVE, so a slower processor cannot overwrite a result
+        that was already written by a faster one.
+        """
+        update_result = await ExecutionDocument.find_one(
+            ExecutionDocument.execution_id == result.execution_id,
+            In(ExecutionDocument.status, list(EXECUTION_ACTIVE)),
+        ).update(
+            {"$set": {
                 "status": result.status,
                 "exit_code": result.exit_code,
                 "stdout": result.stdout,
@@ -60,8 +65,13 @@ class ExecutionRepository:
                 "resource_usage": dataclasses.asdict(result.resource_usage) if result.resource_usage else None,
                 "error_type": result.error_type,
                 "updated_at": datetime.now(timezone.utc),
-            }
+            }}
         )
+        if not update_result or getattr(update_result, "modified_count", 0) == 0:
+            self.logger.warning(
+                "Execution not found or already in terminal state", execution_id=result.execution_id,
+            )
+            return False
         return True
 
     async def get_executions(
@@ -95,6 +105,60 @@ class ExecutionRepository:
         if data.get("resource_usage"):
             data["resource_usage"] = ResourceUsageDomain(**data["resource_usage"])
         return ExecutionResultDomain(**data)
+
+    async def aggregate_stats(self, query: dict[str, Any]) -> dict[str, Any]:
+        """Compute execution statistics entirely in MongoDB via aggregation pipeline."""
+        pipeline: list[dict[str, Any]] = []
+        if query:
+            pipeline.append({"$match": query})
+
+        pipeline.append({
+            "$facet": {
+                "by_status": [{"$group": {"_id": "$status", "count": {"$sum": 1}}}],
+                "by_language": [
+                    {"$group": {
+                        "_id": {"$concat": ["$lang", "-", "$lang_version"]},
+                        "count": {"$sum": 1},
+                    }},
+                ],
+                "totals": [{"$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "successful": {"$sum": {"$cond": [{"$eq": ["$status", ExecutionStatus.COMPLETED]}, 1, 0]}},
+                }}],
+                "avg_duration": [
+                    {"$match": {
+                        "status": ExecutionStatus.COMPLETED,
+                        "created_at": {"$ne": None},
+                        "updated_at": {"$ne": None},
+                    }},
+                    {"$group": {
+                        "_id": None,
+                        "avg_ms": {"$avg": {"$subtract": ["$updated_at", "$created_at"]}},
+                    }},
+                ],
+            },
+        })
+
+        collection = ExecutionDocument.get_pymongo_collection()
+        cursor = await collection.aggregate(pipeline)
+        results = await cursor.to_list(length=1)
+
+        if not results:
+            return {"total": 0, "by_status": {}, "by_language": {}, "average_duration_ms": 0, "success_rate": 0}
+
+        facets = results[0]
+        totals = facets["totals"][0] if facets["totals"] else {"total": 0, "successful": 0}
+        total = totals["total"]
+        successful = totals["successful"]
+
+        return {
+            "total": total,
+            "by_status": {item["_id"]: item["count"] for item in facets["by_status"]},
+            "by_language": {item["_id"]: item["count"] for item in facets["by_language"]},
+            "average_duration_ms": facets["avg_duration"][0]["avg_ms"] if facets["avg_duration"] else 0,
+            "success_rate": successful / total if total > 0 else 0,
+        }
 
     async def delete_execution(self, execution_id: str) -> bool:
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)

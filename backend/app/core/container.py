@@ -35,7 +35,7 @@ def create_app_container(settings: Settings) -> AsyncContainer:
     Args:
         settings: Application settings (injected via from_context).
 
-    Note: init_beanie() must be called BEFORE this container is created.
+    Note: init_beanie() is called in the async lifespan AFTER this container is created.
     KafkaBroker is created by BrokerProvider and can be retrieved
     via container.get(KafkaBroker) after container creation.
     """

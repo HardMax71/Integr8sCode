@@ -1,6 +1,6 @@
 # Architecture overview
 
-Integr8sCode lets users submit Python scripts through a Svelte SPA. The FastAPI backend validates requests, publishes events to Kafka, and streams results back via SSE. Kafka workers coordinate isolated Kubernetes pods that run the code, collect results into MongoDB, and push them through Redis pub/sub so any API instance can deliver them over SSE.
+Integr8sCode lets users submit code in multiple languages (Python, JavaScript, TypeScript, Ruby, Go) through a Svelte SPA. The FastAPI backend validates requests, publishes events to Kafka, and streams results back via SSE. Kafka workers coordinate isolated Kubernetes pods that run the code, collect results into MongoDB, and push them through Redis pub/sub so any API instance can deliver them over SSE.
 
 <div class="grid cards" markdown>
 

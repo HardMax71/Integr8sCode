@@ -28,7 +28,7 @@ All operations log the user ID, script ID, and relevant metadata for auditing.
 
 ## Storage
 
-Scripts are stored in the `saved_scripts` MongoDB collection with a compound index on `(user_id, script_id)` for efficient per-user queries.
+Scripts are stored in the `saved_scripts` MongoDB collection with individual indexes on `script_id` (unique) and `user_id` for efficient per-user queries.
 
 The repository enforces user isolation—queries always filter by `user_id` to prevent cross-user access.
 

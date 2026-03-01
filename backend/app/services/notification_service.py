@@ -111,7 +111,6 @@ class NotificationService:
         self.settings = settings
         self.sse_bus = sse_bus
         self.logger = logger
-
         self._throttle_cache = ThrottleCache()
 
         # --8<-- [start:channel_handlers]
@@ -363,15 +362,15 @@ class NotificationService:
             "notification.channel": "webhook",
             "notification.webhook_host": safe_host,
         })
-        async with httpx.AsyncClient() as client:
-            response = await client.post(webhook_url, json=payload, headers=headers, timeout=30.0)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(webhook_url, json=payload, headers=headers)
             response.raise_for_status()
-            self.logger.debug(
-                "Webhook delivered successfully",
-                notification_id=str(notification.notification_id),
-                status_code=response.status_code,
-                response_time_ms=int(response.elapsed.total_seconds() * 1000),
-            )
+        self.logger.debug(
+            "Webhook delivered successfully",
+            notification_id=str(notification.notification_id),
+            status_code=response.status_code,
+            response_time_ms=int(response.elapsed.total_seconds() * 1000),
+        )
 
     async def _send_slack(self, notification: DomainNotification, subscription: DomainNotificationSubscription) -> None:
         """Send Slack notification."""
@@ -411,14 +410,14 @@ class NotificationService:
             "notification.id": str(notification.notification_id),
             "notification.channel": "slack",
         })
-        async with httpx.AsyncClient() as client:
-            response = await client.post(subscription.slack_webhook, json=slack_message, timeout=30.0)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(subscription.slack_webhook, json=slack_message)
             response.raise_for_status()
-            self.logger.debug(
-                "Slack notification delivered successfully",
-                notification_id=str(notification.notification_id),
-                status_code=response.status_code,
-            )
+        self.logger.debug(
+            "Slack notification delivered successfully",
+            notification_id=str(notification.notification_id),
+            status_code=response.status_code,
+        )
 
     def _get_slack_color(self, priority: NotificationSeverity) -> str:
         """Get Slack color based on severity."""

@@ -28,6 +28,10 @@ def _event_key(execution_id: str) -> str:
     return f"exec_queue:event:{execution_id}"
 
 
+def _retry_key(execution_id: str) -> str:
+    return f"exec_queue:retries:{execution_id}"
+
+
 def _pending_key(priority: QueuePriority) -> str:
     return f"{_PENDING_PREFIX}{priority}"
 
@@ -35,7 +39,6 @@ def _pending_key(priority: QueuePriority) -> str:
 _UPDATE_PRIORITY_LUA = """
 local new_key = KEYS[1]
 local exec_id = ARGV[1]
-local new_score = tonumber(ARGV[2])
 
 for i = 2, #KEYS do
     local score = redis.call('ZSCORE', KEYS[i], exec_id)
@@ -132,8 +135,12 @@ class ExecutionQueueService:
 
         event_json = await self._redis.get(_event_key(execution_id))
         if event_json is None:
-            self._logger.warning("Event data missing for scheduled execution", execution_id=execution_id)
+            self._logger.error(
+                "Event data expired/missing for scheduled execution — execution lost",
+                execution_id=execution_id,
+            )
             await self._redis.srem(_ACTIVE_KEY, execution_id)  # type: ignore[misc]
+            self._metrics.record_event_data_lost()
             return None
 
         event_str = event_json if isinstance(event_json, str) else event_json.decode()
@@ -147,6 +154,13 @@ class ExecutionQueueService:
         )
         return execution_id, event
 
+    async def increment_retry_count(self, execution_id: str) -> int:
+        """Atomically increment and return the retry count for an execution."""
+        key = _retry_key(execution_id)
+        count: int = await self._redis.incr(key)
+        await self._redis.expire(key, _EVENT_TTL)
+        return count
+
     async def release(self, execution_id: str) -> None:
         pipe = self._redis.pipeline(transaction=True)
         pipe.srem(_ACTIVE_KEY, execution_id)
@@ -159,7 +173,7 @@ class ExecutionQueueService:
         script = await self._get_update_priority_script()
         result = await script(
             keys=[_pending_key(new_priority), *_PENDING_KEYS],
-            args=[execution_id, time.time()],
+            args=[execution_id],
         )
         if not result:
             return False
@@ -173,6 +187,7 @@ class ExecutionQueueService:
         for key in _PENDING_KEYS:
             pipe.zrem(key, execution_id)
         pipe.delete(_event_key(execution_id))
+        pipe.delete(_retry_key(execution_id))
         pipe.srem(_ACTIVE_KEY, execution_id)
         results = await pipe.execute()
         removed = any(results[: len(_PENDING_KEYS)]) or bool(results[-1])

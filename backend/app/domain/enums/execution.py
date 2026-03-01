@@ -14,14 +14,30 @@ class QueuePriority(StringEnum):
 class ExecutionStatus(StringEnum):
     """Status of an execution."""
 
+    _terminal: bool
+
     QUEUED = "queued"
     SCHEDULED = "scheduled"
     RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    TIMEOUT = "timeout"
-    CANCELLED = "cancelled"
-    ERROR = "error"
+    COMPLETED = ("completed", True)
+    FAILED = ("failed", True)
+    TIMEOUT = ("timeout", True)
+    CANCELLED = ("cancelled", True)
+    ERROR = ("error", True)
+
+    def __new__(cls, value: str, terminal: bool = False) -> "ExecutionStatus":
+        obj = str.__new__(cls, value)
+        obj._value_ = value
+        obj._terminal = terminal
+        return obj
+
+    @property
+    def is_terminal(self) -> bool:
+        return self._terminal
+
+
+EXECUTION_TERMINAL = frozenset(s for s in ExecutionStatus if s.is_terminal)
+EXECUTION_ACTIVE = frozenset(s for s in ExecutionStatus if not s.is_terminal)
 
 
 class CancelStatus(StringEnum):

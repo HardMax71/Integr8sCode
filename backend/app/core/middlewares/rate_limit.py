@@ -7,7 +7,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.utils import get_client_ip
 from app.domain.rate_limit import RateLimitStatus
-from app.domain.user import User
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
@@ -102,10 +101,14 @@ class RateLimitMiddleware:
         await self.app(scope, receive, send_wrapper)
 
     # --8<-- [start:extract_user_id]
-    def _extract_user_id(self, request: Request) -> str:
-        user: User | None = request.state.__dict__.get("user")
-        if user:
-            return str(user.user_id)
+    @staticmethod
+    def _extract_user_id(request: Request) -> str:
+        """Extract rate-limit bucket key from client IP.
+
+        Middleware runs before route-level auth, so no verified identity is
+        available here. Using unverified JWT claims would let an attacker
+        craft arbitrary bucket keys to bypass IP-based limits.
+        """
         return f"ip:{get_client_ip(request)}"
     # --8<-- [end:extract_user_id]
 

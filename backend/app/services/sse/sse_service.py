@@ -6,7 +6,7 @@ import structlog
 from pydantic import TypeAdapter
 
 from app.db.repositories import ExecutionRepository
-from app.domain.enums import EventType, ReplayStatus, SSEControlEvent, UserRole
+from app.domain.enums import EventType, SSEControlEvent, UserRole
 from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
@@ -22,12 +22,6 @@ _TERMINAL_TYPES: frozenset[EventType | SSEControlEvent] = frozenset({
     EventType.EXECUTION_FAILED,
     EventType.EXECUTION_TIMEOUT,
     EventType.RESULT_FAILED,
-})
-
-_TERMINAL_REPLAY_STATUSES: frozenset[ReplayStatus] = frozenset({
-    ReplayStatus.COMPLETED,
-    ReplayStatus.FAILED,
-    ReplayStatus.CANCELLED,
 })
 
 
@@ -97,10 +91,10 @@ class SSEService:
     ) -> AsyncGenerator[dict[str, Any], None]:
         session_id = initial_status.session_id
         yield {"data": _replay_adapter.dump_json(initial_status).decode()}
-        if initial_status.status in _TERMINAL_REPLAY_STATUSES:
+        if initial_status.status.is_terminal:
             return
         async for status in self._bus.listen_replay(session_id):
             self._logger.info("SSE replay event", session_id=session_id, status=status.status)
             yield {"data": _replay_adapter.dump_json(status).decode()}
-            if status.status in _TERMINAL_REPLAY_STATUSES:
+            if status.status.is_terminal:
                 return

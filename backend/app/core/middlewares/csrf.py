@@ -19,7 +19,7 @@ class CSRFMiddleware:
 
     Requests are skipped if:
     - Method is safe (GET, HEAD, OPTIONS)
-    - Path is an auth endpoint (login, register, logout)
+    - Path is an auth endpoint (login, register)
     - Path is not under /api/
     - User is not authenticated (no access_token cookie)
     """

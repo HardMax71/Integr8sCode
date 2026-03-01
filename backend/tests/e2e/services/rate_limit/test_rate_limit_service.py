@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import Awaitable
 from typing import Any, cast
 from uuid import uuid4
@@ -231,10 +230,10 @@ async def test_token_bucket_invalid_data(scope: AsyncContainer) -> None:
         algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
     )
 
-    with pytest.raises(json.JSONDecodeError):
-        await svc._check_token_bucket(
-            "user", "/api", int(rule.requests), rule.window_seconds, rule.burst_multiplier or 1.0, rule
-        )
+    status = await svc._check_token_bucket(
+        "user", "/api", int(rule.requests), rule.window_seconds, rule.burst_multiplier or 1.0, rule
+    )
+    assert status.allowed is True
 
 
 @pytest.mark.asyncio

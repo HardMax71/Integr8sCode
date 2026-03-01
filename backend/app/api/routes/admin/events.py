@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.dependencies import admin_user
+from app.api.routes.common import SSEResponse
 from app.domain.enums import EventType, ExportFormat
 from app.domain.events import EventFilter as DomainEventFilter
 from app.domain.replay import ReplayFilter
@@ -26,15 +27,6 @@ from app.schemas_pydantic.admin_events import (
 from app.schemas_pydantic.common import ErrorResponse
 from app.services.admin import AdminEventsService
 from app.services.sse import SSEService
-
-
-class _SSEResponse(EventSourceResponse):
-    """Workaround: sse-starlette sets media_type only in __init__, not as a
-    class attribute.  FastAPI reads the class attribute for OpenAPI generation,
-    so without this subclass every SSE endpoint shows application/json."""
-
-    media_type = "text/event-stream"
-
 
 router = APIRouter(
     prefix="/admin/events", tags=["admin-events"], route_class=DishkaRoute, dependencies=[Depends(admin_user)]
@@ -144,7 +136,7 @@ async def replay_events(
 
 @router.get(
     "/replay/{session_id}/status",
-    response_class=_SSEResponse,
+    response_class=SSEResponse,
     responses={
         200: {"model": EventReplayStatusResponse},
         404: {"model": ErrorResponse, "description": "Replay session not found"},

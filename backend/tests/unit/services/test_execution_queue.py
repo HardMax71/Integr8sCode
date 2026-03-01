@@ -89,6 +89,20 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
 
 
 @pytest.mark.asyncio
+async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
+    """When the event JSON has expired from Redis, try_schedule cleans the active set and returns None."""
+    script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
+    mock_redis.register_script = MagicMock(return_value=script)
+    mock_redis.get = AsyncMock(return_value=None)
+    queue_service._schedule_script = None
+
+    result = await queue_service.try_schedule(5)
+
+    assert result is None
+    mock_redis.srem.assert_awaited_once_with(_ACTIVE_KEY, "e-gone")
+
+
+@pytest.mark.asyncio
 async def test_release(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     await queue_service.release("e1")
     mock_redis.pipeline.assert_called()
@@ -116,8 +130,8 @@ async def test_update_priority_missing(queue_service: ExecutionQueueService, moc
 @pytest.mark.asyncio
 async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
-    # 5 ZREM results + 1 DELETE + 1 SREM
-    pipe.execute = AsyncMock(return_value=[0, 0, 1, 0, 0, 1, 0])
+    # 5 ZREM results + 1 DELETE (event) + 1 DELETE (retry) + 1 SREM
+    pipe.execute = AsyncMock(return_value=[0, 0, 1, 0, 0, 1, 0, 0])
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is True
@@ -126,7 +140,7 @@ async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMoc
 @pytest.mark.asyncio
 async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
-    pipe.execute = AsyncMock(return_value=[0, 0, 0, 0, 0, 0, 0])
+    pipe.execute = AsyncMock(return_value=[0, 0, 0, 0, 0, 0, 0, 0])
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is False
@@ -155,3 +169,15 @@ async def test_get_pending_by_priority(queue_service: ExecutionQueueService, moc
     assert counts[QueuePriority.BACKGROUND] == 1
     assert QueuePriority.CRITICAL not in counts
     assert QueuePriority.LOW not in counts
+
+
+@pytest.mark.asyncio
+async def test_increment_retry_count(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
+    mock_redis.incr = AsyncMock(return_value=1)
+    mock_redis.expire = AsyncMock(return_value=True)
+
+    count = await queue_service.increment_retry_count("e1")
+
+    assert count == 1
+    mock_redis.incr.assert_awaited_once_with("exec_queue:retries:e1")
+    mock_redis.expire.assert_awaited_once()

@@ -11,7 +11,7 @@ from beanie.operators import GT, LT, NE, Eq, In, Set
 from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
-from app.domain.enums import SagaState
+from app.domain.enums import SAGA_ACTIVE, SagaState
 from app.domain.saga import (
     Saga,
     SagaConcurrencyError,
@@ -84,7 +84,7 @@ class SagaRepository:
         """
         doc = await SagaDocument.find_one(
             SagaDocument.saga_id == saga_id,
-            In(SagaDocument.state, [SagaState.RUNNING, SagaState.CREATED]),
+            In(SagaDocument.state, list(SAGA_ACTIVE)),
         ).update(
             Set({  # type: ignore[no-untyped-call]
                 SagaDocument.state: SagaState.CANCELLED,
@@ -167,8 +167,9 @@ class SagaRepository:
         )
 
     async def get_user_execution_ids(self, user_id: str) -> list[str]:
-        docs = await ExecutionDocument.find(ExecutionDocument.user_id == user_id).to_list()
-        return [doc.execution_id for doc in docs]
+        collection = ExecutionDocument.get_pymongo_collection()
+        result: list[str] = await collection.distinct("execution_id", {"user_id": user_id})
+        return result
 
     async def find_timed_out_sagas(
             self,

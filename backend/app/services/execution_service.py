@@ -213,16 +213,6 @@ class ExecutionService:
         Raises:
             ExecutionTerminalError: If execution is in a terminal state.
         """
-        terminal_states = {
-            ExecutionStatus.COMPLETED,
-            ExecutionStatus.FAILED,
-            ExecutionStatus.TIMEOUT,
-            ExecutionStatus.ERROR,
-        }
-
-        if current_status in terminal_states:
-            raise ExecutionTerminalError(execution_id, current_status)
-
         if current_status == ExecutionStatus.CANCELLED:
             return CancelResult(
                 execution_id=execution_id,
@@ -230,6 +220,9 @@ class ExecutionService:
                 message="Execution was already cancelled",
                 event_id=None,
             )
+
+        if current_status.is_terminal:
+            raise ExecutionTerminalError(execution_id, current_status)
 
         metadata = self._create_event_metadata(user_id=user_id)
         event = ExecutionCancelledEvent(
@@ -521,12 +514,10 @@ class ExecutionService:
         return True
 
     async def _publish_deletion_event(self, execution_id: str, user_id: str) -> None:
-        """
-        Publish execution deletion/cancellation event.
+        """Publish cancellation event for a deleted execution.
 
-        Args:
-            execution_id: UUID of deleted execution.
-            user_id: ID of user who deleted it.
+        Uses ExecutionCancelledEvent because no dedicated deletion event type
+        exists yet — the saga orchestrator treats both the same way.
         """
         metadata = self._create_event_metadata(user_id=user_id)
 
@@ -540,7 +531,7 @@ class ExecutionService:
         await self.producer.produce(event_to_produce=event, key=execution_id)
 
         self.logger.info(
-            "Published cancellation event",
+            "Published deletion event (as cancellation)",
             execution_id=execution_id,
             event_id=event.event_id,
         )
@@ -559,14 +550,7 @@ class ExecutionService:
             Dictionary containing execution statistics.
         """
         query = self._build_stats_query(user_id, time_range)
-
-        # Get executions for stats
-        executions = await self.execution_repo.get_executions(
-            query=query,
-            limit=1000,  # Reasonable limit for stats
-        )
-
-        return self._calculate_stats(executions)
+        return await self.execution_repo.aggregate_stats(query)
 
     def _build_stats_query(
         self, user_id: str | None, time_range: tuple[datetime | None, datetime | None]
@@ -597,47 +581,3 @@ class ExecutionService:
 
         return query
 
-    def _calculate_stats(self, executions: list[DomainExecution]) -> dict[str, Any]:
-        """
-        Calculate statistics from executions.
-
-        Args:
-            executions: List of executions to analyze.
-
-        Returns:
-            Statistics dictionary.
-        """
-        stats: dict[str, Any] = {
-            "total": len(executions),
-            "by_status": {},
-            "by_language": {},
-            "average_duration_ms": 0,
-            "success_rate": 0,
-        }
-
-        total_duration = 0.0
-        successful = 0
-
-        for execution in executions:
-            # Count by status
-            status = execution.status
-            stats["by_status"][status] = stats["by_status"].get(status, 0) + 1
-
-            # Count by language
-            lang_key = f"{execution.lang}-{execution.lang_version}"
-            stats["by_language"][lang_key] = stats["by_language"].get(lang_key, 0) + 1
-
-            # Track success and duration
-            if status == ExecutionStatus.COMPLETED:
-                successful += 1
-                if execution.created_at and execution.updated_at:
-                    duration = (execution.updated_at - execution.created_at).total_seconds() * 1000
-                    total_duration += duration
-
-        # Calculate averages
-        if stats["total"] > 0:
-            stats["success_rate"] = successful / stats["total"]
-            if successful > 0:
-                stats["average_duration_ms"] = total_duration / successful
-
-        return stats

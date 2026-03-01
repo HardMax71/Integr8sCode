@@ -164,6 +164,37 @@ class RateLimitService:
             algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
         )
 
+    _TOKEN_BUCKET_LUA = """
+local key = KEYS[1]
+local max_tokens = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+
+local tokens = max_tokens
+local last_refill = now
+
+local bucket_data = redis.call('GET', key)
+if bucket_data then
+    local ok, bucket = pcall(cjson.decode, bucket_data)
+    if ok and bucket['tokens'] and bucket['last_refill'] then
+        tokens = bucket['tokens']
+        last_refill = bucket['last_refill']
+        local time_passed = now - last_refill
+        tokens = math.min(max_tokens, tokens + time_passed * refill_rate)
+    end
+end
+
+local allowed = 0
+if tokens >= 1 then
+    tokens = tokens - 1
+    allowed = 1
+end
+
+redis.call('SETEX', key, ttl, cjson.encode({tokens=tokens, last_refill=now}))
+return {allowed, tostring(tokens)}
+"""
+
     async def _check_token_bucket(
         self, user_id: str, endpoint: str, limit: int, window_seconds: int, burst_multiplier: float, rule: RateLimitRule
     ) -> RateLimitStatus:
@@ -175,22 +206,14 @@ class RateLimitService:
         await self._register_user_key(user_id, key)
 
         # --8<-- [start:check_token_bucket]
-        bucket_data = await self.redis.get(key)
-        if bucket_data:
-            bucket = json.loads(bucket_data)
-            tokens = bucket["tokens"]
-            last_refill = bucket["last_refill"]
-            time_passed = now - last_refill
-            tokens_to_add = time_passed * refill_rate
-            tokens = min(max_tokens, tokens + tokens_to_add)
-        else:
-            tokens = max_tokens
-
-        if tokens >= 1:
-            tokens -= 1
-            await self.redis.setex(key, window_seconds * 2, json.dumps({"tokens": tokens, "last_refill": now}))
+        result = await self.redis.eval(  # type: ignore[misc]
+            self._TOKEN_BUCKET_LUA, 1, key, max_tokens, refill_rate, now, window_seconds * 2,
+        )
+        allowed = bool(result[0])
+        tokens = float(result[1])
         # --8<-- [end:check_token_bucket]
 
+        if allowed:
             return RateLimitStatus(
                 allowed=True,
                 limit=limit,

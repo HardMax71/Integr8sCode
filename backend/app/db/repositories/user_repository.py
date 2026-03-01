@@ -43,6 +43,10 @@ class UserRepository:
             raise ConflictError("User already exists") from e
         return User(**doc.model_dump(include=_user_fields))
 
+    async def get_user_by_email(self, email: str) -> User | None:
+        doc = await UserDocument.find_one(UserDocument.email == email)
+        return User(**doc.model_dump(include=_user_fields)) if doc else None
+
     async def get_user_by_id(self, user_id: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         return User(**doc.model_dump(include=_user_fields)) if doc else None

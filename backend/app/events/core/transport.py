@@ -21,13 +21,9 @@ class KafkaEventTransport:
 
     async def publish(self, event: DomainEvent, topic: str, key: str) -> None:
         """Publish event to Kafka."""
-        try:
-            await self._broker.publish(
-                message=event,
-                topic=topic,
-                key=key.encode(),
-            )
-            self._logger.debug("Event sent to topic", event_type=event.event_type, topic=topic)
-        except Exception:
-            self._logger.error("Failed to produce message", topic=topic)
-            raise
+        await self._broker.publish(
+            message=event,
+            topic=topic,
+            key=key.encode(),
+        )
+        self._logger.debug("Event sent to topic", event_type=event.event_type, topic=topic)

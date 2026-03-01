@@ -3,10 +3,10 @@ from uuid import uuid4
 
 import structlog
 
-from app.db.repositories import ResourceAllocationRepository
+from app.db import ResourceAllocationRepository
 from app.domain.events import CreatePodCommandEvent, DeletePodCommandEvent, EventMetadata, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocationCreate
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 
 from .saga_step import CompensationStep, SagaContext, SagaStep
 

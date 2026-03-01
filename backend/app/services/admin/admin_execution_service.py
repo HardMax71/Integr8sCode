@@ -2,7 +2,7 @@ from typing import Any
 
 import structlog
 
-from app.db.repositories import ExecutionRepository
+from app.db import ExecutionRepository
 from app.domain.enums import ExecutionStatus, QueuePriority
 from app.domain.execution import DomainExecution, ExecutionNotFoundError
 from app.services.execution_queue import ExecutionQueueService

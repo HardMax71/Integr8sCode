@@ -1,6 +1,6 @@
 import structlog
 
-from app.db.repositories import NotificationRepository
+from app.db import NotificationRepository
 from app.services.notification_service import NotificationService
 
 

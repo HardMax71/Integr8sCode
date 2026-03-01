@@ -11,7 +11,7 @@ graph LR
     subgraph "Code Quality (lightweight)"
         Ruff["Ruff Linting"]
         MyPy["MyPy Type Check"]
-        Vulture["Vulture Dead Code"]
+        Grimp["Grimp Orphan Modules"]
         ESLint["ESLint + Svelte Check"]
     end
 
@@ -49,7 +49,7 @@ graph LR
         Pages["GitHub Pages"]
     end
 
-    Push["Push / PR"] --> Ruff & MyPy & Vulture & ESLint & Bandit & SBOM & UnitBE & UnitFE & Docs
+    Push["Push / PR"] --> Ruff & MyPy & Grimp & ESLint & Bandit & SBOM & UnitBE & UnitFE & Docs
     Build -->|main, all tests pass| Scan
     Promote -->|main, scans pass| Release
     Docs -->|main only| Pages
@@ -73,7 +73,7 @@ production only updates when everything passes.
 | MyPy Type Checking      | `.github/workflows/mypy.yml`                 | Push/PR to `main`                              | Python static type analysis                |
 | Frontend CI             | `.github/workflows/frontend-ci.yml`          | Push/PR to `main` (frontend changes)           | ESLint + Svelte type check                 |
 | Security Scanning       | `.github/workflows/security.yml`             | Push/PR to `main`                              | Bandit SAST                                |
-| Dead Code Detection     | `.github/workflows/vulture.yml`              | Push/PR to `main`                              | Vulture dead code analysis                 |
+| Dead Code Detection     | `.github/workflows/grimp.yml`                | Push/PR to `main`                              | Grimp orphan module detection              |
 | Documentation           | `.github/workflows/docs.yml`                 | Push/PR (`docs/`, `mkdocs.yml`)                | MkDocs build and GitHub Pages deploy       |
 
 ## Composite actions
@@ -378,7 +378,7 @@ Three lightweight workflows run independently since they catch obvious issues qu
 
 - [Ruff](https://docs.astral.sh/ruff/) checks for style violations, import ordering, and common bugs
 - [mypy](https://mypy.readthedocs.io/) with strict settings catches type mismatches and missing return types
-- [Vulture](https://github.com/jendrikseipp/vulture) detects unused functions, classes, methods, imports, and variables. A whitelist file (`backend/vulture_whitelist.py`) excludes framework patterns (Dishka providers, FastAPI routes, Beanie documents, Pydantic models) that look unused but are called at runtime
+- [Grimp](https://github.com/seddonym/grimp) detects orphan modules — modules that no other module in the package imports. Unlike symbol-level tools, it catches entire dead files (e.g. removed features) with zero false positives from framework patterns
 
 **Frontend (TypeScript/Svelte):**
 
@@ -457,8 +457,8 @@ uv run ruff check . --config pyproject.toml
 # Type checking
 uv run mypy --config-file pyproject.toml --strict .
 
-# Dead code detection
-uv run vulture app/ vulture_whitelist.py
+# Dead code detection (orphan modules)
+uv run python scripts/check_orphan_modules.py
 
 # Security scan
 uv tool run bandit -r . -x tests/ -ll

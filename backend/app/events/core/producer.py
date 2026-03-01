@@ -2,7 +2,7 @@ import structlog
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import EventMetrics
-from app.db.repositories import EventRepository
+from app.db import EventRepository
 from app.domain.events import DomainEvent
 
 

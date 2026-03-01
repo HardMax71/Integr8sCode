@@ -48,7 +48,7 @@ uv run pytest tests/unit/                       # unit only
 uv run pytest -k "test_name" -x                 # single test, stop on failure
 uv run ruff check . --config pyproject.toml     # lint (must pass)
 uv run mypy --config-file pyproject.toml --strict .  # types (must pass)
-uv run vulture app/ vulture_whitelist.py        # dead code (must pass)
+uv run python scripts/check_orphan_modules.py   # dead code (must pass)
 
 # Frontend (from frontend/)
 npm run dev             # dev server with hot reload
@@ -732,14 +732,14 @@ vi.mock('../../../lib/api', () => ({
 # Backend
 uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293
 uv run mypy --config-file pyproject.toml --strict . # 318 source files
-uv run vulture app/ vulture_whitelist.py            # framework patterns in whitelist
+uv run python scripts/check_orphan_modules.py       # orphan module detection
 
 # Frontend
 npm run check   # svelte-check: 0 errors, 0 warnings
 npm run test    # Vitest tests must pass
 ```
 
-Vulture whitelist (`backend/vulture_whitelist.py`) covers Dishka providers, FastAPI routes, Beanie documents, and Pydantic models that appear unused but are called at runtime.
+Grimp orphan module check (`backend/scripts/check_orphan_modules.py`) detects modules never imported by any other module in the package.
 
 ---
 

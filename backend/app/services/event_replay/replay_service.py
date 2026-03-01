@@ -12,7 +12,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import ValidationError
 
 from app.core.metrics import ReplayMetrics
-from app.db.repositories import ReplayRepository
+from app.db import ReplayRepository
 from app.domain.admin import ReplaySessionUpdate
 from app.domain.enums import ReplayStatus, ReplayTarget
 from app.domain.events import DomainEvent, DomainEventAdapter
@@ -26,7 +26,7 @@ from app.domain.replay import (
     ReplaySessionState,
 )
 from app.domain.sse import DomainReplaySSEPayload
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.services.sse.redis_bus import SSERedisBus
 
 

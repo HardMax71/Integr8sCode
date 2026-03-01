@@ -22,10 +22,10 @@ repos:
         files: ^backend/.*\.py$
         pass_filenames: false
 
-      # Vulture - matches CI: cd backend && uv run vulture app/ vulture_whitelist.py
-      - id: vulture-backend
-        name: vulture dead code (backend)
-        entry: bash -c 'cd backend && uv run vulture app/ vulture_whitelist.py'
+      # Grimp - matches CI: cd backend && uv run python scripts/check_orphan_modules.py
+      - id: grimp-backend
+        name: grimp orphan modules (backend)
+        entry: bash -c 'cd backend && uv run python scripts/check_orphan_modules.py'
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false

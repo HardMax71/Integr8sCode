@@ -1,6 +1,6 @@
 import structlog
 
-from app.db.repositories import ExecutionRepository, SagaRepository
+from app.db import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
 from app.domain.saga import (
     Saga,

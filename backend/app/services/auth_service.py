@@ -6,7 +6,7 @@ from fastapi import Request
 
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
-from app.db.repositories import UserRepository
+from app.db import UserRepository
 from app.domain.enums import LoginMethod, UserRole
 from app.domain.events import (
     AuthFailedEvent,
@@ -25,7 +25,7 @@ from app.domain.user import (
     LoginResult,
     User,
 )
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.services.login_lockout import LoginLockoutService
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings

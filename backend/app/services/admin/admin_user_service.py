@@ -5,7 +5,7 @@ import structlog
 
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
-from app.db.repositories import UserRepository
+from app.db import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, NotFoundError

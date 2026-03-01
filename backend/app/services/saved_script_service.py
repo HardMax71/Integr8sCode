@@ -1,6 +1,6 @@
 import structlog
 
-from app.db.repositories import SavedScriptRepository
+from app.db import SavedScriptRepository
 from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,

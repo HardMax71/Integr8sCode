@@ -5,7 +5,7 @@ from typing import Any
 import structlog
 from cachetools import TTLCache
 
-from app.db.repositories import UserSettingsRepository
+from app.db import UserSettingsRepository
 from app.domain.enums import EventType, Theme
 from app.domain.events import EventMetadata, UserSettingsUpdatedEvent
 from app.domain.user import (

@@ -1,6 +1,6 @@
 import structlog
 
-from app.db.repositories import AdminSettingsRepository
+from app.db import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from app.services.runtime_settings import RuntimeSettingsLoader
 

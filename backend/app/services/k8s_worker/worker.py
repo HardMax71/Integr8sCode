@@ -15,7 +15,7 @@ from app.domain.events import (
     ExecutionFailedEvent,
     PodCreatedEvent,
 )
-from app.events.core import UnifiedProducer
+from app.events import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.settings import Settings
 

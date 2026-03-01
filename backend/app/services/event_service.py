@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.db.repositories import EventRepository
+from app.db import EventRepository
 from app.domain.enums import EventType, UserRole
 from app.domain.events import ArchivedEvent, DomainEvent, EventListResult, EventReplayInfo, EventStatistics
 

@@ -1,4 +1,3 @@
-import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
@@ -457,72 +456,65 @@ class PodEventMapper:
 
     async def _extract_logs(self, pod: k8s_client.V1Pod) -> PodLogs | None:
         """Extract and parse pod logs. Returns None if extraction fails."""
-        # Without k8s API or metadata, can't fetch logs
         if not self._k8s_api or not pod.metadata:
             return None
 
-        # Check if any container terminated
-        has_terminated = any(
-            status.state and status.state.terminated for status in (pod.status.container_statuses if pod.status else [])
-        )
-
-        if not has_terminated:
-            self.logger.debug(f"Pod {pod.metadata.name} has no terminated containers")
+        container = self._get_main_container(pod)
+        if not container or not container.state or not container.state.terminated:
             return None
+
+        terminated = container.state.terminated
+
+        meta = self._parse_termination_message(terminated.message or "")
 
         try:
             logs = await self._k8s_api.read_namespaced_pod_log(
-                name=pod.metadata.name, namespace=pod.metadata.namespace or "integr8scode", tail_lines=10000
+                name=pod.metadata.name,
+                namespace=pod.metadata.namespace or "integr8scode",
+                tail_lines=10000,
             )
-
-            if not logs:
-                return None
-
-            # Try to parse executor JSON
-            return self._parse_executor_output(logs)
-
-        except Exception as e:
-            self._log_extraction_error(pod.metadata.name, str(e))
+        except Exception:
+            self.logger.warning("Failed to fetch pod logs", pod_name=pod.metadata.name, exc_info=True)
             return None
 
-    def _parse_executor_output(self, logs: str) -> PodLogs | None:
-        """Parse executor JSON output from logs. Returns None if parsing fails."""
-        logs_stripped = logs.strip()
-
-        # Try full output as JSON
-        if result := self._try_parse_json(logs_stripped):
-            return result
-
-        # Try line by line
-        for line in logs_stripped.split("\n"):
-            if result := self._try_parse_json(line.strip()):
-                return result
-
-        # No valid executor JSON found
-        self.logger.warning("Logs do not contain valid executor JSON")
-        return None
-
-    def _try_parse_json(self, text: str) -> PodLogs | None:
-        """Try to parse text as executor JSON output"""
-        if not (text.startswith("{") and text.endswith("}")):
+        if not logs:
             return None
 
-        data = json.loads(text)
+        stdout, stderr = self._parse_framed_output(logs)
+
         return PodLogs(
-            stdout=data.get("stdout", ""),
-            stderr=data.get("stderr", ""),
-            exit_code=data.get("exit_code", 0),
-            resource_usage=ResourceUsageDomain(**data.get("resource_usage", {})),
+            exit_code=terminated.exit_code or 0,
+            stdout=stdout,
+            stderr=stderr,
+            resource_usage=ResourceUsageDomain(
+                execution_time_wall_seconds=float(meta.get("wall_seconds", "0")),
+                cpu_time_jiffies=int(meta.get("cpu_jiffies", "0")),
+                clk_tck_hertz=int(meta.get("clk_tck", "100")),
+                peak_memory_kb=int(meta.get("peak_memory_kb", "0")),
+            ),
         )
 
-    def _log_extraction_error(self, pod_name: str, error: str) -> None:
-        """Log extraction errors with appropriate level"""
-        error_lower = error.lower()
+    @staticmethod
+    def _parse_termination_message(raw: str) -> dict[str, str]:
+        """Parse key=value metadata from K8s termination message."""
+        return dict(line.split("=", 1) for line in raw.strip().splitlines() if "=" in line)
 
-        if "404" in error or "not found" in error_lower:
-            self.logger.debug(f"Pod {pod_name} logs not found - pod may have been deleted")
-        elif "400" in error:
-            self.logger.debug(f"Pod {pod_name} logs not available - container may still be creating")
-        else:
-            self.logger.warning(f"Failed to extract logs from pod {pod_name}: {error}")
+    @staticmethod
+    def _parse_framed_output(logs: str) -> tuple[str, str]:
+        """Extract stdout/stderr from length-prefixed framed output."""
+        try:
+            idx = logs.index("STDOUT ") + 7
+            nl = logs.index("\n", idx)
+            stdout_len = int(logs[idx:nl])
+            stdout = logs[nl + 1 : nl + 1 + stdout_len]
+
+            idx = logs.index("STDERR ", nl + 1 + stdout_len) + 7
+            nl = logs.index("\n", idx)
+            stderr_len = int(logs[idx:nl])
+            stderr = logs[nl + 1 : nl + 1 + stderr_len]
+        except (ValueError, IndexError):
+            return "", ""
+
+        return stdout, stderr
+
 

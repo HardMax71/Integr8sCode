@@ -77,6 +77,7 @@ class PodBuilder:
                 k8s_client.V1EnvVar(name="EXECUTION_ID", value=execution_id),
                 k8s_client.V1EnvVar(name="OUTPUT_PATH", value="/output"),
             ],
+            termination_message_policy="FallbackToLogsOnError",
         )
 
         # SECURITY: Always enforce strict security context

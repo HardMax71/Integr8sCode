@@ -2,23 +2,16 @@
 #
 # Strict, portable POSIX-sh entrypoint that runs an arbitrary
 # command, captures its output, exit-code and coarse resource
-# usage, then prints a single-line JSON blob to stdout.
-
-# Very small, POSIX-compliant JSON string escaper
-json_escape() {
-    sed -e ':a;N;$!ba' \
-        -e 's/\\/\\\\/g'  \
-        -e 's/"/\\"/g'   \
-        -e 's/\n/\\n/g'  \
-        -e 's/\t/\\t/g'  \
-        -e 's/\r/\\r/g'
-}
+# usage, then writes metrics to /dev/termination-log and
+# length-prefixed stdout/stderr to container stdout.
 
 # ---------- argument check --------------------------------------------------
 
 if [ "$#" -eq 0 ]; then
-    printf '{"exit_code":127,"resource_usage":null,"stdout":"","stderr":"Entrypoint Error: No command provided."}'
-    exit 0
+    printf 'cpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n' > /dev/termination-log
+    ERR_MSG="Entrypoint Error: No command provided."
+    printf 'STDOUT 0\nSTDERR %d\n%s' "${#ERR_MSG}" "$ERR_MSG"
+    exit 127
 fi
 
 # ---------- temp files & timing --------------------------------------------
@@ -68,16 +61,19 @@ EXIT_CODE=$?
 END_TIME="$(date +%s.%N)"
 ELAPSED_S=$(printf '%s\n' "$END_TIME $START_TIME" | awk '{printf "%.6f",$1-$2}')
 
-# ---------- emit single-line JSON ------------------------------------------
+# ---------- write resource metrics to termination log ----------------------
 
-# Build JSON on a single line
-# Note: CLK_TCK included for CPU time conversion (cpu_seconds = jiffies / clk_tck)
-# Security: CLK_TCK is obtainable by any user via getconf, not sensitive
-printf '{"exit_code":%d,"resource_usage":{"execution_time_wall_seconds":%s,"cpu_time_jiffies":%d,"clk_tck_hertz":%d,"peak_memory_kb":%d},"stdout":"%s","stderr":"%s"}' \
-    "${EXIT_CODE:-1}" \
-    "${ELAPSED_S:-0}" \
-    "${JIFS:-0}" \
-    "${CLK_TCK:-100}" \
-    "${PEAK_KB:-0}" \
-    "$(cat "$OUT" | json_escape)" \
-    "$(cat "$ERR" | json_escape)"
+printf 'cpu_jiffies=%d\nclk_tck=%d\npeak_memory_kb=%d\nwall_seconds=%s\n' \
+    "${JIFS:-0}" "${CLK_TCK:-100}" "${PEAK_KB:-0}" "${ELAPSED_S:-0}" \
+    > /dev/termination-log
+
+# ---------- write length-prefixed stdout/stderr ----------------------------
+
+STDOUT_BYTES=$(wc -c < "$OUT")
+STDERR_BYTES=$(wc -c < "$ERR")
+printf 'STDOUT %d\n' "$STDOUT_BYTES"
+cat "$OUT"
+printf 'STDERR %d\n' "$STDERR_BYTES"
+cat "$ERR"
+
+exit 0

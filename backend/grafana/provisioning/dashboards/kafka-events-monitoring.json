@@ -130,7 +130,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(kafka_messages_produced_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Messages/sec",
           "range": true,
@@ -324,7 +324,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(kafka_messages_produced_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Produced",
           "range": true,
@@ -333,7 +333,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(kafka_messages_consumed_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_process_messages_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Consumed",
           "range": true,
@@ -436,9 +436,9 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(kafka_messages_produced_total[1m])) by (topic) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_total[1m])) by (messaging_destination_name) or vector(0)",
           "instant": false,
-          "legendFormat": "{{topic}}",
+          "legendFormat": "{{messaging_destination_name}}",
           "range": true,
           "refId": "A"
         }
@@ -577,7 +577,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Message consumption rate by consumer group",
+      "description": "Message consumption rate by topic",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -654,14 +654,14 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum by (consumer_group) (rate(kafka_messages_consumed_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_process_messages_total[1m])) by (messaging_destination_publish_name) or vector(0)",
           "instant": false,
-          "legendFormat": "{{consumer_group}}",
+          "legendFormat": "{{messaging_destination_publish_name}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Consumer Rate by Group",
+      "title": "Consumer Rate by Topic",
       "type": "timeseries"
     },
     {
@@ -956,9 +956,9 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "rate(kafka_messages_produced_total[1m]) or vector(0)",
+          "expr": "rate(messaging_publish_messages_total[1m]) or vector(0)",
           "instant": false,
-          "legendFormat": "{{topic}}",
+          "legendFormat": "{{messaging_destination_name}}",
           "range": true,
           "refId": "A"
         }
@@ -1044,9 +1044,9 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(kafka_messages_produced_total) by (topic) or vector(0)",
+          "expr": "sum(messaging_publish_messages_total) by (messaging_destination_name) or vector(0)",
           "instant": false,
-          "legendFormat": "{{topic}}-{{partition}}",
+          "legendFormat": "{{messaging_destination_name}}",
           "range": true,
           "refId": "A"
         }

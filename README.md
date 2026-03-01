@@ -12,8 +12,8 @@
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/security.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/security.yml?branch=main&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/vulture.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/vulture.yml?branch=main&label=dead%20code&logo=python&logoColor=white" alt="Dead Code Check" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/grimp.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/grimp.yml?branch=main&label=dead%20code&logo=python&logoColor=white" alt="Dead Code Check" />
   </a>
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/docker.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/docker.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />

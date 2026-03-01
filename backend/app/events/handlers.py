@@ -34,17 +34,13 @@ _sse_field_names: frozenset[str] = frozenset(f.name for f in dataclasses.fields(
 async def _track_consumed(
         metrics: EventMetrics, event: DomainEvent, consumer_group: str, coro: Awaitable[None],
 ) -> None:
-    """Record consumption metric, await *coro*, and record failure metric on error."""
-    metrics.record_kafka_message_consumed(topic=event.event_type, consumer_group=consumer_group)
+    """Await *coro* and record domain-level failure metric on error."""
     try:
         await coro
     except Exception as e:
         metrics.record_events_processing_failed(
             topic=event.event_type, event_type=event.event_type,
             consumer_group=consumer_group, error_type=type(e).__name__,
-        )
-        metrics.record_kafka_consumption_error(
-            topic=event.event_type, consumer_group=consumer_group, error_type=type(e).__name__,
         )
         raise
 
@@ -266,9 +262,7 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
     async def on_sse_event(
             body: DomainEvent,
             sse_bus: FromDishka[SSERedisBus],
-            event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        event_metrics.record_kafka_message_consumed(topic=body.event_type, consumer_group=group_id)
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
             sse_data = SSEExecutionEventData(**{

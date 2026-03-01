@@ -203,7 +203,7 @@
       },
       "id": 102,
       "panels": [],
-      "title": "Kafka Errors & Event Bus",
+      "title": "Event Processing Errors",
       "type": "row"
     },
     {
@@ -215,51 +215,27 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 27
       },
       "id": 9,
       "targets": [
         {
-          "expr": "rate(kafka_production_errors_total[5m]) or vector(0)",
-          "legendFormat": "Production",
+          "expr": "sum(rate(event_processing_errors_total[5m])) by (error_type) or vector(0)",
+          "legendFormat": "{{error_type}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(kafka_consumption_errors_total[5m]) or vector(0)",
-          "legendFormat": "Consumption",
+          "expr": "sum(rate(event_processing_errors_total[5m])) by (consumer_group) or vector(0)",
+          "legendFormat": "{{consumer_group}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Kafka Errors",
+      "title": "Event Processing Errors",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 27
-      },
-      "id": 10,
-      "targets": [
-        {
-          "expr": "event_bus_queue_size or vector(0)",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Event Bus Queue Size",
-      "type": "stat"
     },
     {
       "collapsed": false,

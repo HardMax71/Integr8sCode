@@ -1,4 +1,5 @@
 from enum import StrEnum
+from ipaddress import ip_address
 
 from fastapi import Request
 
@@ -54,11 +55,9 @@ def get_client_ip(request: Request) -> str:
 
 
 def _is_trusted_proxy(ip: str) -> bool:
-    """Check if an IP belongs to a trusted proxy (loopback or Docker-internal ranges)."""
-    return (
-        ip.startswith("127.")
-        or ip == "::1"
-        or ip.startswith("10.")
-        or ip.startswith("172.")
-        or ip.startswith("192.168.")
-    )
+    """Check if an IP belongs to a trusted proxy (loopback or RFC 1918 private ranges)."""
+    try:
+        addr = ip_address(ip)
+    except ValueError:
+        return False
+    return addr.is_loopback or addr.is_private

@@ -111,8 +111,6 @@ class NotificationService:
         self.settings = settings
         self.sse_bus = sse_bus
         self.logger = logger
-        self._http_client = httpx.AsyncClient(timeout=30.0)
-
         self._throttle_cache = ThrottleCache()
 
         # --8<-- [start:channel_handlers]
@@ -364,8 +362,9 @@ class NotificationService:
             "notification.channel": "webhook",
             "notification.webhook_host": safe_host,
         })
-        response = await self._http_client.post(webhook_url, json=payload, headers=headers)
-        response.raise_for_status()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(webhook_url, json=payload, headers=headers)
+            response.raise_for_status()
         self.logger.debug(
             "Webhook delivered successfully",
             notification_id=str(notification.notification_id),
@@ -411,8 +410,9 @@ class NotificationService:
             "notification.id": str(notification.notification_id),
             "notification.channel": "slack",
         })
-        response = await self._http_client.post(subscription.slack_webhook, json=slack_message)
-        response.raise_for_status()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(subscription.slack_webhook, json=slack_message)
+            response.raise_for_status()
         self.logger.debug(
             "Slack notification delivered successfully",
             notification_id=str(notification.notification_id),

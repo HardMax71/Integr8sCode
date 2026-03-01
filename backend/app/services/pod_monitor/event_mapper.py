@@ -477,10 +477,7 @@ class PodEventMapper:
             self.logger.warning("Failed to fetch pod logs", pod_name=pod.metadata.name, exc_info=True)
             return None
 
-        if not logs:
-            return None
-
-        stdout, stderr = self._parse_framed_output(logs)
+        stdout, stderr = self._parse_framed_output(logs or "")
 
         return PodLogs(
             exit_code=int(meta.get("exit_code", str(terminated.exit_code or 0))),

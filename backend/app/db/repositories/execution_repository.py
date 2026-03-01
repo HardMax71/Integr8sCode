@@ -7,7 +7,7 @@ from beanie.odm.enums import SortDirection
 from beanie.operators import In
 
 from app.db.docs import ExecutionDocument
-from app.domain.enums import EXECUTION_ACTIVE, QueuePriority
+from app.domain.enums import EXECUTION_ACTIVE, ExecutionStatus, QueuePriority
 from app.domain.events import ResourceUsageDomain
 from app.domain.execution import (
     DomainExecution,
@@ -49,7 +49,8 @@ class ExecutionRepository:
     async def write_terminal_result(self, result: ExecutionResultDomain) -> bool:
         """Atomically write a terminal result, guarded by non-terminal status check.
 
-        Uses find_one_and_update so a slower processor cannot overwrite a result
+        Performs a conditional update that only applies when the current status is
+        still in EXECUTION_ACTIVE, so a slower processor cannot overwrite a result
         that was already written by a faster one.
         """
         update_result = await ExecutionDocument.find_one(
@@ -123,21 +124,17 @@ class ExecutionRepository:
                 "totals": [{"$group": {
                     "_id": None,
                     "total": {"$sum": 1},
-                    "successful": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
+                    "successful": {"$sum": {"$cond": [{"$eq": ["$status", ExecutionStatus.COMPLETED]}, 1, 0]}},
                 }}],
                 "avg_duration": [
                     {"$match": {
-                        "status": "completed",
+                        "status": ExecutionStatus.COMPLETED,
                         "created_at": {"$ne": None},
                         "updated_at": {"$ne": None},
                     }},
                     {"$group": {
                         "_id": None,
-                        "avg_ms": {"$avg": {
-                            "$multiply": [
-                                {"$divide": [{"$subtract": ["$updated_at", "$created_at"]}, 1]},
-                            ],
-                        }},
+                        "avg_ms": {"$avg": {"$subtract": ["$updated_at", "$created_at"]}},
                     }},
                 ],
             },

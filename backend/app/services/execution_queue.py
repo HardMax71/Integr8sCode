@@ -28,6 +28,10 @@ def _event_key(execution_id: str) -> str:
     return f"exec_queue:event:{execution_id}"
 
 
+def _retry_key(execution_id: str) -> str:
+    return f"exec_queue:retries:{execution_id}"
+
+
 def _pending_key(priority: QueuePriority) -> str:
     return f"{_PENDING_PREFIX}{priority}"
 
@@ -150,6 +154,13 @@ class ExecutionQueueService:
         )
         return execution_id, event
 
+    async def increment_retry_count(self, execution_id: str) -> int:
+        """Atomically increment and return the retry count for an execution."""
+        key = _retry_key(execution_id)
+        count: int = await self._redis.incr(key)
+        await self._redis.expire(key, _EVENT_TTL)
+        return count
+
     async def release(self, execution_id: str) -> None:
         pipe = self._redis.pipeline(transaction=True)
         pipe.srem(_ACTIVE_KEY, execution_id)
@@ -176,6 +187,7 @@ class ExecutionQueueService:
         for key in _PENDING_KEYS:
             pipe.zrem(key, execution_id)
         pipe.delete(_event_key(execution_id))
+        pipe.delete(_retry_key(execution_id))
         pipe.srem(_ACTIVE_KEY, execution_id)
         results = await pipe.execute()
         removed = any(results[: len(_PENDING_KEYS)]) or bool(results[-1])

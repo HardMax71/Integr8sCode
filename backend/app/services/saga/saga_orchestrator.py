@@ -130,7 +130,7 @@ class SagaOrchestrator:
             try:
                 await self._start_saga(event)
             except Exception:
-                retry_count = getattr(event, "_retry_count", 0) + 1
+                retry_count = await self._queue.increment_retry_count(execution_id)
                 self.logger.error(
                     "Failed to start saga",
                     execution_id=execution_id,
@@ -148,7 +148,6 @@ class SagaOrchestrator:
                         f"Failed to start saga after {retry_count} attempts",
                     )
                 else:
-                    event._retry_count = retry_count  # type: ignore[attr-defined]
                     await self._queue.enqueue(event)
                 break
 

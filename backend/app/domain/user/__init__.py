@@ -1,6 +1,7 @@
 from app.domain.enums import UserRole
 
 from .exceptions import (
+    AccountDeactivatedError,
     AdminAccessRequiredError,
     AuthenticationRequiredError,
     CSRFValidationError,
@@ -31,6 +32,7 @@ from .user_models import (
 )
 
 __all__ = [
+    "AccountDeactivatedError",
     "AdminAccessRequiredError",
     "AuthenticationRequiredError",
     "CachedSettings",

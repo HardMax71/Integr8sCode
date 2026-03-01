@@ -17,6 +17,7 @@ from app.domain.events import (
 )
 from app.domain.exceptions import AccountLockedError, ConflictError, ValidationError
 from app.domain.user import (
+    AccountDeactivatedError,
     AdminAccessRequiredError,
     AuthenticationRequiredError,
     DomainUserCreate,
@@ -142,7 +143,13 @@ class AuthService:
                 await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=user.user_id)
 
             if not user.is_active:
-                await self._fail_login(username, "account_deactivated", ip_address, user_agent, user_id=user.user_id)
+                self.logger.warning(
+                    "Login rejected: account deactivated",
+                    username=username,
+                    client_ip=ip_address,
+                    user_agent=user_agent,
+                )
+                raise AccountDeactivatedError(username)
 
             await self._lockout.clear_attempts(username)
 

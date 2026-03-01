@@ -113,6 +113,7 @@ class _FakeQueue(ExecutionQueueService):
         self.enqueued: list[ExecutionRequestedEvent] = []
         self._pending: list[tuple[str, ExecutionRequestedEvent]] = []
         self.released: list[str] = []
+        self._retry_counts: dict[str, int] = {}
 
     async def enqueue(self, event: ExecutionRequestedEvent) -> int:
         self.enqueued.append(event)
@@ -130,6 +131,10 @@ class _FakeQueue(ExecutionQueueService):
     async def remove(self, execution_id: str) -> bool:
         self._pending = [(eid, ev) for eid, ev in self._pending if eid != execution_id]
         return True
+
+    async def increment_retry_count(self, execution_id: str) -> int:
+        self._retry_counts[execution_id] = self._retry_counts.get(execution_id, 0) + 1
+        return self._retry_counts[execution_id]
 
     async def update_priority(self, execution_id: str, new_priority: Any) -> bool:
         return True
@@ -318,3 +323,52 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
 
     # Slot released even though no saga was found
     assert "orphan" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_max_retries_exceeded_fails_execution() -> None:
+    """After _MAX_SAGA_START_RETRIES failures, the execution is dropped with FAILED state."""
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    fake_repo.fail_on_create = True
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    event = make_execution_requested_event(execution_id="e1")
+
+    # Simulate repeated failures by pre-setting retry count to threshold - 1
+    fake_queue._retry_counts["e1"] = orch._MAX_SAGA_START_RETRIES - 1
+
+    await orch.handle_execution_requested(event)
+
+    # Retry count reached max — execution should NOT be re-enqueued a second time
+    # (only the initial enqueue from handle_execution_requested)
+    assert len(fake_queue.enqueued) == 1
+    # Slot was released
+    assert "e1" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_retry_count_increments_across_failures() -> None:
+    """Each saga start failure increments the retry count via the queue service."""
+    fake_repo = _FakeRepo()
+    fake_queue = _FakeQueue()
+    fake_repo.fail_on_create = True
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+
+    event = make_execution_requested_event(execution_id="e1")
+    await orch.handle_execution_requested(event)
+
+    # First failure: retry count = 1, event re-enqueued
+    assert fake_queue._retry_counts["e1"] == 1
+    assert len(fake_queue.enqueued) == 2  # initial + re-enqueue
+
+    # Trigger second attempt (fake queue has the re-enqueued event)
+    await orch.try_schedule_from_queue()
+    assert fake_queue._retry_counts["e1"] == 2
+    assert len(fake_queue.enqueued) == 3  # another re-enqueue
+
+    # Trigger third attempt — should exceed max retries (3 >= 3)
+    await orch.try_schedule_from_queue()
+    assert fake_queue._retry_counts["e1"] == 3
+    # No more re-enqueues after max retries
+    assert len(fake_queue.enqueued) == 3

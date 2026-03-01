@@ -56,6 +56,7 @@ class NotificationRepository:
         result = await NotificationDocument.find(
             NotificationDocument.user_id == user_id,
             NotificationDocument.status != NotificationStatus.READ,
+            NotificationDocument.status != NotificationStatus.CLICKED,
         ).update_many({"$set": {"status": NotificationStatus.READ, "read_at": datetime.now(UTC)}})
         return result.modified_count if result and hasattr(result, "modified_count") else 0
 

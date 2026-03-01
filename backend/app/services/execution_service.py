@@ -213,9 +213,6 @@ class ExecutionService:
         Raises:
             ExecutionTerminalError: If execution is in a terminal state.
         """
-        if current_status.is_terminal:
-            raise ExecutionTerminalError(execution_id, current_status)
-
         if current_status == ExecutionStatus.CANCELLED:
             return CancelResult(
                 execution_id=execution_id,
@@ -223,6 +220,9 @@ class ExecutionService:
                 message="Execution was already cancelled",
                 event_id=None,
             )
+
+        if current_status.is_terminal:
+            raise ExecutionTerminalError(execution_id, current_status)
 
         metadata = self._create_event_metadata(user_id=user_id)
         event = ExecutionCancelledEvent(

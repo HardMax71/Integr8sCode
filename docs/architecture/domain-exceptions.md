@@ -60,10 +60,11 @@ DomainError
 │   └── CSRFValidationError
 ├── InvalidStateError
 │   └── SagaInvalidStateError
-└── InfrastructureError
-    ├── EventPublishError
-    ├── SagaTimeoutError
-    └── ReplayOperationError
+├── InfrastructureError
+│   ├── EventPublishError
+│   ├── SagaTimeoutError
+│   └── ReplayOperationError
+└── AccountLockedError
 ```
 
 ## Exception locations
@@ -72,7 +73,7 @@ Domain exceptions live in their respective domain modules:
 
 | Module       | File                                    | Exceptions                                                                                                                                            |
 |--------------|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Base         | `app/domain/exceptions.py`              | `DomainError`, `NotFoundError`, `ValidationError`, etc.                                                                                               |
+| Base         | `app/domain/exceptions.py`              | `DomainError`, `NotFoundError`, `ValidationError`, `AccountLockedError`, etc.                                                                         |
 | Execution    | `app/domain/execution/exceptions.py`    | `ExecutionNotFoundError`, `RuntimeNotSupportedError`, `EventPublishError`                                                                             |
 | Saga         | `app/domain/saga/exceptions.py`         | `SagaNotFoundError`, `SagaAccessDeniedError`, `SagaInvalidStateError`, `SagaTimeoutError`, `SagaConcurrencyError`                                     |
 | Notification | `app/domain/notification/exceptions.py` | `NotificationNotFoundError`, `NotificationThrottledError`, `NotificationValidationError`                                                              |

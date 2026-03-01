@@ -63,8 +63,8 @@ class EventRepository:
             await EventDocument.find_one(
                 EventDocument.event_id == event_id,
             ).update({"$set": {"publish_failed": True, "publish_failed_at": datetime.now(timezone.utc)}})
-        except Exception:
-            self.logger.warning("Could not mark event as publish-failed", event_id=event_id)
+        except Exception as exc:
+            self.logger.warning("Could not mark event as publish-failed", event_id=event_id, error=str(exc))
 
     async def get_event(self, event_id: str) -> DomainEvent | None:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)

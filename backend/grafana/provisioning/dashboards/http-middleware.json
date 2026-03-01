@@ -203,7 +203,7 @@
       },
       "id": 102,
       "panels": [],
-      "title": "Kafka Errors & Event Bus",
+      "title": "Event Processing Errors",
       "type": "row"
     },
     {
@@ -215,7 +215,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 27
       },
@@ -234,32 +234,8 @@
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Kafka Errors",
+      "title": "Event Processing Errors",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 27
-      },
-      "id": 10,
-      "targets": [
-        {
-          "expr": "event_bus_queue_size or vector(0)",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Event Bus Queue Size",
-      "type": "stat"
     },
     {
       "collapsed": false,

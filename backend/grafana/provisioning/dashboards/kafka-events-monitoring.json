@@ -577,7 +577,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Message consumption rate by consumer group",
+      "description": "Message consumption rate by topic",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -661,7 +661,7 @@
           "refId": "A"
         }
       ],
-      "title": "Consumer Rate by Group",
+      "title": "Consumer Rate by Topic",
       "type": "timeseries"
     },
     {

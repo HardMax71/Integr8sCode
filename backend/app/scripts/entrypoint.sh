@@ -8,7 +8,7 @@
 # ---------- argument check --------------------------------------------------
 
 if [ "$#" -eq 0 ]; then
-    printf 'cpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n' > /dev/termination-log
+    printf 'exit_code=127\ncpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n' > /dev/termination-log
     ERR_MSG="Entrypoint Error: No command provided."
     printf 'STDOUT 0\nSTDERR %d\n%s' "${#ERR_MSG}" "$ERR_MSG"
     exit 127
@@ -63,8 +63,8 @@ ELAPSED_S=$(printf '%s\n' "$END_TIME $START_TIME" | awk '{printf "%.6f",$1-$2}')
 
 # ---------- write resource metrics to termination log ----------------------
 
-printf 'cpu_jiffies=%d\nclk_tck=%d\npeak_memory_kb=%d\nwall_seconds=%s\n' \
-    "${JIFS:-0}" "${CLK_TCK:-100}" "${PEAK_KB:-0}" "${ELAPSED_S:-0}" \
+printf 'exit_code=%d\ncpu_jiffies=%d\nclk_tck=%d\npeak_memory_kb=%d\nwall_seconds=%s\n' \
+    "${EXIT_CODE:-1}" "${JIFS:-0}" "${CLK_TCK:-100}" "${PEAK_KB:-0}" "${ELAPSED_S:-0}" \
     > /dev/termination-log
 
 # ---------- write length-prefixed stdout/stderr ----------------------------
@@ -76,4 +76,4 @@ cat "$OUT"
 printf 'STDERR %d\n' "$STDERR_BYTES"
 cat "$ERR"
 
-exit "$EXIT_CODE"
+exit 0

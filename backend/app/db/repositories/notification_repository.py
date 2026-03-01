@@ -55,7 +55,7 @@ class NotificationRepository:
     async def mark_all_as_read(self, user_id: str) -> int:
         result = await NotificationDocument.find(
             NotificationDocument.user_id == user_id,
-            NotificationDocument.status == NotificationStatus.DELIVERED,
+            NotificationDocument.status != NotificationStatus.READ,
         ).update_many({"$set": {"status": NotificationStatus.READ, "read_at": datetime.now(UTC)}})
         return result.modified_count if result and hasattr(result, "modified_count") else 0
 

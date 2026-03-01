@@ -19,8 +19,8 @@ pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.pod_monitor.event_mapper")
 
-_TERM_MSG = "cpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n"
-_TERM_MSG_EMPTY = "cpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n"
+_TERM_MSG = "exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n"
+_TERM_MSG_EMPTY = "exit_code=0\ncpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n"
 
 
 def _framed(stdout: str = "", stderr: str = "") -> str:
@@ -99,12 +99,12 @@ async def test_failed_timeout_and_deleted() -> None:
     logs = _framed("", "")
     pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
 
-    # Timeout via DeadlineExceeded
+    # Timeout via DeadlineExceeded (entrypoint killed, no termination message)
     pod_to = make_pod(
         name="p",
         phase="Failed",
         labels={"execution-id": "e1"},
-        container_statuses=[make_container_status(terminated_exit_code=137, terminated_message=_TERM_MSG_EMPTY)],
+        container_statuses=[make_container_status(terminated_exit_code=137)],
         reason="DeadlineExceeded",
         active_deadline_seconds=5,
     )
@@ -380,8 +380,10 @@ def test_parse_termination_message() -> None:
     parse = PodEventMapper._parse_termination_message
 
     # Normal message
-    result = parse("cpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n")
-    assert result == {"cpu_jiffies": "100", "clk_tck": "100", "peak_memory_kb": "1024", "wall_seconds": "0.5"}
+    result = parse("exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n")
+    assert result == {
+        "exit_code": "0", "cpu_jiffies": "100", "clk_tck": "100", "peak_memory_kb": "1024", "wall_seconds": "0.5",
+    }
 
     # Empty string
     assert parse("") == {}

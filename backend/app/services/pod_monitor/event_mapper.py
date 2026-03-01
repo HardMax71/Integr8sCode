@@ -483,7 +483,7 @@ class PodEventMapper:
         stdout, stderr = self._parse_framed_output(logs)
 
         return PodLogs(
-            exit_code=terminated.exit_code or 0,
+            exit_code=int(meta.get("exit_code", str(terminated.exit_code or 0))),
             stdout=stdout,
             stderr=stderr,
             resource_usage=ResourceUsageDomain(

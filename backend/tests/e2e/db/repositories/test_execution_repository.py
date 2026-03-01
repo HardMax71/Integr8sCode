@@ -51,7 +51,7 @@ async def _create_and_complete(
     created = await repo.create_execution(DomainExecutionCreate(
         script="x = 1", lang=lang, lang_version=lang_version, user_id=user_id,
     ))
-    await repo.write_terminal_result(ExecutionResultDomain(
+    wrote = await repo.write_terminal_result(ExecutionResultDomain(
         execution_id=created.execution_id,
         status=status,
         exit_code=0 if status == ExecutionStatus.COMPLETED else 1,
@@ -59,6 +59,7 @@ async def _create_and_complete(
         stderr="",
         error_type=ExecutionErrorType.SCRIPT_ERROR if status == ExecutionStatus.FAILED else None,
     ))
+    assert wrote, f"write_terminal_result failed for {created.execution_id}"
     return created.execution_id
 
 

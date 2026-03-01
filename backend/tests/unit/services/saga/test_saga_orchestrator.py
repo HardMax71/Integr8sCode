@@ -327,7 +327,7 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
 
 @pytest.mark.asyncio
 async def test_max_retries_exceeded_fails_execution() -> None:
-    """After _MAX_SAGA_START_RETRIES failures, the execution is dropped with FAILED state."""
+    """After _MAX_SAGA_START_RETRIES failures, the execution is not re-enqueued and the slot is released."""
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
     fake_repo.fail_on_create = True

@@ -171,10 +171,9 @@ class EventReplayService:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
         removed_memory = 0
 
-        completed_statuses = {ReplayStatus.COMPLETED, ReplayStatus.FAILED, ReplayStatus.CANCELLED}
         for session_id in list(self._sessions.keys()):
             session = self._sessions[session_id]
-            if session.status in completed_statuses and session.created_at < cutoff_time:
+            if session.status.is_terminal and session.created_at < cutoff_time:
                 del self._sessions[session_id]
                 removed_memory += 1
 

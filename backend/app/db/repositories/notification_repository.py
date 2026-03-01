@@ -137,18 +137,15 @@ class NotificationRepository:
 
     async def try_claim_pending(self, notification_id: str) -> bool:
         now = datetime.now(UTC)
-        doc = await NotificationDocument.find_one(
+        result = await NotificationDocument.find_one(
             NotificationDocument.notification_id == notification_id,
             NotificationDocument.status == NotificationStatus.PENDING,
             Or(
                 NotificationDocument.scheduled_for == None,  # noqa: E711
                 LTE(NotificationDocument.scheduled_for, now),
             ),
-        )
-        if not doc:
-            return False
-        await doc.set({"status": NotificationStatus.SENDING, "sent_at": now})
-        return True
+        ).update({"$set": {"status": NotificationStatus.SENDING, "sent_at": now}})
+        return bool(result and getattr(result, "modified_count", 0) > 0)
 
     # Subscriptions
     async def get_subscription(
@@ -187,17 +184,17 @@ class NotificationRepository:
             return DomainNotificationSubscription(**doc.model_dump(include=_sub_fields))
 
     async def get_all_subscriptions(self, user_id: str) -> list[DomainNotificationSubscription]:
-        subs: list[DomainNotificationSubscription] = []
-        for channel in NotificationChannel:
-            doc = await NotificationSubscriptionDocument.find_one(
-                NotificationSubscriptionDocument.user_id == user_id,
-                NotificationSubscriptionDocument.channel == channel,
-            )
-            if doc:
-                subs.append(DomainNotificationSubscription(**doc.model_dump(include=_sub_fields)))
-            else:
-                subs.append(DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True))
-        return subs
+        docs = await NotificationSubscriptionDocument.find(
+            NotificationSubscriptionDocument.user_id == user_id,
+        ).to_list()
+        existing: dict[NotificationChannel, DomainNotificationSubscription] = {
+            doc.channel: DomainNotificationSubscription(**doc.model_dump(include=_sub_fields))
+            for doc in docs
+        }
+        return [
+            existing.get(channel, DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True))
+            for channel in NotificationChannel
+        ]
 
     # User query operations
     async def get_users_by_roles(self, roles: list[UserRole]) -> list[str]:

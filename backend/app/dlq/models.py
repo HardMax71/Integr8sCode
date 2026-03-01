@@ -10,10 +10,25 @@ from app.domain.events import DomainEvent
 class DLQMessageStatus(StringEnum):
     """Status of a message in the Dead Letter Queue."""
 
+    _terminal: bool
+
     PENDING = "pending"
     SCHEDULED = "scheduled"
-    RETRIED = "retried"
-    DISCARDED = "discarded"
+    RETRIED = ("retried", True)
+    DISCARDED = ("discarded", True)
+
+    def __new__(cls, value: str, terminal: bool = False) -> "DLQMessageStatus":
+        obj = str.__new__(cls, value)
+        obj._value_ = value
+        obj._terminal = terminal
+        return obj
+
+    @property
+    def is_terminal(self) -> bool:
+        return self._terminal
+
+
+DLQ_TERMINAL = frozenset(s for s in DLQMessageStatus if s.is_terminal)
 
 
 class RetryStrategy(StringEnum):

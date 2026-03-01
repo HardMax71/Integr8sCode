@@ -42,16 +42,24 @@ class SecurityService:
         return encoded_jwt
     # --8<-- [end:create_access_token]
 
-    def decode_token(self, token: str) -> str:
-        """Decode JWT and return the username (sub claim)."""
+    def decode_token(self, token: str, *, allow_expired: bool = False) -> str:
+        """Decode JWT and return the username (sub claim).
+
+        Args:
+            token: The JWT token string.
+            allow_expired: If True, accept expired tokens (used for logout).
+        """
         try:
-            payload = jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
+            options = {"verify_exp": not allow_expired}
+            payload = jwt.decode(
+                token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM], options=options,
+            )
             username: str | None = payload.get("sub")
             if username is None:
                 raise InvalidCredentialsError()
-        except jwt.PyJWTError as e:
-            raise InvalidCredentialsError() from e
-        return username
+            return username
+        except jwt.PyJWTError:
+            raise InvalidCredentialsError() from None
 
     def generate_csrf_token(self, session_id: str) -> str:
         """Generate a signed CSRF token bound to the given session (access_token).

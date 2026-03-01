@@ -32,23 +32,33 @@ class StringEnum(StrEnum):
 
 
 def get_client_ip(request: Request) -> str:
+    """Get client IP address from request.
+
+    Uses the direct connection IP as the authoritative source.
+    X-Forwarded-For is only trusted when the direct connection comes from a
+    known local/proxy address, preventing attackers from spoofing their IP to
+    bypass rate limiting.
     """
-    Safely get client IP address from request.
-    Handles both normal connections and proxy forwarded requests.
-    """
-    # Check for proxy headers first (in order of preference)
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        # X-Forwarded-For can contain multiple IPs, take the first one
-        return forwarded_for.split(",")[0].strip()
+    direct_ip = request.client.host if request.client else "127.0.0.1"
 
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip
+    if _is_trusted_proxy(direct_ip):
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
 
-    # Fall back to direct client connection
-    if request.client:
-        return request.client.host
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip
 
-    # Should rarely happen, but handle the case where client is None
-    return "127.0.0.1"
+    return direct_ip
+
+
+def _is_trusted_proxy(ip: str) -> bool:
+    """Check if an IP belongs to a trusted proxy (loopback or Docker-internal ranges)."""
+    return (
+        ip.startswith("127.")
+        or ip == "::1"
+        or ip.startswith("10.")
+        or ip.startswith("172.")
+        or ip.startswith("192.168.")
+    )

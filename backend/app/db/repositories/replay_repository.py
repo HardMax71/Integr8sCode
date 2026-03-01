@@ -8,7 +8,7 @@ from beanie.operators import LT, In
 
 from app.db.docs import EventDocument, ReplaySessionDocument
 from app.domain.admin import ReplaySessionUpdate
-from app.domain.enums import ReplayStatus
+from app.domain.enums import REPLAY_TERMINAL, ReplayStatus
 from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter, ReplaySessionState
 
 _replay_fields = set(ReplaySessionState.__dataclass_fields__)
@@ -66,14 +66,9 @@ class ReplayRepository:
         return True
 
     async def delete_old_sessions(self, cutoff_time: datetime) -> int:
-        terminal_statuses = [
-            ReplayStatus.COMPLETED,
-            ReplayStatus.FAILED,
-            ReplayStatus.CANCELLED,
-        ]
         result = await ReplaySessionDocument.find(
             LT(ReplaySessionDocument.created_at, cutoff_time),
-            In(ReplaySessionDocument.status, terminal_statuses),
+            In(ReplaySessionDocument.status, list(REPLAY_TERMINAL)),
         ).delete()
         return result.deleted_count if result else 0
 

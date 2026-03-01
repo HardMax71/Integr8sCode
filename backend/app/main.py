@@ -39,6 +39,7 @@ from app.core.middlewares import (
     MetricsMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
     setup_metrics,
 )
 from app.settings import Settings
@@ -58,13 +59,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     logger = setup_logger(settings.LOG_LEVEL)
 
-    # Disable OpenAPI/Docs in production for security; health endpoints provide readiness
+    openapi_url = "/openapi.json" if settings.DEVELOPMENT_MODE else None
+    docs_url = "/docs" if settings.DEVELOPMENT_MODE else None
+    redoc_url = "/redoc" if settings.DEVELOPMENT_MODE else None
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         lifespan=lifespan,
-        openapi_url=None,
-        docs_url=None,
-        redoc_url=None,
+        openapi_url=openapi_url,
+        docs_url=docs_url,
+        redoc_url=redoc_url,
     )
 
     # Store settings on app state for lifespan access
@@ -81,13 +85,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(CacheControlMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
         allow_headers=[
             "Authorization",
             "Content-Type",
@@ -96,7 +101,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-Requested-With",
             "X-CSRF-Token",
         ],
-        expose_headers=["Content-Length", "Content-Range"],
+        expose_headers=[
+            "Content-Length",
+            "Content-Range",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "Retry-After",
+        ],
     )
     logger.info("CORS middleware configured", origins=settings.CORS_ORIGINS)
 

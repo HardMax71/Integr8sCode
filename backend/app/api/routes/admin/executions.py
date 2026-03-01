@@ -20,6 +20,7 @@ router = APIRouter(
     prefix="/admin/executions",
     tags=["admin-executions"],
     route_class=DishkaRoute,
+    dependencies=[Depends(admin_user)],
 )
 
 

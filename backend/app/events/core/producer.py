@@ -26,7 +26,11 @@ class UnifiedProducer:
         self._event_metrics = event_metrics
 
     async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
-        """Persist event to MongoDB, then publish to Kafka."""
+        """Persist event to MongoDB, then publish to Kafka.
+
+        On Kafka publish failure, the event is marked as failed-to-publish
+        in MongoDB before the exception propagates.
+        """
         await self._event_repository.store_event(event_to_produce)
         topic = event_to_produce.event_type
         try:
@@ -37,9 +41,10 @@ class UnifiedProducer:
             )
 
             self._event_metrics.record_kafka_message_produced(topic)
-            self.logger.debug(f"Event {event_to_produce.event_type} sent to topic: {topic}")
+            self.logger.debug("Event sent to topic", event_type=event_to_produce.event_type, topic=topic)
 
         except Exception as e:
             self._event_metrics.record_kafka_production_error(topic=topic, error_type=type(e).__name__)
-            self.logger.error(f"Failed to produce message: {e}")
+            self.logger.error("Failed to produce message", topic=topic, error=str(e))
+            await self._event_repository.mark_publish_failed(event_to_produce.event_id)
             raise

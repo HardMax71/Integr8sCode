@@ -162,8 +162,6 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
 
 
 def register_saga_subscriber(broker: KafkaBroker) -> None:
-    # No with_idempotency — the saga state machine provides its own
-    # deduplication via status checks before each transition.
     @broker.subscriber(
         EventType.EXECUTION_REQUESTED,
         group_id="saga-orchestrator",
@@ -172,10 +170,14 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
     async def on_execution_requested(
             body: ExecutionRequestedEvent,
             orchestrator: FromDishka[SagaOrchestrator],
+            idem: FromDishka[IdempotencyManager],
+            logger: FromDishka[structlog.stdlib.BoundLogger],
             event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "saga-orchestrator",
-            orchestrator.handle_execution_requested(body))
+        coro = with_idempotency(
+            body, orchestrator.handle_execution_requested, idem, KeyStrategy.EVENT_BASED, 3600, logger,
+        )
+        await _track_consumed(event_metrics, body, "saga-orchestrator", coro)
 
     @broker.subscriber(
         EventType.EXECUTION_COMPLETED,

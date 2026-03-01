@@ -30,6 +30,7 @@ HTTP status codes:
 | `ForbiddenError`      | 403         | Authenticated but not allowed        |
 | `InvalidStateError`   | 400         | Operation invalid for current state  |
 | `InfrastructureError` | 500         | External system failure              |
+| `AccountLockedError`  | 423         | Account temporarily locked           |
 
 Each domain module defines specific exceptions that inherit from these bases. The hierarchy looks like this:
 

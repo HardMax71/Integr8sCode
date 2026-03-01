@@ -35,7 +35,6 @@ def _pending_key(priority: QueuePriority) -> str:
 _UPDATE_PRIORITY_LUA = """
 local new_key = KEYS[1]
 local exec_id = ARGV[1]
-local new_score = tonumber(ARGV[2])
 
 for i = 2, #KEYS do
     local score = redis.call('ZSCORE', KEYS[i], exec_id)
@@ -132,8 +131,12 @@ class ExecutionQueueService:
 
         event_json = await self._redis.get(_event_key(execution_id))
         if event_json is None:
-            self._logger.warning("Event data missing for scheduled execution", execution_id=execution_id)
+            self._logger.error(
+                "Event data expired/missing for scheduled execution — execution lost",
+                execution_id=execution_id,
+            )
             await self._redis.srem(_ACTIVE_KEY, execution_id)  # type: ignore[misc]
+            self._metrics.record_event_data_lost()
             return None
 
         event_str = event_json if isinstance(event_json, str) else event_json.decode()
@@ -159,7 +162,7 @@ class ExecutionQueueService:
         script = await self._get_update_priority_script()
         result = await script(
             keys=[_pending_key(new_priority), *_PENDING_KEYS],
-            args=[execution_id, time.time()],
+            args=[execution_id],
         )
         if not result:
             return False

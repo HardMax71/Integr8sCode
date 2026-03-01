@@ -76,6 +76,9 @@ class AuthService:
         if user is None:
             raise InvalidCredentialsError()
 
+        if not user.is_active:
+            raise InvalidCredentialsError()
+
         return user
 
     async def get_admin(self, request: Request) -> User:
@@ -84,7 +87,7 @@ class AuthService:
             "/admin", request.method, user.role == UserRole.ADMIN, user_role=user.role,
         )
         if user.role != UserRole.ADMIN:
-            self.logger.warning(f"Admin access denied for user: {user.username} (role: {user.role})")
+            self.logger.warning("Admin access denied", username=user.username, role=user.role)
             raise AdminAccessRequiredError(user.username)
         return user
 
@@ -97,7 +100,8 @@ class AuthService:
         user_id: str = "",
     ) -> NoReturn:
         self.logger.warning(
-            f"Login failed - {reason}",
+            "Login failed",
+            reason=reason,
             username=username,
             client_ip=ip_address,
             user_agent=user_agent,
@@ -136,6 +140,9 @@ class AuthService:
 
             if not self.security_service.verify_password(password, user.hashed_password):
                 await self._fail_login(username, "invalid_password", ip_address, user_agent, user_id=user.user_id)
+
+            if not user.is_active:
+                await self._fail_login(username, "account_deactivated", ip_address, user_agent, user_id=user.user_id)
 
             await self._lockout.clear_attempts(username)
 
@@ -199,6 +206,16 @@ class AuthService:
             )
             raise ConflictError("Username already registered")
 
+        existing_email = await self.user_repo.get_user_by_email(email)
+        if existing_email:
+            self.logger.warning(
+                "Registration failed - email taken",
+                username=username,
+                client_ip=ip_address,
+                user_agent=user_agent,
+            )
+            raise ConflictError("Email already registered")
+
         hashed_password = self.security_service.get_password_hash(password)
         create_data = DomainUserCreate(
             username=username,
@@ -232,7 +249,7 @@ class AuthService:
     async def publish_logout_event(self, token: str | None) -> None:
         if not token:
             return
-        username = self.security_service.decode_token(token)
+        username = self.security_service.decode_token(token, allow_expired=True)
         user = await self.user_repo.get_user(username)
         if not user:
             return

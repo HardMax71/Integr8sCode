@@ -106,7 +106,7 @@ class SagaOrchestrator:
         saga = await self._repo.get_saga_by_execution_and_name(execution_id, _SAGA_NAME)
         if not saga:
             self.logger.debug("No execution_saga found for execution", execution_id=execution_id)
-        elif saga.state not in (SagaState.RUNNING, SagaState.CREATED):
+        elif saga.state.is_terminal:
             self.logger.debug("Saga already in terminal state", saga_id=saga.saga_id, state=saga.state)
         else:
             self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
@@ -116,6 +116,8 @@ class SagaOrchestrator:
 
         await self._queue.release(execution_id)
         await self.try_schedule_from_queue()
+
+    _MAX_SAGA_START_RETRIES = 3
 
     async def try_schedule_from_queue(self) -> None:
         """Try to schedule pending executions from the queue."""
@@ -128,11 +130,26 @@ class SagaOrchestrator:
             try:
                 await self._start_saga(event)
             except Exception:
+                retry_count = getattr(event, "_retry_count", 0) + 1
                 self.logger.error(
-                    "Failed to start saga, re-enqueueing execution", execution_id=execution_id, exc_info=True,
+                    "Failed to start saga",
+                    execution_id=execution_id,
+                    retry_count=retry_count,
+                    exc_info=True,
                 )
                 await self._queue.release(execution_id)
-                await self._queue.enqueue(event)
+                if retry_count >= self._MAX_SAGA_START_RETRIES:
+                    self.logger.error(
+                        "Max saga start retries exceeded, dropping execution",
+                        execution_id=execution_id,
+                    )
+                    await self._resolve_completion(
+                        execution_id, SagaState.FAILED,
+                        f"Failed to start saga after {retry_count} attempts",
+                    )
+                else:
+                    event._retry_count = retry_count  # type: ignore[attr-defined]
+                    await self._queue.enqueue(event)
                 break
 
     async def _start_saga(self, trigger_event: ExecutionRequestedEvent) -> str:
@@ -172,6 +189,7 @@ class SagaOrchestrator:
             producer=self._producer,
             alloc_repo=self._alloc_repo,
             publish_commands=self.config.publish_commands,
+            logger=self.logger,
         )
         return saga
 
@@ -190,7 +208,7 @@ class SagaOrchestrator:
             for step in steps:
                 saved = await self._repo.save_saga(instance.saga_id, current_step=step.name)
 
-                if saved.state not in (SagaState.RUNNING, SagaState.CREATED):
+                if saved.state.is_terminal:
                     self.logger.info(
                         "Saga no longer active, stopping", saga_id=instance.saga_id, state=saved.state
                     )
@@ -259,6 +277,7 @@ class SagaOrchestrator:
             await self._repo.save_saga(saga_id, state=SagaState.COMPENSATING)
 
         compensated: list[str] = list(saga.compensated_steps)
+        failed_compensations: list[str] = []
         for compensation in reversed(context.compensations):
             try:
                 self.logger.info("Executing compensation", compensation=compensation.name, saga_id=saga_id)
@@ -268,12 +287,21 @@ class SagaOrchestrator:
                 if success:
                     compensated.append(compensation.name)
                 else:
+                    failed_compensations.append(compensation.name)
                     self.logger.error("Compensation failed", compensation=compensation.name, saga_id=saga_id)
 
             except Exception:
+                failed_compensations.append(compensation.name)
                 self.logger.error(
                     "Error in compensation", compensation=compensation.name, saga_id=saga_id, exc_info=True
                 )
+
+        if failed_compensations:
+            self.logger.error(
+                "Partial compensation — some steps could not be undone",
+                saga_id=saga_id,
+                failed_compensations=failed_compensations,
+            )
 
         if was_cancelled:
             await self._repo.save_saga(saga_id, compensated_steps=compensated)

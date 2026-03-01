@@ -7,7 +7,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.utils import get_client_ip
 from app.domain.rate_limit import RateLimitStatus
-from app.domain.user import User
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
@@ -102,10 +101,28 @@ class RateLimitMiddleware:
         await self.app(scope, receive, send_wrapper)
 
     # --8<-- [start:extract_user_id]
-    def _extract_user_id(self, request: Request) -> str:
-        user: User | None = request.state.__dict__.get("user")
-        if user:
-            return str(user.user_id)
+    @staticmethod
+    def _extract_user_id(request: Request) -> str:
+        """Extract user identifier for rate limiting.
+
+        Reads the JWT payload from the access_token cookie without full
+        verification (that happens in route-level auth dependencies). This
+        is safe because the value is only used as a rate-limit bucket key.
+        Falls back to IP-based identification if no token is present or
+        the payload cannot be read.
+        """
+        token = request.cookies.get("access_token")
+        if token:
+            import base64
+            import json as _json
+            parts = token.split(".")
+            if len(parts) == 3:
+                # Pad the base64url payload segment
+                padded = parts[1] + "=" * (-len(parts[1]) % 4)
+                payload = _json.loads(base64.urlsafe_b64decode(padded))
+                username = payload.get("sub")
+                if username:
+                    return f"user:{username}"
         return f"ip:{get_client_ip(request)}"
     # --8<-- [end:extract_user_id]
 

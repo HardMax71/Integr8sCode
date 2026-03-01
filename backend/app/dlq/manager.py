@@ -226,7 +226,7 @@ class DLQManager:
             self.logger.error("Message not found in DLQ", event_id=event_id)
             return False
 
-        if message.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+        if message.status.is_terminal:
             self.logger.info("Skipping manual retry", event_id=event_id, status=message.status)
             return False
 
@@ -278,7 +278,7 @@ class DLQManager:
             self.logger.error("Message not found in DLQ", event_id=event_id)
             return False
 
-        if message.status in {DLQMessageStatus.DISCARDED, DLQMessageStatus.RETRIED}:
+        if message.status.is_terminal:
             self.logger.info("Skipping manual discard", event_id=event_id, status=message.status)
             return False
 

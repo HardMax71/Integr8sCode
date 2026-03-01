@@ -1,4 +1,4 @@
-import ast
+import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
@@ -58,6 +58,8 @@ class PodLogs:
 
 class PodEventMapper:
     """Maps Kubernetes pod objects to application events"""
+
+    _MAX_CACHE_SIZE = 10_000
 
     def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
         self.logger = logger
@@ -193,6 +195,11 @@ class PodEventMapper:
         """Check if this is a duplicate event"""
         if self._event_cache.get(pod_name) == phase:
             return True
+        if len(self._event_cache) >= self._MAX_CACHE_SIZE:
+            # Evict oldest half to amortise cleanup cost
+            keys = list(self._event_cache)[:self._MAX_CACHE_SIZE // 2]
+            for k in keys:
+                del self._event_cache[k]
         self._event_cache[pod_name] = phase
         return False
 
@@ -500,7 +507,7 @@ class PodEventMapper:
         if not (text.startswith("{") and text.endswith("}")):
             return None
 
-        data = ast.literal_eval(text)
+        data = json.loads(text)
         return PodLogs(
             stdout=data.get("stdout", ""),
             stderr=data.get("stderr", ""),

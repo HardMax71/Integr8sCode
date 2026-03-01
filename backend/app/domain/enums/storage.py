@@ -13,6 +13,13 @@ class ExecutionErrorType(StringEnum):
     PERMISSION_DENIED = "permission_denied"
 
 
+class AllocationStatus(StringEnum):
+    """Status of a resource allocation."""
+
+    ACTIVE = "active"
+    RELEASED = "released"
+
+
 class StorageType(StringEnum):
     """Types of storage backends."""
 

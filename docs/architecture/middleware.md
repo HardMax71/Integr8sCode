@@ -58,7 +58,7 @@ Adds appropriate `Cache-Control` headers to GET responses based on endpoint patt
 |-----------------------------|-------------------|------------|
 | `/api/v1/k8s-limits`        | public            | 5 minutes  |
 | `/api/v1/example-scripts`   | public            | 10 minutes |
-| `/api/v1/auth/verify-token` | private, no-cache | -          |
+| `/api/v1/auth/me`           | private, no-cache | -          |
 | `/api/v1/notifications`     | private, no-cache | -          |
 
 Public endpoints also get a `Vary: Accept-Encoding` header for proper proxy caching. Cache headers are only added to

@@ -57,6 +57,12 @@ class EventRepository:
         self.logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
         return event.event_id
 
+    async def mark_publish_failed(self, event_id: str) -> None:
+        """Mark an event as failed to publish to Kafka for later retry."""
+        await EventDocument.find_one(
+            EventDocument.event_id == event_id,
+        ).update({"$set": {"publish_failed": True, "publish_failed_at": datetime.now(timezone.utc)}})
+
     async def get_event(self, event_id: str) -> DomainEvent | None:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:
@@ -257,8 +263,12 @@ class EventRepository:
         deleted_at = datetime.now(timezone.utc)
         archive_fields = {"deleted_at": deleted_at, "deleted_by": deleted_by, "deletion_reason": deletion_reason}
         archived_doc = EventArchiveDocument.model_validate(doc).model_copy(update=archive_fields)
-        await archived_doc.insert()
-        await doc.delete()
+
+        session = await EventDocument.get_motor_collection().database.client.start_session()
+        async with session.start_transaction():
+            await archived_doc.insert(session=session)
+            await doc.delete(session=session)
+
         return ArchivedEvent.model_validate(doc).model_copy(update=archive_fields)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:

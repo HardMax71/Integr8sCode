@@ -43,6 +43,7 @@ from app.db import (
 from app.dlq.manager import DLQManager
 from app.domain.saga import SagaConfig
 from app.events import UnifiedProducer
+from app.events.core.transport import KafkaEventTransport
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.admin.admin_execution_service import AdminExecutionService
 from app.services.auth_service import AuthService
@@ -167,14 +168,20 @@ class MessagingProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_unified_producer(
+    def get_kafka_event_transport(
             self,
             broker: KafkaBroker,
-            event_repository: EventRepository,
             logger: structlog.stdlib.BoundLogger,
-            event_metrics: EventMetrics,
+    ) -> KafkaEventTransport:
+        return KafkaEventTransport(broker, logger)
+
+    @provide
+    def get_unified_producer(
+            self,
+            event_repository: EventRepository,
+            transport: KafkaEventTransport,
     ) -> UnifiedProducer:
-        return UnifiedProducer(broker, event_repository, logger, event_metrics)
+        return UnifiedProducer(event_repository, transport)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -622,14 +629,12 @@ class K8sWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
-        event_metrics: EventMetrics,
     ) -> KubernetesWorker:
         return KubernetesWorker(
             api_client=api_client,
             producer=kafka_producer,
             settings=settings,
             logger=logger,
-            event_metrics=event_metrics,
         )
 
 

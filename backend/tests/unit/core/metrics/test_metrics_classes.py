@@ -33,19 +33,7 @@ def test_event_metrics_smoke(test_settings: Settings) -> None:
     m = EventMetrics(test_settings)
     m.record_event_published("execution.requested")
     m.record_event_processing_duration(0.01, "execution.requested")
-    m.record_event_replay_operation("replay", "success")
-    m.record_event_stored("x", "events")
     m.record_events_processing_failed("t", "x", "g", "ValueError")
-    m.record_event_store_duration(0.01, "store", "events")
-    m.record_event_store_failed("x", "RuntimeError")
-    m.record_event_query_duration(0.02, "by_id", "events")
-    m.record_processing_duration(0.03, "t", "x", "g")
-    m.record_kafka_message_produced("t")
-    m.record_kafka_message_consumed("t", "g")
-    m.record_kafka_production_error("t", "E")
-    m.record_kafka_consumption_error("t", "g", "E")
-    m.update_event_bus_queue_size(1)
-    m.set_event_bus_queue_size(5)
 
 
 def test_other_metrics_classes_smoke(test_settings: Settings) -> None:

@@ -222,14 +222,14 @@
       "id": 9,
       "targets": [
         {
-          "expr": "rate(kafka_production_errors_total[5m]) or vector(0)",
-          "legendFormat": "Production",
+          "expr": "sum(rate(event_processing_errors_total[5m])) by (error_type) or vector(0)",
+          "legendFormat": "{{error_type}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(kafka_consumption_errors_total[5m]) or vector(0)",
-          "legendFormat": "Consumption",
+          "expr": "sum(rate(event_processing_errors_total[5m])) by (consumer_group) or vector(0)",
+          "legendFormat": "{{consumer_group}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }

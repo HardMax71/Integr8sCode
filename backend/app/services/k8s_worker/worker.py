@@ -7,7 +7,7 @@ import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
-from app.core.metrics import EventMetrics, ExecutionMetrics, KubernetesMetrics
+from app.core.metrics import ExecutionMetrics, KubernetesMetrics
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import (
     CreatePodCommandEvent,
@@ -41,9 +41,7 @@ class KubernetesWorker:
             producer: UnifiedProducer,
             settings: Settings,
             logger: structlog.stdlib.BoundLogger,
-            event_metrics: EventMetrics,
     ):
-        self._event_metrics = event_metrics
         self.logger = logger
         self.metrics = KubernetesMetrics(settings)
         self.execution_metrics = ExecutionMetrics(settings)

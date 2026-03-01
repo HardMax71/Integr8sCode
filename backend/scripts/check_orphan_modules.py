@@ -8,6 +8,7 @@ or worker runner scripts, not imported by sibling modules.
 Usage:
     uv run python scripts/check_orphan_modules.py
 """
+import ast
 import sys
 from pathlib import Path
 
@@ -19,17 +20,21 @@ ENTRY_POINTS: frozenset[str] = frozenset({
 
 
 def _is_empty_init(module: str) -> bool:
-    """Return True if module is a package __init__.py with no meaningful code."""
+    """Return True if module is a package __init__.py with no meaningful code.
+
+    A file counts as empty if its AST body contains nothing beyond
+    an optional module-level docstring.
+    """
     init_path = Path(module.replace(".", "/")) / "__init__.py"
     if not init_path.is_file():
         return False
     source = init_path.read_text()
-    meaningful = [
-        line
-        for line in source.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    return len(meaningful) == 0
+    tree = ast.parse(source)
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue
+        return False
+    return True
 
 
 def main() -> int:

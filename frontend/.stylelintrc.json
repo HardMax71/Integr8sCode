@@ -9,6 +9,9 @@
     }],
     "import-notation": null,
     "no-descending-specificity": null,
+    "nesting-selector-no-missing-scoping-root": [true, {
+      "ignoreAtRules": ["utility", "variant", "custom-variant"]
+    }],
     "function-no-unknown": [true, {
       "ignoreFunctions": ["theme", "alpha", "spacing"]
     }],

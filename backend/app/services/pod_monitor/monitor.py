@@ -6,13 +6,21 @@ from typing import Any
 import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio import watch as k8s_watch
+from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
+from app.domain.enums import EventType
 from app.domain.events import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
+
+_TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({
+    EventType.EXECUTION_COMPLETED,
+    EventType.EXECUTION_FAILED,
+    EventType.EXECUTION_TIMEOUT,
+})
 
 # Type aliases
 type ResourceVersion = str
@@ -179,6 +187,10 @@ class PodMonitor:
             for app_event in app_events:
                 await self._publish_event(app_event, event.pod)
 
+            # Delete pod once all data has been extracted and terminal events published
+            if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
+                await self._delete_pod(event.pod)
+
             if app_events:
                 self.logger.info(
                     f"Processed {event.event_type} event for pod {pod_name} "
@@ -206,3 +218,21 @@ class PodMonitor:
 
         except Exception as e:
             self.logger.error(f"Error publishing event: {e}", exc_info=True)
+
+    async def _delete_pod(self, pod: k8s_client.V1Pod) -> None:
+        """Delete a pod after its data has been fully extracted.
+
+        Frees the ResourceQuota slot so new executor pods can be scheduled.
+        The ConfigMap is garbage-collected automatically via ownerReference.
+        """
+        pod_name = pod.metadata.name
+        try:
+            await self._v1.delete_namespaced_pod(
+                name=pod_name, namespace=pod.metadata.namespace, grace_period_seconds=0,
+            )
+            self.logger.info(f"Deleted completed pod {pod_name}")
+        except ApiException as e:
+            if e.status == 404:
+                self.logger.debug(f"Pod {pod_name} already deleted")
+            else:
+                self.logger.warning(f"Failed to delete pod {pod_name}: {e.reason}")

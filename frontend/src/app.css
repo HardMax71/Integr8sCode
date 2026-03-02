@@ -579,4 +579,45 @@
     @apply px-2 py-1 text-sm border border-border-input dark:border-dark-border-input
            rounded bg-surface-overlay dark:bg-dark-surface-overlay text-fg-default dark:text-dark-fg-default;
   }
+
+  /* ANSI color classes for ansi_up (class-based mode) */
+  .ansi-black-fg { color: #000; }
+  .ansi-red-fg { color: #C00; }
+  .ansi-green-fg { color: #0C0; }
+  .ansi-yellow-fg { color: #C50; }
+  .ansi-blue-fg { color: #00C; }
+  .ansi-magenta-fg { color: #C0C; }
+  .ansi-cyan-fg { color: #0CC; }
+  .ansi-white-fg { color: #CCC; }
+  .ansi-bright-black-fg { color: #555; }
+  .ansi-bright-red-fg { color: #F55; }
+  .ansi-bright-green-fg { color: #5F5; }
+  .ansi-bright-yellow-fg { color: #FF5; }
+  .ansi-bright-blue-fg { color: #55F; }
+  .ansi-bright-magenta-fg { color: #F5F; }
+  .ansi-bright-cyan-fg { color: #5FF; }
+  .ansi-bright-white-fg { color: #FFF; }
+  .ansi-black-bg { background-color: #000; }
+  .ansi-red-bg { background-color: #C00; }
+  .ansi-green-bg { background-color: #0C0; }
+  .ansi-yellow-bg { background-color: #C50; }
+  .ansi-blue-bg { background-color: #00C; }
+  .ansi-magenta-bg { background-color: #C0C; }
+  .ansi-cyan-bg { background-color: #0CC; }
+  .ansi-white-bg { background-color: #CCC; }
+  .ansi-bright-black-bg { background-color: #555; }
+  .ansi-bright-red-bg { background-color: #F55; }
+  .ansi-bright-green-bg { background-color: #5F5; }
+  .ansi-bright-yellow-bg { background-color: #FF5; }
+  .ansi-bright-blue-bg { background-color: #55F; }
+  .ansi-bright-magenta-bg { background-color: #F5F; }
+  .ansi-bright-cyan-bg { background-color: #5FF; }
+  .ansi-bright-white-bg { background-color: #FFF; }
+  .ansi-bold { font-weight: bold; }
+  .ansi-italic { font-style: italic; }
+  .ansi-underline { text-decoration: underline; }
+
+  :is(.dark) .ansi-black-fg { color: #555; }
+  :is(.dark) .ansi-white-fg { color: #e2e8f0; }
+  :is(.dark) .ansi-bright-white-fg { color: #FFF; }
 }

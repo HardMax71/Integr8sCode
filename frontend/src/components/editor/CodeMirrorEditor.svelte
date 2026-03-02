@@ -23,6 +23,10 @@
     let container: HTMLElement;
     let view: EditorView | null = null;
 
+    function getCspNonce(): string {
+        return document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ?? '';
+    }
+
     const themeCompartment = new Compartment();
     const fontSizeCompartment = new Compartment();
     const tabSizeCompartment = new Compartment();
@@ -36,6 +40,7 @@
 
     function getStaticExtensions() {
         return [
+            EditorView.cspNonce.of(getCspNonce()),
             lineNumbersCompartment.of(settings.show_line_numbers ? lineNumbers() : []),
             highlightActiveLineGutter(),
             highlightActiveLine(),

@@ -47,7 +47,7 @@
     "@babel/runtime": "^7.28.6",
     "@eslint/js": "^10.0.1",
     "@hey-api/openapi-ts": "^0.92.4",
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.58.2",
     "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-json": "^6.1.0",

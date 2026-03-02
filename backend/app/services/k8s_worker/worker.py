@@ -352,6 +352,11 @@ exec "$@"
                 seccomp_profile=k8s_client.V1SeccompProfile(type="RuntimeDefault"),
             )
 
+            minimal_resources = k8s_client.V1ResourceRequirements(
+                requests={"cpu": "10m", "memory": "8Mi"},
+                limits={"cpu": "100m", "memory": "32Mi"},
+            )
+
             for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
                 self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
@@ -361,6 +366,7 @@ exec "$@"
                     command=["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
                     image_pull_policy="Always",
                     security_context=psa_security_context,
+                    resources=minimal_resources,
                 ))
 
             daemonset = k8s_client.V1DaemonSet(
@@ -376,6 +382,7 @@ exec "$@"
                             containers=[k8s_client.V1Container(
                                 name="pause", image="registry.k8s.io/pause:3.9",
                                 security_context=psa_security_context,
+                                resources=minimal_resources,
                             )],
                             tolerations=[k8s_client.V1Toleration(operator="Exists")],
                             security_context=k8s_client.V1PodSecurityContext(

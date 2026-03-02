@@ -107,7 +107,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["namespaces"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "patch"]
 EOF
 
 # Create ClusterRoleBinding
@@ -139,10 +139,13 @@ rules:
   verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources: ["daemonsets"]
-  verbs: ["get", "list", "watch", "create", "delete", "replace", "update"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["networking.k8s.io"]
   resources: ["networkpolicies"]
-  verbs: ["get", "list", "watch", "create", "delete"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["resourcequotas"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 
 # Create RoleBinding

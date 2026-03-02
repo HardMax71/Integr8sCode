@@ -18,11 +18,12 @@ from typing import Any
 
 from app.settings import Settings
 from bson import ObjectId
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.bcrypt import BcryptHasher
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_hasher = PasswordHash((BcryptHasher(rounds=12),))
 
 
 async def upsert_user(
@@ -42,7 +43,7 @@ async def upsert_user(
             {"username": username},
             {
                 "$set": {
-                    "hashed_password": pwd_context.hash(password),
+                    "hashed_password": pwd_hasher.hash(password),
                     "role": role,
                     "is_superuser": is_superuser,
                     "is_active": True,
@@ -58,7 +59,7 @@ async def upsert_user(
                 "user_id": str(ObjectId()),
                 "username": username,
                 "email": email,
-                "hashed_password": pwd_context.hash(password),
+                "hashed_password": pwd_hasher.hash(password),
                 "role": role,
                 "is_active": True,
                 "is_superuser": is_superuser,

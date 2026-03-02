@@ -106,6 +106,8 @@ class PodBuilder:
             containers=[container],
             restart_policy="Never",
             active_deadline_seconds=timeout,
+            runtime_class_name=self._settings.K8S_POD_RUNTIME_CLASS_NAME,
+            host_users=False,  # User namespace isolation — remaps container UIDs to unprivileged host UIDs
             volumes=[
                 k8s_client.V1Volume(
                     name="script-volume",

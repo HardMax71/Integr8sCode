@@ -78,6 +78,7 @@ class Settings(BaseModel):
     K8S_POD_MEMORY_REQUEST: str = "128Mi"
     K8S_POD_EXECUTION_TIMEOUT: int = 300  # in seconds
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
+    K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
 
     SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
 

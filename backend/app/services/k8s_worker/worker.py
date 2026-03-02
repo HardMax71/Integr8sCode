@@ -56,6 +56,7 @@ class KubernetesWorker:
         # Kubernetes clients created from ApiClient
         self.v1 = k8s_client.CoreV1Api(api_client)
         self.apps_v1 = k8s_client.AppsV1Api(api_client)
+        self.networking_v1 = k8s_client.NetworkingV1Api(api_client)
 
         # Components
         self.pod_builder = PodBuilder(settings=settings)
@@ -251,6 +252,104 @@ exec "$@"
             metadata=command.metadata,
         )
         await self.producer.produce(event_to_produce=event, key=command.execution_id)
+
+    async def ensure_namespace_security(self) -> None:
+        """Apply security controls to the executor namespace at startup.
+
+        Creates:
+        - Default-deny NetworkPolicy for executor pods (blocks lateral movement and exfiltration)
+        - ResourceQuota to cap aggregate pod/resource consumption
+        - Pod Security Admission labels (Restricted profile)
+        """
+        namespace = self._settings.K8S_NAMESPACE
+        await self._ensure_executor_network_policy(namespace)
+        await self._ensure_executor_resource_quota(namespace)
+        await self._apply_psa_labels(namespace)
+
+    async def _ensure_executor_network_policy(self, namespace: str) -> None:
+        """Create default-deny NetworkPolicy for executor pods."""
+        policy_name = "executor-deny-all"
+
+        policy = k8s_client.V1NetworkPolicy(
+            api_version="networking.k8s.io/v1",
+            kind="NetworkPolicy",
+            metadata=k8s_client.V1ObjectMeta(
+                name=policy_name,
+                namespace=namespace,
+                labels={"app": "integr8s", "component": "security"},
+            ),
+            spec=k8s_client.V1NetworkPolicySpec(
+                pod_selector=k8s_client.V1LabelSelector(
+                    match_labels={"component": "executor"},
+                ),
+                policy_types=["Ingress", "Egress"],
+                ingress=[],
+                egress=[],
+            ),
+        )
+
+        try:
+            await self.networking_v1.read_namespaced_network_policy(name=policy_name, namespace=namespace)
+            await self.networking_v1.replace_namespaced_network_policy(
+                name=policy_name, namespace=namespace, body=policy,
+            )
+            self.logger.info(f"NetworkPolicy '{policy_name}' updated in namespace {namespace}")
+        except ApiException as e:
+            if e.status == 404:
+                await self.networking_v1.create_namespaced_network_policy(namespace=namespace, body=policy)
+                self.logger.info(f"NetworkPolicy '{policy_name}' created in namespace {namespace}")
+            else:
+                self.logger.error(f"Failed to apply NetworkPolicy '{policy_name}': {e.reason}")
+
+    async def _ensure_executor_resource_quota(self, namespace: str) -> None:
+        """Create ResourceQuota to cap aggregate executor pod consumption."""
+        quota_name = "executor-quota"
+
+        quota = k8s_client.V1ResourceQuota(
+            api_version="v1",
+            kind="ResourceQuota",
+            metadata=k8s_client.V1ObjectMeta(
+                name=quota_name,
+                namespace=namespace,
+                labels={"app": "integr8s", "component": "security"},
+            ),
+            spec=k8s_client.V1ResourceQuotaSpec(
+                hard={
+                    "pods": str(self._settings.K8S_MAX_CONCURRENT_PODS),
+                    "requests.cpu": f"{self._settings.K8S_MAX_CONCURRENT_PODS}",
+                    "requests.memory": f"{self._settings.K8S_MAX_CONCURRENT_PODS * 128}Mi",
+                    "limits.cpu": f"{self._settings.K8S_MAX_CONCURRENT_PODS}",
+                    "limits.memory": f"{self._settings.K8S_MAX_CONCURRENT_PODS * 128}Mi",
+                },
+            ),
+        )
+
+        try:
+            await self.v1.read_namespaced_resource_quota(name=quota_name, namespace=namespace)
+            await self.v1.replace_namespaced_resource_quota(name=quota_name, namespace=namespace, body=quota)
+            self.logger.info(f"ResourceQuota '{quota_name}' updated in namespace {namespace}")
+        except ApiException as e:
+            if e.status == 404:
+                await self.v1.create_namespaced_resource_quota(namespace=namespace, body=quota)
+                self.logger.info(f"ResourceQuota '{quota_name}' created in namespace {namespace}")
+            else:
+                self.logger.error(f"Failed to apply ResourceQuota '{quota_name}': {e.reason}")
+
+    async def _apply_psa_labels(self, namespace: str) -> None:
+        """Apply Pod Security Admission labels to the executor namespace."""
+        psa_labels = {
+            "pod-security.kubernetes.io/enforce": "restricted",
+            "pod-security.kubernetes.io/enforce-version": "latest",
+            "pod-security.kubernetes.io/warn": "restricted",
+            "pod-security.kubernetes.io/audit": "restricted",
+        }
+
+        patch_body = {"metadata": {"labels": psa_labels}}
+        try:
+            await self.v1.patch_namespace(name=namespace, body=patch_body)
+            self.logger.info(f"Pod Security Admission labels applied to namespace {namespace}")
+        except ApiException as e:
+            self.logger.error(f"Failed to apply PSA labels to namespace {namespace}: {e.reason}")
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""

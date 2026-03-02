@@ -192,11 +192,20 @@ All security headers are defined at the `server` level so they apply to every re
 execute. With the nonce, only scripts carrying the per-request nonce are allowed. An attacker cannot predict the nonce
 value (it changes on every request), so injected scripts are blocked.
 
-**Why `style-src-elem` + `style-src-attr` split instead of blanket `style-src`?** The `elem`/`attr` split is strictly
-tighter. `style-src-elem 'nonce-...'` blocks injected `<style>` tags (the more dangerous CSS vector for `@font-face` +
-attribute-selector exfiltration). `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte
-transitions, CodeMirror, and inline style bindings require. CSS attribute injection can only exfiltrate data if
-`img-src`/`connect-src` allow attacker URLs — `default-src 'self'` blocks that channel entirely.
+**Why `style-src-elem` + `style-src-attr` split instead of blanket `style-src`?** CSP Level 3 splits the old
+`style-src` into two directives. `style-src-elem` governs `<style>` tags and `<link rel="stylesheet">` — the dangerous
+vector where an injected `<style>` tag can use `@font-face` + attribute selectors to exfiltrate secrets
+character-by-character. We lock this down with nonces. `style-src-attr` governs `style=""` attributes on elements —
+much lower risk because exfiltration (e.g., `background-image: url(...)`) requires `img-src`/`connect-src` to allow
+attacker domains, and our `default-src 'self'` blocks that channel entirely. We allow `'unsafe-inline'` only on
+`style-src-attr` because Svelte transitions, CodeMirror, and inline style bindings inject `style=""` attributes at
+runtime, where nonces/hashes are impossible (CSP has no mechanism for per-attribute nonces).
+
+!!! note "Scanner false positives"
+    Security scanners that only understand CSP Level 2 (`style-src`) will flag `'unsafe-inline'` without recognizing
+    the Level 3 `style-src-elem` / `style-src-attr` split. Since `style-src-elem` is nonce-locked, the
+    `'unsafe-inline'` on `style-src-attr` does not weaken the policy — the dangerous CSS vector (`<style>` tag
+    injection) is already blocked.
 
 #### Other security headers
 
@@ -256,10 +265,10 @@ the `server` level apply uniformly to all responses:
 | `location /`                  | No                | Yes                         |
 
 !!! warning "Adding `add_header` to a location"
-If you need to add a response header in a specific location, you must **repeat all five security headers** in that
-same block, or use the `always` parameter with an `include` file. Prefer solving the problem without `add_header`
-when possible (e.g., use `proxy_set_header` for upstream-facing headers, or let the backend set its own response
-headers).
+    If you need to add a response header in a specific location, you must **repeat all five security headers** in that
+    same block, or use the `always` parameter with an `include` file. Prefer solving the problem without `add_header`
+    when possible (e.g., use `proxy_set_header` for upstream-facing headers, or let the backend set its own response
+    headers).
 
 ### `proxy_set_header` vs `add_header`
 

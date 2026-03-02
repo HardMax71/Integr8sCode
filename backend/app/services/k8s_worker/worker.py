@@ -1,7 +1,6 @@
 import asyncio
 import time
 from pathlib import Path
-from typing import Any
 
 import structlog
 from kubernetes_asyncio import client as k8s_client
@@ -267,7 +266,7 @@ exec "$@"
         await self._apply_psa_labels(namespace)
 
     async def _ensure_executor_network_policy(self, namespace: str) -> None:
-        """Create default-deny NetworkPolicy for executor pods."""
+        """Create or update default-deny NetworkPolicy for executor pods."""
         policy_name = "executor-deny-all"
 
         policy = k8s_client.V1NetworkPolicy(
@@ -279,31 +278,24 @@ exec "$@"
                 labels={"app": "integr8s", "component": "security"},
             ),
             spec=k8s_client.V1NetworkPolicySpec(
-                pod_selector=k8s_client.V1LabelSelector(
-                    match_labels={"component": "executor"},
-                ),
+                pod_selector=k8s_client.V1LabelSelector(match_labels={"component": "executor"}),
                 policy_types=["Ingress", "Egress"],
                 ingress=[],
                 egress=[],
             ),
         )
 
-        try:
-            await self.networking_v1.read_namespaced_network_policy(name=policy_name, namespace=namespace)
-            await self.networking_v1.replace_namespaced_network_policy(
-                name=policy_name, namespace=namespace, body=policy,
-            )
-            self.logger.info(f"NetworkPolicy '{policy_name}' updated in namespace {namespace}")
-        except ApiException as e:
-            if e.status == 404:
-                await self.networking_v1.create_namespaced_network_policy(namespace=namespace, body=policy)
-                self.logger.info(f"NetworkPolicy '{policy_name}' created in namespace {namespace}")
-            else:
-                self.logger.error(f"Failed to apply NetworkPolicy '{policy_name}': {e.reason}")
+        await self.networking_v1.patch_namespaced_network_policy(  # type: ignore[call-arg]
+            name=policy_name, namespace=namespace, body=policy,
+            field_manager="integr8s", force=True,
+            _content_type="application/apply-patch+yaml",
+        )
+        self.logger.info(f"NetworkPolicy '{policy_name}' applied in namespace {namespace}")
 
     async def _ensure_executor_resource_quota(self, namespace: str) -> None:
-        """Create ResourceQuota to cap aggregate executor pod consumption."""
+        """Create or update ResourceQuota to cap aggregate executor pod consumption."""
         quota_name = "executor-quota"
+        n = self._settings.K8S_MAX_CONCURRENT_PODS
 
         quota = k8s_client.V1ResourceQuota(
             api_version="v1",
@@ -315,25 +307,21 @@ exec "$@"
             ),
             spec=k8s_client.V1ResourceQuotaSpec(
                 hard={
-                    "pods": str(self._settings.K8S_MAX_CONCURRENT_PODS),
-                    "requests.cpu": f"{self._settings.K8S_MAX_CONCURRENT_PODS}",
-                    "requests.memory": f"{self._settings.K8S_MAX_CONCURRENT_PODS * 128}Mi",
-                    "limits.cpu": f"{self._settings.K8S_MAX_CONCURRENT_PODS}",
-                    "limits.memory": f"{self._settings.K8S_MAX_CONCURRENT_PODS * 128}Mi",
+                    "pods": str(n),
+                    "requests.cpu": f"{int(self._settings.K8S_POD_CPU_REQUEST.removesuffix('m')) * n}m",
+                    "requests.memory": f"{int(self._settings.K8S_POD_MEMORY_REQUEST.removesuffix('Mi')) * n}Mi",
+                    "limits.cpu": f"{int(self._settings.K8S_POD_CPU_LIMIT.removesuffix('m')) * n}m",
+                    "limits.memory": f"{int(self._settings.K8S_POD_MEMORY_LIMIT.removesuffix('Mi')) * n}Mi",
                 },
             ),
         )
 
-        try:
-            await self.v1.read_namespaced_resource_quota(name=quota_name, namespace=namespace)
-            await self.v1.replace_namespaced_resource_quota(name=quota_name, namespace=namespace, body=quota)
-            self.logger.info(f"ResourceQuota '{quota_name}' updated in namespace {namespace}")
-        except ApiException as e:
-            if e.status == 404:
-                await self.v1.create_namespaced_resource_quota(namespace=namespace, body=quota)
-                self.logger.info(f"ResourceQuota '{quota_name}' created in namespace {namespace}")
-            else:
-                self.logger.error(f"Failed to apply ResourceQuota '{quota_name}': {e.reason}")
+        await self.v1.patch_namespaced_resource_quota(  # type: ignore[call-arg]
+            name=quota_name, namespace=namespace, body=quota,
+            field_manager="integr8s", force=True,
+            _content_type="application/apply-patch+yaml",
+        )
+        self.logger.info(f"ResourceQuota '{quota_name}' applied in namespace {namespace}")
 
     async def _apply_psa_labels(self, namespace: str) -> None:
         """Apply Pod Security Admission labels to the executor namespace."""
@@ -344,12 +332,8 @@ exec "$@"
             "pod-security.kubernetes.io/audit": "restricted",
         }
 
-        patch_body = {"metadata": {"labels": psa_labels}}
-        try:
-            await self.v1.patch_namespace(name=namespace, body=patch_body)
-            self.logger.info(f"Pod Security Admission labels applied to namespace {namespace}")
-        except ApiException as e:
-            self.logger.error(f"Failed to apply PSA labels to namespace {namespace}: {e.reason}")
+        await self.v1.patch_namespace(name=namespace, body={"metadata": {"labels": psa_labels}})
+        self.logger.info(f"Pod Security Admission labels applied to namespace {namespace}")
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""
@@ -357,56 +341,45 @@ exec "$@"
         namespace = self._settings.K8S_NAMESPACE
 
         try:
-            init_containers = []
+            init_containers: list[k8s_client.V1Container] = []
             all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
 
             for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
                 self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
-                container_name = f"pull-{i}-{sanitized_image_ref}"
-                init_containers.append(
-                    {
-                        "name": container_name,
-                        "image": image_ref,
-                        "command": ["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
-                        "imagePullPolicy": "Always",
-                    }
-                )
+                init_containers.append(k8s_client.V1Container(
+                    name=f"pull-{i}-{sanitized_image_ref}",
+                    image=image_ref,
+                    command=["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                    image_pull_policy="Always",
+                ))
 
-            manifest: dict[str, Any] = {
-                "apiVersion": "apps/v1",
-                "kind": "DaemonSet",
-                "metadata": {"name": daemonset_name, "namespace": namespace},
-                "spec": {
-                    "selector": {"matchLabels": {"name": daemonset_name}},
-                    "template": {
-                        "metadata": {"labels": {"name": daemonset_name}},
-                        "spec": {
-                            "initContainers": init_containers,
-                            "containers": [{"name": "pause", "image": "registry.k8s.io/pause:3.9"}],
-                            "tolerations": [{"operator": "Exists"}],
-                        },
-                    },
-                    "updateStrategy": {"type": "RollingUpdate"},
-                },
-            }
+            daemonset = k8s_client.V1DaemonSet(
+                api_version="apps/v1",
+                kind="DaemonSet",
+                metadata=k8s_client.V1ObjectMeta(name=daemonset_name, namespace=namespace),
+                spec=k8s_client.V1DaemonSetSpec(
+                    selector=k8s_client.V1LabelSelector(match_labels={"name": daemonset_name}),
+                    template=k8s_client.V1PodTemplateSpec(
+                        metadata=k8s_client.V1ObjectMeta(labels={"name": daemonset_name}),
+                        spec=k8s_client.V1PodSpec(
+                            init_containers=init_containers,
+                            containers=[k8s_client.V1Container(
+                                name="pause", image="registry.k8s.io/pause:3.9",
+                            )],
+                            tolerations=[k8s_client.V1Toleration(operator="Exists")],
+                        ),
+                    ),
+                    update_strategy=k8s_client.V1DaemonSetUpdateStrategy(type="RollingUpdate"),
+                ),
+            )
 
-            try:
-                await self.apps_v1.read_namespaced_daemon_set(name=daemonset_name, namespace=namespace)
-                self.logger.info(f"DaemonSet '{daemonset_name}' exists. Replacing to ensure it is up-to-date.")
-                await self.apps_v1.replace_namespaced_daemon_set(
-                    name=daemonset_name, namespace=namespace, body=manifest  # type: ignore[arg-type]
-                )
-                self.logger.info(f"DaemonSet '{daemonset_name}' replaced successfully.")
-            except ApiException as e:
-                if e.status == 404:
-                    self.logger.info(f"DaemonSet '{daemonset_name}' not found. Creating...")
-                    await self.apps_v1.create_namespaced_daemon_set(
-                        namespace=namespace, body=manifest  # type: ignore[arg-type]
-                    )
-                    self.logger.info(f"DaemonSet '{daemonset_name}' created successfully.")
-                else:
-                    raise
+            await self.apps_v1.patch_namespaced_daemon_set(  # type: ignore[call-arg]
+                name=daemonset_name, namespace=namespace, body=daemonset,
+                field_manager="integr8s", force=True,
+                _content_type="application/apply-patch+yaml",
+            )
+            self.logger.info(f"DaemonSet '{daemonset_name}' applied successfully")
 
         except ApiException as e:
             self.logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)

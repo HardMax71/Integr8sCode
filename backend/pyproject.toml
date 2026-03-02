@@ -19,7 +19,7 @@ dependencies = [
     "Brotli==1.2.0",
     "cachetools==6.2.4",
     "certifi==2024.8.30",
-    "charset-normalizer==3.4.0",
+    "charset-normalizer==3.4.4",
     "click==8.3.1",
     "ConfigArgParse==1.7.1",
     "aiokafka==0.12.0",

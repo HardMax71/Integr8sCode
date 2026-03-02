@@ -344,6 +344,14 @@ exec "$@"
             init_containers: list[k8s_client.V1Container] = []
             all_images = {config.image for lang in RUNTIME_REGISTRY.values() for config in lang.values()}
 
+            psa_security_context = k8s_client.V1SecurityContext(
+                allow_privilege_escalation=False,
+                capabilities=k8s_client.V1Capabilities(drop=["ALL"]),
+                run_as_non_root=True,
+                run_as_user=65534,
+                seccomp_profile=k8s_client.V1SeccompProfile(type="RuntimeDefault"),
+            )
+
             for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
                 self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
@@ -352,6 +360,7 @@ exec "$@"
                     image=image_ref,
                     command=["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
                     image_pull_policy="Always",
+                    security_context=psa_security_context,
                 ))
 
             daemonset = k8s_client.V1DaemonSet(
@@ -366,8 +375,14 @@ exec "$@"
                             init_containers=init_containers,
                             containers=[k8s_client.V1Container(
                                 name="pause", image="registry.k8s.io/pause:3.9",
+                                security_context=psa_security_context,
                             )],
                             tolerations=[k8s_client.V1Toleration(operator="Exists")],
+                            security_context=k8s_client.V1PodSecurityContext(
+                                run_as_non_root=True,
+                                run_as_user=65534,
+                                seccomp_profile=k8s_client.V1SeccompProfile(type="RuntimeDefault"),
+                            ),
                         ),
                     ),
                     update_strategy=k8s_client.V1DaemonSetUpdateStrategy(type="RollingUpdate"),

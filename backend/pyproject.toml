@@ -22,7 +22,7 @@ dependencies = [
     "charset-normalizer==3.4.0",
     "click==8.3.1",
     "ConfigArgParse==1.7.1",
-    "aiokafka==0.12.0",
+    "aiokafka==0.13.0",
     "Deprecated==1.2.14",
     "dishka==1.7.2",
     "dnspython==2.8.0",

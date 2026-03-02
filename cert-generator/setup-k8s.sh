@@ -89,6 +89,9 @@ echo "Connected to Kubernetes"
 # Create namespace
 kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
+# Clean up stale executor pods from previous runs so they don't consume ResourceQuota
+kubectl delete pods -n integr8scode -l component=executor --field-selector=status.phase!=Running --ignore-not-found 2>/dev/null || true
+
 # Create ServiceAccount
 kubectl apply -f - <<EOF
 apiVersion: v1

@@ -44,7 +44,7 @@ dependencies = [
     "importlib-resources==6.5.2",
     "itsdangerous==2.2.0",
     "Jinja2==3.1.6",
-    "kubernetes_asyncio==34.3.3",
+    "kubernetes_asyncio==35.0.1",
     "limits==5.6.0",
     "markdown-it-py==4.0.0",
     "MarkupSafe==3.0.2",

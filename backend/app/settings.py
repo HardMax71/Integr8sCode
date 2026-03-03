@@ -78,8 +78,8 @@ class Settings(BaseModel):
     K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
 
     # Namespace-level ResourceQuota caps (total budget, not per-pod)
-    K8S_QUOTA_CPU: str = "10000m"
-    K8S_QUOTA_MEMORY: str = "1280Mi"
+    K8S_QUOTA_CPU: str = "32000m"
+    K8S_QUOTA_MEMORY: str = "4096Mi"
 
     SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
 

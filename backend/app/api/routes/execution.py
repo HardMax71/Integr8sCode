@@ -152,8 +152,8 @@ async def get_execution_events(
         limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[DomainEvent]:
     """Get all events for an execution."""
-    events = await event_service.get_events_by_aggregate(
-        aggregate_id=execution.execution_id, event_types=event_types, limit=limit
+    events = await event_service.get_events_by_execution_id(
+        execution_id=execution.execution_id, event_types=event_types, limit=limit
     )
     return events
 

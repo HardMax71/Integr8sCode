@@ -120,3 +120,15 @@ class EventService:
             event_types=event_types,
             limit=limit,
         )
+
+    async def get_events_by_execution_id(
+        self,
+        execution_id: str,
+        event_types: list[EventType] | None = None,
+        limit: int = 100,
+    ) -> list[DomainEvent]:
+        return await self.repository.get_events_by_execution_id(
+            execution_id=execution_id,
+            event_types=event_types,
+            limit=limit,
+        )

@@ -221,6 +221,7 @@ class PodEventMapper:
 
         evt = PodScheduledEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             node_name=ctx.pod.spec.node_name or "pending",
             metadata=ctx.metadata,
@@ -246,6 +247,7 @@ class PodEventMapper:
 
         evt = PodRunningEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             container_statuses=container_statuses,
             metadata=ctx.metadata,
@@ -266,6 +268,7 @@ class PodEventMapper:
 
         evt = ExecutionCompletedEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             exit_code=logs.exit_code,
             resource_usage=logs.resource_usage,
             stdout=logs.stdout,
@@ -298,6 +301,7 @@ class PodEventMapper:
 
         evt = ExecutionFailedEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             error_type=error_info.error_type,
             exit_code=exit_code,
             stdout=stdout,
@@ -319,6 +323,7 @@ class PodEventMapper:
         terminated = container.state.terminated
         evt = PodTerminatedEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             exit_code=terminated.exit_code,
             reason=terminated.reason or "Terminated",
@@ -351,6 +356,7 @@ class PodEventMapper:
         timeout_seconds = ctx.pod.spec.active_deadline_seconds or 0
         evt = ExecutionTimeoutEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             timeout_seconds=timeout_seconds,
             resource_usage=logs.resource_usage,
             stdout=logs.stdout,

@@ -396,6 +396,7 @@ class SagaOrchestrator:
                 saga_id=instance.saga_id,
                 saga_name=instance.saga_name,
                 execution_id=instance.execution_id,
+                aggregate_id=trigger_event.aggregate_id,
                 initial_event_id=trigger_event.event_id,
                 metadata=EventMetadata(
                     service_name="saga-orchestrator",
@@ -422,6 +423,7 @@ class SagaOrchestrator:
                 saga_id=saga_instance.saga_id,
                 saga_name=saga_instance.saga_name,
                 execution_id=saga_instance.execution_id,
+                aggregate_id=saga_instance.execution_id,
                 reason=saga_instance.error_message or "User requested cancellation",
                 completed_steps=saga_instance.completed_steps,
                 compensated_steps=saga_instance.compensated_steps,

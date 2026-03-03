@@ -83,6 +83,17 @@ class EventRepository:
         )
         return [DomainEventAdapter.validate_python(d) for d in docs]
 
+    async def get_events_by_execution_id(
+            self, execution_id: str, event_types: list[EventType] | None = None, limit: int = 100
+    ) -> list[DomainEvent]:
+        conditions: list[BaseFindOperator] = [Eq(EventDocument.execution_id, execution_id)]
+        if event_types:
+            conditions.append(In(EventDocument.event_type, event_types))
+        docs = (
+            await EventDocument.find(*conditions).sort([("timestamp", SortDirection.ASCENDING)]).limit(limit).to_list()
+        )
+        return [DomainEventAdapter.validate_python(d) for d in docs]
+
     async def get_execution_events(
             self,
             execution_id: str,

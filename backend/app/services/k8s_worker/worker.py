@@ -229,6 +229,7 @@ exec "$@"
         """Publish pod created event"""
         event = PodCreatedEvent(
             execution_id=command.execution_id,
+            aggregate_id=command.aggregate_id,
             pod_name=pod.metadata.name,
             namespace=pod.metadata.namespace,
             metadata=command.metadata,
@@ -239,6 +240,7 @@ exec "$@"
         """Publish pod creation failed event"""
         event = ExecutionFailedEvent(
             execution_id=command.execution_id,
+            aggregate_id=command.aggregate_id,
             error_type=ExecutionErrorType.SYSTEM_ERROR,
             exit_code=-1,
             stderr=f"Failed to create pod: {error}",

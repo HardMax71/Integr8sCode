@@ -101,6 +101,7 @@ class CreatePodStep(SagaStep[ExecutionRequestedEvent]):
         create_pod_cmd = CreatePodCommandEvent(
             saga_id=context.saga_id,
             execution_id=execution_id,
+            aggregate_id=event.aggregate_id,
             script=event.script,
             language=event.language,
             language_version=event.language_version,
@@ -168,6 +169,7 @@ class DeletePodCompensation(CompensationStep):
         delete_pod_cmd = DeletePodCommandEvent(
             saga_id=context.saga_id,
             execution_id=execution_id,
+            aggregate_id=context.execution_id,
             reason="Saga compensation due to failure",
             metadata=EventMetadata(
                 service_name="saga-orchestrator",

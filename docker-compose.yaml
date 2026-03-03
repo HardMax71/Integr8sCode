@@ -66,7 +66,7 @@ services:
         soft: 65536
         hard: 65536
     healthcheck:
-      test: mongosh --quiet --host 127.0.0.1 --port 27017 --eval 'db.adminCommand("ping")'
+      test: mongosh --quiet --host 127.0.0.1 --port 27017 -u ${MONGO_USER:-root} -p ${MONGO_PASSWORD:-rootpassword} --authenticationDatabase admin --eval 'db.adminCommand("ping")'
       interval: 3s
       timeout: 5s
       retries: 15

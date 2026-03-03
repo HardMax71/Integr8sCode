@@ -168,40 +168,37 @@ class PodMonitor:
         """Process a pod event."""
         start_time = time.time()
 
+        # Update resource version for crash recovery
+        if event.resource_version:
+            self._last_resource_version = event.resource_version
+
+        # Skip ignored phases
+        pod_phase = event.pod.status.phase if event.pod.status else None
+        if pod_phase in self.config.ignored_pod_phases:
+            return
+
         try:
-            # Update resource version for crash recovery
-            if event.resource_version:
-                self._last_resource_version = event.resource_version
-
-            # Skip ignored phases
-            pod_phase = event.pod.status.phase if event.pod.status else None
-            if pod_phase in self.config.ignored_pod_phases:
-                return
-
-            pod_name = event.pod.metadata.name
-
-            # Map to application events
             app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
-
             for app_event in app_events:
                 await self._publish_event(app_event, event.pod)
-
-            if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
-                await self._delete_pod(event.pod)
-
-            if app_events:
-                self.logger.info(
-                    f"Processed {event.event_type} event for pod {pod_name} "
-                    f"(phase: {pod_phase or 'Unknown'}), "
-                    f"published {len(app_events)} events"
-                )
-
-            duration = time.time() - start_time
-            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
-
-        except Exception as e:
-            self.logger.error(f"Error processing pod event: {e}", exc_info=True)
+        except Exception:
+            self.logger.error("Error processing pod event", exc_info=True)
             self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
+            return
+
+        if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
+            await self._delete_pod(event.pod)
+
+        if app_events:
+            pod_name = event.pod.metadata.name if event.pod.metadata else "unknown"
+            self.logger.info(
+                f"Processed {event.event_type} event for pod {pod_name} "
+                f"(phase: {pod_phase or 'Unknown'}), "
+                f"published {len(app_events)} events"
+            )
+
+        duration = time.time() - start_time
+        self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
     async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
@@ -226,7 +223,4 @@ class PodMonitor:
             )
             self.logger.info(f"Deleted completed pod {pod_name}")
         except ApiException as e:
-            if e.status == 404:
-                self.logger.debug(f"Pod {pod_name} already deleted")
-            else:
-                self.logger.warning(f"Failed to delete pod {pod_name}: {e.reason}")
+            self.logger.warning("Failed to delete pod", pod_name=pod_name, status=e.status, reason=e.reason)

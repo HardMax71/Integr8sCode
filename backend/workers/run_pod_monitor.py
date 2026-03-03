@@ -50,20 +50,23 @@ def main() -> None:
             kubernetes_metrics = await container.get(KubernetesMetrics)
 
             async def _watch_cycle() -> None:
+                error_type: ErrorType | None = None
                 try:
                     await monitor.watch_pod_events()
                 except ApiException as e:
                     if e.status == 410:
                         logger.warning("Resource version expired, resetting watch cursor")
                         monitor._last_resource_version = None
-                        kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.RESOURCE_VERSION_EXPIRED)
+                        error_type = ErrorType.RESOURCE_VERSION_EXPIRED
                     else:
-                        logger.error(f"API error in watch: {e}")
-                        kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.API_ERROR)
-                    kubernetes_metrics.increment_pod_monitor_watch_reconnects()
-                except Exception as e:
-                    logger.error(f"Unexpected error in watch: {e}", exc_info=True)
-                    kubernetes_metrics.record_pod_monitor_watch_error(ErrorType.UNEXPECTED)
+                        logger.error("API error in watch", status=e.status, reason=e.reason)
+                        error_type = ErrorType.API_ERROR
+                except Exception:
+                    logger.error("Unexpected error in watch", exc_info=True)
+                    error_type = ErrorType.UNEXPECTED
+
+                if error_type is not None:
+                    kubernetes_metrics.record_pod_monitor_watch_error(error_type)
                     kubernetes_metrics.increment_pod_monitor_watch_reconnects()
 
             scheduler.add_job(

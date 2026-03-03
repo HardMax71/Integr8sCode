@@ -277,7 +277,7 @@ async def test_process_pod_event_full_flow(
     class MockMapper:
         async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
             class Event:
-                event_type = types.SimpleNamespace(value="test_event")
+                event_type = "pod.running"
                 aggregate_id = "agg1"
 
             return [Event()]

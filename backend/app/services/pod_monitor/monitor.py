@@ -21,11 +21,6 @@ _TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({
     EventType.EXECUTION_TIMEOUT,
 })
 
-# Type aliases
-type ResourceVersion = str
-type KubeEvent = dict[str, Any]
-
-
 class ErrorType(StringEnum):
     """Error types for metrics."""
 
@@ -41,7 +36,6 @@ class PodEvent:
 
     event_type: WatchEventType
     pod: k8s_client.V1Pod
-    resource_version: ResourceVersion | None
 
 
 class PodMonitor:
@@ -78,7 +72,7 @@ class PodMonitor:
         self._kafka_event_service = kafka_event_service
 
         # Watch cursor — set from LIST on first run or after 410 Gone
-        self._last_resource_version: ResourceVersion | None = None
+        self._last_resource_version: str | None = None
 
         # Metrics
         self._metrics = kubernetes_metrics
@@ -113,12 +107,14 @@ class PodMonitor:
         if self.config.field_selector:
             kwargs["field_selector"] = self.config.field_selector
 
-        async for event in self._watch.stream(self._v1.list_namespaced_pod, **kwargs):
-            await self._process_raw_event(event)
-
-        # Store resource version from watch for next iteration
-        if self._watch.resource_version:
-            self._last_resource_version = self._watch.resource_version
+        try:
+            async for event in self._watch.stream(self._v1.list_namespaced_pod, **kwargs):
+                if event["type"] not in WatchEventType:
+                    continue
+                await self._process_pod_event(PodEvent(event_type=WatchEventType(event["type"]), pod=event["object"]))
+        finally:
+            if self._watch.resource_version:
+                self._last_resource_version = self._watch.resource_version
 
     async def _list_and_process_existing_pods(self) -> None:
         """LIST all matching pods to bootstrap state and get a resource_version cursor."""
@@ -132,11 +128,7 @@ class PodMonitor:
         pod_list = await self._v1.list_namespaced_pod(**kwargs)
 
         for pod in pod_list.items:
-            event = PodEvent(
-                event_type=WatchEventType.ADDED,
-                pod=pod,
-                resource_version=pod.metadata.resource_version if pod.metadata else None,
-            )
+            event = PodEvent(event_type=WatchEventType.ADDED, pod=pod)
             await self._process_pod_event(event)
 
         # Use the list's resource_version as the authoritative cursor
@@ -146,30 +138,9 @@ class PodMonitor:
             f"Listed {len(pod_list.items)} existing pods, rv={self._last_resource_version}"
         )
 
-    async def _process_raw_event(self, raw_event: KubeEvent) -> None:
-        """Process a raw Kubernetes watch event."""
-        try:
-            event = PodEvent(
-                event_type=WatchEventType(raw_event["type"].upper()),
-                pod=raw_event["object"],
-                resource_version=(
-                    raw_event["object"].metadata.resource_version if raw_event["object"].metadata else None
-                ),
-            )
-
-            await self._process_pod_event(event)
-
-        except (KeyError, ValueError) as e:
-            self.logger.error(f"Invalid event format: {e}")
-            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
-
     async def _process_pod_event(self, event: PodEvent) -> None:
         """Process a pod event."""
         start_time = time.time()
-
-        # Update resource version for crash recovery
-        if event.resource_version:
-            self._last_resource_version = event.resource_version
 
         # Skip ignored phases
         pod_phase = event.pod.status.phase if event.pod.status else None

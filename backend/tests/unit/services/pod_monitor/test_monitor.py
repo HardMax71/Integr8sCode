@@ -226,47 +226,6 @@ async def test_watch_resets_after_410(
 
 
 @pytest.mark.asyncio
-async def test_process_raw_event_invalid(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
-) -> None:
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-
-    # Should not raise - invalid events are caught and logged
-    await pm._process_raw_event({})
-
-
-@pytest.mark.asyncio
-async def test_process_raw_event_with_metadata(
-    event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
-) -> None:
-    cfg = PodMonitorConfig()
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg)
-
-    processed: list[PodEvent] = []
-
-    async def mock_process(event: PodEvent) -> None:
-        processed.append(event)
-
-    pm._process_pod_event = mock_process  # type: ignore[method-assign]
-
-    raw_event = {
-        "type": "ADDED",
-        "object": types.SimpleNamespace(metadata=types.SimpleNamespace(resource_version="v1")),
-    }
-
-    await pm._process_raw_event(raw_event)
-    assert len(processed) == 1
-    assert processed[0].resource_version == "v1"
-
-    raw_event_no_meta = {"type": "MODIFIED", "object": types.SimpleNamespace(metadata=None)}
-
-    await pm._process_raw_event(raw_event_no_meta)
-    assert len(processed) == 2
-    assert processed[1].resource_version is None
-
-
-@pytest.mark.asyncio
 async def test_process_pod_event_full_flow(
     event_metrics: EventMetrics, kubernetes_metrics: KubernetesMetrics,
 ) -> None:
@@ -296,26 +255,21 @@ async def test_process_pod_event_full_flow(
     event = PodEvent(
         event_type=WatchEventType.ADDED,
         pod=make_pod(name="test-pod", phase="Running"),
-        resource_version="v1",
     )
 
     await pm._process_pod_event(event)
-    assert pm._last_resource_version == "v1"
     assert len(published) == 1
 
     event_del = PodEvent(
         event_type=WatchEventType.DELETED,
         pod=make_pod(name="test-pod", phase="Succeeded"),
-        resource_version="v2",
     )
 
     await pm._process_pod_event(event_del)
-    assert pm._last_resource_version == "v2"
 
     event_ignored = PodEvent(
         event_type=WatchEventType.ADDED,
         pod=make_pod(name="ignored-pod", phase="Unknown"),
-        resource_version="v3",
     )
 
     published.clear()
@@ -341,7 +295,6 @@ async def test_process_pod_event_exception_handling(
     event = PodEvent(
         event_type=WatchEventType.ADDED,
         pod=make_pod(name="fail-pod", phase="Pending"),
-        resource_version=None,
     )
 
     # Should not raise - errors are caught and logged

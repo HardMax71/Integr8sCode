@@ -311,6 +311,8 @@ services:
       DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:-user123}
       ADMIN_USER_PASSWORD: ${ADMIN_USER_PASSWORD:-admin123}
     volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/scripts:/app/scripts:ro
       - ./backend/config.toml:/app/config.toml:ro
     command: ["python", "-m", "scripts.seed_users"]
     networks:

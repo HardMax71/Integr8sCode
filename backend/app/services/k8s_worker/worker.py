@@ -63,7 +63,6 @@ class KubernetesWorker:
 
         # State tracking
         self._active_creations: set[str] = set()
-        self._creation_semaphore = asyncio.Semaphore(self._settings.K8S_MAX_CONCURRENT_PODS)
 
         self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
 
@@ -104,52 +103,51 @@ class KubernetesWorker:
 
     async def _create_pod_for_execution(self, command: CreatePodCommandEvent) -> None:
         """Create pod for execution"""
-        async with self._creation_semaphore:
-            execution_id = command.execution_id
-            self._active_creations.add(execution_id)
+        execution_id = command.execution_id
+        self._active_creations.add(execution_id)
+        self.metrics.update_active_pod_creations(len(self._active_creations))
+
+        start_time = time.time()
+
+        try:
+            script_content = command.script
+            entrypoint_content = await self._get_entrypoint_script()
+
+            # Create ConfigMap
+            config_map = self.pod_builder.build_config_map(
+                command=command, script_content=script_content, entrypoint_content=entrypoint_content
+            )
+
+            await self._create_config_map(config_map)
+
+            pod = self.pod_builder.build_pod_manifest(command=command)
+            created_pod = await self._create_pod(pod)
+
+            # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
+            if created_pod and created_pod.metadata and created_pod.metadata.uid:
+                await self._set_configmap_owner(config_map, created_pod)
+
+            # Publish PodCreated event
+            await self._publish_pod_created(command, pod)
+
+            # Update metrics
+            duration = time.time() - start_time
+            self.metrics.record_k8s_pod_creation_duration(duration, command.language)
+            self.metrics.record_k8s_pod_created("success", command.language)
+
+            self.logger.info(
+                f"Successfully created pod {pod.metadata.name} for execution {execution_id}. "
+                f"Duration: {duration:.2f}s"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to create pod for execution {execution_id}: {e}", exc_info=True)
+            self.metrics.record_k8s_pod_created("failed", "unknown")
+            await self._publish_pod_creation_failed(command, str(e))
+
+        finally:
+            self._active_creations.discard(execution_id)
             self.metrics.update_active_pod_creations(len(self._active_creations))
-
-            start_time = time.time()
-
-            try:
-                script_content = command.script
-                entrypoint_content = await self._get_entrypoint_script()
-
-                # Create ConfigMap
-                config_map = self.pod_builder.build_config_map(
-                    command=command, script_content=script_content, entrypoint_content=entrypoint_content
-                )
-
-                await self._create_config_map(config_map)
-
-                pod = self.pod_builder.build_pod_manifest(command=command)
-                created_pod = await self._create_pod(pod)
-
-                # Set ownerReference so K8s garbage-collects the ConfigMap when the pod is deleted
-                if created_pod and created_pod.metadata and created_pod.metadata.uid:
-                    await self._set_configmap_owner(config_map, created_pod)
-
-                # Publish PodCreated event
-                await self._publish_pod_created(command, pod)
-
-                # Update metrics
-                duration = time.time() - start_time
-                self.metrics.record_k8s_pod_creation_duration(duration, command.language)
-                self.metrics.record_k8s_pod_created("success", command.language)
-
-                self.logger.info(
-                    f"Successfully created pod {pod.metadata.name} for execution {execution_id}. "
-                    f"Duration: {duration:.2f}s"
-                )
-
-            except Exception as e:
-                self.logger.error(f"Failed to create pod for execution {execution_id}: {e}", exc_info=True)
-                self.metrics.record_k8s_pod_created("failed", "unknown")
-                await self._publish_pod_creation_failed(command, str(e))
-
-            finally:
-                self._active_creations.discard(execution_id)
-                self.metrics.update_active_pod_creations(len(self._active_creations))
 
     async def _get_entrypoint_script(self) -> str:
         """Get entrypoint script content"""
@@ -257,7 +255,7 @@ exec "$@"
 
         Creates:
         - Default-deny NetworkPolicy for executor pods (blocks lateral movement and exfiltration)
-        - ResourceQuota to cap aggregate pod/resource consumption
+        - ResourceQuota to cap aggregate CPU/memory consumption (no pod count limit)
         - Pod Security Admission labels (Restricted profile)
         """
         namespace = self._settings.K8S_NAMESPACE
@@ -293,9 +291,8 @@ exec "$@"
         self.logger.info(f"NetworkPolicy '{policy_name}' applied in namespace {namespace}")
 
     async def _ensure_executor_resource_quota(self, namespace: str) -> None:
-        """Create or update ResourceQuota to cap aggregate executor pod consumption."""
+        """Create or update ResourceQuota to cap aggregate CPU/memory in the executor namespace."""
         quota_name = "executor-quota"
-        n = self._settings.K8S_MAX_CONCURRENT_PODS
 
         quota = k8s_client.V1ResourceQuota(
             api_version="v1",
@@ -307,11 +304,10 @@ exec "$@"
             ),
             spec=k8s_client.V1ResourceQuotaSpec(
                 hard={
-                    "pods": str(n),
-                    "requests.cpu": f"{int(self._settings.K8S_POD_CPU_REQUEST.removesuffix('m')) * n}m",
-                    "requests.memory": f"{int(self._settings.K8S_POD_MEMORY_REQUEST.removesuffix('Mi')) * n}Mi",
-                    "limits.cpu": f"{int(self._settings.K8S_POD_CPU_LIMIT.removesuffix('m')) * n}m",
-                    "limits.memory": f"{int(self._settings.K8S_POD_MEMORY_LIMIT.removesuffix('Mi')) * n}Mi",
+                    "requests.cpu": self._settings.K8S_QUOTA_CPU,
+                    "requests.memory": self._settings.K8S_QUOTA_MEMORY,
+                    "limits.cpu": self._settings.K8S_QUOTA_CPU,
+                    "limits.memory": self._settings.K8S_QUOTA_MEMORY,
                 },
             ),
         )

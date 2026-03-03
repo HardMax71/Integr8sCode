@@ -62,17 +62,17 @@ This policy matches pods with the `component: executor` label, which the pod bui
 
 ### Resource Quota
 
-A ResourceQuota caps aggregate resource consumption in the executor namespace:
+A ResourceQuota caps aggregate CPU and memory in the executor namespace. If the execution queue allows more pods than
+the namespace has resources for, Kubernetes keeps excess pods in Pending state rather than failing.
 
-| Resource          | Limit                             | Derivation                       |
-|-------------------|-----------------------------------|----------------------------------|
-| `pods`            | `K8S_MAX_CONCURRENT_PODS`         | Maximum concurrent executor pods |
-| `requests.cpu`    | `K8S_MAX_CONCURRENT_PODS` cores   | 1 core per pod                   |
-| `requests.memory` | `K8S_MAX_CONCURRENT_PODS × 128Mi` | 128Mi per pod                    |
-| `limits.cpu`      | Same as requests                  | Prevents burst beyond quota      |
-| `limits.memory`   | Same as requests                  | Prevents OOM beyond quota        |
+| Resource          | Limit              | Source setting     |
+|-------------------|--------------------|--------------------|
+| `requests.cpu`    | `K8S_QUOTA_CPU`    | Namespace CPU cap  |
+| `requests.memory` | `K8S_QUOTA_MEMORY` | Namespace memory cap |
+| `limits.cpu`      | `K8S_QUOTA_CPU`    | Same as requests   |
+| `limits.memory`   | `K8S_QUOTA_MEMORY` | Same as requests   |
 
-This prevents a burst of executions from starving other workloads in the cluster.
+No `pods` count in the quota — concurrency is controlled by the execution queue (`max_concurrent_executions`).
 
 ### Pod Security Admission (PSA)
 

@@ -51,6 +51,5 @@ class RuntimeSettingsLoader:
             max_timeout_seconds=s.K8S_POD_EXECUTION_TIMEOUT,
             memory_limit=s.K8S_POD_MEMORY_LIMIT,
             cpu_limit=s.K8S_POD_CPU_LIMIT,
-            max_concurrent_executions=s.K8S_MAX_CONCURRENT_PODS,
             session_timeout_minutes=s.ACCESS_TOKEN_EXPIRE_MINUTES,
         )

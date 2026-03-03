@@ -68,9 +68,6 @@ class Settings(BaseModel):
     # Kubernetes namespace for execution pods
     K8S_NAMESPACE: str = "integr8scode"
 
-    # Maximum concurrent pod creations allowed by k8s worker
-    K8S_MAX_CONCURRENT_PODS: int = 10
-
     # Settings for Kubernetes resource limits and requests
     K8S_POD_CPU_LIMIT: str = "1000m"
     K8S_POD_MEMORY_LIMIT: str = "128Mi"
@@ -79,6 +76,10 @@ class Settings(BaseModel):
     K8S_POD_EXECUTION_TIMEOUT: int = 300  # in seconds
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
     K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
+
+    # Namespace-level ResourceQuota caps (total budget, not per-pod)
+    K8S_QUOTA_CPU: str = "10000m"
+    K8S_QUOTA_MEMORY: str = "1280Mi"
 
     SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
 

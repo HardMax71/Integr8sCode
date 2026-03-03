@@ -403,5 +403,6 @@ async def test_publish_event_exception_handling(
     pod = make_pod(name="no-meta-pod", phase="Pending")
     pod.metadata = None  # type: ignore[assignment]
 
-    # Should not raise - errors are caught and logged
-    await pm._publish_event(event, pod)
+    # Exception propagates — _process_pod_event's broad except handles it
+    with pytest.raises(RuntimeError, match="Publish failed"):
+        await pm._publish_event(event, pod)

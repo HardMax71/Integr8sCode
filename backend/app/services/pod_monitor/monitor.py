@@ -183,11 +183,9 @@ class PodMonitor:
             # Map to application events
             app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
 
-            # Publish events
             for app_event in app_events:
                 await self._publish_event(app_event, event.pod)
 
-            # Delete pod once all data has been extracted and terminal events published
             if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
                 await self._delete_pod(event.pod)
 
@@ -207,22 +205,18 @@ class PodMonitor:
 
     async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
-        try:
-            execution_id = getattr(event, "execution_id", None) or event.aggregate_id
-            key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
+        execution_id = getattr(event, "execution_id", None) or event.aggregate_id
+        key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
 
-            await self._kafka_event_service.publish_event(event=event, key=key)
+        await self._kafka_event_service.publish_event(event=event, key=key)
 
-            phase = pod.status.phase if pod.status else "Unknown"
-            self._metrics.record_pod_monitor_event_published(event.event_type, phase)
-
-        except Exception as e:
-            self.logger.error(f"Error publishing event: {e}", exc_info=True)
+        phase = pod.status.phase if pod.status else "Unknown"
+        self._metrics.record_pod_monitor_event_published(event.event_type, phase)
 
     async def _delete_pod(self, pod: k8s_client.V1Pod) -> None:
         """Delete a pod after its data has been fully extracted.
 
-        Frees the ResourceQuota slot so new executor pods can be scheduled.
+        Frees the Kueue quota slot so gated executor pods can be admitted.
         The ConfigMap is garbage-collected automatically via ownerReference.
         """
         pod_name = pod.metadata.name

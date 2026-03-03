@@ -91,8 +91,13 @@ kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -
 
 # Install Kueue (scheduling-gate based quota management)
 KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+KUEUE_MANIFEST_SHA256="${KUEUE_MANIFEST_SHA256:-3201a66ff731be440ecfcf3c0fa5979d001b834f68389208fe7ee18017fbcfe8}"
 echo "Installing Kueue ${KUEUE_VERSION}..."
-kubectl apply --server-side -f "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+KUEUE_MANIFEST="/tmp/kueue-manifests.yaml"
+curl -fsSL -o "$KUEUE_MANIFEST" "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
+kubectl apply --server-side -f "$KUEUE_MANIFEST"
+rm -f "$KUEUE_MANIFEST"
 kubectl wait --for=condition=Available --timeout=120s \
   deployment/kueue-controller-manager -n kueue-system
 

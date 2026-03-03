@@ -1,3 +1,9 @@
+x-backend-secrets: &backend-secrets
+  SECRET_KEY: ${SECRET_KEY:-CHANGE_ME_min_32_chars_long_!!!!}
+  MONGO_USER: ${MONGO_USER:-root}
+  MONGO_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+
 services:
   # Shared base image for all Python backend services
   base:
@@ -113,7 +119,6 @@ services:
       - ./backend/certs:/app/certs:ro
       - ./backend/config.test.toml:/app/config.test.toml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
@@ -123,9 +128,10 @@ services:
       - app-network
     container_name: backend
     environment:
-      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
-      - WEB_THREADS=${WEB_THREADS:-4}
-      - WEB_TIMEOUT=${WEB_TIMEOUT:-60}
+      <<: *backend-secrets
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      WEB_THREADS: ${WEB_THREADS:-4}
+      WEB_TIMEOUT: ${WEB_TIMEOUT:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     mem_limit: 768m
@@ -301,11 +307,11 @@ services:
       mongo:
         condition: service_healthy
     environment:
-      - DEFAULT_USER_PASSWORD=${DEFAULT_USER_PASSWORD:-user123}
-      - ADMIN_USER_PASSWORD=${ADMIN_USER_PASSWORD:-admin123}
+      <<: *backend-secrets
+      DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:-user123}
+      ADMIN_USER_PASSWORD: ${ADMIN_USER_PASSWORD:-admin123}
     volumes:
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
     command: ["python", "-m", "scripts.seed_users"]
     networks:
       - app-network
@@ -322,12 +328,13 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.k8s-worker.toml:/app/config.k8s-worker.toml:ro
     networks:
       - app-network
@@ -343,12 +350,13 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.pod-monitor.toml:/app/config.pod-monitor.toml:ro
     networks:
       - app-network
@@ -366,12 +374,13 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.result-processor.toml:/app/config.result-processor.toml:ro
     networks:
       - app-network
@@ -389,11 +398,12 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.saga-orchestrator.toml:/app/config.saga-orchestrator.toml:ro
     networks:
       - app-network
@@ -452,11 +462,12 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.event-replay.toml:/app/config.event-replay.toml:ro
     networks:
       - app-network
@@ -473,11 +484,12 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    environment:
+      <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/workers:/app/workers:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/secrets.toml:/app/secrets.toml:ro
       - ./backend/config.dlq-processor.toml:/app/config.dlq-processor.toml:ro
     networks:
       - app-network

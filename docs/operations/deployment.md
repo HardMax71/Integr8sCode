@@ -167,7 +167,7 @@ docker compose logs backend
 | Issue                 | Cause                             | Solution                                          |
 |-----------------------|-----------------------------------|---------------------------------------------------|
 | Unknown topic errors  | Kafka not ready or wrong prefix   | Check `docker compose logs kafka`                 |
-| MongoDB auth errors   | Password mismatch                 | Verify `secrets.toml` matches compose env vars    |
+| MongoDB auth errors   | Password mismatch                 | Verify `MONGO_USER`/`MONGO_PASSWORD` env vars match MongoDB init |
 | Worker crash loop     | Config file missing               | Ensure `config.<worker>.toml` exists              |
 
 ### Kafka topic debugging

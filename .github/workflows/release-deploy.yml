@@ -132,11 +132,12 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,SECRET_KEY
           command_timeout: 10m
           script: |
             set -e
@@ -148,6 +149,10 @@ jobs:
 
             export IMAGE_TAG="$IMAGE_TAG"
             export COMPOSE_PROFILES=observability
+            export SECRET_KEY="$SECRET_KEY"
+            export MONGO_USER="$MONGO_USER"
+            export MONGO_PASSWORD="$MONGO_PASSWORD"
+            export REDIS_PASSWORD="$REDIS_PASSWORD"
             export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
             export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"
             export GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD"
@@ -156,9 +161,6 @@ jobs:
             export MAILJET_FROM_ADDRESS="$MAILJET_FROM_ADDRESS"
             export GF_SMTP_HOST="$MAILJET_HOST"
             export GRAFANA_ALERT_RECIPIENTS="$GRAFANA_ALERT_RECIPIENTS"
-            export REDIS_PASSWORD="$REDIS_PASSWORD"
-            export MONGO_USER="$MONGO_USER"
-            export MONGO_PASSWORD="$MONGO_PASSWORD"
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 

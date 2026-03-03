@@ -1,8 +1,8 @@
 # --8<-- [start:core]
 # Integr8sCode backend configuration (development defaults).
-# Secrets (SECRET_KEY, MONGO_USER, MONGO_PASSWORD) live in secrets.toml (gitignored).
-# Production: mount secrets.toml from a Kubernetes Secret or generate in CI.
-# See secrets.example.toml for the required keys.
+# Secrets (SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD) come from
+# environment variables with dev defaults — see Settings.__init__() in settings.py.
+# Production: set env vars via docker-compose or GitHub Actions secrets.
 
 PROJECT_NAME = "integr8scode"
 DATABASE_NAME = "integr8scode_db"

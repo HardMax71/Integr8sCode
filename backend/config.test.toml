@@ -1,6 +1,6 @@
 # Integr8sCode backend test configuration
 # Differences from config.toml: lower timeouts, faster bcrypt, relaxed rate limits
-# Secrets (SECRET_KEY, MONGODB_URL) live in secrets.toml — use secrets.test.toml in CI.
+# Secrets come from environment variables with dev defaults (see settings.py).
 
 ENVIRONMENT = "test"
 PROJECT_NAME = "integr8scode"

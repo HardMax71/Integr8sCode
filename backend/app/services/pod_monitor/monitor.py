@@ -11,10 +11,9 @@ from kubernetes_asyncio.client.rest import ApiException
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
-from app.domain.events import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
+from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
 
 _TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({
     EventType.EXECUTION_COMPLETED,
@@ -200,12 +199,9 @@ class PodMonitor:
         duration = time.time() - start_time
         self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
-    async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
+    async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
-        execution_id = getattr(event, "execution_id", None) or event.aggregate_id
-        key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
-
-        await self._kafka_event_service.publish_event(event=event, key=key)
+        await self._kafka_event_service.publish_event(event=event, key=event.execution_id)
 
         phase = pod.status.phase if pod.status else "Unknown"
         self._metrics.record_pod_monitor_event_published(event.event_type, phase)

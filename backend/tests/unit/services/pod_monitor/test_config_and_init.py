@@ -20,5 +20,6 @@ def test_package_exports() -> None:
         "PodEventMapper",
         "PodMonitor",
         "PodMonitorConfig",
+        "PodMonitorEvent",
         "WatchEventType",
     }

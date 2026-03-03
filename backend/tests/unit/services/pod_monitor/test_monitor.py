@@ -9,7 +9,6 @@ from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
-    ExecutionStartedEvent,
     ResourceUsageDomain,
 )
 from app.events.core import UnifiedProducer
@@ -394,9 +393,10 @@ async def test_publish_event_exception_handling(
 
     pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, kafka_service=failing_service)
 
-    event = ExecutionStartedEvent(
+    event = ExecutionCompletedEvent(
         execution_id="exec1",
-        pod_name="test-pod",
+        exit_code=0,
+        resource_usage=ResourceUsageDomain(),
         metadata=EventMetadata(service_name="test", service_version="1.0"),
     )
 

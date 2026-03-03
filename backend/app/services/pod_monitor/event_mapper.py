@@ -9,7 +9,6 @@ from app.core.utils import StringEnum
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import (
     ContainerStatusInfo,
-    DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
@@ -22,8 +21,12 @@ from app.domain.events import (
 
 # Python 3.12 type aliases
 type PodPhase = str
-type EventList = list[DomainEvent]
-type AsyncMapper = Callable[["PodContext"], Awaitable[DomainEvent | None]]
+type PodMonitorEvent = (
+    PodScheduledEvent | PodRunningEvent | PodTerminatedEvent
+    | ExecutionCompletedEvent | ExecutionFailedEvent | ExecutionTimeoutEvent
+)
+type EventList = list[PodMonitorEvent]
+type AsyncMapper = Callable[["PodContext"], Awaitable[PodMonitorEvent | None]]
 
 
 class WatchEventType(StringEnum):
@@ -114,7 +117,7 @@ class PodEventMapper:
         )
 
         # Collect events from mappers
-        events: list[DomainEvent] = []
+        events: list[PodMonitorEvent] = []
 
         # Check for timeout first - if pod timed out, only return timeout event
         if timeout_event := await self._check_timeout(ctx):
@@ -218,6 +221,7 @@ class PodEventMapper:
 
         evt = PodScheduledEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             node_name=ctx.pod.spec.node_name or "pending",
             metadata=ctx.metadata,
@@ -243,6 +247,7 @@ class PodEventMapper:
 
         evt = PodRunningEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             container_statuses=container_statuses,
             metadata=ctx.metadata,
@@ -273,7 +278,7 @@ class PodEventMapper:
         self.logger.info(f"POD-EVENT: mapped completed exec={ctx.execution_id} exit_code={logs.exit_code}")
         return evt
 
-    async def _map_failed_or_completed(self, ctx: PodContext) -> DomainEvent | None:
+    async def _map_failed_or_completed(self, ctx: PodContext) -> PodMonitorEvent | None:
         """Map failed pod to either timeout, completed, or failed"""
         if ctx.pod.status and ctx.pod.status.reason == "DeadlineExceeded":
             if timeout_event := await self._check_timeout(ctx):
@@ -318,6 +323,7 @@ class PodEventMapper:
         terminated = container.state.terminated
         evt = PodTerminatedEvent(
             execution_id=ctx.execution_id,
+            aggregate_id=ctx.execution_id,
             pod_name=ctx.pod.metadata.name,
             exit_code=terminated.exit_code,
             reason=terminated.reason or "Terminated",

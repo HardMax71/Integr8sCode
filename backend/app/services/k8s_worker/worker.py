@@ -96,10 +96,7 @@ class KubernetesWorker:
             self.logger.info(f"Successfully deleted pod {pod_name} (ConfigMap will be GC'd by K8s)")
 
         except ApiException as e:
-            if e.status == 404:
-                self.logger.warning(f"Pod for execution {execution_id} not found (may have already been deleted)")
-            else:
-                self.logger.error(f"Failed to delete pod for execution {execution_id}: {e}")
+            self.logger.warning("Failed to delete pod", execution_id=execution_id, status=e.status, reason=e.reason)
 
     async def _create_pod_for_execution(self, command: CreatePodCommandEvent) -> None:
         """Create pod for execution"""
@@ -226,12 +223,13 @@ exec "$@"
                 f"Set ownerReference on ConfigMap {config_map.metadata.name} -> Pod {owner_pod.metadata.name}"
             )
         except ApiException as e:
-            self.logger.warning(f"Failed to set ownerReference on ConfigMap: {e.reason}")
+            self.logger.warning("Failed to set ownerReference on ConfigMap", reason=e.reason)
 
     async def _publish_pod_created(self, command: CreatePodCommandEvent, pod: k8s_client.V1Pod) -> None:
         """Publish pod created event"""
         event = PodCreatedEvent(
             execution_id=command.execution_id,
+            aggregate_id=command.aggregate_id,
             pod_name=pod.metadata.name,
             namespace=pod.metadata.namespace,
             metadata=command.metadata,
@@ -242,6 +240,7 @@ exec "$@"
         """Publish pod creation failed event"""
         event = ExecutionFailedEvent(
             execution_id=command.execution_id,
+            aggregate_id=command.aggregate_id,
             error_type=ExecutionErrorType.SYSTEM_ERROR,
             exit_code=-1,
             stderr=f"Failed to create pod: {error}",

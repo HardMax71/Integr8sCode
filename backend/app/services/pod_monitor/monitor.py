@@ -11,21 +11,15 @@ from kubernetes_asyncio.client.rest import ApiException
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
 from app.domain.enums import EventType
-from app.domain.events import DomainEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
-from app.services.pod_monitor.event_mapper import PodEventMapper, WatchEventType
+from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
 
 _TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({
     EventType.EXECUTION_COMPLETED,
     EventType.EXECUTION_FAILED,
     EventType.EXECUTION_TIMEOUT,
 })
-
-# Type aliases
-type ResourceVersion = str
-type KubeEvent = dict[str, Any]
-
 
 class ErrorType(StringEnum):
     """Error types for metrics."""
@@ -42,7 +36,6 @@ class PodEvent:
 
     event_type: WatchEventType
     pod: k8s_client.V1Pod
-    resource_version: ResourceVersion | None
 
 
 class PodMonitor:
@@ -79,12 +72,12 @@ class PodMonitor:
         self._kafka_event_service = kafka_event_service
 
         # Watch cursor — set from LIST on first run or after 410 Gone
-        self._last_resource_version: ResourceVersion | None = None
+        self._last_resource_version: str | None = None
 
         # Metrics
         self._metrics = kubernetes_metrics
 
-        self.logger.info(f"PodMonitor initialized for namespace {config.namespace}")
+        self.logger.info("PodMonitor initialized", namespace=config.namespace)
 
     async def watch_pod_events(self) -> None:
         """Run a single bounded K8s watch stream using list-then-watch.
@@ -100,8 +93,9 @@ class PodMonitor:
             await self._list_and_process_existing_pods()
 
         self.logger.info(
-            f"Starting pod watch from rv={self._last_resource_version}, "
-            f"selector: {self.config.label_selector}"
+            "Starting pod watch",
+            rv=self._last_resource_version,
+            selector=self.config.label_selector,
         )
 
         kwargs: dict[str, Any] = {
@@ -114,12 +108,14 @@ class PodMonitor:
         if self.config.field_selector:
             kwargs["field_selector"] = self.config.field_selector
 
-        async for event in self._watch.stream(self._v1.list_namespaced_pod, **kwargs):
-            await self._process_raw_event(event)
-
-        # Store resource version from watch for next iteration
-        if self._watch.resource_version:
-            self._last_resource_version = self._watch.resource_version
+        try:
+            async for event in self._watch.stream(self._v1.list_namespaced_pod, **kwargs):
+                if event["type"] not in WatchEventType:
+                    continue
+                await self._process_pod_event(PodEvent(event_type=WatchEventType(event["type"]), pod=event["object"]))
+        finally:
+            if self._watch.resource_version:
+                self._last_resource_version = self._watch.resource_version
 
     async def _list_and_process_existing_pods(self) -> None:
         """LIST all matching pods to bootstrap state and get a resource_version cursor."""
@@ -133,82 +129,55 @@ class PodMonitor:
         pod_list = await self._v1.list_namespaced_pod(**kwargs)
 
         for pod in pod_list.items:
-            event = PodEvent(
-                event_type=WatchEventType.ADDED,
-                pod=pod,
-                resource_version=pod.metadata.resource_version if pod.metadata else None,
-            )
+            event = PodEvent(event_type=WatchEventType.ADDED, pod=pod)
             await self._process_pod_event(event)
 
         # Use the list's resource_version as the authoritative cursor
         self._last_resource_version = pod_list.metadata.resource_version
 
         self.logger.info(
-            f"Listed {len(pod_list.items)} existing pods, rv={self._last_resource_version}"
+            "Listed existing pods",
+            count=len(pod_list.items),
+            rv=self._last_resource_version,
         )
-
-    async def _process_raw_event(self, raw_event: KubeEvent) -> None:
-        """Process a raw Kubernetes watch event."""
-        try:
-            event = PodEvent(
-                event_type=WatchEventType(raw_event["type"].upper()),
-                pod=raw_event["object"],
-                resource_version=(
-                    raw_event["object"].metadata.resource_version if raw_event["object"].metadata else None
-                ),
-            )
-
-            await self._process_pod_event(event)
-
-        except (KeyError, ValueError) as e:
-            self.logger.error(f"Invalid event format: {e}")
-            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
 
     async def _process_pod_event(self, event: PodEvent) -> None:
         """Process a pod event."""
         start_time = time.time()
 
+        # Skip ignored phases
+        pod_phase = event.pod.status.phase if event.pod.status else None
+        if pod_phase in self.config.ignored_pod_phases:
+            return
+
         try:
-            # Update resource version for crash recovery
-            if event.resource_version:
-                self._last_resource_version = event.resource_version
-
-            # Skip ignored phases
-            pod_phase = event.pod.status.phase if event.pod.status else None
-            if pod_phase in self.config.ignored_pod_phases:
-                return
-
-            pod_name = event.pod.metadata.name
-
-            # Map to application events
             app_events = await self._event_mapper.map_pod_event(event.pod, event.event_type)
-
             for app_event in app_events:
                 await self._publish_event(app_event, event.pod)
-
-            if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
-                await self._delete_pod(event.pod)
-
-            if app_events:
-                self.logger.info(
-                    f"Processed {event.event_type} event for pod {pod_name} "
-                    f"(phase: {pod_phase or 'Unknown'}), "
-                    f"published {len(app_events)} events"
-                )
-
+        except Exception:
+            self.logger.error("Error processing pod event", exc_info=True)
+            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
+            return
+        finally:
             duration = time.time() - start_time
             self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
-        except Exception as e:
-            self.logger.error(f"Error processing pod event: {e}", exc_info=True)
-            self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
+        if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
+            await self._delete_pod(event.pod)
 
-    async def _publish_event(self, event: DomainEvent, pod: k8s_client.V1Pod) -> None:
+        if app_events:
+            pod_name = event.pod.metadata.name if event.pod.metadata else "unknown"
+            self.logger.info(
+                "Processed pod event",
+                event_type=event.event_type,
+                pod_name=pod_name,
+                phase=pod_phase or "Unknown",
+                published=len(app_events),
+            )
+
+    async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
-        execution_id = getattr(event, "execution_id", None) or event.aggregate_id
-        key = str(execution_id or (pod.metadata.name if pod.metadata else "unknown"))
-
-        await self._kafka_event_service.publish_event(event=event, key=key)
+        await self._kafka_event_service.publish_event(event=event, key=event.execution_id)
 
         phase = pod.status.phase if pod.status else "Unknown"
         self._metrics.record_pod_monitor_event_published(event.event_type, phase)
@@ -224,9 +193,6 @@ class PodMonitor:
             await self._v1.delete_namespaced_pod(
                 name=pod_name, namespace=pod.metadata.namespace, grace_period_seconds=0,
             )
-            self.logger.info(f"Deleted completed pod {pod_name}")
+            self.logger.info("Deleted completed pod", pod_name=pod_name)
         except ApiException as e:
-            if e.status == 404:
-                self.logger.debug(f"Pod {pod_name} already deleted")
-            else:
-                self.logger.warning(f"Failed to delete pod {pod_name}: {e.reason}")
+            self.logger.warning("Failed to delete pod", pod_name=pod_name, status=e.status, reason=e.reason)

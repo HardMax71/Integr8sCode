@@ -1,5 +1,5 @@
+import os
 import tomllib
-from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
@@ -11,19 +11,19 @@ from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
 
 
 class Settings(BaseModel):
-    """Application settings loaded from TOML configuration files.
+    """Application settings loaded from TOML + environment variables.
 
-    All config is read from TOML — no environment variables, no .env files.
+    Non-secret config comes from TOML files; secrets come from env vars with dev defaults.
 
     Load order (each layer overrides the previous):
         1. config_path    — base settings (committed to git)
-        2. secrets_path   — sensitive overrides (gitignored, mounted from K8s Secret in prod)
-        3. override_path  — per-worker service overrides (TRACING_SERVICE_NAME, etc.)
+        2. override_path  — per-worker service overrides (TRACING_SERVICE_NAME, etc.)
+        3. Environment variables for secrets: SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD
 
     Usage:
-        Settings()                                                       # config.toml + secrets
-        Settings(config_path="config.test.toml")                         # test config (has own secrets)
-        Settings(override_path="config.saga-orchestrator.toml")           # base + secrets + worker
+        Settings()                                                       # config.toml + env vars
+        Settings(config_path="config.test.toml")                         # test config + env vars
+        Settings(override_path="config.saga-orchestrator.toml")           # base + worker + env vars
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -32,16 +32,19 @@ class Settings(BaseModel):
         self,
         config_path: str = "config.toml",
         override_path: str | None = None,
-        secrets_path: str = "secrets.toml",
     ) -> None:
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
-        if Path(secrets_path).is_file():
-            with open(secrets_path, "rb") as f:
-                data |= tomllib.load(f)
         if override_path:
             with open(override_path, "rb") as f:
                 data |= tomllib.load(f)
+        for key, default in (
+            ("SECRET_KEY", "CHANGE_ME_min_32_chars_long_!!!!"),
+            ("MONGO_USER", "root"),
+            ("MONGO_PASSWORD", "rootpassword"),
+            ("REDIS_PASSWORD", "redispassword"),
+        ):
+            data[key] = os.environ.get(key) or data.get(key) or default
         if data.get("MONGO_USER") and data.get("MONGO_PASSWORD"):
             user = quote(data["MONGO_USER"], safe="")
             password = quote(data["MONGO_PASSWORD"], safe="")
@@ -176,7 +179,7 @@ class Settings(BaseModel):
     DEVELOPMENT_MODE: bool = False
     SECURE_COOKIES: bool = True
 
-    # CORS allowed origins (overridable via config.toml / secrets.toml)
+    # CORS allowed origins (overridable via config.toml)
     CORS_ORIGINS: list[str] = Field(default_factory=lambda: [
         "https://localhost:5001",
         "https://127.0.0.1:5001",

@@ -438,22 +438,22 @@ class ExecutionService:
 ## Backend: Settings (TOML — No Env Vars)
 
 ```python
-# WRONG — never use environment variables
+# WRONG — never read config directly from env vars in application code
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# CORRECT — inject via DI
+# CORRECT — inject via DI (Settings reads env vars for secrets internally)
 settings: FromDishka[Settings]
 ```
 
 Config load order (each overrides previous):
 1. `config.toml` — base settings (committed)
-2. `secrets.toml` — credentials (gitignored, never committed)
-3. `config.<worker>.toml` — per-worker overrides (optional)
+2. `config.<worker>.toml` — per-worker overrides (optional)
+3. Environment variables for secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`
 
 ```python
-Settings()                                           # config.toml + secrets.toml
-Settings(config_path="config.test.toml")             # tests
-Settings(override_path="config.saga-orchestrator.toml")  # worker
+Settings()                                           # config.toml + env vars
+Settings(config_path="config.test.toml")             # tests + env vars
+Settings(override_path="config.saga-orchestrator.toml")  # worker + env vars
 ```
 
 `Settings` uses `model_config = ConfigDict(extra="forbid")` — unknown keys are errors.

@@ -1,35 +1,34 @@
 # Configuration Reference
 
-All backend configuration is loaded from TOML files — no environment variables, no `.env` files. The `Settings` class (`app/settings.py`) reads files in this order, each layer overriding the previous:
+Non-secret configuration is loaded from TOML files. Secrets come from environment variables with dev defaults. The `Settings` class (`app/settings.py`) reads in this order, each layer overriding the previous:
 
 1. **`config.toml`** — base settings, committed to git (no secrets)
-2. **`secrets.toml`** — sensitive values (`SECRET_KEY`, `MONGODB_URL`), gitignored
-3. **per-worker override** — optional TOML file for service-specific settings (e.g. `config.saga-orchestrator.toml`)
+2. **per-worker override** — optional TOML file for service-specific settings (e.g. `config.saga-orchestrator.toml`)
+3. **Environment variables** for secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`
 
 ```python
-# Default — reads config.toml + secrets.toml
+# Default — reads config.toml + env vars
 Settings()
 
-# Tests — reads config.test.toml + secrets.toml
+# Tests — reads config.test.toml + env vars
 Settings(config_path="config.test.toml")
 
-# Worker — reads config.toml + secrets.toml + worker override
+# Worker — reads config.toml + worker override + env vars
 Settings(override_path="config.saga-orchestrator.toml")
 ```
 
 ## Secrets
 
-Credentials live in `secrets.toml`, which is gitignored. A committed template with development defaults is provided:
+Secrets are read from environment variables. Dev defaults are built in so local development requires zero configuration:
 
-```bash
-cp backend/secrets.example.toml backend/secrets.toml
-```
+| Variable | Description | Dev default |
+|----------|-------------|-------------|
+| `SECRET_KEY` | JWT signing key (min 32 chars) | `CHANGE_ME_min_32_chars_long_!!!!` |
+| `MONGO_USER` | MongoDB root username | `root` |
+| `MONGO_PASSWORD` | MongoDB root password | `rootpassword` |
+| `REDIS_PASSWORD` | Redis password | `redispassword` |
 
-```toml
---8<-- "backend/secrets.example.toml"
-```
-
-For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.toml`. In CI, generate it from repository secrets (see the template comments for an example).
+Docker Compose passes these via a shared `x-backend-secrets` YAML anchor to all backend services. For production, set the env vars through GitHub Actions secrets or your deployment platform.
 
 ## Core
 
@@ -42,10 +41,10 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
     |-----|-------------|---------|
     | `PROJECT_NAME` | Application name for logs and metadata | `integr8scode` |
     | `DATABASE_NAME` | MongoDB database name | `integr8scode_db` |
-    | `SECRET_KEY` | JWT signing key, min 32 chars. **Lives in `secrets.toml`** | — (required) |
+    | `SECRET_KEY` | JWT signing key, min 32 chars. **From env var** | `CHANGE_ME_min_32_chars_long_!!!!` |
     | `ALGORITHM` | JWT signing algorithm | `HS256` |
     | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime in minutes | `1440` (24h) |
-    | `MONGODB_URL` | MongoDB connection string. **Lives in `secrets.toml`** | `mongodb://mongo:27017/integr8scode` |
+    | `MONGODB_URL` | MongoDB connection string. **Built from `MONGO_USER`/`MONGO_PASSWORD` env vars + `MONGO_HOST`/`MONGO_PORT`/`MONGO_DB` from TOML** | (computed) |
 
 ## Kubernetes
 
@@ -164,7 +163,7 @@ For production, mount `secrets.toml` from a Kubernetes Secret at `/app/secrets.t
 
 ## Worker overrides
 
-Each worker runs with a small override TOML that sets `TRACING_SERVICE_NAME` and `KAFKA_CONSUMER_GROUP_ID`. These are mounted alongside `config.toml` and `secrets.toml` in Docker Compose:
+Each worker runs with a small override TOML that sets `TRACING_SERVICE_NAME` and `KAFKA_CONSUMER_GROUP_ID`. These are mounted alongside `config.toml` in Docker Compose:
 
 | File | Service |
 |------|---------|
@@ -183,8 +182,4 @@ Each worker runs with a small override TOML that sets `TRACING_SERVICE_NAME` and
 Settings(config_path="config.test.toml")
 ```
 
-Secrets are still loaded from `secrets.toml`. In CI, the workflow copies the example template:
-
-```bash
-cp backend/secrets.example.toml backend/secrets.toml
-```
+Secrets come from environment variables with dev defaults — no extra setup needed in CI or locally.

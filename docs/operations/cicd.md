@@ -191,7 +191,7 @@ This action finalizes the environment after boot tasks complete:
 1. **Finalize k3s** — copies kubeconfig, rewrites the API server address to `host.docker.internal` so containers
    inside docker compose can reach the k3s API server, creates the `integr8scode` namespace
 2. **Start cert-generator** in the background
-3. **Copy test config** — uses `config.test.toml` and `secrets.example.toml`
+3. **Copy test config** — uses `config.test.toml` (secrets come from env var defaults)
 4. **Wait for image pull and infra** — blocks until the background pull completes and checks the exit code from
    `/tmp/infra-pull.exit`, failing fast if the background process had errors
 5. **Start compose stack** with `docker compose up -d --no-build`

@@ -70,11 +70,10 @@ things safe and efficient. You'll get the results back in no time.
 ```bash
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
-cp backend/secrets.example.toml backend/secrets.toml
 ./deploy.sh dev
 ```
 
-The `secrets.toml` file holds credentials and is gitignored. The example template has working development defaults.
+Secrets (MongoDB, Redis, JWT) come from environment variables with dev defaults — zero config needed for local development. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD` as env vars.
 
 ### Verify
 

@@ -158,6 +158,9 @@ class PodMonitor:
             self.logger.error("Error processing pod event", exc_info=True)
             self._metrics.record_pod_monitor_watch_error(ErrorType.PROCESSING_ERROR)
             return
+        finally:
+            duration = time.time() - start_time
+            self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
         if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
             await self._delete_pod(event.pod)
@@ -171,9 +174,6 @@ class PodMonitor:
                 phase=pod_phase or "Unknown",
                 published=len(app_events),
             )
-
-        duration = time.time() - start_time
-        self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
     async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""

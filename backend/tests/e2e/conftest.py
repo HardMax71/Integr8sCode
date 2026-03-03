@@ -7,6 +7,7 @@ import redis.asyncio as redis
 from app.db.docs.saga import SagaDocument
 from app.domain.enums import EventType, UserRole
 from app.domain.sse import SSEExecutionEventData
+from app.infrastructure.kafka.topics import RESULT_TYPES
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse
@@ -16,8 +17,6 @@ from httpx import AsyncClient
 from pydantic import TypeAdapter
 
 _sse_adapter = TypeAdapter(SSEExecutionEventData)
-
-RESULT_EVENT_TYPES = frozenset({EventType.RESULT_STORED, EventType.RESULT_FAILED})
 
 
 async def wait_for_sse_event(
@@ -52,7 +51,7 @@ async def wait_for_result(
     """Wait for RESULT_STORED or RESULT_FAILED."""
     return await wait_for_sse_event(
         redis_client, execution_id,
-        lambda e: e.event_type in RESULT_EVENT_TYPES,
+        lambda e: e.event_type in RESULT_TYPES,
         timeout=timeout,
     )
 

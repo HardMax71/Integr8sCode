@@ -10,16 +10,11 @@ from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
-from app.domain.enums import EventType
+from app.infrastructure.kafka.topics import EXECUTION_TERMINAL_EVENT_TYPES
 from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
 
-_TERMINAL_EVENT_TYPES: frozenset[str] = frozenset({
-    EventType.EXECUTION_COMPLETED,
-    EventType.EXECUTION_FAILED,
-    EventType.EXECUTION_TIMEOUT,
-})
 
 class ErrorType(StringEnum):
     """Error types for metrics."""
@@ -162,7 +157,7 @@ class PodMonitor:
             duration = time.time() - start_time
             self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
-        if any(e.event_type in _TERMINAL_EVENT_TYPES for e in app_events):
+        if any(e.event_type in EXECUTION_TERMINAL_EVENT_TYPES for e in app_events):
             await self._delete_pod(event.pod)
 
         if app_events:

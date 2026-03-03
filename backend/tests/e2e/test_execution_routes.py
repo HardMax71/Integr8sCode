@@ -10,7 +10,7 @@ import asyncio
 import pytest
 import redis.asyncio as redis
 from app.domain.enums import EventType, ExecutionStatus
-from app.domain.events import ExecutionDomainEvent
+from app.domain.events import DomainEvent
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -30,7 +30,7 @@ from tests.e2e.conftest import wait_for_pod_created, wait_for_result
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
 
 # TypeAdapter for parsing list of execution events from API response
-ExecutionEventsAdapter = TypeAdapter(list[ExecutionDomainEvent])
+ExecutionEventsAdapter = TypeAdapter(list[DomainEvent])
 
 # Initial states when execution is created
 INITIAL_STATES = {

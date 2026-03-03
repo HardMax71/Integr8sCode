@@ -255,12 +255,10 @@ exec "$@"
 
         Creates:
         - Default-deny NetworkPolicy for executor pods (blocks lateral movement and exfiltration)
-        - ResourceQuota to cap aggregate CPU/memory consumption (no pod count limit)
         - Pod Security Admission labels (Restricted profile)
         """
         namespace = self._settings.K8S_NAMESPACE
         await self._ensure_executor_network_policy(namespace)
-        await self._ensure_executor_resource_quota(namespace)
         await self._apply_psa_labels(namespace)
 
     async def _ensure_executor_network_policy(self, namespace: str) -> None:
@@ -289,35 +287,6 @@ exec "$@"
             _content_type="application/apply-patch+yaml",
         )
         self.logger.info(f"NetworkPolicy '{policy_name}' applied in namespace {namespace}")
-
-    async def _ensure_executor_resource_quota(self, namespace: str) -> None:
-        """Create or update ResourceQuota to cap aggregate CPU/memory in the executor namespace."""
-        quota_name = "executor-quota"
-
-        quota = k8s_client.V1ResourceQuota(
-            api_version="v1",
-            kind="ResourceQuota",
-            metadata=k8s_client.V1ObjectMeta(
-                name=quota_name,
-                namespace=namespace,
-                labels={"app": "integr8s", "component": "security"},
-            ),
-            spec=k8s_client.V1ResourceQuotaSpec(
-                hard={
-                    "requests.cpu": self._settings.K8S_QUOTA_CPU,
-                    "requests.memory": self._settings.K8S_QUOTA_MEMORY,
-                    "limits.cpu": self._settings.K8S_QUOTA_CPU,
-                    "limits.memory": self._settings.K8S_QUOTA_MEMORY,
-                },
-            ),
-        )
-
-        await self.v1.patch_namespaced_resource_quota(  # type: ignore[call-arg]
-            name=quota_name, namespace=namespace, body=quota,
-            field_manager="integr8s", force=True,
-            _content_type="application/apply-patch+yaml",
-        )
-        self.logger.info(f"ResourceQuota '{quota_name}' applied in namespace {namespace}")
 
     async def _apply_psa_labels(self, namespace: str) -> None:
         """Apply Pod Security Admission labels to the executor namespace."""

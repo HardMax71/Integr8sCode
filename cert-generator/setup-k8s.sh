@@ -89,8 +89,45 @@ echo "Connected to Kubernetes"
 # Create namespace
 kubectl create namespace integr8scode --dry-run=client -o yaml | kubectl apply -f -
 
-# Clean up stale executor pods from previous runs so they don't consume ResourceQuota
-kubectl delete pods -n integr8scode -l component=executor --field-selector=status.phase!=Running --ignore-not-found 2>/dev/null || true
+# Install Kueue (scheduling-gate based quota management)
+KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+echo "Installing Kueue ${KUEUE_VERSION}..."
+kubectl apply --server-side -f "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+kubectl wait --for=condition=Available --timeout=120s \
+  deployment/kueue-controller-manager -n kueue-system
+
+# Kueue resources: ResourceFlavor + ClusterQueue + LocalQueue
+kubectl apply --server-side -f - <<'KUEUE_EOF'
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: default-flavor
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: executor-queue
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+  - coveredResources: ["cpu", "memory"]
+    flavors:
+    - name: default-flavor
+      resources:
+      - name: cpu
+        nominalQuota: "32"
+      - name: memory
+        nominalQuota: "4Gi"
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: executor-queue
+  namespace: integr8scode
+spec:
+  clusterQueue: executor-queue
+KUEUE_EOF
+echo "Kueue installed and configured"
 
 # Create ServiceAccount
 kubectl apply -f - <<EOF
@@ -145,9 +182,6 @@ rules:
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["networking.k8s.io"]
   resources: ["networkpolicies"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: [""]
-  resources: ["resourcequotas"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 

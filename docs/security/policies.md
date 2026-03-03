@@ -60,19 +60,27 @@ spec:
 
 This policy matches pods with the `component: executor` label, which the pod builder applies to all executor pods.
 
-### Resource Quota
+### Kueue (Resource Quota with Queuing)
 
-A ResourceQuota caps aggregate CPU and memory in the executor namespace. If the execution queue allows more pods than
-the namespace has resources for, Kubernetes keeps excess pods in Pending state rather than failing.
+[Kueue](https://kueue.sigs.k8s.io/) manages CPU/memory quota for executor pods. Unlike ResourceQuota (which rejects pod
+creation with 403 Forbidden when quota is full), Kueue adds a **scheduling gate** to pods — they exist in the API server
+but the scheduler ignores them (status: `SchedulingGated`). When quota frees up, the gate is removed and the pod is
+scheduled normally.
 
-| Resource          | Limit              | Source setting     |
-|-------------------|--------------------|--------------------|
-| `requests.cpu`    | `K8S_QUOTA_CPU`    | Namespace CPU cap  |
-| `requests.memory` | `K8S_QUOTA_MEMORY` | Namespace memory cap |
-| `limits.cpu`      | `K8S_QUOTA_CPU`    | Same as requests   |
-| `limits.memory`   | `K8S_QUOTA_MEMORY` | Same as requests   |
+Kueue resources (created by `setup-k8s.sh`):
 
-No `pods` count in the quota — concurrency is controlled by the execution queue (`max_concurrent_executions`).
+| Resource        | Name             | Purpose                                                      |
+|-----------------|------------------|--------------------------------------------------------------|
+| ResourceFlavor  | `default-flavor` | Represents the cluster's default resource pool               |
+| ClusterQueue    | `executor-queue` | Defines CPU/memory quota (32 CPU, 4Gi memory)               |
+| LocalQueue      | `executor-queue` | Namespace-scoped queue in `integr8scode`, bound to ClusterQueue |
+
+Executor pods carry the label `kueue.x-k8s.io/queue-name: executor-queue` (set by the pod builder). Kueue only manages
+pods with this label — DaemonSet pods (e.g., the image pre-puller) are invisible to Kueue.
+
+Key behavior:
+- `active_deadline_seconds` only counts from when the pod is scheduled, so gated time does not consume execution timeout
+- Concurrency is still controlled by the execution queue; Kueue acts as a safety net for aggregate resource consumption
 
 ### Pod Security Admission (PSA)
 

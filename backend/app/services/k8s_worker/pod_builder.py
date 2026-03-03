@@ -157,6 +157,7 @@ class PodBuilder:
     ) -> k8s_client.V1ObjectMeta:
         """Build pod metadata with saga tracking"""
         labels = {"app": "integr8s", "component": "executor", "execution-id": execution_id, "language": language}
+        labels["kueue.x-k8s.io/queue-name"] = "executor-queue"
 
         labels["user-id"] = user_id[:63]  # K8s label value limit
 

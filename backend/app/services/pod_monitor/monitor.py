@@ -77,7 +77,7 @@ class PodMonitor:
         # Metrics
         self._metrics = kubernetes_metrics
 
-        self.logger.info(f"PodMonitor initialized for namespace {config.namespace}")
+        self.logger.info("PodMonitor initialized", namespace=config.namespace)
 
     async def watch_pod_events(self) -> None:
         """Run a single bounded K8s watch stream using list-then-watch.
@@ -93,8 +93,9 @@ class PodMonitor:
             await self._list_and_process_existing_pods()
 
         self.logger.info(
-            f"Starting pod watch from rv={self._last_resource_version}, "
-            f"selector: {self.config.label_selector}"
+            "Starting pod watch",
+            rv=self._last_resource_version,
+            selector=self.config.label_selector,
         )
 
         kwargs: dict[str, Any] = {
@@ -135,7 +136,9 @@ class PodMonitor:
         self._last_resource_version = pod_list.metadata.resource_version
 
         self.logger.info(
-            f"Listed {len(pod_list.items)} existing pods, rv={self._last_resource_version}"
+            "Listed existing pods",
+            count=len(pod_list.items),
+            rv=self._last_resource_version,
         )
 
     async def _process_pod_event(self, event: PodEvent) -> None:
@@ -162,9 +165,11 @@ class PodMonitor:
         if app_events:
             pod_name = event.pod.metadata.name if event.pod.metadata else "unknown"
             self.logger.info(
-                f"Processed {event.event_type} event for pod {pod_name} "
-                f"(phase: {pod_phase or 'Unknown'}), "
-                f"published {len(app_events)} events"
+                "Processed pod event",
+                event_type=event.event_type,
+                pod_name=pod_name,
+                phase=pod_phase or "Unknown",
+                published=len(app_events),
             )
 
         duration = time.time() - start_time
@@ -188,6 +193,6 @@ class PodMonitor:
             await self._v1.delete_namespaced_pod(
                 name=pod_name, namespace=pod.metadata.namespace, grace_period_seconds=0,
             )
-            self.logger.info(f"Deleted completed pod {pod_name}")
+            self.logger.info("Deleted completed pod", pod_name=pod_name)
         except ApiException as e:
             self.logger.warning("Failed to delete pod", pod_name=pod_name, status=e.status, reason=e.reason)

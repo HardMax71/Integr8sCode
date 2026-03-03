@@ -1,15 +1,8 @@
-"""E2E tests for execution routes.
-
-Tests validate full execution lifecycle including waiting for terminal states.
-E2E tests use the shared database (integr8scode_db) that workers also use,
-enabling complete end-to-end validation of execution creation through completion.
-"""
-
 import asyncio
 
 import pytest
 import redis.asyncio as redis
-from app.domain.enums import EventType, ExecutionStatus
+from app.domain.enums import EXECUTION_TERMINAL, EventType, ExecutionStatus
 from app.domain.events import DomainEvent
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
@@ -37,15 +30,6 @@ INITIAL_STATES = {
     ExecutionStatus.QUEUED,
     ExecutionStatus.SCHEDULED,
     ExecutionStatus.RUNNING,
-}
-
-# Terminal states that indicate execution has finished
-TERMINAL_STATES = {
-    ExecutionStatus.COMPLETED,
-    ExecutionStatus.FAILED,
-    ExecutionStatus.TIMEOUT,
-    ExecutionStatus.CANCELLED,
-    ExecutionStatus.ERROR,
 }
 
 

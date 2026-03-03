@@ -11,18 +11,12 @@ from app.domain.exceptions import ForbiddenError
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
+from app.infrastructure.kafka.topics import EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES
 from app.services.sse.redis_bus import SSERedisBus
 
 _exec_adapter = TypeAdapter(SSEExecutionEventData)
 _notif_adapter = TypeAdapter(DomainNotificationSSEPayload)
 _replay_adapter = TypeAdapter(DomainReplaySSEPayload)
-
-_TERMINAL_TYPES: frozenset[EventType | SSEControlEvent] = frozenset({
-    EventType.RESULT_STORED,
-    EventType.EXECUTION_FAILED,
-    EventType.EXECUTION_TIMEOUT,
-    EventType.RESULT_FAILED,
-})
 
 
 class SSEService:
@@ -70,7 +64,7 @@ class SSEService:
                 event = dataclasses.replace(event, result=result)
             self._logger.info("SSE event", execution_id=execution_id, event_type=event.event_type)
             yield {"data": _exec_adapter.dump_json(event).decode()}
-            if event.event_type in _TERMINAL_TYPES:
+            if event.event_type in EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES:
                 return
 
     async def create_notification_stream(self, user_id: str) -> AsyncGenerator[dict[str, Any], None]:

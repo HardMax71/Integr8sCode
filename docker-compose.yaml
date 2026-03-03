@@ -45,8 +45,8 @@ services:
     ports:
       - "127.0.0.1:27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpassword}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
       MONGO_INITDB_DATABASE: integr8scode
     volumes:
       - mongo_data:/data/db
@@ -60,7 +60,7 @@ services:
         soft: 65536
         hard: 65536
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_ROOT_USER:-root} -p ${MONGO_ROOT_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost/integr8scode -u ${MONGO_USER:-root} -p ${MONGO_PASSWORD:-rootpassword} --authenticationDatabase admin --quiet
       interval: 3s
       timeout: 5s
       retries: 15
@@ -523,8 +523,8 @@ services:
     environment:
       - HOST_PROC=/hostfs/proc
       - HOST_SYS=/hostfs/sys
-      - MONGO_ROOT_USER=${MONGO_ROOT_USER:-root}
-      - MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-rootpassword}
+      - MONGO_USER=${MONGO_USER:-root}
+      - MONGO_PASSWORD=${MONGO_PASSWORD:-rootpassword}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP

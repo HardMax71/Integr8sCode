@@ -1,6 +1,7 @@
 import tomllib
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +42,13 @@ class Settings(BaseModel):
         if override_path:
             with open(override_path, "rb") as f:
                 data |= tomllib.load(f)
+        if data.get("MONGO_USER") and data.get("MONGO_PASSWORD"):
+            user = quote(data["MONGO_USER"], safe="")
+            password = quote(data["MONGO_PASSWORD"], safe="")
+            host = data.get("MONGO_HOST", "mongo")
+            port = data.get("MONGO_PORT", 27017)
+            db = data.get("MONGO_DB", "integr8scode")
+            data["MONGODB_URL"] = f"mongodb://{user}:{password}@{host}:{port}/{db}?authSource=admin"
         super().__init__(**data)
 
     PROJECT_NAME: str = "integr8scode"
@@ -53,7 +61,12 @@ class Settings(BaseModel):
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
-    MONGODB_URL: str = "mongodb://mongo:27017/integr8scode"
+    MONGO_HOST: str = "mongo"
+    MONGO_PORT: int = 27017
+    MONGO_DB: str = "integr8scode"
+    MONGO_USER: str = ""
+    MONGO_PASSWORD: str = ""
+    MONGODB_URL: str = ""
     KUBERNETES_CONFIG_PATH: str = "~/.kube/config"
     KUBERNETES_CA_CERTIFICATE_PATH: str | None = None
     RATE_LIMITS: str = "100/minute"

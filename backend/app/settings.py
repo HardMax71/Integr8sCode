@@ -39,12 +39,13 @@ class Settings(BaseModel):
             with open(override_path, "rb") as f:
                 data |= tomllib.load(f)
         for key, default in (
-            ("SECRET_KEY", "CHANGE_ME_min_32_chars_long_!!!!"),
             ("MONGO_USER", "root"),
             ("MONGO_PASSWORD", "rootpassword"),
             ("REDIS_PASSWORD", "redispassword"),
         ):
             data[key] = os.environ.get(key) or data.get(key) or default
+        if secret_key := os.environ.get("SECRET_KEY"):
+            data["SECRET_KEY"] = secret_key
         if data.get("MONGO_USER") and data.get("MONGO_PASSWORD"):
             user = quote(data["MONGO_USER"], safe="")
             password = quote(data["MONGO_PASSWORD"], safe="")

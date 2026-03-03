@@ -438,10 +438,10 @@ class ExecutionService:
 ## Backend: Settings (TOML — No Env Vars)
 
 ```python
-# WRONG — never use environment variables
+# WRONG — never read config directly from env vars in application code
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# CORRECT — inject via DI
+# CORRECT — inject via DI (Settings reads env vars for secrets internally)
 settings: FromDishka[Settings]
 ```
 

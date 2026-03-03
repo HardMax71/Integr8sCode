@@ -31,6 +31,8 @@ env:
   KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
   K3S_VERSION: v1.32.11+k3s1
   K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
+  KUEUE_VERSION: v0.16.1
+  KUEUE_MANIFEST_SHA256: 3201a66ff731be440ecfcf3c0fa5979d001b834f68389208fe7ee18017fbcfe8
 
 jobs:
   # Fast unit tests (no infrastructure needed)

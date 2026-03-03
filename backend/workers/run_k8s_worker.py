@@ -44,8 +44,9 @@ def main() -> None:
 
         async def init_k8s_worker() -> None:
             worker = await container.get(KubernetesWorker)
+            await worker.ensure_namespace_security()
             await worker.ensure_image_pre_puller_daemonset()
-            logger.info("KubernetesWorker initialized with pre-puller daemonset")
+            logger.info("KubernetesWorker initialized with namespace security and pre-puller daemonset")
 
         app = FastStream(broker, on_startup=[init_k8s_worker], on_shutdown=[container.close])
         await app.run()

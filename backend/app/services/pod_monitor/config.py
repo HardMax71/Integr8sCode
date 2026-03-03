@@ -15,7 +15,7 @@ class PodMonitorConfig:
     # Watch settings
     label_selector: str = "app=integr8s,component=executor"
     field_selector: str | None = None
-    watch_timeout_seconds: int = 300  # 5 minutes
+    watch_timeout_seconds: int = 30  # 30 seconds — short enough for APScheduler 5s interval
 
     # Monitoring settings
     enable_metrics: bool = True

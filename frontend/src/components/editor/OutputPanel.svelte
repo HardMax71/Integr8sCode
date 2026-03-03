@@ -3,7 +3,7 @@
     import type { ExecutionPhase } from '$lib/editor';
     import Spinner from '$components/Spinner.svelte';
     import { AlertTriangle, FileText, Copy } from '@lucide/svelte';
-    import AnsiToHtml from 'ansi-to-html';
+    import { AnsiUp } from 'ansi_up';
     import DOMPurify from 'dompurify';
     import { toast } from 'svelte-sonner';
 
@@ -13,18 +13,14 @@
         error: string | null;
     } = $props();
 
-    const ansiConverter = new AnsiToHtml({
-        fg: '#000', bg: '#FFF', newline: true, escapeXML: true, stream: false,
-        colors: {
-            0: '#000', 1: '#C00', 2: '#0C0', 3: '#C50', 4: '#00C', 5: '#C0C', 6: '#0CC', 7: '#CCC',
-            8: '#555', 9: '#F55', 10: '#5F5', 11: '#FF5', 12: '#55F', 13: '#F5F', 14: '#5FF', 15: '#FFF'
-        }
-    });
+    const ansiConverter = new AnsiUp();
+    ansiConverter.use_classes = true;
+    ansiConverter.escape_html = true;
 
     function sanitize(html: string): string {
         return DOMPurify.sanitize(html, {
             ALLOWED_TAGS: ['span', 'br', 'div'],
-            ALLOWED_ATTR: ['class', 'style']
+            ALLOWED_ATTR: ['class']
         });
     }
 
@@ -99,7 +95,7 @@
                     <div class="output-section">
                         <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider">Output:</h4>
                         <div class="relative">
-                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(ansiConverter.toHtml(result.stdout || ''))}</pre>
+                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(ansiConverter.ansi_to_html(result.stdout))}</pre>
                             <div class="absolute bottom-2 right-2 group">
                                 <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"
                                         aria-label="Copy output to clipboard"
@@ -119,7 +115,7 @@
                         <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">Errors:</h4>
                         <div class="relative">
                             <div class="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-                                <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(ansiConverter.toHtml(result.stderr || ''))}</pre>
+                                <pre class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(ansiConverter.ansi_to_html(result.stderr))}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">
                                 <button type="button" class="inline-flex items-center p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-150 cursor-pointer opacity-70 hover:opacity-100"

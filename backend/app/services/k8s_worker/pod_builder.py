@@ -106,6 +106,8 @@ class PodBuilder:
             containers=[container],
             restart_policy="Never",
             active_deadline_seconds=timeout,
+            runtime_class_name=self._settings.K8S_POD_RUNTIME_CLASS_NAME,
+            host_users=False,  # User namespace isolation — remaps container UIDs to unprivileged host UIDs
             volumes=[
                 k8s_client.V1Volume(
                     name="script-volume",
@@ -155,6 +157,7 @@ class PodBuilder:
     ) -> k8s_client.V1ObjectMeta:
         """Build pod metadata with saga tracking"""
         labels = {"app": "integr8s", "component": "executor", "execution-id": execution_id, "language": language}
+        labels["kueue.x-k8s.io/queue-name"] = "executor-queue"
 
         labels["user-id"] = user_id[:63]  # K8s label value limit
 

@@ -172,7 +172,6 @@ class TestResetSystemSettings:
             max_timeout_seconds=test_settings.K8S_POD_EXECUTION_TIMEOUT,
             memory_limit=test_settings.K8S_POD_MEMORY_LIMIT,
             cpu_limit=test_settings.K8S_POD_CPU_LIMIT,
-            max_concurrent_executions=test_settings.K8S_MAX_CONCURRENT_PODS,
             session_timeout_minutes=test_settings.ACCESS_TOKEN_EXPIRE_MINUTES,
         )
         assert settings == expected

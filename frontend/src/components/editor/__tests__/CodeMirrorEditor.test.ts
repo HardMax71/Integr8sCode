@@ -36,6 +36,7 @@ Object.assign(mocks.editorViewConstructor, {
   lineWrapping: 'lineWrapping-ext',
   theme: mocks.themeFn,
   updateListener: { of: vi.fn((fn: unknown) => ({ updateListener: fn })) },
+  cspNonce: { of: vi.fn((v: string) => ({ cspNonce: v })) },
 });
 
 vi.mock('@codemirror/state', () => {

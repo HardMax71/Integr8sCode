@@ -40,7 +40,7 @@ services:
         condition: service_completed_successfully
 
   mongo:
-    image: mongo:8.0
+    image: mongo:8.0.17
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.4"]
     ports:
       - "127.0.0.1:27017:27017"
@@ -67,11 +67,11 @@ services:
       start_period: 5s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.6-alpine
     container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --requirepass ${REDIS_PASSWORD:-redispassword}
     volumes:
       - redis_data:/data
     networks:
@@ -79,7 +79,7 @@ services:
     mem_limit: 300m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispassword}", "--no-auth-warning", "ping"]
       interval: 2s
       timeout: 3s
       retries: 10

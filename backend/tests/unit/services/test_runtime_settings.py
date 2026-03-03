@@ -19,7 +19,6 @@ def _make_settings() -> Settings:
         "K8S_POD_EXECUTION_TIMEOUT": 30,
         "K8S_POD_MEMORY_LIMIT": "128Mi",
         "K8S_POD_CPU_LIMIT": "1000m",
-        "K8S_MAX_CONCURRENT_PODS": 5,
         "ACCESS_TOKEN_EXPIRE_MINUTES": 60,
     })
 
@@ -58,7 +57,7 @@ async def test_passes_toml_defaults_to_repo() -> None:
     assert defaults.max_timeout_seconds == 30
     assert defaults.memory_limit == "128Mi"
     assert defaults.cpu_limit == "1000m"
-    assert defaults.max_concurrent_executions == 5
+    assert defaults.max_concurrent_executions == 10
     assert defaults.session_timeout_minutes == 60
 
 

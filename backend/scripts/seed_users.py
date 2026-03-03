@@ -18,15 +18,15 @@ from typing import Any
 
 from app.settings import Settings
 from bson import ObjectId
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.bcrypt import BcryptHasher
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 async def upsert_user(
     db: AsyncDatabase[dict[str, Any]],
+    pwd_hasher: PasswordHash,
     username: str,
     email: str,
     password: str,
@@ -42,7 +42,7 @@ async def upsert_user(
             {"username": username},
             {
                 "$set": {
-                    "hashed_password": pwd_context.hash(password),
+                    "hashed_password": pwd_hasher.hash(password),
                     "role": role,
                     "is_superuser": is_superuser,
                     "is_active": True,
@@ -58,7 +58,7 @@ async def upsert_user(
                 "user_id": str(ObjectId()),
                 "username": username,
                 "email": email,
-                "hashed_password": pwd_context.hash(password),
+                "hashed_password": pwd_hasher.hash(password),
                 "role": role,
                 "is_active": True,
                 "is_superuser": is_superuser,
@@ -70,6 +70,7 @@ async def upsert_user(
 
 async def seed_users(settings: Settings) -> None:
     """Seed default users using provided settings for MongoDB connection."""
+    pwd_hasher = PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))
     default_password = os.environ.get("DEFAULT_USER_PASSWORD", "user123")
     admin_password = os.environ.get("ADMIN_USER_PASSWORD", "admin123")
 
@@ -80,6 +81,7 @@ async def seed_users(settings: Settings) -> None:
     # Default user
     await upsert_user(
         db,
+        pwd_hasher,
         username="user",
         email="user@integr8scode.com",
         password=default_password,
@@ -90,6 +92,7 @@ async def seed_users(settings: Settings) -> None:
     # Admin user
     await upsert_user(
         db,
+        pwd_hasher,
         username="admin",
         email="admin@integr8scode.com",
         password=admin_password,

@@ -26,6 +26,49 @@ runs:
           /home/runner/.kube/config > backend/kubeconfig.yaml
         chmod 644 backend/kubeconfig.yaml
 
+    - name: Install Kueue
+      shell: bash
+      run: |
+        KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+        KUEUE_MANIFEST_SHA256="${KUEUE_MANIFEST_SHA256:-3201a66ff731be440ecfcf3c0fa5979d001b834f68389208fe7ee18017fbcfe8}"
+        KUEUE_MANIFEST="/tmp/kueue-manifests.yaml"
+        curl -fsSL -o "$KUEUE_MANIFEST" "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+        echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
+        kubectl apply --server-side -f "$KUEUE_MANIFEST"
+        rm -f "$KUEUE_MANIFEST"
+        kubectl wait --for=condition=Available --timeout=120s \
+          deployment/kueue-controller-manager -n kueue-system
+        kubectl apply --server-side -f - <<'EOF'
+        apiVersion: kueue.x-k8s.io/v1beta1
+        kind: ResourceFlavor
+        metadata:
+          name: default-flavor
+        ---
+        apiVersion: kueue.x-k8s.io/v1beta1
+        kind: ClusterQueue
+        metadata:
+          name: executor-queue
+        spec:
+          namespaceSelector: {}
+          resourceGroups:
+          - coveredResources: ["cpu", "memory"]
+            flavors:
+            - name: default-flavor
+              resources:
+              - name: cpu
+                nominalQuota: "32"
+              - name: memory
+                nominalQuota: "4Gi"
+        ---
+        apiVersion: kueue.x-k8s.io/v1beta1
+        kind: LocalQueue
+        metadata:
+          name: executor-queue
+          namespace: integr8scode
+        spec:
+          clusterQueue: executor-queue
+        EOF
+
     - name: Use test environment config
       shell: bash
       run: |

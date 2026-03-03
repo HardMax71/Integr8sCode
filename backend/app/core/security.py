@@ -6,7 +6,8 @@ from typing import Any
 import jwt
 from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.bcrypt import BcryptHasher
 
 from app.core.metrics import SecurityMetrics
 from app.domain.user import CSRFValidationError, InvalidCredentialsError
@@ -20,17 +21,15 @@ class SecurityService:
         self.settings = settings
         self._security_metrics = security_metrics
         # --8<-- [start:password_hashing]
-        self.pwd_context = CryptContext(
-            schemes=["bcrypt"],
-            deprecated="auto",
-            bcrypt__rounds=self.settings.BCRYPT_ROUNDS,
-        )
+        self._password_hash = PasswordHash((
+            BcryptHasher(rounds=self.settings.BCRYPT_ROUNDS),
+        ))
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.pwd_context.verify(plain_password, hashed_password)  # type: ignore
+        return self._password_hash.verify(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
-        return self.pwd_context.hash(password)  # type: ignore
+        return self._password_hash.hash(password)
     # --8<-- [end:password_hashing]
 
     # --8<-- [start:create_access_token]

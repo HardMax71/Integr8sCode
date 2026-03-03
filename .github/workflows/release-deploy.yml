@@ -129,11 +129,14 @@ jobs:
           MAILJET_FROM_ADDRESS: ${{ secrets.MAILJET_FROM_ADDRESS }}
           MAILJET_HOST: ${{ secrets.MAILJET_HOST }}
           GRAFANA_ALERT_RECIPIENTS: ${{ secrets.GRAFANA_ALERT_RECIPIENTS }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          MONGO_ROOT_USER: ${{ secrets.MONGO_ROOT_USER }}
+          MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_ROOT_USER,MONGO_ROOT_PASSWORD
           command_timeout: 10m
           script: |
             set -e
@@ -153,6 +156,9 @@ jobs:
             export MAILJET_FROM_ADDRESS="$MAILJET_FROM_ADDRESS"
             export GF_SMTP_HOST="$MAILJET_HOST"
             export GRAFANA_ALERT_RECIPIENTS="$GRAFANA_ALERT_RECIPIENTS"
+            export REDIS_PASSWORD="$REDIS_PASSWORD"
+            export MONGO_ROOT_USER="$MONGO_ROOT_USER"
+            export MONGO_ROOT_PASSWORD="$MONGO_ROOT_PASSWORD"
             docker compose pull
             docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 

@@ -1,6 +1,7 @@
 import tomllib
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,8 +43,8 @@ class Settings(BaseModel):
             with open(override_path, "rb") as f:
                 data |= tomllib.load(f)
         if data.get("MONGO_USER") and data.get("MONGO_PASSWORD"):
-            user = data["MONGO_USER"]
-            password = data["MONGO_PASSWORD"]
+            user = quote(data["MONGO_USER"], safe="")
+            password = quote(data["MONGO_PASSWORD"], safe="")
             host = data.get("MONGO_HOST", "mongo")
             port = data.get("MONGO_PORT", 27017)
             db = data.get("MONGO_DB", "integr8scode")

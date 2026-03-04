@@ -13,7 +13,7 @@ export default defineConfig({
     pool: 'threads',
     maxWorkers: 8,
     minWorkers: 2,
-    isolate: false,
+    isolate: true,
     css: false,
     testTimeout: 10_000,
     environment: 'jsdom',

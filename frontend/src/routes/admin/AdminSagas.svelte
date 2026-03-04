@@ -1,19 +1,11 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
-    import {
-        getSagaStatusApiV1SagasSagaIdGet,
-        type SagaStatusResponse,
-    } from '$lib/api';
+    import { getSagaStatusApiV1SagasSagaIdGet, type SagaStatusResponse } from '$lib/api';
     import { unwrapOr } from '$lib/api-interceptors';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Pagination from '$components/Pagination.svelte';
     import { AutoRefreshControl } from '$components/admin';
-    import {
-        SagaStatsCards,
-        SagaFilters,
-        SagasTable,
-        SagaDetailsModal
-    } from '$components/admin/sagas';
+    import { SagaStatsCards, SagaFilters, SagasTable, SagaDetailsModal } from '$components/admin/sagas';
     import { createSagasStore } from '$lib/admin/stores/sagasStore.svelte';
 
     const store = createSagasStore();
@@ -25,9 +17,12 @@
     let totalPages = $derived(Math.ceil(store.totalItems / store.pagination.pageSize));
 
     async function loadSagaDetails(sagaId: string): Promise<void> {
-        const data = unwrapOr(await getSagaStatusApiV1SagasSagaIdGet({
-            path: { saga_id: sagaId }
-        }), null);
+        const data = unwrapOr(
+            await getSagaStatusApiV1SagasSagaIdGet({
+                path: { saga_id: sagaId },
+            }),
+            null,
+        );
         if (!data) return;
         selectedSaga = data;
         showDetailModal = true;
@@ -65,12 +60,8 @@
 <AdminLayout path="/admin/sagas">
     <div class="px-6 pb-6">
         <div class="mb-6">
-            <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default mb-2">
-                Saga Management
-            </h1>
-            <p class="text-fg-muted dark:text-dark-fg-muted">
-                Monitor and debug distributed transactions
-            </p>
+            <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default mb-2">Saga Management</h1>
+            <p class="text-fg-muted dark:text-dark-fg-muted">Monitor and debug distributed transactions</p>
         </div>
 
         <SagaStatsCards sagas={store.sagas} />
@@ -124,7 +115,7 @@
     <SagaDetailsModal
         saga={selectedSaga}
         open={showDetailModal}
-        onClose={() => showDetailModal = false}
+        onClose={() => (showDetailModal = false)}
         onViewExecution={handleViewExecution}
     />
 {/if}

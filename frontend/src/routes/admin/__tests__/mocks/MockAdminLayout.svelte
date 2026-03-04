@@ -1,14 +1,14 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+    import type { Snippet } from 'svelte';
 
-  interface Props {
-    path?: string;
-    children: Snippet;
-  }
+    interface Props {
+        path?: string;
+        children: Snippet;
+    }
 
-  let { children }: Props = $props();
+    let { children }: Props = $props();
 </script>
 
 <div data-testid="admin-layout">
-  {@render children()}
+    {@render children()}
 </div>

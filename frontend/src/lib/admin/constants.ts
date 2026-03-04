@@ -22,7 +22,7 @@ export const STATS_BG_COLORS = {
     blue: 'bg-blue-50 dark:bg-blue-900/20',
     purple: 'bg-purple-50 dark:bg-purple-900/20',
     orange: 'bg-orange-50 dark:bg-orange-900/20',
-    neutral: 'bg-neutral-50 dark:bg-neutral-900/20'
+    neutral: 'bg-neutral-50 dark:bg-neutral-900/20',
 } as const;
 
 // Common text colors
@@ -33,7 +33,7 @@ export const STATS_TEXT_COLORS = {
     blue: 'text-blue-600 dark:text-blue-400',
     purple: 'text-purple-600 dark:text-purple-400',
     orange: 'text-orange-600 dark:text-orange-400',
-    neutral: 'text-neutral-600 dark:text-neutral-400'
+    neutral: 'text-neutral-600 dark:text-neutral-400',
 } as const;
 
 export type StatsBgColor = keyof typeof STATS_BG_COLORS;

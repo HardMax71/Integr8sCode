@@ -11,7 +11,7 @@ const GROUP_COLORS: Record<EndpointGroup, string> = {
     websocket: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     auth: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     api: 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200',
-    public: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
+    public: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
 };
 
 export function getGroupColor(group: EndpointGroup): string {
@@ -25,7 +25,7 @@ const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> 
     { pattern: /\/events\//i, group: 'sse' },
     { pattern: /\/ws/i, group: 'websocket' },
     { pattern: /\/auth\//i, group: 'auth' },
-    { pattern: /\/health/i, group: 'public' }
+    { pattern: /\/health/i, group: 'public' },
 ];
 
 export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
@@ -47,6 +47,6 @@ export function createEmptyRule(): RateLimitRuleResponse {
         burst_multiplier: 1.5,
         algorithm: 'sliding_window',
         priority: 0,
-        enabled: true
+        enabled: true,
     };
 }

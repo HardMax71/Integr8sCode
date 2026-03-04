@@ -10,8 +10,12 @@ import {
 } from '$lib/formatters';
 
 const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
 };
 const LOCALE_OPTS_DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
 const LOCALE_OPTS_TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
@@ -97,10 +101,7 @@ describe('formatDurationBetween', () => {
         ['2025-01-01T12:00:00Z', null],
         ['garbage', '2025-01-01T12:00:00Z'],
     ] as const)('returns N/A for (%j, %j)', (start, end) => {
-        expect(formatDurationBetween(
-            start as string | null | undefined,
-            end as string | null | undefined,
-        )).toBe('N/A');
+        expect(formatDurationBetween(start as string | null | undefined, end as string | null | undefined)).toBe('N/A');
     });
 
     it('returns N/A when end is before start', () => {
@@ -116,10 +117,10 @@ describe('formatRelativeTime', () => {
     });
 
     it.each([
-        [new Date(2025, 6, 15, 11, 59, 30), 'just now'],  // 30s ago
-        [new Date(2025, 6, 15, 11, 55, 0), '5m ago'],      // 5m ago
-        [new Date(2025, 6, 15, 9, 0, 0), '3h ago'],        // 3h ago
-        [new Date(2025, 6, 13, 12, 0, 0), '2d ago'],       // 2d ago
+        [new Date(2025, 6, 15, 11, 59, 30), 'just now'], // 30s ago
+        [new Date(2025, 6, 15, 11, 55, 0), '5m ago'], // 5m ago
+        [new Date(2025, 6, 15, 9, 0, 0), '3h ago'], // 3h ago
+        [new Date(2025, 6, 13, 12, 0, 0), '2d ago'], // 2d ago
     ])('formats %j as %j', (date, expected) => {
         expect(formatRelativeTime(date.toISOString())).toBe(expected);
     });

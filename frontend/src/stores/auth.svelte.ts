@@ -1,8 +1,4 @@
-import {
-    loginApiV1AuthLoginPost,
-    logoutApiV1AuthLogoutPost,
-    getCurrentUserProfileApiV1AuthMeGet,
-} from '$lib/api';
+import { loginApiV1AuthLoginPost, logoutApiV1AuthLogoutPost, getCurrentUserProfileApiV1AuthMeGet } from '$lib/api';
 import { clearUserSettings } from '$stores/userSettings.svelte';
 import { logger } from '$lib/logger';
 
@@ -26,7 +22,9 @@ export function getPersistedAuthState(): AuthState | null {
         const data = sessionStorage.getItem('authState');
         if (!data) return null;
         return JSON.parse(data) as AuthState;
-    } catch { return null; }
+    } catch {
+        return null;
+    }
 }
 
 function persistAuthState(state: Partial<AuthState> | null) {
@@ -140,7 +138,7 @@ class AuthStore {
 
     async login(user: string, password: string): Promise<boolean> {
         const { data, error } = await loginApiV1AuthLoginPost({
-            body: { username: user, password, scope: '' }
+            body: { username: user, password, scope: '' },
         });
         if (error) throw error;
 
@@ -157,7 +155,7 @@ class AuthStore {
             userRole: data.role,
             csrfToken: data.csrf_token,
             userId: null,
-            userEmail: null
+            userEmail: null,
         });
 
         this.#authCache = { valid: true, timestamp: Date.now() };
@@ -199,7 +197,11 @@ class AuthStore {
      * UI operations; sensitive actions should force re-verification.
      */
     async verifyAuth(forceRefresh = false): Promise<boolean> {
-        if (!forceRefresh && this.#authCache.valid !== null && Date.now() - this.#authCache.timestamp < AUTH_CACHE_DURATION) {
+        if (
+            !forceRefresh &&
+            this.#authCache.valid !== null &&
+            Date.now() - this.#authCache.timestamp < AUTH_CACHE_DURATION
+        ) {
             return this.#authCache.valid;
         }
         if (this.#verifyPromise) return this.#verifyPromise;

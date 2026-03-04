@@ -15,7 +15,7 @@
         stateFilter = $bindable<SagaStateFilter>(''),
         executionIdFilter = $bindable(''),
         onSearch,
-        onClear
+        onClear,
     }: Props = $props();
 </script>
 
@@ -36,7 +36,7 @@
         <select id="saga-state-filter" bind:value={stateFilter} class="form-select-standard">
             <option value="">All States</option>
             {#each Object.entries(SAGA_STATES) as [value, state]}
-                <option value={value}>{state.label}</option>
+                <option {value}>{state.label}</option>
             {/each}
         </select>
     </div>

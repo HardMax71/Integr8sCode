@@ -26,7 +26,7 @@
         form = $bindable({ username: '', email: '', password: '', role: 'user', is_active: true }),
         saving,
         onClose,
-        onSave
+        onSave,
     }: Props = $props();
 
     function handleSubmit(e: Event): void {
@@ -40,7 +40,10 @@
         <form autocomplete="off" onsubmit={handleSubmit}>
             <div class="space-y-4">
                 <div>
-                    <label for="user-form-username" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                    <label
+                        for="user-form-username"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >
                         Username <span class="text-red-500">*</span>
                     </label>
                     <input
@@ -50,6 +53,7 @@
                         class="form-input-standard"
                         placeholder="johndoe"
                         disabled={saving}
+                        required
                         autocomplete="username"
                         autocorrect="off"
                         autocapitalize="off"
@@ -57,7 +61,10 @@
                     />
                 </div>
                 <div>
-                    <label for="user-form-email" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Email</label>
+                    <label
+                        for="user-form-email"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Email</label
+                    >
                     <input
                         id="user-form-email"
                         type="email"
@@ -72,7 +79,10 @@
                     />
                 </div>
                 <div>
-                    <label for="user-form-password" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
+                    <label
+                        for="user-form-password"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >
                         Password {!editingUser ? '* ' : ''}
                         {#if editingUser}
                             <span class="text-xs text-neutral-500">(leave empty to keep current)</span>
@@ -85,11 +95,15 @@
                         class="form-input-standard"
                         placeholder={editingUser ? 'Enter new password' : 'Enter password'}
                         disabled={saving}
+                        required={!editingUser}
                         autocomplete="new-password"
                     />
                 </div>
                 <div>
-                    <label for="user-form-role" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Role</label>
+                    <label
+                        for="user-form-role"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Role</label
+                    >
                     <select id="user-form-role" bind:value={form.role} class="form-select-standard" disabled={saving}>
                         <option value="user">User</option>
                         <option value="admin">Admin</option>

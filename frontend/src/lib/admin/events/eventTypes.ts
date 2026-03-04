@@ -18,7 +18,7 @@ export const EVENT_TYPES: EventType[] = [
     'pod_running',
     'pod_succeeded',
     'pod_failed',
-    'pod_terminated'
+    'pod_terminated',
 ];
 
 // Event type color mapping

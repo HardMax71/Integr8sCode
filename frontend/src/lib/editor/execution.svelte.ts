@@ -24,7 +24,9 @@ class ExecutionState {
     error = $state<string | null>(null);
     #controller: AbortController | null = null;
 
-    get isExecuting() { return this.phase !== 'idle'; }
+    get isExecuting() {
+        return this.phase !== 'idle';
+    }
 
     reset() {
         this.phase = 'idle';
@@ -76,9 +78,12 @@ class ExecutionState {
 
             if (isTerminalFailure(ev.event_type)) {
                 this.result = ev.result;
-                this.error = ev.event_type === 'execution_timeout' ? 'Execution timed out.'
-                    : ev.event_type === 'result_failed' ? 'Failed to store execution results.'
-                    : 'Execution failed.';
+                this.error =
+                    ev.event_type === 'execution_timeout'
+                        ? 'Execution timed out.'
+                        : ev.event_type === 'result_failed'
+                          ? 'Failed to store execution results.'
+                          : 'Execution failed.';
                 terminalReceived = true;
                 break;
             }
@@ -92,6 +97,8 @@ class ExecutionState {
     }
 }
 
-export function createExecutionState() { return new ExecutionState(); }
+export function createExecutionState() {
+    return new ExecutionState();
+}
 
 export type { ExecutionState };

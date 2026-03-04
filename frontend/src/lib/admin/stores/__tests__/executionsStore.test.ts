@@ -13,8 +13,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$lib/api', () => ({
     listExecutionsApiV1AdminExecutionsGet: (...args: unknown[]) => mocks.listExecutionsApiV1AdminExecutionsGet(...args),
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: (...args: unknown[]) => mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut(...args),
-    getQueueStatusApiV1AdminExecutionsQueueGet: (...args: unknown[]) => mocks.getQueueStatusApiV1AdminExecutionsQueueGet(...args),
+    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: (...args: unknown[]) =>
+        mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut(...args),
+    getQueueStatusApiV1AdminExecutionsQueueGet: (...args: unknown[]) =>
+        mocks.getQueueStatusApiV1AdminExecutionsQueueGet(...args),
 }));
 
 vi.mock('$lib/api-interceptors', () => ({

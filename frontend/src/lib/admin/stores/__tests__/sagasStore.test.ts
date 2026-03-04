@@ -106,9 +106,7 @@ describe('SagasStore', () => {
 
     describe('client-side filtering', () => {
         it('passes execution_id filter as query param', async () => {
-            const sagas = [
-                createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' }),
-            ];
+            const sagas = [createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' })];
             mocks.listSagasApiV1SagasGet.mockResolvedValue({
                 data: { sagas, total: 1 },
             });

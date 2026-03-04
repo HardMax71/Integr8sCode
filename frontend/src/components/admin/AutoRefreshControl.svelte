@@ -24,12 +24,12 @@
             { value: 5, label: '5 seconds' },
             { value: 10, label: '10 seconds' },
             { value: 30, label: '30 seconds' },
-            { value: 60, label: '1 minute' }
+            { value: 60, label: '1 minute' },
         ],
         loading = false,
         onRefresh,
         onEnabledChange,
-        onRateChange
+        onRateChange,
     }: Props = $props();
 
     function handleEnabledChange(e: Event): void {
@@ -60,12 +60,7 @@
         {#if enabled}
             <div class="flex items-center gap-2 flex-1 sm:flex-initial">
                 <label for="refresh-rate" class="text-xs sm:text-sm text-fg-muted">Every:</label>
-                <select
-                    id="refresh-rate"
-                    value={rate}
-                    onchange={handleRateChange}
-                    class="form-select-standard"
-                >
+                <select id="refresh-rate" value={rate} onchange={handleRateChange} class="form-select-standard">
                     {#each rateOptions as option}
                         <option value={option.value}>{option.label}</option>
                     {/each}
@@ -73,7 +68,8 @@
             </div>
         {/if}
 
-        <button type="button"
+        <button
+            type="button"
             onclick={onRefresh}
             class="sm:ml-auto btn btn-primary btn-sm w-full sm:w-auto"
             disabled={loading}

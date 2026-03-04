@@ -138,6 +138,19 @@
     @apply px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default;
   }
 
+  .divider {
+    @apply border-border-default dark:border-dark-border-default;
+  }
+
+  .empty-state {
+    @apply py-8 text-center text-fg-muted dark:text-dark-fg-muted;
+  }
+
+  .mobile-card {
+    @apply p-4 border-b border-border-default dark:border-dark-border-default
+           hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer;
+  }
+
   /* Modal/Dialog Styles */
   .modal-backdrop {
     @apply fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-2 sm:p-4;

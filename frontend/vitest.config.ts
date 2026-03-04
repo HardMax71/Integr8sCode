@@ -37,6 +37,12 @@ export default defineConfig({
         'src/**/__tests__/**',
         'src/**/index.ts',
       ],
+      thresholds: {
+        statements: 92,
+        branches: 76,
+        functions: 90,
+        lines: 92,
+      },
     },
   },
   resolve: {

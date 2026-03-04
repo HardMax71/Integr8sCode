@@ -23,7 +23,11 @@
 
         <div class="card p-4">
             <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">Error Rate (24h)</div>
-            <div class="text-2xl font-bold {stats?.error_rate > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
+            <div
+                class="text-2xl font-bold {stats?.error_rate > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-green-600 dark:text-green-400'}"
+            >
                 {stats?.error_rate || 0}%
             </div>
         </div>

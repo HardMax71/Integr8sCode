@@ -42,10 +42,16 @@ describe('userSettings store', () => {
         });
 
         it.each([
-            ['complete settings', { font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true },
-                { font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true }],
-            ['full override', { font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false },
-                { font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false }],
+            [
+                'complete settings',
+                { font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true },
+                { font_size: 20, tab_size: 2, use_tabs: false, word_wrap: true, show_line_numbers: true },
+            ],
+            [
+                'full override',
+                { font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false },
+                { font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false },
+            ],
         ])('returns %s from API', async (_, editor, expected) => {
             const { userSettingsStore, setUserSettings } = await import('$stores/userSettings.svelte');
             setUserSettings({ editor } as UserSettings);
@@ -53,7 +59,8 @@ describe('userSettings store', () => {
         });
 
         it('reverts to defaults when cleared', async () => {
-            const { userSettingsStore, setUserSettings, clearUserSettings } = await import('$stores/userSettings.svelte');
+            const { userSettingsStore, setUserSettings, clearUserSettings } =
+                await import('$stores/userSettings.svelte');
             setUserSettings({ editor: { font_size: 20 } } as UserSettings);
             clearUserSettings();
             expect(userSettingsStore.editorSettings).toEqual(DEFAULTS);

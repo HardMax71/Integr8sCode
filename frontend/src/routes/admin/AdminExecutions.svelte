@@ -30,7 +30,11 @@
 
     $effect(() => {
         const current = { status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch };
-        if (current.status !== prevFilters.status || current.priority !== prevFilters.priority || current.search !== prevFilters.search) {
+        if (
+            current.status !== prevFilters.status ||
+            current.priority !== prevFilters.priority ||
+            current.search !== prevFilters.search
+        ) {
             prevFilters = current;
             untrack(() => {
                 store.pagination.currentPage = 1;
@@ -47,8 +51,15 @@
 <AdminLayout path="/admin/executions">
     <div class="container mx-auto px-2 sm:px-4 pb-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">Execution Management</h1>
-            <button type="button" onclick={() => store.loadData()} class="btn btn-outline flex items-center gap-2" disabled={store.loading}>
+            <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">
+                Execution Management
+            </h1>
+            <button
+                type="button"
+                onclick={() => store.loadData()}
+                class="btn btn-outline flex items-center gap-2"
+                disabled={store.loading}
+            >
                 {#if store.loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
             </button>
         </div>
@@ -58,7 +69,9 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div class="card p-4 {STATS_BG_COLORS.blue}">
                     <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">Queue Depth</div>
-                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">{store.queueStatus.queue_depth}</div>
+                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                        {store.queueStatus.queue_depth}
+                    </div>
                 </div>
                 <div class="card p-4 {STATS_BG_COLORS.green}">
                     <div class="text-sm {STATS_TEXT_COLORS.green} font-medium">Active</div>
@@ -83,8 +96,11 @@
         <div class="card mb-6">
             <div class="p-4 flex flex-wrap gap-4 items-end">
                 <div>
-                    <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Status</label>
-                    <select id="status-filter" bind:value={store.statusFilter} class="input-field">
+                    <label
+                        for="status-filter"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Status</label
+                    >
+                    <select id="status-filter" bind:value={store.statusFilter} class="form-select-standard">
                         <option value="all">All</option>
                         <option value="queued">Queued</option>
                         <option value="scheduled">Scheduled</option>
@@ -97,8 +113,11 @@
                     </select>
                 </div>
                 <div>
-                    <label for="priority-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label>
-                    <select id="priority-filter" bind:value={store.priorityFilter} class="input-field">
+                    <label
+                        for="priority-filter"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label
+                    >
+                    <select id="priority-filter" bind:value={store.priorityFilter} class="form-select-standard">
                         <option value="all">All</option>
                         {#each priorityOptions as p}
                             <option value={p}>{p}</option>
@@ -106,10 +125,20 @@
                     </select>
                 </div>
                 <div>
-                    <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">User ID</label>
-                    <input id="user-search" type="text" bind:value={store.userSearch} placeholder="Filter by user ID" class="input-field" />
+                    <label
+                        for="user-search"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">User ID</label
+                    >
+                    <input
+                        id="user-search"
+                        type="text"
+                        bind:value={store.userSearch}
+                        placeholder="Filter by user ID"
+                        class="form-input-standard"
+                    />
                 </div>
-                <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button>
+                <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button
+                >
             </div>
         </div>
 
@@ -123,34 +152,44 @@
                 {#if store.loading && store.executions.length === 0}
                     <div class="flex justify-center py-8"><Spinner size="large" /></div>
                 {:else if store.executions.length === 0}
-                    <p class="text-center py-8 text-fg-muted dark:text-dark-fg-muted">No executions found</p>
+                    <p class="empty-state">No executions found</p>
                 {:else}
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b divider">
-                                    <th class="text-left p-2">ID</th>
-                                    <th class="text-left p-2">User</th>
-                                    <th class="text-left p-2">Language</th>
-                                    <th class="text-left p-2">Status</th>
-                                    <th class="text-left p-2">Priority</th>
-                                    <th class="text-left p-2">Created</th>
+                    <div class="table-container">
+                        <table class="table text-sm">
+                            <thead class="table-header">
+                                <tr>
+                                    <th scope="col" class="table-header-cell-sm">ID</th>
+                                    <th scope="col" class="table-header-cell-sm">User</th>
+                                    <th scope="col" class="table-header-cell-sm">Language</th>
+                                    <th scope="col" class="table-header-cell-sm">Status</th>
+                                    <th scope="col" class="table-header-cell-sm">Priority</th>
+                                    <th scope="col" class="table-header-cell-sm">Created</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="table-body">
                                 {#each store.executions as exec}
-                                    <tr class="border-b divider hover:bg-bg-subtle dark:hover:bg-dark-bg-subtle">
-                                        <td class="p-2 font-mono text-xs">{truncate(exec.execution_id, 12)}</td>
-                                        <td class="p-2 text-xs">{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td>
-                                        <td class="p-2">{exec.lang} {exec.lang_version}</td>
-                                        <td class="p-2">
-                                            <span class="badge {statusColors[exec.status] || 'badge-neutral'}">{exec.status}</span>
+                                    <tr class="table-row">
+                                        <td class="table-cell-sm font-mono text-xs"
+                                            >{truncate(exec.execution_id, 12)}</td
+                                        >
+                                        <td class="table-cell-sm text-xs"
+                                            >{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td
+                                        >
+                                        <td class="table-cell-sm">{exec.lang} {exec.lang_version}</td>
+                                        <td class="table-cell-sm">
+                                            <span class="badge {statusColors[exec.status] || 'badge-neutral'}"
+                                                >{exec.status}</span
+                                            >
                                         </td>
-                                        <td class="p-2">
+                                        <td class="table-cell-sm">
                                             <select
                                                 value={exec.priority}
-                                                onchange={(e) => store.updatePriority(exec.execution_id, (e.target as HTMLSelectElement).value as QueuePriority)}
-                                                class="input-field text-xs py-1 px-2"
+                                                onchange={(e) =>
+                                                    store.updatePriority(
+                                                        exec.execution_id,
+                                                        (e.target as HTMLSelectElement).value as QueuePriority,
+                                                    )}
+                                                class="form-select-standard text-xs py-1 px-2"
                                                 aria-label="Priority for {exec.execution_id}"
                                             >
                                                 {#each priorityOptions as p}
@@ -158,7 +197,7 @@
                                                 {/each}
                                             </select>
                                         </td>
-                                        <td class="p-2 text-xs">{formatTimestamp(exec.created_at)}</td>
+                                        <td class="table-cell-sm text-xs">{formatTimestamp(exec.created_at)}</td>
                                     </tr>
                                 {/each}
                             </tbody>
@@ -173,8 +212,10 @@
                             {totalPages}
                             totalItems={store.total}
                             pageSize={store.pagination.pageSize}
-                            onPageChange={(page) => store.pagination.handlePageChange(page, () => store.loadExecutions())}
-                            onPageSizeChange={(size) => store.pagination.handlePageSizeChange(size, () => store.loadExecutions())}
+                            onPageChange={(page) =>
+                                store.pagination.handlePageChange(page, () => store.loadExecutions())}
+                            onPageSizeChange={(size) =>
+                                store.pagination.handlePageSizeChange(size, () => store.loadExecutions())}
                             pageSizeOptions={[10, 20, 50, 100]}
                             itemName="executions"
                         />

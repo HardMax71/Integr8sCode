@@ -32,10 +32,7 @@ let saveUserSettingsFn: ((partial: { theme?: ThemeValue }) => Promise<boolean>) 
 let authStoreRef: { isAuthenticated: boolean | null } | null = null;
 
 if (browser) {
-    void Promise.all([
-        import('$lib/user-settings'),
-        import('$stores/auth.svelte')
-    ]).then(([userSettings, auth]) => {
+    void Promise.all([import('$lib/user-settings'), import('$stores/auth.svelte')]).then(([userSettings, auth]) => {
         saveUserSettingsFn = userSettings.saveUserSettings;
         authStoreRef = auth.authStore;
     });
@@ -66,11 +63,17 @@ class ThemeStore {
         const next: ThemeValue = this.value === 'light' ? 'dark' : this.value === 'dark' ? 'auto' : 'light';
         this.setTheme(next);
         if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
-            void saveUserSettingsFn({ theme: next }).catch((err: unknown) => { log.warn('Failed to persist theme setting', err); });
+            void saveUserSettingsFn({ theme: next }).catch((err: unknown) => {
+                log.warn('Failed to persist theme setting', err);
+            });
         }
     }
 }
 
 export const themeStore = new ThemeStore();
-export const setTheme = (v: ThemeValue) => { themeStore.setTheme(v); };
-export const toggleTheme = () => { themeStore.toggleTheme(); };
+export const setTheme = (v: ThemeValue) => {
+    themeStore.setTheme(v);
+};
+export const toggleTheme = () => {
+    themeStore.toggleTheme();
+};

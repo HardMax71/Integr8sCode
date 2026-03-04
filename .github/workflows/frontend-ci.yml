@@ -39,6 +39,14 @@ jobs:
         working-directory: frontend
         run: npm run stylelint
 
+      - name: Check formatting (Prettier)
+        working-directory: frontend
+        run: npm run format:check
+
       - name: Run svelte-check
         working-directory: frontend
         run: npm run check
+
+      - name: Verify production build
+        working-directory: frontend
+        run: npm run build

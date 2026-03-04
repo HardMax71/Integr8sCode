@@ -21,27 +21,30 @@
 
 <!-- Desktop view - Table -->
 <div class="hidden md:block overflow-x-auto">
-    <table class="w-full divide-y divide-border-default dark:divide-dark-border-default">
-        <thead class="bg-neutral-50 dark:bg-neutral-900">
+    <table class="table">
+        <thead class="table-header">
             <tr>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Time</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Type</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden lg:table-cell">User</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden xl:table-cell">Service</th>
-                <th class="px-3 py-2 text-center text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Actions</th>
+                <th scope="col" class="table-header-cell-sm">Time</th>
+                <th scope="col" class="table-header-cell-sm">Type</th>
+                <th scope="col" class="table-header-cell-sm hidden lg:table-cell">User</th>
+                <th scope="col" class="table-header-cell-sm hidden xl:table-cell">Service</th>
+                <th scope="col" class="table-header-cell-sm text-center">Actions</th>
             </tr>
         </thead>
-        <tbody class="bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default">
+        <tbody class="table-body">
             {#each events as event}
                 <tr
-                    class="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors border-b border-border-default dark:border-dark-border-default"
+                    class="table-row-clickable"
                     onclick={() => onViewDetails(event.event_id)}
-                    onkeydown={(e) => e.key === 'Enter' && onViewDetails(event.event_id)}
+                    onkeydown={(e) =>
+                        e.target === e.currentTarget &&
+                        (e.key === 'Enter' || e.key === ' ') &&
+                        (e.preventDefault(), onViewDetails(event.event_id))}
                     tabindex="0"
                     role="button"
-                    aria-label="View event details"
+                    aria-label="View details for event {event.event_id.slice(0, 8)}"
                 >
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
                             {formatDateOnly(event.timestamp)}
                         </div>
@@ -49,15 +52,19 @@
                             {formatTimeOnly(event.timestamp)}
                         </div>
                     </td>
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
-                                  data-testid="event-type-icon"
-                                  data-event-type={event.event_type}>
+                            <span
+                                class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                data-testid="event-type-icon"
+                                data-event-type={event.event_type}
+                            >
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
                             <!-- Tooltip on hover -->
-                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max">
+                            <div
+                                class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max"
+                            >
                                 <div class="font-medium">{event.event_type}</div>
                                 <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
                                     {event.event_id.slice(0, 8)}...
@@ -68,10 +75,14 @@
                     </td>
                     <td class="table-cell-sm hidden lg:table-cell">
                         {#if event.metadata?.user_id}
-                            <button type="button"
+                            <button
+                                type="button"
                                 class="text-blue-600 dark:text-blue-400 hover:underline text-left"
                                 title="View user overview"
-                                onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    if (event.metadata.user_id) onViewUser(event.metadata.user_id);
+                                }}
                             >
                                 <div class="font-mono text-xs truncate">
                                     {event.metadata.user_id}
@@ -86,26 +97,41 @@
                             {event.metadata?.service_name || '-'}
                         </div>
                     </td>
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="flex gap-1 justify-center">
-                            <button type="button"
-                                onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
+                            <button
+                                type="button"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    onPreviewReplay(event.event_id);
+                                }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
                                 title="Preview replay"
+                                aria-label="Preview replay"
                             >
                                 <Eye size={16} />
                             </button>
-                            <button type="button"
-                                onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
+                            <button
+                                type="button"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    onReplay(event.event_id);
+                                }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
                                 title="Replay"
+                                aria-label="Replay"
                             >
                                 <Play size={16} />
                             </button>
-                            <button type="button"
-                                onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
+                            <button
+                                type="button"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(event.event_id);
+                                }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
                                 title="Delete"
+                                aria-label="Delete"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -123,21 +149,28 @@
         <div
             class="mobile-card"
             onclick={() => onViewDetails(event.event_id)}
-            onkeydown={(e) => e.key === 'Enter' && onViewDetails(event.event_id)}
+            onkeydown={(e) =>
+                e.target === e.currentTarget &&
+                (e.key === 'Enter' || e.key === ' ') &&
+                (e.preventDefault(), onViewDetails(event.event_id))}
             tabindex="0"
             role="button"
-            aria-label="View event details"
+            aria-label="View details for event {event.event_id.slice(0, 8)}"
         >
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                         <div class="relative group">
-                            <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
-                                  data-testid="event-type-icon"
-                                  data-event-type={event.event_type}>
+                            <span
+                                class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
+                                data-testid="event-type-icon"
+                                data-event-type={event.event_type}
+                            >
                                 <EventTypeIcon eventType={event.event_type} />
                             </span>
-                            <div class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max">
+                            <div
+                                class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-7 min-w-max"
+                            >
                                 <div class="font-medium">{event.event_type}</div>
                                 <div class="text-neutral-400 text-[10px] font-mono mt-0.5">
                                     {event.event_id.slice(0, 8)}...
@@ -151,24 +184,39 @@
                     </div>
                 </div>
                 <div class="flex gap-1 ml-2">
-                    <button type="button"
-                        onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
+                    <button
+                        type="button"
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            onPreviewReplay(event.event_id);
+                        }}
                         class="btn btn-ghost btn-xs p-1"
                         title="Preview replay"
+                        aria-label="Preview replay"
                     >
                         <Eye size={16} />
                     </button>
-                    <button type="button"
-                        onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
+                    <button
+                        type="button"
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            onReplay(event.event_id);
+                        }}
                         class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
                         title="Replay"
+                        aria-label="Replay"
                     >
                         <Play size={16} />
                     </button>
-                    <button type="button"
-                        onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
+                    <button
+                        type="button"
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            onDelete(event.event_id);
+                        }}
                         class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
                         title="Delete"
+                        aria-label="Delete"
                     >
                         <Trash2 size={16} />
                     </button>
@@ -178,10 +226,14 @@
                 <div>
                     <span class="text-fg-muted dark:text-dark-fg-muted">User:</span>
                     {#if event.metadata?.user_id}
-                        <button type="button"
+                        <button
+                            type="button"
                             class="ml-1 text-blue-600 dark:text-blue-400 hover:underline font-mono"
                             title="View user overview"
-                            onclick={(e) => { e.stopPropagation(); if (event.metadata.user_id) onViewUser(event.metadata.user_id); }}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                if (event.metadata.user_id) onViewUser(event.metadata.user_id);
+                            }}
                         >
                             {event.metadata.user_id}
                         </button>
@@ -191,13 +243,19 @@
                 </div>
                 <div>
                     <span class="text-fg-muted dark:text-dark-fg-muted">Service:</span>
-                    <span class="ml-1 truncate inline-block max-w-[120px] align-bottom" title={event.metadata?.service_name || '-'}>
+                    <span
+                        class="ml-1 truncate inline-block max-w-[120px] align-bottom"
+                        title={event.metadata?.service_name || '-'}
+                    >
                         {event.metadata?.service_name || '-'}
                     </span>
                 </div>
                 <div class="col-span-2">
                     <span class="text-fg-muted dark:text-dark-fg-muted">Aggregate:</span>
-                    <span class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom" title={event.aggregate_id ?? '-'}>
+                    <span
+                        class="ml-1 font-mono text-xs truncate inline-block max-w-[200px] align-bottom"
+                        title={event.aggregate_id ?? '-'}
+                    >
                         {event.aggregate_id ?? '-'}
                     </span>
                 </div>
@@ -207,7 +265,5 @@
 </div>
 
 {#if events.length === 0}
-    <div class="empty-state">
-        No events found
-    </div>
+    <div class="empty-state">No events found</div>
 {/if}

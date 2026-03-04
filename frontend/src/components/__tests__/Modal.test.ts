@@ -44,7 +44,8 @@ describe('Modal', () => {
         it('fires onClose on Escape keydown', async () => {
             const onClose = vi.fn();
             render(ModalWrapper, { props: { open: true, onClose } });
-            await fireEvent.keyDown(window, { key: 'Escape' });
+            const dialog = screen.getByRole('dialog');
+            await fireEvent.keyDown(dialog, { key: 'Escape' });
             expect(onClose).toHaveBeenCalled();
         });
 

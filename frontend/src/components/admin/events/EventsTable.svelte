@@ -37,7 +37,9 @@
                     class="table-row-clickable"
                     onclick={() => onViewDetails(event.event_id)}
                     onkeydown={(e) =>
-                        (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onViewDetails(event.event_id))}
+                        e.target === e.currentTarget &&
+                        (e.key === 'Enter' || e.key === ' ') &&
+                        (e.preventDefault(), onViewDetails(event.event_id))}
                     tabindex="0"
                     role="button"
                     aria-label="View details for event {event.event_id.slice(0, 8)}"
@@ -148,7 +150,9 @@
             class="mobile-card"
             onclick={() => onViewDetails(event.event_id)}
             onkeydown={(e) =>
-                (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onViewDetails(event.event_id))}
+                e.target === e.currentTarget &&
+                (e.key === 'Enter' || e.key === ' ') &&
+                (e.preventDefault(), onViewDetails(event.event_id))}
             tabindex="0"
             role="button"
             aria-label="View details for event {event.event_id.slice(0, 8)}"

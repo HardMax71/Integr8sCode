@@ -7,6 +7,7 @@
     import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
     import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
+    import Spinner from '$components/Spinner.svelte';
     import { formatRelativeTime } from '$lib/formatters';
     import { logger } from '$lib/logger';
 
@@ -147,7 +148,7 @@
             <div class="max-h-96 overflow-y-auto">
                 {#if notificationStore.loading}
                     <div class="p-8 text-center">
-                        <span class="loading loading-spinner loading-sm"></span>
+                        <Spinner size="small" />
                     </div>
                 {:else if notificationStore.notifications.length === 0}
                     <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">

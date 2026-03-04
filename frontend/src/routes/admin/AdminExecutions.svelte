@@ -129,12 +129,12 @@
                         <table class="table text-sm">
                             <thead class="table-header">
                                 <tr>
-                                    <th class="table-header-cell-sm">ID</th>
-                                    <th class="table-header-cell-sm">User</th>
-                                    <th class="table-header-cell-sm">Language</th>
-                                    <th class="table-header-cell-sm">Status</th>
-                                    <th class="table-header-cell-sm">Priority</th>
-                                    <th class="table-header-cell-sm">Created</th>
+                                    <th scope="col" class="table-header-cell-sm">ID</th>
+                                    <th scope="col" class="table-header-cell-sm">User</th>
+                                    <th scope="col" class="table-header-cell-sm">Language</th>
+                                    <th scope="col" class="table-header-cell-sm">Status</th>
+                                    <th scope="col" class="table-header-cell-sm">Priority</th>
+                                    <th scope="col" class="table-header-cell-sm">Created</th>
                                 </tr>
                             </thead>
                             <tbody class="table-body">

@@ -77,12 +77,12 @@
             <table class="table">
                 <thead class="table-header">
                     <tr>
-                        <th class="table-header-cell">Saga</th>
-                        <th class="table-header-cell">State</th>
-                        <th class="table-header-cell">Progress</th>
-                        <th class="table-header-cell">Started</th>
-                        <th class="table-header-cell">Duration</th>
-                        <th class="table-header-cell text-center">Actions</th>
+                        <th scope="col" class="table-header-cell">Saga</th>
+                        <th scope="col" class="table-header-cell">State</th>
+                        <th scope="col" class="table-header-cell">Progress</th>
+                        <th scope="col" class="table-header-cell">Started</th>
+                        <th scope="col" class="table-header-cell">Duration</th>
+                        <th scope="col" class="table-header-cell text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="table-body">

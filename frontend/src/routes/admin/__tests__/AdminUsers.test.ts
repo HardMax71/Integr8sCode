@@ -630,8 +630,8 @@ describe('AdminUsers', () => {
       const dialog = screen.getByRole('dialog');
       await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
+      // Native HTML required attribute prevents form submission
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
-      expect(mocks.addToast).toHaveBeenCalledWith('Username is required');
     });
 
     it('requires password for new user', async () => {
@@ -647,8 +647,8 @@ describe('AdminUsers', () => {
       const dialog = screen.getByRole('dialog');
       await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
+      // Native HTML required attribute prevents form submission
       expect(mocks.createUserApiV1AdminUsersPost).not.toHaveBeenCalled();
-      expect(mocks.addToast).toHaveBeenCalledWith('Password is required');
     });
 
     it('password is optional for edit', async () => {

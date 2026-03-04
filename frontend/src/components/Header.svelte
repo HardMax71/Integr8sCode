@@ -93,6 +93,8 @@
               <button type="button"
                 onclick={(e) => { e.stopPropagation(); showUserDropdown = !showUserDropdown; }}
                 aria-label="User menu"
+                aria-expanded={showUserDropdown}
+                aria-haspopup="true"
                 class="flex items-center space-x-2 btn btn-ghost btn-sm"
               >
                 <div class="flex items-center space-x-2">

@@ -76,7 +76,9 @@ describe('UserFormModal', () => {
   });
 
   it('calls onSave on form submit', async () => {
-    const { onSave } = renderModal();
+    const { onSave } = renderModal({
+      form: proxy({ username: 'testuser', email: '', password: 'pass123', role: 'user', is_active: true }),
+    });
     await user.click(screen.getByText('Create User'));
     expect(onSave).toHaveBeenCalledOnce();
   });

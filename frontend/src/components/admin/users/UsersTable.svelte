@@ -71,12 +71,12 @@
         <table class="table">
             <thead class="table-header">
                 <tr>
-                    <th class="table-header-cell">Username</th>
-                    <th class="table-header-cell">Email</th>
-                    <th class="table-header-cell">Role</th>
-                    <th class="table-header-cell">Created</th>
-                    <th class="table-header-cell">Status</th>
-                    <th class="table-header-cell">Actions</th>
+                    <th scope="col" class="table-header-cell">Username</th>
+                    <th scope="col" class="table-header-cell">Email</th>
+                    <th scope="col" class="table-header-cell">Role</th>
+                    <th scope="col" class="table-header-cell">Created</th>
+                    <th scope="col" class="table-header-cell">Status</th>
+                    <th scope="col" class="table-header-cell">Actions</th>
                 </tr>
             </thead>
             <tbody class="table-body">
@@ -99,6 +99,7 @@
                                     onclick={() => onEdit(user)}
                                     class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                                     title="Edit User"
+                                    aria-label="Edit User"
                                 >
                                     <Pencil class="w-5 h-5" />
                                 </button>
@@ -106,6 +107,7 @@
                                     onclick={() => onRateLimits(user)}
                                     class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                     title="Manage Rate Limits"
+                                    aria-label="Manage Rate Limits"
                                 >
                                     <Clock class="w-5 h-5" />
                                 </button>
@@ -113,6 +115,7 @@
                                     onclick={() => onDelete(user)}
                                     class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                                     title="Delete User"
+                                    aria-label="Delete User"
                                 >
                                     <Trash2 class="w-5 h-5" />
                                 </button>

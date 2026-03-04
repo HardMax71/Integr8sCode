@@ -86,7 +86,7 @@ describe('EventsTable', () => {
     it('calls onViewDetails when clicking a table row', async () => {
       const events = [createMockEvent({ event_id: 'evt-click' })];
       const { onViewDetails } = renderTable(events);
-      const rows = screen.getAllByRole('button', { name: 'View event details' });
+      const rows = screen.getAllByRole('button', { name: /^View details for event/ });
       await user.click(rows[0]!);
       expect(onViewDetails).toHaveBeenCalledWith('evt-click');
     });
@@ -94,7 +94,7 @@ describe('EventsTable', () => {
     it('calls onViewDetails on Enter keydown on table row', async () => {
       const events = [createMockEvent({ event_id: 'evt-key' })];
       const { onViewDetails } = renderTable(events);
-      const rows = screen.getAllByRole('button', { name: 'View event details' });
+      const rows = screen.getAllByRole('button', { name: /^View details for event/ });
       await fireEvent.keyDown(rows[0]!, { key: 'Enter' });
       expect(onViewDetails).toHaveBeenCalledWith('evt-key');
     });

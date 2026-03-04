@@ -334,7 +334,7 @@ describe('AdminEvents', () => {
       await renderWithEvents(events);
 
       // Multiple view detail buttons may exist (mobile + desktop views)
-      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
       await user.click(eventRow!);
 
       await waitFor(() => {
@@ -353,7 +353,7 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
       await user.click(eventRow!);
 
       await waitFor(() => {
@@ -371,7 +371,7 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
       await user.click(eventRow!);
 
       await waitFor(() => {
@@ -389,7 +389,7 @@ describe('AdminEvents', () => {
       });
       await renderWithEvents([event]);
 
-      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
       await user.click(eventRow!);
 
       await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
@@ -706,7 +706,7 @@ describe('AdminEvents', () => {
       const events = [createMockEvent()];
       await renderWithEvents(events);
 
-      const [eventRow] = screen.getAllByRole('button', { name: /View event details/i });
+      const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
       await user.click(eventRow!);
 
       await waitFor(() => {

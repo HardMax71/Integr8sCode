@@ -143,7 +143,7 @@
                         in:fly={{ y: 20, duration: 300 }}
                         class="card transition-all duration-200 cursor-pointer {notification.status !== 'read' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50' : ''}"
                         onclick={() => markAsRead(notification)}
-                        onkeydown={(e) => e.key === 'Enter' && markAsRead(notification)}
+                        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), markAsRead(notification))}
                         role="button"
                         tabindex="0"
                         aria-label="Mark notification as read"

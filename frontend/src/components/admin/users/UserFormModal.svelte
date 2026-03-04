@@ -50,6 +50,7 @@
                         class="form-input-standard"
                         placeholder="johndoe"
                         disabled={saving}
+                        required
                         autocomplete="username"
                         autocorrect="off"
                         autocapitalize="off"
@@ -85,6 +86,7 @@
                         class="form-input-standard"
                         placeholder={editingUser ? 'Enter new password' : 'Enter password'}
                         disabled={saving}
+                        required={!editingUser}
                         autocomplete="new-password"
                     />
                 </div>

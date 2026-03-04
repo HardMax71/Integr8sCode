@@ -33,6 +33,7 @@
     class="modal-backdrop"
     transition:fade={{ duration: 150 }}
     onclick={handleBackdropClick}
+    onkeydown={(e) => e.key === 'Escape' && onClose()}
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"

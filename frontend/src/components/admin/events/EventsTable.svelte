@@ -24,11 +24,11 @@
     <table class="table">
         <thead class="table-header">
             <tr>
-                <th class="table-header-cell-sm">Time</th>
-                <th class="table-header-cell-sm">Type</th>
-                <th class="table-header-cell-sm hidden lg:table-cell">User</th>
-                <th class="table-header-cell-sm hidden xl:table-cell">Service</th>
-                <th class="table-header-cell-sm text-center">Actions</th>
+                <th scope="col" class="table-header-cell-sm">Time</th>
+                <th scope="col" class="table-header-cell-sm">Type</th>
+                <th scope="col" class="table-header-cell-sm hidden lg:table-cell">User</th>
+                <th scope="col" class="table-header-cell-sm hidden xl:table-cell">Service</th>
+                <th scope="col" class="table-header-cell-sm text-center">Actions</th>
             </tr>
         </thead>
         <tbody class="table-body">
@@ -36,10 +36,10 @@
                 <tr
                     class="table-row-clickable"
                     onclick={() => onViewDetails(event.event_id)}
-                    onkeydown={(e) => e.key === 'Enter' && onViewDetails(event.event_id)}
+                    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onViewDetails(event.event_id))}
                     tabindex="0"
                     role="button"
-                    aria-label="View event details"
+                    aria-label="View details for event {event.event_id.slice(0, 8)}"
                 >
                     <td class="table-cell-sm">
                         <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
@@ -92,6 +92,7 @@
                                 onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
                                 title="Preview replay"
+                                aria-label="Preview replay"
                             >
                                 <Eye size={16} />
                             </button>
@@ -99,6 +100,7 @@
                                 onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
                                 title="Replay"
+                                aria-label="Replay"
                             >
                                 <Play size={16} />
                             </button>
@@ -106,6 +108,7 @@
                                 onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
                                 class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
                                 title="Delete"
+                                aria-label="Delete"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -123,10 +126,10 @@
         <div
             class="mobile-card"
             onclick={() => onViewDetails(event.event_id)}
-            onkeydown={(e) => e.key === 'Enter' && onViewDetails(event.event_id)}
+            onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onViewDetails(event.event_id))}
             tabindex="0"
             role="button"
-            aria-label="View event details"
+            aria-label="View details for event {event.event_id.slice(0, 8)}"
         >
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1 min-w-0">
@@ -155,6 +158,7 @@
                         onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1"
                         title="Preview replay"
+                        aria-label="Preview replay"
                     >
                         <Eye size={16} />
                     </button>
@@ -162,6 +166,7 @@
                         onclick={(e) => { e.stopPropagation(); onReplay(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1 text-blue-600 dark:text-blue-400"
                         title="Replay"
+                        aria-label="Replay"
                     >
                         <Play size={16} />
                     </button>
@@ -169,6 +174,7 @@
                         onclick={(e) => { e.stopPropagation(); onDelete(event.event_id); }}
                         class="btn btn-ghost btn-xs p-1 text-red-600 dark:text-red-400"
                         title="Delete"
+                        aria-label="Delete"
                     >
                         <Trash2 size={16} />
                     </button>

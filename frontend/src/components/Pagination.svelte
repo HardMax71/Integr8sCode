@@ -39,6 +39,7 @@
           class="pagination-selector"
           value={pageSize}
           onchange={(e) => onPageSizeChange?.(Number(e.currentTarget.value))}
+          aria-label="Items per page"
         >
           {#each pageSizeOptions as size}
             <option value={size}>{size} / page</option>

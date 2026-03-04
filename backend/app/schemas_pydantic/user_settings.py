@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import EventType, NotificationChannel, Theme
 
@@ -28,20 +28,6 @@ class EditorSettings(BaseModel):
     use_tabs: bool = False
     word_wrap: bool = True
     show_line_numbers: bool = True
-
-    @field_validator("font_size")
-    @classmethod
-    def validate_font_size(cls, v: int) -> int:
-        if v < 8 or v > 32:
-            raise ValueError("Font size must be between 8 and 32")
-        return v
-
-    @field_validator("tab_size")
-    @classmethod
-    def validate_tab_size(cls, v: int) -> int:
-        if v not in (2, 4, 8):
-            raise ValueError("Tab size must be 2, 4, or 8")
-        return v
 
 
 class UserSettings(BaseModel):

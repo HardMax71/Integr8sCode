@@ -183,19 +183,45 @@ class EventReplayService:
         self.logger.info("Cleaned up old replay sessions", removed_count=total_removed)
         return CleanupResult(removed_sessions=total_removed, message=f"Removed {total_removed} old sessions")
 
+    async def _load_next_event(self, session: ReplaySessionState) -> DomainEvent | None:
+        """Pop the next event from the buffer, loading a new batch if needed."""
+        event = self._pop_next_event(session.session_id)
+        if event is not None:
+            return event
+        if not await self._load_next_batch(session.session_id):
+            return None
+        return self._pop_next_event(session.session_id)
+
+    def _calculate_replay_delay(self, session: ReplaySessionState) -> float:
+        """Calculate the delay before dispatching the next event based on speed multiplier."""
+        next_event = self._peek_next_event(session.session_id)
+        if next_event and session.last_event_at and session.config.speed_multiplier < 100:
+            time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
+            return max(time_diff / session.config.speed_multiplier, 0)
+        return 0.0
+
+    def _reschedule_dispatch(self, session: ReplaySessionState, delay: float) -> None:
+        """Schedule the next _dispatch_next call if the session is still running."""
+        scheduler = self._schedulers.get(session.session_id)
+        if scheduler and scheduler.running and session.status == ReplayStatus.RUNNING:
+            scheduler.add_job(
+                self._dispatch_next,
+                trigger="date",
+                run_date=datetime.now(timezone.utc) + timedelta(seconds=delay),
+                args=[session],
+                id=f"dispatch_{session.session_id}",
+                replace_existing=True,
+                misfire_grace_time=None,
+            )
+
     async def _dispatch_next(self, session: ReplaySessionState) -> None:
         if session.status != ReplayStatus.RUNNING:
             return
 
-        event = self._pop_next_event(session.session_id)
+        event = await self._load_next_event(session)
         if event is None:
-            if not await self._load_next_batch(session.session_id):
-                await self._finalize_session(session, ReplayStatus.COMPLETED)
-                return
-            event = self._pop_next_event(session.session_id)
-            if event is None:
-                await self._finalize_session(session, ReplayStatus.COMPLETED)
-                return
+            await self._finalize_session(session, ReplayStatus.COMPLETED)
+            return
 
         buf = self._event_buffers.get(session.session_id, [])
         idx = self._buffer_indices.get(session.session_id, 0)
@@ -229,26 +255,10 @@ class EventReplayService:
         session.last_event_at = event.timestamp
         await self._update_session_in_db(session)
 
-        next_event = self._peek_next_event(session.session_id)
-        delay = 0.0
-        if next_event and session.last_event_at and session.config.speed_multiplier < 100:
-            time_diff = (next_event.timestamp - session.last_event_at).total_seconds()
-            delay = max(time_diff / session.config.speed_multiplier, 0)
-
+        delay = self._calculate_replay_delay(session)
         if delay > 0:
             self._metrics.record_delay_applied(delay)
-
-        scheduler = self._schedulers.get(session.session_id)
-        if scheduler and scheduler.running and session.status == ReplayStatus.RUNNING:
-            scheduler.add_job(
-                self._dispatch_next,
-                trigger="date",
-                run_date=datetime.now(timezone.utc) + timedelta(seconds=delay),
-                args=[session],
-                id=f"dispatch_{session.session_id}",
-                replace_existing=True,
-                misfire_grace_time=None,
-            )
+        self._reschedule_dispatch(session, delay)
 
     def _pop_next_event(self, session_id: str) -> DomainEvent | None:
         idx = self._buffer_indices.get(session_id, 0)

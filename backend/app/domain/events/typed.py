@@ -58,11 +58,12 @@ class BaseEvent(BaseModel):
     metadata: EventMetadata
 
 
-# --- Execution Events ---
+# --- Execution Spec (shared fields between ExecutionRequestedEvent and CreatePodCommandEvent) ---
 
 
-class ExecutionRequestedEvent(BaseEvent):
-    event_type: Literal[EventType.EXECUTION_REQUESTED] = EventType.EXECUTION_REQUESTED
+class ExecutionSpec(BaseModel):
+    """Shared execution specification fields (mixin for ExecutionRequestedEvent and CreatePodCommandEvent)."""
+
     execution_id: str
     script: str
     language: str
@@ -76,6 +77,13 @@ class ExecutionRequestedEvent(BaseEvent):
     cpu_request: str
     memory_request: str
     priority: QueuePriority = QueuePriority.NORMAL
+
+
+# --- Execution Events ---
+
+
+class ExecutionRequestedEvent(BaseEvent, ExecutionSpec):
+    event_type: Literal[EventType.EXECUTION_REQUESTED] = EventType.EXECUTION_REQUESTED
 
 
 class ExecutionAcceptedEvent(BaseEvent):
@@ -413,22 +421,10 @@ class SagaCompensatedEvent(BaseEvent):
 # --- Saga Command Events ---
 
 
-class CreatePodCommandEvent(BaseEvent):
+class CreatePodCommandEvent(BaseEvent, ExecutionSpec):
     event_type: Literal[EventType.CREATE_POD_COMMAND] = EventType.CREATE_POD_COMMAND
     saga_id: str
-    execution_id: str
-    script: str
-    language: str
-    language_version: str
-    runtime_image: str
     runtime_command: list[str] = Field(default_factory=list)
-    runtime_filename: str
-    timeout_seconds: int
-    cpu_limit: str
-    memory_limit: str
-    cpu_request: str
-    memory_request: str
-    priority: QueuePriority = QueuePriority.NORMAL
 
 
 class DeletePodCommandEvent(BaseEvent):

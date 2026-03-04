@@ -11,10 +11,7 @@ from app.domain.saga.models import SagaContextData
 
 
 class SagaDocument(Document):
-    """Domain model for saga stored in database.
-
-    Copied from Saga/SagaInstance dataclass.
-    """
+    """Domain model for saga stored in database."""
 
     saga_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]
     saga_name: Indexed(str)  # type: ignore[valid-type]

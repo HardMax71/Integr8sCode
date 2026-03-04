@@ -36,35 +36,48 @@ Explicit try/finally keeps teardown visible. The broker stops before the contain
 
 ## Worker entrypoints
 
-Workers use FastStream's `on_startup` / `on_shutdown` callbacks instead of a context manager:
+All six workers share a common bootstrap sequence: load settings, init logger, connect to MongoDB via Beanie, create a Dishka DI container, retrieve the Kafka broker, wire up Dishka, and run FastStream. The shared `run_worker()` function in `workers/bootstrap.py` handles this boilerplate. Each worker only provides its unique configuration and optional hooks:
 
 ```python
-async def init_service() -> None:
-    worker = await container.get(SomeService)
-    # optional: set up APScheduler, pre-warm caches, etc.
+from workers.bootstrap import run_worker
 
-async def shutdown() -> None:
-    scheduler.shutdown(wait=False)  # if APScheduler was used
-    await container.close()
-
-app = FastStream(broker, on_startup=[init_service], on_shutdown=[shutdown])
-await app.run()
+def main() -> None:
+    run_worker(
+        worker_name="ResultProcessor",
+        config_override="config.result-processor.toml",
+        container_factory=create_result_processor_container,
+        register_handlers=register_result_processor_subscriber,
+    )
 ```
 
-FastStream calls `on_startup` after the broker connects and `on_shutdown` when the process receives a signal. The worker blocks on `app.run()` until termination.
+Workers that need custom startup logic (APScheduler jobs, K8s pre-warming) pass `on_startup` and `on_shutdown` callbacks:
+
+```python
+async def _on_startup(container, broker, logger) -> None:
+    service = await container.get(SomeService)
+    scheduler.add_job(service.periodic_task, trigger="interval", seconds=10, ...)
+    scheduler.start()
+
+async def _on_shutdown() -> None:
+    scheduler.shutdown(wait=False)
+
+run_worker(..., on_startup=_on_startup, on_shutdown=_on_shutdown)
+```
+
+FastStream calls `on_startup` after the broker connects and `on_shutdown` when the process receives a signal. The worker blocks on `app.run()` until termination. The container is always closed last (appended automatically by `run_worker`).
 
 All six workers follow this pattern:
 
 | Worker | Startup hook | Has APScheduler |
 |--------|-------------|-----------------|
-| k8s-worker | Pre-pull daemonset | No |
+| k8s-worker | Pre-pull daemonset, namespace security | No |
 | pod-monitor | Start watch loop | Yes |
 | result-processor | — | No |
 | saga-orchestrator | Start saga scheduler | Yes |
 | dlq-processor | Start monitoring cycle | Yes |
 | event-replay | Start replay scheduler | Yes |
 
-Workers without startup work pass only `on_shutdown=[container.close]`.
+Workers without startup work pass only `register_handlers` and rely on `run_worker`'s default shutdown (container close).
 
 ## Why stateless services
 
@@ -82,10 +95,12 @@ Write a plain class that takes its dependencies in `__init__` via Dishka. Expose
 
 ## Building new workers
 
-Follow the existing pattern in `backend/workers/`:
+Use the shared `run_worker()` function from `workers/bootstrap.py`:
 
-1. Create a `Settings` with the worker's override TOML
-2. Init Beanie, create the worker's DI container, get the broker
-3. Register subscribers and set up Dishka on the broker
-4. Define `init_*` and `shutdown` callbacks
-5. Create `FastStream(broker, on_startup=[...], on_shutdown=[...])` and call `app.run()`
+1. Create a container factory in `app/core/container.py` for the new worker
+2. Create a `config.<worker-name>.toml` override file
+3. Optionally register Kafka subscriber handlers
+4. Optionally define `on_startup` / `on_shutdown` callbacks for APScheduler or other setup
+5. Call `run_worker()` with the worker name, config override, container factory, and optional hooks
+
+See any existing `workers/run_*.py` for a working example. The simplest is `run_result_processor.py` (no startup hooks), the most complex is `run_pod_monitor.py` (APScheduler + K8s watch loop).

@@ -122,6 +122,38 @@ class NotificationService:
         }
         # --8<-- [end:channel_handlers]
 
+    def _validate_scheduled_time(self, scheduled_for: datetime) -> None:
+        """Validate that scheduled_for is in the future and within the max schedule window."""
+        if scheduled_for < datetime.now(UTC):
+            raise NotificationValidationError("scheduled_for must be in the future")
+        max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
+        max_schedule = datetime.now(UTC) + timedelta(days=max_days)
+        if scheduled_for > max_schedule:
+            raise NotificationValidationError(f"scheduled_for cannot exceed {max_days} days from now")
+
+    async def _check_throttle(self, user_id: str, severity: NotificationSeverity, source: str) -> None:
+        """Check throttle and raise NotificationThrottledError if rate limit exceeded."""
+        if self.settings.ENVIRONMENT == "test":
+            return
+        throttled = await self._throttle_cache.check_throttle(
+            user_id,
+            severity,
+            window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
+            max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
+        )
+        if throttled:
+            self.logger.warning(
+                f"Notification rate limit exceeded for user {user_id}. "
+                f"Max {self.settings.NOTIF_THROTTLE_MAX_PER_HOUR} "
+                f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
+            )
+            self.metrics.record_notification_throttled(source)
+            raise NotificationThrottledError(
+                user_id,
+                self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
+                self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
+            )
+
     async def create_notification(
         self,
         user_id: str,
@@ -137,14 +169,7 @@ class NotificationService:
         if not tags:
             raise NotificationValidationError("tags must be a non-empty list")
         if scheduled_for is not None:
-            if scheduled_for < datetime.now(UTC):
-                raise NotificationValidationError("scheduled_for must be in the future")
-            max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
-            max_schedule = datetime.now(UTC) + timedelta(days=max_days)
-            if scheduled_for > max_schedule:
-                raise NotificationValidationError(
-                    f"scheduled_for cannot exceed {max_days} days from now"
-                )
+            self._validate_scheduled_time(scheduled_for)
         self.logger.info(
             f"Creating notification for user {user_id}",
             user_id=user_id,
@@ -154,25 +179,7 @@ class NotificationService:
             scheduled=scheduled_for is not None,
         )
 
-        # Check throttling
-        if self.settings.ENVIRONMENT != "test" and await self._throttle_cache.check_throttle(
-            user_id,
-            severity,
-            window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
-            max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
-        ):
-            error_msg = (
-                f"Notification rate limit exceeded for user {user_id}. "
-                f"Max {self.settings.NOTIF_THROTTLE_MAX_PER_HOUR} "
-                f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
-            )
-            self.logger.warning(error_msg)
-            self.metrics.record_notification_throttled("general")
-            raise NotificationThrottledError(
-                user_id,
-                self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
-                self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
-            )
+        await self._check_throttle(user_id, severity, "general")
 
         # Create notification
         create_data = DomainNotificationCreate(
@@ -290,13 +297,9 @@ class NotificationService:
     ) -> str:
         try:
             if not cfg.throttle_exempt:
-                throttled = await self._throttle_cache.check_throttle(
-                    user_id,
-                    cfg.severity,
-                    window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
-                    max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
-                )
-                if throttled:
+                try:
+                    await self._check_throttle(user_id, cfg.severity, "system")
+                except NotificationThrottledError:
                     return "throttled"
 
             await self.create_notification(

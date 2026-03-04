@@ -1,80 +1,54 @@
-import asyncio
-from typing import Any
-
+import structlog
 from app.core.container import create_saga_orchestrator_container
-from app.core.logging import setup_log_exporter, setup_logger
-from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_saga_subscriber
 from app.services.saga import SagaOrchestrator
-from app.settings import Settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from beanie import init_beanie
-from dishka.integrations.faststream import setup_dishka
-from faststream import FastStream
+from dishka import AsyncContainer
 from faststream.kafka import KafkaBroker
-from pymongo import AsyncMongoClient
+
+from workers.bootstrap import run_worker
+
+_scheduler = AsyncIOScheduler()
+
+
+async def _on_startup(
+    container: AsyncContainer, broker: KafkaBroker, logger: structlog.stdlib.BoundLogger
+) -> None:
+    orchestrator = await container.get(SagaOrchestrator)
+    _scheduler.add_job(
+        orchestrator.check_timeouts,
+        trigger="interval",
+        seconds=30,
+        id="saga_check_timeouts",
+        max_instances=1,
+        misfire_grace_time=60,
+    )
+    _scheduler.add_job(
+        orchestrator.try_schedule_from_queue,
+        trigger="interval",
+        seconds=10,
+        id="saga_try_schedule",
+        max_instances=1,
+        misfire_grace_time=30,
+    )
+    _scheduler.start()
+    logger.info("SagaOrchestrator initialized (APScheduler: timeouts=30s, scheduling=10s)")
+
+
+async def _on_shutdown() -> None:
+    _scheduler.shutdown(wait=False)
 
 
 def main() -> None:
     """Main entry point for saga orchestrator worker"""
-    settings = Settings(override_path="config.saga-orchestrator.toml")
-
-    logger = setup_logger(settings.LOG_LEVEL)
-    setup_log_exporter(settings, logger)
-
-    logger.info("Starting Saga Orchestrator worker...")
-
-    async def run() -> None:
-        # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
-        client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
-        await init_beanie(
-            database=client.get_default_database(default=settings.DATABASE_NAME),
-            document_models=ALL_DOCUMENTS,
-        )
-        logger.info("MongoDB initialized via Beanie")
-
-        # Create DI container
-        container = create_saga_orchestrator_container(settings)
-
-        # Get broker from DI
-        broker: KafkaBroker = await container.get(KafkaBroker)
-
-        # Register subscriber and set up DI integration
-        register_saga_subscriber(broker)
-        setup_dishka(container, broker=broker, auto_inject=True)
-
-        scheduler = AsyncIOScheduler()
-
-        async def init_saga() -> None:
-            orchestrator = await container.get(SagaOrchestrator)
-            scheduler.add_job(
-                orchestrator.check_timeouts,
-                trigger="interval",
-                seconds=30,
-                id="saga_check_timeouts",
-                max_instances=1,
-                misfire_grace_time=60,
-            )
-            scheduler.add_job(
-                orchestrator.try_schedule_from_queue,
-                trigger="interval",
-                seconds=10,
-                id="saga_try_schedule",
-                max_instances=1,
-                misfire_grace_time=30,
-            )
-            scheduler.start()
-            logger.info("SagaOrchestrator initialized (APScheduler: timeouts=30s, scheduling=10s)")
-
-        async def shutdown() -> None:
-            scheduler.shutdown(wait=False)
-            await container.close()
-
-        app = FastStream(broker, on_startup=[init_saga], on_shutdown=[shutdown])
-        await app.run()
-        logger.info("SagaOrchestrator shutdown complete")
-
-    asyncio.run(run())
+    run_worker(
+        worker_name="SagaOrchestrator",
+        config_override="config.saga-orchestrator.toml",
+        container_factory=create_saga_orchestrator_container,
+        register_handlers=register_saga_subscriber,
+        on_startup=_on_startup,
+        on_shutdown=_on_shutdown,
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 from app.domain.enums import SagaState
-from app.domain.saga import SagaConfig, SagaInstance
+from app.domain.saga import SagaConfig
 from app.services.saga.execution_saga import (
     AllocateResourcesStep,
     CreatePodStep,
@@ -17,7 +17,6 @@ __all__ = [
     "SagaService",
     "SagaConfig",
     "SagaState",
-    "SagaInstance",
     "SagaContext",
     "SagaStep",
     "CompensationStep",

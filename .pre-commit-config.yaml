@@ -46,10 +46,18 @@ repos:
         files: ^frontend/src/.*\.css$
         pass_filenames: false
 
+      # Prettier - matches CI: cd frontend && npx prettier --check
+      - id: prettier-frontend
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,svelte,css,json}"'
+        language: system
+        files: ^frontend/src/.*\.(ts|svelte|css|json)$
+        pass_filenames: false
+
       # Svelte Check - matches CI: cd frontend && npx svelte-check
       - id: svelte-check-frontend
         name: svelte-check (frontend)
-        entry: bash -c 'cd frontend && npx svelte-check --tsconfig ./tsconfig.json'
+        entry: bash -c 'cd frontend && npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings'
         language: system
         files: ^frontend/src/.*\.(ts|svelte)$
         pass_filenames: false

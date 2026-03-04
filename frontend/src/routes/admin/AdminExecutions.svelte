@@ -30,7 +30,11 @@
 
     $effect(() => {
         const current = { status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch };
-        if (current.status !== prevFilters.status || current.priority !== prevFilters.priority || current.search !== prevFilters.search) {
+        if (
+            current.status !== prevFilters.status ||
+            current.priority !== prevFilters.priority ||
+            current.search !== prevFilters.search
+        ) {
             prevFilters = current;
             untrack(() => {
                 store.pagination.currentPage = 1;
@@ -47,8 +51,15 @@
 <AdminLayout path="/admin/executions">
     <div class="container mx-auto px-2 sm:px-4 pb-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">Execution Management</h1>
-            <button type="button" onclick={() => store.loadData()} class="btn btn-outline flex items-center gap-2" disabled={store.loading}>
+            <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">
+                Execution Management
+            </h1>
+            <button
+                type="button"
+                onclick={() => store.loadData()}
+                class="btn btn-outline flex items-center gap-2"
+                disabled={store.loading}
+            >
                 {#if store.loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
             </button>
         </div>
@@ -58,7 +69,9 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div class="card p-4 {STATS_BG_COLORS.blue}">
                     <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">Queue Depth</div>
-                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">{store.queueStatus.queue_depth}</div>
+                    <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                        {store.queueStatus.queue_depth}
+                    </div>
                 </div>
                 <div class="card p-4 {STATS_BG_COLORS.green}">
                     <div class="text-sm {STATS_TEXT_COLORS.green} font-medium">Active</div>
@@ -83,7 +96,10 @@
         <div class="card mb-6">
             <div class="p-4 flex flex-wrap gap-4 items-end">
                 <div>
-                    <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Status</label>
+                    <label
+                        for="status-filter"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Status</label
+                    >
                     <select id="status-filter" bind:value={store.statusFilter} class="form-select-standard">
                         <option value="all">All</option>
                         <option value="queued">Queued</option>
@@ -97,7 +113,10 @@
                     </select>
                 </div>
                 <div>
-                    <label for="priority-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label>
+                    <label
+                        for="priority-filter"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label
+                    >
                     <select id="priority-filter" bind:value={store.priorityFilter} class="form-select-standard">
                         <option value="all">All</option>
                         {#each priorityOptions as p}
@@ -106,10 +125,20 @@
                     </select>
                 </div>
                 <div>
-                    <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">User ID</label>
-                    <input id="user-search" type="text" bind:value={store.userSearch} placeholder="Filter by user ID" class="form-input-standard" />
+                    <label
+                        for="user-search"
+                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">User ID</label
+                    >
+                    <input
+                        id="user-search"
+                        type="text"
+                        bind:value={store.userSearch}
+                        placeholder="Filter by user ID"
+                        class="form-input-standard"
+                    />
                 </div>
-                <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button>
+                <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button
+                >
             </div>
         </div>
 
@@ -140,16 +169,26 @@
                             <tbody class="table-body">
                                 {#each store.executions as exec}
                                     <tr class="table-row">
-                                        <td class="table-cell-sm font-mono text-xs">{truncate(exec.execution_id, 12)}</td>
-                                        <td class="table-cell-sm text-xs">{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td>
+                                        <td class="table-cell-sm font-mono text-xs"
+                                            >{truncate(exec.execution_id, 12)}</td
+                                        >
+                                        <td class="table-cell-sm text-xs"
+                                            >{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td
+                                        >
                                         <td class="table-cell-sm">{exec.lang} {exec.lang_version}</td>
                                         <td class="table-cell-sm">
-                                            <span class="badge {statusColors[exec.status] || 'badge-neutral'}">{exec.status}</span>
+                                            <span class="badge {statusColors[exec.status] || 'badge-neutral'}"
+                                                >{exec.status}</span
+                                            >
                                         </td>
                                         <td class="table-cell-sm">
                                             <select
                                                 value={exec.priority}
-                                                onchange={(e) => store.updatePriority(exec.execution_id, (e.target as HTMLSelectElement).value as QueuePriority)}
+                                                onchange={(e) =>
+                                                    store.updatePriority(
+                                                        exec.execution_id,
+                                                        (e.target as HTMLSelectElement).value as QueuePriority,
+                                                    )}
                                                 class="form-select-standard text-xs py-1 px-2"
                                                 aria-label="Priority for {exec.execution_id}"
                                             >
@@ -173,8 +212,10 @@
                             {totalPages}
                             totalItems={store.total}
                             pageSize={store.pagination.pageSize}
-                            onPageChange={(page) => store.pagination.handlePageChange(page, () => store.loadExecutions())}
-                            onPageSizeChange={(size) => store.pagination.handlePageSizeChange(size, () => store.loadExecutions())}
+                            onPageChange={(page) =>
+                                store.pagination.handlePageChange(page, () => store.loadExecutions())}
+                            onPageSizeChange={(size) =>
+                                store.pagination.handlePageSizeChange(size, () => store.loadExecutions())}
                             pageSizeOptions={[10, 20, 50, 100]}
                             itemName="executions"
                         />

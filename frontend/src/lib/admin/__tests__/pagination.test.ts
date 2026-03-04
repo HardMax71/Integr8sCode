@@ -27,12 +27,12 @@ describe('createPaginationState', () => {
 
     describe('totalPages', () => {
         it.each([
-            [0, 10, 1],    // empty → 1 page
-            [5, 10, 1],    // fewer than page size
-            [10, 10, 1],   // exactly one page
-            [11, 10, 2],   // one extra item
-            [100, 20, 5],  // even split
-            [101, 20, 6],  // one extra
+            [0, 10, 1], // empty → 1 page
+            [5, 10, 1], // fewer than page size
+            [10, 10, 1], // exactly one page
+            [11, 10, 2], // one extra item
+            [100, 20, 5], // even split
+            [101, 20, 6], // one extra
         ])('totalItems=%d, pageSize=%d → totalPages=%d', (items, size, expected) => {
             const p = createPaginationState({ initialPageSize: size });
             p.totalItems = items;
@@ -78,5 +78,4 @@ describe('createPaginationState', () => {
             expect(onLoad).toHaveBeenCalledOnce();
         });
     });
-
 });

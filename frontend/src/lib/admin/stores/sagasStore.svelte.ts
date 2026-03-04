@@ -1,7 +1,4 @@
-import {
-    listSagasApiV1SagasGet,
-    type SagaStatusResponse,
-} from '$lib/api';
+import { listSagasApiV1SagasGet, type SagaStatusResponse } from '$lib/api';
 import { unwrapOr } from '$lib/api-interceptors';
 import { createPaginationState } from '$lib/admin/pagination.svelte';
 import { type SagaStateFilter } from '$lib/admin/sagas';
@@ -27,20 +24,25 @@ class SagasStore {
         $effect(() => {
             if (!this.refreshEnabled) return;
             const id = setInterval(() => this.loadSagas(), this.refreshRate * 1000);
-            return () => { clearInterval(id); };
+            return () => {
+                clearInterval(id);
+            };
         });
     }
 
     async loadSagas(): Promise<void> {
         this.loading = true;
-        const data = unwrapOr(await listSagasApiV1SagasGet({
-            query: {
-                state: this.stateFilter || undefined,
-                execution_id: this.executionIdFilter || undefined,
-                limit: this.pagination.pageSize,
-                skip: this.pagination.skip,
-            }
-        }), null);
+        const data = unwrapOr(
+            await listSagasApiV1SagasGet({
+                query: {
+                    state: this.stateFilter || undefined,
+                    execution_id: this.executionIdFilter || undefined,
+                    limit: this.pagination.pageSize,
+                    skip: this.pagination.skip,
+                },
+            }),
+            null,
+        );
         this.loading = false;
 
         let result = data?.sagas || [];
@@ -49,11 +51,12 @@ class SagasStore {
 
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase();
-            result = result.filter(s =>
-                s.saga_id.toLowerCase().includes(q) ||
-                s.saga_name.toLowerCase().includes(q) ||
-                s.execution_id.toLowerCase().includes(q) ||
-                s.error_message?.toLowerCase().includes(q)
+            result = result.filter(
+                (s) =>
+                    s.saga_id.toLowerCase().includes(q) ||
+                    s.saga_name.toLowerCase().includes(q) ||
+                    s.execution_id.toLowerCase().includes(q) ||
+                    s.error_message?.toLowerCase().includes(q),
             );
         }
         this.sagas = result;

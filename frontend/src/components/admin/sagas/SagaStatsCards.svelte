@@ -9,7 +9,7 @@
     let { sagas }: Props = $props();
 
     function getCount(state: string): number {
-        return sagas.filter(s => s.state === state).length;
+        return sagas.filter((s) => s.state === state).length;
     }
 </script>
 

@@ -35,7 +35,9 @@
 {:else}
     <div class="flex">
         <!-- Sidebar -->
-        <div class="w-64 bg-bg-sidebar dark:bg-dark-bg-sidebar shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto z-10">
+        <div
+            class="w-64 bg-bg-sidebar dark:bg-dark-bg-sidebar shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto z-10"
+        >
             <div class="p-4">
                 <div class="flex items-center gap-2 mb-8">
                     <ShieldCheck class="w-6 h-6 text-primary dark:text-primary-light" />
@@ -61,13 +63,15 @@
                 </nav>
 
                 {#if user}
-                    <div class="mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default">
+                    <div
+                        class="mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
+                    >
                         <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
                         <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">{user.username}</p>
                     </div>
                 {/if}
             </div>
-    </div>
+        </div>
 
         <!-- Main content -->
         <div class="flex-1 ml-64 pb-16">

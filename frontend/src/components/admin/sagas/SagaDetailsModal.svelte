@@ -41,7 +41,8 @@
                         <div>
                             <dt class="text-fg-muted">Execution ID</dt>
                             <dd>
-                                <button type="button"
+                                <button
+                                    type="button"
                                     onclick={handleViewExecution}
                                     class="text-primary hover:text-primary-dark font-mono"
                                 >
@@ -87,13 +88,16 @@
 
                 {#if saga.current_step}
                     <div class="mb-4 p-3 alert alert-info">
-                        <span class="font-medium">Current Step:</span> {saga.current_step}
+                        <span class="font-medium">Current Step:</span>
+                        {saga.current_step}
                     </div>
                 {/if}
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <h4 class="text-sm font-medium mb-2 text-green-600">Completed ({saga.completed_steps.length})</h4>
+                        <h4 class="text-sm font-medium mb-2 text-green-600">
+                            Completed ({saga.completed_steps.length})
+                        </h4>
                         {#if saga.completed_steps.length > 0}
                             <ul class="space-y-1">
                                 {#each saga.completed_steps as step}
@@ -107,7 +111,9 @@
                         {/if}
                     </div>
                     <div>
-                        <h4 class="text-sm font-medium mb-2 text-yellow-600">Compensated ({saga.compensated_steps.length})</h4>
+                        <h4 class="text-sm font-medium mb-2 text-yellow-600">
+                            Compensated ({saga.compensated_steps.length})
+                        </h4>
                         {#if saga.compensated_steps.length > 0}
                             <ul class="space-y-1">
                                 {#each saga.compensated_steps as step}
@@ -131,7 +137,6 @@
                     </div>
                 </div>
             {/if}
-
         {/if}
     {/snippet}
 </Modal>

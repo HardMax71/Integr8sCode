@@ -24,8 +24,8 @@ class NotificationStore {
                 limit,
                 include_tags: options.include_tags?.filter(Boolean),
                 exclude_tags: options.exclude_tags?.filter(Boolean),
-                tag_prefix: options.tag_prefix
-            }
+                tag_prefix: options.tag_prefix,
+            },
         });
         if (error) {
             this.error = getErrorMessage(error);
@@ -45,12 +45,12 @@ class NotificationStore {
 
     async markAsRead(notificationId: string) {
         const { error } = await markNotificationReadApiV1NotificationsNotificationIdReadPut({
-            path: { notification_id: notificationId }
+            path: { notification_id: notificationId },
         });
         if (error) return false;
-        const wasUnread = this.notifications.some(n => n.notification_id === notificationId && n.status !== 'read');
-        this.notifications = this.notifications.map(n =>
-            n.notification_id === notificationId ? { ...n, status: 'read' as const } : n
+        const wasUnread = this.notifications.some((n) => n.notification_id === notificationId && n.status !== 'read');
+        this.notifications = this.notifications.map((n) =>
+            n.notification_id === notificationId ? { ...n, status: 'read' as const } : n,
         );
         if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1);
         return true;
@@ -59,18 +59,18 @@ class NotificationStore {
     async markAllAsRead() {
         const { error } = await markAllReadApiV1NotificationsMarkAllReadPost({});
         if (error) return false;
-        this.notifications = this.notifications.map(n => ({ ...n, status: 'read' as const }));
+        this.notifications = this.notifications.map((n) => ({ ...n, status: 'read' as const }));
         this.unreadCount = 0;
         return true;
     }
 
     async delete(notificationId: string) {
         const { error } = await deleteNotificationApiV1NotificationsNotificationIdDelete({
-            path: { notification_id: notificationId }
+            path: { notification_id: notificationId },
         });
         if (error) return false;
-        const wasUnread = this.notifications.some(n => n.notification_id === notificationId && n.status !== 'read');
-        this.notifications = this.notifications.filter(n => n.notification_id !== notificationId);
+        const wasUnread = this.notifications.some((n) => n.notification_id === notificationId && n.status !== 'read');
+        this.notifications = this.notifications.filter((n) => n.notification_id !== notificationId);
         if (wasUnread) this.unreadCount = Math.max(0, this.unreadCount - 1);
         return true;
     }

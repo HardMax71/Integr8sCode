@@ -12,7 +12,11 @@ const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register'];
 
 const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warning' }> = {
     403: { message: 'Access denied.', type: 'error' },
-    423: { message: 'Your account has been temporarily locked due to too many failed login attempts. Please try again later.', type: 'warning' },
+    423: {
+        message:
+            'Your account has been temporarily locked due to too many failed login attempts. Please try again later.',
+        type: 'warning',
+    },
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 
@@ -23,11 +27,13 @@ function isValidationErrorArray(value: unknown): value is ValidationError[] {
 }
 
 function formatValidationErrors(errors: ValidationError[]): string {
-    return errors.map(e => {
-        if (!e.loc.length) return e.msg;
-        const field = e.loc[e.loc.length - 1];
-        return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
-    }).join(', ');
+    return errors
+        .map((e) => {
+            if (!e.loc.length) return e.msg;
+            const field = e.loc[e.loc.length - 1];
+            return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
+        })
+        .join(', ');
 }
 
 export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
@@ -45,7 +51,6 @@ export function getErrorMessage(err: unknown, fallback = 'An error occurred'): s
     return fallback;
 }
 
-
 function handle401(isAuthEndpoint: boolean): void {
     if (isAuthEndpoint) return;
 
@@ -59,7 +64,9 @@ function handle401(isAuthEndpoint: boolean): void {
             sessionStorage.setItem('redirectAfterLogin', currentPath);
         }
         goto('/login');
-        setTimeout(() => { isHandling401 = false; }, 1000);
+        setTimeout(() => {
+            isHandling401 = false;
+        }, 1000);
     } else {
         authStore.clearAuth();
     }
@@ -106,7 +113,7 @@ export function initializeApiInterceptors(): void {
     client.interceptors.error.use((error, response: Response | undefined, request, _opts) => {
         const status = response?.status;
         const url = request.url;
-        const isAuthEndpoint = AUTH_ENDPOINTS.some(ep => url.includes(ep));
+        const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
 
         log.error('API Error', { status, url, error });
 

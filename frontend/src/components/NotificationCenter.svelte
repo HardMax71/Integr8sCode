@@ -30,16 +30,19 @@
         low: 'text-fg-muted dark:text-dark-fg-muted',
         medium: 'text-blue-600 dark:text-blue-400',
         high: 'text-orange-600 dark:text-orange-400',
-        urgent: 'text-red-600 dark:text-red-400'
+        urgent: 'text-red-600 dark:text-red-400',
     };
 
     $effect(() => {
         if (authStore.isAuthenticated) {
             if (!hasLoadedInitialData) {
                 hasLoadedInitialData = true;
-                notificationStore.load(20).then(() => {
-                    notificationStream.connect((data) => notificationStore.add(data));
-                }).catch((err) => log.error('Failed to load notifications:', err));
+                notificationStore
+                    .load(20)
+                    .then(() => {
+                        notificationStream.connect((data) => notificationStore.add(data));
+                    })
+                    .catch((err) => log.error('Failed to load notifications:', err));
             }
         } else {
             notificationStream.disconnect();
@@ -55,8 +58,9 @@
         if (!showDropdown || notificationStore.unreadCount === 0) return;
         const timeout = setTimeout(() => {
             if (!showDropdown) return;
-            notificationStore.notifications.slice(0, 5).forEach(n => {
-                if (n.status !== 'read') markAsRead(n).catch((err) => log.warn('Failed to mark notification as read', err));
+            notificationStore.notifications.slice(0, 5).forEach((n) => {
+                if (n.status !== 'read')
+                    markAsRead(n).catch((err) => log.warn('Failed to mark notification as read', err));
             });
         }, AUTO_READ_DELAY_MS);
         return () => clearTimeout(timeout);
@@ -91,9 +95,7 @@
     }
 
     let notificationPermission = $state(
-        typeof window !== 'undefined' && 'Notification' in window
-            ? Notification.permission
-            : 'denied'
+        typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied',
     );
 
     async function requestNotificationPermission(): Promise<void> {
@@ -104,14 +106,12 @@
 </script>
 
 <div class="relative z-40">
-    <button type="button"
-        onclick={toggleDropdown}
-        class="btn btn-ghost btn-icon relative"
-        aria-label="Notifications"
-    >
+    <button type="button" onclick={toggleDropdown} class="btn btn-ghost btn-icon relative" aria-label="Notifications">
         <Bell class="w-5 h-5" />
         {#if notificationStore.unreadCount > 0}
-            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            <span
+                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
+            >
                 {notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount}
             </span>
         {/if}
@@ -126,7 +126,8 @@
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
                     {#if notificationStore.unreadCount > 0}
-                        <button type="button"
+                        <button
+                            type="button"
                             onclick={markAllAsRead}
                             class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                         >
@@ -135,7 +136,8 @@
                     {/if}
                 </div>
                 {#if notificationPermission === 'default'}
-                    <button type="button"
+                    <button
+                        type="button"
                         onclick={requestNotificationPermission}
                         class="mt-2 w-full text-xs text-fg-muted dark:text-dark-fg-muted hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1"
                     >
@@ -151,9 +153,7 @@
                         <Spinner size="small" />
                     </div>
                 {:else if notificationStore.notifications.length === 0}
-                    <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">
-                        No notifications yet
-                    </div>
+                    <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">No notifications yet</div>
                 {:else}
                     {#each notificationStore.notifications as notification}
                         {@const NotifIcon = getNotificationIcon(notification.tags)}
@@ -162,7 +162,12 @@
                             class:bg-blue-50={notification.status !== 'read'}
                             class:dark:bg-blue-900={notification.status !== 'read'}
                             onclick={() => handleNotificationClick(notification)}
-                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(notification); } }}
+                            onkeydown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleNotificationClick(notification);
+                                }
+                            }}
                             tabindex="0"
                             role="button"
                             aria-label="View notification: {notification.subject}"
@@ -192,7 +197,8 @@
             </div>
 
             <div class="p-3 border-t border-border-default dark:border-dark-border-default">
-                <button type="button"
+                <button
+                    type="button"
                     onclick={() => {
                         showDropdown = false;
                         goto('/notifications');

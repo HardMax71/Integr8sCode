@@ -16,8 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "stylelint": "stylelint \"src/**/*.css\"",
-    "format": "prettier --write \"src/**/*.{ts,svelte,css,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,svelte,css,json}\""
+    "format": "prettier --write \"src/**/*.{ts,svelte,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,svelte,json}\""
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.17.0",

@@ -11,17 +11,20 @@
         EventDetailsModal,
         ReplayPreviewModal,
         ReplayProgressBanner,
-        UserOverviewModal
+        UserOverviewModal,
     } from '$components/admin/events';
+    import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '$lib/admin/events';
     import {
-        hasActiveFilters,
-        getActiveFilterCount,
-        getActiveFilterSummary,
-    } from '$lib/admin/events';
-    import {
-        Filter, Download, RefreshCw, X,
-        ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
-        FileText, Code
+        Filter,
+        Download,
+        RefreshCw,
+        X,
+        ChevronsLeft,
+        ChevronLeft,
+        ChevronRight,
+        ChevronsRight,
+        FileText,
+        Code,
     } from '@lucide/svelte';
     import { createEventsStore } from '$lib/admin/stores/eventsStore.svelte';
 
@@ -62,7 +65,9 @@
     async function handleUserOverview(userId: string): Promise<void> {
         showUserOverview = true;
         await store.openUserOverview(userId);
-        if (!store.userOverview) { showUserOverview = false; }
+        if (!store.userOverview) {
+            showUserOverview = false;
+        }
     }
 
     onMount(() => {
@@ -72,11 +77,13 @@
     onDestroy(() => store.cleanup());
 </script>
 
-<svelte:document onclick={(e) => {
-    if (showExportMenu && !(e.target as Element)?.closest('.export-dropdown')) {
-        showExportMenu = false;
-    }
-}} />
+<svelte:document
+    onclick={(e) => {
+        if (showExportMenu && !(e.target as Element)?.closest('.export-dropdown')) {
+            showExportMenu = false;
+        }
+    }}
+/>
 
 <AdminLayout path="/admin/events">
     <div class="container mx-auto px-4 pb-8">
@@ -85,8 +92,9 @@
             <h1 class="text-2xl sm:text-3xl font-bold">Event Browser</h1>
 
             <div class="flex flex-wrap gap-2">
-                <button type="button"
-                    onclick={() => showFilters = !showFilters}
+                <button
+                    type="button"
+                    onclick={() => (showFilters = !showFilters)}
                     class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
                     class:btn-primary={showFilters}
                     class:btn-secondary-outline={!showFilters}
@@ -100,7 +108,11 @@
                     </span>
                     <span class="hidden sm:inline">Filters</span>
                     {#if hasActiveFilters(store.filters)}
-                        <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters ? 'bg-white text-primary' : 'bg-primary text-white'}">
+                        <span
+                            class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters
+                                ? 'bg-white text-primary'
+                                : 'bg-primary text-white'}"
+                        >
                             {getActiveFilterCount(store.filters)}
                         </span>
                     {/if}
@@ -108,8 +120,9 @@
 
                 <!-- Export dropdown -->
                 <div class="relative export-dropdown">
-                    <button type="button"
-                        onclick={() => showExportMenu = !showExportMenu}
+                    <button
+                        type="button"
+                        onclick={() => (showExportMenu = !showExportMenu)}
                         class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
                     >
                         <Download size={16} />
@@ -118,16 +131,26 @@
                     </button>
 
                     {#if showExportMenu}
-                        <div class="absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50">
-                            <button type="button"
-                                onclick={() => { store.exportEvents('csv'); showExportMenu = false; }}
+                        <div
+                            class="absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50"
+                        >
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    store.exportEvents('csv');
+                                    showExportMenu = false;
+                                }}
                                 class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-t-lg transition-colors"
                             >
                                 <FileText size={16} class="text-green-600 dark:text-green-400" />
                                 <span>Export as CSV</span>
                             </button>
-                            <button type="button"
-                                onclick={() => { store.exportEvents('json'); showExportMenu = false; }}
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    store.exportEvents('json');
+                                    showExportMenu = false;
+                                }}
                                 class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-b-lg transition-colors"
                             >
                                 <Code size={16} class="text-blue-600 dark:text-blue-400" />
@@ -137,14 +160,19 @@
                     {/if}
                 </div>
 
-                <button type="button" onclick={() => store.loadEvents()} class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2" disabled={store.loading}>
+                <button
+                    type="button"
+                    onclick={() => store.loadEvents()}
+                    class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
+                    disabled={store.loading}
+                >
                     {#if store.loading}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
                     <span class="hidden sm:inline">Refresh</span>
                 </button>
             </div>
         </div>
 
-        <ReplayProgressBanner session={store.activeReplaySession} onClose={() => store.activeReplaySession = null} />
+        <ReplayProgressBanner session={store.activeReplaySession} onClose={() => (store.activeReplaySession = null)} />
 
         <EventStatsCards stats={store.stats} totalEvents={store.totalEvents} />
 
@@ -153,11 +181,14 @@
             <div class="mb-4 flex flex-wrap items-center gap-2">
                 <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
                 {#each getActiveFilterSummary(store.filters) as filter}
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light">
+                    <span
+                        class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light"
+                    >
                         {filter}
                     </span>
                 {/each}
-                <button type="button"
+                <button
+                    type="button"
                     onclick={() => store.clearFilters()}
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
@@ -168,7 +199,11 @@
         {/if}
 
         {#if showFilters}
-            <EventFilters bind:filters={store.filters} onApply={() => store.applyFilters()} onClear={() => store.clearFilters()} />
+            <EventFilters
+                bind:filters={store.filters}
+                onApply={() => store.applyFilters()}
+                onClear={() => store.clearFilters()}
+            />
         {/if}
 
         <!-- Events table -->
@@ -193,11 +228,16 @@
                         <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div class="flex items-center gap-4">
                                 <div class="flex items-center gap-2">
-                                    <label for="events-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted">Show:</label>
+                                    <label for="events-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted"
+                                        >Show:</label
+                                    >
                                     <select
                                         id="events-page-size"
                                         bind:value={store.pagination.pageSize}
-                                        onchange={() => { store.pagination.currentPage = 1; store.loadEvents(); }}
+                                        onchange={() => {
+                                            store.pagination.currentPage = 1;
+                                            store.loadEvents();
+                                        }}
                                         class="pagination-selector"
                                     >
                                         <option value={10}>10</option>
@@ -210,10 +250,28 @@
 
                                 {#if totalPages > 1}
                                     <div class="flex items-center gap-1">
-                                        <button type="button" onclick={() => { store.pagination.currentPage = 1; store.loadEvents(); }} disabled={store.pagination.currentPage === 1} class="pagination-button" title="First page">
+                                        <button
+                                            type="button"
+                                            onclick={() => {
+                                                store.pagination.currentPage = 1;
+                                                store.loadEvents();
+                                            }}
+                                            disabled={store.pagination.currentPage === 1}
+                                            class="pagination-button"
+                                            title="First page"
+                                        >
                                             <ChevronsLeft size={16} />
                                         </button>
-                                        <button type="button" onclick={() => { store.pagination.currentPage--; store.loadEvents(); }} disabled={store.pagination.currentPage === 1} class="pagination-button" title="Previous page">
+                                        <button
+                                            type="button"
+                                            onclick={() => {
+                                                store.pagination.currentPage--;
+                                                store.loadEvents();
+                                            }}
+                                            disabled={store.pagination.currentPage === 1}
+                                            class="pagination-button"
+                                            title="Previous page"
+                                        >
                                             <ChevronLeft size={16} />
                                         </button>
                                         <div class="pagination-text">
@@ -221,10 +279,28 @@
                                             <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
                                             <span class="font-medium">{totalPages}</span>
                                         </div>
-                                        <button type="button" onclick={() => { store.pagination.currentPage++; store.loadEvents(); }} disabled={store.pagination.currentPage === totalPages} class="pagination-button" title="Next page">
+                                        <button
+                                            type="button"
+                                            onclick={() => {
+                                                store.pagination.currentPage++;
+                                                store.loadEvents();
+                                            }}
+                                            disabled={store.pagination.currentPage === totalPages}
+                                            class="pagination-button"
+                                            title="Next page"
+                                        >
                                             <ChevronRight size={16} />
                                         </button>
-                                        <button type="button" onclick={() => { store.pagination.currentPage = totalPages; store.loadEvents(); }} disabled={store.pagination.currentPage === totalPages} class="pagination-button" title="Last page">
+                                        <button
+                                            type="button"
+                                            onclick={() => {
+                                                store.pagination.currentPage = totalPages;
+                                                store.loadEvents();
+                                            }}
+                                            disabled={store.pagination.currentPage === totalPages}
+                                            class="pagination-button"
+                                            title="Last page"
+                                        >
                                             <ChevronsRight size={16} />
                                         </button>
                                     </div>
@@ -232,7 +308,10 @@
                             </div>
 
                             <div class="text-xs sm:text-sm text-fg-muted dark:text-dark-fg-muted">
-                                Showing {(store.pagination.currentPage - 1) * store.pagination.pageSize + 1} to {Math.min(store.pagination.currentPage * store.pagination.pageSize, store.totalEvents)} of {store.totalEvents} events
+                                Showing {(store.pagination.currentPage - 1) * store.pagination.pageSize + 1} to {Math.min(
+                                    store.pagination.currentPage * store.pagination.pageSize,
+                                    store.totalEvents,
+                                )} of {store.totalEvents} events
                             </div>
                         </div>
                     </div>
@@ -247,7 +326,7 @@
     <EventDetailsModal
         event={selectedEvent}
         open={!!selectedEvent}
-        onClose={() => selectedEvent = null}
+        onClose={() => (selectedEvent = null)}
         onReplay={handleReplayFromModal}
         onViewRelated={loadEventDetail}
     />
@@ -257,7 +336,9 @@
     <ReplayPreviewModal
         preview={store.replayPreview}
         open={showReplayPreview}
-        onClose={() => { store.replayPreview = null; }}
+        onClose={() => {
+            store.replayPreview = null;
+        }}
         onConfirm={handleReplayConfirm}
     />
 {/if}
@@ -267,6 +348,6 @@
         overview={store.userOverview}
         loading={store.userOverviewLoading}
         open={showUserOverview}
-        onClose={() => showUserOverview = false}
+        onClose={() => (showUserOverview = false)}
     />
 {/if}

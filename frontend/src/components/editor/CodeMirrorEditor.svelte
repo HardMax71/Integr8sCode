@@ -52,13 +52,13 @@
             keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
             languageCompartment.of(getLanguageExtension(lang)),
             lineWrappingCompartment.of(settings.word_wrap ? EditorView.lineWrapping : []),
-            fontSizeCompartment.of(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size}px` } })),
+            fontSizeCompartment.of(EditorView.theme({ '.cm-content': { fontSize: `${settings.font_size}px` } })),
             EditorView.theme({
-                "&": { height: "100%", maxHeight: "100%" },
-                ".cm-content": { minHeight: "100%" },
-                ".cm-scroller": { overflow: "auto", maxHeight: "100%" }
+                '&': { height: '100%', maxHeight: '100%' },
+                '.cm-content': { minHeight: '100%' },
+                '.cm-scroller': { overflow: 'auto', maxHeight: '100%' },
             }),
-            EditorView.updateListener.of(update => {
+            EditorView.updateListener.of((update) => {
                 if (update.docChanged) {
                     const newContent = update.state.doc.toString();
                     content = newContent;
@@ -71,10 +71,16 @@
     function applySettings() {
         if (!view) return;
         view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
-        view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ ".cm-content": { fontSize: `${settings.font_size}px` } })) });
+        view.dispatch({
+            effects: fontSizeCompartment.reconfigure(
+                EditorView.theme({ '.cm-content': { fontSize: `${settings.font_size}px` } }),
+            ),
+        });
         view.dispatch({ effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(settings.tab_size)) });
         view.dispatch({ effects: lineNumbersCompartment.reconfigure(settings.show_line_numbers ? lineNumbers() : []) });
-        view.dispatch({ effects: lineWrappingCompartment.reconfigure(settings.word_wrap ? EditorView.lineWrapping : []) });
+        view.dispatch({
+            effects: lineWrappingCompartment.reconfigure(settings.word_wrap ? EditorView.lineWrapping : []),
+        });
     }
 
     onMount(() => {
@@ -82,7 +88,7 @@
 
         const startState = EditorState.create({
             doc: content,
-            extensions: [...getStaticExtensions(), themeCompartment.of(getThemeExtension())]
+            extensions: [...getStaticExtensions(), themeCompartment.of(getThemeExtension())],
         });
 
         view = new EditorView({ state: startState, parent: container });
@@ -116,7 +122,7 @@
         if (!view) return;
         view.dispatch({
             changes: { from: 0, to: view.state.doc.length, insert: newContent },
-            selection: { anchor: 0 }
+            selection: { anchor: 0 },
         });
     }
 

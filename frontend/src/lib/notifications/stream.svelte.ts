@@ -1,7 +1,4 @@
-import {
-    notificationStreamApiV1EventsNotificationsStreamGet,
-    type NotificationResponse,
-} from '$lib/api';
+import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '$lib/api';
 import { logger } from '$lib/logger';
 
 const log = logger.withTag('NotificationStream');
@@ -38,7 +35,9 @@ class NotificationStream {
         });
 
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        for await (const _ of stream) { /* events dispatched via onSseEvent */ }
+        for await (const _ of stream) {
+            /* events dispatched via onSseEvent */
+        }
     }
 
     disconnect(): void {

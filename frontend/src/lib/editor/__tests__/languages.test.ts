@@ -2,13 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { getLanguageExtension } from '$lib/editor/languages';
 
 describe('getLanguageExtension', () => {
-    it.each(['python', 'node', 'go', 'ruby', 'bash'])(
-        'returns an extension for "%s"',
-        (lang) => {
-            const ext = getLanguageExtension(lang);
-            expect(ext).toBeDefined();
-        },
-    );
+    it.each(['python', 'node', 'go', 'ruby', 'bash'])('returns an extension for "%s"', (lang) => {
+        const ext = getLanguageExtension(lang);
+        expect(ext).toBeDefined();
+    });
 
     it('returns python extension for unknown language', () => {
         const fallback = getLanguageExtension('unknown-lang');

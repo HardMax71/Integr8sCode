@@ -49,9 +49,9 @@ repos:
       # Prettier - matches CI: cd frontend && npx prettier --check
       - id: prettier-frontend
         name: prettier (frontend)
-        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,svelte,css,json}"'
+        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,svelte,json}"'
         language: system
-        files: ^frontend/src/.*\.(ts|svelte|css|json)$
+        files: ^frontend/src/.*\.(ts|svelte|json)$
         pass_filenames: false
 
       # Svelte Check - matches CI: cd frontend && npx svelte-check

@@ -22,5 +22,9 @@ class UserSettingsStore {
 }
 
 export const userSettingsStore = new UserSettingsStore();
-export const setUserSettings = (s: UserSettings | null) => { userSettingsStore.setUserSettings(s); };
-export const clearUserSettings = () => { userSettingsStore.clearUserSettings(); };
+export const setUserSettings = (s: UserSettings | null) => {
+    userSettingsStore.setUserSettings(s);
+};
+export const clearUserSettings = () => {
+    userSettingsStore.clearUserSettings();
+};

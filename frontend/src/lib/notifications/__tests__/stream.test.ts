@@ -11,7 +11,7 @@ vi.mock('$lib/api', () => ({
 
 const { notificationStream } = await import('../stream.svelte');
 
-const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function validPayload(overrides: Partial<NotificationResponse> = {}): NotificationResponse {
     return {
@@ -45,7 +45,11 @@ function mockStream(): { readonly onSseEvent: ((event: any) => void) | undefined
         };
     });
 
-    return { get onSseEvent() { return onSseEvent; } };
+    return {
+        get onSseEvent() {
+            return onSseEvent;
+        },
+    };
 }
 
 describe('NotificationStream', () => {

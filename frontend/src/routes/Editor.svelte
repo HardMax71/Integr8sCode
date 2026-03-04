@@ -30,7 +30,7 @@
         ResourceLimits as ResourceLimitsPanel,
         EditorToolbar,
         ScriptActions,
-        SavedScripts
+        SavedScripts,
     } from '$components/editor';
 
     function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -60,7 +60,9 @@
                 for (const [key, value] of Object.entries(snapshot)) {
                     localStorage.setItem(key, JSON.stringify(value));
                 }
-            } catch { /* Quota exceeded or private browsing */ }
+            } catch {
+                /* Quota exceeded or private browsing */
+            }
         }, 300);
         return () => clearTimeout(timer);
     });
@@ -80,11 +82,15 @@
 
     const execution = createExecutionState();
     const runtimesAvailable = $derived(Object.keys(supportedRuntimes).length > 0);
-    const acceptedFileExts = $derived(Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(',') || '.txt');
+    const acceptedFileExts = $derived(
+        Object.values(supportedRuntimes)
+            .map((i) => `.${i.file_ext}`)
+            .join(',') || '.txt',
+    );
 
     $effect(() => {
         if (nameEditedByUser && typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
-            const saved = savedScripts.find(s => s.script_id === currentScriptId);
+            const saved = savedScripts.find((s) => s.script_id === currentScriptId);
             if (saved && saved.name !== scriptName) {
                 currentScriptId = null;
                 toast.info('Script name changed. Next save will create a new script.');
@@ -149,13 +155,22 @@
     }
 
     async function saveScript() {
-        if (!authenticated) { toast.warning('Please log in to save scripts.'); return; }
-        if (!scriptName.trim()) { toast.warning('Please provide a name for your script.'); return; }
+        if (!authenticated) {
+            toast.warning('Please log in to save scripts.');
+            return;
+        }
+        if (!scriptName.trim()) {
+            toast.warning('Please provide a name for your script.');
+            return;
+        }
 
         const body = { name: scriptName, script, lang: selectedLang, lang_version: selectedVersion };
 
         if (currentScriptId) {
-            const { error, response } = await updateSavedScriptApiV1ScriptsScriptIdPut({ path: { script_id: currentScriptId }, body });
+            const { error, response } = await updateSavedScriptApiV1ScriptsScriptIdPut({
+                path: { script_id: currentScriptId },
+                body,
+            });
             if (error) {
                 if (response?.status === 404) {
                     currentScriptId = null;
@@ -175,8 +190,13 @@
     }
 
     async function deleteScript(id: string) {
-        const s = savedScripts.find(x => x.script_id === id);
-        if (!confirm(s ? `Are you sure you want to delete "${s.name}"?` : 'Are you sure you want to delete this script?')) return;
+        const s = savedScripts.find((x) => x.script_id === id);
+        if (
+            !confirm(
+                s ? `Are you sure you want to delete "${s.name}"?` : 'Are you sure you want to delete this script?',
+            )
+        )
+            return;
         unwrap(await deleteSavedScriptApiV1ScriptsScriptIdDelete({ path: { script_id: id } }));
         toast.success('Script deleted successfully.');
         if (currentScriptId === id) newScript();
@@ -226,7 +246,11 @@
         const detectedLang = extToLang[fileExt];
 
         if (!detectedLang) {
-            toast.error(`Unsupported file type. Allowed: ${Object.values(supportedRuntimes).map(i => `.${i.file_ext}`).join(', ')}`);
+            toast.error(
+                `Unsupported file type. Allowed: ${Object.values(supportedRuntimes)
+                    .map((i) => `.${i.file_ext}`)
+                    .join(', ')}`,
+            );
             (event.target as HTMLInputElement).value = '';
             return;
         }
@@ -250,12 +274,18 @@
 
     function loadExampleScript() {
         const example = exampleScripts[selectedLang];
-        if (!example) { toast.warning(`No example script available for ${selectedLang}.`); return; }
+        if (!example) {
+            toast.warning(`No example script available for ${selectedLang}.`);
+            return;
+        }
 
         const lines = example.split('\n');
         const firstLine = lines.find((l: string) => l.trim().length > 0);
         const indent = firstLine ? (firstLine.match(/^\s*/) ?? [''])[0] : '';
-        const cleaned = lines.map((l: string) => l.startsWith(indent) ? l.substring(indent.length) : l).join('\n').trim();
+        const cleaned = lines
+            .map((l: string) => (l.startsWith(indent) ? l.substring(indent.length) : l))
+            .join('\n')
+            .trim();
 
         script = cleaned;
         editorRef?.setContent(cleaned);
@@ -272,12 +302,23 @@
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">Code Editor</h2>
+        <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">
+            Code Editor
+        </h2>
         <ResourceLimitsPanel limits={k8sLimits} />
     </div>
 
-    <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default">
-        <EditorToolbar name={scriptName} onchange={(n) => { scriptName = n; nameEditedByUser = true; }} onexample={loadExampleScript} />
+    <div
+        class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default"
+    >
+        <EditorToolbar
+            name={scriptName}
+            onchange={(n) => {
+                scriptName = n;
+                nameEditedByUser = true;
+            }}
+            onexample={loadExampleScript}
+        />
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
                 bind:this={editorRef}
@@ -286,10 +327,18 @@
                 settings={editorSettings}
             />
             {#if script.trim() === ''}
-                <div class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none">
+                <div
+                    class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none"
+                >
                     <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
-                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">Start typing, upload a file, or use an example to begin.</p>
-                    <button type="button" class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto" onclick={loadExampleScript}>
+                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">
+                        Start typing, upload a file, or use an example to begin.
+                    </p>
+                    <button
+                        type="button"
+                        class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto"
+                        onclick={loadExampleScript}
+                    >
                         <Lightbulb class="w-4 h-4" />
                         <span>Start with an Example</span>
                     </button>
@@ -309,17 +358,27 @@
                     runtimes={supportedRuntimes}
                     lang={selectedLang}
                     version={selectedVersion}
-                    onselect={(l, v) => { selectedLang = l; selectedVersion = v; }}
+                    onselect={(l, v) => {
+                        selectedLang = l;
+                        selectedVersion = v;
+                    }}
                 />
-                <button type="button" class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]" onclick={handleExecute}
-                        disabled={execution.isExecuting || !runtimesAvailable}>
+                <button
+                    type="button"
+                    class="btn btn-primary btn-sm flex-grow sm:flex-grow-0 min-w-[130px]"
+                    onclick={handleExecute}
+                    disabled={execution.isExecuting || !runtimesAvailable}
+                >
                     <CirclePlay class="w-5 h-5" />
                     <span class="ml-1.5">{execution.isExecuting ? 'Executing...' : 'Run Script'}</span>
                 </button>
-                <button type="button" class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
-                        onclick={() => showOptions = !showOptions}
-                        aria-expanded={showOptions}
-                        title={showOptions ? 'Hide Options' : 'Show Options'}>
+                <button
+                    type="button"
+                    class="btn btn-secondary-outline btn-sm btn-icon ml-auto sm:ml-2"
+                    onclick={() => (showOptions = !showOptions)}
+                    aria-expanded={showOptions}
+                    title={showOptions ? 'Hide Options' : 'Show Options'}
+                >
                     <span class="sr-only">Toggle Script Options</span>
                     <div class="transition-transform duration-300 ease-out-expo" class:rotate-90={showOptions}>
                         <Settings class="w-5 h-5" />
@@ -328,8 +387,10 @@
             </div>
 
             {#if showOptions}
-                <div class="p-4 bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg flex space-x-4"
-                     transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}>
+                <div
+                    class="p-4 bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg flex space-x-4"
+                    transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
+                >
                     <div class="w-1/2">
                         <ScriptActions
                             {authenticated}
@@ -350,7 +411,11 @@
                             />
                         {:else}
                             <div class="flex flex-col items-center justify-center h-full text-center">
-                                <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider mb-2">Saved Scripts</h4>
+                                <h4
+                                    class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider mb-2"
+                                >
+                                    Saved Scripts
+                                </h4>
                                 <p class="text-xs text-fg-muted dark:text-dark-fg-muted">
                                     <a href="/login" class="link">Log in</a> to save and manage your scripts.
                                 </p>

@@ -55,13 +55,15 @@
                         {/if}
                     </div>
                     <div class="flex gap-2">
-                        <button type="button"
+                        <button
+                            type="button"
                             onclick={() => onViewExecution(saga.execution_id)}
                             class="flex-1 btn btn-sm btn-secondary-outline"
                         >
                             Execution
                         </button>
-                        <button type="button"
+                        <button
+                            type="button"
                             onclick={() => onViewDetails(saga.saga_id)}
                             class="flex-1 btn btn-sm btn-primary"
                         >
@@ -92,7 +94,8 @@
                             <td class="table-cell">
                                 <div class="font-medium">{saga.saga_name}</div>
                                 <div class="text-sm text-fg-muted">ID: {saga.saga_id.slice(0, 8)}...</div>
-                                <button type="button"
+                                <button
+                                    type="button"
                                     onclick={() => onViewExecution(saga.execution_id)}
                                     class="text-xs text-primary hover:text-primary-dark"
                                 >
@@ -109,7 +112,9 @@
                                 <div class="text-sm">
                                     <span class="text-fg-muted">{saga.completed_steps.length} steps</span>
                                     {#if saga.current_step}
-                                        <div class="text-xs text-fg-muted mt-1 truncate">Current: {saga.current_step}</div>
+                                        <div class="text-xs text-fg-muted mt-1 truncate">
+                                            Current: {saga.current_step}
+                                        </div>
                                     {/if}
                                 </div>
                             </td>
@@ -118,7 +123,8 @@
                                 {formatDurationBetween(saga.created_at, saga.completed_at || saga.updated_at)}
                             </td>
                             <td class="table-cell text-center">
-                                <button type="button"
+                                <button
+                                    type="button"
                                     onclick={() => onViewDetails(saga.saga_id)}
                                     class="text-primary hover:text-primary-dark"
                                 >

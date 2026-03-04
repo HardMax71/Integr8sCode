@@ -19,12 +19,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/api', () => ({
-    browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) => mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
+    browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) =>
+        mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
     getEventStatsApiV1AdminEventsStatsGet: (...args: unknown[]) => mocks.getEventStatsApiV1AdminEventsStatsGet(...args),
-    getEventDetailApiV1AdminEventsEventIdGet: (...args: unknown[]) => mocks.getEventDetailApiV1AdminEventsEventIdGet(...args),
-    replayEventsApiV1AdminEventsReplayPost: (...args: unknown[]) => mocks.replayEventsApiV1AdminEventsReplayPost(...args),
-    deleteEventApiV1AdminEventsEventIdDelete: (...args: unknown[]) => mocks.deleteEventApiV1AdminEventsEventIdDelete(...args),
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) => mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
+    getEventDetailApiV1AdminEventsEventIdGet: (...args: unknown[]) =>
+        mocks.getEventDetailApiV1AdminEventsEventIdGet(...args),
+    replayEventsApiV1AdminEventsReplayPost: (...args: unknown[]) =>
+        mocks.replayEventsApiV1AdminEventsReplayPost(...args),
+    deleteEventApiV1AdminEventsEventIdDelete: (...args: unknown[]) =>
+        mocks.deleteEventApiV1AdminEventsEventIdDelete(...args),
+    getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) =>
+        mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
 }));
 
 vi.mock('$lib/api-interceptors', () => ({
@@ -233,17 +238,19 @@ describe('EventsStore', () => {
             await store.replayEvent('evt-1', false);
 
             const es = MockEventSource.instances[0]!;
-            es.simulateMessage(JSON.stringify({
-                session_id: 'session-1',
-                status: 'running',
-                total_events: 5,
-                replayed_events: 3,
-                failed_events: 0,
-                skipped_events: 0,
-                replay_id: 'replay-1',
-                created_at: '2024-01-01T00:00:00Z',
-                errors: [],
-            }));
+            es.simulateMessage(
+                JSON.stringify({
+                    session_id: 'session-1',
+                    status: 'running',
+                    total_events: 5,
+                    replayed_events: 3,
+                    failed_events: 0,
+                    skipped_events: 0,
+                    replay_id: 'replay-1',
+                    created_at: '2024-01-01T00:00:00Z',
+                    errors: [],
+                }),
+            );
 
             expect(store.activeReplaySession?.replayed_events).toBe(3);
             expect(store.activeReplaySession?.progress_percentage).toBe(60);
@@ -258,17 +265,19 @@ describe('EventsStore', () => {
             await store.replayEvent('evt-1', false);
 
             const es = MockEventSource.instances[0]!;
-            es.simulateMessage(JSON.stringify({
-                session_id: 'session-1',
-                status: 'completed',
-                total_events: 5,
-                replayed_events: 5,
-                failed_events: 0,
-                skipped_events: 0,
-                replay_id: 'replay-1',
-                created_at: '2024-01-01T00:00:00Z',
-                errors: [],
-            }));
+            es.simulateMessage(
+                JSON.stringify({
+                    session_id: 'session-1',
+                    status: 'completed',
+                    total_events: 5,
+                    replayed_events: 5,
+                    failed_events: 0,
+                    skipped_events: 0,
+                    replay_id: 'replay-1',
+                    created_at: '2024-01-01T00:00:00Z',
+                    errors: [],
+                }),
+            );
 
             expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
             expect(es.closed).toBe(true);
@@ -335,10 +344,7 @@ describe('EventsStore', () => {
             store.filters = { user_id: 'user-1', aggregate_id: 'agg-1' };
             store.exportEvents('csv');
 
-            expect(mocks.windowOpen).toHaveBeenCalledWith(
-                expect.stringMatching(/user_id=user-1/),
-                '_blank',
-            );
+            expect(mocks.windowOpen).toHaveBeenCalledWith(expect.stringMatching(/user_id=user-1/), '_blank');
         });
     });
 

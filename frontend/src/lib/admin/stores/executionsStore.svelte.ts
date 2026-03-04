@@ -26,7 +26,9 @@ class ExecutionsStore {
     constructor() {
         $effect(() => {
             const id = setInterval(() => this.loadData(), 5000);
-            return () => { clearInterval(id); };
+            return () => {
+                clearInterval(id);
+            };
         });
     }
 
@@ -36,15 +38,18 @@ class ExecutionsStore {
 
     async loadExecutions(): Promise<void> {
         this.loading = true;
-        const data = unwrapOr(await listExecutionsApiV1AdminExecutionsGet({
-            query: {
-                limit: this.pagination.pageSize,
-                skip: this.pagination.skip,
-                status: this.statusFilter !== 'all' ? this.statusFilter : undefined,
-                priority: this.priorityFilter !== 'all' ? this.priorityFilter : undefined,
-                user_id: this.userSearch || undefined,
-            },
-        }), null);
+        const data = unwrapOr(
+            await listExecutionsApiV1AdminExecutionsGet({
+                query: {
+                    limit: this.pagination.pageSize,
+                    skip: this.pagination.skip,
+                    status: this.statusFilter !== 'all' ? this.statusFilter : undefined,
+                    priority: this.priorityFilter !== 'all' ? this.priorityFilter : undefined,
+                    user_id: this.userSearch || undefined,
+                },
+            }),
+            null,
+        );
         this.executions = data?.executions || [];
         this.total = data?.total || 0;
         this.loading = false;
@@ -58,10 +63,12 @@ class ExecutionsStore {
     }
 
     async updatePriority(executionId: string, newPriority: QueuePriority): Promise<void> {
-        unwrap(await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
-            path: { execution_id: executionId },
-            body: { priority: newPriority },
-        }));
+        unwrap(
+            await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
+                path: { execution_id: executionId },
+                body: { priority: newPriority },
+            }),
+        );
         toast.success(`Priority updated to ${newPriority}`);
         await this.loadData();
     }

@@ -22,7 +22,7 @@ export interface PaginationOptions {
 const DEFAULT_OPTIONS: Required<PaginationOptions> = {
     initialPage: 1,
     initialPageSize: 10,
-    pageSizeOptions: [5, 10, 20, 50]
+    pageSizeOptions: [5, 10, 20, 50],
 };
 
 /**
@@ -54,14 +54,30 @@ export function createPaginationState(options: PaginationOptions = {}): Paginati
     }
 
     return {
-        get currentPage() { return currentPage; },
-        set currentPage(v: number) { currentPage = v; },
-        get pageSize() { return pageSize; },
-        set pageSize(v: number) { pageSize = v; },
-        get totalItems() { return totalItems; },
-        set totalItems(v: number) { totalItems = v; },
-        get totalPages() { return totalPages; },
-        get skip() { return skip; },
+        get currentPage() {
+            return currentPage;
+        },
+        set currentPage(v: number) {
+            currentPage = v;
+        },
+        get pageSize() {
+            return pageSize;
+        },
+        set pageSize(v: number) {
+            pageSize = v;
+        },
+        get totalItems() {
+            return totalItems;
+        },
+        set totalItems(v: number) {
+            totalItems = v;
+        },
+        get totalPages() {
+            return totalPages;
+        },
+        get skip() {
+            return skip;
+        },
         handlePageChange,
         handlePageSizeChange,
     };

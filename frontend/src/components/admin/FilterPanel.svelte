@@ -23,7 +23,7 @@
         onToggle,
         children,
         title = 'Filter',
-        showToggleButton = true
+        showToggleButton = true,
     }: Props = $props();
 
     function handleToggle(): void {
@@ -33,7 +33,8 @@
 </script>
 
 {#if showToggleButton}
-    <button type="button"
+    <button
+        type="button"
         onclick={handleToggle}
         aria-expanded={open}
         class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
@@ -49,7 +50,11 @@
         </span>
         <span class="hidden sm:inline">Filters</span>
         {#if hasActiveFilters}
-            <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {open ? 'bg-white text-primary' : 'bg-primary text-white'}">
+            <span
+                class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {open
+                    ? 'bg-white text-primary'
+                    : 'bg-primary text-white'}"
+            >
                 {activeFilterCount}
             </span>
         {/if}
@@ -65,14 +70,10 @@
                 </h3>
                 <div class="flex gap-2">
                     {#if onClear}
-                        <button type="button" onclick={onClear} class="btn btn-ghost btn-sm">
-                            Clear All
-                        </button>
+                        <button type="button" onclick={onClear} class="btn btn-ghost btn-sm"> Clear All </button>
                     {/if}
                     {#if onApply}
-                        <button type="button" onclick={onApply} class="btn btn-primary btn-sm">
-                            Apply
-                        </button>
+                        <button type="button" onclick={onApply} class="btn btn-primary btn-sm"> Apply </button>
                     {/if}
                 </div>
             </div>

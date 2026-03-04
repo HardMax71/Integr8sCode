@@ -16,44 +16,44 @@ export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
         label: 'Created',
         color: 'badge-neutral',
         bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
-        icon: Plus
+        icon: Plus,
     },
     running: {
         label: 'Running',
         color: 'badge-info',
         bgColor: 'bg-blue-50 dark:bg-blue-900/20',
-        icon: Loader
+        icon: Loader,
     },
     compensating: {
         label: 'Compensating',
         color: 'badge-warning',
         bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
-        icon: TriangleAlert
+        icon: TriangleAlert,
     },
     completed: {
         label: 'Completed',
         color: 'badge-success',
         bgColor: 'bg-green-50 dark:bg-green-900/20',
-        icon: CircleCheckBig
+        icon: CircleCheckBig,
     },
     failed: {
         label: 'Failed',
         color: 'badge-danger',
         bgColor: 'bg-red-50 dark:bg-red-900/20',
-        icon: CircleX
+        icon: CircleX,
     },
     timeout: {
         label: 'Timeout',
         color: 'badge-warning',
         bgColor: 'bg-orange-50 dark:bg-orange-900/20',
-        icon: Clock
+        icon: Clock,
     },
     cancelled: {
         label: 'Cancelled',
         color: 'badge-neutral',
         bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
-        icon: CircleX
-    }
+        icon: CircleX,
+    },
 };
 
 export function getSagaStateInfo(state: SagaState): SagaStateConfig {

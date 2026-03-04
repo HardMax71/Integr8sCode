@@ -24,17 +24,7 @@
         onReset: () => void;
     }
 
-    let {
-        open,
-        user,
-        config = $bindable(null),
-        usage,
-        loading,
-        saving,
-        onClose,
-        onSave,
-        onReset
-    }: Props = $props();
+    let { open, user, config = $bindable(null), usage, loading, saving, onClose, onSave, onReset }: Props = $props();
 
     let defaultRules = $state<RateLimitRuleResponse[]>([]);
 
@@ -45,7 +35,7 @@
 
     let defaultRulesWithEffective = $derived.by(() => {
         const multiplier = config && config.global_multiplier > 0 ? config.global_multiplier : 1;
-        return defaultRules.map(rule => ({
+        return defaultRules.map((rule) => ({
             ...rule,
             effective_requests: Math.floor(rule.requests * multiplier),
         }));
@@ -76,17 +66,24 @@
         {:else if config}
             <div class="space-y-4">
                 <!-- Quick Settings -->
-                <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-900">
+                <div
+                    class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-neutral-50 dark:bg-neutral-900"
+                >
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Quick Settings</h4>
                         <label class="flex items-center gap-2">
                             <input type="checkbox" bind:checked={config.bypass_rate_limit} class="rounded" />
-                            <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Bypass all rate limits</span>
+                            <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                >Bypass all rate limits</span
+                            >
                         </label>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label for="global-multiplier" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                            <label
+                                for="global-multiplier"
+                                class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
+                            >
                                 Global Multiplier
                             </label>
                             <input
@@ -103,7 +100,10 @@
                             </p>
                         </div>
                         <div>
-                            <label for="admin-notes" class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default">
+                            <label
+                                for="admin-notes"
+                                class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
+                            >
                                 Admin Notes
                             </label>
                             <textarea
@@ -121,7 +121,8 @@
                 <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                     <div class="flex justify-between items-center mb-4">
                         <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Endpoint Rate Limits</h4>
-                        <button type="button"
+                        <button
+                            type="button"
                             onclick={addNewRule}
                             class="btn btn-sm btn-primary flex items-center gap-1"
                             disabled={config.bypass_rate_limit}
@@ -132,21 +133,29 @@
 
                     <!-- Default Rules -->
                     <div class="mb-4">
-                        <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Default Global Rules</h5>
+                        <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
+                            Default Global Rules
+                        </h5>
                         <div class="space-y-2">
                             {#each defaultRulesWithEffective as rule}
-                                <div class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+                                <div
+                                    class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+                                >
                                     <div class="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 items-center">
                                         <div>
                                             <span class="text-xs text-neutral-500 dark:text-neutral-400">Endpoint</span>
-                                            <p class="text-sm font-mono text-fg-default dark:text-dark-fg-default">{rule.endpoint_pattern}</p>
+                                            <p class="text-sm font-mono text-fg-default dark:text-dark-fg-default">
+                                                {rule.endpoint_pattern}
+                                            </p>
                                         </div>
                                         <div>
                                             <span class="text-xs text-neutral-500 dark:text-neutral-400">Limit</span>
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">
                                                 {#if config.global_multiplier !== 1.0}
                                                     <span class="line-through text-neutral-400">{rule.requests}</span>
-                                                    <span class="font-semibold text-blue-600 dark:text-blue-400">{rule.effective_requests}</span>
+                                                    <span class="font-semibold text-blue-600 dark:text-blue-400"
+                                                        >{rule.effective_requests}</span
+                                                    >
                                                 {:else}
                                                     {rule.requests}
                                                 {/if}
@@ -155,11 +164,18 @@
                                         </div>
                                         <div>
                                             <span class="text-xs text-neutral-500 dark:text-neutral-400">Group</span>
-                                            <span class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(rule.group)}">{rule.group}</span>
+                                            <span
+                                                class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(
+                                                    rule.group,
+                                                )}">{rule.group}</span
+                                            >
                                         </div>
                                         <div>
-                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Algorithm</span>
-                                            <p class="text-sm text-fg-default dark:text-dark-fg-default">{rule.algorithm}</p>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Algorithm</span
+                                            >
+                                            <p class="text-sm text-fg-default dark:text-dark-fg-default">
+                                                {rule.algorithm}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -170,10 +186,14 @@
                     <!-- User-Specific Rules -->
                     {#if config.rules && config.rules.length > 0}
                         <div>
-                            <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">User-Specific Overrides</h5>
+                            <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
+                                User-Specific Overrides
+                            </h5>
                             <div class="space-y-2">
                                 {#each config.rules as rule, index}
-                                    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <div
+                                        class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+                                    >
                                         <div class="flex flex-col lg:flex-row items-start lg:items-center gap-3">
                                             <div class="w-full lg:flex-1 lg:min-w-[200px]">
                                                 <input
@@ -204,12 +224,22 @@
                                                 <span class="text-xs text-neutral-500">s</span>
                                                 {#if config.global_multiplier && config.global_multiplier !== 1.0}
                                                     <span class="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                                                        (→ {Math.floor(rule.requests * (config.global_multiplier ?? 1))}/{rule.window_seconds}s)
+                                                        (→ {Math.floor(
+                                                            rule.requests * (config.global_multiplier ?? 1),
+                                                        )}/{rule.window_seconds}s)
                                                     </span>
                                                 {/if}
                                             </div>
-                                            <span class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(rule.group)}">{rule.group}</span>
-                                            <select bind:value={rule.algorithm} class="input input-sm" disabled={config.bypass_rate_limit}>
+                                            <span
+                                                class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(
+                                                    rule.group,
+                                                )}">{rule.group}</span
+                                            >
+                                            <select
+                                                bind:value={rule.algorithm}
+                                                class="input input-sm"
+                                                disabled={config.bypass_rate_limit}
+                                            >
                                                 <option value="sliding_window">Sliding</option>
                                                 <option value="token_bucket">Token</option>
                                                 <option value="fixed_window">Fixed</option>
@@ -221,9 +251,12 @@
                                                     class="rounded text-blue-600"
                                                     disabled={config.bypass_rate_limit}
                                                 />
-                                                <span class="text-xs font-medium">{rule.enabled ? 'Enabled' : 'Disabled'}</span>
+                                                <span class="text-xs font-medium"
+                                                    >{rule.enabled ? 'Enabled' : 'Disabled'}</span
+                                                >
                                             </label>
-                                            <button type="button"
+                                            <button
+                                                type="button"
                                                 onclick={() => removeRule(index)}
                                                 class="text-red-600 hover:text-red-800 dark:text-red-400 p-1"
                                                 disabled={config.bypass_rate_limit}
@@ -244,14 +277,22 @@
                     <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-3">
                             <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Current Usage</h4>
-                            <button type="button" onclick={onReset} class="btn btn-sm btn-secondary">Reset All Counters</button>
+                            <button type="button" onclick={onReset} class="btn btn-sm btn-secondary"
+                                >Reset All Counters</button
+                            >
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {#each Object.entries(usage) as [endpoint, usageData]}
-                                <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-900 rounded">
-                                    <span class="text-sm font-mono text-fg-muted dark:text-dark-fg-muted">{endpoint}</span>
+                                <div
+                                    class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-900 rounded"
+                                >
+                                    <span class="text-sm font-mono text-fg-muted dark:text-dark-fg-muted"
+                                        >{endpoint}</span
+                                    >
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs text-neutral-500 dark:text-neutral-400">{usageData.algorithm}</span>
+                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                            >{usageData.algorithm}</span
+                                        >
                                         <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">
                                             {usageData.remaining} remaining
                                         </span>
@@ -264,7 +305,12 @@
             </div>
             <div class="flex gap-3 justify-end mt-6">
                 <button type="button" onclick={onClose} class="btn btn-secondary" disabled={saving}>Cancel</button>
-                <button type="button" onclick={onSave} class="btn btn-primary flex items-center gap-2" disabled={saving || loading}>
+                <button
+                    type="button"
+                    onclick={onSave}
+                    class="btn btn-primary flex items-center gap-2"
+                    disabled={saving || loading}
+                >
                     {#if saving}
                         <Spinner size="small" />Saving...
                     {:else}

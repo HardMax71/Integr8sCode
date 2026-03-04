@@ -42,7 +42,9 @@ class EventsStore {
     constructor() {
         $effect(() => {
             const id = setInterval(() => this.loadAll(), 30_000);
-            return () => { clearInterval(id); };
+            return () => {
+                clearInterval(id);
+            };
         });
     }
 
@@ -52,17 +54,20 @@ class EventsStore {
 
     async loadEvents(): Promise<void> {
         this.loading = true;
-        const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({
-            body: {
-                filters: {
-                    ...this.filters,
-                    start_time: this.filters.start_time ? parseISO(this.filters.start_time).toISOString() : null,
-                    end_time: this.filters.end_time ? parseISO(this.filters.end_time).toISOString() : null
+        const data = unwrapOr(
+            await browseEventsApiV1AdminEventsBrowsePost({
+                body: {
+                    filters: {
+                        ...this.filters,
+                        start_time: this.filters.start_time ? parseISO(this.filters.start_time).toISOString() : null,
+                        end_time: this.filters.end_time ? parseISO(this.filters.end_time).toISOString() : null,
+                    },
+                    skip: this.pagination.skip,
+                    limit: this.pagination.pageSize,
                 },
-                skip: this.pagination.skip,
-                limit: this.pagination.pageSize
-            }
-        }), null);
+            }),
+            null,
+        );
         this.loading = false;
         this.events = data?.events ?? [];
         this.totalEvents = data?.total || 0;
@@ -77,17 +82,26 @@ class EventsStore {
     }
 
     async replayEvent(eventId: string, dryRun: boolean = true): Promise<void> {
-        if (!dryRun && !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')) {
+        if (
+            !dryRun &&
+            !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')
+        ) {
             return;
         }
 
-        const response = unwrap(await replayEventsApiV1AdminEventsReplayPost({
-            body: { event_ids: [eventId], dry_run: dryRun }
-        }));
+        const response = unwrap(
+            await replayEventsApiV1AdminEventsReplayPost({
+                body: { event_ids: [eventId], dry_run: dryRun },
+            }),
+        );
 
         if (dryRun) {
             if (response.events_preview && response.events_preview.length > 0) {
-                this.replayPreview = { eventId, total_events: response.total_events, events_preview: response.events_preview };
+                this.replayPreview = {
+                    eventId,
+                    total_events: response.total_events,
+                    events_preview: response.events_preview,
+                };
             } else {
                 toast.info(`Dry run: ${response.total_events} events would be replayed`);
             }
@@ -134,9 +148,8 @@ class EventsStore {
             if (signal.aborted) return;
             try {
                 const payload = JSON.parse(event.data as string) as EventReplayStatusResponse;
-                const pct = payload.total_events > 0
-                    ? Math.round((payload.replayed_events / payload.total_events) * 100)
-                    : 0;
+                const pct =
+                    payload.total_events > 0 ? Math.round((payload.replayed_events / payload.total_events) * 100) : 0;
                 if (!this.activeReplaySession) return;
                 this.activeReplaySession = {
                     ...this.activeReplaySession,
@@ -197,7 +210,10 @@ class EventsStore {
         if (!userId) return;
         this.userOverview = null;
         this.userOverviewLoading = true;
-        const data = unwrapOr(await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } }), null);
+        const data = unwrapOr(
+            await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } }),
+            null,
+        );
         this.userOverviewLoading = false;
         if (!data) return;
         this.userOverview = data;

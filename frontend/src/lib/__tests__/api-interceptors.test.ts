@@ -11,26 +11,41 @@ describe('getErrorMessage', () => {
         ['number', 42, undefined, 'An error occurred'],
         ['boolean', true, undefined, 'An error occurred'],
         ['object without detail/message', { foo: 'bar' }, undefined, 'An error occurred'],
-    ] as [string, unknown, string | undefined, string][])('returns fallback for %s', (_label, input, fallback, expected) => {
-        expect(getErrorMessage(input, fallback)).toBe(expected);
-    });
+    ] as [string, unknown, string | undefined, string][])(
+        'returns fallback for %s',
+        (_label, input, fallback, expected) => {
+            expect(getErrorMessage(input, fallback)).toBe(expected);
+        },
+    );
 
     it.each([
         ['string error', 'something broke', 'something broke'],
         ['Error instance', new Error('boom'), 'boom'],
         ['object with .detail string', { detail: 'Not found' }, 'Not found'],
-        ['ValidationError[] with locs', {
-            detail: [
-                { loc: ['body', 'email'], msg: 'invalid email', type: 'value_error' },
-                { loc: ['body', 'name'], msg: 'required', type: 'value_error' },
-            ],
-        }, 'email: invalid email, name: required'],
-        ['ValidationError[] with empty loc', {
-            detail: [{ loc: [], msg: 'bad', type: 'value_error' }],
-        }, 'bad'],
-        ['ValidationError[] with single loc', {
-            detail: [{ loc: ['body'], msg: 'Error', type: 'value_error' }],
-        }, 'body: Error'],
+        [
+            'ValidationError[] with locs',
+            {
+                detail: [
+                    { loc: ['body', 'email'], msg: 'invalid email', type: 'value_error' },
+                    { loc: ['body', 'name'], msg: 'required', type: 'value_error' },
+                ],
+            },
+            'email: invalid email, name: required',
+        ],
+        [
+            'ValidationError[] with empty loc',
+            {
+                detail: [{ loc: [], msg: 'bad', type: 'value_error' }],
+            },
+            'bad',
+        ],
+        [
+            'ValidationError[] with single loc',
+            {
+                detail: [{ loc: ['body'], msg: 'Error', type: 'value_error' }],
+            },
+            'body: Error',
+        ],
     ] as [string, unknown, string][])('extracts message from %s', (_label, input, expected) => {
         expect(getErrorMessage(input)).toBe(expected);
     });
@@ -61,9 +76,12 @@ describe('unwrapOr', () => {
         ['data is empty string', { data: '' }, 'fb', ''],
         ['error present', { data: 'v', error: new Error() }, 'fb', 'fb'],
         ['data undefined', {}, 'fb', 'fb'],
-    ] as [string, { data?: unknown; error?: unknown }, unknown, unknown][])('returns correct value when %s', (_label, result, fallback, expected) => {
-        expect(unwrapOr(result, fallback)).toBe(expected);
-    });
+    ] as [string, { data?: unknown; error?: unknown }, unknown, unknown][])(
+        'returns correct value when %s',
+        (_label, result, fallback, expected) => {
+            expect(unwrapOr(result, fallback)).toBe(expected);
+        },
+    );
 });
 
 describe('initializeApiInterceptors', () => {
@@ -120,7 +138,7 @@ describe('initializeApiInterceptors', () => {
 
     describe('error interceptor: handleErrorStatus', () => {
         function callError(status: number | undefined, url = 'https://test/api/v1/execute') {
-            const response = status ? { status } as Response : undefined;
+            const response = status ? ({ status } as Response) : undefined;
             const request = new Request(url);
             vi.spyOn(console, 'error').mockImplementation(() => {});
             return errorInterceptor('some error', response, request, {});
@@ -194,10 +212,13 @@ describe('initializeApiInterceptors', () => {
             [429, 'warning', 'Too many requests. Please slow down.'],
             [500, 'error', 'Server error. Please try again later.'],
             [503, 'error', 'Server error. Please try again later.'],
-        ] as [number, 'error' | 'warning', string][])('shows correct toast for %i status', (status, toastType, message) => {
-            callError(status);
-            expect(mockToast[toastType]).toHaveBeenCalledWith(message);
-        });
+        ] as [number, 'error' | 'warning', string][])(
+            'shows correct toast for %i status',
+            (status, toastType, message) => {
+                callError(status);
+                expect(mockToast[toastType]).toHaveBeenCalledWith(message);
+            },
+        );
 
         it('shows account locked for 423', () => {
             callError(423);
@@ -219,7 +240,12 @@ describe('initializeApiInterceptors', () => {
 
         it('returns the error object', () => {
             vi.spyOn(console, 'error').mockImplementation(() => {});
-            const result = errorInterceptor('my-error', { status: 403 } as Response, new Request('https://test/api'), {});
+            const result = errorInterceptor(
+                'my-error',
+                { status: 403 } as Response,
+                new Request('https://test/api'),
+                {},
+            );
             expect(result).toBe('my-error');
         });
     });

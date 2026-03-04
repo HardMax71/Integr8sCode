@@ -61,10 +61,7 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockSseEvents(
-                { event_type: 'status', status: 'running' },
-                { event_type: 'result_stored', result: RESULT },
-            );
+            mockSseEvents({ event_type: 'status', status: 'running' }, { event_type: 'result_stored', result: RESULT });
 
             const s = createExecutionState();
             await s.execute('print("hi")', 'python', '3.12');
@@ -96,23 +93,20 @@ describe('createExecutionState', () => {
             ['execution_failed', 'Execution failed.'],
             ['execution_timeout', 'Execution timed out.'],
             ['result_failed', 'Failed to store execution results.'],
-        ] as const)(
-            'sets error on %s event',
-            async (eventType, expectedError) => {
-                mockCreateExecution.mockResolvedValue({
-                    data: { execution_id: 'exec-1', status: 'queued' },
-                    error: null,
-                });
+        ] as const)('sets error on %s event', async (eventType, expectedError) => {
+            mockCreateExecution.mockResolvedValue({
+                data: { execution_id: 'exec-1', status: 'queued' },
+                error: null,
+            });
 
-                mockSseEvents({ event_type: eventType });
+            mockSseEvents({ event_type: eventType });
 
-                const s = createExecutionState();
-                await s.execute('x', 'python', '3.12');
+            const s = createExecutionState();
+            await s.execute('x', 'python', '3.12');
 
-                expect(s.error).toBe(expectedError);
-                expect(s.phase).toBe('idle');
-            },
-        );
+            expect(s.error).toBe(expectedError);
+            expect(s.phase).toBe('idle');
+        });
 
         it('uses result from terminal failure event when available', async () => {
             mockCreateExecution.mockResolvedValue({
@@ -191,10 +185,7 @@ describe('createExecutionState', () => {
                 error: null,
             });
 
-            mockSseEvents(
-                '{broken',
-                { event_type: 'result_stored', result: RESULT },
-            );
+            mockSseEvents('{broken', { event_type: 'result_stored', result: RESULT });
 
             const s = createExecutionState();
             await s.execute('x', 'python', '3.12');

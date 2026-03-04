@@ -1,14 +1,14 @@
 import { parseISO, differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 
 function toDate(timestamp: string | Date | null | undefined): Date | null {
-  if (!timestamp) return null;
-  if (timestamp instanceof Date) return isNaN(timestamp.getTime()) ? null : timestamp;
-  try {
-    const date = parseISO(timestamp);
-    return isNaN(date.getTime()) ? null : date;
-  } catch {
-    return null;
-  }
+    if (!timestamp) return null;
+    if (timestamp instanceof Date) return isNaN(timestamp.getTime()) ? null : timestamp;
+    try {
+        const date = parseISO(timestamp);
+        return isNaN(date.getTime()) ? null : date;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -17,12 +17,16 @@ function toDate(timestamp: string | Date | null | undefined): Date | null {
  * @returns Formatted date/time string or 'N/A' if invalid
  */
 export function formatTimestamp(timestamp: string | Date | null | undefined): string {
-  const date = toDate(timestamp);
-  if (!date) return 'N/A';
-  return date.toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
+    const date = toDate(timestamp);
+    if (!date) return 'N/A';
+    return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
 }
 
 /**
@@ -31,9 +35,9 @@ export function formatTimestamp(timestamp: string | Date | null | undefined): st
  * @returns Formatted date string or 'N/A' if invalid
  */
 export function formatDateOnly(timestamp: string | Date | null | undefined): string {
-  const date = toDate(timestamp);
-  if (!date) return 'N/A';
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    const date = toDate(timestamp);
+    if (!date) return 'N/A';
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
@@ -42,9 +46,9 @@ export function formatDateOnly(timestamp: string | Date | null | undefined): str
  * @returns Formatted time string or 'N/A' if invalid
  */
 export function formatTimeOnly(timestamp: string | Date | null | undefined): string {
-  const date = toDate(timestamp);
-  if (!date) return 'N/A';
-  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const date = toDate(timestamp);
+    if (!date) return 'N/A';
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 /**
@@ -53,24 +57,24 @@ export function formatTimeOnly(timestamp: string | Date | null | undefined): str
  * @returns Human-readable duration (e.g., "1.5s", "2m 30s", "1h 5m")
  */
 export function formatDuration(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined) return 'N/A';
-  if (seconds < 0) return 'N/A';
+    if (seconds === null || seconds === undefined) return 'N/A';
+    if (seconds < 0) return 'N/A';
 
-  if (seconds < 1) {
-    return `${Math.round(seconds * 1000)}ms`;
-  }
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
-  }
-  if (seconds < 3600) {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-  }
+    if (seconds < 1) {
+        return `${Math.round(seconds * 1000)}ms`;
+    }
+    if (seconds < 60) {
+        return `${seconds.toFixed(1)}s`;
+    }
+    if (seconds < 3600) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
 
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 /**
@@ -80,17 +84,17 @@ export function formatDuration(seconds: number | null | undefined): string {
  * @returns Human-readable duration
  */
 export function formatDurationBetween(
-  startDate: string | Date | null | undefined,
-  endDate: string | Date | null | undefined
+    startDate: string | Date | null | undefined,
+    endDate: string | Date | null | undefined,
 ): string {
-  const start = toDate(startDate);
-  const end = toDate(endDate);
-  if (!start || !end) return 'N/A';
+    const start = toDate(startDate);
+    const end = toDate(endDate);
+    if (!start || !end) return 'N/A';
 
-  const durationMs = end.getTime() - start.getTime();
-  if (durationMs < 0) return 'N/A';
+    const durationMs = end.getTime() - start.getTime();
+    if (durationMs < 0) return 'N/A';
 
-  return formatDuration(durationMs / 1000);
+    return formatDuration(durationMs / 1000);
 }
 
 /**
@@ -100,24 +104,24 @@ export function formatDurationBetween(
  * @returns Relative time string
  */
 export function formatRelativeTime(timestamp: string | Date | null | undefined): string {
-  const date = toDate(timestamp);
-  if (!date) return 'N/A';
+    const date = toDate(timestamp);
+    if (!date) return 'N/A';
 
-  const now = new Date();
+    const now = new Date();
 
-  if (date > now) return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    if (date > now) return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 
-  const diffSecs = differenceInSeconds(now, date);
-  const diffMins = differenceInMinutes(now, date);
-  const diffHrs = differenceInHours(now, date);
-  const diffDys = differenceInDays(now, date);
+    const diffSecs = differenceInSeconds(now, date);
+    const diffMins = differenceInMinutes(now, date);
+    const diffHrs = differenceInHours(now, date);
+    const diffDys = differenceInDays(now, date);
 
-  if (diffSecs < 60) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  if (diffDys < 7) return `${diffDys}d ago`;
+    if (diffSecs < 60) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    if (diffDys < 7) return `${diffDys}d ago`;
 
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
@@ -127,7 +131,7 @@ export function formatRelativeTime(timestamp: string | Date | null | undefined):
  * @returns Truncated string
  */
 export function truncate(str: string | null | undefined, maxLength = 50): string {
-  if (!str) return '';
-  if (str.length <= maxLength) return str;
-  return `${str.slice(0, maxLength - 3)}...`;
+    if (!str) return '';
+    if (str.length <= maxLength) return str;
+    return `${str.slice(0, maxLength - 3)}...`;
 }

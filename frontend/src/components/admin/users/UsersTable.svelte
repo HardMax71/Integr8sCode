@@ -2,6 +2,7 @@
     import { Pencil, Clock, Trash2 } from '@lucide/svelte';
     import type { UserResponse } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
+    import Spinner from '$components/Spinner.svelte';
 
     interface Props {
         users: UserResponse[];
@@ -15,9 +16,12 @@
 </script>
 
 {#if loading}
-    <div class="py-8 text-center text-fg-muted dark:text-dark-fg-muted">Loading users...</div>
+    <div class="empty-state">
+        <Spinner size="xlarge" className="mx-auto mb-4" />
+        <p>Loading users...</p>
+    </div>
 {:else if users.length === 0}
-    <div class="py-8 text-center text-fg-muted dark:text-dark-fg-muted">No users found matching filters</div>
+    <div class="empty-state">No users found matching filters</div>
 {:else}
     <!-- Mobile Card View -->
     <div class="block lg:hidden">
@@ -93,21 +97,21 @@
                             <div class="flex gap-2">
                                 <button type="button"
                                     onclick={() => onEdit(user)}
-                                    class="text-green-600 hover:text-green-800 dark:text-green-400"
+                                    class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                                     title="Edit User"
                                 >
                                     <Pencil class="w-5 h-5" />
                                 </button>
                                 <button type="button"
                                     onclick={() => onRateLimits(user)}
-                                    class="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                    class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                                     title="Manage Rate Limits"
                                 >
                                     <Clock class="w-5 h-5" />
                                 </button>
                                 <button type="button"
                                     onclick={() => onDelete(user)}
-                                    class="text-red-600 hover:text-red-800 dark:text-red-400"
+                                    class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                                     title="Delete User"
                                 >
                                     <Trash2 class="w-5 h-5" />

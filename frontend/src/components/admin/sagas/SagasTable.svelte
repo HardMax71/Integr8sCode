@@ -21,7 +21,7 @@
             <p class="text-fg-muted">Loading sagas...</p>
         </div>
     {:else if sagas.length === 0}
-        <div class="p-8 text-center text-fg-muted">No sagas found</div>
+        <div class="empty-state">No sagas found</div>
     {:else}
         <!-- Mobile Card View -->
         <div class="block lg:hidden">

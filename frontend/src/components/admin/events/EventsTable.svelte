@@ -21,27 +21,27 @@
 
 <!-- Desktop view - Table -->
 <div class="hidden md:block overflow-x-auto">
-    <table class="w-full divide-y divide-border-default dark:divide-dark-border-default">
-        <thead class="bg-neutral-50 dark:bg-neutral-900">
+    <table class="table">
+        <thead class="table-header">
             <tr>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Time</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Type</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden lg:table-cell">User</th>
-                <th class="px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider hidden xl:table-cell">Service</th>
-                <th class="px-3 py-2 text-center text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">Actions</th>
+                <th class="table-header-cell-sm">Time</th>
+                <th class="table-header-cell-sm">Type</th>
+                <th class="table-header-cell-sm hidden lg:table-cell">User</th>
+                <th class="table-header-cell-sm hidden xl:table-cell">Service</th>
+                <th class="table-header-cell-sm text-center">Actions</th>
             </tr>
         </thead>
-        <tbody class="bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default">
+        <tbody class="table-body">
             {#each events as event}
                 <tr
-                    class="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors border-b border-border-default dark:border-dark-border-default"
+                    class="table-row-clickable"
                     onclick={() => onViewDetails(event.event_id)}
                     onkeydown={(e) => e.key === 'Enter' && onViewDetails(event.event_id)}
                     tabindex="0"
                     role="button"
                     aria-label="View event details"
                 >
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
                             {formatDateOnly(event.timestamp)}
                         </div>
@@ -49,7 +49,7 @@
                             {formatTimeOnly(event.timestamp)}
                         </div>
                     </td>
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="relative group">
                             <span class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
                                   data-testid="event-type-icon"
@@ -86,7 +86,7 @@
                             {event.metadata?.service_name || '-'}
                         </div>
                     </td>
-                    <td class="px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default">
+                    <td class="table-cell-sm">
                         <div class="flex gap-1 justify-center">
                             <button type="button"
                                 onclick={(e) => { e.stopPropagation(); onPreviewReplay(event.event_id); }}

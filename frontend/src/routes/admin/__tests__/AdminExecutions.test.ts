@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     addToast: vi.fn(),
 }));
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     listExecutionsApiV1AdminExecutionsGet: (...args: unknown[]) => mocks.listExecutionsApiV1AdminExecutionsGet(...args),
     updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: (...args: unknown[]) =>
         mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut(...args),
@@ -26,12 +26,12 @@ vi.mock('svelte-sonner', () => ({
     },
 }));
 
-vi.mock('../../../lib/api-interceptors', async (importOriginal) => {
+vi.mock('$lib/api-interceptors', async (importOriginal) => {
     const actual = (await importOriginal()) as Record<string, unknown>;
     return { ...actual };
 });
 
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });

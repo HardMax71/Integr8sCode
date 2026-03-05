@@ -8,6 +8,7 @@ from cachetools import TTLCache
 from app.db import UserSettingsRepository
 from app.domain.enums import EventType, Theme
 from app.domain.events import EventMetadata, UserSettingsUpdatedEvent
+from app.domain.exceptions import ValidationError
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
@@ -86,6 +87,9 @@ class UserSettingsService:
         self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
         """Upsert provided fields into current settings, publish minimal event, and cache."""
+        if updates.editor is not None:
+            self._validate_editor_settings(updates.editor)
+
         current = await self.get_user_settings(user_id)
 
         changes = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
@@ -217,6 +221,13 @@ class UserSettingsService:
         if isinstance(filtered.get("editor"), dict):
             filtered["editor"] = DomainEditorSettings(**filtered["editor"])
         return DomainUserSettings(**filtered)
+
+    @staticmethod
+    def _validate_editor_settings(editor: DomainEditorSettings) -> None:
+        if not 8 <= editor.font_size <= 32:
+            raise ValidationError("Font size must be between 8 and 32")
+        if editor.tab_size not in (2, 4, 8):
+            raise ValidationError("Tab size must be 2, 4, or 8")
 
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""

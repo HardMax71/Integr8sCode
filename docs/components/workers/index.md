@@ -33,6 +33,10 @@ graph LR
 | [DLQ Processor](dlq_processor.md)         | Retries failed messages from the dead letter queue        | `run_dlq_processor.py`     |
 
 All entry points live in [`backend/workers/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/workers).
+The shared bootstrap logic (Settings, Beanie, DI container, broker, FastStream) is in
+[`bootstrap.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/bootstrap.py) —
+each `run_*.py` calls `run_worker()` with its specific config and optional hooks.
+See [Service Lifecycle](../../architecture/lifecycle.md#worker-entrypoints) for details.
 
 ## Running locally
 

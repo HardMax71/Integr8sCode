@@ -1,51 +1,17 @@
-import asyncio
-from typing import Any
-
 from app.core.container import create_result_processor_container
-from app.core.logging import setup_log_exporter, setup_logger
-from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_result_processor_subscriber
-from app.settings import Settings
-from beanie import init_beanie
-from dishka.integrations.faststream import setup_dishka
-from faststream import FastStream
-from faststream.kafka import KafkaBroker
-from pymongo import AsyncMongoClient
+
+from workers.bootstrap import run_worker
 
 
 def main() -> None:
     """Main entry point for result processor worker"""
-    settings = Settings(override_path="config.result-processor.toml")
-
-    logger = setup_logger(settings.LOG_LEVEL)
-    setup_log_exporter(settings, logger)
-
-    logger.info("Starting ResultProcessor worker...")
-
-    async def run() -> None:
-        # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
-        client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
-        await init_beanie(
-            database=client.get_default_database(default=settings.DATABASE_NAME),
-            document_models=ALL_DOCUMENTS,
-        )
-        logger.info("MongoDB initialized via Beanie")
-
-        # Create DI container
-        container = create_result_processor_container(settings)
-
-        # Get broker from DI
-        broker: KafkaBroker = await container.get(KafkaBroker)
-
-        # Register subscriber and set up DI integration
-        register_result_processor_subscriber(broker)
-        setup_dishka(container, broker=broker, auto_inject=True)
-
-        app = FastStream(broker, on_shutdown=[container.close])
-        await app.run()
-        logger.info("ResultProcessor shutdown complete")
-
-    asyncio.run(run())
+    run_worker(
+        worker_name="ResultProcessor",
+        config_override="config.result-processor.toml",
+        container_factory=create_result_processor_container,
+        register_handlers=register_result_processor_subscriber,
+    )
 
 
 if __name__ == "__main__":

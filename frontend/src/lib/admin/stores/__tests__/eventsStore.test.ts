@@ -100,6 +100,12 @@ describe('EventsStore', () => {
 
     function createStore() {
         teardown = effect_root(() => {
+            store = createEventsStore({ autoRefresh: false });
+        });
+    }
+
+    function createStoreWithAutoRefresh() {
+        teardown = effect_root(() => {
             store = createEventsStore();
         });
     }
@@ -108,6 +114,7 @@ describe('EventsStore', () => {
         vi.unstubAllGlobals();
         store?.cleanup();
         teardown?.();
+        vi.clearAllTimers();
     });
 
     describe('initial state', () => {
@@ -386,7 +393,7 @@ describe('EventsStore', () => {
 
     describe('auto-refresh', () => {
         it('fires loadAll on 30s interval', async () => {
-            createStore();
+            createStoreWithAutoRefresh();
             vi.clearAllMocks();
 
             await vi.advanceTimersByTimeAsync(30000);
@@ -397,7 +404,7 @@ describe('EventsStore', () => {
         });
 
         it('stops on teardown', async () => {
-            createStore();
+            createStoreWithAutoRefresh();
             await vi.advanceTimersByTimeAsync(30000);
             expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled();
 

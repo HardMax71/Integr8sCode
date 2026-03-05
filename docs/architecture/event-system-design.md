@@ -41,6 +41,28 @@ The unified approach addresses these issues:
 - **Storage-ready**: Events include storage fields (`stored_at`, `ttl_expires_at`) that MongoDB uses
 - **1:1 topic mapping**: Topic name = `EventType` value — no mapping layer needed
 
+## Shared field mixins
+
+Some event classes share identical field sets. Rather than duplicating fields, shared groups are extracted into Pydantic `BaseModel` mixins that concrete events inherit alongside `BaseEvent` via multiple inheritance:
+
+```python
+class ExecutionSpec(BaseModel):
+    """Shared fields for execution request and pod command events."""
+    execution_id: str
+    script: str
+    language: str
+    # ... resource limits, runtime config, priority
+
+class ExecutionRequestedEvent(BaseEvent, ExecutionSpec):
+    event_type: Literal[EventType.EXECUTION_REQUESTED] = EventType.EXECUTION_REQUESTED
+
+class CreatePodCommandEvent(BaseEvent, ExecutionSpec):
+    event_type: Literal[EventType.CREATE_POD_COMMAND] = EventType.CREATE_POD_COMMAND
+    saga_id: str
+```
+
+Mixins inherit from `BaseModel` (not `BaseEvent`) so they don't appear in `BaseEvent.__subclasses__()` and aren't flagged by the orphan-event-class test. Subclasses can override mixin fields with different defaults (e.g., `CreatePodCommandEvent` makes `runtime_command` optional with `Field(default_factory=list)`).
+
 ## How discriminated unions work
 
 When events come back from MongoDB, we need to deserialize them into the correct Python class. A document with `event_type: "execution_completed"` should become an `ExecutionCompletedEvent` instance, not a generic dict.

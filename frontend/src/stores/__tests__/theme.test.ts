@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock the dynamic imports before importing the theme module
-vi.mock('../../lib/user-settings', () => ({
+vi.mock('$lib/user-settings', () => ({
     saveUserSettings: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('../auth.svelte', () => ({
+vi.mock('$stores/auth.svelte', () => ({
     authStore: {
         isAuthenticated: false,
     },

@@ -21,8 +21,6 @@ from app.db.docs.saga import SagaDocument
 from app.db.docs.saved_script import SavedScriptDocument
 from app.db.docs.user import UserDocument
 from app.db.docs.user_settings import (
-    EditorSettings,
-    NotificationSettings,
     UserSettingsDocument,
     UserSettingsSnapshotDocument,
 )
@@ -60,8 +58,6 @@ __all__ = [
     # User Settings
     "UserSettingsDocument",
     "UserSettingsSnapshotDocument",
-    "NotificationSettings",
-    "EditorSettings",
     # Saga
     "SagaDocument",
     # DLQ

@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // Mock API module
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) =>
         mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
     getEventStatsApiV1AdminEventsStatsGet: (...args: unknown[]) => mocks.getEventStatsApiV1AdminEventsStatsGet(...args),
@@ -51,10 +51,10 @@ vi.mock('svelte-sonner', () => ({
     },
 }));
 
-vi.mock('../../../lib/api-interceptors');
+vi.mock('$lib/api-interceptors');
 
 // Simple mock for AdminLayout
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });

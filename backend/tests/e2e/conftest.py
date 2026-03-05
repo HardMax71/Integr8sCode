@@ -19,6 +19,17 @@ from pydantic import TypeAdapter
 _sse_adapter = TypeAdapter(SSEExecutionEventData)
 
 
+async def _read_stream(
+    redis_client: redis.Redis,
+    key: str,
+    after: str = "0-0",
+) -> list[tuple[str, dict[bytes, bytes]]]:
+    result = await redis_client.xread({key: after}, count=100)
+    if not result:
+        return []
+    return [(mid, fields) for _, msgs in result for mid, fields in msgs]
+
+
 async def wait_for_sse_event(
     redis_client: redis.Redis,
     execution_id: str,
@@ -26,19 +37,20 @@ async def wait_for_sse_event(
     *,
     timeout: float = 15.0,
 ) -> SSEExecutionEventData:
-    """Subscribe to execution's Redis SSE channel and await matching event.
+    """Poll execution's Redis Stream and await matching event.
 
-    The SSE bridge publishes all execution lifecycle events to
-    sse:exec:{execution_id}. Pure event-driven — no polling.
+    Reads from "0-0" on each iteration so late subscribers never miss events.
     """
-    channel = f"sse:exec:{execution_id}"
+    key = f"sse:exec:{execution_id}"
+    last_id = "0-0"
     async with asyncio.timeout(timeout):
-        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
-            await pubsub.subscribe(channel)
-            async for message in pubsub.listen():
-                event = _sse_adapter.validate_json(message["data"])
+        while True:
+            for msg_id, fields in await _read_stream(redis_client, key, last_id):
+                last_id = msg_id
+                event = _sse_adapter.validate_json(fields[b"d"])
                 if predicate(event):
                     return event
+            await asyncio.sleep(0.1)
     raise AssertionError("unreachable")
 
 
@@ -76,19 +88,19 @@ async def wait_for_notification(
     *,
     timeout: float = 30.0,
 ) -> None:
-    """Wait for a notification on the user's SSE channel.
+    """Wait for a notification on the user's Redis Stream.
 
     The notification service publishes to sse:notif:{user_id} only after
     persisting to MongoDB, so receiving a message is a correct readiness
     signal — unlike RESULT_STORED which comes from an independent consumer
     group with no ordering guarantee.
     """
-    channel = f"sse:notif:{user_id}"
+    key = f"sse:notif:{user_id}"
     async with asyncio.timeout(timeout):
-        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
-            await pubsub.subscribe(channel)
-            async for _message in pubsub.listen():
-                return  # first message = notification persisted
+        while True:
+            if await _read_stream(redis_client, key):
+                return
+            await asyncio.sleep(0.1)
 
 
 @pytest.fixture

@@ -48,7 +48,7 @@ The saga_service.py provides read-model access for saga state and guardrails lik
 
 ## Deployed workers
 
-These services run outside the API container for isolation and horizontal scaling. Each has a small run_*.py entry and a dedicated Dockerfile in backend/workers/.
+These services run outside the API container for isolation and horizontal scaling. Each has a small `run_*.py` entry in `backend/workers/` that calls the shared `run_worker()` bootstrap function from `workers/bootstrap.py`. The bootstrap handles Settings, Beanie, DI container, broker, and FastStream setup; each worker only provides its config override, container factory, and optional startup/shutdown hooks.
 
 The Saga Orchestrator is a stateful choreographer for execution lifecycle. It subscribes to EXECUTION_EVENTS and internal saga topics, manages the Redis-backed execution queue via `ExecutionQueueService` for priority scheduling and per-user limits, publishes SAGA_COMMANDS (CreatePodCommandEvent, DeletePodCommandEvent), rebuilds saga state from events, and issues commands only when transitions are valid and not yet executed. On failures, timeouts, or cancellations it publishes compensating commands and finalizes the saga.
 

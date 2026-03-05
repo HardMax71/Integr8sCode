@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, TypedDict
+from typing import TYPE_CHECKING, Callable, Dict, List, Tuple, TypedDict
 
 import matplotlib.pyplot as plt
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 
 class LatencyStats(TypedDict, total=False):
@@ -75,6 +78,28 @@ def _top_endpoints(report: ReportDict, top_n: int = 10) -> List[Tuple[str, Endpo
     return items[:top_n]
 
 
+def _save_bar_chart(
+    labels: List[str],
+    title: str,
+    ylabel: str,
+    out_path: Path,
+    plot_bars: Callable[[Axes, range], None],
+) -> Path:
+    x = range(len(labels))
+    fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.6), 5))
+    plot_bars(ax, x)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+    return out_path
+
+
 def plot_endpoint_latency(report: ReportDict, out_dir: Path, top_n: int = 10) -> Path:
     data = _top_endpoints(report, top_n)
     if not data:
@@ -86,24 +111,14 @@ def plot_endpoint_latency(report: ReportDict, out_dir: Path, top_n: int = 10) ->
     p90 = [v.get("latency_ms_success", empty_latency).get("p90", 0) for _, v in data]
     p99 = [v.get("latency_ms_success", empty_latency).get("p99", 0) for _, v in data]
 
-    x = range(len(labels))
     width = 0.25
 
-    fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.6), 5))
-    ax.bar([i - width for i in x], p50, width=width, label="p50", color="#22c55e")
-    ax.bar(x, p90, width=width, label="p90", color="#eab308")
-    ax.bar([i + width for i in x], p99, width=width, label="p99", color="#ef4444")
-    ax.set_ylabel("Latency (ms)")
-    ax.set_title("Success Latency by Endpoint (Top N)")
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.grid(True, axis="y", alpha=0.3)
-    ax.legend()
-    out_path = out_dir / "endpoint_latency.png"
-    fig.tight_layout()
-    fig.savefig(out_path)
-    plt.close(fig)
-    return out_path
+    def bars(ax: Axes, x: range) -> None:
+        ax.bar([i - width for i in x], p50, width=width, label="p50", color="#22c55e")
+        ax.bar(x, p90, width=width, label="p90", color="#eab308")
+        ax.bar([i + width for i in x], p99, width=width, label="p99", color="#ef4444")
+
+    return _save_bar_chart(labels, "Success Latency by Endpoint (Top N)", "Latency (ms)", out_dir / "endpoint_latency.png", bars)
 
 
 def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10) -> Path:
@@ -116,23 +131,13 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
     errors = [v.get("errors", 0) for _, v in data]
     successes = [t - e for t, e in zip(total, errors)]
 
-    x = range(len(labels))
     width = 0.45
 
-    fig, ax = plt.subplots(figsize=(max(10, len(labels) * 0.6), 5))
-    ax.bar(x, successes, width=width, label="Success", color="#22c55e")
-    ax.bar(x, errors, width=width, bottom=successes, label="Errors", color="#ef4444")
-    ax.set_ylabel("Requests")
-    ax.set_title("Endpoint Throughput (Top N)")
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.grid(True, axis="y", alpha=0.3)
-    ax.legend()
-    out_path = out_dir / "endpoint_throughput.png"
-    fig.tight_layout()
-    fig.savefig(out_path)
-    plt.close(fig)
-    return out_path
+    def bars(ax: Axes, x: range) -> None:
+        ax.bar(x, successes, width=width, label="Success", color="#22c55e")
+        ax.bar(x, errors, width=width, bottom=successes, label="Errors", color="#ef4444")
+
+    return _save_bar_chart(labels, "Endpoint Throughput (Top N)", "Requests", out_dir / "endpoint_throughput.png", bars)
 
 
 def generate_plots(report_path: str | Path, output_dir: str | Path | None = None) -> List[Path]:

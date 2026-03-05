@@ -56,19 +56,10 @@ describe('ExecutionsStore', () => {
         setupDefaultMocks();
     });
 
-    /**
-     * Creates a store with auto-refresh timers immediately cleared.
-     * The $effect fires synchronously inside effect_root, starting a
-     * setInterval. We clear all timers, reset mocks, and re-apply defaults
-     * so individual tests control timing explicitly.
-     */
     function createStore() {
         teardown = effect_root(() => {
-            store = createExecutionsStore();
+            store = createExecutionsStore({ autoRefresh: false });
         });
-        vi.clearAllTimers();
-        vi.clearAllMocks();
-        setupDefaultMocks();
     }
 
     function createStoreWithAutoRefresh() {

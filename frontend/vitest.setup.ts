@@ -98,7 +98,7 @@ Element.prototype.animate = vi.fn().mockImplementation(() => {
   return mock as unknown as Animation;
 });
 
-// Reset storage and DOM between every test (required for isolate: false)
+// Reset storage and DOM between every test
 beforeEach(() => {
   Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
   Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);

@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     getSystemSettingsApiV1AdminSettingsGet: (...args: unknown[]) =>
         mocks.getSystemSettingsApiV1AdminSettingsGet(...args),
     updateSystemSettingsApiV1AdminSettingsPut: (...args: unknown[]) =>

@@ -24,7 +24,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.12
-          uv sync --frozen --group lint --no-dev
+          uv sync --frozen --group lint --group test --no-dev
 
       - name: Run mypy
         env:

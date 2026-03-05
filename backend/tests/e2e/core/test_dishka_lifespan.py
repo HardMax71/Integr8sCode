@@ -3,7 +3,7 @@ from importlib import import_module
 import pytest
 import redis.asyncio as aioredis
 from app.db.docs import UserDocument
-from app.services.sse import SSERedisBus
+from app.services.sse import SSEService
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
@@ -70,8 +70,8 @@ class TestLifespanInitialization:
         assert pong is True
 
     @pytest.mark.asyncio
-    async def test_sse_redis_bus_available(self, scope: AsyncContainer) -> None:
-        """SSE Redis bus is available after lifespan."""
-        bus = await scope.get(SSERedisBus)
-        assert bus is not None
+    async def test_sse_service_available(self, scope: AsyncContainer) -> None:
+        """SSE service is available after lifespan."""
+        svc = await scope.get(SSEService)
+        assert svc is not None
 

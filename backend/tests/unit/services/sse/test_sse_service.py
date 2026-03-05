@@ -1,16 +1,18 @@
 import asyncio
 import json
 import structlog
-from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
+from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, ReplayStatus, SSEControlEvent, UserRole
 from app.domain.execution.models import DomainExecution, ExecutionResultDomain
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
+from app.services.sse.sse_service import _exec_adapter, _notif_adapter
 
 pytestmark = pytest.mark.unit
 
@@ -19,55 +21,31 @@ _test_logger = structlog.get_logger("test.services.sse.sse_service")
 _NOW = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
 
-class _FakeBus:
-    """Fake SSERedisBus backed by asyncio queues."""
+class _FakeRedis:
+    """Fake Redis with Streams support (XADD / XREAD / EXPIRE)."""
 
     def __init__(self) -> None:
-        self._exec_q: asyncio.Queue[SSEExecutionEventData | None] = asyncio.Queue()
-        self._notif_q: asyncio.Queue[DomainNotificationSSEPayload | None] = asyncio.Queue()
-        self._replay_q: asyncio.Queue[DomainReplaySSEPayload | None] = asyncio.Queue()
-        self.exec_closed = False
-        self.notif_closed = False
-        self.replay_closed = False
+        self._streams: dict[str, list[tuple[str, dict[bytes, bytes]]]] = {}
+        self._counter = 0
 
-    async def push_exec(self, event: SSEExecutionEventData | None) -> None:
-        await self._exec_q.put(event)
+    async def xadd(self, key: str, fields: dict[str, bytes], **_kw: Any) -> str:
+        self._counter += 1
+        msg_id = f"{self._counter}-0"
+        encoded = {k.encode() if isinstance(k, str) else k: v for k, v in fields.items()}
+        self._streams.setdefault(key, []).append((msg_id, encoded))
+        return msg_id
 
-    async def push_notif(self, payload: DomainNotificationSSEPayload | None) -> None:
-        await self._notif_q.put(payload)
+    async def xread(self, streams: dict[str, str], **_kw: Any) -> list[tuple[str, list[tuple[str, dict[bytes, bytes]]]]] | None:
+        result: list[tuple[str, list[tuple[str, dict[bytes, bytes]]]]] = []
+        for key, after in streams.items():
+            after_seq = int(after.split("-")[0])
+            msgs = [(mid, f) for mid, f in self._streams.get(key, []) if int(mid.split("-")[0]) > after_seq]
+            if msgs:
+                result.append((key, msgs))
+        return result or None
 
-    async def push_replay(self, status: DomainReplaySSEPayload | None) -> None:
-        await self._replay_q.put(status)
-
-    async def listen_execution(self, execution_id: str) -> AsyncGenerator[SSEExecutionEventData, None]:  # noqa: ARG002
-        try:
-            while True:
-                item = await self._exec_q.get()
-                if item is None:
-                    return
-                yield item
-        finally:
-            self.exec_closed = True
-
-    async def listen_notifications(self, user_id: str) -> AsyncGenerator[DomainNotificationSSEPayload, None]:  # noqa: ARG002
-        try:
-            while True:
-                item = await self._notif_q.get()
-                if item is None:
-                    return
-                yield item
-        finally:
-            self.notif_closed = True
-
-    async def listen_replay(self, session_id: str) -> AsyncGenerator[DomainReplaySSEPayload, None]:  # noqa: ARG002
-        try:
-            while True:
-                item = await self._replay_q.get()
-                if item is None:
-                    return
-                yield item
-        finally:
-            self.replay_closed = True
+    async def expire(self, key: str, seconds: int) -> bool:  # noqa: ARG002
+        return True
 
 
 class _FakeExecRepo:
@@ -93,55 +71,53 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo = _FakeExecRepo()) -> SSEService:
+def _make_service(fake_redis: _FakeRedis, exec_repo: _FakeExecRepo = _FakeExecRepo()) -> SSEService:
     return SSEService(
-        bus=bus,  # type: ignore[arg-type]
+        redis_client=fake_redis,  # type: ignore[arg-type]
         execution_repository=exec_repo,  # type: ignore[arg-type]
         logger=_test_logger,
+        connection_metrics=MagicMock(spec=ConnectionMetrics),
+        poll_interval=0.01,
     )
 
 
 @pytest.mark.asyncio
 async def test_execution_stream_prepends_status_from_db() -> None:
     execution = DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)
-    bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(execution=execution))
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis, _FakeExecRepo(execution=execution))
 
     agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
-    # Signal end of live stream so the generator can finish
-    await bus.push_exec(None)
-
     # First item must be the STATUS prepended from DB
-    stat = await agen.__anext__()
+    stat = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data = _decode(stat)
     assert data["event_type"] == "status"
     assert data["execution_id"] == "exec-1"
 
-    with pytest.raises(StopAsyncIteration):
-        await agen.__anext__()
-
 
 @pytest.mark.asyncio
 async def test_execution_stream_closes_on_terminal_event() -> None:
-    bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)))
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)))
 
     agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
     # DB status prepend is always yielded first
-    stat = await agen.__anext__()
+    stat = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     assert _decode(stat)["event_type"] == "status"
 
-    await bus.push_exec(SSEExecutionEventData(
+    # Push a terminal event into the stream
+    await fake_redis.xadd("sse:exec:exec-1", {"d": _exec_adapter.dump_json(SSEExecutionEventData(
         event_type=EventType.EXECUTION_FAILED,
         execution_id="exec-1",
-    ))
-    failed = await agen.__anext__()
+    ))})
+
+    failed = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
     with pytest.raises(StopAsyncIteration):
-        await agen.__anext__()
+        await asyncio.wait_for(agen.__anext__(), timeout=2.0)
 
 
 @pytest.mark.asyncio
@@ -153,37 +129,37 @@ async def test_execution_stream_enriches_result_stored() -> None:
         stdout="out",
         stderr="",
     )
-    bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result))
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis, _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result))
 
     agen = await svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
 
     # Consume DB status prepend
-    await agen.__anext__()
+    await asyncio.wait_for(agen.__anext__(), timeout=2.0)
 
-    await bus.push_exec(SSEExecutionEventData(
+    await fake_redis.xadd("sse:exec:exec-2", {"d": _exec_adapter.dump_json(SSEExecutionEventData(
         event_type=EventType.RESULT_STORED,
         execution_id="exec-2",
-    ))
-    evt = await agen.__anext__()
+    ))})
+
+    evt = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data = _decode(evt)
     assert data["event_type"] == EventType.RESULT_STORED
     assert data["result"] is not None
     assert data["result"]["execution_id"] == "exec-2"
 
     with pytest.raises(StopAsyncIteration):
-        await agen.__anext__()
+        await asyncio.wait_for(agen.__anext__(), timeout=2.0)
 
 
 @pytest.mark.asyncio
-async def test_notification_stream_yields_notification_and_cleans_up() -> None:
+async def test_notification_stream_yields_notification() -> None:
     """Notification stream yields {"event": "notification", "data": ...} for each message."""
-    bus = _FakeBus()
-    svc = _make_service(bus)
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis)
 
-    agen = svc.create_notification_stream(user_id="u1")
-
-    await bus.push_notif(DomainNotificationSSEPayload(
+    # Push notification into stream before starting the generator
+    await fake_redis.xadd("sse:notif:u1", {"d": _notif_adapter.dump_json(DomainNotificationSSEPayload(
         notification_id="n1",
         severity=NotificationSeverity.LOW,
         status=NotificationStatus.PENDING,
@@ -192,7 +168,9 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
         body="b",
         action_url="",
         created_at=_NOW,
-    ))
+    ))})
+
+    agen = svc.create_notification_stream(user_id="u1")
 
     notif = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     assert notif["event"] == "notification"
@@ -202,12 +180,11 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     assert data["channel"] == "in_app"
 
 
-
 @pytest.mark.asyncio
 async def test_replay_stream_yields_initial_then_live() -> None:
     """Replay pipeline yields initial status from DB then streams live updates."""
-    bus = _FakeBus()
-    svc = _make_service(bus)
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis)
 
     initial = DomainReplaySSEPayload(
         session_id="sess-1",
@@ -223,14 +200,15 @@ async def test_replay_stream_yields_initial_then_live() -> None:
     agen = await svc.create_replay_stream(initial)
 
     # First item is the initial status
-    first = await agen.__anext__()
+    first = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data = _decode(first)
     assert data["session_id"] == "sess-1"
     assert data["status"] == "running"
     assert data["replayed_events"] == 0
 
-    # Push a live update
-    await bus.push_replay(DomainReplaySSEPayload(
+    # Push a live update into the stream
+    from app.services.sse.sse_service import _replay_adapter
+    await fake_redis.xadd("sse:replay:sess-1", {"d": _replay_adapter.dump_json(DomainReplaySSEPayload(
         session_id="sess-1",
         status=ReplayStatus.RUNNING,
         total_events=5,
@@ -239,14 +217,14 @@ async def test_replay_stream_yields_initial_then_live() -> None:
         skipped_events=0,
         replay_id="replay-1",
         created_at=_NOW,
-    ))
+    ))})
 
     second = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data2 = _decode(second)
     assert data2["replayed_events"] == 3
 
     # Push terminal status
-    await bus.push_replay(DomainReplaySSEPayload(
+    await fake_redis.xadd("sse:replay:sess-1", {"d": _replay_adapter.dump_json(DomainReplaySSEPayload(
         session_id="sess-1",
         status=ReplayStatus.COMPLETED,
         total_events=5,
@@ -255,21 +233,21 @@ async def test_replay_stream_yields_initial_then_live() -> None:
         skipped_events=0,
         replay_id="replay-1",
         created_at=_NOW,
-    ))
+    ))})
 
     third = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data3 = _decode(third)
     assert data3["status"] == "completed"
 
     with pytest.raises(StopAsyncIteration):
-        await agen.__anext__()
+        await asyncio.wait_for(agen.__anext__(), timeout=2.0)
 
 
 @pytest.mark.asyncio
 async def test_replay_stream_terminal_initial_closes_immediately() -> None:
     """If the initial replay status is terminal, the stream closes after yielding it."""
-    bus = _FakeBus()
-    svc = _make_service(bus)
+    fake_redis = _FakeRedis()
+    svc = _make_service(fake_redis)
 
     initial = DomainReplaySSEPayload(
         session_id="sess-2",
@@ -284,9 +262,9 @@ async def test_replay_stream_terminal_initial_closes_immediately() -> None:
 
     agen = await svc.create_replay_stream(initial)
 
-    first = await agen.__anext__()
+    first = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data = _decode(first)
     assert data["status"] == "completed"
 
     with pytest.raises(StopAsyncIteration):
-        await agen.__anext__()
+        await asyncio.wait_for(agen.__anext__(), timeout=2.0)

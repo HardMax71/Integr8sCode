@@ -99,8 +99,7 @@ Use the shared `run_worker()` function from `workers/bootstrap.py`:
 
 1. Create a container factory in `app/core/container.py` for the new worker
 2. Create a `config.<worker-name>.toml` override file
-3. Optionally register Kafka subscriber handlers
-4. Optionally define `on_startup` / `on_shutdown` callbacks for APScheduler or other setup
-5. Call `run_worker()` with the worker name, config override, container factory, and optional hooks
+3. Register Kafka subscriber handlers and/or define `on_startup` / `on_shutdown` callbacks for APScheduler or other setup as needed
+4. Call `run_worker()` with the worker name, config override, container factory, and optional hooks
 
 See any existing `workers/run_*.py` for a working example. The simplest is `run_result_processor.py` (no startup hooks), the most complex is `run_pod_monitor.py` (APScheduler + K8s watch loop).

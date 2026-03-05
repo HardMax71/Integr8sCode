@@ -27,7 +27,7 @@ from app.domain.replay import (
 )
 from app.domain.sse import DomainReplaySSEPayload
 from app.events import UnifiedProducer
-from app.services.sse.redis_bus import SSERedisBus
+from app.services.sse import SSEService
 
 
 class EventReplayService:
@@ -37,7 +37,7 @@ class EventReplayService:
         producer: UnifiedProducer,
         replay_metrics: ReplayMetrics,
         logger: structlog.stdlib.BoundLogger,
-        sse_bus: SSERedisBus,
+        sse_service: SSEService,
     ) -> None:
         self._sessions: dict[str, ReplaySessionState] = {}
         self._schedulers: dict[str, AsyncIOScheduler] = {}
@@ -49,7 +49,7 @@ class EventReplayService:
         self.logger = logger
         self._file_locks: dict[str, asyncio.Lock] = {}
         self._metrics = replay_metrics
-        self._sse_bus = sse_bus
+        self._sse_service = sse_service
 
     async def create_session_from_config(self, config: ReplayConfig) -> ReplayOperationResult:
         try:
@@ -429,6 +429,6 @@ class EventReplayService:
                 completed_at=session.completed_at,
                 errors=session.errors,
             )
-            await self._sse_bus.publish_replay_status(session.session_id, payload)
+            await self._sse_service.publish_replay_status(session.session_id, payload)
         except Exception as e:
             self.logger.error("Failed to publish replay status to SSE", error=str(e))

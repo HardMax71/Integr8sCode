@@ -63,7 +63,7 @@ from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.services.saga import SagaOrchestrator, SagaService
 from app.services.saved_script_service import SavedScriptService
-from app.services.sse import SSERedisBus, SSEService
+from app.services.sse import SSEService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -131,6 +131,7 @@ class RedisProvider(Provider):
             decode_responses=settings.REDIS_DECODE_RESPONSES,
             socket_connect_timeout=5,
             socket_timeout=5,
+            socket_keepalive=True,
         )
         # Test connection
         await client.ping()  # type: ignore[misc]  # redis-py returns Awaitable[bool] | bool
@@ -351,22 +352,19 @@ class SSEProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def get_sse_redis_bus(
+    def get_sse_service(
         self,
         redis_client: redis.Redis,
+        execution_repository: ExecutionRepository,
         logger: structlog.stdlib.BoundLogger,
         connection_metrics: ConnectionMetrics,
-    ) -> SSERedisBus:
-        return SSERedisBus(redis_client, logger, connection_metrics)
-
-    @provide
-    def get_sse_service(
-            self,
-            bus: SSERedisBus,
-            execution_repository: ExecutionRepository,
-            logger: structlog.stdlib.BoundLogger,
     ) -> SSEService:
-        return SSEService(bus=bus, execution_repository=execution_repository, logger=logger)
+        return SSEService(
+            redis_client=redis_client,
+            execution_repository=execution_repository,
+            logger=logger,
+            connection_metrics=connection_metrics,
+        )
 
 
 class AuthProvider(Provider):
@@ -483,7 +481,7 @@ class AdminServicesProvider(Provider):
             self,
             notification_repository: NotificationRepository,
             kafka_event_service: KafkaEventService,
-            sse_redis_bus: SSERedisBus,
+            sse_service: SSEService,
             settings: Settings,
             logger: structlog.stdlib.BoundLogger,
             notification_metrics: NotificationMetrics,
@@ -491,7 +489,7 @@ class AdminServicesProvider(Provider):
         return NotificationService(
             notification_repository=notification_repository,
             event_service=kafka_event_service,
-            sse_bus=sse_redis_bus,
+            sse_service=sse_service,
             settings=settings,
             logger=logger,
             notification_metrics=notification_metrics,
@@ -731,12 +729,12 @@ class EventReplayProvider(Provider):
             kafka_producer: UnifiedProducer,
             replay_metrics: ReplayMetrics,
             logger: structlog.stdlib.BoundLogger,
-            sse_bus: SSERedisBus,
+            sse_service: SSEService,
     ) -> EventReplayService:
         return EventReplayService(
             repository=replay_repository,
             producer=kafka_producer,
             replay_metrics=replay_metrics,
             logger=logger,
-            sse_bus=sse_bus,
+            sse_service=sse_service,
         )

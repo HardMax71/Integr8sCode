@@ -33,7 +33,7 @@ from app.domain.notification import (
 )
 from app.domain.sse import DomainNotificationSSEPayload
 from app.services.kafka_event_service import KafkaEventService
-from app.services.sse import SSERedisBus
+from app.services.sse import SSEService
 from app.settings import Settings
 
 # Constants
@@ -100,7 +100,7 @@ class NotificationService:
         self,
         notification_repository: NotificationRepository,
         event_service: KafkaEventService,
-        sse_bus: SSERedisBus,
+        sse_service: SSEService,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
         notification_metrics: NotificationMetrics,
@@ -109,7 +109,7 @@ class NotificationService:
         self.event_service = event_service
         self.metrics = notification_metrics
         self.settings = settings
-        self.sse_bus = sse_bus
+        self.sse_service = sse_service
         self.logger = logger
         self._throttle_cache = ThrottleCache()
 
@@ -578,7 +578,7 @@ class NotificationService:
             action_url=notification.action_url,
             created_at=notification.created_at,
         )
-        await self.sse_bus.publish_notification(notification.user_id, payload)
+        await self.sse_service.publish_notification(notification.user_id, payload)
 
     # --8<-- [start:should_skip_notification]
     async def _should_skip_notification(

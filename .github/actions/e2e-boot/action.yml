@@ -41,3 +41,27 @@ runs:
         echo "$K3S_INSTALL_SHA256  /tmp/k3s-install.sh" | sha256sum -c -
         chmod +x /tmp/k3s-install.sh
         INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
+
+    - name: Pre-pull executor images and Kueue manifest (background)
+      shell: bash
+      run: |
+        KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+
+        nohup bash -c '
+          curl -fsSL -o /tmp/kueue-manifests.yaml \
+            "https://github.com/kubernetes-sigs/kueue/releases/download/'"$KUEUE_VERSION"'/manifests.yaml"
+          echo $? > /tmp/kueue-download.exit
+        ' > /tmp/kueue-download.log 2>&1 &
+        echo $! > /tmp/kueue-download.pid
+
+        nohup bash -c '
+          sudo k3s crictl pull docker.io/library/python:3.11-slim
+          echo $? > /tmp/crictl-python.exit
+        ' > /tmp/crictl-python.log 2>&1 &
+        echo $! > /tmp/crictl-python.pid
+
+        nohup bash -c '
+          sudo k3s crictl pull docker.io/library/busybox:1.36
+          echo $? > /tmp/crictl-busybox.exit
+        ' > /tmp/crictl-busybox.log 2>&1 &
+        echo $! > /tmp/crictl-busybox.pid

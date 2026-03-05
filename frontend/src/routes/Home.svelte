@@ -31,11 +31,13 @@
 </script>
 
 {#if ready}
+    <!-- Fixed gradient background — covers full viewport, behind everything -->
+    <div class="gradient-bg fixed inset-0 -z-10 pointer-events-none" aria-hidden="true"></div>
+
+    <!-- Content — normal flow, no layout hacks -->
     <div>
         <!-- HERO SECTION - Enhanced responsiveness -->
-        <section
-            class="hero-section relative isolate overflow-x-clip bg-bg-default dark:bg-dark-bg-default min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20"
-        >
+        <section class="min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
             <div class="relative z-10 text-center w-full -mt-4 sm:-mt-6">
                 <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
                     <h1
@@ -65,9 +67,7 @@
         </section>
 
         <!-- FEATURES SECTION - Simplified, adaptive, on-brand -->
-        <section
-            class="bg-bg-default dark:bg-dark-bg-default py-16 sm:py-20 lg:py-28 px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20"
-        >
+        <section class="py-16 sm:py-20 lg:py-28 px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-20">
             <div class="mx-auto max-w-full text-center mb-12 sm:mb-16">
                 <h2
                     class="text-sm sm:text-base font-semibold leading-7 text-primary-dark dark:text-primary-light hero-animate-fly-in uppercase tracking-wider"

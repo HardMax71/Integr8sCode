@@ -211,34 +211,34 @@
     position: relative;
   }
 
-  .hero-section::before,
-  .hero-section::after {
+  .gradient-bg::before,
+  .gradient-bg::after {
     content: '';
-
-    @apply absolute -z-10 rounded-full;
-
+    position: absolute;
+    z-index: -10;
     filter: blur(60px);
     opacity: 0.15;
     will-change: transform;
   }
 
-  :is(.dark .hero-section)::before,
-  :is(.dark .hero-section)::after {
+  :is(.dark .gradient-bg)::before,
+  :is(.dark .gradient-bg)::after {
     opacity: 0.1;
     filter: blur(70px);
   }
 
-  .hero-section::before {
+  .gradient-bg::before {
     width: 25rem;
     height: 25rem;
     left: -10rem;
     top: -10rem;
+    border-radius: 9999px;
     background-color: var(--color-primary-light);
     animation: shape-float-1 35s ease-in-out infinite;
   }
 
   @media (width >= 640px) {
-    .hero-section::before {
+    .gradient-bg::before {
       width: 35rem;
       height: 35rem;
       left: -15rem;
@@ -247,7 +247,7 @@
   }
 
   @media (width >= 1024px) {
-    .hero-section::before {
+    .gradient-bg::before {
       width: 50rem;
       height: 50rem;
       left: -20rem;
@@ -255,11 +255,11 @@
     }
   }
 
-  :is(.dark .hero-section)::before {
+  :is(.dark .gradient-bg)::before {
     background-color: var(--color-primary);
   }
 
-  .hero-section::after {
+  .gradient-bg::after {
     width: 20rem;
     height: 15rem;
     right: -10rem;
@@ -270,7 +270,7 @@
   }
 
   @media (width >= 640px) {
-    .hero-section::after {
+    .gradient-bg::after {
       width: 30rem;
       height: 22rem;
       right: -12rem;
@@ -279,7 +279,7 @@
   }
 
   @media (width >= 1024px) {
-    .hero-section::after {
+    .gradient-bg::after {
       width: 40rem;
       height: 30rem;
       right: -15rem;
@@ -287,7 +287,7 @@
     }
   }
 
-  :is(.dark .hero-section)::after {
+  :is(.dark .gradient-bg)::after {
     background-color: var(--color-secondary-dark);
     border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
   }

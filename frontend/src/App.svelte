@@ -82,7 +82,7 @@
 {#if appError.current}
     <ErrorDisplay error={appError.current.error} title={appError.current.title} />
 {:else}
-    <div class="flex flex-col min-h-screen bg-bg-default dark:bg-dark-bg-default pt-16">
+    <div class="flex flex-col min-h-screen pt-16">
         <Header />
         <Toaster richColors position="top-right" />
         <main class="flex-grow">

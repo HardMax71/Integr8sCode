@@ -12,7 +12,7 @@ export default defineConfig({
     pool: 'threads',
     maxWorkers: process.env.CI ? 4 : 8,
     minWorkers: process.env.CI ? 4 : 2,
-    isolate: false,
+    isolate: true,
     css: false,
     testTimeout: 10_000,
     environment: 'happy-dom',

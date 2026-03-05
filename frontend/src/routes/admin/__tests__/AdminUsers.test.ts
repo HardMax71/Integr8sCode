@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user, createMockUser, createMockUsers } from '$test/test-utils';
+import { user, selectOption, createMockUser, createMockUsers } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     listUsersApiV1AdminUsersGet: vi.fn(),
@@ -162,7 +162,7 @@ describe('AdminUsers', () => {
             await waitFor(() => expect(mocks.listUsersApiV1AdminUsersGet).toHaveBeenCalled());
 
             const roleSelect = screen.getByRole('combobox', { name: /Role/i });
-            await user.selectOptions(roleSelect, 'admin');
+            selectOption(roleSelect, 'admin');
             await waitFor(() => {
                 expect(screen.getAllByText('admin1')).toHaveLength(2);
                 expect(screen.queryAllByText('user1')).toHaveLength(0);
@@ -176,7 +176,7 @@ describe('AdminUsers', () => {
             ];
             await renderWithUsers(users);
             const statusSelect = screen.getByRole('combobox', { name: /Status/i });
-            await user.selectOptions(statusSelect, 'disabled');
+            selectOption(statusSelect, 'disabled');
             await waitFor(() => {
                 expect(screen.getAllByText('disableduser')).toHaveLength(2);
                 expect(screen.queryAllByText('activeuser')).toHaveLength(0);
@@ -220,7 +220,7 @@ describe('AdminUsers', () => {
             await renderWithUsers(users);
             await user.click(screen.getByRole('button', { name: /Advanced/i }));
             const bypassSelect = screen.getByRole('combobox', { name: /Bypass Rate Limit/i });
-            await user.selectOptions(bypassSelect, 'yes');
+            selectOption(bypassSelect, 'yes');
             await waitFor(() => {
                 expect(screen.getAllByText('bypassed')).toHaveLength(2);
                 expect(screen.queryAllByText('limited')).toHaveLength(0);
@@ -603,7 +603,7 @@ describe('AdminUsers', () => {
             await renderWithUsers(users);
 
             const statusSelect = screen.getByRole('combobox', { name: /Status/i });
-            await user.selectOptions(statusSelect, 'active');
+            selectOption(statusSelect, 'active');
 
             await waitFor(() => {
                 expect(screen.getByText(/Users \(1 of 2\)/)).toBeInTheDocument();

@@ -7,7 +7,7 @@
         totalItems: number;
         pageSize: number;
         onPageChange: (page: number) => void;
-        onPageSizeChange?: (size: number) => void;
+        onPageSizeChange?: () => void;
         pageSizeOptions?: number[];
         itemName?: string;
     }
@@ -16,7 +16,7 @@
         currentPage,
         totalPages,
         totalItems,
-        pageSize,
+        pageSize = $bindable(),
         onPageChange,
         onPageSizeChange,
         pageSizeOptions = [10, 25, 50, 100],
@@ -38,8 +38,8 @@
             {#if onPageSizeChange}
                 <select
                     class="pagination-selector"
-                    value={pageSize}
-                    onchange={(e) => onPageSizeChange?.(Number(e.currentTarget.value))}
+                    bind:value={pageSize}
+                    onchange={() => onPageSizeChange?.()}
                     aria-label="Items per page"
                 >
                     {#each pageSizeOptions as size}

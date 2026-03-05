@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/svelte';
 
-vi.useFakeTimers();
+vi.useFakeTimers({ shouldAdvanceTime: true });
 
 // Global handler for promise rejections (mirrors main.ts behavior)
 // API errors are handled by interceptor - just silence the rejection in tests
@@ -73,6 +73,30 @@ vi.stubGlobal('IntersectionObserver', vi.fn().mockImplementation(() => ({
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 })));
+
+// Polyfill :checked for <option> elements (happy-dom doesn't support it).
+// Svelte's bind_select_value reads select.querySelector(':checked') on change events,
+// so without this polyfill bind:value never updates in tests.
+{
+  const origQS = HTMLSelectElement.prototype.querySelector;
+  HTMLSelectElement.prototype.querySelector = function (selector: string) {
+    if (selector === ':checked') {
+      for (const opt of this.options) {
+        if (opt.selected) return opt;
+      }
+      return null;
+    }
+    return origQS.call(this, selector);
+  } as typeof origQS;
+
+  const origQSA = HTMLSelectElement.prototype.querySelectorAll;
+  HTMLSelectElement.prototype.querySelectorAll = function (selector: string) {
+    if (selector === ':checked') {
+      return Array.from(this.options).filter(o => o.selected) as unknown as ReturnType<typeof origQSA>;
+    }
+    return origQSA.call(this, selector);
+  } as typeof origQSA;
+}
 
 // Mock Element.prototype.animate for Svelte transitions (canonical global stub)
 Element.prototype.animate = vi.fn().mockImplementation(() => {

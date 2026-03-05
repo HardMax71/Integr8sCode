@@ -31,18 +31,6 @@
         onEnabledChange,
         onRateChange,
     }: Props = $props();
-
-    function handleEnabledChange(e: Event): void {
-        const target = e.target as HTMLInputElement;
-        enabled = target.checked;
-        onEnabledChange?.(enabled);
-    }
-
-    function handleRateChange(e: Event): void {
-        const target = e.target as HTMLSelectElement;
-        rate = parseInt(target.value, 10);
-        onRateChange?.(rate);
-    }
 </script>
 
 <div class="card">
@@ -50,8 +38,8 @@
         <label class="flex items-center gap-2 cursor-pointer">
             <input
                 type="checkbox"
-                checked={enabled}
-                onchange={handleEnabledChange}
+                bind:checked={enabled}
+                onchange={() => onEnabledChange?.(enabled)}
                 class="w-4 h-4 rounded border-border-default text-primary focus:ring-primary"
             />
             <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Auto-refresh</span>
@@ -60,7 +48,12 @@
         {#if enabled}
             <div class="flex items-center gap-2 flex-1 sm:flex-initial">
                 <label for="refresh-rate" class="text-xs sm:text-sm text-fg-muted">Every:</label>
-                <select id="refresh-rate" value={rate} onchange={handleRateChange} class="form-select-standard">
+                <select
+                    id="refresh-rate"
+                    bind:value={rate}
+                    onchange={() => onRateChange?.(rate)}
+                    class="form-select-standard"
+                >
                     {#each rateOptions as option}
                         <option value={option.value}>{option.label}</option>
                     {/each}

@@ -9,6 +9,7 @@ import {
     createMockEventDetail,
     createMockUserOverview,
     user,
+    selectOption,
 } from '$test/test-utils';
 
 // Hoisted mocks
@@ -330,7 +331,7 @@ describe('AdminEvents', () => {
             const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Show:/i));
 
             mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
-            await user.selectOptions(pageSizeSelect, '25');
+            selectOption(pageSizeSelect, '25');
 
             await waitFor(() => {
                 expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(

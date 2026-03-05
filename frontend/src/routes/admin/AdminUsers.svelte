@@ -254,8 +254,7 @@
     function handlePageChange(page: number): void {
         currentPage = page;
     }
-    function handlePageSizeChange(size: number): void {
-        pageSize = size;
+    function handlePageSizeChange(): void {
         currentPage = 1;
     }
 
@@ -340,7 +339,7 @@
                             {currentPage}
                             {totalPages}
                             totalItems={filteredUsers.length}
-                            {pageSize}
+                            bind:pageSize
                             onPageChange={handlePageChange}
                             onPageSizeChange={handlePageSizeChange}
                             pageSizeOptions={[5, 10, 20, 50]}

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, createMockExecution, createMockExecutions, createMockQueueStatus } from '$test/test-utils';
+import { user, selectOption, createMockExecution, createMockExecutions, createMockQueueStatus } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     listExecutionsApiV1AdminExecutionsGet: vi.fn(),
@@ -114,7 +114,7 @@ describe('AdminExecutions', () => {
             vi.clearAllMocks();
 
             const statusSelect = screen.getByLabelText(/status/i);
-            await user.selectOptions(statusSelect, 'running');
+            selectOption(statusSelect, 'running');
 
             await waitFor(() => {
                 expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe('AdminExecutions', () => {
             vi.clearAllMocks();
 
             const prioritySelect = screen.getByLabelText('Priority');
-            await user.selectOptions(prioritySelect!, 'high');
+            selectOption(prioritySelect!, 'high');
 
             await waitFor(() => {
                 expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
@@ -161,7 +161,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions();
 
             const statusSelect = screen.getByLabelText(/status/i);
-            await user.selectOptions(statusSelect, 'running');
+            selectOption(statusSelect, 'running');
 
             vi.clearAllMocks();
             const resetButton = screen.getByRole('button', { name: /reset/i });
@@ -209,7 +209,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            await user.selectOptions(prioritySelect!, 'high');
+            selectOption(prioritySelect!, 'high');
 
             await waitFor(() => {
                 expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
@@ -234,7 +234,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            await user.selectOptions(prioritySelect!, 'critical');
+            selectOption(prioritySelect!, 'critical');
 
             await waitFor(() => {
                 expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(

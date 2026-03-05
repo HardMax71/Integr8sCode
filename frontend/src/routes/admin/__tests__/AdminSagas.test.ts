@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, createMockSaga, createMockSagas } from '$test/test-utils';
+import { user, selectOption, createMockSaga, createMockSagas } from '$test/test-utils';
 
 const mocks = vi.hoisted(() => ({
     listSagasApiV1SagasGet: vi.fn(),
@@ -145,7 +145,7 @@ describe('AdminSagas', () => {
             vi.clearAllMocks();
 
             const stateSelect = screen.getByLabelText(/state/i);
-            await user.selectOptions(stateSelect, 'running');
+            selectOption(stateSelect, 'running');
 
             await waitFor(() => {
                 expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
@@ -201,7 +201,7 @@ describe('AdminSagas', () => {
             await renderWithSagas();
 
             const stateSelect = screen.getByLabelText(/state/i);
-            await user.selectOptions(stateSelect, 'failed');
+            selectOption(stateSelect, 'failed');
 
             vi.clearAllMocks();
             const clearButton = screen.getByRole('button', { name: /clear filters/i });
@@ -349,7 +349,7 @@ describe('AdminSagas', () => {
 
             vi.clearAllMocks();
             const pageSizeSelect = screen.getByDisplayValue('10 / page');
-            await user.selectOptions(pageSizeSelect, '25');
+            selectOption(pageSizeSelect, '25');
 
             await waitFor(() => {
                 expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
@@ -366,7 +366,7 @@ describe('AdminSagas', () => {
             await renderWithSagas();
 
             const rateSelect = screen.getByLabelText(/every/i);
-            await user.selectOptions(rateSelect, '10');
+            selectOption(rateSelect, '10');
 
             vi.clearAllMocks();
             await vi.advanceTimersByTimeAsync(10000);

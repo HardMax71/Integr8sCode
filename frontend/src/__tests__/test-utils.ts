@@ -352,3 +352,19 @@ export const createMockUsers = (count: number): UserResponse[] =>
             is_active: i % 3 !== 0,
         }),
     );
+
+/**
+ * Selects an option in a <select> element by value.
+ *
+ * Works with Svelte's bind:value in both jsdom and happy-dom.
+ * Svelte reads the :checked option on change — not select.value —
+ * so we must mark the <option> as selected before dispatching.
+ */
+export function selectOption(element: HTMLElement, value: string): void {
+    const option = Array.from(element.querySelectorAll('option')).find((o) => o.value === value);
+    if (!option) {
+        throw new Error(`No <option value="${value}"> found`);
+    }
+    option.selected = true;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+}

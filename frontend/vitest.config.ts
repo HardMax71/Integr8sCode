@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
-import pkg from './package.json' with { type: 'json' };
 
 // --8<-- [start:config]
 export default defineConfig({
@@ -11,25 +10,24 @@ export default defineConfig({
   ],
   test: {
     pool: 'threads',
-    maxWorkers: 8,
-    minWorkers: 2,
+    maxWorkers: process.env.CI ? 4 : 8,
+    minWorkers: process.env.CI ? 4 : 2,
     isolate: false,
     css: false,
     testTimeout: 10_000,
-    environment: 'jsdom',
+    environment: 'happy-dom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
-    fakeTimers: { shouldAdvanceTime: true },
     deps: {
       optimizer: {
         web: {
-          include: Object.keys(pkg.dependencies),
+          include: ['svelte', '@lucide/svelte', 'date-fns', 'dompurify', 'ansi_up', 'svelte-sonner'],
         },
       },
     },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
+      reporter: process.env.CI ? ['text', 'lcov'] : ['text', 'html', 'lcov'],
       include: ['src/**/*.{ts,svelte}'],
       exclude: [
         'src/lib/api/**',

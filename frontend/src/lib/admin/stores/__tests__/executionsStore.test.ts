@@ -1,41 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-import { createMockExecution, createMockQueueStatus } from '$test/test-utils';
+import { createMockExecution, createMockQueueStatus, mockApi } from '$test/test-utils';
 import { toast } from 'svelte-sonner';
-
-const mocks = vi.hoisted(() => ({
-    listExecutionsApiV1AdminExecutionsGet: vi.fn(),
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: vi.fn(),
-    getQueueStatusApiV1AdminExecutionsQueueGet: vi.fn(),
-    unwrap: vi.fn((result: { data: unknown }) => result?.data),
-    unwrapOr: vi.fn((result: { data: unknown }, fallback: unknown) => result?.data ?? fallback),
-}));
-
-vi.mock('$lib/api', () => ({
-    listExecutionsApiV1AdminExecutionsGet: (...args: unknown[]) => mocks.listExecutionsApiV1AdminExecutionsGet(...args),
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: (...args: unknown[]) =>
-        mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut(...args),
-    getQueueStatusApiV1AdminExecutionsQueueGet: (...args: unknown[]) =>
-        mocks.getQueueStatusApiV1AdminExecutionsQueueGet(...args),
-}));
-
-vi.mock('$lib/api-interceptors', () => ({
-    unwrap: (result: { data: unknown }) => mocks.unwrap(result),
-    unwrapOr: (result: { data: unknown }, fallback: unknown) => mocks.unwrapOr(result, fallback),
-}));
-
-const { createExecutionsStore } = await import('$lib/admin/stores/executionsStore.svelte');
+import {
+    listExecutionsApiV1AdminExecutionsGet,
+    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
+    getQueueStatusApiV1AdminExecutionsQueueGet,
+} from '$lib/api';
+import { createExecutionsStore } from '$lib/admin/stores/executionsStore.svelte';
 
 function setupDefaultMocks() {
-    mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-        data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
+    mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+        executions: [],
+        total: 0,
+        limit: 20,
+        skip: 0,
+        has_more: false,
     });
-    mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-        data: createMockQueueStatus(),
-    });
-    mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-        data: null,
-    });
+    mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
+    mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(null);
 }
 
 describe('ExecutionsStore', () => {
@@ -94,12 +77,8 @@ describe('ExecutionsStore', () => {
         it('loads executions and queue status', async () => {
             createStore();
             const execs = [createMockExecution()];
-            mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-                data: { executions: execs, total: 1 },
-            });
-            mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-                data: createMockQueueStatus(),
-            });
+            mockApi(listExecutionsApiV1AdminExecutionsGet).ok({ executions: execs, total: 1 });
+            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
 
             await store.loadData();
 
@@ -110,7 +89,7 @@ describe('ExecutionsStore', () => {
 
         it('handles empty API response', async () => {
             createStore();
-            mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({ data: null });
+            mockApi(listExecutionsApiV1AdminExecutionsGet).ok(undefined);
 
             await store.loadExecutions();
 
@@ -125,7 +104,7 @@ describe('ExecutionsStore', () => {
             store.statusFilter = 'running';
             await store.loadExecutions();
 
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({ status: 'running' }),
                 }),
@@ -137,7 +116,7 @@ describe('ExecutionsStore', () => {
             store.priorityFilter = 'high';
             await store.loadExecutions();
 
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({ priority: 'high' }),
                 }),
@@ -149,7 +128,7 @@ describe('ExecutionsStore', () => {
             store.userSearch = 'user-42';
             await store.loadExecutions();
 
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({ user_id: 'user-42' }),
                 }),
@@ -160,7 +139,7 @@ describe('ExecutionsStore', () => {
             createStore();
             await store.loadExecutions();
 
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({
                         status: undefined,
@@ -177,7 +156,7 @@ describe('ExecutionsStore', () => {
             createStore();
             await store.updatePriority('exec-1', 'high');
 
-            expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith({
+            expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith({
                 path: { execution_id: 'exec-1' },
                 body: { priority: 'high' },
             });
@@ -207,10 +186,10 @@ describe('ExecutionsStore', () => {
             setupDefaultMocks();
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(1);
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(2);
         });
 
         it('stops on teardown', async () => {
@@ -218,14 +197,14 @@ describe('ExecutionsStore', () => {
             setupDefaultMocks();
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled();
 
-            const callsBefore = mocks.listExecutionsApiV1AdminExecutionsGet.mock.calls.length;
+            const callsBefore = vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length;
             teardown();
             vi.clearAllTimers();
 
             await vi.advanceTimersByTimeAsync(10000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet.mock.calls.length).toBe(callsBefore);
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length).toBe(callsBefore);
         });
     });
 
@@ -235,7 +214,7 @@ describe('ExecutionsStore', () => {
             store.pagination.currentPage = 2;
             await store.loadExecutions();
 
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({
                         skip: 20,

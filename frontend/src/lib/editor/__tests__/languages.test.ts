@@ -10,7 +10,6 @@ describe('getLanguageExtension', () => {
     it('returns python extension for unknown language', () => {
         const fallback = getLanguageExtension('unknown-lang');
         const python = getLanguageExtension('python');
-        // Both should return a python() extension — compare structure
         expect(typeof fallback).toBe(typeof python);
     });
 
@@ -22,7 +21,6 @@ describe('getLanguageExtension', () => {
     it('returns distinct extensions for different languages', () => {
         const py = getLanguageExtension('python');
         const js = getLanguageExtension('node');
-        // Different language extensions should not be referentially equal
         expect(py).not.toBe(js);
     });
 });

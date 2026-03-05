@@ -1,37 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, createMockExecution, createMockExecutions, createMockQueueStatus } from '$test/test-utils';
+import {
+    user,
+    selectOption,
+    createMockExecution,
+    createMockExecutions,
+    createMockQueueStatus,
+    mockApi,
+} from '$test/test-utils';
+import {
+    listExecutionsApiV1AdminExecutionsGet,
+    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
+    getQueueStatusApiV1AdminExecutionsQueueGet,
+} from '$lib/api';
+import { toast } from 'svelte-sonner';
 
-const mocks = vi.hoisted(() => ({
-    listExecutionsApiV1AdminExecutionsGet: vi.fn(),
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: vi.fn(),
-    getQueueStatusApiV1AdminExecutionsQueueGet: vi.fn(),
-    addToast: vi.fn(),
-}));
-
-vi.mock('../../../lib/api', () => ({
-    listExecutionsApiV1AdminExecutionsGet: (...args: unknown[]) => mocks.listExecutionsApiV1AdminExecutionsGet(...args),
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut: (...args: unknown[]) =>
-        mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut(...args),
-    getQueueStatusApiV1AdminExecutionsQueueGet: (...args: unknown[]) =>
-        mocks.getQueueStatusApiV1AdminExecutionsQueueGet(...args),
-}));
-
-vi.mock('svelte-sonner', () => ({
-    toast: {
-        success: (...args: unknown[]) => mocks.addToast('success', ...args),
-        error: (...args: unknown[]) => mocks.addToast('error', ...args),
-        warning: (...args: unknown[]) => mocks.addToast('warning', ...args),
-        info: (...args: unknown[]) => mocks.addToast('info', ...args),
-    },
-}));
-
-vi.mock('../../../lib/api-interceptors', async (importOriginal) => {
-    const actual = (await importOriginal()) as Record<string, unknown>;
-    return { ...actual };
-});
-
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });
@@ -39,43 +23,40 @@ vi.mock('../AdminLayout.svelte', async () => {
 import AdminExecutions from '$routes/admin/AdminExecutions.svelte';
 
 async function renderWithExecutions(executions = createMockExecutions(5), queueStatus = createMockQueueStatus()) {
-    mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-        data: { executions, total: executions.length, limit: 20, skip: 0, has_more: false },
-        error: null,
+    mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+        executions,
+        total: executions.length,
+        limit: 20,
+        skip: 0,
+        has_more: false,
     });
-    mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-        data: queueStatus,
-        error: null,
-    });
+    mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(queueStatus);
 
     const result = render(AdminExecutions);
-    await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
+    await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
     return result;
 }
 
 describe('AdminExecutions', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-            data: { executions: [], total: 0, limit: 20, skip: 0, has_more: false },
-            error: null,
+        mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+            executions: [],
+            total: 0,
+            limit: 20,
+            skip: 0,
+            has_more: false,
         });
-        mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-            data: createMockQueueStatus(),
-            error: null,
-        });
-        mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-            data: null,
-            error: null,
-        });
+        mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
+        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(null);
     });
 
     describe('initial loading', () => {
         it('calls API on mount', async () => {
             render(AdminExecutions);
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
-                expect(mocks.getQueueStatusApiV1AdminExecutionsQueueGet).toHaveBeenCalled();
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled();
+                expect(vi.mocked(getQueueStatusApiV1AdminExecutionsQueueGet)).toHaveBeenCalled();
             });
         });
 
@@ -114,10 +95,10 @@ describe('AdminExecutions', () => {
             vi.clearAllMocks();
 
             const statusSelect = screen.getByLabelText(/status/i);
-            await user.selectOptions(statusSelect, 'running');
+            selectOption(statusSelect, 'running');
 
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ status: 'running' }),
                     }),
@@ -130,10 +111,10 @@ describe('AdminExecutions', () => {
             vi.clearAllMocks();
 
             const prioritySelect = screen.getByLabelText('Priority');
-            await user.selectOptions(prioritySelect!, 'high');
+            selectOption(prioritySelect!, 'high');
 
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ priority: 'high' }),
                     }),
@@ -149,7 +130,7 @@ describe('AdminExecutions', () => {
             await user.type(userInput, 'user-42');
 
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ user_id: 'user-42' }),
                     }),
@@ -161,14 +142,14 @@ describe('AdminExecutions', () => {
             await renderWithExecutions();
 
             const statusSelect = screen.getByLabelText(/status/i);
-            await user.selectOptions(statusSelect, 'running');
+            selectOption(statusSelect, 'running');
 
             vi.clearAllMocks();
             const resetButton = screen.getByRole('button', { name: /reset/i });
             await user.click(resetButton);
 
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ status: undefined }),
                     }),
@@ -202,17 +183,14 @@ describe('AdminExecutions', () => {
     describe('priority update', () => {
         it('successful update shows success toast', async () => {
             const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
-            mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-                data: { ...execs[0], priority: 'high' },
-                error: null,
-            });
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok({ ...execs[0], priority: 'high' });
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            await user.selectOptions(prioritySelect!, 'high');
+            selectOption(prioritySelect!, 'high');
 
             await waitFor(() => {
-                expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
+                expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         path: { execution_id: 'e1' },
                         body: { priority: 'high' },
@@ -221,43 +199,40 @@ describe('AdminExecutions', () => {
             });
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('success', expect.stringContaining('high'));
+                expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('high'));
             });
         });
 
         it('failed update calls API and does not show success toast', async () => {
             const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
-            mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut.mockResolvedValue({
-                data: undefined,
-                error: { detail: 'Not found' },
-            });
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).err({ detail: 'Not found' });
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            await user.selectOptions(prioritySelect!, 'critical');
+            selectOption(prioritySelect!, 'critical');
 
             await waitFor(() => {
-                expect(mocks.updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).toHaveBeenCalledWith(
+                expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         path: { execution_id: 'e1' },
                         body: { priority: 'critical' },
                     }),
                 );
             });
-            expect(mocks.addToast).not.toHaveBeenCalledWith('success', expect.anything());
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalledWith(expect.anything());
         });
     });
 
     describe('auto-refresh', () => {
         it('auto-refreshes at 5s interval', async () => {
             await renderWithExecutions();
-            const initialCalls = mocks.listExecutionsApiV1AdminExecutionsGet.mock.calls.length;
+            const initialCalls = vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length;
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(initialCalls + 1);
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(initialCalls + 1);
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalledTimes(initialCalls + 2);
+            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(initialCalls + 2);
         });
 
         it('manual refresh button calls loadData', async () => {
@@ -268,8 +243,8 @@ describe('AdminExecutions', () => {
             await user.click(refreshButton);
 
             await waitFor(() => {
-                expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled();
-                expect(mocks.getQueueStatusApiV1AdminExecutionsQueueGet).toHaveBeenCalled();
+                expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled();
+                expect(vi.mocked(getQueueStatusApiV1AdminExecutionsQueueGet)).toHaveBeenCalled();
             });
         });
     });
@@ -277,17 +252,17 @@ describe('AdminExecutions', () => {
     describe('pagination', () => {
         it('shows pagination when totalPages > 1', async () => {
             const execs = createMockExecutions(5);
-            mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
-                data: { executions: execs, total: 50, limit: 20, skip: 0, has_more: true },
-                error: null,
+            mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+                executions: execs,
+                total: 50,
+                limit: 20,
+                skip: 0,
+                has_more: true,
             });
-            mocks.getQueueStatusApiV1AdminExecutionsQueueGet.mockResolvedValue({
-                data: createMockQueueStatus(),
-                error: null,
-            });
+            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
 
             render(AdminExecutions);
-            await waitFor(() => expect(mocks.listExecutionsApiV1AdminExecutionsGet).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
 
             expect(screen.getByText(/showing/i)).toBeInTheDocument();
         });

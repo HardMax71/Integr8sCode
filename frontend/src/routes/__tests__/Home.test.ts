@@ -3,8 +3,6 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 import * as meta from '$utils/meta';
 import Home from '$routes/Home.svelte';
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
-
 describe('Home', () => {
     beforeEach(() => {
         vi.clearAllMocks();

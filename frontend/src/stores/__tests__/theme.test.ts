@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock the dynamic imports before importing the theme module
-vi.mock('../../lib/user-settings', () => ({
+vi.mock('$lib/user-settings', () => ({
     saveUserSettings: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('../auth.svelte', () => ({
+vi.mock('$stores/auth.svelte', () => ({
     authStore: {
         isAuthenticated: false,
     },
@@ -23,7 +22,6 @@ describe('theme store', () => {
 
         document.documentElement.classList.remove('dark');
 
-        // Clear module cache to reset store state
         vi.resetModules();
     });
 
@@ -102,7 +100,6 @@ describe('theme store', () => {
 
         it('cycles from auto to light', async () => {
             const { themeStore } = await import('$stores/theme.svelte');
-            // Default is auto
             themeStore.toggleTheme();
             expect(themeStore.value).toBe('light');
         });

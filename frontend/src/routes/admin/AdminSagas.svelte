@@ -37,8 +37,9 @@
         store.pagination.handlePageChange(page, () => store.loadSagas());
     }
 
-    function handlePageSizeChange(size: number): void {
-        store.pagination.handlePageSizeChange(size, () => store.loadSagas());
+    function handlePageSizeChange(): void {
+        store.pagination.currentPage = 1;
+        store.loadSagas();
     }
 
     let prevStateFilter = $state(store.stateFilter);
@@ -101,7 +102,7 @@
                     currentPage={store.pagination.currentPage}
                     {totalPages}
                     totalItems={store.totalItems}
-                    pageSize={store.pagination.pageSize}
+                    bind:pageSize={store.pagination.pageSize}
                     onPageChange={handlePageChange}
                     onPageSizeChange={handlePageSizeChange}
                     itemName="sagas"

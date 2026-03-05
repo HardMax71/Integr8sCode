@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user, mockApi } from '$test/test-utils';
 import { toast } from 'svelte-sonner';
 import Settings from '$routes/Settings.svelte';
 
 function createMockSettings() {
     return {
+        user_id: 'user-1',
         theme: 'dark',
+        timezone: 'UTC',
+        date_format: 'YYYY-MM-DD',
+        time_format: '24h',
         notifications: {
             execution_completed: true,
             execution_failed: false,
@@ -21,14 +25,19 @@ function createMockSettings() {
             word_wrap: false,
             show_line_numbers: true,
         },
+        custom_settings: {},
+        version: 1,
     };
 }
 
+import {
+    getUserSettingsApiV1UserSettingsGet,
+    updateUserSettingsApiV1UserSettingsPut,
+    restoreSettingsApiV1UserSettingsRestorePost,
+    getSettingsHistoryApiV1UserSettingsHistoryGet,
+} from '$lib/api';
+
 const mocks = vi.hoisted(() => ({
-    getUserSettingsApiV1UserSettingsGet: vi.fn(),
-    updateUserSettingsApiV1UserSettingsPut: vi.fn(),
-    restoreSettingsApiV1UserSettingsRestorePost: vi.fn(),
-    getSettingsHistoryApiV1UserSettingsHistoryGet: vi.fn(),
     mockSetTheme: vi.fn(),
     mockSetUserSettings: vi.fn(),
     mockConfirm: vi.fn(),
@@ -38,16 +47,6 @@ const mocks = vi.hoisted(() => ({
         userRole: 'user',
         verifyAuth: vi.fn(),
     },
-}));
-
-vi.mock('$lib/api', () => ({
-    getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) => mocks.getUserSettingsApiV1UserSettingsGet(...args),
-    updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) =>
-        mocks.updateUserSettingsApiV1UserSettingsPut(...args),
-    restoreSettingsApiV1UserSettingsRestorePost: (...args: unknown[]) =>
-        mocks.restoreSettingsApiV1UserSettingsRestorePost(...args),
-    getSettingsHistoryApiV1UserSettingsHistoryGet: (...args: unknown[]) =>
-        mocks.getSettingsHistoryApiV1UserSettingsHistoryGet(...args),
 }));
 
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
@@ -60,20 +59,10 @@ vi.mock('$stores/userSettings.svelte', () => ({
 describe('Settings', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
-        vi.spyOn(toast, 'warning');
-        vi.spyOn(toast, 'info');
         vi.stubGlobal('confirm', mocks.mockConfirm);
         mocks.mockAuthStore.isAuthenticated = true;
-        mocks.getUserSettingsApiV1UserSettingsGet.mockResolvedValue({
-            data: createMockSettings(),
-            error: undefined,
-        });
-        mocks.updateUserSettingsApiV1UserSettingsPut.mockResolvedValue({
-            data: createMockSettings(),
-            error: undefined,
-        });
+        mockApi(getUserSettingsApiV1UserSettingsGet).ok(createMockSettings());
+        mockApi(updateUserSettingsApiV1UserSettingsPut).ok(createMockSettings());
     });
 
     afterEach(() => vi.unstubAllGlobals());
@@ -86,7 +75,7 @@ describe('Settings', () => {
         it('calls API on mount and populates form', async () => {
             await renderSettings();
             await waitFor(() => {
-                expect(mocks.getUserSettingsApiV1UserSettingsGet).toHaveBeenCalled();
+                expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).toHaveBeenCalled();
             });
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
@@ -96,7 +85,7 @@ describe('Settings', () => {
         it('does not call API when unauthenticated', async () => {
             mocks.mockAuthStore.isAuthenticated = false;
             await renderSettings();
-            expect(mocks.getUserSettingsApiV1UserSettingsGet).not.toHaveBeenCalled();
+            expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).not.toHaveBeenCalled();
         });
     });
 
@@ -119,10 +108,7 @@ describe('Settings', () => {
 
     describe('Theme dropdown', () => {
         it('selects "Dark" and calls setTheme with "dark"', async () => {
-            mocks.getUserSettingsApiV1UserSettingsGet.mockResolvedValue({
-                data: { ...createMockSettings(), theme: 'light' },
-                error: undefined,
-            });
+            mockApi(getUserSettingsApiV1UserSettingsGet).ok({ ...createMockSettings(), theme: 'light' });
             await renderSettings();
             await waitFor(() => {
                 expect(screen.getByText('General Settings')).toBeInTheDocument();
@@ -150,16 +136,13 @@ describe('Settings', () => {
             await waitFor(() => {
                 expect(toast.info).toHaveBeenCalledWith('No changes to save');
             });
-            expect(mocks.updateUserSettingsApiV1UserSettingsPut).not.toHaveBeenCalled();
+            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).not.toHaveBeenCalled();
         });
 
         it('saves changed editor settings and shows success toast', async () => {
             const settings = createMockSettings();
             const updatedSettings = { ...settings, editor: { ...settings.editor, font_size: 18 } };
-            mocks.updateUserSettingsApiV1UserSettingsPut.mockResolvedValue({
-                data: updatedSettings,
-                error: undefined,
-            });
+            mockApi(updateUserSettingsApiV1UserSettingsPut).ok(updatedSettings);
 
             await renderSettings();
             await waitFor(() => {
@@ -177,9 +160,9 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: /save settings/i }));
             await waitFor(() => {
-                expect(mocks.updateUserSettingsApiV1UserSettingsPut).toHaveBeenCalled();
+                expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).toHaveBeenCalled();
             });
-            const callArgs = mocks.updateUserSettingsApiV1UserSettingsPut.mock.calls[0]![0];
+            const callArgs = vi.mocked(updateUserSettingsApiV1UserSettingsPut).mock.calls[0]![0];
             expect(callArgs.body).toHaveProperty('editor');
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
@@ -190,13 +173,18 @@ describe('Settings', () => {
 
     describe('History', () => {
         it('opens history modal and calls API', async () => {
-            mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
-                data: {
-                    history: [
-                        { timestamp: '2025-01-15T10:00:00Z', field: 'theme', old_value: 'light', new_value: 'dark' },
-                    ],
-                },
-                error: undefined,
+            mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({
+                history: [
+                    {
+                        timestamp: '2025-01-15T10:00:00Z',
+                        event_type: 'settings_updated',
+                        field: 'theme',
+                        old_value: 'light',
+                        new_value: 'dark',
+                        reason: null,
+                    },
+                ],
+                limit: 10,
             });
 
             await renderSettings();
@@ -208,16 +196,13 @@ describe('Settings', () => {
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings History' })).toBeInTheDocument();
             });
-            expect(mocks.getSettingsHistoryApiV1UserSettingsHistoryGet).toHaveBeenCalledWith({
+            expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledWith({
                 query: { limit: 10 },
             });
         });
 
         it('uses cache on second open within 30s', async () => {
-            mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
-                data: { history: [] },
-                error: undefined,
-            });
+            mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({ history: [], limit: 10 });
 
             await renderSettings();
             await waitFor(() => {
@@ -226,36 +211,32 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: /view history/i }));
             await waitFor(() => {
-                expect(mocks.getSettingsHistoryApiV1UserSettingsHistoryGet).toHaveBeenCalledTimes(1);
+                expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledTimes(1);
             });
 
             await user.click(screen.getByRole('button', { name: 'Close' }));
             await user.click(screen.getByRole('button', { name: /view history/i }));
-            expect(mocks.getSettingsHistoryApiV1UserSettingsHistoryGet).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledTimes(1);
         });
     });
 
     describe('Restore', () => {
         const historyEntry = {
             timestamp: '2025-01-15T10:00:00Z',
+            event_type: 'settings_updated' as const,
             field: 'theme',
             old_value: 'light',
             new_value: 'dark',
+            reason: null,
         };
 
         function setupHistoryMock() {
-            mocks.getSettingsHistoryApiV1UserSettingsHistoryGet.mockResolvedValue({
-                data: { history: [historyEntry] },
-                error: undefined,
-            });
+            mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({ history: [historyEntry], limit: 10 });
         }
 
         it('restores settings on confirm', async () => {
             mocks.mockConfirm.mockReturnValue(true);
-            mocks.restoreSettingsApiV1UserSettingsRestorePost.mockResolvedValue({
-                data: { ...createMockSettings(), theme: 'light' },
-                error: undefined,
-            });
+            mockApi(restoreSettingsApiV1UserSettingsRestorePost).ok({ ...createMockSettings(), theme: 'light' });
             setupHistoryMock();
 
             await renderSettings();
@@ -270,7 +251,7 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: 'Restore' }));
             await waitFor(() => {
-                expect(mocks.restoreSettingsApiV1UserSettingsRestorePost).toHaveBeenCalledWith({
+                expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).toHaveBeenCalledWith({
                     body: { timestamp: '2025-01-15T10:00:00Z', reason: 'User requested restore' },
                 });
             });
@@ -293,7 +274,7 @@ describe('Settings', () => {
             });
 
             await user.click(screen.getByRole('button', { name: 'Restore' }));
-            expect(mocks.restoreSettingsApiV1UserSettingsRestorePost).not.toHaveBeenCalled();
+            expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).not.toHaveBeenCalled();
         });
     });
 });

@@ -6,14 +6,10 @@ describe('meta utilities', () => {
     let metaDescription: HTMLMetaElement | null;
 
     beforeEach(() => {
-        // Save original state
         originalTitle = document.title;
         metaDescription = document.querySelector('meta[name="description"]');
-
-        // Reset document state
         document.title = 'Original Title';
 
-        // Remove existing meta description if any
         const existingMeta = document.querySelector('meta[name="description"]');
         if (existingMeta) {
             existingMeta.remove();
@@ -21,16 +17,13 @@ describe('meta utilities', () => {
     });
 
     afterEach(() => {
-        // Restore original state
         document.title = originalTitle;
 
-        // Clean up any meta tags we created
         const testMeta = document.querySelector('meta[name="description"]');
         if (testMeta) {
             testMeta.remove();
         }
 
-        // Restore original meta if it existed
         if (metaDescription) {
             document.head.appendChild(metaDescription);
         }
@@ -62,7 +55,6 @@ describe('meta utilities', () => {
         });
 
         it('updates existing meta description', () => {
-            // Create existing meta
             const existingMeta = document.createElement('meta');
             existingMeta.setAttribute('name', 'description');
             existingMeta.setAttribute('content', 'Old description');

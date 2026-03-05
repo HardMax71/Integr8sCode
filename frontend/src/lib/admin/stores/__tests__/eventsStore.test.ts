@@ -1,50 +1,19 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-import { createMockEvent, createMockStats } from '$test/test-utils';
+import { createMockEvent, createMockStats, mockApi } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
+import {
+    browseEventsApiV1AdminEventsBrowsePost,
+    getEventStatsApiV1AdminEventsStatsGet,
+    getEventDetailApiV1AdminEventsEventIdGet,
+    replayEventsApiV1AdminEventsReplayPost,
+    deleteEventApiV1AdminEventsEventIdDelete,
+    getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+} from '$lib/api';
+import { createEventsStore } from '$lib/admin/stores/eventsStore.svelte';
 
-const mocks = vi.hoisted(() => ({
-    browseEventsApiV1AdminEventsBrowsePost: vi.fn(),
-    getEventStatsApiV1AdminEventsStatsGet: vi.fn(),
-    getEventDetailApiV1AdminEventsEventIdGet: vi.fn(),
-    replayEventsApiV1AdminEventsReplayPost: vi.fn(),
-    deleteEventApiV1AdminEventsEventIdDelete: vi.fn(),
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet: vi.fn(),
-    unwrap: vi.fn((result: { data: unknown }) => result?.data),
-    unwrapOr: vi.fn((result: { data: unknown }, fallback: unknown) => result?.data ?? fallback),
-    toastSuccess: vi.fn(),
-    toastError: vi.fn(),
-    toastInfo: vi.fn(),
-    windowOpen: vi.fn(),
-    windowConfirm: vi.fn(),
-}));
-
-vi.mock('$lib/api', () => ({
-    browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) =>
-        mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
-    getEventStatsApiV1AdminEventsStatsGet: (...args: unknown[]) => mocks.getEventStatsApiV1AdminEventsStatsGet(...args),
-    getEventDetailApiV1AdminEventsEventIdGet: (...args: unknown[]) =>
-        mocks.getEventDetailApiV1AdminEventsEventIdGet(...args),
-    replayEventsApiV1AdminEventsReplayPost: (...args: unknown[]) =>
-        mocks.replayEventsApiV1AdminEventsReplayPost(...args),
-    deleteEventApiV1AdminEventsEventIdDelete: (...args: unknown[]) =>
-        mocks.deleteEventApiV1AdminEventsEventIdDelete(...args),
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) =>
-        mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
-}));
-
-vi.mock('$lib/api-interceptors', () => ({
-    unwrap: (result: { data: unknown }) => mocks.unwrap(result),
-    unwrapOr: (result: { data: unknown }, fallback: unknown) => mocks.unwrapOr(result, fallback),
-}));
-
-vi.mock('svelte-sonner', () => ({
-    toast: {
-        success: (...args: unknown[]) => mocks.toastSuccess(...args),
-        error: (...args: unknown[]) => mocks.toastError(...args),
-        info: (...args: unknown[]) => mocks.toastInfo(...args),
-        warning: vi.fn(),
-    },
-}));
+const windowOpen = vi.fn();
+const windowConfirm = vi.fn();
 
 type EventSourceHandler = ((event: MessageEvent) => void) | null;
 
@@ -77,8 +46,6 @@ class MockEventSource {
     }
 }
 
-const { createEventsStore } = await import('../eventsStore.svelte');
-
 describe('EventsStore', () => {
     let store: ReturnType<typeof createEventsStore>;
     let teardown: () => void;
@@ -87,15 +54,11 @@ describe('EventsStore', () => {
         vi.clearAllMocks();
         MockEventSource.instances = [];
         vi.stubGlobal('EventSource', MockEventSource);
-        vi.stubGlobal('open', mocks.windowOpen);
-        vi.stubGlobal('confirm', mocks.windowConfirm);
-        mocks.windowConfirm.mockReturnValue(true);
-        mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-            data: { events: [], total: 0 },
-        });
-        mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({
-            data: null,
-        });
+        vi.stubGlobal('open', windowOpen);
+        vi.stubGlobal('confirm', windowConfirm);
+        windowConfirm.mockReturnValue(true);
+        mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0 });
+        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(null);
     });
 
     function createStore() {
@@ -125,12 +88,8 @@ describe('EventsStore', () => {
         it('loads events and stats', async () => {
             const events = [createMockEvent()];
             const stats = createMockStats();
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-                data: { events, total: 1 },
-            });
-            mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({
-                data: stats,
-            });
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: 1 });
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
             createStore();
             await store.loadAll();
@@ -147,7 +106,7 @@ describe('EventsStore', () => {
             store.pagination.currentPage = 2;
             await store.loadEvents();
 
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     body: expect.objectContaining({ skip: 10, limit: 10 }),
                 }),
@@ -159,7 +118,7 @@ describe('EventsStore', () => {
             store.filters = { user_id: 'user-1', aggregate_id: 'agg-1' };
             await store.loadEvents();
 
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
                 expect.objectContaining({
                     body: expect.objectContaining({
                         filters: expect.objectContaining({
@@ -172,7 +131,7 @@ describe('EventsStore', () => {
         });
 
         it('handles empty response', async () => {
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: null });
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok(undefined);
 
             createStore();
             await store.loadEvents();
@@ -185,13 +144,13 @@ describe('EventsStore', () => {
     describe('loadEventDetail', () => {
         it('returns event detail', async () => {
             const detail = { event: createMockEvent(), related_events: [], timeline: [] };
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({ data: detail });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(detail);
 
             createStore();
             const result = await store.loadEventDetail('evt-1');
 
             expect(result).toEqual(detail);
-            expect(mocks.getEventDetailApiV1AdminEventsEventIdGet).toHaveBeenCalledWith({
+            expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith({
                 path: { event_id: 'evt-1' },
             });
         });
@@ -200,8 +159,9 @@ describe('EventsStore', () => {
     describe('replayEvent', () => {
         it('performs dry run and sets replayPreview', async () => {
             const preview = [createMockEvent()];
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 1, events_preview: preview },
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                total_events: 1,
+                events_preview: preview,
             });
 
             createStore();
@@ -215,23 +175,27 @@ describe('EventsStore', () => {
         });
 
         it('confirms and starts SSE stream for actual replay', async () => {
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 1, session_id: 'session-1', replay_id: 'replay-1' },
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                total_events: 1,
+                session_id: 'session-1',
+                replay_id: 'replay-1',
             });
 
             createStore();
             await store.replayEvent('evt-1', false);
 
-            expect(mocks.windowConfirm).toHaveBeenCalled();
-            expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
+            expect(windowConfirm).toHaveBeenCalled();
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
             expect(store.activeReplaySession).toBeTruthy();
             expect(MockEventSource.instances).toHaveLength(1);
             expect(MockEventSource.instances[0]!.url).toBe('/api/v1/admin/events/replay/session-1/status');
         });
 
         it('updates activeReplaySession from SSE messages', async () => {
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 5, session_id: 'session-1', replay_id: 'replay-1' },
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                total_events: 5,
+                session_id: 'session-1',
+                replay_id: 'replay-1',
             });
 
             createStore();
@@ -257,8 +221,10 @@ describe('EventsStore', () => {
         });
 
         it('disconnects SSE on terminal status', async () => {
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 5, session_id: 'session-1', replay_id: 'replay-1' },
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                total_events: 5,
+                session_id: 'session-1',
+                replay_id: 'replay-1',
             });
 
             createStore();
@@ -279,41 +245,41 @@ describe('EventsStore', () => {
                 }),
             );
 
-            expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
             expect(es.closed).toBe(true);
         });
 
         it('does not replay if confirm is cancelled', async () => {
-            mocks.windowConfirm.mockReturnValue(false);
+            windowConfirm.mockReturnValue(false);
 
             createStore();
             await store.replayEvent('evt-1', false);
 
-            expect(mocks.replayEventsApiV1AdminEventsReplayPost).not.toHaveBeenCalled();
+            expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).not.toHaveBeenCalled();
         });
     });
 
     describe('deleteEvent', () => {
         it('confirms and deletes event', async () => {
-            mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {} });
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
 
             createStore();
             await store.deleteEvent('evt-1');
 
-            expect(mocks.windowConfirm).toHaveBeenCalled();
-            expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).toHaveBeenCalledWith({
+            expect(windowConfirm).toHaveBeenCalled();
+            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith({
                 path: { event_id: 'evt-1' },
             });
-            expect(mocks.toastSuccess).toHaveBeenCalledWith('Event deleted successfully');
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Event deleted successfully');
         });
 
         it('does not delete if confirm is cancelled', async () => {
-            mocks.windowConfirm.mockReturnValue(false);
+            windowConfirm.mockReturnValue(false);
 
             createStore();
             await store.deleteEvent('evt-1');
 
-            expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).not.toHaveBeenCalled();
+            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).not.toHaveBeenCalled();
         });
     });
 
@@ -322,18 +288,18 @@ describe('EventsStore', () => {
             createStore();
             store.exportEvents('csv');
 
-            expect(mocks.windowOpen).toHaveBeenCalledWith(
+            expect(windowOpen).toHaveBeenCalledWith(
                 expect.stringContaining('/api/v1/admin/events/export/csv'),
                 '_blank',
             );
-            expect(mocks.toastInfo).toHaveBeenCalledWith(expect.stringContaining('CSV'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('CSV'));
         });
 
         it('opens export URL for JSON', () => {
             createStore();
             store.exportEvents('json');
 
-            expect(mocks.windowOpen).toHaveBeenCalledWith(
+            expect(windowOpen).toHaveBeenCalledWith(
                 expect.stringContaining('/api/v1/admin/events/export/json'),
                 '_blank',
             );
@@ -344,16 +310,14 @@ describe('EventsStore', () => {
             store.filters = { user_id: 'user-1', aggregate_id: 'agg-1' };
             store.exportEvents('csv');
 
-            expect(mocks.windowOpen).toHaveBeenCalledWith(expect.stringMatching(/user_id=user-1/), '_blank');
+            expect(windowOpen).toHaveBeenCalledWith(expect.stringMatching(/user_id=user-1/), '_blank');
         });
     });
 
     describe('openUserOverview', () => {
         it('loads user overview', async () => {
             const overview = { user: { user_id: 'user-1' }, stats: {}, derived_counts: {} };
-            mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
-                data: overview,
-            });
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
 
             createStore();
             await store.openUserOverview('user-1');
@@ -366,7 +330,7 @@ describe('EventsStore', () => {
             createStore();
             await store.openUserOverview('');
 
-            expect(mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet).not.toHaveBeenCalled();
+            expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).not.toHaveBeenCalled();
         });
     });
 
@@ -380,7 +344,7 @@ describe('EventsStore', () => {
 
             expect(store.filters).toEqual({});
             expect(store.pagination.currentPage).toBe(1);
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled();
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled();
         });
     });
 
@@ -390,29 +354,31 @@ describe('EventsStore', () => {
             vi.clearAllMocks();
 
             await vi.advanceTimersByTimeAsync(30000);
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(1);
 
             await vi.advanceTimersByTimeAsync(30000);
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(2);
         });
 
         it('stops on teardown', async () => {
             createStore();
             await vi.advanceTimersByTimeAsync(30000);
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled();
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled();
 
-            const callsBefore = mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length;
+            const callsBefore = vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mock.calls.length;
             teardown();
 
             await vi.advanceTimersByTimeAsync(60000);
-            expect(mocks.browseEventsApiV1AdminEventsBrowsePost.mock.calls.length).toBe(callsBefore);
+            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mock.calls.length).toBe(callsBefore);
         });
     });
 
     describe('cleanup', () => {
         it('cleans up SSE replay stream', async () => {
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 1, session_id: 'session-1', replay_id: 'replay-1' },
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                total_events: 1,
+                session_id: 'session-1',
+                replay_id: 'replay-1',
             });
 
             createStore();

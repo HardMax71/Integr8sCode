@@ -211,11 +211,13 @@
                             currentPage={store.pagination.currentPage}
                             {totalPages}
                             totalItems={store.total}
-                            pageSize={store.pagination.pageSize}
+                            bind:pageSize={store.pagination.pageSize}
                             onPageChange={(page) =>
                                 store.pagination.handlePageChange(page, () => store.loadExecutions())}
-                            onPageSizeChange={(size) =>
-                                store.pagination.handlePageSizeChange(size, () => store.loadExecutions())}
+                            onPageSizeChange={() => {
+                                store.pagination.currentPage = 1;
+                                store.loadExecutions();
+                            }}
                             pageSizeOptions={[10, 20, 50, 100]}
                             itemName="executions"
                         />

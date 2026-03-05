@@ -29,4 +29,4 @@ jobs:
       - name: Run grimp orphan module check
         run: |
           cd backend
-          uv run python scripts/check_orphan_modules.py
+          uv run --no-sync python scripts/check_orphan_modules.py

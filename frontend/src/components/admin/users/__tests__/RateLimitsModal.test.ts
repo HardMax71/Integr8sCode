@@ -9,20 +9,7 @@ vi.mock('$components/Spinner.svelte', async () => {
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-vi.mock('$lib/api', () => ({
-    getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet: vi.fn().mockResolvedValue({
-        data: [
-            {
-                endpoint_pattern: '/api/v1/*',
-                requests: 100,
-                window_seconds: 60,
-                group: 'general',
-                algorithm: 'sliding_window',
-                enabled: true,
-            },
-        ],
-    }),
-}));
+import { getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet } from '$lib/api';
 
 vi.mock('$lib/admin/rate-limits', () => ({
     getGroupColor: vi.fn(() => 'badge-neutral'),
@@ -67,7 +54,23 @@ function renderModal(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RateLimitsModal', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet).mockResolvedValue({
+            data: [
+                {
+                    endpoint_pattern: '/api/v1/*',
+                    requests: 100,
+                    window_seconds: 60,
+                    group: 'api',
+                    algorithm: 'sliding_window',
+                    burst_multiplier: 1.5,
+                    priority: 0,
+                    enabled: true,
+                },
+            ],
+        } as any);
+    });
 
     it('does not render content when open is false', () => {
         renderModal({ open: false });
@@ -76,7 +79,6 @@ describe('RateLimitsModal', () => {
 
     it('shows spinner when loading', () => {
         renderModal({ loading: true, config: null });
-        // When config is null, spinner is shown
         expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
     });
 

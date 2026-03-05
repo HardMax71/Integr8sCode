@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user, type UserEventInstance } from '$test/test-utils';
-// Types for mock notification state
+
 interface MockNotification {
     notification_id: string;
     subject: string;
@@ -40,25 +40,24 @@ const mocks = vi.hoisted(() => ({
     mockStreamDisconnect: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ goto: mocks.mockGoto }));
-vi.mock('../../stores/auth.svelte', () => ({
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
+vi.mock('$stores/auth.svelte', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
-vi.mock('../../stores/notificationStore.svelte', () => ({
+vi.mock('$stores/notificationStore.svelte', () => ({
     get notificationStore() {
         return mocks.mockNotificationStore;
     },
 }));
-vi.mock('../../lib/notifications/stream.svelte', () => ({
+vi.mock('$lib/notifications/stream.svelte', () => ({
     notificationStream: {
         connect: mocks.mockStreamConnect,
         disconnect: mocks.mockStreamDisconnect,
     },
 }));
 
-// Configurable Notification mock
 const mockRequestPermission = vi.fn().mockResolvedValue('granted');
 let mockNotificationPermission = 'default';
 vi.stubGlobal('Notification', {
@@ -70,7 +69,6 @@ vi.stubGlobal('Notification', {
 
 import NotificationCenter from '$components/NotificationCenter.svelte';
 
-// Test Helpers
 const createNotification = (overrides: Partial<MockNotification> = {}): MockNotification => ({
     notification_id: '1',
     subject: 'Test',
@@ -115,7 +113,6 @@ const interactWithButton = async (user: UserEventInstance, button: HTMLElement, 
     }
 };
 
-// Test Data (consolidated arrays for it.each)
 const iconTestCases = [
     { tags: ['completed'], iconClass: 'lucide-circle-check', desc: 'check' },
     { tags: ['success'], iconClass: 'lucide-circle-check', desc: 'check' },
@@ -154,7 +151,6 @@ const interactionTestCases = [
     { method: 'keyboard' as const, hasUrl: false, url: undefined },
 ];
 
-// Tests
 describe('NotificationCenter', () => {
     const openDropdown = async () => {
         render(NotificationCenter);

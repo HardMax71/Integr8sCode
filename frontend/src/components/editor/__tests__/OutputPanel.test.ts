@@ -34,8 +34,6 @@ function renderIdle(overrides: Partial<IdleProps> = {}) {
 describe('OutputPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
     });
 
     it('shows heading and prompt text when idle with no result or error', () => {

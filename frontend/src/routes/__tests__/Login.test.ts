@@ -6,10 +6,11 @@ import * as router from '@mateothegreat/svelte5-router';
 import * as meta from '$utils/meta';
 import Login from '$routes/Login.svelte';
 
+import { getErrorMessage } from '$lib/api-interceptors';
+
 const mocks = vi.hoisted(() => ({
     mockLogin: vi.fn(),
     mockLoadUserSettings: vi.fn(),
-    mockGetErrorMessage: vi.fn((err: unknown, fallback?: string) => fallback || String(err)),
     mockAuthStore: {
         login: vi.fn(),
         isAuthenticated: false,
@@ -25,21 +26,11 @@ vi.mock('$lib/user-settings', () => ({
     loadUserSettings: mocks.mockLoadUserSettings,
 }));
 
-vi.mock('$lib/api-interceptors', () => ({
-    getErrorMessage: mocks.mockGetErrorMessage,
-}));
-
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
-
 describe('Login', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.mockAuthStore.login = vi.fn().mockResolvedValue(true);
         mocks.mockLoadUserSettings.mockResolvedValue(undefined);
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
-        vi.spyOn(toast, 'warning');
-        vi.spyOn(toast, 'info');
         vi.spyOn(meta, 'updateMetaTags');
     });
 
@@ -101,7 +92,7 @@ describe('Login', () => {
 
     it('shows error message in DOM on login failure (no duplicate toast)', async () => {
         mocks.mockAuthStore.login = vi.fn().mockRejectedValue(new Error('Invalid credentials'));
-        mocks.mockGetErrorMessage.mockReturnValue('Login failed. Please check your credentials.');
+        vi.mocked(getErrorMessage).mockReturnValue('Login failed. Please check your credentials.');
 
         await renderLogin();
         await user.type(screen.getByPlaceholderText('Username'), 'bad');

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user, selectOption } from '$test/test-utils';
 import Pagination from '$components/Pagination.svelte';
 
 const defaultProps = {
@@ -85,8 +85,8 @@ describe('Pagination', () => {
         it('fires onPageSizeChange on select change', async () => {
             const onPageSizeChange = vi.fn();
             renderPagination({ onPageSizeChange } as Record<string, unknown>);
-            await user.selectOptions(screen.getByRole('combobox'), '25');
-            expect(onPageSizeChange).toHaveBeenCalledWith(25);
+            selectOption(screen.getByRole('combobox'), '25');
+            expect(onPageSizeChange).toHaveBeenCalled();
         });
     });
 

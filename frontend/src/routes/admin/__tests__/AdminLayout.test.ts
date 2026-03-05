@@ -18,15 +18,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
-
 describe('AdminLayout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
-        vi.spyOn(toast, 'warning');
-        vi.spyOn(toast, 'info');
         mocks.mockAuthStore.userRole = 'admin';
         mocks.mockAuthStore.username = 'adminuser';
     });

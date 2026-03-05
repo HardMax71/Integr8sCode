@@ -30,12 +30,19 @@ describe('SagasStore', () => {
 
     function createStore() {
         teardown = effect_root(() => {
+            store = createSagasStore({ autoRefresh: false });
+        });
+    }
+
+    function createStoreWithAutoRefresh() {
+        teardown = effect_root(() => {
             store = createSagasStore();
         });
     }
 
     afterEach(() => {
         teardown?.();
+        vi.clearAllTimers();
     });
 
     describe('initial state', () => {
@@ -190,7 +197,7 @@ describe('SagasStore', () => {
 
     describe('auto-refresh', () => {
         it('fires loadSagas on interval', async () => {
-            createStore();
+            createStoreWithAutoRefresh();
             vi.clearAllMocks();
 
             await vi.advanceTimersByTimeAsync(5000);
@@ -206,7 +213,7 @@ describe('SagasStore', () => {
                 data: { sagas, total: 1 },
             });
 
-            createStore();
+            createStoreWithAutoRefresh();
             await store.loadExecutionSagas('exec-target');
             vi.clearAllMocks();
 
@@ -224,7 +231,7 @@ describe('SagasStore', () => {
         });
 
         it('stops when refreshEnabled set to false', async () => {
-            createStore();
+            createStoreWithAutoRefresh();
             await vi.advanceTimersByTimeAsync(5000);
             expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled();
 

@@ -39,13 +39,15 @@ class EventsStore {
 
     pagination = createPaginationState({ initialPageSize: 10 });
 
-    constructor() {
-        $effect(() => {
-            const id = setInterval(() => this.loadAll(), 30_000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+    constructor({ autoRefresh = true }: { autoRefresh?: boolean } = {}) {
+        if (autoRefresh) {
+            $effect(() => {
+                const id = setInterval(() => this.loadAll(), 30_000);
+                return () => {
+                    clearInterval(id);
+                };
+            });
+        }
     }
 
     async loadAll(): Promise<void> {
@@ -235,6 +237,6 @@ class EventsStore {
     }
 }
 
-export function createEventsStore(): EventsStore {
-    return new EventsStore();
+export function createEventsStore(options?: { autoRefresh?: boolean }): EventsStore {
+    return new EventsStore(options);
 }

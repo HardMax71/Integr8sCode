@@ -20,14 +20,16 @@ class SagasStore {
 
     pagination = createPaginationState({ initialPageSize: 10 });
 
-    constructor() {
-        $effect(() => {
-            if (!this.refreshEnabled) return;
-            const id = setInterval(() => this.loadSagas(), this.refreshRate * 1000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+    constructor({ autoRefresh = true }: { autoRefresh?: boolean } = {}) {
+        if (autoRefresh) {
+            $effect(() => {
+                if (!this.refreshEnabled) return;
+                const id = setInterval(() => this.loadSagas(), this.refreshRate * 1000);
+                return () => {
+                    clearInterval(id);
+                };
+            });
+        }
     }
 
     async loadSagas(): Promise<void> {
@@ -77,6 +79,6 @@ class SagasStore {
     }
 }
 
-export function createSagasStore(): SagasStore {
-    return new SagasStore();
+export function createSagasStore(options?: { autoRefresh?: boolean }): SagasStore {
+    return new SagasStore(options);
 }

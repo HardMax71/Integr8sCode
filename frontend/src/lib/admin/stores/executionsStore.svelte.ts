@@ -23,13 +23,15 @@ class ExecutionsStore {
 
     pagination = createPaginationState({ initialPageSize: 20 });
 
-    constructor() {
-        $effect(() => {
-            const id = setInterval(() => this.loadData(), 5000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+    constructor({ autoRefresh = true }: { autoRefresh?: boolean } = {}) {
+        if (autoRefresh) {
+            $effect(() => {
+                const id = setInterval(() => this.loadData(), 5000);
+                return () => {
+                    clearInterval(id);
+                };
+            });
+        }
     }
 
     async loadData(): Promise<void> {
@@ -80,6 +82,6 @@ class ExecutionsStore {
     }
 }
 
-export function createExecutionsStore(): ExecutionsStore {
-    return new ExecutionsStore();
+export function createExecutionsStore(options?: { autoRefresh?: boolean }): ExecutionsStore {
+    return new ExecutionsStore(options);
 }

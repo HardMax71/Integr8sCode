@@ -75,6 +75,7 @@ def run_worker(
         if on_shutdown is not None:
             shutdown_hooks.append(on_shutdown)
         shutdown_hooks.append(container.close)
+        shutdown_hooks.append(client.aclose)
 
         app = FastStream(broker, on_startup=startup_hooks, on_shutdown=shutdown_hooks)
         await app.run()

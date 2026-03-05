@@ -8,13 +8,13 @@ const mocks = vi.hoisted(() => ({
     getSagaStatusApiV1SagasSagaIdGet: vi.fn(),
 }));
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     listSagasApiV1SagasGet: (...args: unknown[]) => mocks.listSagasApiV1SagasGet(...args),
     getSagaStatusApiV1SagasSagaIdGet: (...args: unknown[]) => mocks.getSagaStatusApiV1SagasSagaIdGet(...args),
 }));
 
-vi.mock('../../../lib/api-interceptors');
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$lib/api-interceptors');
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });

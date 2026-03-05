@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 const mockGetUserSettings = vi.fn();
 const mockUpdateUserSettings = vi.fn();
 
-vi.mock('../api', () => ({
+vi.mock('$lib/api', () => ({
     getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) =>
         (mockGetUserSettings as (...a: unknown[]) => unknown)(...args),
     updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) =>
@@ -12,13 +12,13 @@ vi.mock('../api', () => ({
 
 const mockSetUserSettings = vi.fn();
 
-vi.mock('../../stores/userSettings.svelte', () => ({
+vi.mock('$stores/userSettings.svelte', () => ({
     setUserSettings: (settings: unknown) => mockSetUserSettings(settings),
 }));
 
 const mockSetTheme = vi.fn();
 
-vi.mock('../../stores/theme.svelte', () => ({
+vi.mock('$stores/theme.svelte', () => ({
     setTheme: (theme: string) => mockSetTheme(theme),
 }));
 
@@ -26,11 +26,11 @@ const mockAuthStore = {
     isAuthenticated: true as boolean | null,
 };
 
-vi.mock('../../stores/auth.svelte', () => ({
+vi.mock('$stores/auth.svelte', () => ({
     authStore: mockAuthStore,
 }));
 
-vi.mock('../api-interceptors', () => ({}));
+vi.mock('$lib/api-interceptors', () => ({}));
 
 describe('user-settings', () => {
     beforeEach(async () => {

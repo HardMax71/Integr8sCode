@@ -43,7 +43,7 @@ vi.mock('$lib/formatters', () => ({
 }));
 
 // Simple mock for AdminLayout that just renders children
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });

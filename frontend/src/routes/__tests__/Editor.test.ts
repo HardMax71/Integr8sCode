@@ -215,7 +215,6 @@ describe('Editor', () => {
                 expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled();
             });
 
-            // Load saved script to set currentScriptId
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
             await waitFor(() => {
@@ -224,7 +223,6 @@ describe('Editor', () => {
             await user.click(screen.getByTitle(/Load Existing Script/));
             expect(toast.info).toHaveBeenCalledWith('Loaded script: Existing Script');
 
-            // Options closed after loadScript, reopen and click Save
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Save current script'));
 
@@ -274,7 +272,6 @@ describe('Editor', () => {
                 expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled();
             });
 
-            // Open options panel, then expand saved scripts list
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
             await waitFor(() => {
@@ -311,7 +308,6 @@ describe('Editor', () => {
                 expect(vi.mocked(getK8sResourceLimitsApiV1K8sLimitsGet)).toHaveBeenCalled();
             });
 
-            // Open options panel then click New inside ScriptActions
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByRole('button', { name: 'New' }));
             expect(mocks.mockExecutionState.reset).toHaveBeenCalled();

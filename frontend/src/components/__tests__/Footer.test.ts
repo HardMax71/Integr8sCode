@@ -6,7 +6,6 @@ describe('Footer', () => {
     let originalDate: DateConstructor;
 
     beforeEach(() => {
-        // Mock Date to have consistent year in tests
         originalDate = globalThis.Date;
         const mockDate = class extends Date {
             constructor() {
@@ -110,7 +109,6 @@ describe('Footer', () => {
         it('has screen reader text for social icons', () => {
             render(Footer);
 
-            // Check for sr-only spans
             expect(screen.getByText('Telegram', { selector: '.sr-only' })).toBeInTheDocument();
             expect(screen.getByText('GitHub', { selector: '.sr-only' })).toBeInTheDocument();
         });

@@ -79,7 +79,6 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid value to test fallback
             render(Spinner, { props: { size: 'invalid-size' } });
             const svg = getSpinner();
-            // Should fall back to medium (h-6 w-6)
             expect(svg.classList.contains('h-6')).toBe(true);
             expect(svg.classList.contains('w-6')).toBe(true);
         });
@@ -88,7 +87,6 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid value to test fallback
             render(Spinner, { props: { color: 'invalid-color' } });
             const svg = getSpinner();
-            // Should fall back to primary
             expect(svg.classList.contains('text-primary')).toBe(true);
         });
 
@@ -96,7 +94,6 @@ describe('Spinner', () => {
             // @ts-expect-error - intentionally passing invalid values to test fallback
             render(Spinner, { props: { size: 'unknown', color: 'unknown' } });
             const svg = getSpinner();
-            // Should fall back to defaults
             expect(svg.classList.contains('h-6')).toBe(true);
             expect(svg.classList.contains('w-6')).toBe(true);
             expect(svg.classList.contains('text-primary')).toBe(true);

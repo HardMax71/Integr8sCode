@@ -49,7 +49,6 @@ vi.mock('$components/NotificationCenter.svelte', () => {
 
 import Header from '$components/Header.svelte';
 
-// Test helpers
 const setAuth = (
     isAuth: boolean,
     username: string | null = null,
@@ -270,7 +269,6 @@ describe('Header', () => {
                 expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
             });
 
-            // Click outside the dropdown
             document.body.click();
 
             await waitFor(() => {
@@ -281,7 +279,6 @@ describe('Header', () => {
 
     describe('resize behavior', () => {
         it('closes mobile menu when resizing to desktop width', async () => {
-            // Start in mobile mode
             Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
 
             await openMobileMenu();
@@ -289,7 +286,6 @@ describe('Header', () => {
                 expect(screen.getByTestId('mobile-menu')).toBeInTheDocument();
             });
 
-            // Resize to desktop width
             Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
             window.dispatchEvent(new Event('resize'));
 
@@ -302,7 +298,6 @@ describe('Header', () => {
             Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
             render(Header);
 
-            // Mobile menu toggle should be visible
             expect(screen.getByTestId('mobile-menu-toggle')).toBeInTheDocument();
         });
     });

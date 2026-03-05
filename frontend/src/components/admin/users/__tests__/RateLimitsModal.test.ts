@@ -79,7 +79,6 @@ describe('RateLimitsModal', () => {
 
     it('shows spinner when loading', () => {
         renderModal({ loading: true, config: null });
-        // When config is null, spinner is shown
         expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
     });
 

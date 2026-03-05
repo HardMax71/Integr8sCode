@@ -4,7 +4,6 @@ import { cleanup } from '@testing-library/svelte';
 
 vi.useFakeTimers({ shouldAdvanceTime: true });
 
-// Auto-mock all $lib/api exports as vi.fn()
 vi.mock('$lib/api');
 
 // svelte-sonner needs a factory (toast is an object with methods, not a function)
@@ -12,10 +11,8 @@ vi.mock('svelte-sonner', () => ({
     toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
-// Router: stub route() decorator and provide goto as vi.fn()
 vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
 
-// api-interceptors: real unwrap/unwrapOr logic, simple getErrorMessage stub
 vi.mock('$lib/api-interceptors', () => ({
     unwrap: vi.fn((result: { data?: unknown; error?: unknown }) => {
         if (result.error) throw result.error;
@@ -34,7 +31,6 @@ vi.mock('$lib/api-interceptors', () => ({
 // API errors are handled by interceptor - just silence the rejection in tests
 process.on('unhandledRejection', () => {});
 
-// Mock localStorage
 const localStorageStore: Record<string, string> = {};
 const localStorageMock = {
     getItem: vi.fn((key: string) => localStorageStore[key] ?? null),
@@ -54,7 +50,6 @@ const localStorageMock = {
 };
 vi.stubGlobal('localStorage', localStorageMock);
 
-// Mock sessionStorage
 const sessionStorageStore: Record<string, string> = {};
 const sessionStorageMock = {
     getItem: vi.fn((key: string) => sessionStorageStore[key] ?? null),
@@ -74,7 +69,6 @@ const sessionStorageMock = {
 };
 vi.stubGlobal('sessionStorage', sessionStorageMock);
 
-// Mock matchMedia for theme tests (defaults to light mode)
 vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query: string) => ({
@@ -89,7 +83,6 @@ vi.stubGlobal(
     })),
 );
 
-// Mock ResizeObserver
 vi.stubGlobal(
     'ResizeObserver',
     vi.fn().mockImplementation(() => ({
@@ -99,7 +92,6 @@ vi.stubGlobal(
     })),
 );
 
-// Mock IntersectionObserver
 vi.stubGlobal(
     'IntersectionObserver',
     vi.fn().mockImplementation(() => ({
@@ -133,7 +125,6 @@ vi.stubGlobal(
     } as typeof origQSA;
 }
 
-// Mock Element.prototype.animate for Svelte transitions (canonical global stub)
 Element.prototype.animate = vi.fn().mockImplementation(() => {
     const mock = {
         _onfinish: null as (() => void) | null,

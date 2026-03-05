@@ -40,7 +40,6 @@ describe('auth store', () => {
     let sessionStorageData: Record<string, string> = {};
 
     beforeEach(async () => {
-        // Reset sessionStorage mock
         sessionStorageData = {};
         vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
         vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
@@ -50,14 +49,12 @@ describe('auth store', () => {
             delete sessionStorageData[key];
         });
 
-        // Reset all mocks
         mockLoginApi.mockReset();
         mockLogoutApi.mockReset();
         mockGetProfileApi.mockReset();
         mockClearUserSettings.mockReset();
         mockLoadUserSettings.mockReset().mockResolvedValue({});
 
-        // Clear module cache to reset store state
         vi.resetModules();
     });
 
@@ -211,7 +208,6 @@ describe('auth store', () => {
 
     describe('logout', () => {
         it('clears auth state on logout', async () => {
-            // Set up authenticated state
             mockLoginApi.mockResolvedValue({
                 data: { username: 'testuser', role: 'user', csrf_token: 'token' },
                 error: null,
@@ -290,11 +286,9 @@ describe('auth store', () => {
 
             const { authStore } = await import('$stores/auth.svelte');
 
-            // First call - should hit API
             await authStore.verifyAuth(true);
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
 
-            // Second call without force - should use cache
             await authStore.verifyAuth(false);
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
         });
@@ -313,7 +307,6 @@ describe('auth store', () => {
         it('returns cached value on network error (offline-first)', async () => {
             const restoreConsole = suppressConsoleWarn();
 
-            // First successful verification
             mockGetProfileApi.mockResolvedValueOnce({ data: PROFILE_RESPONSE, error: null });
 
             const { authStore } = await import('$stores/auth.svelte');
@@ -321,7 +314,6 @@ describe('auth store', () => {
             const firstResult = await authStore.verifyAuth(true);
             expect(firstResult).toBe(true);
 
-            // Second call with network error
             mockGetProfileApi.mockRejectedValueOnce(new Error('Network error'));
 
             const secondResult = await authStore.verifyAuth(true);

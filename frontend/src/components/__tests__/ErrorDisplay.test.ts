@@ -7,7 +7,6 @@ describe('ErrorDisplay', () => {
     let originalLocation: Location;
 
     beforeEach(() => {
-        // Mock window.location
         originalLocation = window.location;
         Object.defineProperty(window, 'location', {
             value: {

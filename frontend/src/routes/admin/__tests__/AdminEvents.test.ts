@@ -10,52 +10,25 @@ import {
     createMockUserOverview,
     user,
     selectOption,
+    mockApi,
 } from '$test/test-utils';
+import {
+    browseEventsApiV1AdminEventsBrowsePost,
+    getEventStatsApiV1AdminEventsStatsGet,
+    getEventDetailApiV1AdminEventsEventIdGet,
+    streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
+    replayEventsApiV1AdminEventsReplayPost,
+    deleteEventApiV1AdminEventsEventIdDelete,
+    getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+} from '$lib/api';
+import { toast } from 'svelte-sonner';
 
-// Hoisted mocks
 const mocks = vi.hoisted(() => ({
-    browseEventsApiV1AdminEventsBrowsePost: vi.fn(),
-    getEventStatsApiV1AdminEventsStatsGet: vi.fn(),
-    getEventDetailApiV1AdminEventsEventIdGet: vi.fn(),
-    getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet: vi.fn(),
-    replayEventsApiV1AdminEventsReplayPost: vi.fn(),
-    deleteEventApiV1AdminEventsEventIdDelete: vi.fn(),
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet: vi.fn(),
-    addToast: vi.fn(),
     windowOpen: vi.fn(),
     windowConfirm: vi.fn(),
 }));
 
-// Mock API module
-vi.mock('../../../lib/api', () => ({
-    browseEventsApiV1AdminEventsBrowsePost: (...args: unknown[]) =>
-        mocks.browseEventsApiV1AdminEventsBrowsePost(...args),
-    getEventStatsApiV1AdminEventsStatsGet: (...args: unknown[]) => mocks.getEventStatsApiV1AdminEventsStatsGet(...args),
-    getEventDetailApiV1AdminEventsEventIdGet: (...args: unknown[]) =>
-        mocks.getEventDetailApiV1AdminEventsEventIdGet(...args),
-    getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet: (...args: unknown[]) =>
-        mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet(...args),
-    replayEventsApiV1AdminEventsReplayPost: (...args: unknown[]) =>
-        mocks.replayEventsApiV1AdminEventsReplayPost(...args),
-    deleteEventApiV1AdminEventsEventIdDelete: (...args: unknown[]) =>
-        mocks.deleteEventApiV1AdminEventsEventIdDelete(...args),
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet: (...args: unknown[]) =>
-        mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet(...args),
-}));
-
-vi.mock('svelte-sonner', () => ({
-    toast: {
-        success: (...args: unknown[]) => mocks.addToast(...args),
-        error: (...args: unknown[]) => mocks.addToast(...args),
-        warning: (...args: unknown[]) => mocks.addToast(...args),
-        info: (...args: unknown[]) => mocks.addToast(...args),
-    },
-}));
-
-vi.mock('../../../lib/api-interceptors');
-
-// Simple mock for AdminLayout
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });
@@ -63,14 +36,11 @@ vi.mock('../AdminLayout.svelte', async () => {
 import AdminEvents from '$routes/admin/AdminEvents.svelte';
 
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
-    mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-        data: { events, total: events.length },
-        error: null,
-    });
-    mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: stats, error: null });
+    mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: events.length, skip: 0, limit: 10 });
+    mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
     const result = render(AdminEvents);
-    await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
+    await waitFor(() => expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled());
     return result;
 }
 
@@ -79,17 +49,14 @@ describe('AdminEvents', () => {
         vi.unstubAllGlobals();
         mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
         vi.clearAllMocks();
-        mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({ data: { events: [], total: 0 }, error: null });
-        mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: null, error: null });
-        mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet.mockResolvedValue({
-            data: {
-                session_id: 'test',
-                status: 'completed',
-                total_events: 0,
-                replayed_events: 0,
-                progress_percentage: 100,
-            },
-            error: null,
+        mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
+        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(null);
+        mockApi(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).ok({
+            session_id: 'test',
+            status: 'completed',
+            total_events: 0,
+            replayed_events: 0,
+            progress_percentage: 100,
         });
         mocks.windowConfirm.mockReturnValue(true);
     });
@@ -98,8 +65,8 @@ describe('AdminEvents', () => {
         it('calls loadEvents and loadStats on mount', async () => {
             render(AdminEvents);
             await waitFor(() => {
-                expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(1);
-                expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(1);
+                expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(1);
+                expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledTimes(1);
             });
         });
 
@@ -111,19 +78,19 @@ describe('AdminEvents', () => {
             await vi.advanceTimersByTimeAsync(30000);
 
             await waitFor(() => {
-                expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledTimes(2);
-                expect(mocks.getEventStatsApiV1AdminEventsStatsGet).toHaveBeenCalledTimes(2);
+                expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(2);
+                expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledTimes(2);
             });
         });
 
         it('handles API error on load events and shows toast', async () => {
             const error = { message: 'Network error' };
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockImplementation(async () => {
-                mocks.addToast('Failed to load events');
-                return { data: null, error };
+            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockImplementation(async () => {
+                toast.error('Failed to load events');
+                return { data: null, error } as any;
             });
             render(AdminEvents);
-            await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith('Failed to load events'));
+            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load events'));
         });
 
         it('displays empty state when no events', async () => {
@@ -191,12 +158,12 @@ describe('AdminEvents', () => {
     describe('refresh functionality', () => {
         it('refresh button reloads events', async () => {
             await renderWithEvents();
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
+            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
 
             const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
             await user.click(refreshBtn);
 
-            await waitFor(() => expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled());
         });
     });
 
@@ -235,12 +202,12 @@ describe('AdminEvents', () => {
             await waitFor(() => expect(screen.getByLabelText(/Search/i)).toBeInTheDocument());
 
             await user.type(screen.getByLabelText(/Search/i), 'test query');
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
+            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
 
             await user.click(screen.getByRole('button', { name: /^Apply$/i }));
 
             await waitFor(() => {
-                expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(
+                expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         body: expect.objectContaining({
                             filters: expect.objectContaining({
@@ -286,31 +253,35 @@ describe('AdminEvents', () => {
     describe('pagination', () => {
         it('shows pagination info', async () => {
             const events = createMockEvents(25);
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-                data: { events: events.slice(0, 10), total: 25 },
-                error: null,
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
+                events: events.slice(0, 10),
+                total: 25,
+                skip: 0,
+                limit: 10,
             });
-            mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
             await waitFor(() => expect(screen.getByText(/Showing 1 to 10 of 25 events/i)).toBeInTheDocument());
         });
 
         it('changes page when next is clicked', async () => {
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-                data: { events: createMockEvents(10), total: 25 },
-                error: null,
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
+                events: createMockEvents(10),
+                total: 25,
+                skip: 0,
+                limit: 10,
             });
-            mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
             const nextBtn = await waitFor(() => screen.getByTitle('Next page'));
 
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
+            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
             await user.click(nextBtn);
 
             await waitFor(() => {
-                expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(
+                expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         body: expect.objectContaining({
                             skip: 10,
@@ -321,20 +292,22 @@ describe('AdminEvents', () => {
         });
 
         it('changes page size', async () => {
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockResolvedValue({
-                data: { events: createMockEvents(10), total: 50 },
-                error: null,
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
+                events: createMockEvents(10),
+                total: 50,
+                skip: 0,
+                limit: 10,
             });
-            mocks.getEventStatsApiV1AdminEventsStatsGet.mockResolvedValue({ data: createMockStats(), error: null });
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
             const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Show:/i));
 
-            mocks.browseEventsApiV1AdminEventsBrowsePost.mockClear();
+            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
             selectOption(pageSizeSelect, '25');
 
             await waitFor(() => {
-                expect(mocks.browseEventsApiV1AdminEventsBrowsePost).toHaveBeenCalledWith(
+                expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         body: expect.objectContaining({
                             limit: 25,
@@ -348,10 +321,7 @@ describe('AdminEvents', () => {
     describe('event detail modal', () => {
         it('opens event detail modal when row is clicked', async () => {
             const events = [createMockEvent({ event_id: 'evt-detail-1' })];
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
-                data: createMockEventDetail(events[0]),
-                error: null,
-            });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(events[0]));
             await renderWithEvents(events);
 
             // Multiple view detail buttons may exist (mobile + desktop views)
@@ -359,7 +329,7 @@ describe('AdminEvents', () => {
             await user.click(eventRow!);
 
             await waitFor(() => {
-                expect(mocks.getEventDetailApiV1AdminEventsEventIdGet).toHaveBeenCalledWith({
+                expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith({
                     path: { event_id: 'evt-detail-1' },
                 });
                 expect(screen.getByText(/Event Details/i)).toBeInTheDocument();
@@ -368,10 +338,7 @@ describe('AdminEvents', () => {
 
         it('displays event information in modal', async () => {
             const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed' });
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
-                data: createMockEventDetail(event),
-                error: null,
-            });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -386,10 +353,7 @@ describe('AdminEvents', () => {
 
         it('shows related events in modal', async () => {
             const event = createMockEvent();
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
-                data: createMockEventDetail(event),
-                error: null,
-            });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -404,10 +368,7 @@ describe('AdminEvents', () => {
 
         it('has close button in modal', async () => {
             const event = createMockEvent();
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockResolvedValue({
-                data: createMockEventDetail(event),
-                error: null,
-            });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -424,9 +385,13 @@ describe('AdminEvents', () => {
     describe('replay functionality', () => {
         it('shows replay preview on dry run', async () => {
             const events = [createMockEvent({ event_id: 'evt-replay-1' })];
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 1, events_preview: events, session_id: null },
-                error: null,
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                dry_run: true,
+                total_events: 1,
+                replay_id: '',
+                session_id: null,
+                status: 'preview',
+                events_preview: events,
             });
             await renderWithEvents(events);
 
@@ -434,7 +399,7 @@ describe('AdminEvents', () => {
             await user.click(previewBtn!);
 
             await waitFor(() => {
-                expect(mocks.replayEventsApiV1AdminEventsReplayPost).toHaveBeenCalledWith({
+                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith({
                     body: { event_ids: ['evt-replay-1'], dry_run: true },
                 });
                 expect(screen.getByText(/Replay Preview/i)).toBeInTheDocument();
@@ -443,9 +408,13 @@ describe('AdminEvents', () => {
 
         it('confirms before actual replay', async () => {
             const events = [createMockEvent({ event_id: 'evt-replay-2' })];
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 1, session_id: 'session-1' },
-                error: null,
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                dry_run: false,
+                total_events: 1,
+                replay_id: 'replay-1',
+                session_id: 'session-1',
+                status: 'scheduled',
+                events_preview: null,
             });
             await renderWithEvents(events);
 
@@ -454,7 +423,7 @@ describe('AdminEvents', () => {
 
             expect(mocks.windowConfirm).toHaveBeenCalled();
             await waitFor(() => {
-                expect(mocks.replayEventsApiV1AdminEventsReplayPost).toHaveBeenCalledWith({
+                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith({
                     body: { event_ids: ['evt-replay-2'], dry_run: false },
                 });
             });
@@ -468,24 +437,25 @@ describe('AdminEvents', () => {
             const [replayBtn] = screen.getAllByTitle('Replay');
             await user.click(replayBtn!);
 
-            expect(mocks.replayEventsApiV1AdminEventsReplayPost).not.toHaveBeenCalled();
+            expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).not.toHaveBeenCalled();
         });
 
         it('shows replay progress when session is active', async () => {
             const events = [createMockEvent({ event_id: 'evt-progress' })];
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockResolvedValue({
-                data: { total_events: 5, session_id: 'session-progress' },
-                error: null,
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                dry_run: false,
+                total_events: 5,
+                replay_id: 'replay-p',
+                session_id: 'session-progress',
+                status: 'scheduled',
+                events_preview: null,
             });
-            mocks.getReplayStatusApiV1AdminEventsReplaySessionIdStatusGet.mockResolvedValue({
-                data: {
-                    session_id: 'session-progress',
-                    status: 'in_progress',
-                    total_events: 5,
-                    replayed_events: 2,
-                    progress_percentage: 40,
-                },
-                error: null,
+            mockApi(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).ok({
+                session_id: 'session-progress',
+                status: 'in_progress',
+                total_events: 5,
+                replayed_events: 2,
+                progress_percentage: 40,
             });
             await renderWithEvents(events);
 
@@ -501,7 +471,7 @@ describe('AdminEvents', () => {
     describe('delete event', () => {
         it('confirms before deleting', async () => {
             const events = [createMockEvent({ event_id: 'evt-delete-1' })];
-            mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
@@ -509,7 +479,7 @@ describe('AdminEvents', () => {
 
             expect(mocks.windowConfirm).toHaveBeenCalled();
             await waitFor(() => {
-                expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).toHaveBeenCalledWith({
+                expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith({
                     path: { event_id: 'evt-delete-1' },
                 });
             });
@@ -517,14 +487,14 @@ describe('AdminEvents', () => {
 
         it('shows success toast after deletion', async () => {
             const events = [createMockEvent()];
-            mocks.deleteEventApiV1AdminEventsEventIdDelete.mockResolvedValue({ data: {}, error: null });
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
             await user.click(deleteBtn!);
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('Event deleted successfully');
+                expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Event deleted successfully');
             });
         });
 
@@ -536,14 +506,14 @@ describe('AdminEvents', () => {
             const [deleteBtn] = screen.getAllByTitle('Delete');
             await user.click(deleteBtn!);
 
-            expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).not.toHaveBeenCalled();
+            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).not.toHaveBeenCalled();
         });
 
         it('handles delete error and shows toast', async () => {
             const error = { message: 'Cannot delete' };
-            mocks.deleteEventApiV1AdminEventsEventIdDelete.mockImplementation(async () => {
-                mocks.addToast('Failed to delete event');
-                return { data: null, error };
+            vi.mocked(deleteEventApiV1AdminEventsEventIdDelete).mockImplementation(async () => {
+                toast.error('Failed to delete event');
+                return { data: null, error } as any;
             });
             const events = [createMockEvent()];
             await renderWithEvents(events);
@@ -552,7 +522,7 @@ describe('AdminEvents', () => {
             await user.click(deleteBtn!);
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('Failed to delete event');
+                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete event');
             });
         });
     });
@@ -582,7 +552,7 @@ describe('AdminEvents', () => {
                 expect.stringContaining('/api/v1/admin/events/export/csv'),
                 '_blank',
             );
-            expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting CSV export'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting CSV export'));
         });
 
         it('exports as JSON', async () => {
@@ -597,24 +567,21 @@ describe('AdminEvents', () => {
                 expect.stringContaining('/api/v1/admin/events/export/json'),
                 '_blank',
             );
-            expect(mocks.addToast).toHaveBeenCalledWith(expect.stringContaining('Starting JSON export'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting JSON export'));
         });
     });
 
     describe('user overview modal', () => {
         it('opens user overview modal when user ID is clicked', async () => {
             const events = [createMockEvent({ metadata: { user_id: 'user-overview-1' } })];
-            mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
-                data: createMockUserOverview(),
-                error: null,
-            });
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(createMockUserOverview());
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-overview-1');
             await user.click(userLink!);
 
             await waitFor(() => {
-                expect(mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet).toHaveBeenCalledWith({
+                expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith({
                     path: { user_id: 'user-overview-1' },
                 });
                 expect(screen.getByText(/User Overview/i)).toBeInTheDocument();
@@ -624,10 +591,7 @@ describe('AdminEvents', () => {
         it('displays user information in overview modal', async () => {
             const events = [createMockEvent({ metadata: { user_id: 'user-info' } })];
             const overview = createMockUserOverview();
-            mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
-                data: overview,
-                error: null,
-            });
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-info');
@@ -641,10 +605,7 @@ describe('AdminEvents', () => {
 
         it('shows execution stats in overview modal', async () => {
             const events = [createMockEvent({ metadata: { user_id: 'user-stats' } })];
-            mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockResolvedValue({
-                data: createMockUserOverview(),
-                error: null,
-            });
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(createMockUserOverview());
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-stats');
@@ -662,9 +623,9 @@ describe('AdminEvents', () => {
         it('handles user overview load error and shows toast', async () => {
             const error = { message: 'Failed to load' };
             const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
-            mocks.getUserOverviewApiV1AdminUsersUserIdOverviewGet.mockImplementation(async () => {
-                mocks.addToast('Failed to load user overview');
-                return { data: null, error };
+            vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet).mockImplementation(async () => {
+                toast.error('Failed to load user overview');
+                return { data: null, error } as any;
             });
             await renderWithEvents(events);
 
@@ -672,7 +633,7 @@ describe('AdminEvents', () => {
             await user.click(userLink!);
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('Failed to load user overview');
+                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load user overview');
             });
         });
     });
@@ -720,9 +681,9 @@ describe('AdminEvents', () => {
     describe('error handling', () => {
         it('handles event detail load error and shows toast', async () => {
             const error = { message: 'Detail not found' };
-            mocks.getEventDetailApiV1AdminEventsEventIdGet.mockImplementation(async () => {
-                mocks.addToast('Failed to load event details');
-                return { data: null, error };
+            vi.mocked(getEventDetailApiV1AdminEventsEventIdGet).mockImplementation(async () => {
+                toast.error('Failed to load event details');
+                return { data: null, error } as any;
             });
             const events = [createMockEvent()];
             await renderWithEvents(events);
@@ -731,15 +692,15 @@ describe('AdminEvents', () => {
             await user.click(eventRow!);
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('Failed to load event details');
+                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load event details');
             });
         });
 
         it('handles replay error and shows toast', async () => {
             const error = { message: 'Replay failed' };
-            mocks.replayEventsApiV1AdminEventsReplayPost.mockImplementation(async () => {
-                mocks.addToast('Failed to replay event');
-                return { data: null, error };
+            vi.mocked(replayEventsApiV1AdminEventsReplayPost).mockImplementation(async () => {
+                toast.error('Failed to replay event');
+                return { data: null, error } as any;
             });
             const events = [createMockEvent()];
             await renderWithEvents(events);
@@ -748,7 +709,7 @@ describe('AdminEvents', () => {
             await user.click(replayBtn!);
 
             await waitFor(() => {
-                expect(mocks.addToast).toHaveBeenCalledWith('Failed to replay event');
+                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to replay event');
             });
         });
     });

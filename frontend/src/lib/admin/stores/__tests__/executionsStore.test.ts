@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
 import { createMockExecution, createMockQueueStatus } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
 
 const mocks = vi.hoisted(() => ({
     listExecutionsApiV1AdminExecutionsGet: vi.fn(),
@@ -8,7 +9,6 @@ const mocks = vi.hoisted(() => ({
     getQueueStatusApiV1AdminExecutionsQueueGet: vi.fn(),
     unwrap: vi.fn((result: { data: unknown }) => result?.data),
     unwrapOr: vi.fn((result: { data: unknown }, fallback: unknown) => result?.data ?? fallback),
-    toastSuccess: vi.fn(),
 }));
 
 vi.mock('$lib/api', () => ({
@@ -24,16 +24,7 @@ vi.mock('$lib/api-interceptors', () => ({
     unwrapOr: (result: { data: unknown }, fallback: unknown) => mocks.unwrapOr(result, fallback),
 }));
 
-vi.mock('svelte-sonner', () => ({
-    toast: {
-        success: (...args: unknown[]) => mocks.toastSuccess(...args),
-        error: vi.fn(),
-        info: vi.fn(),
-        warning: vi.fn(),
-    },
-}));
-
-const { createExecutionsStore } = await import('../executionsStore.svelte');
+const { createExecutionsStore } = await import('$lib/admin/stores/executionsStore.svelte');
 
 function setupDefaultMocks() {
     mocks.listExecutionsApiV1AdminExecutionsGet.mockResolvedValue({
@@ -190,7 +181,7 @@ describe('ExecutionsStore', () => {
                 path: { execution_id: 'exec-1' },
                 body: { priority: 'high' },
             });
-            expect(mocks.toastSuccess).toHaveBeenCalledWith('Priority updated to high');
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Priority updated to high');
         });
     });
 

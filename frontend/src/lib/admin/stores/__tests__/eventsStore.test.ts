@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
 import { createMockEvent, createMockStats } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
 
 const mocks = vi.hoisted(() => ({
     browseEventsApiV1AdminEventsBrowsePost: vi.fn(),
@@ -11,9 +12,6 @@ const mocks = vi.hoisted(() => ({
     getUserOverviewApiV1AdminUsersUserIdOverviewGet: vi.fn(),
     unwrap: vi.fn((result: { data: unknown }) => result?.data),
     unwrapOr: vi.fn((result: { data: unknown }, fallback: unknown) => result?.data ?? fallback),
-    toastSuccess: vi.fn(),
-    toastError: vi.fn(),
-    toastInfo: vi.fn(),
     windowOpen: vi.fn(),
     windowConfirm: vi.fn(),
 }));
@@ -35,15 +33,6 @@ vi.mock('$lib/api', () => ({
 vi.mock('$lib/api-interceptors', () => ({
     unwrap: (result: { data: unknown }) => mocks.unwrap(result),
     unwrapOr: (result: { data: unknown }, fallback: unknown) => mocks.unwrapOr(result, fallback),
-}));
-
-vi.mock('svelte-sonner', () => ({
-    toast: {
-        success: (...args: unknown[]) => mocks.toastSuccess(...args),
-        error: (...args: unknown[]) => mocks.toastError(...args),
-        info: (...args: unknown[]) => mocks.toastInfo(...args),
-        warning: vi.fn(),
-    },
 }));
 
 type EventSourceHandler = ((event: MessageEvent) => void) | null;
@@ -77,7 +66,7 @@ class MockEventSource {
     }
 }
 
-const { createEventsStore } = await import('../eventsStore.svelte');
+const { createEventsStore } = await import('$lib/admin/stores/eventsStore.svelte');
 
 describe('EventsStore', () => {
     let store: ReturnType<typeof createEventsStore>;
@@ -223,7 +212,7 @@ describe('EventsStore', () => {
             await store.replayEvent('evt-1', false);
 
             expect(mocks.windowConfirm).toHaveBeenCalled();
-            expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
             expect(store.activeReplaySession).toBeTruthy();
             expect(MockEventSource.instances).toHaveLength(1);
             expect(MockEventSource.instances[0]!.url).toBe('/api/v1/admin/events/replay/session-1/status');
@@ -279,7 +268,7 @@ describe('EventsStore', () => {
                 }),
             );
 
-            expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay completed'));
             expect(es.closed).toBe(true);
         });
 
@@ -304,7 +293,7 @@ describe('EventsStore', () => {
             expect(mocks.deleteEventApiV1AdminEventsEventIdDelete).toHaveBeenCalledWith({
                 path: { event_id: 'evt-1' },
             });
-            expect(mocks.toastSuccess).toHaveBeenCalledWith('Event deleted successfully');
+            expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Event deleted successfully');
         });
 
         it('does not delete if confirm is cancelled', async () => {
@@ -326,7 +315,7 @@ describe('EventsStore', () => {
                 expect.stringContaining('/api/v1/admin/events/export/csv'),
                 '_blank',
             );
-            expect(mocks.toastInfo).toHaveBeenCalledWith(expect.stringContaining('CSV'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('CSV'));
         });
 
         it('opens export URL for JSON', () => {

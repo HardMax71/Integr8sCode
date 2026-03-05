@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-const { createPaginationState } = await import('../pagination.svelte');
+const { createPaginationState } = await import('$lib/admin/pagination.svelte');
 
 describe('createPaginationState', () => {
     describe('defaults', () => {

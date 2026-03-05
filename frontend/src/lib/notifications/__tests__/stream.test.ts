@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NotificationResponse } from '$lib/api';
+import { notificationStreamApiV1EventsNotificationsStreamGet } from '$lib/api';
+import { notificationStream } from '$lib/notifications/stream.svelte';
 
 type NotificationCallback = (data: NotificationResponse) => void;
 
-const mockSseFn = vi.fn();
-
-vi.mock('$lib/api', () => ({
-    notificationStreamApiV1EventsNotificationsStreamGet: mockSseFn,
-}));
-
-const { notificationStream } = await import('../stream.svelte');
+const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet);
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -42,7 +38,7 @@ function mockStream(): { readonly onSseEvent: ((event: any) => void) | undefined
                 yield; // keep generator alive until aborted
                 await new Promise<void>(() => {});
             })(),
-        };
+        } as any;
     });
 
     return {

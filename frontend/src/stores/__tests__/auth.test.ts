@@ -5,7 +5,7 @@ const mockLoginApi = vi.fn();
 const mockLogoutApi = vi.fn();
 const mockGetProfileApi = vi.fn();
 
-vi.mock('../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     loginApiV1AuthLoginPost: (...args: unknown[]) => mockLoginApi(...args),
     logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
@@ -13,7 +13,7 @@ vi.mock('../../lib/api', () => ({
 
 // Mock clearUserSettings (static import in auth.svelte.ts)
 const mockClearUserSettings = vi.fn();
-vi.mock('../userSettings.svelte', () => ({
+vi.mock('$stores/userSettings.svelte', () => ({
     clearUserSettings: () => mockClearUserSettings(),
     setUserSettings: vi.fn(),
     userSettingsStore: { settings: null, editorSettings: {} },
@@ -21,7 +21,7 @@ vi.mock('../userSettings.svelte', () => ({
 
 // Mock loadUserSettings (dynamic import in auth.svelte.ts)
 const mockLoadUserSettings = vi.fn();
-vi.mock('../../lib/user-settings', () => ({
+vi.mock('$lib/user-settings', () => ({
     loadUserSettings: () => mockLoadUserSettings(),
 }));
 

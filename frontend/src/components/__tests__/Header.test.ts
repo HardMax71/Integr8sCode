@@ -22,12 +22,12 @@ const mocks = vi.hoisted(() => ({
     mockToggleTheme: vi.fn(),
 }));
 
-vi.mock('../../stores/auth.svelte', () => ({
+vi.mock('$stores/auth.svelte', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
-vi.mock('../../stores/theme.svelte', () => ({
+vi.mock('$stores/theme.svelte', () => ({
     get themeStore() {
         return mocks.mockThemeStore;
     },
@@ -35,7 +35,7 @@ vi.mock('../../stores/theme.svelte', () => ({
         return mocks.mockToggleTheme;
     },
 }));
-vi.mock('../NotificationCenter.svelte', () => {
+vi.mock('$components/NotificationCenter.svelte', () => {
     const M = function () {
         return {};
     } as any;

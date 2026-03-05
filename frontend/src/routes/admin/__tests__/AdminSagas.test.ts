@@ -1,20 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, selectOption, createMockSaga, createMockSagas } from '$test/test-utils';
+import { user, selectOption, createMockSaga, createMockSagas, mockApi } from '$test/test-utils';
+import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '$lib/api';
 
-const mocks = vi.hoisted(() => ({
-    listSagasApiV1SagasGet: vi.fn(),
-    getSagaStatusApiV1SagasSagaIdGet: vi.fn(),
-}));
-
-vi.mock('../../../lib/api', () => ({
-    listSagasApiV1SagasGet: (...args: unknown[]) => mocks.listSagasApiV1SagasGet(...args),
-    getSagaStatusApiV1SagasSagaIdGet: (...args: unknown[]) => mocks.getSagaStatusApiV1SagasSagaIdGet(...args),
-}));
-
-vi.mock('../../../lib/api-interceptors');
-vi.mock('../AdminLayout.svelte', async () => {
+vi.mock('$routes/admin/AdminLayout.svelte', async () => {
     const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
     return { default: MockLayout };
 });
@@ -22,31 +12,28 @@ vi.mock('../AdminLayout.svelte', async () => {
 import AdminSagas from '$routes/admin/AdminSagas.svelte';
 
 async function renderWithSagas(sagas = createMockSagas(5)) {
-    mocks.listSagasApiV1SagasGet.mockResolvedValue({
-        data: { sagas, total: sagas.length },
-        error: null,
-    });
+    mockApi(listSagasApiV1SagasGet).ok({ sagas, total: sagas.length, skip: 0, limit: 10, has_more: false });
 
     const result = render(AdminSagas);
-    await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
+    await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
     return result;
 }
 
 describe('AdminSagas', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.listSagasApiV1SagasGet.mockResolvedValue({ data: { sagas: [], total: 0 }, error: null });
-        mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: null, error: null });
+        mockApi(listSagasApiV1SagasGet).ok({ sagas: [], total: 0, skip: 0, limit: 10, has_more: false });
+        mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(undefined);
     });
 
     describe('initial loading', () => {
         it('calls listSagas on mount', async () => {
             render(AdminSagas);
-            await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
         });
 
         it('displays loading state', async () => {
-            mocks.listSagasApiV1SagasGet.mockImplementation(() => new Promise(() => {}));
+            mockApi(listSagasApiV1SagasGet).mock.mockImplementation(() => new Promise(() => {}));
             render(AdminSagas);
             await tick();
             expect(screen.getByText(/loading sagas/i)).toBeInTheDocument();
@@ -107,13 +94,13 @@ describe('AdminSagas', () => {
     describe('auto-refresh', () => {
         it('auto-refreshes at specified interval', async () => {
             await renderWithSagas();
-            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(1);
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(2);
 
             await vi.advanceTimersByTimeAsync(5000);
-            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(3);
+            expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(3);
         });
 
         it('manual refresh button works', async () => {
@@ -123,7 +110,7 @@ describe('AdminSagas', () => {
             const refreshButton = screen.getByRole('button', { name: /refresh now/i });
             await user.click(refreshButton);
 
-            await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
         });
 
         it('toggling auto-refresh off stops polling', async () => {
@@ -135,7 +122,7 @@ describe('AdminSagas', () => {
             vi.clearAllMocks();
             await vi.advanceTimersByTimeAsync(10000);
 
-            expect(mocks.listSagasApiV1SagasGet).not.toHaveBeenCalled();
+            expect(vi.mocked(listSagasApiV1SagasGet)).not.toHaveBeenCalled();
         });
     });
 
@@ -148,7 +135,7 @@ describe('AdminSagas', () => {
             selectOption(stateSelect, 'running');
 
             await waitFor(() => {
-                expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ state: 'running' }),
                     }),
@@ -179,16 +166,13 @@ describe('AdminSagas', () => {
             await renderWithSagas(sagas);
 
             const matchingSaga = [createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' })];
-            mocks.listSagasApiV1SagasGet.mockResolvedValue({
-                data: { sagas: matchingSaga, total: 1 },
-                error: null,
-            });
+            mockApi(listSagasApiV1SagasGet).ok({ sagas: matchingSaga, total: 1, skip: 0, limit: 10, has_more: false });
 
             const execInput = screen.getByLabelText(/execution id/i);
             await user.type(execInput, 'abc');
 
             await waitFor(() => {
-                expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ execution_id: 'abc' }),
                     }),
@@ -208,7 +192,7 @@ describe('AdminSagas', () => {
             await user.click(clearButton);
 
             await waitFor(() => {
-                expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ state: undefined }),
                     }),
@@ -223,7 +207,7 @@ describe('AdminSagas', () => {
                 saga_name: 'execution_saga',
                 completed_steps: ['validate_execution', 'allocate_resources'],
             });
-            mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
             const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
@@ -241,7 +225,7 @@ describe('AdminSagas', () => {
                 completed_steps: ['validate_execution'],
                 retry_count: 2,
             });
-            mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
             const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
@@ -257,7 +241,7 @@ describe('AdminSagas', () => {
                 state: 'failed',
                 error_message: 'Pod creation failed: timeout',
             });
-            mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
             const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
@@ -270,7 +254,7 @@ describe('AdminSagas', () => {
 
         it('closes modal on close button click', async () => {
             const saga = createMockSaga();
-            mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
             const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
@@ -291,7 +275,7 @@ describe('AdminSagas', () => {
                 completed_steps: ['validate_execution', 'allocate_resources'],
                 compensated_steps: ['release_resources'],
             });
-            mocks.getSagaStatusApiV1SagasSagaIdGet.mockResolvedValue({ data: saga, error: null });
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
             const [viewBtn] = screen.getAllByRole('button', { name: /view details/i });
@@ -305,16 +289,19 @@ describe('AdminSagas', () => {
     describe('view execution sagas', () => {
         it('loads sagas for specific execution', async () => {
             const executionSagas = [createMockSaga({ execution_id: 'exec-target' })];
-            mocks.listSagasApiV1SagasGet.mockResolvedValue({
-                data: { sagas: executionSagas, total: 1 },
-                error: null,
+            mockApi(listSagasApiV1SagasGet).ok({
+                sagas: executionSagas,
+                total: 1,
+                skip: 0,
+                limit: 10,
+                has_more: false,
             });
             await renderWithSagas([createMockSaga({ execution_id: 'exec-target' })]);
 
             const [execButton] = screen.getAllByRole('button', { name: /execution/i });
             await user.click(execButton!);
             await waitFor(() => {
-                expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ execution_id: 'exec-target' }),
                     }),
@@ -326,33 +313,27 @@ describe('AdminSagas', () => {
     describe('pagination', () => {
         it('shows pagination when items exist', async () => {
             const sagas = createMockSagas(5);
-            mocks.listSagasApiV1SagasGet.mockResolvedValue({
-                data: { sagas, total: 25 },
-                error: null,
-            });
+            mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
             render(AdminSagas);
-            await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
 
             expect(screen.getByText(/showing/i)).toBeInTheDocument();
         });
 
         it('changes page size', async () => {
             const sagas = createMockSagas(5);
-            mocks.listSagasApiV1SagasGet.mockResolvedValue({
-                data: { sagas, total: 25 },
-                error: null,
-            });
+            mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
             render(AdminSagas);
-            await waitFor(() => expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalled());
+            await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
 
             vi.clearAllMocks();
             const pageSizeSelect = screen.getByDisplayValue('10 / page');
             selectOption(pageSizeSelect, '25');
 
             await waitFor(() => {
-                expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledWith(
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
                         query: expect.objectContaining({ limit: 25 }),
                     }),
@@ -371,7 +352,7 @@ describe('AdminSagas', () => {
             vi.clearAllMocks();
             await vi.advanceTimersByTimeAsync(10000);
 
-            expect(mocks.listSagasApiV1SagasGet).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(1);
         });
     });
 });

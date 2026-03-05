@@ -15,7 +15,7 @@ vi.mock('$lib/api-interceptors', () => ({
     unwrapOr: (result: { data: unknown }, fallback: unknown) => mocks.unwrapOr(result, fallback),
 }));
 
-const { createSagasStore } = await import('../sagasStore.svelte');
+const { createSagasStore } = await import('$lib/admin/stores/sagasStore.svelte');
 
 describe('SagasStore', () => {
     let store: ReturnType<typeof createSagasStore>;

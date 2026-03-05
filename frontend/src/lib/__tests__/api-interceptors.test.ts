@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getErrorMessage, unwrap, unwrapOr } from '$lib/api-interceptors';
+
+const { getErrorMessage, unwrap, unwrapOr } =
+    await vi.importActual<typeof import('$lib/api-interceptors')>('$lib/api-interceptors');
 
 describe('getErrorMessage', () => {
     it.each([
@@ -116,6 +118,7 @@ describe('initializeApiInterceptors', () => {
         vi.doMock('svelte-sonner', () => ({ toast: mockToast }));
         vi.doMock('@mateothegreat/svelte5-router', () => ({ goto: mockGoto }));
         vi.doMock('$stores/auth.svelte', () => ({ authStore: mockAuthStore }));
+        vi.doUnmock('$lib/api-interceptors');
 
         const mod = await import('$lib/api-interceptors');
         mod.initializeApiInterceptors();

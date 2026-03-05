@@ -19,8 +19,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$stores/notificationStore.svelte', () => ({ notificationStore: mocks.mockNotificationStore }));
 
-vi.mock('$lib/api', () => ({}));
-
 describe('Notifications', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -28,8 +26,6 @@ describe('Notifications', () => {
         mocks.mockNotificationStore.unreadCount = 0;
         mocks.mockNotificationStore.loading = false;
         mocks.mockNotificationStore.load.mockResolvedValue([]);
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
         mocks.mockNotificationStore.markAsRead.mockResolvedValue(true);
         mocks.mockNotificationStore.markAllAsRead.mockResolvedValue(true);
         mocks.mockNotificationStore.delete.mockResolvedValue(true);

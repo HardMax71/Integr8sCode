@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user, mockApi } from '$test/test-utils';
 import { toast } from 'svelte-sonner';
 import AdminSettings from '$routes/admin/AdminSettings.svelte';
 
@@ -21,10 +21,13 @@ function createMockSystemSettings() {
     };
 }
 
+import {
+    getSystemSettingsApiV1AdminSettingsGet,
+    updateSystemSettingsApiV1AdminSettingsPut,
+    resetSystemSettingsApiV1AdminSettingsResetPost,
+} from '$lib/api';
+
 const mocks = vi.hoisted(() => ({
-    getSystemSettingsApiV1AdminSettingsGet: vi.fn(),
-    updateSystemSettingsApiV1AdminSettingsPut: vi.fn(),
-    resetSystemSettingsApiV1AdminSettingsResetPost: vi.fn(),
     mockConfirm: vi.fn(),
     mockAuthStore: {
         isAuthenticated: true,
@@ -34,15 +37,6 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../../../lib/api', () => ({
-    getSystemSettingsApiV1AdminSettingsGet: (...args: unknown[]) =>
-        mocks.getSystemSettingsApiV1AdminSettingsGet(...args),
-    updateSystemSettingsApiV1AdminSettingsPut: (...args: unknown[]) =>
-        mocks.updateSystemSettingsApiV1AdminSettingsPut(...args),
-    resetSystemSettingsApiV1AdminSettingsResetPost: (...args: unknown[]) =>
-        mocks.resetSystemSettingsApiV1AdminSettingsResetPost(...args),
-}));
-
 vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
 
 vi.mock('$routes/admin/AdminLayout.svelte', () => import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte'));
@@ -50,23 +44,10 @@ vi.mock('$routes/admin/AdminLayout.svelte', () => import('$routes/admin/__tests_
 describe('AdminSettings', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.spyOn(toast, 'success');
-        vi.spyOn(toast, 'error');
-        vi.spyOn(toast, 'warning');
-        vi.spyOn(toast, 'info');
         vi.stubGlobal('confirm', mocks.mockConfirm);
-        mocks.getSystemSettingsApiV1AdminSettingsGet.mockResolvedValue({
-            data: createMockSystemSettings(),
-            error: undefined,
-        });
-        mocks.updateSystemSettingsApiV1AdminSettingsPut.mockResolvedValue({
-            data: createMockSystemSettings(),
-            error: undefined,
-        });
-        mocks.resetSystemSettingsApiV1AdminSettingsResetPost.mockResolvedValue({
-            data: createMockSystemSettings(),
-            error: undefined,
-        });
+        mockApi(getSystemSettingsApiV1AdminSettingsGet).ok(createMockSystemSettings());
+        mockApi(updateSystemSettingsApiV1AdminSettingsPut).ok(createMockSystemSettings());
+        mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(createMockSystemSettings());
     });
 
     afterEach(() => vi.unstubAllGlobals());
@@ -79,7 +60,7 @@ describe('AdminSettings', () => {
         it('calls API on mount and shows page heading', async () => {
             await renderAdminSettings();
             await waitFor(() => {
-                expect(mocks.getSystemSettingsApiV1AdminSettingsGet).toHaveBeenCalledOnce();
+                expect(vi.mocked(getSystemSettingsApiV1AdminSettingsGet)).toHaveBeenCalledOnce();
             });
             expect(screen.getByRole('heading', { name: 'System Settings' })).toBeInTheDocument();
         });
@@ -122,9 +103,9 @@ describe('AdminSettings', () => {
 
             await user.click(screen.getByRole('button', { name: /save settings/i }));
             await waitFor(() => {
-                expect(mocks.updateSystemSettingsApiV1AdminSettingsPut).toHaveBeenCalled();
+                expect(vi.mocked(updateSystemSettingsApiV1AdminSettingsPut)).toHaveBeenCalled();
             });
-            const callArgs = mocks.updateSystemSettingsApiV1AdminSettingsPut.mock.calls[0]![0];
+            const callArgs = vi.mocked(updateSystemSettingsApiV1AdminSettingsPut).mock.calls[0]![0];
             expect(callArgs.body).toHaveProperty('max_timeout_seconds');
             expect(callArgs.body).toHaveProperty('password_min_length');
             expect(callArgs.body).toHaveProperty('metrics_retention_days');
@@ -132,17 +113,14 @@ describe('AdminSettings', () => {
         });
 
         it('handles save error without crashing', async () => {
-            mocks.updateSystemSettingsApiV1AdminSettingsPut.mockResolvedValue({
-                data: undefined,
-                error: { detail: 'Save failed' },
-            });
+            mockApi(updateSystemSettingsApiV1AdminSettingsPut).err({ detail: 'Save failed' });
             await renderAdminSettings();
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /save settings/i })).toBeInTheDocument();
             });
             await user.click(screen.getByRole('button', { name: /save settings/i }));
             await waitFor(() => {
-                expect(mocks.updateSystemSettingsApiV1AdminSettingsPut).toHaveBeenCalled();
+                expect(vi.mocked(updateSystemSettingsApiV1AdminSettingsPut)).toHaveBeenCalled();
             });
             expect(toast.success).not.toHaveBeenCalledWith('Settings saved successfully');
         });
@@ -165,10 +143,7 @@ describe('AdminSettings', () => {
                 enable_tracing: false,
                 sampling_rate: 1.0,
             };
-            mocks.resetSystemSettingsApiV1AdminSettingsResetPost.mockResolvedValue({
-                data: resetData,
-                error: undefined,
-            });
+            mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(resetData);
 
             await renderAdminSettings();
             await waitFor(() => {
@@ -178,7 +153,7 @@ describe('AdminSettings', () => {
             await user.click(screen.getByRole('button', { name: /reset to defaults/i }));
             expect(mocks.mockConfirm).toHaveBeenCalled();
             await waitFor(() => {
-                expect(mocks.resetSystemSettingsApiV1AdminSettingsResetPost).toHaveBeenCalled();
+                expect(vi.mocked(resetSystemSettingsApiV1AdminSettingsResetPost)).toHaveBeenCalled();
             });
             expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
 
@@ -196,14 +171,14 @@ describe('AdminSettings', () => {
             });
 
             await user.click(screen.getByRole('button', { name: /reset to defaults/i }));
-            expect(mocks.resetSystemSettingsApiV1AdminSettingsResetPost).not.toHaveBeenCalled();
+            expect(vi.mocked(resetSystemSettingsApiV1AdminSettingsResetPost)).not.toHaveBeenCalled();
         });
     });
 
     describe('Button states', () => {
         it('disables both buttons while saving', async () => {
             let resolveSave: (v: unknown) => void;
-            mocks.updateSystemSettingsApiV1AdminSettingsPut.mockImplementation(
+            mockApi(updateSystemSettingsApiV1AdminSettingsPut).mock.mockImplementation(
                 () =>
                     new Promise((r) => {
                         resolveSave = r;
@@ -231,7 +206,7 @@ describe('AdminSettings', () => {
         it('shows "Resetting..." text while resetting', async () => {
             mocks.mockConfirm.mockReturnValue(true);
             let resolveReset: (v: unknown) => void;
-            mocks.resetSystemSettingsApiV1AdminSettingsResetPost.mockImplementation(
+            mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).mock.mockImplementation(
                 () =>
                     new Promise((r) => {
                         resolveReset = r;

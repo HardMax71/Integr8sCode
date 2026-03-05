@@ -40,18 +40,18 @@ const mocks = vi.hoisted(() => ({
     mockStreamDisconnect: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ goto: mocks.mockGoto }));
-vi.mock('../../stores/auth.svelte', () => ({
+vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
+vi.mock('$stores/auth.svelte', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
-vi.mock('../../stores/notificationStore.svelte', () => ({
+vi.mock('$stores/notificationStore.svelte', () => ({
     get notificationStore() {
         return mocks.mockNotificationStore;
     },
 }));
-vi.mock('../../lib/notifications/stream.svelte', () => ({
+vi.mock('$lib/notifications/stream.svelte', () => ({
     notificationStream: {
         connect: mocks.mockStreamConnect,
         disconnect: mocks.mockStreamDisconnect,

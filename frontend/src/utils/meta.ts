@@ -39,4 +39,8 @@ export const pageMeta = {
         title: 'Privacy Policy',
         description: 'Privacy policy for Integr8sCode - how we handle your data, GDPR compliance, and your rights',
     },
+    settings: {
+        title: 'Settings',
+        description: 'Manage your Integr8sCode account settings, editor preferences, and notification configuration',
+    },
 };

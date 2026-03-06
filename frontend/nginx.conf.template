@@ -85,11 +85,6 @@ server {
         expires 1y;
     }
 
-    # Cache build directory assets with long expiry
-    location /build/ {
-        expires 1y;
-    }
-
     # HTML files should not be cached
     location ~* \.html$ {
         expires -1;

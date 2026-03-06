@@ -8,10 +8,13 @@ import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
 import alias from '@rollup/plugin-alias';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
 import json from '@rollup/plugin-json';
+import html from '@rollup/plugin-html';
+import { cleandir } from 'rollup-plugin-cleandir';
 
 // Path aliases - must match tsconfig.json paths
 const projectRoot = path.resolve('.');
@@ -134,7 +137,9 @@ export default {
         sourcemap: !production,
         format: 'es',
         name: 'app',
-        dir: 'public/build',
+        dir: 'public',
+        entryFileNames: production ? 'build/[name]-[hash].js' : 'build/[name].js',
+        chunkFileNames: 'build/[name]-[hash].js',
         manualChunks: {
             'vendor': [
                 'svelte',
@@ -175,7 +180,7 @@ export default {
             }
         }),
         postcss({
-            extract: 'bundle.css',
+            extract: 'build/bundle.css',
             minimize: false,
         }),
         typescript({
@@ -199,6 +204,33 @@ export default {
                 startServer();
             }
         },
+        production && cleandir('public/build', { hook: 'generateBundle' }),
+        production && {
+            name: 'css-hash',
+            generateBundle(_, bundle) {
+                const css = bundle['build/bundle.css'];
+                if (!css) return;
+                const hash = crypto.createHash('sha256').update(css.source).digest('hex').slice(0, 8);
+                const name = `build/bundle-${hash}.css`;
+                css.fileName = name;
+                bundle[name] = css;
+                delete bundle['build/bundle.css'];
+            },
+        },
+        html({
+            template({ bundle }) {
+                let tmpl = fs.readFileSync('src/index.html', 'utf-8');
+                const entryChunk = Object.values(bundle).find(f => f.type === 'chunk' && f.isEntry);
+                const cssAsset = Object.values(bundle).find(f => f.type === 'asset' && f.fileName.endsWith('.css'));
+                if (cssAsset) {
+                    tmpl = tmpl.replace('</head>', `    <link rel="stylesheet" href="/${cssAsset.fileName}">\n</head>`);
+                }
+                if (entryChunk) {
+                    tmpl = tmpl.replace('</body>', `    <script nonce="**CSP_NONCE**" type="module" src="/${entryChunk.fileName}"></script>\n</body>`);
+                }
+                return tmpl;
+            },
+        }),
         production && terser({
             ecma: 2020,
             module: true,

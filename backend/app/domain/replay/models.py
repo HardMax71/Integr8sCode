@@ -41,6 +41,8 @@ class ReplayError:
     error: str
     error_type: str | None = None
     event_id: str | None = None
+
+
 # --8<-- [end:ReplayError]
 
 
@@ -112,6 +114,8 @@ class ReplayFilter:
             query["metadata.service_name"] = self.service_name
 
         return query
+
+
 # --8<-- [end:ReplayFilter]
 
 

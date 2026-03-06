@@ -46,4 +46,6 @@ def _map_to_status_code(exc: DomainError) -> int:
     if isinstance(exc, InfrastructureError):
         return 500
     return 500
+
+
 # --8<-- [end:configure_exception_handlers]

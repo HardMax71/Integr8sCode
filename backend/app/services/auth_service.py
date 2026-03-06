@@ -85,7 +85,10 @@ class AuthService:
     async def get_admin(self, request: Request) -> User:
         user = await self.get_current_user(request)
         self.security_metrics.record_authorization_check(
-            "/admin", request.method, user.role == UserRole.ADMIN, user_role=user.role,
+            "/admin",
+            request.method,
+            user.role == UserRole.ADMIN,
+            user_role=user.role,
         )
         if user.role != UserRole.ADMIN:
             self.logger.warning("Admin access denied", username=user.username, role=user.role)
@@ -166,7 +169,8 @@ class AuthService:
 
             access_token_expires = timedelta(minutes=session_timeout)
             access_token = self.security_service.create_access_token(
-                data={"sub": user.username}, expires_delta=access_token_expires,
+                data={"sub": user.username},
+                expires_delta=access_token_expires,
             )
             csrf_token = self.security_service.generate_csrf_token(access_token)
 

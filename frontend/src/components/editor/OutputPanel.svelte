@@ -1,10 +1,9 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import type { ExecutionResult } from '$lib/api';
     import type { ExecutionPhase } from '$lib/editor';
     import Spinner from '$components/Spinner.svelte';
     import { AlertTriangle, FileText, Copy } from '@lucide/svelte';
-    import { AnsiUp } from 'ansi_up';
-    import DOMPurify from 'dompurify';
     import { toast } from 'svelte-sonner';
 
     let {
@@ -17,12 +16,27 @@
         error: string | null;
     } = $props();
 
-    const ansiConverter = new AnsiUp();
-    ansiConverter.use_classes = true;
-    ansiConverter.escape_html = true;
+    let ansiConverter = $state<import('ansi_up').AnsiUp | null>(null);
+    let purify = $state<typeof import('dompurify').default | null>(null);
+    let depsReady = $state(false);
+
+    async function ensureDeps() {
+        if (!ansiConverter) {
+            const [{ AnsiUp }, dp] = await Promise.all([import('ansi_up'), import('dompurify')]);
+            ansiConverter = new AnsiUp();
+            ansiConverter.use_classes = true;
+            ansiConverter.escape_html = true;
+            purify = dp.default;
+        }
+        depsReady = true;
+    }
+
+    onMount(() => {
+        ensureDeps();
+    });
 
     function sanitize(html: string): string {
-        return DOMPurify.sanitize(html, {
+        return purify!.sanitize(html, {
             ALLOWED_TAGS: ['span', 'br', 'div'],
             ALLOWED_ATTR: ['class'],
         });
@@ -80,7 +94,7 @@
                 <p class="text-sm font-medium text-red-700 dark:text-red-300">Execution Failed</p>
                 <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{error}</p>
             </div>
-        {:else if result}
+        {:else if result && depsReady}
             <div class="space-y-5 animate-fly-in">
                 <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
                     <span
@@ -119,7 +133,7 @@
                         </h4>
                         <div class="relative">
                             <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(
-                                    ansiConverter.ansi_to_html(result.stdout),
+                                    ansiConverter!.ansi_to_html(result.stdout),
                                 )}</pre>
                             <div class="absolute bottom-2 right-2 group">
                                 <button
@@ -151,7 +165,7 @@
                             >
                                 <pre
                                     class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(
-                                        ansiConverter.ansi_to_html(result.stderr),
+                                        ansiConverter!.ansi_to_html(result.stderr),
                                     )}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">

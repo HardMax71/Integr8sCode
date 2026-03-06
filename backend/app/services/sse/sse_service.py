@@ -48,16 +48,18 @@ class SSEService:
             raise ForbiddenError("Access denied")
         return self._execution_pipeline(execution)
 
-    async def _execution_pipeline(
-        self, execution: DomainExecution
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    async def _execution_pipeline(self, execution: DomainExecution) -> AsyncGenerator[dict[str, Any], None]:
         execution_id = execution.execution_id
-        yield {"data": _exec_adapter.dump_json(SSEExecutionEventData(
-            event_type=SSEControlEvent.STATUS,
-            execution_id=execution_id,
-            timestamp=execution.updated_at,
-            status=execution.status,
-        )).decode()}
+        yield {
+            "data": _exec_adapter.dump_json(
+                SSEExecutionEventData(
+                    event_type=SSEControlEvent.STATUS,
+                    execution_id=execution_id,
+                    timestamp=execution.updated_at,
+                    status=execution.status,
+                )
+            ).decode()
+        }
         async for event in self._bus.listen_execution(execution_id):
             if event.event_type == EventType.RESULT_STORED:
                 result = await self._execution_repository.get_execution_result(execution_id)
@@ -80,9 +82,7 @@ class SSEService:
         """
         return self._replay_pipeline(initial_status)
 
-    async def _replay_pipeline(
-        self, initial_status: DomainReplaySSEPayload
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    async def _replay_pipeline(self, initial_status: DomainReplaySSEPayload) -> AsyncGenerator[dict[str, Any], None]:
         session_id = initial_status.session_id
         yield {"data": _replay_adapter.dump_json(initial_status).decode()}
         if initial_status.status.is_terminal:

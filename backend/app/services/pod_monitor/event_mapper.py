@@ -22,8 +22,12 @@ from app.domain.events import (
 # Python 3.12 type aliases
 type PodPhase = str
 type PodMonitorEvent = (
-    PodScheduledEvent | PodRunningEvent | PodTerminatedEvent
-    | ExecutionCompletedEvent | ExecutionFailedEvent | ExecutionTimeoutEvent
+    PodScheduledEvent
+    | PodRunningEvent
+    | PodTerminatedEvent
+    | ExecutionCompletedEvent
+    | ExecutionFailedEvent
+    | ExecutionTimeoutEvent
 )
 type EventList = list[PodMonitorEvent]
 type AsyncMapper = Callable[["PodContext"], Awaitable[PodMonitorEvent | None]]
@@ -199,7 +203,7 @@ class PodEventMapper:
             return True
         if len(self._event_cache) >= self._MAX_CACHE_SIZE:
             # Evict oldest half to amortise cleanup cost
-            keys = list(self._event_cache)[:self._MAX_CACHE_SIZE // 2]
+            keys = list(self._event_cache)[: self._MAX_CACHE_SIZE // 2]
             for k in keys:
                 del self._event_cache[k]
         self._event_cache[pod_name] = phase
@@ -343,9 +347,7 @@ class PodEventMapper:
         # A pod can carry DeadlineExceeded while containers already exited 0.
         # In that case, let the normal completed mapping path handle it.
         if self._all_containers_succeeded(ctx.pod):
-            self.logger.info(
-                f"POD-EVENT: timeout ignored because containers succeeded exec={ctx.execution_id}"
-            )
+            self.logger.info(f"POD-EVENT: timeout ignored because containers succeeded exec={ctx.execution_id}")
             return None
 
         logs = await self._extract_logs(ctx.pod)
@@ -519,5 +521,3 @@ class PodEventMapper:
             return "", ""
 
         return stdout, stderr
-
-

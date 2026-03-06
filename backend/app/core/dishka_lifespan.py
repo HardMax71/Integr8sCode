@@ -50,7 +50,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await container.get(Tracer)
     FastAPIInstrumentor().instrument_app(
-        app, tracer_provider=trace.get_tracer_provider(), excluded_urls="health,metrics,docs,openapi.json",
+        app,
+        tracer_provider=trace.get_tracer_provider(),
+        excluded_urls="health,metrics,docs,openapi.json",
     )
     logger.info("FastAPI OpenTelemetry instrumentation applied")
 

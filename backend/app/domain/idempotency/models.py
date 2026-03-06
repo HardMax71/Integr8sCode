@@ -12,6 +12,8 @@ class IdempotencyStatus(StringEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
 # --8<-- [end:IdempotencyStatus]
 
 

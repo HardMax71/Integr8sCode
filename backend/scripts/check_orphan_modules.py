@@ -8,15 +8,18 @@ or worker runner scripts, not imported by sibling modules.
 Usage:
     uv run python scripts/check_orphan_modules.py
 """
+
 import ast
 import sys
 from pathlib import Path
 
 import grimp
 
-ENTRY_POINTS: frozenset[str] = frozenset({
-    "app.main",
-})
+ENTRY_POINTS: frozenset[str] = frozenset(
+    {
+        "app.main",
+    }
+)
 
 
 def _is_empty_init(module: str) -> bool:

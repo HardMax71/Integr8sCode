@@ -13,19 +13,19 @@
 
     const log = logger.withTag('App');
 
-    // Page components
-    import Home from '$routes/Home.svelte';
-    import Login from '$routes/Login.svelte';
-    import Register from '$routes/Register.svelte';
-    import Privacy from '$routes/Privacy.svelte';
-    import Editor from '$routes/Editor.svelte';
-    import Settings from '$routes/Settings.svelte';
-    import Notifications from '$routes/Notifications.svelte';
-    import AdminEvents from '$routes/admin/AdminEvents.svelte';
-    import AdminExecutions from '$routes/admin/AdminExecutions.svelte';
-    import AdminSagas from '$routes/admin/AdminSagas.svelte';
-    import AdminUsers from '$routes/admin/AdminUsers.svelte';
-    import AdminSettings from '$routes/admin/AdminSettings.svelte';
+    // Page components (lazy-loaded for code splitting)
+    const Home = () => import('$routes/Home.svelte');
+    const Login = () => import('$routes/Login.svelte');
+    const Register = () => import('$routes/Register.svelte');
+    const Privacy = () => import('$routes/Privacy.svelte');
+    const Editor = () => import('$routes/Editor.svelte');
+    const Settings = () => import('$routes/Settings.svelte');
+    const Notifications = () => import('$routes/Notifications.svelte');
+    const AdminEvents = () => import('$routes/admin/AdminEvents.svelte');
+    const AdminExecutions = () => import('$routes/admin/AdminExecutions.svelte');
+    const AdminSagas = () => import('$routes/admin/AdminSagas.svelte');
+    const AdminUsers = () => import('$routes/admin/AdminUsers.svelte');
+    const AdminSettings = () => import('$routes/admin/AdminSettings.svelte');
 
     let authInitialized = $state(false);
 

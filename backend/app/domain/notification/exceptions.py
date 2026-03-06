@@ -17,6 +17,8 @@ class NotificationThrottledError(ThrottledError):
         self.limit = limit
         self.window_hours = window_hours
         super().__init__(f"Rate limit exceeded for user '{user_id}': max {limit} per {window_hours}h")
+
+
 # --8<-- [end:NotificationThrottledError]
 
 

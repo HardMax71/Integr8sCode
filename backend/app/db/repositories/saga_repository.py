@@ -75,7 +75,10 @@ class SagaRepository:
         return self._to_domain(doc)
 
     async def atomic_cancel_saga(
-        self, saga_id: str, error_message: str, completed_at: datetime,
+        self,
+        saga_id: str,
+        error_message: str,
+        completed_at: datetime,
     ) -> Saga:
         """Atomically cancel a saga using findOneAndUpdate.
 
@@ -86,13 +89,15 @@ class SagaRepository:
             SagaDocument.saga_id == saga_id,
             In(SagaDocument.state, list(SAGA_ACTIVE)),
         ).update(
-            Set({  # type: ignore[no-untyped-call]
-                SagaDocument.state: SagaState.CANCELLED,
-                SagaDocument.error_message: error_message,
-                SagaDocument.completed_at: completed_at,
-                SagaDocument.updated_at: datetime.now(timezone.utc),
-                "revision_id": uuid4(),
-            }),
+            Set(
+                {  # type: ignore[no-untyped-call]
+                    SagaDocument.state: SagaState.CANCELLED,
+                    SagaDocument.error_message: error_message,
+                    SagaDocument.completed_at: completed_at,
+                    SagaDocument.updated_at: datetime.now(timezone.utc),
+                    "revision_id": uuid4(),
+                }
+            ),
             response_type=UpdateResponse.NEW_DOCUMENT,
         )
         if not doc:
@@ -138,7 +143,7 @@ class SagaRepository:
         return self._to_domain(doc) if doc else None
 
     async def get_sagas_by_execution(
-            self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
+        self, execution_id: str, state: SagaState | None = None, limit: int = 100, skip: int = 0
     ) -> SagaListResult:
         conditions: list[BaseFindOperator] = [Eq(SagaDocument.execution_id, execution_id)]
         if state:
@@ -172,10 +177,10 @@ class SagaRepository:
         return result
 
     async def find_timed_out_sagas(
-            self,
-            cutoff_time: datetime,
-            states: list[SagaState] | None = None,
-            limit: int = 100,
+        self,
+        cutoff_time: datetime,
+        states: list[SagaState] | None = None,
+        limit: int = 100,
     ) -> list[Saga]:
         states = states or [SagaState.RUNNING, SagaState.COMPENSATING]
         docs = (
@@ -207,9 +212,7 @@ class SagaRepository:
         ]
         duration_pipeline = (
             Pipeline()
-            .project(
-                duration={"$subtract": [S.field(SagaDocument.completed_at), S.field(SagaDocument.created_at)]}
-            )
+            .project(duration={"$subtract": [S.field(SagaDocument.completed_at), S.field(SagaDocument.created_at)]})
             .group(by=None, query={"avg_duration": S.avg("$duration")})
         )
         avg_duration = 0.0

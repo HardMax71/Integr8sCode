@@ -86,6 +86,8 @@ class ThrottleCache:
         """Clear all throttle entries."""
         async with self._lock:
             self._entries.clear()
+
+
 # --8<-- [end:ThrottleCache]
 
 
@@ -142,9 +144,7 @@ class NotificationService:
             max_days = self.settings.NOTIF_MAX_SCHEDULE_DAYS
             max_schedule = datetime.now(UTC) + timedelta(days=max_days)
             if scheduled_for > max_schedule:
-                raise NotificationValidationError(
-                    f"scheduled_for cannot exceed {max_days} days from now"
-                )
+                raise NotificationValidationError(f"scheduled_for cannot exceed {max_days} days from now")
         self.logger.info(
             f"Creating notification for user {user_id}",
             user_id=user_id,
@@ -311,9 +311,7 @@ class NotificationService:
             )
             return "created"
         except Exception as e:
-            self.logger.error(
-                "Failed to create system notification for user", user_id=user_id, error=str(e)
-            )
+            self.logger.error("Failed to create system notification for user", user_id=user_id, error=str(e))
             return "failed"
 
     async def _send_in_app(
@@ -357,11 +355,13 @@ class NotificationService:
             webhook_host=safe_host,
         )
 
-        trace.get_current_span().set_attributes({
-            "notification.id": str(notification.notification_id),
-            "notification.channel": "webhook",
-            "notification.webhook_host": safe_host,
-        })
+        trace.get_current_span().set_attributes(
+            {
+                "notification.id": str(notification.notification_id),
+                "notification.channel": "webhook",
+                "notification.webhook_host": safe_host,
+            }
+        )
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(webhook_url, json=payload, headers=headers)
             response.raise_for_status()
@@ -406,10 +406,12 @@ class NotificationService:
             priority_color=self._get_slack_color(notification.severity),
         )
 
-        trace.get_current_span().set_attributes({
-            "notification.id": str(notification.notification_id),
-            "notification.channel": "slack",
-        })
+        trace.get_current_span().set_attributes(
+            {
+                "notification.id": str(notification.notification_id),
+                "notification.channel": "slack",
+            }
+        )
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(subscription.slack_webhook, json=slack_message)
             response.raise_for_status()
@@ -601,6 +603,7 @@ class NotificationService:
             return f"Notification tags {notification.tags} excluded by preferences for {notification.channel}"
 
         return None
+
     # --8<-- [end:should_skip_notification]
 
     async def _deliver_notification(self, notification: DomainNotification) -> bool:

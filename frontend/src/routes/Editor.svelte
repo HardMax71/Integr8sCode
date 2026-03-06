@@ -139,7 +139,11 @@
     async function loadSavedScripts() {
         if (!authenticated) return;
         const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-        savedScripts = data?.scripts || [];
+        if (!data) {
+            toast.error('Failed to load saved scripts');
+            return;
+        }
+        savedScripts = data.scripts || [];
     }
 
     function loadScript(s: SavedScriptResponse) {

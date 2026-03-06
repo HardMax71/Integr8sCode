@@ -79,6 +79,7 @@ class UserSettingsService:
 
         self._add_to_cache(user_id, settings)
         return settings
+
     # --8<-- [end:get_user_settings_fresh]
 
     # --8<-- [start:update_user_settings]
@@ -92,12 +93,14 @@ class UserSettingsService:
         if not changes:
             return current
 
-        new_settings = self._build_settings({
-            **dataclasses.asdict(current),
-            **changes,
-            "version": (current.version or 0) + 1,
-            "updated_at": datetime.now(timezone.utc),
-        })
+        new_settings = self._build_settings(
+            {
+                **dataclasses.asdict(current),
+                **changes,
+                "version": (current.version or 0) + 1,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
 
         await self._publish_settings_event(user_id, changes, reason)
 
@@ -105,6 +108,7 @@ class UserSettingsService:
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
             await self.repository.create_snapshot(new_settings)
         return new_settings
+
     # --8<-- [end:update_user_settings]
 
     async def _publish_settings_event(self, user_id: str, changes: dict[str, Any], reason: str | None) -> None:
@@ -174,6 +178,7 @@ class UserSettingsService:
                     )
                 )
         return history
+
     # --8<-- [end:get_settings_history]
 
     async def restore_settings_to_point(self, user_id: str, timestamp: datetime) -> DomainUserSettings:
@@ -207,6 +212,7 @@ class UserSettingsService:
         """Apply a settings update event via dict merge."""
         event_data = {k: v for k, v in dataclasses.asdict(event).items() if v is not None}
         return self._build_settings({**dataclasses.asdict(settings), **event_data, "updated_at": event.timestamp})
+
     # --8<-- [end:apply_event]
 
     @staticmethod
@@ -227,4 +233,3 @@ class UserSettingsService:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
         self.logger.debug(f"Cached settings for user {user_id}", cache_size=len(self._cache))
-

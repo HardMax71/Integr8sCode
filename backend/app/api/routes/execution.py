@@ -32,9 +32,9 @@ router = APIRouter(route_class=DishkaRoute, tags=["execution"])
 
 @inject
 async def get_execution_with_access(
-        execution_id: Annotated[str, Path()],
-        current_user: Annotated[User, Depends(current_user)],
-        execution_service: FromDishka[ExecutionService],
+    execution_id: Annotated[str, Path()],
+    current_user: Annotated[User, Depends(current_user)],
+    execution_service: FromDishka[ExecutionService],
 ) -> ExecutionInDB:
     domain_exec = await execution_service.get_execution_result(execution_id)
 
@@ -50,22 +50,24 @@ async def get_execution_with_access(
     responses={500: {"model": ErrorResponse, "description": "Script execution failed"}},
 )
 async def create_execution(
-        request: Request,
-        current_user: Annotated[User, Depends(current_user)],
-        execution: ExecutionRequest,
-        execution_service: FromDishka[ExecutionService],
-        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    request: Request,
+    current_user: Annotated[User, Depends(current_user)],
+    execution: ExecutionRequest,
+    execution_service: FromDishka[ExecutionService],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ExecutionResponse:
     """Submit a script for execution in an isolated Kubernetes pod."""
-    trace.get_current_span().set_attributes({
-        "http.method": "POST",
-        "http.route": "/api/v1/execute",
-        "execution.language": execution.lang,
-        "execution.language_version": execution.lang_version,
-        "execution.script_length": len(execution.script),
-        "user.id": current_user.user_id,
-        "client.address": get_client_ip(request),
-    })
+    trace.get_current_span().set_attributes(
+        {
+            "http.method": "POST",
+            "http.route": "/api/v1/execute",
+            "execution.language": execution.lang,
+            "execution.language_version": execution.lang_version,
+            "execution.script_length": len(execution.script),
+            "user.id": current_user.user_id,
+            "client.address": get_client_ip(request),
+        }
+    )
 
     exec_result = await execution_service.execute_script_idempotent(
         script=execution.script,
@@ -83,7 +85,7 @@ async def create_execution(
     responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
 )
 async def get_result(
-        execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+    execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
 ) -> ExecutionResult:
     """Retrieve the result of a specific execution."""
     return ExecutionResult.model_validate(execution)
@@ -98,10 +100,10 @@ async def get_result(
     },
 )
 async def cancel_execution(
-        execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        current_user: Annotated[User, Depends(current_user)],
-        cancel_request: CancelExecutionRequest,
-        execution_service: FromDishka[ExecutionService],
+    execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+    current_user: Annotated[User, Depends(current_user)],
+    cancel_request: CancelExecutionRequest,
+    execution_service: FromDishka[ExecutionService],
 ) -> CancelResponse:
     """Cancel a running or queued execution."""
     result = await execution_service.cancel_execution(
@@ -122,9 +124,9 @@ async def cancel_execution(
     },
 )
 async def retry_execution(
-        original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        current_user: Annotated[User, Depends(current_user)],
-        execution_service: FromDishka[ExecutionService],
+    original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+    current_user: Annotated[User, Depends(current_user)],
+    execution_service: FromDishka[ExecutionService],
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
 
@@ -146,10 +148,10 @@ async def retry_execution(
     responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
 )
 async def get_execution_events(
-        execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
-        event_service: FromDishka[EventService],
-        event_types: Annotated[list[EventType] | None, Query(description="Event types to filter")] = None,
-        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+    event_service: FromDishka[EventService],
+    event_types: Annotated[list[EventType] | None, Query(description="Event types to filter")] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[DomainEvent]:
     """Get all events for an execution."""
     events = await event_service.get_events_by_execution_id(
@@ -160,14 +162,14 @@ async def get_execution_events(
 
 @router.get("/user/executions", response_model=ExecutionListResponse)
 async def get_user_executions(
-        current_user: Annotated[User, Depends(current_user)],
-        execution_service: FromDishka[ExecutionService],
-        status: Annotated[ExecutionStatus | None, Query(description="Filter by execution status")] = None,
-        lang: Annotated[str | None, Query(description="Filter by programming language")] = None,
-        start_time: Annotated[datetime | None, Query(description="Filter executions created after this time")] = None,
-        end_time: Annotated[datetime | None, Query(description="Filter executions created before this time")] = None,
-        limit: Annotated[int, Query(ge=1, le=200)] = 50,
-        skip: Annotated[int, Query(ge=0)] = 0,
+    current_user: Annotated[User, Depends(current_user)],
+    execution_service: FromDishka[ExecutionService],
+    status: Annotated[ExecutionStatus | None, Query(description="Filter by execution status")] = None,
+    lang: Annotated[str | None, Query(description="Filter by programming language")] = None,
+    start_time: Annotated[datetime | None, Query(description="Filter executions created after this time")] = None,
+    end_time: Annotated[datetime | None, Query(description="Filter executions created before this time")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    skip: Annotated[int, Query(ge=0)] = 0,
 ) -> ExecutionListResponse:
     """Get executions for the current user."""
 
@@ -194,7 +196,7 @@ async def get_user_executions(
 
 @router.get("/example-scripts", response_model=ExampleScripts)
 async def get_example_scripts(
-        execution_service: FromDishka[ExecutionService],
+    execution_service: FromDishka[ExecutionService],
 ) -> ExampleScripts:
     """Get example scripts for the code editor."""
     scripts = await execution_service.get_example_scripts()
@@ -203,7 +205,7 @@ async def get_example_scripts(
 
 @router.get("/k8s-limits", response_model=ResourceLimits)
 async def get_k8s_resource_limits(
-        execution_service: FromDishka[ExecutionService],
+    execution_service: FromDishka[ExecutionService],
 ) -> ResourceLimits:
     """Get Kubernetes resource limits for script execution."""
     limits = await execution_service.get_k8s_resource_limits()
@@ -212,9 +214,9 @@ async def get_k8s_resource_limits(
 
 @router.delete("/executions/{execution_id}", response_model=DeleteResponse)
 async def delete_execution(
-        execution_id: str,
-        admin: Annotated[User, Depends(admin_user)],
-        execution_service: FromDishka[ExecutionService],
+    execution_id: str,
+    admin: Annotated[User, Depends(admin_user)],
+    execution_service: FromDishka[ExecutionService],
 ) -> DeleteResponse:
     """Delete an execution and its associated data (admin only)."""
     await execution_service.delete_execution(execution_id, admin.user_id)

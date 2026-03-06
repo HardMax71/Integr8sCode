@@ -207,6 +207,22 @@
     opacity: 0;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .hero-animate-fly-in {
+      animation: none;
+      opacity: 1;
+    }
+
+    [style*="--fly-delay"] {
+      opacity: 1;
+    }
+
+    .gradient-bg::before,
+    .gradient-bg::after {
+      animation: none;
+    }
+  }
+
   .feature-card {
     position: relative;
     overflow: hidden;

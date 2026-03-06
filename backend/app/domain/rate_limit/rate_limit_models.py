@@ -22,6 +22,8 @@ class EndpointGroup(StringEnum):
     AUTH = "auth"
     PUBLIC = "public"
     API = "api"
+
+
 # --8<-- [end:EndpointGroup]
 
 
@@ -32,6 +34,8 @@ class EndpointUsageStats:
 
     algorithm: RateLimitAlgorithm
     remaining: int
+
+
 # --8<-- [end:EndpointUsageStats]
 
 
@@ -67,6 +71,8 @@ class UserRateLimit:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = None
+
+
 # --8<-- [end:UserRateLimit]
 
 

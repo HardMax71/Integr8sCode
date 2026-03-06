@@ -102,6 +102,8 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
 
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger
+
+
 # --8<-- [end:setup_logger]
 
 
@@ -122,13 +124,15 @@ def setup_log_exporter(settings: Settings, logger: structlog.stdlib.BoundLogger)
     if not settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         return
 
-    resource = Resource.create({
-        SERVICE_NAME: settings.SERVICE_NAME,
-        SERVICE_VERSION: settings.SERVICE_VERSION,
-        "service.namespace": "integr8scode",
-        "deployment.environment": settings.ENVIRONMENT,
-        "service.instance.id": settings.HOSTNAME,
-    })
+    resource = Resource.create(
+        {
+            SERVICE_NAME: settings.SERVICE_NAME,
+            SERVICE_VERSION: settings.SERVICE_VERSION,
+            "service.namespace": "integr8scode",
+            "deployment.environment": settings.ENVIRONMENT,
+            "service.instance.id": settings.HOSTNAME,
+        }
+    )
 
     endpoint = settings.OTEL_EXPORTER_OTLP_ENDPOINT
     log_exporter = OTLPLogExporter(

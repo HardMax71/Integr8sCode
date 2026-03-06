@@ -39,7 +39,11 @@ async def list_executions(
     skip: int = Query(0, ge=0),
 ) -> AdminExecutionListResponse:
     executions, total = await service.list_executions(
-        status=status, priority=priority, user_id=user_id, limit=limit, skip=skip,
+        status=status,
+        priority=priority,
+        user_id=user_id,
+        limit=limit,
+        skip=skip,
     )
     return AdminExecutionListResponse(
         executions=[AdminExecutionResponse.model_validate(e) for e in executions],

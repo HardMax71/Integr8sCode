@@ -118,6 +118,7 @@ class MetricsMiddleware:
         path = re.sub(r"/[0-9a-f]{24}", "/{id}", path)
 
         return path
+
     # --8<-- [end:path_template]
 
 
@@ -208,4 +209,6 @@ def create_system_metrics() -> None:
     meter.create_observable_gauge(
         name="process_metrics", callbacks=[get_process_metrics], description="Process-level metrics", unit="mixed"
     )
+
+
 # --8<-- [end:system_metrics]

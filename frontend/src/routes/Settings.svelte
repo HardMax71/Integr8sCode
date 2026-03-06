@@ -101,6 +101,7 @@
         loading = true;
         const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
         if (error) {
+            toast.error('Failed to load settings');
             loading = false;
             return;
         }
@@ -127,6 +128,7 @@
 
         const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
         if (error) {
+            toast.error('Failed to save settings');
             saving = false;
             return;
         }
@@ -465,10 +467,18 @@
             aria-label="Close modal"
         ></button>
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-modal-title"
             class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
         >
             <div class="p-6">
-                <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Settings History</h3>
+                <h3
+                    id="history-modal-title"
+                    class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4"
+                >
+                    Settings History
+                </h3>
 
                 <div class="overflow-y-auto max-h-96">
                     <table class="w-full">

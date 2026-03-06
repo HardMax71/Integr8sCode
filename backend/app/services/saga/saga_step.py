@@ -28,7 +28,6 @@ class SagaContext:
         self.compensations.append(compensation)
 
 
-
 class SagaStep(ABC, Generic[T]):
     """Base class for saga steps"""
 

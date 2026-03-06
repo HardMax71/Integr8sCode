@@ -32,6 +32,8 @@ class IdempotencyConfig(BaseModel):
     processing_timeout_seconds: int = 300
     enable_result_caching: bool = True
     max_result_size_bytes: int = 1048576
+
+
 # --8<-- [end:IdempotencyConfig]
 
 
@@ -69,6 +71,7 @@ class IdempotencyManager:
         else:
             raise ValueError(f"Invalid key strategy: {key_strategy}")
         return f"{self.config.key_prefix}:{key}"
+
     # --8<-- [end:generate_key]
 
     async def check_and_reserve(

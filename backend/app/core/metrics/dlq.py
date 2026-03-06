@@ -65,4 +65,3 @@ class DLQMetrics(BaseMetrics):
         self.dlq_processing_errors.add(
             1, attributes={"original_topic": original_topic, "event_type": event_type, "error_type": error_type}
         )
-

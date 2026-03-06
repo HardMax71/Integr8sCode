@@ -51,13 +51,18 @@ class DLQManager:
         self.repository = repository
         self._retry_overrides: dict[str, RetryPolicy] = {}
 
-        self._filters: list[Callable[[DLQMessage], bool]] = filters if filters is not None else [
-            f for f in [
-                None if settings.ENVIRONMENT == "test" else self._filter_test_events,
-                self._filter_old_messages,
-            ] if f is not None
-        ]
-
+        self._filters: list[Callable[[DLQMessage], bool]] = (
+            filters
+            if filters is not None
+            else [
+                f
+                for f in [
+                    None if settings.ENVIRONMENT == "test" else self._filter_test_events,
+                    self._filter_old_messages,
+                ]
+                if f is not None
+            ]
+        )
 
     def _filter_test_events(self, message: DLQMessage) -> bool:
         return not message.event.event_id.startswith("test-")

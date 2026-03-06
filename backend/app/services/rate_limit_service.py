@@ -106,9 +106,7 @@ class RateLimitService:
                 user_id, endpoint, effective_limit, rule.window_seconds, rule.burst_multiplier, rule
             )
         else:
-            status = await self._check_sliding_window(
-                user_id, endpoint, effective_limit, rule.window_seconds, rule
-            )
+            status = await self._check_sliding_window(user_id, endpoint, effective_limit, rule.window_seconds, rule)
 
         if status.allowed:
             self.metrics.record_allowed(normalized_endpoint, rule.group)
@@ -207,7 +205,13 @@ return {allowed, tostring(tokens)}
 
         # --8<-- [start:check_token_bucket]
         result = await self.redis.eval(  # type: ignore[misc]
-            self._TOKEN_BUCKET_LUA, 1, key, max_tokens, refill_rate, now, window_seconds * 2,
+            self._TOKEN_BUCKET_LUA,
+            1,
+            key,
+            max_tokens,
+            refill_rate,
+            now,
+            window_seconds * 2,
         )
         allowed = bool(result[0])
         tokens = float(result[1])
@@ -357,9 +361,7 @@ return {allowed, tostring(tokens)}
                 rule = self._find_matching_rule(endpoint, user_config, config)
                 limit = int(rule.requests * multiplier) if rule else 0
                 remaining = max(0, limit - count)
-                stats[endpoint] = EndpointUsageStats(
-                    algorithm=RateLimitAlgorithm.SLIDING_WINDOW, remaining=remaining
-                )
+                stats[endpoint] = EndpointUsageStats(algorithm=RateLimitAlgorithm.SLIDING_WINDOW, remaining=remaining)
             elif algo == "tb":
                 bucket_data = await self.redis.get(key)
                 if bucket_data:

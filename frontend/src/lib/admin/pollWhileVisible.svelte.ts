@@ -1,32 +1,33 @@
-export function pollWhileVisible(fn: () => void | Promise<void>, intervalMs: number): void {
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const id = setTimeout(resolve, ms);
+        signal.addEventListener(
+            'abort',
+            () => {
+                clearTimeout(id);
+                reject(new Error('aborted'));
+            },
+            { once: true },
+        );
+    });
+}
+
+export function pollWhileVisible(fn: () => void | Promise<void>, intervalMs: number | (() => number)): void {
     $effect(() => {
-        let id: ReturnType<typeof setInterval> | null = null;
+        const ms = typeof intervalMs === 'function' ? intervalMs() : intervalMs;
+        const ac = new AbortController();
 
-        function start() {
-            if (!id) id = setInterval(fn, intervalMs);
-        }
-
-        function stop() {
-            if (id) {
-                clearInterval(id);
-                id = null;
+        async function run() {
+            while (!ac.signal.aborted) {
+                await sleep(ms, ac.signal);
+                if (!document.hidden) await fn();
             }
         }
 
-        function onVisibility() {
-            if (document.hidden) {
-                stop();
-            } else {
-                start();
-            }
-        }
-
-        document.addEventListener('visibilitychange', onVisibility);
-        if (!document.hidden) start();
+        run().catch(() => {});
 
         return () => {
-            stop();
-            document.removeEventListener('visibilitychange', onVisibility);
+            ac.abort();
         };
     });
 }

@@ -22,9 +22,12 @@ class SagasStore {
     pagination = createPaginationState({ initialPageSize: 10 });
 
     constructor() {
-        pollWhileVisible(() => {
-            if (this.refreshEnabled) void this.loadSagas();
-        }, this.refreshRate * 1000);
+        pollWhileVisible(
+            () => {
+                if (this.refreshEnabled) void this.loadSagas();
+            },
+            () => this.refreshRate * 1000,
+        );
     }
 
     async loadSagas(): Promise<void> {

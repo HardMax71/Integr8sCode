@@ -6,10 +6,18 @@ repos:
   # Local hooks using uv run to match CI exactly
   - repo: local
     hooks:
-      # Ruff - matches CI: cd backend && uv run ruff check . --config pyproject.toml
+      # Ruff format - auto-fix formatting
+      - id: ruff-format-backend
+        name: ruff format (backend)
+        entry: bash -c 'cd backend && uv run ruff format --config pyproject.toml .'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
+      # Ruff check - auto-fix safe lint issues (import sorting, etc.)
       - id: ruff-backend
         name: ruff check (backend)
-        entry: bash -c 'cd backend && uv run ruff check . --config pyproject.toml'
+        entry: bash -c 'cd backend && uv run ruff check --fix --config pyproject.toml .'
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false
@@ -46,10 +54,10 @@ repos:
         files: ^frontend/src/.*\.css$
         pass_filenames: false
 
-      # Prettier - matches CI: cd frontend && npx prettier --check
+      # Prettier - auto-fix formatting
       - id: prettier-frontend
         name: prettier (frontend)
-        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,svelte,json}"'
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{ts,svelte,json}"'
         language: system
         files: ^frontend/src/.*\.(ts|svelte|json)$
         pass_filenames: false

@@ -127,16 +127,25 @@ class RetryPolicy:
 
 AGGRESSIVE_RETRY = RetryPolicy(
     strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=5, base_delay_seconds=30, max_delay_seconds=300, retry_multiplier=2.0,
+    max_retries=5,
+    base_delay_seconds=30,
+    max_delay_seconds=300,
+    retry_multiplier=2.0,
 )
 CAUTIOUS_RETRY = RetryPolicy(
     strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=3, base_delay_seconds=60, max_delay_seconds=600, retry_multiplier=3.0,
+    max_retries=3,
+    base_delay_seconds=60,
+    max_delay_seconds=600,
+    retry_multiplier=3.0,
 )
 IMMEDIATE_RETRY = RetryPolicy(strategy=RetryStrategy.IMMEDIATE, max_retries=3)
 DEFAULT_RETRY = RetryPolicy(
     strategy=RetryStrategy.EXPONENTIAL_BACKOFF,
-    max_retries=4, base_delay_seconds=60, max_delay_seconds=1800, retry_multiplier=2.5,
+    max_retries=4,
+    base_delay_seconds=60,
+    max_delay_seconds=1800,
+    retry_multiplier=2.5,
 )
 
 

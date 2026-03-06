@@ -8,6 +8,8 @@ class RuntimeConfig(NamedTuple):
     image: str  # Full Docker image reference
     file_name: str  # Name that will be mounted under /scripts/
     command: list[str]  # Entrypoint executed inside the container
+
+
 # --8<-- [end:RuntimeConfig]
 
 
@@ -17,6 +19,8 @@ class LanguageSpec(TypedDict):
     image_tpl: str
     file_ext: str
     interpreter: list[str]
+
+
 # --8<-- [end:LanguageSpec]
 
 

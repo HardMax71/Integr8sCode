@@ -186,7 +186,9 @@ class PodMonitor:
         pod_name = pod.metadata.name
         try:
             await self._v1.delete_namespaced_pod(
-                name=pod_name, namespace=pod.metadata.namespace, grace_period_seconds=0,
+                name=pod_name,
+                namespace=pod.metadata.namespace,
+                grace_period_seconds=0,
             )
             self.logger.info("Deleted completed pod", pod_name=pod_name)
         except ApiException as e:

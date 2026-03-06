@@ -18,6 +18,7 @@ class BaseMetrics:
         meter_name = meter_name or self.__class__.__name__
         self._meter = metrics.get_meter(meter_name)
         self._create_instruments()
+
     # --8<-- [end:init]
 
     def _create_instruments(self) -> None:

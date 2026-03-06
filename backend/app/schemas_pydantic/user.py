@@ -114,8 +114,6 @@ class LoginResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
-
-
 class UnlockResponse(BaseModel):
     """Response model for account unlock."""
 

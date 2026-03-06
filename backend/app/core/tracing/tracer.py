@@ -21,13 +21,15 @@ class Tracer:
         name = settings.TRACING_SERVICE_NAME
         rate = settings.TRACING_SAMPLING_RATE
 
-        resource = Resource.create({
-            SERVICE_NAME: name,
-            SERVICE_VERSION: settings.TRACING_SERVICE_VERSION,
-            "deployment.environment": settings.ENVIRONMENT,
-            "service.namespace": "integr8scode",
-            "service.instance.id": settings.HOSTNAME,
-        })
+        resource = Resource.create(
+            {
+                SERVICE_NAME: name,
+                SERVICE_VERSION: settings.TRACING_SERVICE_VERSION,
+                "deployment.environment": settings.ENVIRONMENT,
+                "service.namespace": "integr8scode",
+                "service.instance.id": settings.HOSTNAME,
+            }
+        )
 
         sampler: Sampler
         if rate <= 0:
@@ -41,10 +43,12 @@ class Tracer:
 
         if settings.OTLP_TRACES_ENDPOINT:
             provider.add_span_processor(
-                BatchSpanProcessor(OTLPSpanExporter(
-                    endpoint=settings.OTLP_TRACES_ENDPOINT,
-                    insecure=settings.OTLP_TRACES_ENDPOINT.startswith("http://"),
-                ))
+                BatchSpanProcessor(
+                    OTLPSpanExporter(
+                        endpoint=settings.OTLP_TRACES_ENDPOINT,
+                        insecure=settings.OTLP_TRACES_ENDPOINT.startswith("http://"),
+                    )
+                )
             )
 
         trace.set_tracer_provider(provider)

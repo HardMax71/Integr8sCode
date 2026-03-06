@@ -10,6 +10,9 @@ import {
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 import { toast } from 'svelte-sonner';
 import { createPaginationState } from '$lib/admin/pagination.svelte';
+import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
+
+const POLL_INTERVAL_MS = 5_000;
 
 class ExecutionsStore {
     executions = $state<AdminExecutionResponse[]>([]);
@@ -24,12 +27,7 @@ class ExecutionsStore {
     pagination = createPaginationState({ initialPageSize: 20 });
 
     constructor() {
-        $effect(() => {
-            const id = setInterval(() => this.loadData(), 5000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+        pollWhileVisible(() => this.loadData(), POLL_INTERVAL_MS);
     }
 
     async loadData(): Promise<void> {

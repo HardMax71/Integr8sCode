@@ -144,9 +144,7 @@ async def delete_user(
     if admin.user_id == user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    result = await admin_user_service.delete_user(
-        admin_user_id=admin.user_id, user_id=user_id, cascade=cascade
-    )
+    result = await admin_user_service.delete_user(admin_user_id=admin.user_id, user_id=user_id, cascade=cascade)
     return DeleteUserResponse.model_validate(result)
 
 

@@ -20,7 +20,7 @@ server {
     # --8<-- [end:nonce_injection]
 
     # --8<-- [start:security_headers]
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'nonce-$request_id'; style-src-elem 'self' 'nonce-$request_id'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'nonce-$request_id'; style-src-elem 'self' 'nonce-$request_id' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; connect-src 'self';";
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "DENY";
     add_header X-Content-Type-Options "nosniff";

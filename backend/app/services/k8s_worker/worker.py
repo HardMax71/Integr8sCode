@@ -35,11 +35,11 @@ class KubernetesWorker:
     """
 
     def __init__(
-            self,
-            api_client: k8s_client.ApiClient,
-            producer: UnifiedProducer,
-            settings: Settings,
-            logger: structlog.stdlib.BoundLogger,
+        self,
+        api_client: k8s_client.ApiClient,
+        producer: UnifiedProducer,
+        settings: Settings,
+        logger: structlog.stdlib.BoundLogger,
     ):
         self.logger = logger
         self.metrics = KubernetesMetrics(settings)
@@ -133,8 +133,7 @@ class KubernetesWorker:
             self.metrics.record_k8s_pod_created("success", command.language)
 
             self.logger.info(
-                f"Successfully created pod {pod.metadata.name} for execution {execution_id}. "
-                f"Duration: {duration:.2f}s"
+                f"Successfully created pod {pod.metadata.name} for execution {execution_id}. Duration: {duration:.2f}s"
             )
 
         except Exception as e:
@@ -198,9 +197,7 @@ exec "$@"
             else:
                 raise
 
-    async def _set_configmap_owner(
-        self, config_map: k8s_client.V1ConfigMap, owner_pod: k8s_client.V1Pod
-    ) -> None:
+    async def _set_configmap_owner(self, config_map: k8s_client.V1ConfigMap, owner_pod: k8s_client.V1Pod) -> None:
         """Patch the ConfigMap with an ownerReference pointing to the pod.
 
         This makes K8s garbage-collect the ConfigMap automatically when the pod is deleted.
@@ -281,8 +278,11 @@ exec "$@"
         )
 
         await self.networking_v1.patch_namespaced_network_policy(  # type: ignore[call-arg]
-            name=policy_name, namespace=namespace, body=policy,
-            field_manager="integr8s", force=True,
+            name=policy_name,
+            namespace=namespace,
+            body=policy,
+            field_manager="integr8s",
+            force=True,
             _content_type="application/apply-patch+yaml",
         )
         self.logger.info(f"NetworkPolicy '{policy_name}' applied in namespace {namespace}")
@@ -324,14 +324,16 @@ exec "$@"
             for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
                 self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
-                init_containers.append(k8s_client.V1Container(
-                    name=f"pull-{i}-{sanitized_image_ref}",
-                    image=image_ref,
-                    command=["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
-                    image_pull_policy="Always",
-                    security_context=psa_security_context,
-                    resources=minimal_resources,
-                ))
+                init_containers.append(
+                    k8s_client.V1Container(
+                        name=f"pull-{i}-{sanitized_image_ref}",
+                        image=image_ref,
+                        command=["/bin/sh", "-c", f'echo "Image {image_ref} pulled."'],
+                        image_pull_policy="Always",
+                        security_context=psa_security_context,
+                        resources=minimal_resources,
+                    )
+                )
 
             daemonset = k8s_client.V1DaemonSet(
                 api_version="apps/v1",
@@ -343,11 +345,14 @@ exec "$@"
                         metadata=k8s_client.V1ObjectMeta(labels={"name": daemonset_name}),
                         spec=k8s_client.V1PodSpec(
                             init_containers=init_containers,
-                            containers=[k8s_client.V1Container(
-                                name="pause", image="registry.k8s.io/pause:3.9",
-                                security_context=psa_security_context,
-                                resources=minimal_resources,
-                            )],
+                            containers=[
+                                k8s_client.V1Container(
+                                    name="pause",
+                                    image="registry.k8s.io/pause:3.9",
+                                    security_context=psa_security_context,
+                                    resources=minimal_resources,
+                                )
+                            ],
                             tolerations=[k8s_client.V1Toleration(operator="Exists")],
                             security_context=k8s_client.V1PodSecurityContext(
                                 run_as_non_root=True,
@@ -361,8 +366,11 @@ exec "$@"
             )
 
             await self.apps_v1.patch_namespaced_daemon_set(  # type: ignore[call-arg]
-                name=daemonset_name, namespace=namespace, body=daemonset,
-                field_manager="integr8s", force=True,
+                name=daemonset_name,
+                namespace=namespace,
+                body=daemonset,
+                field_manager="integr8s",
+                force=True,
                 _content_type="application/apply-patch+yaml",
             )
             self.logger.info(f"DaemonSet '{daemonset_name}' applied successfully")

@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
     import { onMount } from 'svelte';
+    import { updateMetaTags, pageMeta } from '$utils/meta';
 
     // PRIVACY POLICY CONFIGURATION - Update these values
     let lastUpdated = 'August 30, 2025';
@@ -11,28 +12,31 @@
     let operatorLocation = 'Germany';
 
     onMount(() => {
+        updateMetaTags(pageMeta.privacy.title, pageMeta.privacy.description);
         window.scrollTo(0, 0);
     });
 </script>
 
-<svelte:head>
-    <title>Privacy Policy | Integr8sCode</title>
-</svelte:head>
-
-<div class="container mx-auto px-4 py-8 max-w-4xl">
+<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
     <div
-        class="bg-bg-white dark:bg-dark-bg-alt rounded-lg shadow-xs border border-border-default dark:border-dark-border-default p-8"
+        class="bg-bg-alt dark:bg-dark-bg-alt rounded-xl shadow-xs border border-border-default dark:border-dark-border-default p-6 sm:p-8 lg:p-10"
     >
-        <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default mb-2">Privacy Policy</h1>
-        <p class="text-sm text-fg-muted dark:text-dark-fg-muted mb-8">
-            Last updated: {lastUpdated}
-        </p>
+        <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
+            <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-fg-default dark:text-dark-fg-default mb-2">
+                Privacy Policy
+            </h1>
+            <p class="text-sm text-fg-muted dark:text-dark-fg-muted mb-8">
+                Last updated: {lastUpdated}
+            </p>
+        </div>
 
         <div
             class="prose-page prose prose-lg dark:prose-invert max-w-none space-y-6 text-fg-default dark:text-dark-fg-default"
         >
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">Hi there!</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                    Hi there!
+                </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
                     I'm {operatorName}, and I built Integr8sCode as a personal project. This is an online code execution
                     platform that lets you run Python scripts in isolated environments. Since I'm handling your data, I
@@ -48,7 +52,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Who's responsible for your data?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">That would be me:</p>
@@ -66,7 +70,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     What information do I collect?
                 </h2>
 
@@ -95,7 +99,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Why do I need this information?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -110,7 +114,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     How long do I keep your data?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -122,7 +126,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Who else sees your data?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -137,7 +141,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     How do I protect your data?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -152,7 +156,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Your rights (GDPR stuff)
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -169,7 +173,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Where's your data stored?
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -180,7 +184,9 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">About cookies</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                    About cookies
+                </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
                     I only use essential cookies – the ones needed to keep you logged in and remember if you prefer dark
                     mode. No tracking cookies, no advertising cookies, no third-party cookies. Just the bare minimum to
@@ -189,7 +195,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Kids and this service
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -202,7 +208,9 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">The tech stack</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                    The tech stack
+                </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
                     I use various open-source tools to run this service, all self-hosted on my own infrastructure. This
                     includes MongoDB for data storage, Kubernetes for code execution, Kafka for event processing, and
@@ -216,7 +224,7 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                     Changes to this policy
                 </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
@@ -226,7 +234,9 @@
             </section>
 
             <section>
-                <h2 class="text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">Get in touch</h2>
+                <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                    Get in touch
+                </h2>
                 <p class="text-fg-default dark:text-dark-fg-default leading-relaxed">
                     Questions? Concerns? Just want to chat about privacy? Email me at <a
                         href="mailto:{operatorEmail}?subject=Privacy%20Question"

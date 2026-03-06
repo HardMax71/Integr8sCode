@@ -20,6 +20,7 @@
     import { ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '$lib/formatters';
     import { parseISO } from 'date-fns';
+    import { updateMetaTags, pageMeta } from '$utils/meta';
 
     let loading = $state(true);
     let saving = $state(false);
@@ -89,6 +90,7 @@
     }
 
     onMount(() => {
+        updateMetaTags(pageMeta.settings.title, pageMeta.settings.description);
         if (!authStore.isAuthenticated) {
             return;
         }
@@ -99,6 +101,7 @@
         loading = true;
         const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
         if (error) {
+            toast.error('Failed to load settings');
             loading = false;
             return;
         }
@@ -125,6 +128,7 @@
 
         const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
         if (error) {
+            toast.error('Failed to save settings');
             saving = false;
             return;
         }
@@ -201,18 +205,22 @@
 />
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
         {#if loading}
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>
         {:else}
-            <div class="flex justify-between items-center mb-8">
-                <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Settings</h1>
+            <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-fg-default dark:text-dark-fg-default">
+                        Settings
+                    </h1>
 
-                <button type="button" onclick={loadHistory} class="btn btn-secondary-outline btn-sm">
-                    View History
-                </button>
+                    <button type="button" onclick={loadHistory} class="btn btn-secondary-outline btn-sm">
+                        View History
+                    </button>
+                </div>
             </div>
 
             <div class="flex space-x-1 mb-6 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
@@ -459,10 +467,18 @@
             aria-label="Close modal"
         ></button>
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-modal-title"
             class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
         >
             <div class="p-6">
-                <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Settings History</h3>
+                <h3
+                    id="history-modal-title"
+                    class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4"
+                >
+                    Settings History
+                </h3>
 
                 <div class="overflow-y-auto max-h-96">
                     <table class="w-full">

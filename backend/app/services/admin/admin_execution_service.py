@@ -41,13 +41,18 @@ class AdminExecutionService:
             query["user_id"] = user_id
 
         executions = await self._repo.get_executions(
-            query=query, limit=limit, skip=skip, sort=[("created_at", -1)],
+            query=query,
+            limit=limit,
+            skip=skip,
+            sort=[("created_at", -1)],
         )
         total = await self._repo.count_executions(query)
         return executions, total
 
     async def update_priority(
-        self, execution_id: str, new_priority: QueuePriority,
+        self,
+        execution_id: str,
+        new_priority: QueuePriority,
     ) -> DomainExecution:
         updated = await self._repo.update_priority(execution_id, new_priority)
         if not updated:

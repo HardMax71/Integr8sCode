@@ -71,6 +71,8 @@ class EventDocument(Document):
                 default_language="english",
             ),
         ]
+
+
 # --8<-- [end:EventDocument]
 
 

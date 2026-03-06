@@ -109,5 +109,3 @@ class RestoreSettingsRequest(BaseModel):
 
     timestamp: datetime
     reason: str | None = None
-
-

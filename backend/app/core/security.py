@@ -21,15 +21,14 @@ class SecurityService:
         self.settings = settings
         self._security_metrics = security_metrics
         # --8<-- [start:password_hashing]
-        self._password_hash = PasswordHash((
-            BcryptHasher(rounds=self.settings.BCRYPT_ROUNDS),
-        ))
+        self._password_hash = PasswordHash((BcryptHasher(rounds=self.settings.BCRYPT_ROUNDS),))
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return self._password_hash.verify(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
         return self._password_hash.hash(password)
+
     # --8<-- [end:password_hashing]
 
     # --8<-- [start:create_access_token]
@@ -39,6 +38,7 @@ class SecurityService:
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.settings.ALGORITHM)
         return encoded_jwt
+
     # --8<-- [end:create_access_token]
 
     def decode_token(self, token: str, *, allow_expired: bool = False) -> str:
@@ -51,7 +51,10 @@ class SecurityService:
         try:
             options = {"verify_exp": not allow_expired}
             payload = jwt.decode(
-                token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM], options=options,
+                token,
+                self.settings.SECRET_KEY,
+                algorithms=[self.settings.ALGORITHM],
+                options=options,
             )
             username: str | None = payload.get("sub")
             if username is None:
@@ -94,10 +97,12 @@ class SecurityService:
         return hmac.compare_digest(header_token, cookie_token)
 
     # Paths exempt from CSRF validation (auth handles its own security)
-    CSRF_EXEMPT_PATHS: frozenset[str] = frozenset({
-        "/api/v1/auth/login",
-        "/api/v1/auth/register",
-    })
+    CSRF_EXEMPT_PATHS: frozenset[str] = frozenset(
+        {
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+        }
+    )
 
     def validate_csrf_from_request(self, request: Request) -> str:
         """Validate CSRF token from HTTP request using double-submit cookie pattern.
@@ -144,4 +149,5 @@ class SecurityService:
             raise CSRFValidationError("CSRF token signature invalid")
 
         return header_token
+
     # --8<-- [end:csrf_validation]

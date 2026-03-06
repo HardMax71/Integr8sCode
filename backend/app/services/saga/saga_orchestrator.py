@@ -90,13 +90,9 @@ class SagaOrchestrator:
         if not isinstance(event, ExecutionCancelledEvent):
             raise TypeError(f"Expected ExecutionCancelledEvent, got {type(event).__name__}")
         await self._queue.remove(event.execution_id)
-        await self._resolve_completion(
-            event.execution_id, SagaState.CANCELLED, f"cancelled by {event.cancelled_by}"
-        )
+        await self._resolve_completion(event.execution_id, SagaState.CANCELLED, f"cancelled by {event.cancelled_by}")
 
-    async def _resolve_completion(
-        self, execution_id: str, state: SagaState, error_message: str | None = None
-    ) -> None:
+    async def _resolve_completion(self, execution_id: str, state: SagaState, error_message: str | None = None) -> None:
         """Look up the active saga for an execution and transition it to a terminal state.
 
         Always releases the queue slot and attempts to schedule the next pending
@@ -111,7 +107,10 @@ class SagaOrchestrator:
         else:
             self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
             await self._repo.save_saga(
-                saga.saga_id, state=state, error_message=error_message, completed_at=datetime.now(UTC),
+                saga.saga_id,
+                state=state,
+                error_message=error_message,
+                completed_at=datetime.now(UTC),
             )
 
         await self._queue.release(execution_id)
@@ -144,7 +143,8 @@ class SagaOrchestrator:
                         execution_id=execution_id,
                     )
                     await self._resolve_completion(
-                        execution_id, SagaState.FAILED,
+                        execution_id,
+                        SagaState.FAILED,
                         f"Failed to start saga after {retry_count} attempts",
                     )
                 else:
@@ -208,9 +208,7 @@ class SagaOrchestrator:
                 saved = await self._repo.save_saga(instance.saga_id, current_step=step.name)
 
                 if saved.state.is_terminal:
-                    self.logger.info(
-                        "Saga no longer active, stopping", saga_id=instance.saga_id, state=saved.state
-                    )
+                    self.logger.info("Saga no longer active, stopping", saga_id=instance.saga_id, state=saved.state)
                     return
 
                 self.logger.info("Executing saga step", step=step.name, saga_id=instance.saga_id)
@@ -231,9 +229,9 @@ class SagaOrchestrator:
                     await self._repo.save_saga(
                         instance.saga_id,
                         completed_steps=[*saved.completed_steps, step.name],
-                        context_data=SagaContextData(**{
-                            k: v for k, v in context.data.items() if k in SagaContextData.__dataclass_fields__
-                        }),
+                        context_data=SagaContextData(
+                            **{k: v for k, v in context.data.items() if k in SagaContextData.__dataclass_fields__}
+                        ),
                     )
 
                     compensation = step.get_compensation()
@@ -318,7 +316,10 @@ class SagaOrchestrator:
     async def _fail_saga(self, saga_id: str, error_message: str) -> None:
         """Mark saga as failed."""
         await self._repo.save_saga(
-            saga_id, state=SagaState.FAILED, error_message=error_message, completed_at=datetime.now(UTC),
+            saga_id,
+            state=SagaState.FAILED,
+            error_message=error_message,
+            completed_at=datetime.now(UTC),
         )
         self.logger.error("Saga failed", saga_id=saga_id, error_message=error_message)
 
@@ -388,7 +389,9 @@ class SagaOrchestrator:
         self.logger.info("Saga cancelled successfully", saga_id=saga_id)
 
     async def _publish_saga_started_event(
-        self, instance: Saga, trigger_event: ExecutionRequestedEvent,
+        self,
+        instance: Saga,
+        trigger_event: ExecutionRequestedEvent,
     ) -> None:
         """Publish saga started event after the document is persisted."""
         try:

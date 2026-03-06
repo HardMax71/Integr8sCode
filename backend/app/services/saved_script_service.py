@@ -35,6 +35,7 @@ class SavedScriptService:
             script_name=created_script.name,
         )
         return created_script
+
     # --8<-- [end:create_saved_script]
 
     async def get_saved_script(self, script_id: str, user_id: str) -> DomainSavedScript:

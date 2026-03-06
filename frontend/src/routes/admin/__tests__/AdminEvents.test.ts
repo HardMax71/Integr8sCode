@@ -141,7 +141,7 @@ describe('AdminEvents', () => {
             const events = createMockEvents(5);
             await renderWithEvents(events);
             // Should show events info in pagination
-            expect(screen.getByText(/Showing 1 to 5 of 5 events/i)).toBeInTheDocument();
+            expect(screen.getByText(/Showing 1 - 5 of 5/i)).toBeInTheDocument();
         });
 
         it('shows user ID as clickable link', async () => {
@@ -262,7 +262,7 @@ describe('AdminEvents', () => {
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
-            await waitFor(() => expect(screen.getByText(/Showing 1 to 10 of 25 events/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText(/Showing 1 - 10 of 25/i)).toBeInTheDocument());
         });
 
         it('changes page when next is clicked', async () => {
@@ -275,7 +275,7 @@ describe('AdminEvents', () => {
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
-            const nextBtn = await waitFor(() => screen.getByTitle('Next page'));
+            const nextBtn = await waitFor(() => screen.getByLabelText('Next page'));
 
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
             await user.click(nextBtn);
@@ -301,7 +301,7 @@ describe('AdminEvents', () => {
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
             render(AdminEvents);
-            const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Show:/i));
+            const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Items per page/i));
 
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
             selectOption(pageSizeSelect, '25');

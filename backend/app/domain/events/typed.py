@@ -241,6 +241,8 @@ class UserSettingsUpdatedEvent(BaseEvent):
     user_id: str
     changed_fields: list[str] = Field(default_factory=list)
     reason: str | None = None
+
+
 # --8<-- [end:UserSettingsUpdatedEvent]
 
 

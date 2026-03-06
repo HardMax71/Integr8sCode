@@ -16,10 +16,16 @@ import {
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 import { toast } from 'svelte-sonner';
 import { createPaginationState } from '$lib/admin/pagination.svelte';
+import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
 import { parseISO } from 'date-fns';
 import { logger } from '$lib/logger';
 
 const log = logger.withTag('EventsStore');
+const POLL_INTERVAL_MS = 30_000;
+
+function replayStatusUrl(sessionId: string): string {
+    return `/api/v1/admin/events/replay/${sessionId}/status`;
+}
 
 export type BrowsedEvent = EventBrowseResponse['events'][number];
 
@@ -40,12 +46,7 @@ class EventsStore {
     pagination = createPaginationState({ initialPageSize: 10 });
 
     constructor() {
-        $effect(() => {
-            const id = setInterval(() => this.loadAll(), 30_000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+        pollWhileVisible(() => this.loadAll(), POLL_INTERVAL_MS);
     }
 
     async loadAll(): Promise<void> {
@@ -138,7 +139,7 @@ class EventsStore {
     }
 
     #startReplayStream(sessionId: string, signal: AbortSignal): void {
-        const eventSource = new EventSource(`/api/v1/admin/events/replay/${sessionId}/status`);
+        const eventSource = new EventSource(replayStatusUrl(sessionId));
 
         signal.addEventListener('abort', () => {
             eventSource.close();

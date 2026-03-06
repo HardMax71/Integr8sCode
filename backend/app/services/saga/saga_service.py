@@ -58,9 +58,7 @@ class SagaService:
 
     async def get_saga_with_access_check(self, saga_id: str, user: User) -> Saga:
         """Get saga with access control."""
-        self.logger.debug(
-            "Getting saga for user", saga_id=saga_id, user_id=user.user_id, user_role=user.role
-        )
+        self.logger.debug("Getting saga for user", saga_id=saga_id, user_id=user.user_id, user_role=user.role)
 
         saga = await self.saga_repo.get_saga(saga_id)
         if not saga:
@@ -162,4 +160,3 @@ class SagaService:
             saga_filter = SagaFilter(execution_ids=user_execution_ids)
 
         return await self.saga_repo.get_saga_statistics(saga_filter)
-

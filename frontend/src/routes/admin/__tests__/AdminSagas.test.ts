@@ -343,14 +343,11 @@ describe('AdminSagas', () => {
     });
 
     describe('refresh rate control', () => {
-        it('changes refresh rate', async () => {
+        it('polls at initial refresh rate', async () => {
             await renderWithSagas();
 
-            const rateSelect = screen.getByLabelText(/every/i);
-            selectOption(rateSelect, '10');
-
             vi.clearAllMocks();
-            await vi.advanceTimersByTimeAsync(10000);
+            await vi.advanceTimersByTimeAsync(5000);
 
             expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(1);
         });

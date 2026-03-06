@@ -21,12 +21,12 @@ class ResultProcessor:
     """Service for processing execution completion events and storing results."""
 
     def __init__(
-            self,
-            execution_repo: ExecutionRepository,
-            producer: UnifiedProducer,
-            settings: Settings,
-            logger: structlog.stdlib.BoundLogger,
-            execution_metrics: ExecutionMetrics,
+        self,
+        execution_repo: ExecutionRepository,
+        producer: UnifiedProducer,
+        settings: Settings,
+        logger: structlog.stdlib.BoundLogger,
+        execution_metrics: ExecutionMetrics,
     ) -> None:
         self._execution_repo = execution_repo
         self._producer = producer

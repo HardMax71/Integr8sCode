@@ -180,23 +180,22 @@ class AdminEventsRepository:
         error_rate = (error_count / total * 100) if total > 0 else 0
 
         events_by_type = [
-            EventTypeCount(event_type=EventType(t["_id"]), count=t["count"])
-            for t in facet.get("by_type", [])
+            EventTypeCount(event_type=EventType(t["_id"]), count=t["count"]) for t in facet.get("by_type", [])
         ]
         events_by_hour = [HourlyEventCount(**doc) for doc in facet.get("by_hour", [])]
-        top_users = [
-            UserEventCount(**doc) for doc in facet.get("by_user", []) if doc["user_id"]
-        ]
+        top_users = [UserEventCount(**doc) for doc in facet.get("by_user", []) if doc["user_id"]]
 
         # Separate collection — must be a separate query
         exec_time_field = S.field(ExecutionDocument.resource_usage.execution_time_wall_seconds)  # type: ignore[union-attr]
         exec_pipeline = (
             Pipeline()
-            .match({
-                ExecutionDocument.created_at: {"$gte": start_time},
-                ExecutionDocument.status: ExecutionStatus.COMPLETED,
-                ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},  # type: ignore[union-attr]
-            })
+            .match(
+                {
+                    ExecutionDocument.created_at: {"$gte": start_time},
+                    ExecutionDocument.status: ExecutionStatus.COMPLETED,
+                    ExecutionDocument.resource_usage.execution_time_wall_seconds: {"$exists": True},  # type: ignore[union-attr]
+                }
+            )
             .group(by=None, query={"avg_duration": S.avg(exec_time_field)})
         )
         exec_result = await ExecutionDocument.aggregate(exec_pipeline.export()).to_list()
@@ -251,15 +250,18 @@ class AdminEventsRepository:
             started_at=doc.started_at,
             completed_at=doc.completed_at,
             errors=[
-                e if isinstance(e, DomainReplayError)
-                else DomainReplayError(**e) if isinstance(e, dict)
+                e
+                if isinstance(e, DomainReplayError)
+                else DomainReplayError(**e)
+                if isinstance(e, dict)
                 else DomainReplayError(**dataclasses.asdict(e))
                 for e in doc.errors
             ],
         )
 
     async def get_execution_results_for_filter(
-        self, replay_filter: ReplayFilter,
+        self,
+        replay_filter: ReplayFilter,
     ) -> list[ExecutionResultSummary]:
         mongo_query = replay_filter.to_mongo_query()
         if not mongo_query:
@@ -268,9 +270,7 @@ class AdminEventsRepository:
         exec_ids = list({e.execution_id for e in matched_events if e.execution_id})[:10]
         if not exec_ids:
             return []
-        exec_docs = await ExecutionDocument.find(
-            In(ExecutionDocument.execution_id, exec_ids)
-        ).to_list()
+        exec_docs = await ExecutionDocument.find(In(ExecutionDocument.execution_id, exec_ids)).to_list()
         return [
             ExecutionResultSummary(
                 execution_id=d.execution_id,

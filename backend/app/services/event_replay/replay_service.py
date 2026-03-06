@@ -120,9 +120,7 @@ class EventReplayService:
         if scheduler:
             scheduler.remove_all_jobs()
         await self._repository.update_session_status(session_id, ReplayStatus.PAUSED)
-        return ReplayOperationResult(
-            session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused"
-        )
+        return ReplayOperationResult(session_id=session_id, status=ReplayStatus.PAUSED, message="Replay session paused")
 
     async def resume_session(self, session_id: str) -> ReplayOperationResult:
         session = self.get_session(session_id)

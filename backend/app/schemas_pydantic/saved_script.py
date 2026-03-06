@@ -44,6 +44,8 @@ class SavedScriptResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+
 # --8<-- [end:SavedScriptResponse]
 
 

@@ -133,7 +133,9 @@ class AdminUserService:
                 bypass_rate_limit=s.bypass_rate_limit,
                 global_multiplier=s.global_multiplier,
                 has_custom_limits=s.has_custom_limits,
-            ) if (s := summaries.get(user.user_id)) else user
+            )
+            if (s := summaries.get(user.user_id))
+            else user
             for user in result.users
         ]
 
@@ -166,9 +168,7 @@ class AdminUserService:
         return created
 
     async def get_user(self, *, admin_user_id: str, user_id: str) -> User | None:
-        self.logger.info(
-            "Admin getting user details", admin_user_id=admin_user_id, target_user_id=user_id
-        )
+        self.logger.info("Admin getting user details", admin_user_id=admin_user_id, target_user_id=user_id)
         return await self._users.get_user_by_id(user_id)
 
     async def update_user(self, *, admin_user_id: str, user_id: str, update: UserUpdate) -> User | None:
@@ -202,9 +202,7 @@ class AdminUserService:
         return result
 
     async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> bool:
-        self.logger.info(
-            "Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id
-        )
+        self.logger.info("Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id)
         self._security_metrics.record_password_reset_request(method="admin")
         hashed = self._security.get_password_hash(new_password)
         pr = PasswordReset(user_id=user_id, new_password=hashed)
@@ -214,9 +212,7 @@ class AdminUserService:
         return ok
 
     async def get_user_rate_limits(self, *, admin_user_id: str, user_id: str) -> UserRateLimitsResult:
-        self.logger.info(
-            "Admin getting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id
-        )
+        self.logger.info("Admin getting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id)
         user_limit = await self._rate_limits.get_user_rate_limit(user_id)
         usage_stats = await self._rate_limits.get_usage_stats(user_id)
         return UserRateLimitsResult(
@@ -244,8 +240,6 @@ class AdminUserService:
         return RateLimitUpdateResult(user_id=user_id, updated=True, config=config)
 
     async def reset_user_rate_limits(self, *, admin_user_id: str, user_id: str) -> bool:
-        self.logger.info(
-            "Admin resetting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id
-        )
+        self.logger.info("Admin resetting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id)
         await self._rate_limits.reset_user_limits(user_id)
         return True

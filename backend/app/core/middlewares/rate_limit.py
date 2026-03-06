@@ -110,6 +110,7 @@ class RateLimitMiddleware:
         craft arbitrary bucket keys to bypass IP-based limits.
         """
         return f"ip:{get_client_ip(request)}"
+
     # --8<-- [end:extract_user_id]
 
     async def _check_rate_limit(self, user_id: str, endpoint: str) -> RateLimitStatus:

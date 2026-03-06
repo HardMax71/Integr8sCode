@@ -32,12 +32,12 @@ class DLQRepository:
         return DLQMessage(**data)
 
     async def get_messages(
-            self,
-            status: DLQMessageStatus | None = None,
-            topic: str | None = None,
-            event_type: EventType | None = None,
-            limit: int = 50,
-            offset: int = 0,
+        self,
+        status: DLQMessageStatus | None = None,
+        topic: str | None = None,
+        event_type: EventType | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> DLQMessageListResult:
         conditions: list[Any] = [
             DLQMessageDocument.status == status if status else None,

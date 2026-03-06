@@ -149,9 +149,7 @@ class NotificationRepository:
         return bool(result and getattr(result, "modified_count", 0) > 0)
 
     # Subscriptions
-    async def get_subscription(
-        self, user_id: str, channel: NotificationChannel
-    ) -> DomainNotificationSubscription:
+    async def get_subscription(self, user_id: str, channel: NotificationChannel) -> DomainNotificationSubscription:
         """Get subscription for user/channel, returning default enabled subscription if none exists."""
         doc = await NotificationSubscriptionDocument.find_one(
             NotificationSubscriptionDocument.user_id == user_id,
@@ -189,8 +187,7 @@ class NotificationRepository:
             NotificationSubscriptionDocument.user_id == user_id,
         ).to_list()
         existing: dict[NotificationChannel, DomainNotificationSubscription] = {
-            doc.channel: DomainNotificationSubscription(**doc.model_dump(include=_sub_fields))
-            for doc in docs
+            doc.channel: DomainNotificationSubscription(**doc.model_dump(include=_sub_fields)) for doc in docs
         }
         return [
             existing.get(channel, DomainNotificationSubscription(user_id=user_id, channel=channel, enabled=True))

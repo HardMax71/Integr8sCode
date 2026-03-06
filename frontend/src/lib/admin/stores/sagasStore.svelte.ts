@@ -1,6 +1,7 @@
 import { listSagasApiV1SagasGet, type SagaStatusResponse } from '$lib/api';
 import { unwrapOr } from '$lib/api-interceptors';
 import { createPaginationState } from '$lib/admin/pagination.svelte';
+import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
 import { type SagaStateFilter } from '$lib/admin/sagas';
 
 class SagasStore {
@@ -21,13 +22,12 @@ class SagasStore {
     pagination = createPaginationState({ initialPageSize: 10 });
 
     constructor() {
-        $effect(() => {
-            if (!this.refreshEnabled) return;
-            const id = setInterval(() => this.loadSagas(), this.refreshRate * 1000);
-            return () => {
-                clearInterval(id);
-            };
-        });
+        pollWhileVisible(
+            () => {
+                if (this.refreshEnabled) void this.loadSagas();
+            },
+            () => this.refreshRate * 1000,
+        );
     }
 
     async loadSagas(): Promise<void> {

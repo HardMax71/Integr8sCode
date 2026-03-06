@@ -14,18 +14,8 @@
         UserOverviewModal,
     } from '$components/admin/events';
     import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '$lib/admin/events';
-    import {
-        Filter,
-        Download,
-        RefreshCw,
-        X,
-        ChevronsLeft,
-        ChevronLeft,
-        ChevronRight,
-        ChevronsRight,
-        FileText,
-        Code,
-    } from '@lucide/svelte';
+    import { Filter, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
+    import Pagination from '$components/Pagination.svelte';
     import { createEventsStore } from '$lib/admin/stores/eventsStore.svelte';
 
     const store = createEventsStore();
@@ -49,16 +39,8 @@
         store.replayEvent(eventId, true);
     }
 
-    function handleReplay(eventId: string): void {
-        store.replayEvent(eventId, false);
-    }
-
-    function handleReplayFromModal(eventId: string): void {
-        selectedEvent = null;
-        store.replayEvent(eventId, false);
-    }
-
-    function handleReplayConfirm(eventId: string): void {
+    function handleReplay(eventId: string, closeModal = false): void {
+        if (closeModal) selectedEvent = null;
         store.replayEvent(eventId, false);
     }
 
@@ -222,100 +204,21 @@
                     onViewUser={handleUserOverview}
                 />
 
-                <!-- Pagination -->
-                {#if store.totalEvents > 0}
-                    <div class="divider pt-4 mt-4">
-                        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div class="flex items-center gap-4">
-                                <div class="flex items-center gap-2">
-                                    <label for="events-page-size" class="text-sm text-fg-muted dark:text-dark-fg-muted"
-                                        >Show:</label
-                                    >
-                                    <select
-                                        id="events-page-size"
-                                        bind:value={store.pagination.pageSize}
-                                        onchange={() => {
-                                            store.pagination.currentPage = 1;
-                                            store.loadEvents();
-                                        }}
-                                        class="pagination-selector"
-                                    >
-                                        <option value={10}>10</option>
-                                        <option value={25}>25</option>
-                                        <option value={50}>50</option>
-                                        <option value={100}>100</option>
-                                    </select>
-                                    <span class="text-sm text-fg-muted dark:text-dark-fg-muted">per page</span>
-                                </div>
-
-                                {#if totalPages > 1}
-                                    <div class="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onclick={() => {
-                                                store.pagination.currentPage = 1;
-                                                store.loadEvents();
-                                            }}
-                                            disabled={store.pagination.currentPage === 1}
-                                            class="pagination-button"
-                                            title="First page"
-                                        >
-                                            <ChevronsLeft size={16} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onclick={() => {
-                                                store.pagination.currentPage--;
-                                                store.loadEvents();
-                                            }}
-                                            disabled={store.pagination.currentPage === 1}
-                                            class="pagination-button"
-                                            title="Previous page"
-                                        >
-                                            <ChevronLeft size={16} />
-                                        </button>
-                                        <div class="pagination-text">
-                                            <span class="font-medium">{store.pagination.currentPage}</span>
-                                            <span class="text-fg-muted dark:text-dark-fg-muted mx-1">/</span>
-                                            <span class="font-medium">{totalPages}</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onclick={() => {
-                                                store.pagination.currentPage++;
-                                                store.loadEvents();
-                                            }}
-                                            disabled={store.pagination.currentPage === totalPages}
-                                            class="pagination-button"
-                                            title="Next page"
-                                        >
-                                            <ChevronRight size={16} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onclick={() => {
-                                                store.pagination.currentPage = totalPages;
-                                                store.loadEvents();
-                                            }}
-                                            disabled={store.pagination.currentPage === totalPages}
-                                            class="pagination-button"
-                                            title="Last page"
-                                        >
-                                            <ChevronsRight size={16} />
-                                        </button>
-                                    </div>
-                                {/if}
-                            </div>
-
-                            <div class="text-xs sm:text-sm text-fg-muted dark:text-dark-fg-muted">
-                                Showing {(store.pagination.currentPage - 1) * store.pagination.pageSize + 1} to {Math.min(
-                                    store.pagination.currentPage * store.pagination.pageSize,
-                                    store.totalEvents,
-                                )} of {store.totalEvents} events
-                            </div>
-                        </div>
-                    </div>
-                {/if}
+                <Pagination
+                    currentPage={store.pagination.currentPage}
+                    {totalPages}
+                    totalItems={store.totalEvents}
+                    bind:pageSize={store.pagination.pageSize}
+                    onPageChange={(page) => {
+                        store.pagination.currentPage = page;
+                        store.loadEvents();
+                    }}
+                    onPageSizeChange={() => {
+                        store.pagination.currentPage = 1;
+                        store.loadEvents();
+                    }}
+                    itemName="events"
+                />
             </div>
         </div>
     </div>
@@ -327,7 +230,7 @@
         event={selectedEvent}
         open={!!selectedEvent}
         onClose={() => (selectedEvent = null)}
-        onReplay={handleReplayFromModal}
+        onReplay={(id) => handleReplay(id, true)}
         onViewRelated={loadEventDetail}
     />
 {/if}
@@ -339,7 +242,7 @@
         onClose={() => {
             store.replayPreview = null;
         }}
-        onConfirm={handleReplayConfirm}
+        onConfirm={handleReplay}
     />
 {/if}
 

@@ -44,11 +44,13 @@ class EventRepository:
         data = event.model_dump(exclude_none=True)
         data.setdefault("stored_at", datetime.now(timezone.utc))
         doc = EventDocument(**data)
-        trace.get_current_span().set_attributes({
-            "event.type": event.event_type,
-            "event.id": event.event_id,
-            "execution.id": event.aggregate_id or "",
-        })
+        trace.get_current_span().set_attributes(
+            {
+                "event.type": event.event_type,
+                "event.id": event.event_id,
+                "execution.id": event.aggregate_id or "",
+            }
+        )
         try:
             await doc.insert()
         except DuplicateKeyError:
@@ -73,7 +75,7 @@ class EventRepository:
         return DomainEventAdapter.validate_python(doc)
 
     async def get_events_by_aggregate(
-            self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
+        self, aggregate_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[DomainEvent]:
         conditions: list[BaseFindOperator] = [Eq(EventDocument.aggregate_id, aggregate_id)]
         if event_types:
@@ -84,7 +86,7 @@ class EventRepository:
         return [DomainEventAdapter.validate_python(d) for d in docs]
 
     async def get_events_by_execution_id(
-            self, execution_id: str, event_types: list[EventType] | None = None, limit: int = 100
+        self, execution_id: str, event_types: list[EventType] | None = None, limit: int = 100
     ) -> list[DomainEvent]:
         conditions: list[BaseFindOperator] = [Eq(EventDocument.execution_id, execution_id)]
         if event_types:
@@ -95,12 +97,12 @@ class EventRepository:
         return [DomainEventAdapter.validate_python(d) for d in docs]
 
     async def get_execution_events(
-            self,
-            execution_id: str,
-            limit: int = 100,
-            skip: int = 0,
-            exclude_system_events: bool = False,
-            event_types: list[EventType] | None = None,
+        self,
+        execution_id: str,
+        limit: int = 100,
+        skip: int = 0,
+        exclude_system_events: bool = False,
+        event_types: list[EventType] | None = None,
     ) -> EventListResult:
         conditions: list[Any] = [
             Or(
@@ -116,7 +118,9 @@ class EventRepository:
         docs = (
             await EventDocument.find(*conditions)
             .sort([("timestamp", SortDirection.ASCENDING)])
-            .skip(skip).limit(limit).to_list()
+            .skip(skip)
+            .limit(limit)
+            .to_list()
         )
         events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
@@ -130,10 +134,10 @@ class EventRepository:
         )
 
     async def get_event_statistics(
-            self,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            match: dict[str, object] | None = None,
+        self,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        match: dict[str, object] | None = None,
     ) -> EventStatistics:
         pipeline: list[Mapping[str, object]] = []
         if match:
@@ -199,26 +203,24 @@ class EventRepository:
 
         async for doc in EventDocument.aggregate(pipeline):
             doc["events_by_type"] = [
-                EventTypeCount(event_type=EventType(k), count=v)
-                for k, v in doc.get("events_by_type", {}).items()
+                EventTypeCount(event_type=EventType(k), count=v) for k, v in doc.get("events_by_type", {}).items()
             ]
             doc["events_by_service"] = [
-                ServiceEventCount(service_name=k, count=v)
-                for k, v in doc.get("events_by_service", {}).items()
+                ServiceEventCount(service_name=k, count=v) for k, v in doc.get("events_by_service", {}).items()
             ]
             return EventStatistics(**doc)
 
         return EventStatistics(total_events=0, events_by_type=[], events_by_service=[], events_by_hour=[])
 
     async def get_user_events_paginated(
-            self,
-            user_id: str,
-            event_types: list[EventType] | None = None,
-            start_time: datetime | None = None,
-            end_time: datetime | None = None,
-            limit: int = 100,
-            skip: int = 0,
-            sort_order: str = "desc",
+        self,
+        user_id: str,
+        event_types: list[EventType] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+        skip: int = 0,
+        sort_order: str = "desc",
     ) -> EventListResult:
         conditions = [
             EventDocument.metadata.user_id == user_id,
@@ -231,7 +233,9 @@ class EventRepository:
         docs = (
             await EventDocument.find(*conditions)
             .sort([("timestamp", sort_direction)])
-            .skip(skip).limit(limit).to_list()
+            .skip(skip)
+            .limit(limit)
+            .to_list()
         )
         events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(*conditions).count()
@@ -248,17 +252,19 @@ class EventRepository:
         return await EventDocument.find(*conditions).count()
 
     async def query_events(
-            self,
-            query: dict[str, Any],
-            sort_field: str = "timestamp",
-            skip: int = 0,
-            limit: int = 100,
+        self,
+        query: dict[str, Any],
+        sort_field: str = "timestamp",
+        skip: int = 0,
+        limit: int = 100,
     ) -> EventListResult:
         """Query events with filter, sort, and pagination. Always sorts descending (newest first)."""
         docs = (
             await EventDocument.find(query)
             .sort([(sort_field, SortDirection.DESCENDING)])
-            .skip(skip).limit(limit).to_list()
+            .skip(skip)
+            .limit(limit)
+            .to_list()
         )
         events = [DomainEventAdapter.validate_python(d) for d in docs]
         total_count = await EventDocument.find(query).count()
@@ -268,7 +274,7 @@ class EventRepository:
         )
 
     async def delete_event_with_archival(
-            self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
+        self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
     ) -> ArchivedEvent | None:
         doc = await EventDocument.find_one(EventDocument.event_id == event_id)
         if not doc:

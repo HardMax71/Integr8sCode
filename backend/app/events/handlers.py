@@ -32,31 +32,38 @@ _sse_field_names: frozenset[str] = frozenset(f.name for f in dataclasses.fields(
 
 
 async def _track_consumed(
-        metrics: EventMetrics, event: DomainEvent, consumer_group: str, coro: Awaitable[None],
+    metrics: EventMetrics,
+    event: DomainEvent,
+    consumer_group: str,
+    coro: Awaitable[None],
 ) -> None:
     """Await *coro* and record domain-level failure metric on error."""
     try:
         await coro
     except Exception as e:
         metrics.record_events_processing_failed(
-            topic=event.event_type, event_type=event.event_type,
-            consumer_group=consumer_group, error_type=type(e).__name__,
+            topic=event.event_type,
+            event_type=event.event_type,
+            consumer_group=consumer_group,
+            error_type=type(e).__name__,
         )
         raise
 
 
 # --8<-- [start:with_idempotency]
 async def with_idempotency(
-        event: DomainEvent,
-        handler: Callable[..., Awaitable[None]],
-        idem: IdempotencyManager,
-        key_strategy: KeyStrategy,
-        ttl_seconds: int,
-        logger: structlog.stdlib.BoundLogger,
+    event: DomainEvent,
+    handler: Callable[..., Awaitable[None]],
+    idem: IdempotencyManager,
+    key_strategy: KeyStrategy,
+    ttl_seconds: int,
+    logger: structlog.stdlib.BoundLogger,
 ) -> None:
     """Run *handler* inside an idempotency guard (check -> execute -> mark)."""
     result = await idem.check_and_reserve(
-        event=event, key_strategy=key_strategy, ttl_seconds=ttl_seconds,
+        event=event,
+        key_strategy=key_strategy,
+        ttl_seconds=ttl_seconds,
     )
     if result.is_duplicate:
         logger.info(f"Duplicate event: {event.event_type} ({event.event_id})")
@@ -66,9 +73,13 @@ async def with_idempotency(
         await idem.mark_completed(event=event, key_strategy=key_strategy)
     except Exception as e:
         await idem.mark_failed(
-            event=event, error=str(e), key_strategy=key_strategy,
+            event=event,
+            error=str(e),
+            key_strategy=key_strategy,
         )
         raise
+
+
 # --8<-- [end:with_idempotency]
 
 
@@ -79,14 +90,18 @@ def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_create_pod(
-            body: CreatePodCommandEvent,
-            worker: FromDishka[KubernetesWorker],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: CreatePodCommandEvent,
+        worker: FromDishka[KubernetesWorker],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "k8s-worker",
-            with_idempotency(body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger))
+        await _track_consumed(
+            event_metrics,
+            body,
+            "k8s-worker",
+            with_idempotency(body, worker.handle_create_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger),
+        )
 
     @broker.subscriber(
         EventType.DELETE_POD_COMMAND,
@@ -94,14 +109,18 @@ def register_k8s_worker_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_delete_pod(
-            body: DeletePodCommandEvent,
-            worker: FromDishka[KubernetesWorker],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: DeletePodCommandEvent,
+        worker: FromDishka[KubernetesWorker],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "k8s-worker",
-            with_idempotency(body, worker.handle_delete_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger))
+        await _track_consumed(
+            event_metrics,
+            body,
+            "k8s-worker",
+            with_idempotency(body, worker.handle_delete_pod_command, idem, KeyStrategy.CONTENT_HASH, 3600, logger),
+        )
 
 
 def register_result_processor_subscriber(broker: KafkaBroker) -> None:
@@ -113,14 +132,18 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="earliest",
     )
     async def on_execution_completed(
-            body: ExecutionCompletedEvent,
-            processor: FromDishka[ResultProcessor],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionCompletedEvent,
+        processor: FromDishka[ResultProcessor],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "result-processor",
-            with_idempotency(body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
+        await _track_consumed(
+            event_metrics,
+            body,
+            "result-processor",
+            with_idempotency(body, processor.handle_execution_completed, idem, KeyStrategy.CONTENT_HASH, 7200, logger),
+        )
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -130,14 +153,18 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="earliest",
     )
     async def on_execution_failed(
-            body: ExecutionFailedEvent,
-            processor: FromDishka[ResultProcessor],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionFailedEvent,
+        processor: FromDishka[ResultProcessor],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "result-processor",
-            with_idempotency(body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
+        await _track_consumed(
+            event_metrics,
+            body,
+            "result-processor",
+            with_idempotency(body, processor.handle_execution_failed, idem, KeyStrategy.CONTENT_HASH, 7200, logger),
+        )
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -147,14 +174,18 @@ def register_result_processor_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="earliest",
     )
     async def on_execution_timeout(
-            body: ExecutionTimeoutEvent,
-            processor: FromDishka[ResultProcessor],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionTimeoutEvent,
+        processor: FromDishka[ResultProcessor],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "result-processor",
-            with_idempotency(body, processor.handle_execution_timeout, idem, KeyStrategy.CONTENT_HASH, 7200, logger))
+        await _track_consumed(
+            event_metrics,
+            body,
+            "result-processor",
+            with_idempotency(body, processor.handle_execution_timeout, idem, KeyStrategy.CONTENT_HASH, 7200, logger),
+        )
 
 
 def register_saga_subscriber(broker: KafkaBroker) -> None:
@@ -164,14 +195,19 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_execution_requested(
-            body: ExecutionRequestedEvent,
-            orchestrator: FromDishka[SagaOrchestrator],
-            idem: FromDishka[IdempotencyManager],
-            logger: FromDishka[structlog.stdlib.BoundLogger],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionRequestedEvent,
+        orchestrator: FromDishka[SagaOrchestrator],
+        idem: FromDishka[IdempotencyManager],
+        logger: FromDishka[structlog.stdlib.BoundLogger],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
         coro = with_idempotency(
-            body, orchestrator.handle_execution_requested, idem, KeyStrategy.EVENT_BASED, 3600, logger,
+            body,
+            orchestrator.handle_execution_requested,
+            idem,
+            KeyStrategy.EVENT_BASED,
+            3600,
+            logger,
         )
         await _track_consumed(event_metrics, body, "saga-orchestrator", coro)
 
@@ -181,12 +217,11 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_execution_completed(
-            body: ExecutionCompletedEvent,
-            orchestrator: FromDishka[SagaOrchestrator],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionCompletedEvent,
+        orchestrator: FromDishka[SagaOrchestrator],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "saga-orchestrator",
-            orchestrator.handle_execution_completed(body))
+        await _track_consumed(event_metrics, body, "saga-orchestrator", orchestrator.handle_execution_completed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -194,12 +229,11 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_execution_failed(
-            body: ExecutionFailedEvent,
-            orchestrator: FromDishka[SagaOrchestrator],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionFailedEvent,
+        orchestrator: FromDishka[SagaOrchestrator],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "saga-orchestrator",
-            orchestrator.handle_execution_failed(body))
+        await _track_consumed(event_metrics, body, "saga-orchestrator", orchestrator.handle_execution_failed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -207,12 +241,11 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_execution_timeout(
-            body: ExecutionTimeoutEvent,
-            orchestrator: FromDishka[SagaOrchestrator],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionTimeoutEvent,
+        orchestrator: FromDishka[SagaOrchestrator],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "saga-orchestrator",
-            orchestrator.handle_execution_timeout(body))
+        await _track_consumed(event_metrics, body, "saga-orchestrator", orchestrator.handle_execution_timeout(body))
 
     @broker.subscriber(
         EventType.EXECUTION_CANCELLED,
@@ -220,12 +253,11 @@ def register_saga_subscriber(broker: KafkaBroker) -> None:
         ack_policy=AckPolicy.ACK,
     )
     async def on_execution_cancelled(
-            body: ExecutionCancelledEvent,
-            orchestrator: FromDishka[SagaOrchestrator],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionCancelledEvent,
+        orchestrator: FromDishka[SagaOrchestrator],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, "saga-orchestrator",
-            orchestrator.handle_execution_cancelled(body))
+        await _track_consumed(event_metrics, body, "saga-orchestrator", orchestrator.handle_execution_cancelled(body))
 
 
 _SSE_EVENT_TYPES = [
@@ -260,14 +292,12 @@ def register_sse_subscriber(broker: KafkaBroker, settings: Settings) -> None:
         max_workers=settings.SSE_CONSUMER_POOL_SIZE,
     )
     async def on_sse_event(
-            body: DomainEvent,
-            sse_bus: FromDishka[SSERedisBus],
+        body: DomainEvent,
+        sse_bus: FromDishka[SSERedisBus],
     ) -> None:
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
-            sse_data = SSEExecutionEventData(**{
-                k: v for k, v in body.model_dump().items() if k in _sse_field_names
-            })
+            sse_data = SSEExecutionEventData(**{k: v for k, v in body.model_dump().items() if k in _sse_field_names})
             await sse_bus.publish_event(execution_id, sse_data)
 
 
@@ -282,12 +312,11 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="latest",
     )
     async def on_execution_completed(
-            body: ExecutionCompletedEvent,
-            service: FromDishka[NotificationService],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionCompletedEvent,
+        service: FromDishka[NotificationService],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, group_id,
-            service.handle_execution_completed(body))
+        await _track_consumed(event_metrics, body, group_id, service.handle_execution_completed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_FAILED,
@@ -297,12 +326,11 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="latest",
     )
     async def on_execution_failed(
-            body: ExecutionFailedEvent,
-            service: FromDishka[NotificationService],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionFailedEvent,
+        service: FromDishka[NotificationService],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, group_id,
-            service.handle_execution_failed(body))
+        await _track_consumed(event_metrics, body, group_id, service.handle_execution_failed(body))
 
     @broker.subscriber(
         EventType.EXECUTION_TIMEOUT,
@@ -312,11 +340,8 @@ def register_notification_subscriber(broker: KafkaBroker) -> None:
         auto_offset_reset="latest",
     )
     async def on_execution_timeout(
-            body: ExecutionTimeoutEvent,
-            service: FromDishka[NotificationService],
-            event_metrics: FromDishka[EventMetrics],
+        body: ExecutionTimeoutEvent,
+        service: FromDishka[NotificationService],
+        event_metrics: FromDishka[EventMetrics],
     ) -> None:
-        await _track_consumed(event_metrics, body, group_id,
-            service.handle_execution_timeout(body))
-
-
+        await _track_consumed(event_metrics, body, group_id, service.handle_execution_timeout(body))

@@ -57,19 +57,22 @@ class ExecutionRepository:
             ExecutionDocument.execution_id == result.execution_id,
             In(ExecutionDocument.status, list(EXECUTION_ACTIVE)),
         ).update(
-            {"$set": {
-                "status": result.status,
-                "exit_code": result.exit_code,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "resource_usage": dataclasses.asdict(result.resource_usage) if result.resource_usage else None,
-                "error_type": result.error_type,
-                "updated_at": datetime.now(timezone.utc),
-            }}
+            {
+                "$set": {
+                    "status": result.status,
+                    "exit_code": result.exit_code,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "resource_usage": dataclasses.asdict(result.resource_usage) if result.resource_usage else None,
+                    "error_type": result.error_type,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            }
         )
         if not update_result or getattr(update_result, "modified_count", 0) == 0:
             self.logger.warning(
-                "Execution not found or already in terminal state", execution_id=result.execution_id,
+                "Execution not found or already in terminal state",
+                execution_id=result.execution_id,
             )
             return False
         return True
@@ -112,33 +115,47 @@ class ExecutionRepository:
         if query:
             pipeline.append({"$match": query})
 
-        pipeline.append({
-            "$facet": {
-                "by_status": [{"$group": {"_id": "$status", "count": {"$sum": 1}}}],
-                "by_language": [
-                    {"$group": {
-                        "_id": {"$concat": ["$lang", "-", "$lang_version"]},
-                        "count": {"$sum": 1},
-                    }},
-                ],
-                "totals": [{"$group": {
-                    "_id": None,
-                    "total": {"$sum": 1},
-                    "successful": {"$sum": {"$cond": [{"$eq": ["$status", ExecutionStatus.COMPLETED]}, 1, 0]}},
-                }}],
-                "avg_duration": [
-                    {"$match": {
-                        "status": ExecutionStatus.COMPLETED,
-                        "created_at": {"$ne": None},
-                        "updated_at": {"$ne": None},
-                    }},
-                    {"$group": {
-                        "_id": None,
-                        "avg_ms": {"$avg": {"$subtract": ["$updated_at", "$created_at"]}},
-                    }},
-                ],
-            },
-        })
+        pipeline.append(
+            {
+                "$facet": {
+                    "by_status": [{"$group": {"_id": "$status", "count": {"$sum": 1}}}],
+                    "by_language": [
+                        {
+                            "$group": {
+                                "_id": {"$concat": ["$lang", "-", "$lang_version"]},
+                                "count": {"$sum": 1},
+                            }
+                        },
+                    ],
+                    "totals": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "total": {"$sum": 1},
+                                "successful": {
+                                    "$sum": {"$cond": [{"$eq": ["$status", ExecutionStatus.COMPLETED]}, 1, 0]}
+                                },
+                            }
+                        }
+                    ],
+                    "avg_duration": [
+                        {
+                            "$match": {
+                                "status": ExecutionStatus.COMPLETED,
+                                "created_at": {"$ne": None},
+                                "updated_at": {"$ne": None},
+                            }
+                        },
+                        {
+                            "$group": {
+                                "_id": None,
+                                "avg_ms": {"$avg": {"$subtract": ["$updated_at", "$created_at"]}},
+                            }
+                        },
+                    ],
+                },
+            }
+        )
 
         collection = ExecutionDocument.get_pymongo_collection()
         cursor = await collection.aggregate(pipeline)

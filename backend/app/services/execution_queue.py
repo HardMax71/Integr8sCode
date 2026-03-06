@@ -178,7 +178,9 @@ class ExecutionQueueService:
         if not result:
             return False
         self._logger.info(
-            "Updated execution priority", execution_id=execution_id, new_priority=new_priority,
+            "Updated execution priority",
+            execution_id=execution_id,
+            new_priority=new_priority,
         )
         return True
 

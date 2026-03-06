@@ -35,4 +35,12 @@ export const pageMeta = {
         description:
             'Create a free Integr8sCode account to save your projects, collaborate with others, and access advanced coding features',
     },
+    privacy: {
+        title: 'Privacy Policy',
+        description: 'Privacy policy for Integr8sCode - how we handle your data, GDPR compliance, and your rights',
+    },
+    settings: {
+        title: 'Settings',
+        description: 'Manage your Integr8sCode account settings, editor preferences, and notification configuration',
+    },
 };

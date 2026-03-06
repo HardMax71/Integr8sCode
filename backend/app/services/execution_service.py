@@ -580,4 +580,3 @@ class ExecutionService:
             query["created_at"] = time_filter
 
         return query
-

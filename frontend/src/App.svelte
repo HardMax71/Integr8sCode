@@ -14,18 +14,20 @@
     const log = logger.withTag('App');
 
     // Page components (lazy-loaded for code splitting)
-    const Home = () => import('$routes/Home.svelte');
-    const Login = () => import('$routes/Login.svelte');
-    const Register = () => import('$routes/Register.svelte');
-    const Privacy = () => import('$routes/Privacy.svelte');
-    const Editor = () => import('$routes/Editor.svelte');
-    const Settings = () => import('$routes/Settings.svelte');
-    const Notifications = () => import('$routes/Notifications.svelte');
-    const AdminEvents = () => import('$routes/admin/AdminEvents.svelte');
-    const AdminExecutions = () => import('$routes/admin/AdminExecutions.svelte');
-    const AdminSagas = () => import('$routes/admin/AdminSagas.svelte');
-    const AdminUsers = () => import('$routes/admin/AdminUsers.svelte');
-    const AdminSettings = () => import('$routes/admin/AdminSettings.svelte');
+    // NOTE: must be async functions (not plain arrows) — svelte5-router checks
+    // constructor.name === "AsyncFunction" to detect lazy components.
+    const Home = async () => import('$routes/Home.svelte');
+    const Login = async () => import('$routes/Login.svelte');
+    const Register = async () => import('$routes/Register.svelte');
+    const Privacy = async () => import('$routes/Privacy.svelte');
+    const Editor = async () => import('$routes/Editor.svelte');
+    const Settings = async () => import('$routes/Settings.svelte');
+    const Notifications = async () => import('$routes/Notifications.svelte');
+    const AdminEvents = async () => import('$routes/admin/AdminEvents.svelte');
+    const AdminExecutions = async () => import('$routes/admin/AdminExecutions.svelte');
+    const AdminSagas = async () => import('$routes/admin/AdminSagas.svelte');
+    const AdminUsers = async () => import('$routes/admin/AdminUsers.svelte');
+    const AdminSettings = async () => import('$routes/admin/AdminSettings.svelte');
 
     let authInitialized = $state(false);
 

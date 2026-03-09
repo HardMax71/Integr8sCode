@@ -70,7 +70,7 @@ dependencies = [
     "opentelemetry-util-http==0.60b1",
     "packaging==24.1",
     "beanie==2.0.1",
-    "pwdlib[bcrypt]==0.2.1",
+    "pwdlib[bcrypt]==0.3.0",
     "pathspec==0.12.1",
     "prometheus-fastapi-instrumentator==7.0.0",
     "prometheus_client==0.21.0",

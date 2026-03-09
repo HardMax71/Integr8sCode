@@ -24,7 +24,7 @@ dependencies = [
     "ConfigArgParse==1.7.1",
     "aiokafka==0.13.0",
     "Deprecated==1.2.14",
-    "dishka==1.7.2",
+    "dishka==1.9.1",
     "dnspython==2.8.0",
     "durationpy==0.9",
     "email-validator==2.3.0",

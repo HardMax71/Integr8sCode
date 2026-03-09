@@ -75,7 +75,7 @@
     "happy-dom": "^20.8.3",
     "http-proxy": "^1.18.1",
     "monocart-reporter": "^2.10.0",
-    "postcss": "^8.4.47",
+    "postcss": "^8.5.8",
     "postcss-lightningcss": "^1.0.2",
     "prettier": "^3.8.1",
     "prettier-plugin-svelte": "^3.5.1",

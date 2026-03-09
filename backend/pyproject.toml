@@ -90,7 +90,7 @@ dependencies = [
     "PyYAML==6.0.2",
     "pyzmq==27.1.0",
     "redis==7.1.0",
-    "regex==2025.8.29",
+    "regex==2026.2.28",
     "requests==2.32.5",
     "requests-oauthlib==2.0.0",
     "rich==14.2.0",

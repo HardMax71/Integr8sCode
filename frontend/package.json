@@ -33,7 +33,7 @@
     "@lucide/svelte": "^0.575.0",
     "@mateothegreat/svelte5-router": "^2.16.19",
     "@uiw/codemirror-theme-bbedit": "^4.21.25",
-    "@uiw/codemirror-theme-dracula": "^4.24.2",
+    "@uiw/codemirror-theme-dracula": "^4.25.8",
     "@uiw/codemirror-theme-github": "^4.25.5",
     "@uiw/codemirror-theme-monokai": "^4.24.2",
     "@uiw/codemirror-theme-vscode": "^4.24.2",

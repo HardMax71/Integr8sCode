@@ -153,7 +153,7 @@ jobs:
 
       - name: Build base image
         if: steps.base-cache.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
@@ -175,7 +175,7 @@ jobs:
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./cert-generator
           file: ./cert-generator/Dockerfile
@@ -186,7 +186,7 @@ jobs:
 
       # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile

@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN npm run build
 
 # --8<-- [start:production_stage]
 # Production stage
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl

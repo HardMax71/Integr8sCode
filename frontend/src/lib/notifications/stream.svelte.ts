@@ -25,7 +25,7 @@ class NotificationStream {
             onSseEvent: (event) => {
                 if (event.event !== 'notification') return;
 
-                const data = event.data as NotificationResponse;
+                const data = event.data;
                 onNotification(data);
 
                 if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {

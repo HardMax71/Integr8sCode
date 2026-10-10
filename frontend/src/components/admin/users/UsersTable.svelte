@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Pencil, Clock, Trash2 } from '@lucide/svelte';
+    import { Pencil, Clock, Trash } from '@lucide/svelte';
     import type { UserResponse } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import Spinner from '$components/Spinner.svelte';
@@ -64,7 +64,7 @@
                         onclick={() => onDelete(user)}
                         class="btn btn-sm btn-danger flex items-center justify-center gap-1"
                     >
-                        <Trash2 class="w-4 h-4" />Delete
+                        <Trash class="w-4 h-4" />Delete
                     </button>
                 </div>
             </div>
@@ -127,7 +127,7 @@
                                     title="Delete User"
                                     aria-label="Delete User"
                                 >
-                                    <Trash2 class="w-5 h-5" />
+                                    <Trash class="w-5 h-5" />
                                 </button>
                             </div>
                         </td>

@@ -82,8 +82,18 @@ describe('ReplayProgressBanner', () => {
             renderBanner(
                 makeSession({
                     errors: [
-                        { event_id: 'err-evt-1', error: 'Timeout exceeded', timestamp: new Date().toISOString() },
-                        { error: 'Connection refused', timestamp: new Date().toISOString() },
+                        {
+                            event_id: 'err-evt-1',
+                            error: 'Timeout exceeded',
+                            error_type: null,
+                            timestamp: new Date().toISOString(),
+                        },
+                        {
+                            event_id: null,
+                            error: 'Connection refused',
+                            error_type: 'ConnectionRefusedError',
+                            timestamp: new Date().toISOString(),
+                        },
                     ],
                 }),
             );

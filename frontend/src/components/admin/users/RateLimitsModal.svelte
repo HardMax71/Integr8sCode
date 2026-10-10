@@ -111,8 +111,7 @@
                                 bind:value={config.notes}
                                 rows="2"
                                 class="input w-full text-sm"
-                                placeholder="Notes about this user's rate limits..."
-                            ></textarea>
+                                placeholder="Notes about this user's rate limits..."></textarea>
                         </div>
                     </div>
                 </div>

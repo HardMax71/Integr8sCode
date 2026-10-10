@@ -5,7 +5,7 @@
     import { fly } from 'svelte/transition';
     import Spinner from '$components/Spinner.svelte';
     import type { NotificationResponse } from '$lib/api';
-    import { Bell, Trash2, Clock, CircleCheck, AlertCircle, Info } from '@lucide/svelte';
+    import { Bell, Trash, Clock, CircleCheck, CircleAlert, Info } from '@lucide/svelte';
     import { formatRelativeTime } from '$lib/formatters';
 
     let loading = $state(false);
@@ -73,7 +73,7 @@
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
-        if (set.has('failed') || set.has('error') || set.has('security')) return AlertCircle;
+        if (set.has('failed') || set.has('error') || set.has('security')) return CircleAlert;
         if (set.has('timeout') || set.has('warning')) return Clock;
         if (set.has('completed') || set.has('success')) return CircleCheck;
         return Info;
@@ -197,7 +197,7 @@
                                             {#if deleting[notification.notification_id]}
                                                 <Spinner size="small" />
                                             {:else}
-                                                <Trash2 class="w-4 h-4" />
+                                                <Trash class="w-4 h-4" />
                                             {/if}
                                         </button>
                                         {#if (notification.tags || []).some((t) => t.startsWith('exec:'))}

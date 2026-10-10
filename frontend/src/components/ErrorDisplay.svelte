@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { AlertTriangle } from '@lucide/svelte';
+    import { TriangleAlert } from '@lucide/svelte';
 
     let {
         error,
@@ -42,7 +42,7 @@
         <!-- Error Icon -->
         <div class="flex justify-center mb-6">
             <div class="h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <AlertTriangle class="h-8 w-8 text-red-600 dark:text-red-400" />
+                <TriangleAlert class="h-8 w-8 text-red-600 dark:text-red-400" />
             </div>
         </div>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { AlertTriangle } from '@lucide/svelte';
+    import { TriangleAlert } from '@lucide/svelte';
     import type { EventSummary } from '$lib/api';
     import { formatTimestamp } from '$lib/formatters';
     import Modal from '$components/Modal.svelte';
@@ -74,7 +74,7 @@
             class="mt-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4"
         >
             <div class="flex">
-                <AlertTriangle size={20} class="text-yellow-400 dark:text-yellow-300 mt-0.5 shrink-0" />
+                <TriangleAlert size={20} class="text-yellow-400 dark:text-yellow-300 mt-0.5 shrink-0" />
                 <div class="ml-3">
                     <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Warning</h3>
                     <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">

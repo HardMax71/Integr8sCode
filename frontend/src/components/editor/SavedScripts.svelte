@@ -1,6 +1,6 @@
 <script lang="ts">
     import { slide } from 'svelte/transition';
-    import { List, Trash2 } from '@lucide/svelte';
+    import { List, Trash } from '@lucide/svelte';
     import { type SavedScriptResponse } from '$lib/api';
 
     interface Props {
@@ -71,7 +71,7 @@
                                     aria-label={`Delete ${item.name}`}
                                     title={`Delete ${item.name}`}
                                 >
-                                    <Trash2 class="w-4 h-4" />
+                                    <Trash class="w-4 h-4" />
                                 </button>
                             </li>
                         {/each}

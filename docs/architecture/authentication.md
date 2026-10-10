@@ -1,177 +1,112 @@
 # Authentication
 
-The platform uses cookie-based JWT authentication with CSRF protection via the double-submit pattern. This approach
-keeps tokens secure (httpOnly cookies) while enabling CSRF protection for state-changing requests.
-
-## Architecture
+A session is a JWT in an httpOnly cookie. Every state-changing API call from a logged-in browser must also send a CSRF token that matches a second, readable cookie (the double-submit pattern). JavaScript never sees the JWT, and a cross-site page can't produce the header.
 
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant Frontend
     participant Backend
+    participant Redis
     participant MongoDB
 
-    Browser->>Frontend: Login form submit
-    Frontend->>Backend: POST /auth/login
-    Backend->>MongoDB: Verify credentials
-    MongoDB-->>Backend: User record
-    Backend->>Backend: Generate JWT + CSRF token
-    Backend-->>Frontend: Set-Cookie: access_token (httpOnly)
-    Backend-->>Frontend: Set-Cookie: csrf_token
-    Frontend->>Frontend: Store CSRF in memory
+    Browser->>Backend: POST /api/v1/auth/login (form data)
+    Backend->>Redis: is the username locked?
+    Backend->>MongoDB: load user, verify bcrypt hash
+    Backend->>Backend: sign JWT, derive CSRF token from it
+    Backend-->>Browser: Set-Cookie access_token (httpOnly) and csrf_token
+    Backend-->>Browser: body with username, role, csrf_token
 
-    Note over Browser,Backend: Subsequent requests
-    Browser->>Frontend: Click action
-    Frontend->>Backend: POST /api/... + X-CSRF-Token header
-    Backend->>Backend: Validate JWT from cookie
-    Backend->>Backend: Validate CSRF header == cookie
-    Backend-->>Frontend: Response
+    Note over Browser,Backend: later requests
+    Browser->>Backend: POST /api/v1/... with X-CSRF-Token
+    Backend->>Backend: CSRFMiddleware checks header, cookie and signature
+    Backend->>Backend: auth dependency decodes the JWT and loads the user
+    Backend-->>Browser: response
 ```
 
-## Token Flow
+## Tokens and cookies
 
-Login creates two cookies:
-
-| Cookie         | Properties                         | Purpose                         |
-|----------------|------------------------------------|---------------------------------|
-| `access_token` | httpOnly, secure, samesite=strict  | JWT for authentication          |
-| `csrf_token`   | secure, samesite=strict (readable) | CSRF double-submit verification |
-
-The `access_token` cookie is httpOnly, so JavaScript cannot read it—this prevents XSS attacks from stealing the token.
-The `csrf_token` cookie is readable by JavaScript so the frontend can include it in request headers.
-
-## Backend Implementation
-
-### Password Hashing
-
-Passwords are hashed using bcrypt via passlib:
-
-```python
---8<-- "backend/app/core/security.py:password_hashing"
-```
-
-### JWT Creation
-
-JWTs are signed with HS256 using a secret key from settings:
+`AuthService.login` signs the JWT through `SecurityService`. The payload holds the username in `sub` plus an `exp` claim, signed with `SECRET_KEY` and `ALGORITHM` (HS256) via PyJWT:
 
 ```python
 --8<-- "backend/app/core/security.py:create_access_token"
 ```
 
-The token payload contains the username in the `sub` claim and an expiration time. Token lifetime is configured via
-`ACCESS_TOKEN_EXPIRE_MINUTES` (default: 24 hours / 1440 minutes).
+The lifetime is `SystemSettings.session_timeout_minutes`, which admins can change at runtime. `RuntimeSettingsLoader` reads it from MongoDB and caches it for 60 seconds. When no settings document exists yet, it's created from the TOML value `ACCESS_TOKEN_EXPIRE_MINUTES` (1440, so 24 hours), and the TOML value is also the fallback when the read fails. The same number sets the cookie `max_age`.
 
-### CSRF Validation
-
-The double-submit pattern requires the CSRF token to be sent in both a cookie and a header. The
-[`validate_csrf_token`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py) dependency
-validates this for all authenticated POST/PUT/DELETE requests:
-
-```python
---8<-- "backend/app/core/security.py:csrf_validation"
-```
-
-Safe methods (GET, HEAD, OPTIONS) and auth endpoints (login, register, logout) skip CSRF validation.
-
-### Cookie Configuration
-
-Login sets cookies with security best practices:
+Login sets two cookies, both `secure`, `samesite=strict` and scoped to `/`:
 
 ```python
 --8<-- "backend/app/api/routes/auth.py:login_cookies"
 ```
 
-| Setting    | Value  | Purpose                                     |
-|------------|--------|---------------------------------------------|
-| `httponly` | true   | Prevents JavaScript access (XSS protection) |
-| `secure`   | true   | HTTPS only                                  |
-| `samesite` | strict | Prevents CSRF via cross-site requests       |
-| `path`     | /      | Cookie sent for all paths                   |
+`access_token` is httpOnly and carries the JWT. `csrf_token` is readable so the frontend can echo it back in `X-CSRF-Token`. The login and `/auth/me` responses also set `Cache-Control: no-store`.
 
-## Frontend Implementation
+Routes get the caller through the `current_user` and `admin_user` dependencies in `app/api/dependencies.py`. Both call `AuthService`, which decodes the cookie, loads the user and answers 401 when the token is missing, invalid, expired or belongs to a deactivated account. A non-admin on an admin route gets 403 (`AdminAccessRequiredError`). Logout publishes `UserLoggedOutEvent` and deletes both cookies. Nothing revokes the JWT itself, so a copied token stays valid until it expires.
 
-### Auth Store
+Passwords are hashed with bcrypt through pwdlib's `BcryptHasher`. `BCRYPT_ROUNDS` sets the cost (12, and 4 in `config.test.toml`):
 
-The frontend maintains authentication state in a Svelte store with sessionStorage persistence:
+```python
+--8<-- "backend/app/core/security.py:password_hashing"
+```
+
+## CSRF
+
+`CSRFMiddleware` runs on every HTTP request and calls `SecurityService.validate_csrf_from_request`:
+
+```python
+--8<-- "backend/app/core/security.py:csrf_validation"
+```
+
+The check is skipped for GET, HEAD and OPTIONS, for paths outside `/api/`, and for requests with no `access_token` cookie, since the route's auth dependency rejects those anyway. Only two paths are exempt by name: `/api/v1/auth/login` and `/api/v1/auth/register`. Logout is not one of them. So every POST, PUT, PATCH and DELETE from a logged-in browser needs an `X-CSRF-Token` header that equals the `csrf_token` cookie (compared in constant time) and carries a valid signature for the current `access_token`.
+
+The token has the form `{nonce}.{hmac}`, where the HMAC is SHA-256 over `nonce:access_token` keyed with `SECRET_KEY`. A token issued for one session fails against another. Any failure returns 403 with `{"detail": "CSRF validation failed"}` and adds to `csrf.validation.failures.total` with the reason (`missing_header`, `token_mismatch` or `invalid_signature`).
+
+## Login lockout
+
+Failed logins are counted per username in Redis. Each failure increments `login_lockout:attempts:{username}` and resets its TTL to `lockout_duration_minutes`. When the count reaches `max_login_attempts`, `login_lockout:locked:{username}` is set with the same TTL, and logins answer 423 until it expires. Both values live in `SystemSettings` (defaults 5 attempts and 15 minutes).
+
+Unknown usernames are counted the same way, and a bcrypt check against a dummy hash keeps their response time close to a wrong password, so neither the status nor the timing tells whether a user exists. Every failure also publishes an `AuthFailedEvent`. A successful login clears both keys, and an admin can clear them with `POST /api/v1/admin/users/{user_id}/unlock`.
+
+## Errors
+
+| Case | Status | `detail` |
+|------|--------|----------|
+| Wrong password or unknown user | 401 | `Invalid credentials` |
+| Login while locked | 423 | `Account temporarily locked due to too many failed attempts` |
+| The failed attempt that triggers the lock | 423 | `Account locked due to too many failed attempts` |
+| Correct password, deactivated account | 403 | `Account '{username}' is deactivated` |
+| Register with a taken username | 409 | `Username already registered` |
+| Register with a taken email | 409 | `Email already registered` |
+| Register loses an insert race (duplicate key) | 409 | `User already exists` |
+| Password shorter than `password_min_length` | 422 | `Password must be at least {n} characters` |
+| Password under 8 characters | 422 | FastAPI validation error list |
+
+The password check order matters: a deactivated account with a wrong password gets 401 and counts toward the lockout. `UserCreate` enforces 8 characters in the schema, and `AuthService.register` then checks `SystemSettings.password_min_length` (default 8). Admins can raise the minimum but not lower it below 8.
+
+## Frontend
+
+`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session and mirrors it to sessionStorage under `authState`:
 
 ```typescript
 --8<-- "frontend/src/stores/auth.svelte.ts:AuthState"
 ```
 
-The store caches verification results for 30 seconds to reduce server load:
+After login the store takes the CSRF token from the response body. `verifyAuth()` calls `/api/v1/auth/me` and rereads the token from the `csrf_token` cookie. Its answer is cached for 30 seconds unless the caller passes `forceRefresh = true`.
 
-```typescript
---8<-- "frontend/src/stores/auth.svelte.ts:auth_cache"
-```
-
-### CSRF Injection
-
-The API interceptor automatically adds the CSRF token header to all non-GET requests:
+The request interceptor in `frontend/src/lib/api-interceptors.ts` adds the header to every non-GET call:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:csrf_injection"
 ```
 
-### Session Handling
-
-On 401 responses, the interceptor clears auth state and redirects to login, preserving the original URL for
-post-login redirect:
+The error interceptor turns status codes into toasts. On a 401 outside login and register it clears the store. If the user was logged in, it also shows "Session expired. Please log in again.", saves the current path in `redirectAfterLogin` and sends the user to `/login`:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-## Login Lockout
-
-After repeated failed login attempts, the account is temporarily locked to prevent brute-force attacks. The backend
-tracks attempts per username in Redis with a sliding-window TTL — each failed attempt resets the lockout timer.
-
-When the attempt threshold is reached, subsequent login attempts return **HTTP 423 (Locked)** with the detail
-`"Account locked due to too many failed attempts"`. The lockout applies identically whether the username exists or not,
-preventing username enumeration.
-
-The lockout parameters are configured via `SystemSettings`:
-
-| Setting                    | Default | Description                          |
-|----------------------------|---------|--------------------------------------|
-| `max_login_attempts`       | 5       | Failed attempts before lockout       |
-| `lockout_duration_minutes` | 15      | How long the lockout lasts (minutes) |
-
-The frontend displays a warning toast for 423 responses via the API interceptor.
-
-## Registration Errors
-
-Registration distinguishes between conflict types:
-
-| Condition          | HTTP Status | Detail                                           |
-|--------------------|-------------|--------------------------------------------------|
-| Username taken     | 409         | `Username already registered`                    |
-| Email taken        | 409         | `User already exists`                            |
-| Password too short | 400         | `Password must be at least {min_len} characters` |
-
-The minimum password length is enforced at both the schema level (`min_length=8` on `UserCreate`) and at runtime
-from `SystemSettings.password_min_length` (default: 8, configurable by admins).
+`verifyAuth()` has a branch meant to keep the cached state when the network is down, but it never runs. The generated client returns network failures as `{ error }` instead of throwing, so any failed `/auth/me` call clears the session like a 401 would.
 
 ## Endpoints
 
 <swagger-ui src="../reference/openapi.json" filter="authentication" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
-
-## Offline-First Behavior
-
-The frontend uses an offline-first approach for auth verification. On network failure, it returns the cached auth state
-rather than immediately logging out. This provides better UX during transient network issues but means server-revoked
-tokens may remain "valid" locally for up to 30 seconds.
-
-Security-critical operations should use `verifyAuth(forceRefresh=true)` to bypass the cache.
-
-## Key Files
-
-| File                                                                                                                     | Purpose                        |
-|--------------------------------------------------------------------------------------------------------------------------|--------------------------------|
-| [`core/security.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/security.py)                   | JWT, password, CSRF utilities  |
-| [`services/auth_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/auth_service.py)   | Auth service layer             |
-| [`api/routes/auth.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/auth.py)               | Auth endpoints                 |
-| [`services/login_lockout.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/login_lockout.py) | Redis-backed login lockout     |
-| [`stores/auth.svelte.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/stores/auth.svelte.ts)                      | Frontend auth state            |
-| [`api-interceptors.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/lib/api-interceptors.ts)        | CSRF injection, error handling |

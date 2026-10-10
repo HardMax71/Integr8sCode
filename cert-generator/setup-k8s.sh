@@ -233,8 +233,22 @@ if [ -z "$CA_CERT" ]; then
 fi
 echo "CA source: ${CA_SOURCE}"
 
-# Generate token
-TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
+# Non-expiring token: the backend containers load the kubeconfig once and never refresh it
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: integr8scode-sa-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: integr8scode-sa
+type: kubernetes.io/service-account-token
+EOF
+if ! kubectl wait --for=jsonpath='{.data.token}' secret/integr8scode-sa-token -n default --timeout=60s >/dev/null; then
+    echo "ERROR: the token controller did not fill secret integr8scode-sa-token"
+    exit 1
+fi
+TOKEN=$(kubectl get secret integr8scode-sa-token -n default -o jsonpath='{.data.token}' | base64 -d)
 TOKEN_LEN=$(printf %s "$TOKEN" | wc -c | awk '{print $1}')
 TOKEN_HEAD=$(printf %s "$TOKEN" | cut -c1-10)
 echo "ServiceAccount token acquired (len=${TOKEN_LEN}, head=${TOKEN_HEAD}...)"

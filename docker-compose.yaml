@@ -451,6 +451,7 @@ services:
       - "127.0.0.1:9411:9411"       # Zipkin
     networks:
       - app-network
+    restart: unless-stopped
 
   loki:
     container_name: loki

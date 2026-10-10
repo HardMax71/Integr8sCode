@@ -26,13 +26,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  MONGO_IMAGE: mongo:8.0
-  REDIS_IMAGE: redis:7-alpine
-  KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
-  K3S_VERSION: v1.32.11+k3s1
-  K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
-  KUEUE_VERSION: v0.16.1
-  KUEUE_MANIFEST_SHA256: 3201a66ff731be440ecfcf3c0fa5979d001b834f68389208fe7ee18017fbcfe8
+  K3S_VERSION: v1.37.1+k3s1
+  K3S_INSTALL_SHA256: ed01f89fd977bf20ac1516bbebf8370bf3ddbaa55dac8aba610956a4c78cc00b
+  KUEUE_VERSION: v0.20.1
+  KUEUE_MANIFEST_SHA256: c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd
 
 jobs:
   # Fast unit tests (no infrastructure needed)
@@ -40,10 +37,10 @@ jobs:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -51,7 +48,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           cd backend
-          uv python install 3.12
+          uv python install 3.14
           uv sync --frozen --group test --no-dev
 
       - name: Run unit tests
@@ -64,7 +61,7 @@ jobs:
             --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -78,12 +75,12 @@ jobs:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '26'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -96,7 +93,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: frontend/coverage/lcov.info
@@ -118,14 +115,14 @@ jobs:
       sha-tag: ${{ steps.tags.outputs.sha-tag }}
       image-prefix: ${{ steps.tags.outputs.image-prefix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -141,7 +138,7 @@ jobs:
 
       # ── Base image (cached separately — rarely changes) ──────────────
       - name: Cache base image
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: base-cache
         with:
           path: /tmp/base-image.tar.zst
@@ -153,7 +150,7 @@ jobs:
 
       - name: Build base image
         if: steps.base-cache.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
@@ -175,7 +172,7 @@ jobs:
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./cert-generator
           file: ./cert-generator/Dockerfile
@@ -186,7 +183,7 @@ jobs:
 
       # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -234,7 +231,7 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Boot E2E environment
         uses: ./.github/actions/e2e-boot
@@ -262,7 +259,7 @@ jobs:
         run: docker compose cp backend:/app/coverage-e2e.xml backend/coverage-e2e.xml || true
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -304,7 +301,7 @@ jobs:
         shardIndex: [1, 2]
         shardTotal: [2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Phase 1: kick off image pull + infra + k3s in background
       - name: Boot E2E environment
@@ -315,9 +312,9 @@ jobs:
 
       # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '26'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -326,7 +323,7 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright

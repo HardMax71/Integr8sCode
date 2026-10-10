@@ -10,6 +10,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "deps(python)"
+    groups:
+      python:
+        patterns: ["*"]
 
   # Frontend npm dependencies
   - package-ecosystem: "npm"
@@ -18,33 +21,48 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "deps(npm)"
+    groups:
+      npm:
+        patterns: ["*"]
 
-  # Docker base images
+  # Docker base images, one entry so one group covers all three Dockerfiles
   - package-ecosystem: "docker"
-    directory: "/backend"
+    directories:
+      - "/backend"
+      - "/frontend"
+      - "/cert-generator"
     schedule:
       interval: "weekly"
     commit-message:
       prefix: "deps(docker)"
+    groups:
+      docker:
+        patterns: ["*"]
 
-  - package-ecosystem: "docker"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "deps(docker)"
-
-  - package-ecosystem: "docker"
-    directory: "/cert-generator"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "deps(docker)"
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
+  # Images referenced in docker-compose.yaml
+  - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"
     commit-message:
+      prefix: "deps(docker)"
+    groups:
+      docker-compose:
+        patterns: ["*"]
+    ignore:
+      # Grafana can't search Jaeger 2.21+ yet (grafana/grafana#112336)
+      - dependency-name: "jaegertracing/jaeger"
+        versions: [">=2.21.0"]
+
+  # GitHub Actions, including the composite actions
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: "weekly"
+    commit-message:
       prefix: "deps(actions)"
+    groups:
+      github-actions:
+        patterns: ["*"]

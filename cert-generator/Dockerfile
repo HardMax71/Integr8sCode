@@ -1,8 +1,8 @@
-FROM alpine:3.23
+FROM alpine:3.24
 
 # Pin versions for reproducible builds
-# kubectl: Use supported version (N-2 policy: 1.35, 1.34, 1.33 as of Feb 2026)
-ARG KUBECTL_VERSION=v1.35.0
+# kubectl: Use supported version (N-2 policy: 1.37, 1.36, 1.35 as of Oct 2026)
+ARG KUBECTL_VERSION=v1.37.1
 
 # Install required packages and tools for all architectures
 RUN apk add --no-cache ca-certificates openssl curl dos2unix netcat-openbsd iproute2 && \

@@ -13,7 +13,7 @@ runs:
   using: 'composite'
   steps:
     - name: Log in to GHCR
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -45,7 +45,7 @@ runs:
     - name: Pre-pull executor images and Kueue manifest (background)
       shell: bash
       run: |
-        KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
 
         nohup bash -c '
           curl -fsSL -o /tmp/kueue-manifests.yaml \

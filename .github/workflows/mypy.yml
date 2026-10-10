@@ -12,10 +12,10 @@ jobs:
     name: Mypy Type Checking
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -23,7 +23,7 @@ jobs:
       - name: Install Python and dependencies
         run: |
           cd backend
-          uv python install 3.12
+          uv python install 3.14
           uv sync --frozen --group lint --group test --no-dev
 
       - name: Run mypy

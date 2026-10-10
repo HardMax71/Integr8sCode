@@ -49,7 +49,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.14
-          uv sync --frozen --group test --no-dev
+          uv sync --frozen --group test --no-dev --no-install-project --no-install-package async-asgi-testclient --no-build
 
       - name: Run unit tests
         timeout-minutes: 5

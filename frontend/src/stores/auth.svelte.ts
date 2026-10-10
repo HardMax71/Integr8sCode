@@ -214,7 +214,7 @@ class AuthStore {
                     this.#authCache = { valid: false, timestamp: Date.now() };
                     return false;
                 }
-                if (error || !data) {
+                if (error) {
                     // Network failure or a server error: keep the cached state (offline-first)
                     log.warn('Auth verification failed, keeping cached state:', response?.status ?? error);
                     return this.#authCache.valid ?? false;

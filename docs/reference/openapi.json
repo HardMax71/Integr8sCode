@@ -44,6 +44,16 @@
               }
             }
           },
+          "403": {
+            "description": "Account deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "423": {
             "description": "Account temporarily locked",
             "content": {
@@ -96,18 +106,8 @@
               }
             }
           },
-          "400": {
-            "description": "Password too short",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "409": {
-            "description": "User already exists",
+            "description": "Username or email already registered",
             "content": {
               "application/json": {
                 "schema": {
@@ -117,11 +117,18 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Password below the configured minimum length, or invalid request body",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             }
@@ -147,6 +154,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Not authenticated or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -166,6 +183,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF token missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -283,6 +310,16 @@
               }
             }
           },
+          "404": {
+            "description": "Execution not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -356,6 +393,16 @@
               }
             }
           },
+          "404": {
+            "description": "Execution not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -419,12 +466,22 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "404": {
+            "description": "Execution not found",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The execution's language version is no longer offered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -743,6 +800,16 @@
               }
             }
           },
+          "404": {
+            "description": "Execution not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1024,11 +1091,18 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Language version is not offered, or invalid request body",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             }
@@ -1138,11 +1212,18 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Language version is not offered, or invalid request body",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             }
@@ -2877,6 +2958,16 @@
               }
             }
           },
+          "409": {
+            "description": "Username or email already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2933,6 +3024,16 @@
           },
           "400": {
             "description": "Cannot delete your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -3049,8 +3150,8 @@
               }
             }
           },
-          "500": {
-            "description": "Failed to reset password",
+          "404": {
+            "description": "User not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -7142,7 +7243,7 @@
             "type": "string",
             "title": "Lang Version",
             "description": "Language version to use for execution",
-            "default": "3.11"
+            "default": "3.14"
           }
         },
         "type": "object",
@@ -7664,6 +7765,30 @@
         ],
         "title": "LanguageInfo",
         "description": "Language runtime information."
+      },
+      "LanguageLimits": {
+        "properties": {
+          "cpu_limit": {
+            "type": "string",
+            "title": "Cpu Limit"
+          },
+          "memory_limit": {
+            "type": "string",
+            "title": "Memory Limit"
+          },
+          "execution_timeout": {
+            "type": "integer",
+            "title": "Execution Timeout"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cpu_limit",
+          "memory_limit",
+          "execution_timeout"
+        ],
+        "title": "LanguageLimits",
+        "description": "Limits a pod for one language gets: the admin limits raised to the language minimums."
       },
       "LivenessResponse": {
         "properties": {
@@ -10367,6 +10492,13 @@
             },
             "type": "object",
             "title": "Supported Runtimes"
+          },
+          "language_limits": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LanguageLimits"
+            },
+            "type": "object",
+            "title": "Language Limits"
           }
         },
         "type": "object",
@@ -10376,7 +10508,8 @@
           "cpu_request",
           "memory_request",
           "execution_timeout",
-          "supported_runtimes"
+          "supported_runtimes",
+          "language_limits"
         ],
         "title": "ResourceLimits",
         "description": "Model for resource limits configuration."
@@ -11302,7 +11435,7 @@
           "lang_version": {
             "type": "string",
             "title": "Lang Version",
-            "default": "3.11"
+            "default": "3.14"
           },
           "description": {
             "anyOf": [

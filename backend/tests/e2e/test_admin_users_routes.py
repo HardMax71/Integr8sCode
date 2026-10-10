@@ -335,7 +335,8 @@ class TestUpdateUser:
         user = UserResponse.model_validate(create_response.json())
 
         # Update username
-        update = UserUpdate(username="updated_username")
+        new_username = f"updated_{uuid.uuid4().hex[:8]}"
+        update = UserUpdate(username=new_username)
         response = await test_admin.put(
             f"/api/v1/admin/users/{user.user_id}",
             json=update.model_dump(exclude_none=True),
@@ -343,7 +344,7 @@ class TestUpdateUser:
 
         assert response.status_code == 200
         updated = UserResponse.model_validate(response.json())
-        assert updated.username == "updated_username"
+        assert updated.username == new_username
         assert updated.updated_at > user.updated_at
 
     @pytest.mark.asyncio

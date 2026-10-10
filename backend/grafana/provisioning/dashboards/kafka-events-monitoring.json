@@ -130,7 +130,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(messaging_publish_messages_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_message_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Messages/sec",
           "range": true,
@@ -324,7 +324,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(messaging_publish_messages_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_message_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Produced",
           "range": true,
@@ -333,7 +333,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(messaging_process_messages_total[1m])) or vector(0)",
+          "expr": "sum(rate(messaging_process_messages_message_total[1m])) or vector(0)",
           "instant": false,
           "legendFormat": "Consumed",
           "range": true,
@@ -436,7 +436,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(messaging_publish_messages_total[1m])) by (messaging_destination_name) or vector(0)",
+          "expr": "sum(rate(messaging_publish_messages_message_total[1m])) by (messaging_destination_name) or vector(0)",
           "instant": false,
           "legendFormat": "{{messaging_destination_name}}",
           "range": true,
@@ -533,7 +533,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "(histogram_quantile(0.99, sum(rate(event_processing_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
+          "expr": "(histogram_quantile(0.99, sum(rate(messaging_publish_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
           "instant": false,
           "legendFormat": "p99",
           "range": true,
@@ -542,7 +542,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "(histogram_quantile(0.95, sum(rate(event_processing_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
+          "expr": "(histogram_quantile(0.95, sum(rate(messaging_publish_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
           "instant": false,
           "legendFormat": "p95",
           "range": true,
@@ -551,7 +551,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "(histogram_quantile(0.50, sum(rate(event_processing_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
+          "expr": "(histogram_quantile(0.50, sum(rate(messaging_publish_duration_seconds_bucket[5m])) by (le)) or vector(0)) * 1000",
           "instant": false,
           "legendFormat": "p50",
           "range": true,
@@ -654,7 +654,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(rate(messaging_process_messages_total[1m])) by (messaging_destination_publish_name) or vector(0)",
+          "expr": "sum(rate(messaging_process_messages_message_total[1m])) by (messaging_destination_publish_name) or vector(0)",
           "instant": false,
           "legendFormat": "{{messaging_destination_publish_name}}",
           "range": true,
@@ -956,7 +956,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "rate(messaging_publish_messages_total[1m]) or vector(0)",
+          "expr": "rate(messaging_publish_messages_message_total[1m]) or vector(0)",
           "instant": false,
           "legendFormat": "{{messaging_destination_name}}",
           "range": true,
@@ -1044,7 +1044,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(messaging_publish_messages_total) by (messaging_destination_name) or vector(0)",
+          "expr": "sum(messaging_publish_messages_message_total) by (messaging_destination_name) or vector(0)",
           "instant": false,
           "legendFormat": "{{messaging_destination_name}}",
           "range": true,
@@ -1278,7 +1278,7 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "sum(idempotency_keys_active) or vector(0)",
+          "expr": "max(idempotency_keys_active) or vector(0)",
           "instant": false,
           "legendFormat": "Active Keys",
           "range": true,

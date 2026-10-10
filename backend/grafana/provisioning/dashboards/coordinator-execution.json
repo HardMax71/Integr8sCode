@@ -424,13 +424,19 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(queue_wait_time_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(script_submission_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "A",
           "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(script_submission_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "B",
+          "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Queue Wait Time (Execution)",
+      "title": "Submission Latency",
       "type": "timeseries"
     },
     {
@@ -515,9 +521,15 @@
           "legendFormat": "Queued",
           "refId": "B",
           "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "sum(rate(queue_event_data_lost_total[5m])) or vector(0)",
+          "legendFormat": "Lost (event data expired)",
+          "refId": "C",
+          "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Assigned & Queued",
+      "title": "Assigned, Queued & Lost",
       "type": "timeseries"
     },
     {

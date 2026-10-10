@@ -8,7 +8,7 @@ from app.events.handlers import register_k8s_worker_subscriber
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
 from beanie import init_beanie
-from dishka.integrations.faststream import setup_dishka
+from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient

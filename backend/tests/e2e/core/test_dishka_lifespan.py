@@ -66,7 +66,7 @@ class TestLifespanInitialization:
         """Redis client is connected during lifespan."""
         redis_client = await scope.get(aioredis.Redis)
         # Should be able to ping
-        pong = await redis_client.ping()  # type: ignore[misc]
+        pong = await redis_client.ping()
         assert pong is True
 
     @pytest.mark.asyncio

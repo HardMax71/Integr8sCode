@@ -42,7 +42,7 @@ class RateLimitService:
 
     async def _register_user_key(self, user_id: str, key: str) -> None:
         """Index a runtime key under a user's set for fast CRUD without SCAN."""
-        await self.redis.sadd(self._index_key(user_id), key)  # type: ignore[misc]
+        await self.redis.sadd(self._index_key(user_id), key)
 
     def _normalize_endpoint(self, endpoint: str) -> str:
         normalized = self._uuid_pattern.sub("*", endpoint)
@@ -138,7 +138,7 @@ class RateLimitService:
         if count > limit:
             oldest_timestamp = await self.redis.zrange(key, 0, 0, withscores=True)
             if oldest_timestamp:
-                retry_after = int(oldest_timestamp[0][1] + window_seconds - now) + 1
+                retry_after = int(float(oldest_timestamp[0][1]) + window_seconds - now) + 1
             else:
                 retry_after = window_seconds
 
@@ -204,7 +204,7 @@ return {allowed, tostring(tokens)}
         await self._register_user_key(user_id, key)
 
         # --8<-- [start:check_token_bucket]
-        result = await self.redis.eval(  # type: ignore[misc]
+        result = await self.redis.eval(
             self._TOKEN_BUCKET_LUA,
             1,
             key,
@@ -331,7 +331,7 @@ return {allowed, tostring(tokens)}
 
     async def reset_user_limits(self, user_id: str) -> None:
         index_key = self._index_key(user_id)
-        keys = await self.redis.smembers(index_key)  # type: ignore[misc]
+        keys = await self.redis.smembers(index_key)
         if keys:
             await self.redis.delete(*keys)
         await self.redis.delete(index_key)
@@ -339,7 +339,7 @@ return {allowed, tostring(tokens)}
     async def get_usage_stats(self, user_id: str) -> dict[str, EndpointUsageStats]:
         stats: dict[str, EndpointUsageStats] = {}
         index_key = self._index_key(user_id)
-        keys = await self.redis.smembers(index_key)  # type: ignore[misc]
+        keys = await self.redis.smembers(index_key)
         if not keys:
             return stats
 

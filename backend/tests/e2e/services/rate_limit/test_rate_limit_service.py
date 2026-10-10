@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import Awaitable
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -275,8 +274,7 @@ async def test_get_usage_stats_with_keys(scope: AsyncContainer) -> None:
     user_id = "user"
     index_key = f"{svc.prefix}index:{user_id}"
     sw_key = f"{svc.prefix}sw:{user_id}:/api:key1"
-    awaitable_result = cast("Awaitable[int]", svc.redis.sadd(index_key, sw_key))
-    await awaitable_result
+    await svc.redis.sadd(index_key, sw_key)
     stats = await svc.get_usage_stats(user_id)
     assert isinstance(stats, dict)
 

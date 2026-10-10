@@ -8,7 +8,7 @@ from app.services.event_replay import EventReplayService
 from app.settings import Settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
-from dishka.integrations.faststream import setup_dishka
+from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient

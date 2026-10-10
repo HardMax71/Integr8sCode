@@ -23,7 +23,7 @@ set -e
 echo "Starting application..."
 
 exec gunicorn 'app.main:create_app()' \
-  -k uvicorn.workers.UvicornWorker \
+  -k uvicorn_worker.UvicornWorker \
   --bind 0.0.0.0:443 \
   --workers "${WEB_CONCURRENCY:-2}" \
   --threads "${WEB_THREADS:-4}" \

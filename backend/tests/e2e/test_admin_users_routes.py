@@ -247,6 +247,7 @@ class TestGetUser:
             "/api/v1/admin/users/nonexistent-user-id"
         )
         assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_get_user_forbidden_for_regular_user(
@@ -297,6 +298,7 @@ class TestGetUserOverview:
             "/api/v1/admin/users/nonexistent-user-id/overview"
         )
         assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_get_user_overview_forbidden_for_regular_user(
@@ -398,6 +400,7 @@ class TestUpdateUser:
             json={"username": "test"},
         )
         assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_update_user_forbidden_for_regular_user(
@@ -469,11 +472,12 @@ class TestDeleteUser:
     async def test_delete_user_not_found(
         self, test_admin: AsyncClient
     ) -> None:
-        """Delete nonexistent user returns error."""
+        """Delete nonexistent user returns 404."""
         response = await test_admin.delete(
             "/api/v1/admin/users/nonexistent-user-id"
         )
         assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_delete_self_forbidden(
@@ -489,6 +493,7 @@ class TestDeleteUser:
             f"/api/v1/admin/users/{admin_user_id}"
         )
         assert response.status_code == 400
+        assert response.json() == {"detail": "Cannot delete your own account", "type": "SelfDeletionError"}
 
     @pytest.mark.asyncio
     async def test_delete_user_forbidden_for_regular_user(
@@ -551,6 +556,16 @@ class TestResetPassword:
         )
 
         assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_reset_password_user_not_found(self, test_admin: AsyncClient) -> None:
+        """Reset password for nonexistent user returns 404."""
+        response = await test_admin.post(
+            "/api/v1/admin/users/nonexistent-user-id/reset-password",
+            json=PasswordResetRequest(new_password="newpassword456").model_dump(),
+        )
+        assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_reset_password_forbidden_for_regular_user(
@@ -774,6 +789,7 @@ class TestUnlockUser:
             "/api/v1/admin/users/nonexistent-user-id/unlock"
         )
         assert response.status_code == 404
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
 
     @pytest.mark.asyncio
     async def test_unlock_user_forbidden_for_regular_user(

@@ -2,7 +2,7 @@ from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import admin_user
 from app.domain.enums import UserRole
@@ -82,9 +82,6 @@ async def get_user(
 ) -> UserResponse:
     """Get a user by ID."""
     user = await admin_user_service.get_user(admin_user_id=admin.user_id, user_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     return UserResponse.model_validate(user)
 
 
@@ -122,16 +119,16 @@ async def update_user(
     updated_user = await admin_user_service.update_user(
         admin_user_id=admin.user_id, user_id=user_id, update=domain_update
     )
-    if not updated_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     return UserResponse.model_validate(updated_user)
 
 
 @router.delete(
     "/{user_id}",
     response_model=DeleteUserResponse,
-    responses={400: {"model": ErrorResponse, "description": "Cannot delete your own account"}},
+    responses={
+        400: {"model": ErrorResponse, "description": "Cannot delete your own account"},
+        404: {"model": ErrorResponse, "description": "User not found"},
+    },
 )
 async def delete_user(
     admin: Annotated[User, Depends(admin_user)],
@@ -140,10 +137,6 @@ async def delete_user(
     cascade: Annotated[bool, Query(description="Cascade delete user's data")] = True,
 ) -> DeleteUserResponse:
     """Delete a user and optionally cascade-delete their data."""
-    # Prevent self-deletion; delegate to service
-    if admin.user_id == user_id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
-
     result = await admin_user_service.delete_user(admin_user_id=admin.user_id, user_id=user_id, cascade=cascade)
     return DeleteUserResponse.model_validate(result)
 
@@ -151,7 +144,7 @@ async def delete_user(
 @router.post(
     "/{user_id}/reset-password",
     response_model=MessageResponse,
-    responses={500: {"model": ErrorResponse, "description": "Failed to reset password"}},
+    responses={404: {"model": ErrorResponse, "description": "User not found"}},
 )
 async def reset_user_password(
     admin: Annotated[User, Depends(admin_user)],
@@ -160,11 +153,9 @@ async def reset_user_password(
     password_request: PasswordResetRequest,
 ) -> MessageResponse:
     """Reset a user's password."""
-    success = await admin_user_service.reset_user_password(
+    await admin_user_service.reset_user_password(
         admin_user_id=admin.user_id, user_id=user_id, new_password=password_request.new_password
     )
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to reset password")
     return MessageResponse(message=f"Password reset successfully for user {user_id}")
 
 
@@ -181,7 +172,5 @@ async def unlock_user(
 ) -> UnlockResponse:
     """Unlock a user account that was locked due to failed login attempts."""
     user = await admin_user_service.get_user(admin_user_id=admin.user_id, user_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
     await lockout_service.unlock_user(user.username)
     return UnlockResponse(user_id=user_id, message="Account unlocked")

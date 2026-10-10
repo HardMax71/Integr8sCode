@@ -1,4 +1,4 @@
-from app.domain.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
+from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, UnauthorizedError
 
 
 class AuthenticationRequiredError(UnauthorizedError):
@@ -51,3 +51,10 @@ class UserNotFoundError(NotFoundError):
 
     def __init__(self, identifier: str) -> None:
         super().__init__("User", identifier)
+
+
+class SelfDeletionError(InvalidStateError):
+    """Raised when an admin tries to delete their own account."""
+
+    def __init__(self) -> None:
+        super().__init__("Cannot delete your own account")

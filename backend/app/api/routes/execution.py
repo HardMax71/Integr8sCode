@@ -3,12 +3,12 @@ from typing import Annotated
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute, inject
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, Header, Path, Query, Request
 from opentelemetry import trace
 
 from app.api.dependencies import admin_user, current_user
 from app.core.utils import get_client_ip
-from app.domain.enums import EventType, ExecutionStatus, UserRole
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
 from app.domain.user import User
 from app.schemas_pydantic.common import ErrorResponse
@@ -36,11 +36,7 @@ async def get_execution_with_access(
     current_user: Annotated[User, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
 ) -> ExecutionInDB:
-    domain_exec = await execution_service.get_execution_result(execution_id)
-
-    if domain_exec.user_id and domain_exec.user_id != current_user.user_id and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Access denied")
-
+    domain_exec = await execution_service.get_execution_for_user(execution_id, current_user)
     return ExecutionInDB.model_validate(domain_exec)
 
 
@@ -82,7 +78,10 @@ async def create_execution(
 @router.get(
     "/executions/{execution_id}/result",
     response_model=ExecutionResult,
-    responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
+    responses={
+        403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+        404: {"model": ErrorResponse, "description": "Execution not found"},
+    },
 )
 async def get_result(
     execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
@@ -97,6 +96,7 @@ async def get_result(
     responses={
         400: {"model": ErrorResponse, "description": "Execution is in a terminal state"},
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+        404: {"model": ErrorResponse, "description": "Execution not found"},
     },
 )
 async def cancel_execution(
@@ -121,31 +121,26 @@ async def cancel_execution(
     responses={
         400: {"model": ErrorResponse, "description": "Execution is still running or queued"},
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+        404: {"model": ErrorResponse, "description": "Execution not found"},
     },
 )
 async def retry_execution(
-    original_execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],
+    execution_id: Annotated[str, Path()],
     current_user: Annotated[User, Depends(current_user)],
     execution_service: FromDishka[ExecutionService],
 ) -> ExecutionResponse:
     """Retry a failed or completed execution."""
-
-    if original_execution.status in [ExecutionStatus.RUNNING, ExecutionStatus.QUEUED]:
-        raise HTTPException(status_code=400, detail=f"Cannot retry execution in {original_execution.status} state")
-
-    new_result = await execution_service.execute_script(
-        script=original_execution.script,
-        lang=original_execution.lang,
-        lang_version=original_execution.lang_version,
-        user_id=current_user.user_id,
-    )
+    new_result = await execution_service.retry_execution(execution_id, current_user)
     return ExecutionResponse.model_validate(new_result)
 
 
 @router.get(
     "/executions/{execution_id}/events",
     response_model=list[DomainEvent],
-    responses={403: {"model": ErrorResponse, "description": "Not the owner of this execution"}},
+    responses={
+        403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
+        404: {"model": ErrorResponse, "description": "Execution not found"},
+    },
 )
 async def get_execution_events(
     execution: Annotated[ExecutionInDB, Depends(get_execution_with_access)],

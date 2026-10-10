@@ -8,7 +8,7 @@ from pydantic import TypeAdapter
 
 from app.core.metrics import ExecutionMetrics
 from app.db import ExecutionRepository
-from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
+from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority, UserRole
 from app.domain.events import (
     BaseEvent,
     EventMetadata,
@@ -20,12 +20,15 @@ from app.domain.execution import (
     CancelResult,
     DomainExecution,
     DomainExecutionCreate,
+    ExecutionAccessDeniedError,
     ExecutionNotFoundError,
+    ExecutionNotRetryableError,
     ExecutionResultDomain,
     ExecutionTerminalError,
     ResourceLimitsDomain,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
+from app.domain.user import User
 from app.events import UnifiedProducer
 from app.runtime_registry import RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
@@ -384,6 +387,53 @@ class ExecutionService:
         )
 
         return execution
+
+    async def get_execution_for_user(self, execution_id: str, user: User) -> DomainExecution:
+        """
+        Get an execution the user is allowed to see: their own, or any if they are an admin.
+
+        Args:
+            execution_id: UUID of the execution.
+            user: User requesting access.
+
+        Returns:
+            Current execution state.
+
+        Raises:
+            ExecutionNotFoundError: If execution not found.
+            ExecutionAccessDeniedError: If the execution belongs to another user.
+        """
+        execution = await self.get_execution_result(execution_id)
+        if execution.user_id and execution.user_id != user.user_id and user.role != UserRole.ADMIN:
+            self.logger.warning("Execution access denied", execution_id=execution_id, user_id=user.user_id)
+            raise ExecutionAccessDeniedError(execution_id)
+        return execution
+
+    async def retry_execution(self, execution_id: str, user: User) -> DomainExecution:
+        """
+        Re-run an execution's script as a new execution owned by the requesting user.
+
+        Args:
+            execution_id: UUID of the execution to retry.
+            user: User requesting the retry.
+
+        Returns:
+            The new execution record with queued status.
+
+        Raises:
+            ExecutionNotFoundError: If execution not found.
+            ExecutionAccessDeniedError: If the execution belongs to another user.
+            ExecutionNotRetryableError: If the execution is still queued or running.
+        """
+        original = await self.get_execution_for_user(execution_id, user)
+        if original.status in (ExecutionStatus.RUNNING, ExecutionStatus.QUEUED):
+            raise ExecutionNotRetryableError(execution_id, original.status)
+        return await self.execute_script(
+            script=original.script,
+            lang=original.lang,
+            lang_version=original.lang_version,
+            user_id=user.user_id,
+        )
 
     async def get_user_executions(
         self,

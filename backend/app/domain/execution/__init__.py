@@ -1,6 +1,8 @@
 from .exceptions import (
     EventPublishError,
+    ExecutionAccessDeniedError,
     ExecutionNotFoundError,
+    ExecutionNotRetryableError,
     ExecutionTerminalError,
     RuntimeNotSupportedError,
 )
@@ -25,5 +27,7 @@ __all__ = [
     "ResourceLimitsDomain",
     "RuntimeNotSupportedError",
     "EventPublishError",
+    "ExecutionAccessDeniedError",
     "ExecutionNotFoundError",
+    "ExecutionNotRetryableError",
 ]

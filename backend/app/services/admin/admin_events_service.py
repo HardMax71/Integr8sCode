@@ -16,11 +16,12 @@ from app.domain.events import (
     EventDetail,
     EventExportRow,
     EventFilter,
+    EventNotFoundError,
     EventStatistics,
     EventSummary,
 )
 from app.domain.exceptions import NotFoundError, ValidationError
-from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter
+from app.domain.replay import ReplayConfig, ReplayError, ReplayFilter, ReplaySessionNotFoundError
 from app.domain.sse import DomainReplaySSEPayload
 from app.services.event_replay import EventReplayService
 
@@ -110,8 +111,12 @@ class AdminEventsService:
     ) -> EventBrowseResult:
         return await self._repo.get_events_page(event_filter, skip=skip, limit=limit)
 
-    async def get_event_detail(self, event_id: str) -> EventDetail | None:
-        return await self._repo.get_event_detail(event_id)
+    async def get_event_detail(self, event_id: str) -> EventDetail:
+        detail = await self._repo.get_event_detail(event_id)
+        if not detail:
+            self.logger.warning("Event not found", event_id=event_id)
+            raise EventNotFoundError(event_id)
+        return detail
 
     async def get_event_stats(self, *, hours: int) -> EventStatistics:
         return await self._repo.get_event_stats(hours=hours)
@@ -212,13 +217,18 @@ class AdminEventsService:
     async def start_replay_session(self, session_id: str) -> None:
         await self._replay_service.start_session(session_id)
 
-    async def get_replay_sse_status(self, session_id: str) -> DomainReplaySSEPayload | None:
-        return await self._repo.get_replay_session_sse_status(session_id)
+    async def get_replay_sse_status(self, session_id: str) -> DomainReplaySSEPayload:
+        status = await self._repo.get_replay_session_sse_status(session_id)
+        if not status:
+            self.logger.warning("Replay session not found", session_id=session_id)
+            raise ReplaySessionNotFoundError(session_id)
+        return status
 
-    async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail | None:
+    async def get_replay_status(self, session_id: str) -> ReplaySessionStatusDetail:
         doc = await self._repo.get_replay_session_doc(session_id)
         if not doc:
-            return None
+            self.logger.warning("Replay session not found", session_id=session_id)
+            raise ReplaySessionNotFoundError(session_id)
 
         data = doc.model_dump(include=_status_detail_fields)
         config = data.get("config", {})
@@ -308,19 +318,17 @@ class AdminEventsService:
         )
         return ExportResult(file_name=filename, content=json_content, media_type="application/json")
 
-    async def delete_event(self, *, event_id: str, deleted_by: str) -> bool:
+    async def delete_event(self, *, event_id: str, deleted_by: str) -> None:
         # Load event for archival; archive then delete
         self.logger.warning("Admin attempting to delete event", event_id=event_id, deleted_by=deleted_by)
-        detail = await self._repo.get_event_detail(event_id)
-        if not detail:
-            return False
+        detail = await self.get_event_detail(event_id)
         await self._repo.archive_event(detail.event, deleted_by)
-        deleted = await self._repo.delete_event(event_id)
-        if deleted:
-            self.logger.info(
-                "Event deleted",
-                event_id=event_id,
-                event_type=detail.event.event_type,
-                deleted_by=deleted_by,
-            )
-        return deleted
+        if not await self._repo.delete_event(event_id):
+            self.logger.warning("Event vanished before deletion", event_id=event_id)
+            raise EventNotFoundError(event_id)
+        self.logger.info(
+            "Event deleted",
+            event_id=event_id,
+            event_type=detail.event.event_type,
+            deleted_by=deleted_by,
+        )

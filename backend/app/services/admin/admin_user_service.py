@@ -8,12 +8,13 @@ from app.core.security import SecurityService
 from app.db import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
-from app.domain.exceptions import ConflictError, NotFoundError
+from app.domain.exceptions import ConflictError
 from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
 from app.domain.user import (
     DomainUserCreate,
     DomainUserUpdate,
     PasswordReset,
+    SelfDeletionError,
     User,
     UserDeleteResult,
     UserListResult,
@@ -48,7 +49,7 @@ class AdminUserService:
         self.logger.info("Admin getting user overview", target_user_id=user_id, hours=hours)
         user = await self._users.get_user_by_id(user_id)
         if not user:
-            raise NotFoundError("User", user_id)
+            raise UserNotFoundError(user_id)
 
         now = datetime.now(timezone.utc)
         start = now - timedelta(hours=hours)
@@ -168,11 +169,15 @@ class AdminUserService:
         self.logger.info("User created successfully", new_username=username, admin_user_id=admin_user_id)
         return created
 
-    async def get_user(self, *, admin_user_id: str, user_id: str) -> User | None:
+    async def get_user(self, *, admin_user_id: str, user_id: str) -> User:
         self.logger.info("Admin getting user details", admin_user_id=admin_user_id, target_user_id=user_id)
-        return await self._users.get_user_by_id(user_id)
+        user = await self._users.get_user_by_id(user_id)
+        if not user:
+            self.logger.warning("User not found", target_user_id=user_id)
+            raise UserNotFoundError(user_id)
+        return user
 
-    async def update_user(self, *, admin_user_id: str, user_id: str, update: UserUpdate) -> User | None:
+    async def update_user(self, *, admin_user_id: str, user_id: str, update: UserUpdate) -> User:
         self.logger.info(
             "Admin updating user",
             admin_user_id=admin_user_id,
@@ -186,7 +191,11 @@ class AdminUserService:
             is_active=update.is_active,
             hashed_password=hashed_password,
         )
-        return await self._users.update_user(user_id, domain_update)
+        updated = await self._users.update_user(user_id, domain_update)
+        if not updated:
+            self.logger.warning("User not found for update", target_user_id=user_id)
+            raise UserNotFoundError(user_id)
+        return updated
 
     async def delete_user(self, *, admin_user_id: str, user_id: str, cascade: bool) -> UserDeleteResult:
         self.logger.info(
@@ -195,6 +204,8 @@ class AdminUserService:
             target_user_id=user_id,
             cascade=cascade,
         )
+        if admin_user_id == user_id:
+            raise SelfDeletionError()
         # Reset rate limits prior to deletion
         await self._rate_limits.reset_user_limits(user_id)
         result = await self._users.delete_user(user_id, cascade=cascade)
@@ -204,15 +215,15 @@ class AdminUserService:
         self.logger.info("User deleted successfully", target_user_id=user_id)
         return result
 
-    async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> bool:
+    async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> None:
         self.logger.info("Admin resetting user password", admin_user_id=admin_user_id, target_user_id=user_id)
         self._security_metrics.record_password_reset_request(method="admin")
         hashed = self._security.get_password_hash(new_password)
         pr = PasswordReset(user_id=user_id, new_password=hashed)
-        ok = await self._users.reset_user_password(pr)
-        if ok:
-            self.logger.info("User password reset successfully", target_user_id=user_id)
-        return ok
+        if not await self._users.reset_user_password(pr):
+            self.logger.warning("User not found for password reset", target_user_id=user_id)
+            raise UserNotFoundError(user_id)
+        self.logger.info("User password reset successfully", target_user_id=user_id)
 
     async def get_user_rate_limits(self, *, admin_user_id: str, user_id: str) -> UserRateLimitsResult:
         self.logger.info("Admin getting user rate limits", admin_user_id=admin_user_id, target_user_id=user_id)

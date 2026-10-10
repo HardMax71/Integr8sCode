@@ -6,6 +6,7 @@ from .exceptions import (
     AuthenticationRequiredError,
     CSRFValidationError,
     InvalidCredentialsError,
+    SelfDeletionError,
     TokenExpiredError,
     UserNotFoundError,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "InvalidCredentialsError",
     "LoginResult",
     "PasswordReset",
+    "SelfDeletionError",
     "TokenExpiredError",
     "User",
     "UserDeleteResult",

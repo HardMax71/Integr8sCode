@@ -99,8 +99,13 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
         "versions": ["1.27", "1.26"],
         "image_tpl": "golang:{version}-alpine",
         "file_ext": "go",
-        "interpreter": ["go", "run", "-ldflags=-s -w", "-gcflags=all=-dwarf=false"],
-        # A cold `go run` compiles the runtime and std into GOCACHE: about 50Mi of /tmp, 230Mi RSS, 10s of CPU.
+        # exec keeps the PID, so the entrypoint measures the program instead of the go tool that built it
+        "interpreter": [
+            "sh",
+            "-c",
+            'go build -o /tmp/main -ldflags="-s -w" -gcflags=all=-dwarf=false "$0" && exec /tmp/main',
+        ],
+        # A cold build compiles the runtime and std into GOCACHE: about 50Mi of /tmp, 230Mi RSS, 10s of CPU.
         "pod": PodRuntimeConfig(
             env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},
             tmp_size="64Mi",

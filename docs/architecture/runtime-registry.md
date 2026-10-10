@@ -34,7 +34,7 @@ The worker puts the script into a ConfigMap, mounts it read-only at `/scripts`, 
 
 Most languages get the same pod. A language that needs more sets `pod` to a `PodRuntimeConfig`, which carries extra env vars, the size of the `/tmp` emptyDir (10Mi by default) and optional minimums for CPU limit, memory limit and timeout. `PodBuilder` applies one rule: the effective value is the larger of the configured limit and the language minimum. The configured limits come from the admin system settings, which fall back to `K8S_POD_CPU_LIMIT`, `K8S_POD_MEMORY_LIMIT` and `K8S_POD_EXECUTION_TIMEOUT`. Requests aren't touched.
 
-Go is the only language with settings today. A cold `go run` compiles the runtime and standard library first, so Go pods get `HOME=/tmp` and `GOCACHE=/tmp/go-cache` (the root filesystem is read-only), 64Mi of `/tmp`, and at least 1000m CPU, 320Mi memory and 30 seconds.
+Go is the only language with settings today. It builds and runs the way the Rust example below does, `go build` into `/tmp` and then `exec`, so the entrypoint measures the program and not the go tool; `go run` would report the go tool's own 25MB and leave the program out. A cold build compiles the runtime and standard library first, so Go pods get `HOME=/tmp` and `GOCACHE=/tmp/go-cache` (the root filesystem is read-only), 64Mi of `/tmp`, and at least 1000m CPU, 320Mi memory and 30 seconds.
 
 `GET /api/v1/k8s-limits` reports the configured limits at the top level and the effective ones per language under `language_limits`. The editor shows the entry for the selected language. The result processor rates peak memory against the same effective limit, and `parse_quantity` and `at_least` in the registry are the one copy of that rule for all three.
 

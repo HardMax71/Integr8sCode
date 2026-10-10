@@ -425,10 +425,9 @@ def test_go_pod_gets_its_cache_env_and_raised_minimums(builder: PodBuilder) -> N
     assert container.command == [
         "/bin/sh",
         "/entry/entrypoint.sh",
-        "go",
-        "run",
-        "-ldflags=-s -w",
-        "-gcflags=all=-dwarf=false",
+        "sh",
+        "-c",
+        'go build -o /tmp/main -ldflags="-s -w" -gcflags=all=-dwarf=false "$0" && exec /tmp/main',
         "/scripts/main.go",
     ]
     assert {e.name: e.value for e in container.env} == {

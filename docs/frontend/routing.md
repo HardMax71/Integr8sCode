@@ -25,7 +25,7 @@ Every page component is lazy-loaded with an `async () => import(...)` wrapper, s
 | `/admin/users`       | `admin/AdminUsers.svelte` | login, admin    |
 | `/admin/settings`    | `admin/AdminSettings.svelte` | login, admin |
 
-There's no catch-all route, so an unknown path renders the header and footer with no page in between. nginx serves index.html for any path that isn't a file, so deep links and reloads work on every route above.
+There's no catch-all route, so an unknown path renders the header and footer with no page in between. nginx serves index.html for any route path that isn't a file, so deep links and reloads work on every route above. Anything under `/api/`, `/grafana` itself, and missing files with an asset extension such as `.js` don't get that fallback.
 
 ## Startup and the login guard
 

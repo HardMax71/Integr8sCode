@@ -1,6 +1,6 @@
 # Frontend error handling
 
-API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. They call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. That works for `unwrapOr`. For `unwrap` inside an async event handler it currently goes wrong, see [below](#known-problem-unwrap-in-event-handlers).
+API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. Most call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. That works for `unwrapOr`. For `unwrap` inside an async event handler it currently goes wrong, see [below](#known-problem-unwrap-in-event-handlers). A few callers check `error` themselves instead: Settings.svelte, AdminSettings.svelte, the editor's script save and the rate limit modal in AdminUsers.svelte.
 
 ## The interceptor
 
@@ -21,7 +21,7 @@ API errors are shown in one place, the error interceptor in `src/lib/api-interce
 | 500 and up         | "Server error. Please try again later."                                  |
 | anything else      | the `detail` from the response, or "An error occurred"                   |
 
-Calls to `/api/v1/auth/login` and `/api/v1/auth/register` get no toast for network errors, 401 or unmapped statuses, because those pages show their own messages. 403, 422, 423, 429 and 5xx still toast there. A request that fails before it's sent gets no toast at all, and the error goes straight back to the caller.
+Calls to `/api/v1/auth/login` and `/api/v1/auth/register` get no toast for network errors or unmapped statuses, and a 401 from them leaves auth alone, because those pages show their own messages. 403, 422, 423, 429 and 5xx still toast there. A request that fails before it's sent gets no toast at all, and the error goes straight back to the caller.
 
 The request interceptor adds `X-CSRF-Token` from `authStore.csrfToken` to every non-GET request.
 

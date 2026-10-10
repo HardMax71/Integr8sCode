@@ -63,7 +63,7 @@ uv run python -m scripts.check_orphan_modules        # dead code (must pass)
 
 # Frontend (from frontend/)
 npm ci                    # install deps
-npm run dev               # watch build + HTTPS server on :5001, proxies /api to backend:443
+npm run dev               # watch build + HTTPS server on :5001 (see note below)
 npm run build             # production build
 npm run check             # svelte-check, 0 errors and 0 warnings required
 npm run lint              # ESLint
@@ -84,6 +84,8 @@ npm run test:e2e          # Playwright E2E, needs the running stack
 ./deploy.sh openapi              # regenerate docs/reference/openapi.json
 ./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
 ```
+
+`npm run dev` proxies /api to `backend:443` and needs the CA at /shared_ca/ca.pem, both of which exist only inside the compose network, so on the host it exits. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
 
 Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
 

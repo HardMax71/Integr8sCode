@@ -125,7 +125,7 @@ docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$M
 |-----------------------|------------------------------------|-------------------------------------------------------------|
 | Unknown topic errors  | Kafka not ready yet                | `docker compose logs kafka`                                 |
 | MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialized with |
-| Workers can't reach k8s | Stale or expired kubeconfig (the token lasts 24h) | `docker compose restart cert-generator`, then restart the workers |
+| Workers can't reach k8s | Stale kubeconfig after the cluster was reinstalled or its API address changed | `docker compose restart cert-generator`, then restart the workers |
 
 List topics from inside the broker:
 

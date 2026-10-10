@@ -211,7 +211,7 @@ Rules:
 - Services check `None` from the repo, log, and raise a domain-specific `NotFoundError` subclass; services never return `None` to route handlers
 - Route handlers call the service and return the schema. They **never** raise `HTTPException` for domain-not-found cases; the global handler turns the exception into a 404
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
-- Never catch `Exception` broadly; catch specific exception types. See the exception below
+- Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
 
 A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `_track_consumed` and `with_idempotency` in `app/events/handlers.py` record a metric or mark the idempotency key failed, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 

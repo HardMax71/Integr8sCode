@@ -10,7 +10,7 @@ Findings show up in the repository's Security tab under code scanning, as `backe
 
 ## Image and code scans
 
-Docker Scan & Promote runs Trivy v0.75.0 on the `base`, `backend`, `frontend` and `cert-generator` images of every commit that passed Stack Tests on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore` (empty today), and uploads SARIF per image as `trivy-<image>`. Like the SBOM scan it doesn't fail the job, so it doesn't block the promote to `latest`. See [CI/CD](../operations/cicd.md#docker-scan-promote).
+Docker Scan & Promote runs Trivy v0.75.0 on the `base`, `backend`, `frontend` and `cert-generator` images of every commit that passed Stack Tests on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore`, and uploads SARIF per image as `trivy-<image>`. A finding fails the job and blocks the promote to `latest`. The images keep the count at zero by upgrading their OS packages at build time, and the backend drops pip, whose vendored packages were the only Python findings. The ignore file holds three Go CVEs in kubectl v1.37.1, the newest release, which cert-generator only uses to talk to the local k3s API. See [CI/CD](../operations/cicd.md#docker-scan-promote).
 
 security.yml runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes and PRs to `main`. `-ll` reports medium severity and up, and any finding fails the workflow.
 

@@ -13,8 +13,8 @@ RUN npm run build
 # Production stage
 FROM nginx:1.31-alpine
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+# Upgrade the base image's packages to pick up fixes newer than the image, and add curl for the healthcheck
+RUN apk upgrade --no-cache && apk add --no-cache curl
 
 # Copy built static files
 COPY --from=builder /app/public /usr/share/nginx/html

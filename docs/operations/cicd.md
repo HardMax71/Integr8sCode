@@ -66,7 +66,7 @@ The backend E2E job runs `pytest tests/e2e` inside the backend container after `
 
 ## Docker Scan & Promote
 
-The jobs run only when Stack Tests succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. No `exit-code` is set, so findings show up there without failing the job. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
+The jobs run only when Stack Tests succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
 
 ## Release & Deploy
 

@@ -62,6 +62,9 @@ jobs:
           timeout: '5m0s'
           trivyignores: 'backend/.trivyignore'
           version: 'v0.75.0'
+          exit-code: '1'
+          # without it the action drops the severity filter for SARIF, and the gate would also fail on LOW and MEDIUM
+          limit-severities-for-sarif: 'true'
 
       - name: Upload Trivy scan results
         if: always()

@@ -207,23 +207,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 EOF
 
-# NetworkPolicy
-kubectl apply -f - <<'EOF'
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: executor-deny-all
-  namespace: integr8scode
-spec:
-  podSelector:
-    matchLabels:
-      app: integr8s
-      component: executor
-  policyTypes:
-  - Ingress
-  - Egress
-EOF
-
 # Resolve current context/cluster and extract server + CA (no insecure fallback)
 CTX=$(kubectl config current-context)
 echo "Context: ${CTX}"

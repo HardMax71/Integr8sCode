@@ -36,7 +36,6 @@ def test_settings() -> Settings:
     return base.model_copy(update={"REDIS_DB": _get_worker_num() % 16})
 
 
-# ===== App fixture =====
 @pytest_asyncio.fixture(scope="session")
 async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
     """Create FastAPI app with test settings and run lifespan.
@@ -83,7 +82,6 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
     yield await scope.get(redis.Redis)
 
 
-# ===== Authenticated client fixtures =====
 # Return httpx2.AsyncClient with CSRF header pre-set. Just use test_user.post(...) directly.
 
 
@@ -181,9 +179,6 @@ async def another_user(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]
     )
     yield c
     await c.aclose()
-
-
-# ===== Event factories =====
 
 
 def make_execution_requested_event(

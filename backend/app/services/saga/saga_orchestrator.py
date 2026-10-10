@@ -309,7 +309,7 @@ class SagaOrchestrator:
 
         if failed_compensations:
             self.logger.error(
-                "Partial compensation — some steps could not be undone",
+                "Partial compensation, some steps could not be undone",
                 saga_id=saga_id,
                 failed_compensations=failed_compensations,
             )

@@ -34,9 +34,6 @@ pytestmark = pytest.mark.unit
 _test_logger = structlog.get_logger("test.pod_monitor")
 
 
-# ===== Test doubles for KafkaEventService dependencies =====
-
-
 class FakeUnifiedProducer(UnifiedProducer):
     """Fake producer that captures events without Kafka."""
 
@@ -66,9 +63,6 @@ def create_test_kafka_event_service(event_metrics: EventMetrics) -> tuple[KafkaE
         event_metrics=event_metrics,
     )
     return service, fake_producer
-
-
-# ===== Helpers to create test instances with pure DI =====
 
 
 def make_mock_api_client() -> MagicMock:
@@ -112,9 +106,6 @@ def make_pod_monitor(
     monitor._watch = mock_watch or make_mock_watch(events or [], resource_version)
 
     return monitor
-
-
-# ===== Tests =====
 
 
 @pytest.mark.asyncio

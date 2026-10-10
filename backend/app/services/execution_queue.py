@@ -136,7 +136,7 @@ class ExecutionQueueService:
         event_json = await self._redis.get(_event_key(execution_id))
         if event_json is None:
             self._logger.error(
-                "Event data expired/missing for scheduled execution — execution lost",
+                "Event data expired or missing for scheduled execution, execution lost",
                 execution_id=execution_id,
             )
             await self._redis.srem(_ACTIVE_KEY, execution_id)

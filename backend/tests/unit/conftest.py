@@ -33,8 +33,6 @@ from app.domain.enums import ExecutionStatus, QueuePriority
 from app.domain.execution import DomainExecution
 from app.settings import Settings
 
-# ===== Domain execution factory =====
-
 
 def make_domain_execution(
     *,
@@ -58,9 +56,6 @@ def make_domain_execution(
         user_id=user_id,
         **kwargs,  # type: ignore[arg-type]
     )
-
-
-# ===== Kubernetes test factories =====
 
 
 def make_container_status(
@@ -142,9 +137,6 @@ def make_pod(
     )
 
 
-# ===== K8s Watch stream helpers =====
-
-
 class MockWatchStream:
     """Mock watch stream that yields events from a list."""
 
@@ -201,9 +193,6 @@ def make_mock_v1_api(
     return mock
 
 
-# ===== K8s fixtures =====
-
-
 @pytest.fixture
 def mock_pod() -> V1Pod:
     """Basic mock pod for tests."""
@@ -220,9 +209,6 @@ def mock_v1_api() -> MagicMock:
 def mock_watch() -> MagicMock:
     """Mock Watch for tests."""
     return make_mock_watch([])
-
-
-# ===== Metrics fixtures =====
 
 
 @pytest.fixture
@@ -280,24 +266,21 @@ def security_metrics(test_settings: Settings) -> SecurityMetrics:
     return SecurityMetrics(test_settings)
 
 
-# ===== Guard fixtures =====
-
-
 @pytest.fixture
 def db() -> NoReturn:
-    raise RuntimeError("Unit tests should not access DB - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not access DB; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def redis_client() -> NoReturn:
-    raise RuntimeError("Unit tests should not access Redis - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not access Redis; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def client() -> NoReturn:
-    raise RuntimeError("Unit tests should not use HTTP client - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not use HTTP client; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def app() -> NoReturn:
-    raise RuntimeError("Unit tests should not use full app - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not use full app; use mocks, or move the test to tests/e2e")

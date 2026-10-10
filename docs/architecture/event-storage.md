@@ -1,91 +1,68 @@
-# Event storage architecture
+# Event storage
 
-## Unified events collection
+Every event the system produces is written to one MongoDB collection, `events`, before it goes to Kafka. Each document is an `EventDocument`. The base event fields sit at the top level, and so do the event-specific ones: there's no payload wrapper.
 
-The system stores all events in a single `events` MongoDB collection using `EventDocument`. This provides a unified
-approach where all event data—whether from Kafka consumers, API operations, or pod monitors—flows into one collection
-with consistent structure.
-
-## EventDocument structure
-
-`EventDocument` uses a flexible payload pattern. Base fields are stored at document level for efficient indexing, while
-event-specific fields go into the `payload` dict:
+## EventDocument
 
 ```python
 --8<-- "backend/app/db/docs/event.py:EventDocument"
 ```
 
-## Storage pattern
+The class declares the fields every event shares, plus `stored_at`, `ttl_expires_at` and `execution_id`. Everything else comes in through `extra="allow"`. A `PodCreatedEvent` stores `pod_name` and `namespace` next to `event_type`, a `UserSettingsUpdatedEvent` stores whichever settings changed. That's why the indexes on `execution_id` and `pod_name` are sparse: only some event types have those fields.
 
-When storing events, base fields stay at top level while everything else goes into payload. Repositories handle
-serialization and deserialization at the boundary between domain models and Beanie documents.
-
-## Query pattern
-
-For MongoDB queries, access payload fields with dot notation:
+Queries hit event fields directly, with no prefix:
 
 ```python
-query["payload.execution_id"] = execution_id
-query["aggregate_id"] = aggregate_id
+query["execution_id"] = execution_id
+query["metadata.user_id"] = user_id
 ```
 
-## Write flow
+## Write path
 
 ```mermaid
-graph TD
-    App[Application Code] --> KES[KafkaEventService.publish_event]
-    KES --> Repo[EventRepository]
-    Repo --> Events[(events collection)]
-    KES --> Producer[UnifiedProducer]
-    Producer --> Kafka[(Kafka)]
+graph LR
+    Svc[Service] --> UP[UnifiedProducer.produce]
+    UP -->|1. store_event| Events[(events)]
+    UP -->|2. publish| Transport[KafkaEventTransport]
+    Transport --> Kafka[(Kafka topic = event_type)]
+    UP -.->|on publish error| Mark[mark_publish_failed]
 ```
 
-`KafkaEventService.publish_event()` stores to `events` AND publishes to Kafka. Deduplication via unique `event_id` index
-handles double-writes gracefully.
+`UnifiedProducer.produce()` in `app/events/core/producer.py` does both steps. First `EventRepository.store_event()` dumps the event with `model_dump(exclude_none=True)`, sets `stored_at` and inserts it. A duplicate `event_id` hits the unique index, and the repository logs it and returns, so storing the same event twice is a no-op. Replayed events keep their `event_id`, so a replay doesn't create new rows.
 
-## Read patterns
+Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, `mark_publish_failed()` sets `publish_failed` and `publish_failed_at` on the stored document and the exception goes back to the caller. Nothing re-publishes flagged events later.
 
-All repositories query the same `events` collection:
+Services call the producer directly or through `KafkaEventService.publish_event()`, which wraps the same call in a trace span and records publish metrics.
 
-| Repository              | Use Case                                             |
-|-------------------------|------------------------------------------------------|
-| `EventRepository`       | Core event operations, replay, typed deserialization |
-| `AdminEventsRepository` | Admin dashboard, analytics, browsing                 |
-| `ReplayRepository`      | Replay session management, event streaming           |
+## Read path
 
-## TTL and retention
+Reads turn documents back into typed events with `DomainEventAdapter.validate_python(doc)`. The adapter is a `TypeAdapter` over the `DomainEvent` union, discriminated by `event_type`, so each row comes back as its concrete class. `BaseEvent` has `from_attributes=True`, which lets it read the extra fields straight off the document.
 
-Events have a configurable TTL (default 90 days). The `ttl_expires_at` field triggers MongoDB's TTL index for automatic
-cleanup. For permanent audit requirements, events can be archived to `EventArchiveDocument` before deletion.
+Several repositories read the same collection:
 
-## ReplayFilter
+| Repository | Reads events for |
+|---|---|
+| `EventRepository` | Execution event lists, user event history, statistics, aggregate replay info |
+| `AdminEventsRepository` | Admin browse, detail, stats, export, replay preview |
+| `ReplayRepository` | Counting and streaming events for replay sessions |
+| `UserSettingsRepository` | Rebuilding settings from `user_settings_updated` events |
 
-`ReplayFilter` provides a unified way to query events across all use cases:
+## Filters
 
-```python
---8<-- "backend/app/domain/replay/models.py:ReplayError"
-```
+Two filter dataclasses build the queries. Admin browse and export use `EventFilter` from `app/domain/events/event_models.py`. `AdminEventsRepository._event_filter_conditions()` turns it into Beanie conditions, and its `search_text` runs against the `idx_text_search` index.
 
-The `to_mongo_query()` method builds MongoDB queries from filter fields:
+Replay uses `ReplayFilter`, which builds a raw Mongo query itself:
 
 ```python
 --8<-- "backend/app/domain/replay/models.py:ReplayFilter"
 ```
 
-All event querying—admin browse, replay preview, event export—uses `ReplayFilter.to_mongo_query()` for consistency.
+`ReplayRepository` uses `to_mongo_query()` to count and stream events for a replay session. `AdminEventsRepository` uses it for the admin replay endpoint: the dry-run preview, the event count and the related execution results.
 
-## Key files
+## Retention
 
-| File                                                                                                                                                                   | Purpose                                                |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| [`db/docs/event.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/event.py)                                                                 | `EventDocument` and `EventArchiveDocument` definitions |
-| [`domain/replay/models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/replay/models.py)                                                   | `ReplayFilter`, `ReplayConfig`, `ReplaySessionState`   |
-| [`db/repositories/event_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/event_repository.py)                           | Event storage and retrieval operations                 |
-| [`db/repositories/replay_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/replay_repository.py)                         | Replay-specific queries                                |
-| [`db/repositories/admin/admin_events_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/admin/admin_events_repository.py) | Admin dashboard queries                                |
-| [`services/kafka_event_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/kafka_event_service.py)                                   | Unified publish (store + Kafka)                        |
+Each event expires 30 days after it's stored. `ttl_expires_at` defaults to now plus 30 days, and the `idx_ttl` index with `expireAfterSeconds=0` lets MongoDB delete the document at that time. The 30 days are hardcoded in `EventDocument`. `EVENT_RETENTION_DAYS` exists in settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
 
-## Related docs
+TTL expiry doesn't archive anything. Archiving only happens when an admin deletes an event through `DELETE /api/v1/admin/events/{event_id}`: `AdminEventsService.delete_event()` copies it into `events_archive` (`EventArchiveDocument`, same fields plus `deleted_at`, `deleted_by` and `deletion_reason`) and then deletes the original. The archive collection has no TTL index.
 
-- [User Settings Events](user-settings-events.md) — event sourcing pattern for user settings with TypeAdapter merging
-- [Domain Dataclasses](domain-dataclasses.md) — why domain models use stdlib dataclasses
+Related: [User Settings Events](user-settings-events.md) for an event-sourced read model built on this collection, and [Model Conversion](model-conversion.md) for how the other repositories convert documents.

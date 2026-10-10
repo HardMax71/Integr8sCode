@@ -180,7 +180,7 @@ metadata:
   namespace: integr8scode
 rules:
 - apiGroups: ["", "metrics.k8s.io"]
-  resources: ["configmaps", "pods", "pods/log", "pods/exec", "nodes", "services"]
+  resources: ["configmaps", "pods", "pods/log", "services"]
   verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources: ["daemonsets"]

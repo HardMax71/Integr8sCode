@@ -123,7 +123,6 @@ services:
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
       - "443:443"
-      - "127.0.0.1:9090:9090"  # Metrics port (host:container)
     networks:
       - app-network
     container_name: backend

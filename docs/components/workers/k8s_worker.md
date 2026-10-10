@@ -1,65 +1,56 @@
-# K8s Worker
+# K8s worker
 
-The K8s worker materializes saga commands into Kubernetes resources. When the [Saga Orchestrator](saga_orchestrator.md)
-decides a pod should be created, the K8s worker handles the actual creation with proper security hardening.
+The k8s worker turns saga commands into Kubernetes objects. It consumes `create_pod_command` and `delete_pod_command` with group id `k8s-worker`, and each handler runs behind a Redis idempotency key, so a redelivered command doesn't create a second pod.
 
 ```mermaid
 graph LR
-    Kafka[(Kafka)] --> Worker[K8s Worker]
-    Worker --> K8s[Kubernetes API]
-    Worker --> Events[Execution Events]
-    Events --> Kafka
+    Kafka[(Kafka)] -->|create_pod_command| Worker[K8s worker]
+    Kafka -->|delete_pod_command| Worker
+    Worker -->|ConfigMap + Pod| K8s[Kubernetes API]
+    Worker -->|pod_created or execution_failed| Kafka
 ```
 
-## How it works
+## Creating a pod
 
-The worker consumes `CreatePodCommand` and `DeletePodCommand` events from the saga commands topic. For pod creation,
-it builds a complete pod specification including:
+For `create_pod_command` the worker creates a ConfigMap `script-{execution_id}` holding the user's script and `entrypoint.sh`, then a pod `executor-{execution_id}`. Once the pod exists, it patches the ConfigMap with an ownerReference to the pod, so Kubernetes deletes the ConfigMap together with the pod. Then it publishes `pod_created`. If anything in that sequence fails, it publishes `execution_failed` with error type `system_error` and exit code -1 instead.
 
-- A ConfigMap containing the user's script and an entrypoint script
-- A Pod manifest with hardened security context
-- Proper labels for tracking and network policy matching
-- An ownerReference on the ConfigMap pointing to the pod, so K8s garbage-collects the ConfigMap when the pod is deleted
+The image and command come from the command event, which the API filled in from the runtime registry (`app/runtime_registry.py`). The registry can also give a language its own pod settings: extra env vars, a bigger `/tmp`, and minimum CPU, memory and timeout. The pod builder takes the larger of the configured value and the language minimum. Only Go uses this today:
 
-After creating resources, it publishes `PodCreated` and `ExecutionStarted` events so the rest of the system knows
-the execution has begun. For `DeletePodCommand` (saga compensation), only the pod needs to be deleted — K8s
-automatically cleans up the owned ConfigMap.
+```python
+--8<-- "backend/app/runtime_registry.py:LANGUAGE_SPECS"
+```
+
+CPU and memory limits and the timeout arrive in the command, taken from the admin system settings when the execution was requested. Requests come from `K8S_POD_CPU_REQUEST` and `K8S_POD_MEMORY_REQUEST`. The timeout becomes the pod's `activeDeadlineSeconds`.
+
+For `delete_pod_command`, sent when a saga is compensated, the worker deletes the pod with a 30 second grace period and lets the ownerReference take the ConfigMap with it.
 
 ## Pod security
 
-Every pod is created with defense-in-depth security:
+| Control | Setting |
+|---------|---------|
+| User | `runAsNonRoot`, UID and GID 1000, `hostUsers: false` (user namespace) |
+| Filesystem | Read-only root; writable `/output` (10Mi) and `/tmp` (10Mi, 64Mi for Go) emptyDirs |
+| Privileges | `allowPrivilegeEscalation: false`, all capabilities dropped |
+| Seccomp | `RuntimeDefault` |
+| API access | `automountServiceAccountToken: false`, `enableServiceLinks: false` |
+| Host namespaces | No host network, PID or IPC |
+| Runtime class | `K8S_POD_RUNTIME_CLASS_NAME` if set (for example gVisor) |
 
-| Control            | Implementation                                |
-|--------------------|-----------------------------------------------|
-| Non-root execution | UID/GID 1000, no privilege escalation         |
-| Filesystem         | Read-only root filesystem                     |
-| Capabilities       | All Linux capabilities dropped                |
-| Seccomp            | RuntimeDefault profile                        |
-| Network            | Cilium deny-all egress policy (cluster-level) |
-| DNS                | Disabled                                      |
-| Service account    | No token mounted                              |
+The worker refuses to start if `K8S_NAMESPACE` is `default`.
 
-The worker refuses to run pods in the `default` namespace to ensure network policies are always applied.
+## Startup
 
-## Topics
+Before it consumes anything, the worker applies two things to the executor namespace. The first is the `executor-deny-all` NetworkPolicy, which selects pods labeled `component=executor` and allows no ingress and no egress, DNS included. The second is the Pod Security Admission labels for the `restricted` profile (enforce, warn and audit). The worker is the only thing that writes this policy, and it takes effect only if the cluster's network plugin enforces NetworkPolicy.
 
-- **Consumes**: `saga_commands`
-- **Produces**: `execution_events`, `pod_events`
+It also applies the `runtime-image-pre-puller` DaemonSet, which pulls every image in the runtime registry on each node so the first execution of a language doesn't wait for a pull.
+
+Executor pods also carry the label `kueue.x-k8s.io/queue-name: executor-queue`, which points at the Kueue LocalQueue that `cert-generator/setup-k8s.sh` creates.
 
 ## Key files
 
-| File                                                                                                                | Purpose             |
-|---------------------------------------------------------------------------------------------------------------------|---------------------|
-| [`run_k8s_worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_k8s_worker.py)        | Entry point         |
-| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/worker.py)        | Worker service      |
-| [`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) | Pod spec generation |
-
-## Deployment
-
-```yaml
-k8s-worker:
-  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-  command: ["python", "workers/run_k8s_worker.py"]
-```
-
-Scale based on pod creation throughput. Each instance needs access to the Kubernetes API via kubeconfig.
+| File | Purpose |
+|------|---------|
+| [`run_k8s_worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_k8s_worker.py) | Entry point |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/worker.py) | Command handlers, namespace policy, pre-puller |
+| [`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) | ConfigMap and pod spec |
+| [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py) | Languages, images, per-language pod settings |

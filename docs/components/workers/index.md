@@ -1,56 +1,45 @@
 # Workers
 
-The execution pipeline is split across six background workers, each running as a separate container. This separation
-keeps concerns isolated - the API doesn't block waiting for pods to finish, the saga orchestrator doesn't care how pods
-are created, and the result processor doesn't know anything about Kubernetes.
+Six background processes sit next to the API, each in its own container built from the backend image. Four of them carry an execution from request to stored result. The other two run scheduled jobs: the DLQ processor retries dead-lettered messages and the event replay worker prunes old replay sessions.
 
-Workers communicate through Kafka. Each publishes events when it completes work, and subscribes to events from upstream.
-MongoDB and Redis provide shared state where needed.
+Workers talk to each other only through Kafka, one topic per event type. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
 
 ```mermaid
 graph LR
-    API[Backend API] -->|execution_requested| Kafka[(Kafka)]
-    Kafka --> Saga[Saga Orchestrator]
-    Saga -->|create_pod_command| Kafka
-    Kafka --> K8s[K8s Worker]
-    K8s -->|pod_created| Kafka
-    K8s --> Pod[Kubernetes Pod]
-    Pod --> PodMon[Pod Monitor]
-    PodMon -->|execution_completed| Kafka
-    Kafka --> Result[Result Processor]
+    API[API] -->|execution_requested| Saga[Saga orchestrator]
+    Saga -->|create_pod_command| K8s[K8s worker]
+    K8s -->|pod_created| Kafka[(Kafka)]
+    K8s --> Pod[Executor pod]
+    Pod -.watch.-> PodMon[Pod monitor]
+    PodMon -->|execution_completed / failed / timeout| Result[Result processor]
+    PodMon -->|same events| Saga
+    Result -->|result_stored| Kafka
     Result --> Mongo[(MongoDB)]
 ```
 
-## The workers
+| Worker | What it does | Entry point |
+|--------|--------------|-------------|
+| [Saga orchestrator](saga_orchestrator.md) | Queues executions, runs the execution saga, sends pod commands | `run_saga_orchestrator.py` |
+| [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod | `run_k8s_worker.py` |
+| [Pod monitor](pod_monitor.md) | Watches executor pods and publishes pod and execution events | `run_pod_monitor.py` |
+| [Result processor](result_processor.md) | Writes the result onto the execution document | `run_result_processor.py` |
+| [Event replay](event_replay.md) | Deletes replay sessions older than 48 hours, every 6 hours | `run_event_replay.py` |
+| [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | `run_dlq_processor.py` |
 
-| Worker                                    | What it does                                              | Entry point                |
-|-------------------------------------------|-----------------------------------------------------------|----------------------------|
-| [Saga Orchestrator](saga_orchestrator.md) | Drives the execution state machine, manages execution queue, issues pod commands | `run_saga_orchestrator.py` |
-| [K8s Worker](k8s_worker.md)               | Creates ConfigMaps and Pods with security hardening       | `run_k8s_worker.py`        |
-| [Pod Monitor](pod_monitor.md)             | Watches pods, translates K8s events to domain events      | `run_pod_monitor.py`       |
-| [Result Processor](result_processor.md)   | Persists execution results, cleans up resources           | `run_result_processor.py`  |
-| [Event Replay](event_replay.md)           | Re-emits historical events for debugging                  | `run_event_replay.py`      |
-| [DLQ Processor](dlq_processor.md)         | Retries failed messages from the dead letter queue        | `run_dlq_processor.py`     |
-
-All entry points live in [`backend/workers/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/workers).
+All entry points live in [`backend/workers/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/workers). Each one loads `config.toml` plus its own `config.<worker>.toml` override, initializes Beanie, builds its Dishka container, registers its Kafka subscribers if it has any, and starts the FastStream app.
 
 ## Running locally
 
-Docker Compose starts everything:
+`./deploy.sh dev` starts all six. To debug one from your shell, stop its container and run it with uv from `backend/`:
 
 ```bash
-./deploy.sh dev
-```
-
-For debugging a specific worker, run it directly:
-
-```bash
+docker compose stop saga-orchestrator
 cd backend
 uv run python -m workers.run_saga_orchestrator
 ```
 
+The worker reads the same `config.toml` as the containers, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. The k8s worker and pod monitor also read the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml` inside the containers.
+
 ## Scaling
 
-Most workers can run as single replicas. The stateful one (Saga Orchestrator) uses event sourcing to
-recover after restarts. The stateless ones (K8s Worker, Pod Monitor, Result Processor) can scale horizontally if
-throughput becomes an issue.
+Compose runs one container of each worker, with fixed container names. The pod monitor has to stay at one replica: it keeps the last seen phase of each pod in memory, and a second replica would watch the same pods and publish every event twice. The k8s worker and result processor consume through Kafka consumer groups and guard each handler with a Redis idempotency key, so extra replicas would split the partitions between them. The saga orchestrator keeps saga state in MongoDB and the queue in Redis, so both survive a restart, but nothing resumes a saga that was halfway through its steps when the process died.

@@ -112,8 +112,9 @@ class TestSanitizeSensitiveData:
             ("admin@example.com", "adm***@example.com"),
             ("ab@example.com", "ab***@example.com"),
             ("longlocal@domain.org", "lon***@domain.org"),
+            ("u\u017fer@example.com", "u\u017fe***@example.com"),
         ],
-        ids=["normal", "short_local", "long_local"],
+        ids=["normal", "short_local", "long_local", "casefolded_non_ascii"],
     )
     def test_email_masked_preserves_prefix_and_domain(self, email: str, expected: str) -> None:
         event_dict: dict[str, Any] = {"event": "action", "detail": email}

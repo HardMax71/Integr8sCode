@@ -63,14 +63,19 @@ class _FakeRepo(SagaRepository):
     async def get_saga_by_execution_and_name(self, execution_id: str, saga_name: str) -> Saga | None:
         return self.existing.get((execution_id, saga_name))
 
-    async def save_saga(self, saga_id: str, **updates: Any) -> Saga:
+    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
         saga = self._find_by_id(saga_id)
         if not saga:
-            raise SagaNotFoundError(saga_id)
+            return None
         for field, value in updates.items():
             setattr(saga, field, value)
         saga.updated_at = datetime.now(timezone.utc)
         return saga
+
+    async def atomic_cancel_saga(self, saga_id: str, error_message: str, completed_at: datetime) -> Saga | None:
+        return await self.save_saga(
+            saga_id, state=SagaState.CANCELLED, error_message=error_message, completed_at=completed_at
+        )
 
 
 class _FakeProd(UnifiedProducer):
@@ -372,3 +377,15 @@ async def test_retry_count_increments_across_failures() -> None:
     assert fake_queue._retry_counts["e1"] == 3
     # No more re-enqueues after max retries
     assert len(fake_queue.enqueued) == 3
+
+
+@pytest.mark.asyncio
+async def test_cancel_missing_saga_raises_not_found() -> None:
+    with pytest.raises(SagaNotFoundError):
+        await _orch().cancel_saga("missing")
+
+
+@pytest.mark.asyncio
+async def test_update_of_missing_saga_raises_not_found() -> None:
+    with pytest.raises(SagaNotFoundError):
+        await _orch()._fail_saga("missing", "boom")

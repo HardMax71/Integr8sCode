@@ -20,7 +20,6 @@ from app.domain.saga import (
     SagaFilter,
     SagaInvalidStateError,
     SagaListResult,
-    SagaNotFoundError,
 )
 
 _saga_fields = set(Saga.__dataclass_fields__)
@@ -57,18 +56,18 @@ class SagaRepository:
             conditions.append(Eq(SagaDocument.error_message, None))
         return conditions
 
-    async def save_saga(self, saga_id: str, **updates: Any) -> Saga:
+    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
         """Load document, apply partial updates, and persist via save_changes().
 
         Only the provided fields are written (Beanie diffs against the loaded
         snapshot), so concurrent changes to *other* fields are never overwritten.
 
-        Raises SagaConcurrencyError if the document was modified between load
-        and save (revision mismatch).
+        Returns None if the saga does not exist. Raises SagaConcurrencyError if
+        the document was modified between load and save (revision mismatch).
         """
         doc = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
         if not doc:
-            raise SagaNotFoundError(saga_id)
+            return None
         for field, value in updates.items():
             setattr(doc, field, value)
         doc.updated_at = datetime.now(timezone.utc)
@@ -83,11 +82,14 @@ class SagaRepository:
         saga_id: str,
         error_message: str,
         completed_at: datetime,
-    ) -> Saga:
+    ) -> Saga | None:
         """Atomically cancel a saga using findOneAndUpdate.
 
         Bumps revision_id so any concurrent save_changes() (which filters on
         the old revision_id) will see a mismatch and raise RevisionIdWasChanged.
+
+        Returns None if the saga does not exist. Raises SagaInvalidStateError
+        if it exists but is no longer active.
         """
         doc = await SagaDocument.find_one(
             SagaDocument.saga_id == saga_id,
@@ -107,7 +109,7 @@ class SagaRepository:
         if not isinstance(doc, SagaDocument):
             existing = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
             if not existing:
-                raise SagaNotFoundError(saga_id)
+                return None
             raise SagaInvalidStateError(saga_id, existing.state, "cancel")
         return self._to_domain(doc)
 

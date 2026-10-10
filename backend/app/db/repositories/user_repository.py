@@ -25,7 +25,6 @@ from app.domain.user import (
     User,
     UserDeleteResult,
     UserListResult,
-    UserNotFoundError,
 )
 
 _user_fields = set(User.__dataclass_fields__)
@@ -93,10 +92,10 @@ class UserRepository:
             await doc.set(update_dict)
         return User(**doc.model_dump(include=_user_fields))
 
-    async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult:
+    async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
-            raise UserNotFoundError(user_id)
+            return None
 
         await doc.delete()
 

@@ -17,6 +17,7 @@ from app.domain.user import (
     User,
     UserDeleteResult,
     UserListResult,
+    UserNotFoundError,
     UserUpdate,
 )
 from app.services.event_service import EventService
@@ -197,8 +198,10 @@ class AdminUserService:
         # Reset rate limits prior to deletion
         await self._rate_limits.reset_user_limits(user_id)
         result = await self._users.delete_user(user_id, cascade=cascade)
-        if result.user_deleted:
-            self.logger.info("User deleted successfully", target_user_id=user_id)
+        if result is None:
+            self.logger.warning("User not found for deletion", target_user_id=user_id)
+            raise UserNotFoundError(user_id)
+        self.logger.info("User deleted successfully", target_user_id=user_id)
         return result
 
     async def reset_user_password(self, *, admin_user_id: str, user_id: str, new_password: str) -> bool:

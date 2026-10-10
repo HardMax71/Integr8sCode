@@ -27,9 +27,9 @@ The monitor uses list-then-watch on pods matching `app=integr8s,component=execut
 | status reason `DeadlineExceeded` | `execution_timeout` (unless all containers exited 0) |
 | watch event DELETED | `pod_terminated` |
 
-It remembers the last phase seen per pod and drops an update with the same phase, so a watch restart doesn't publish duplicates. That check runs before the DELETED mapping, so a pod deleted after its final phase was already seen produces no `pod_terminated`. The memory is per process, which is why the monitor runs as a single replica.
+It remembers the last phase seen per pod and drops an update with the same phase, so a watch restart doesn't publish duplicates. The memory holds up to 10,000 pods and then forgets the oldest half, so a late update for a forgotten pod can publish again. That check runs before the DELETED mapping, so a pod deleted after its final phase was already seen produces no `pod_terminated`. The memory is per process, which is why the monitor runs as a single replica.
 
-For terminal events the mapper reads the container's logs, where the entrypoint writes stdout and stderr as length-prefixed frames, and the termination message, which carries the exit code, wall time, CPU jiffies and peak memory. If the logs can't be read, a succeeded or timed-out pod publishes nothing at all, while a failed pod still publishes `execution_failed` with the error taken from the pod status.
+For terminal events the mapper reads the container's logs, where the entrypoint writes stdout and stderr as length-prefixed frames, and the termination message, which carries the exit code, wall time, CPU jiffies and peak memory. If the logs can't be read, a pod whose containers all exited 0 publishes nothing at all. Any other failed pod, a timed-out one included, still publishes `execution_failed` with the error taken from the pod status.
 
 Every event goes through the producer, which stores it in the MongoDB `events` collection before sending it to Kafka.
 

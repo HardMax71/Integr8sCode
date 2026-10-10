@@ -1,8 +1,8 @@
 # Workers
 
-Six background processes sit next to the API, each in its own container built from the backend image. Four of them carry an execution from request to stored result. The other two run scheduled jobs: the DLQ processor retries dead-lettered messages and the event replay worker prunes old replay sessions.
+Six background processes sit next to the API, each in its own container built from the backend image. Four of them carry an execution from request to stored result. The other two run scheduled jobs: the DLQ processor polls for dead-lettered messages to retry (nothing writes any yet), and the event replay worker prunes old replay sessions.
 
-Workers talk to each other only through Kafka, one topic per event type. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
+Workers talk to each other only through Kafka, one topic per event type, and the event names on the arrows below travel as those topics. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
 
 ```mermaid
 graph LR
@@ -38,7 +38,7 @@ cd backend
 uv run python -m workers.run_saga_orchestrator
 ```
 
-The worker reads the same `config.toml` as the containers, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. The k8s worker and pod monitor also read the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml` inside the containers.
+The worker reads the same `config.toml` as the containers, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. The k8s worker and pod monitor also read the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml`, a path that exists only inside the containers. To run either one from the shell, set `KUBERNETES_CONFIG_PATH` in its `config.<worker>.toml` to a kubeconfig the host can use, such as `~/.kube/config`.
 
 ## Scaling
 

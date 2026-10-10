@@ -32,7 +32,7 @@ def _export_row_to_dict(row: EventExportRow) -> dict[str, str]:
     meta = row.metadata
     return {
         "Event ID": row.event_id,
-        "Event Type": row.event_type.value,
+        "Event Type": row.event_type,
         "Timestamp": row.timestamp.isoformat(),
         "Aggregate ID": row.aggregate_id or "",
         "User ID": meta.user_id if meta and meta.user_id else "",
@@ -46,7 +46,7 @@ def _filter_to_json_dict(f: EventFilter) -> dict[str, Any]:
     """Convert EventFilter to a JSON-safe dict (non-None fields only)."""
     d: dict[str, Any] = {}
     if f.event_types:
-        d["event_types"] = [et.value for et in f.event_types]
+        d["event_types"] = list(f.event_types)
     if f.aggregate_id:
         d["aggregate_id"] = f.aggregate_id
     if f.user_id:

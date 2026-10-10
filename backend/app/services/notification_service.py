@@ -32,6 +32,7 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.domain.sse import DomainNotificationSSEPayload
+from app.events import PRODUCE_ERRORS
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse import SSERedisBus
 from app.settings import Settings
@@ -217,7 +218,7 @@ class NotificationService:
                 ),
             )
             await self.event_service.publish_event(event, key=notification.user_id)
-        except Exception as e:
+        except PRODUCE_ERRORS as e:
             self.logger.error(
                 "Failed to publish notification created event",
                 notification_id=notification.notification_id,

@@ -1,6 +1,12 @@
+from aiokafka.errors import KafkaError
+from faststream.exceptions import IncorrectState
+from pymongo.errors import PyMongoError
+
 from app.db import EventRepository
 from app.domain.events import DomainEvent
 from app.events.core.transport import KafkaEventTransport
+
+PRODUCE_ERRORS: tuple[type[Exception], ...] = (PyMongoError, KafkaError, IncorrectState)
 
 
 class UnifiedProducer:

@@ -1,6 +1,8 @@
 from time import monotonic
 
 import structlog
+from pydantic import ValidationError
+from pymongo.errors import PyMongoError
 
 from app.db import AdminSettingsRepository
 from app.domain.admin import SystemSettings
@@ -32,9 +34,8 @@ class RuntimeSettingsLoader:
             return self._cache
 
         try:
-            toml_defaults = self._build_toml_defaults()
-            result = await self._repo.get_system_settings(defaults=toml_defaults)
-        except Exception:
+            result = await self._repo.get_system_settings(defaults=self._build_toml_defaults())
+        except PyMongoError, ValidationError:
             self._logger.warning("Failed to load settings from DB, falling back to TOML defaults", exc_info=True)
             result = self._build_toml_defaults()
 

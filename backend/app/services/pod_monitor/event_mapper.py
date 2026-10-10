@@ -2,8 +2,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
+import aiohttp
 import structlog
 from kubernetes_asyncio import client as k8s_client
+from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.utils import StringEnum
 from app.domain.enums import ExecutionErrorType
@@ -504,7 +506,7 @@ class PodEventMapper:
                 namespace=pod.metadata.namespace or "integr8scode",
                 tail_lines=10000,
             )
-        except Exception:
+        except ApiException, aiohttp.ClientError, TimeoutError:
             self.logger.warning("Failed to fetch pod logs", pod_name=pod.metadata.name, exc_info=True)
             return None
 

@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 import structlog
 from app.domain.enums import EventType, ExecutionErrorType
@@ -12,6 +13,7 @@ from app.domain.events import (
 )
 from app.services.pod_monitor import PodContext, PodEventMapper, WatchEventType
 from kubernetes_asyncio.client import V1Pod, V1PodCondition
+from kubernetes_asyncio.client.rest import ApiException
 
 from tests.unit.conftest import make_container_status, make_pod
 
@@ -297,20 +299,30 @@ async def test_extract_logs_malformed_framing_returns_empty() -> None:
 
 @pytest.mark.asyncio
 async def test_extract_logs_error_paths() -> None:
-    """Test error paths: no API, API exceptions."""
+    """Without a K8s API client there are no logs to extract."""
     pod = make_pod(
         name="p",
         phase="Succeeded",
         container_statuses=[make_container_status(terminated_exit_code=0)],
     )
 
-    # no api -> returns None
     pem_no_api = PodEventMapper(k8s_api=None, logger=_test_logger)
     assert await pem_no_api._extract_logs(pod) is None
 
-    # API exception -> returns None
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [ApiException(status=500, reason="boom"), aiohttp.ClientConnectionError("boom"), TimeoutError("boom")],
+)
+async def test_extract_logs_returns_none_on_api_failure(error: Exception) -> None:
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0)],
+    )
     mock_err = MagicMock()
-    mock_err.read_namespaced_pod_log = AsyncMock(side_effect=Exception("boom"))
+    mock_err.read_namespaced_pod_log = AsyncMock(side_effect=error)
     assert await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod) is None
 
 

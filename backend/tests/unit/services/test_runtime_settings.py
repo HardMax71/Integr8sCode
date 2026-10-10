@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from app.domain.admin import SystemSettings
+from pymongo.errors import ServerSelectionTimeoutError
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
 
@@ -63,12 +64,20 @@ async def test_passes_toml_defaults_to_repo() -> None:
 
 @pytest.mark.asyncio
 async def test_falls_back_to_toml_on_db_error() -> None:
-    loader, repo = _make_loader(repo_side_effect=ConnectionError("DB down"))
+    loader, repo = _make_loader(repo_side_effect=ServerSelectionTimeoutError("DB down"))
 
     result = await loader.get_effective_settings()
 
     assert result.max_timeout_seconds == 30
     assert result.memory_limit == "128Mi"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_is_not_swallowed() -> None:
+    loader, _ = _make_loader(repo_side_effect=RuntimeError("bug"))
+
+    with pytest.raises(RuntimeError, match="bug"):
+        await loader.get_effective_settings()
 
 
 @pytest.mark.asyncio
@@ -117,7 +126,7 @@ async def test_cache_respects_ttl_boundary() -> None:
 
 @pytest.mark.asyncio
 async def test_db_error_result_is_still_cached() -> None:
-    loader, repo = _make_loader(repo_side_effect=ConnectionError("DB down"))
+    loader, repo = _make_loader(repo_side_effect=ServerSelectionTimeoutError("DB down"))
 
     await loader.get_effective_settings()
     await loader.get_effective_settings()

@@ -2,6 +2,7 @@ import asyncio
 import time
 from pathlib import Path
 
+import aiohttp
 import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
@@ -386,7 +387,5 @@ exec "$@"
             self.logger.error(
                 "K8s API error applying DaemonSet", daemonset=daemonset_name, reason=e.reason, exc_info=True
             )
-        except Exception:
-            self.logger.error(
-                "Unexpected error applying image-puller DaemonSet", daemonset=daemonset_name, exc_info=True
-            )
+        except aiohttp.ClientError, TimeoutError:
+            self.logger.error("Could not reach K8s API applying DaemonSet", daemonset=daemonset_name, exc_info=True)

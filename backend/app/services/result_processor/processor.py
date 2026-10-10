@@ -13,7 +13,7 @@ from app.domain.events import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events import UnifiedProducer
+from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.settings import Settings
 
 
@@ -77,7 +77,7 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
+        except PRODUCE_ERRORS as e:
             self.logger.error(
                 "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
             )
@@ -111,7 +111,7 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
+        except PRODUCE_ERRORS as e:
             self.logger.error("Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
@@ -144,7 +144,7 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
+        except PRODUCE_ERRORS as e:
             self.logger.error("Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 

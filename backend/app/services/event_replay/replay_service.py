@@ -10,6 +10,8 @@ import backoff
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import ValidationError
+from pymongo.errors import PyMongoError
+from redis.exceptions import RedisError
 
 from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
@@ -26,8 +28,10 @@ from app.domain.replay import (
     ReplaySessionState,
 )
 from app.domain.sse import DomainReplaySSEPayload
-from app.events import UnifiedProducer
+from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.services.sse.redis_bus import SSERedisBus
+
+_DISPATCH_ERRORS: tuple[type[Exception], ...] = (*PRODUCE_ERRORS, OSError, ValueError)
 
 
 class EventReplayService:
@@ -62,7 +66,7 @@ class EventReplayService:
                 status=ReplayStatus.CREATED,
                 message="Replay session created successfully",
             )
-        except Exception as e:
+        except (PyMongoError, ValidationError) as e:
             self.logger.error("Failed to create replay session", error=str(e))
             raise ReplayOperationError("", "create", str(e)) from e
 
@@ -347,7 +351,7 @@ class EventReplayService:
 
         @backoff.on_exception(
             backoff.expo,
-            Exception,
+            _DISPATCH_ERRORS,
             max_tries=max_attempts,
             max_value=10,
             jitter=None,
@@ -375,7 +379,7 @@ class EventReplayService:
             await _dispatch()
             self._metrics.record_replay_by_target(config.target, success=True)
             return True
-        except Exception:
+        except _DISPATCH_ERRORS:
             self._metrics.record_replay_by_target(config.target, success=False)
             return False
 
@@ -398,7 +402,7 @@ class EventReplayService:
                 completed_at=session.completed_at,
             )
             await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
-        except Exception as e:
+        except PyMongoError as e:
             self.logger.error("Failed to update session in database", session_id=session.session_id, error=str(e))
         await self._publish_replay_status(session)
 
@@ -418,5 +422,5 @@ class EventReplayService:
                 errors=session.errors,
             )
             await self._sse_bus.publish_replay_status(session.session_id, payload)
-        except Exception as e:
+        except RedisError as e:
             self.logger.error("Failed to publish replay status to SSE", error=str(e))

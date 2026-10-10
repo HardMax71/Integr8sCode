@@ -27,7 +27,7 @@ from app.domain.saga import (
     SagaContextData,
     SagaNotFoundError,
 )
-from app.events import UnifiedProducer
+from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -426,7 +426,7 @@ class SagaOrchestrator:
             )
             await self._producer.produce(event_to_produce=event, key=instance.execution_id)
             self.logger.info("Published SagaStartedEvent", saga_id=instance.saga_id)
-        except Exception:
+        except PRODUCE_ERRORS:
             self.logger.error("Failed to publish saga started event", exc_info=True)
 
     async def _publish_saga_cancelled_event(self, saga_instance: Saga) -> None:
@@ -457,5 +457,5 @@ class SagaOrchestrator:
 
             self.logger.info("Published cancellation event", saga_id=saga_instance.saga_id)
 
-        except Exception:
+        except PRODUCE_ERRORS:
             self.logger.error("Failed to publish saga cancellation event", exc_info=True)

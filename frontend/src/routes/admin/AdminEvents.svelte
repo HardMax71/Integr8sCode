@@ -14,7 +14,7 @@
         UserOverviewModal,
     } from '$components/admin/events';
     import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '$lib/admin/events';
-    import { Filter, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
+    import { Funnel, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
     import Pagination from '$components/Pagination.svelte';
     import { createEventsStore } from '$lib/admin/stores/eventsStore.svelte';
 
@@ -86,7 +86,7 @@
                     class:dark:ring-offset-dark-bg-default={showFilters}
                 >
                     <span class="transition-transform duration-200" class:rotate-180={showFilters}>
-                        <Filter size={16} />
+                        <Funnel size={16} />
                     </span>
                     <span class="hidden sm:inline">Filters</span>
                     {#if hasActiveFilters(store.filters)}

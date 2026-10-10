@@ -41,7 +41,7 @@ export function getErrorMessage(err: unknown, fallback = 'An error occurred'): s
     if (typeof err === 'string') return err;
 
     if (typeof err === 'object' && 'detail' in err) {
-        const { detail } = err as { detail: unknown };
+        const { detail } = err;
         if (typeof detail === 'string') return detail;
         if (isValidationErrorArray(detail)) return formatValidationErrors(detail);
     }
@@ -110,13 +110,16 @@ export function initializeApiInterceptors(): void {
         credentials: 'include',
     });
 
-    client.interceptors.error.use((error, response: Response | undefined, request, _opts) => {
+    client.interceptors.error.use((error, response: Response | undefined, request, opts) => {
         const status = response?.status;
-        const url = request.url;
-        const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
+        const url = request?.url ?? opts.url;
 
         log.error('API Error', { status, url, error });
 
+        // No request means it failed before sending, so let unwrap rethrow without a network toast
+        if (!request) return error;
+
+        const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
         const handled = handleErrorStatus(status, error, isAuthEndpoint);
         if (!handled && !isAuthEndpoint) {
             toast.error(getErrorMessage(error, 'An error occurred'));

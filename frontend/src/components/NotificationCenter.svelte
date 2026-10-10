@@ -6,7 +6,7 @@
     import { notificationStore } from '$stores/notificationStore.svelte';
     import { notificationStream } from '$lib/notifications/stream.svelte';
     import type { NotificationResponse } from '$lib/api';
-    import { Bell, AlertCircle, AlertTriangle, CircleCheck, Info } from '@lucide/svelte';
+    import { Bell, CircleAlert, TriangleAlert, CircleCheck, Info } from '@lucide/svelte';
     import Spinner from '$components/Spinner.svelte';
     import { formatRelativeTime } from '$lib/formatters';
     import { logger } from '$lib/logger';
@@ -20,8 +20,8 @@
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
-        if (set.has('failed') || set.has('error') || set.has('security')) return AlertCircle;
-        if (set.has('timeout') || set.has('warning')) return AlertTriangle;
+        if (set.has('failed') || set.has('error') || set.has('security')) return CircleAlert;
+        if (set.has('timeout') || set.has('warning')) return TriangleAlert;
         if (set.has('completed') || set.has('success')) return CircleCheck;
         return Info;
     }

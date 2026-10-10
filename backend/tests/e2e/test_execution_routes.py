@@ -15,7 +15,7 @@ from app.schemas_pydantic.execution import (
     ExecutionResult,
     ResourceLimits,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 from pydantic import TypeAdapter
 
 from tests.e2e.conftest import wait_for_pod_created, wait_for_result

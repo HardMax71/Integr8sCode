@@ -28,7 +28,7 @@ Fixes #
 <!-- Describe how you tested your changes -->
 
 - [ ] Unit tests pass (`uv run pytest`)
-- [ ] E2E tests pass (`npx playwright test`)
+- [ ] E2E tests pass (`npm run test:e2e`)
 - [ ] Manual testing performed
 
 **Manual test steps:**

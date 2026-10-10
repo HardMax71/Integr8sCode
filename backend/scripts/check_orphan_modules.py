@@ -6,7 +6,7 @@ Entry points are whitelisted since they are invoked directly by gunicorn
 or worker runner scripts, not imported by sibling modules.
 
 Usage:
-    uv run python scripts/check_orphan_modules.py
+    uv run python -m scripts.check_orphan_modules
 """
 
 import ast

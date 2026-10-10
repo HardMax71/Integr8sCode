@@ -94,121 +94,7 @@ export type AdminUserOverview = {
     /**
      * Recent Events
      */
-    recent_events: Array<({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent)>;
+    recent_events: Array<ExecutionRequestedEvent | ExecutionAcceptedEvent | ExecutionQueuedEvent | ExecutionStartedEvent | ExecutionRunningEvent | ExecutionCompletedEvent | ExecutionFailedEvent | ExecutionTimeoutEvent | ExecutionCancelledEvent | PodCreatedEvent | PodScheduledEvent | PodRunningEvent | PodSucceededEvent | PodFailedEvent | PodTerminatedEvent | PodDeletedEvent | ResultStoredEvent | ResultFailedEvent | UserSettingsUpdatedEvent | UserRegisteredEvent | UserLoginEvent | UserLoggedInEvent | UserLoggedOutEvent | UserUpdatedEvent | UserDeletedEvent | NotificationCreatedEvent | NotificationSentEvent | NotificationDeliveredEvent | NotificationFailedEvent | NotificationReadEvent | NotificationAllReadEvent | NotificationClickedEvent | NotificationPreferencesUpdatedEvent | SagaStartedEvent | SagaCompletedEvent | SagaFailedEvent | SagaCancelledEvent | SagaCompensatingEvent | SagaCompensatedEvent | CreatePodCommandEvent | DeletePodCommandEvent | AllocateResourcesCommandEvent | ReleaseResourcesCommandEvent | ScriptSavedEvent | ScriptDeletedEvent | ScriptSharedEvent | SecurityViolationEvent | RateLimitExceededEvent | AuthFailedEvent | ResourceLimitExceededEvent | QuotaExceededEvent | SystemErrorEvent | ServiceUnhealthyEvent | ServiceRecoveredEvent | DlqMessageReceivedEvent | DlqMessageRetriedEvent | DlqMessageDiscardedEvent>;
 };
 
 /**
@@ -381,6 +267,8 @@ export type CleanupResponse = {
 
 /**
  * ContainerStatusInfo
+ *
+ * Container status information from Kubernetes pod.
  */
 export type ContainerStatusInfo = {
     /**
@@ -827,6 +715,8 @@ export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth'
 
 /**
  * EndpointUsageStats
+ *
+ * Usage statistics for a single endpoint (IETF RateLimit-style).
  */
 export type EndpointUsageStats = {
     algorithm: RateLimitAlgorithm;
@@ -887,121 +777,7 @@ export type EventBrowseResponse = {
     /**
      * Events
      */
-    events: Array<({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent)>;
+    events: Array<ExecutionRequestedEvent | ExecutionAcceptedEvent | ExecutionQueuedEvent | ExecutionStartedEvent | ExecutionRunningEvent | ExecutionCompletedEvent | ExecutionFailedEvent | ExecutionTimeoutEvent | ExecutionCancelledEvent | PodCreatedEvent | PodScheduledEvent | PodRunningEvent | PodSucceededEvent | PodFailedEvent | PodTerminatedEvent | PodDeletedEvent | ResultStoredEvent | ResultFailedEvent | UserSettingsUpdatedEvent | UserRegisteredEvent | UserLoginEvent | UserLoggedInEvent | UserLoggedOutEvent | UserUpdatedEvent | UserDeletedEvent | NotificationCreatedEvent | NotificationSentEvent | NotificationDeliveredEvent | NotificationFailedEvent | NotificationReadEvent | NotificationAllReadEvent | NotificationClickedEvent | NotificationPreferencesUpdatedEvent | SagaStartedEvent | SagaCompletedEvent | SagaFailedEvent | SagaCancelledEvent | SagaCompensatingEvent | SagaCompensatedEvent | CreatePodCommandEvent | DeletePodCommandEvent | AllocateResourcesCommandEvent | ReleaseResourcesCommandEvent | ScriptSavedEvent | ScriptDeletedEvent | ScriptSharedEvent | SecurityViolationEvent | RateLimitExceededEvent | AuthFailedEvent | ResourceLimitExceededEvent | QuotaExceededEvent | SystemErrorEvent | ServiceUnhealthyEvent | ServiceRecoveredEvent | DlqMessageReceivedEvent | DlqMessageRetriedEvent | DlqMessageDiscardedEvent>;
     /**
      * Total
      */
@@ -1204,6 +980,8 @@ export type EventFilter = {
 
 /**
  * EventMetadata
+ *
+ * Event metadata - embedded in all events.
  */
 export type EventMetadata = {
     /**
@@ -3305,7 +3083,7 @@ export type ReplayConfigSchema = {
      * Target Topics
      */
     target_topics: {
-        [key: string]: string;
+        [key in EventType]?: string;
     } | null;
     /**
      * Target File Path
@@ -3331,6 +3109,16 @@ export type ReplayConfigSchema = {
 
 /**
  * ReplayError
+ *
+ * Error details for replay operations.
+ *
+ * Attributes:
+ * timestamp: When the error occurred.
+ * error: Human-readable error message.
+ * error_type: Python exception class name (e.g., "ValueError", "KafkaException").
+ * This is the result of `type(exception).__name__`, NOT the ErrorType enum.
+ * Present for session-level errors.
+ * event_id: ID of the event that failed to replay. Present for event-level errors.
  */
 export type ReplayError = {
     /**
@@ -3344,11 +3132,11 @@ export type ReplayError = {
     /**
      * Error Type
      */
-    error_type?: string | null;
+    error_type: string | null;
     /**
      * Event Id
      */
-    event_id?: string | null;
+    event_id: string | null;
 };
 
 /**
@@ -3472,7 +3260,7 @@ export type ReplayRequest = {
      * Target Topics
      */
     target_topics?: {
-        [key: string]: string;
+        [key in EventType]?: string;
     } | null;
     /**
      * Retry Failed
@@ -3671,6 +3459,8 @@ export type ResourceUsage = {
 
 /**
  * ResourceUsageDomain
+ *
+ * Resource usage metrics from script execution.
  */
 export type ResourceUsageDomain = {
     /**
@@ -5423,7 +5213,7 @@ export type UserSettingsUpdatedEvent = {
      * Reason
      */
     reason?: string | null;
-    [key: string]: unknown | string | 'user_settings_updated' | string | null | EventMetadata | Array<string> | string | null | undefined;
+    [key: string]: unknown;
 };
 
 /**
@@ -5506,6 +5296,16 @@ export type ValidationError = {
      * Error Type
      */
     type: string;
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -5892,121 +5692,7 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses = {
      *
      * Successful Response
      */
-    200: Array<({
-        event_type: 'execution_requested';
-    } & ExecutionRequestedEvent) | ({
-        event_type: 'execution_accepted';
-    } & ExecutionAcceptedEvent) | ({
-        event_type: 'execution_queued';
-    } & ExecutionQueuedEvent) | ({
-        event_type: 'execution_started';
-    } & ExecutionStartedEvent) | ({
-        event_type: 'execution_running';
-    } & ExecutionRunningEvent) | ({
-        event_type: 'execution_completed';
-    } & ExecutionCompletedEvent) | ({
-        event_type: 'execution_failed';
-    } & ExecutionFailedEvent) | ({
-        event_type: 'execution_timeout';
-    } & ExecutionTimeoutEvent) | ({
-        event_type: 'execution_cancelled';
-    } & ExecutionCancelledEvent) | ({
-        event_type: 'pod_created';
-    } & PodCreatedEvent) | ({
-        event_type: 'pod_scheduled';
-    } & PodScheduledEvent) | ({
-        event_type: 'pod_running';
-    } & PodRunningEvent) | ({
-        event_type: 'pod_succeeded';
-    } & PodSucceededEvent) | ({
-        event_type: 'pod_failed';
-    } & PodFailedEvent) | ({
-        event_type: 'pod_terminated';
-    } & PodTerminatedEvent) | ({
-        event_type: 'pod_deleted';
-    } & PodDeletedEvent) | ({
-        event_type: 'result_stored';
-    } & ResultStoredEvent) | ({
-        event_type: 'result_failed';
-    } & ResultFailedEvent) | ({
-        event_type: 'user_settings_updated';
-    } & UserSettingsUpdatedEvent) | ({
-        event_type: 'user_registered';
-    } & UserRegisteredEvent) | ({
-        event_type: 'user_login';
-    } & UserLoginEvent) | ({
-        event_type: 'user_logged_in';
-    } & UserLoggedInEvent) | ({
-        event_type: 'user_logged_out';
-    } & UserLoggedOutEvent) | ({
-        event_type: 'user_updated';
-    } & UserUpdatedEvent) | ({
-        event_type: 'user_deleted';
-    } & UserDeletedEvent) | ({
-        event_type: 'notification_created';
-    } & NotificationCreatedEvent) | ({
-        event_type: 'notification_sent';
-    } & NotificationSentEvent) | ({
-        event_type: 'notification_delivered';
-    } & NotificationDeliveredEvent) | ({
-        event_type: 'notification_failed';
-    } & NotificationFailedEvent) | ({
-        event_type: 'notification_read';
-    } & NotificationReadEvent) | ({
-        event_type: 'notification_all_read';
-    } & NotificationAllReadEvent) | ({
-        event_type: 'notification_clicked';
-    } & NotificationClickedEvent) | ({
-        event_type: 'notification_preferences_updated';
-    } & NotificationPreferencesUpdatedEvent) | ({
-        event_type: 'saga_started';
-    } & SagaStartedEvent) | ({
-        event_type: 'saga_completed';
-    } & SagaCompletedEvent) | ({
-        event_type: 'saga_failed';
-    } & SagaFailedEvent) | ({
-        event_type: 'saga_cancelled';
-    } & SagaCancelledEvent) | ({
-        event_type: 'saga_compensating';
-    } & SagaCompensatingEvent) | ({
-        event_type: 'saga_compensated';
-    } & SagaCompensatedEvent) | ({
-        event_type: 'create_pod_command';
-    } & CreatePodCommandEvent) | ({
-        event_type: 'delete_pod_command';
-    } & DeletePodCommandEvent) | ({
-        event_type: 'allocate_resources_command';
-    } & AllocateResourcesCommandEvent) | ({
-        event_type: 'release_resources_command';
-    } & ReleaseResourcesCommandEvent) | ({
-        event_type: 'script_saved';
-    } & ScriptSavedEvent) | ({
-        event_type: 'script_deleted';
-    } & ScriptDeletedEvent) | ({
-        event_type: 'script_shared';
-    } & ScriptSharedEvent) | ({
-        event_type: 'security_violation';
-    } & SecurityViolationEvent) | ({
-        event_type: 'rate_limit_exceeded';
-    } & RateLimitExceededEvent) | ({
-        event_type: 'auth_failed';
-    } & AuthFailedEvent) | ({
-        event_type: 'resource_limit_exceeded';
-    } & ResourceLimitExceededEvent) | ({
-        event_type: 'quota_exceeded';
-    } & QuotaExceededEvent) | ({
-        event_type: 'system_error';
-    } & SystemErrorEvent) | ({
-        event_type: 'service_unhealthy';
-    } & ServiceUnhealthyEvent) | ({
-        event_type: 'service_recovered';
-    } & ServiceRecoveredEvent) | ({
-        event_type: 'dlq_message_received';
-    } & DlqMessageReceivedEvent) | ({
-        event_type: 'dlq_message_retried';
-    } & DlqMessageRetriedEvent) | ({
-        event_type: 'dlq_message_discarded';
-    } & DlqMessageDiscardedEvent)>;
+    200: Array<ExecutionRequestedEvent | ExecutionAcceptedEvent | ExecutionQueuedEvent | ExecutionStartedEvent | ExecutionRunningEvent | ExecutionCompletedEvent | ExecutionFailedEvent | ExecutionTimeoutEvent | ExecutionCancelledEvent | PodCreatedEvent | PodScheduledEvent | PodRunningEvent | PodSucceededEvent | PodFailedEvent | PodTerminatedEvent | PodDeletedEvent | ResultStoredEvent | ResultFailedEvent | UserSettingsUpdatedEvent | UserRegisteredEvent | UserLoginEvent | UserLoggedInEvent | UserLoggedOutEvent | UserUpdatedEvent | UserDeletedEvent | NotificationCreatedEvent | NotificationSentEvent | NotificationDeliveredEvent | NotificationFailedEvent | NotificationReadEvent | NotificationAllReadEvent | NotificationClickedEvent | NotificationPreferencesUpdatedEvent | SagaStartedEvent | SagaCompletedEvent | SagaFailedEvent | SagaCancelledEvent | SagaCompensatingEvent | SagaCompensatedEvent | CreatePodCommandEvent | DeletePodCommandEvent | AllocateResourcesCommandEvent | ReleaseResourcesCommandEvent | ScriptSavedEvent | ScriptDeletedEvent | ScriptSharedEvent | SecurityViolationEvent | RateLimitExceededEvent | AuthFailedEvent | ResourceLimitExceededEvent | QuotaExceededEvent | SystemErrorEvent | ServiceUnhealthyEvent | ServiceRecoveredEvent | DlqMessageReceivedEvent | DlqMessageRetriedEvent | DlqMessageDiscardedEvent>;
 };
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponse = GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses[keyof GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses];

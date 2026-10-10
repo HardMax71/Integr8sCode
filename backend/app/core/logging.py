@@ -5,7 +5,8 @@ import structlog
 from opentelemetry import trace
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
 
@@ -22,7 +23,8 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
     (r"(https?://[^:]+:)([^@]+)(@)", r"\1***URL_CREDS_REDACTED***\3"),
 ]
 
-_EMAIL_PATTERN = re.compile(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", re.IGNORECASE)
+# Lookbehind starts a match only at the beginning of a run, so sanitizing stays linear on long lines
+_EMAIL_PATTERN = re.compile(r"(?<![a-z0-9._%+-])([a-z0-9._%+-]++)@([a-z0-9.-]+\.[a-z]{2,})", re.IGNORECASE)
 
 
 def _mask_email(match: re.Match[str]) -> str:

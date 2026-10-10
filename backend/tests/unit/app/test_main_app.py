@@ -6,22 +6,13 @@ from app.domain.exceptions import DomainError
 from app.main import create_app
 from app.settings import Settings
 from fastapi import FastAPI
-from starlette.routing import Mount, Route
 
 pytestmark = pytest.mark.unit
 
 
 def _get_all_paths(app: FastAPI) -> set[str]:
-    """Extract all route paths from app, including mounted routers."""
-    paths: set[str] = set()
-    for route in app.router.routes:
-        if isinstance(route, Route):
-            paths.add(route.path)
-        elif isinstance(route, Mount) and route.routes is not None:
-            for sub_route in route.routes:
-                if isinstance(sub_route, Route):
-                    paths.add(f"{route.path}{sub_route.path}")
-    return paths
+    """Extract all API paths the app exposes, including included routers."""
+    return set(app.openapi()["paths"])
 
 
 @pytest.fixture(scope="module")
@@ -49,8 +40,7 @@ class TestRouterConfiguration:
     """Tests for API router registration."""
 
     def test_api_routes_registered(self, app: FastAPI) -> None:
-        paths = {r.path for r in app.router.routes if isinstance(r, Route)}
-        assert any(p.startswith("/api/") for p in paths)
+        assert any(p.startswith("/api/") for p in _get_all_paths(app))
 
     def test_health_routes_registered(self, app: FastAPI) -> None:
         assert "/api/v1/health/live" in _get_all_paths(app)

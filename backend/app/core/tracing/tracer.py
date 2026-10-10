@@ -1,7 +1,7 @@
 import structlog
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPX2ClientInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.propagate import set_global_textmap
@@ -55,7 +55,7 @@ class Tracer:
         set_global_textmap(TraceContextTextMapPropagator())
 
         tp = trace.get_tracer_provider()
-        HTTPXClientInstrumentor().instrument(tracer_provider=tp)
+        HTTPX2ClientInstrumentor().instrument(tracer_provider=tp)
         PymongoInstrumentor().instrument(tracer_provider=tp)
         LoggingInstrumentor().instrument(set_logging_format=False, log_level="INFO")
 

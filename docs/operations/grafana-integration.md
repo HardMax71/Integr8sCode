@@ -36,7 +36,7 @@ The provisioning file (`alerting.yml`) includes active infrastructure alert rule
 
 ### Built-in Alert Rules
 
-Two host-memory alert rules are provisioned out of the box. They query the `system_memory_utilization` metric produced by the OTel Collector's `hostmetrics` receiver:
+Two host-memory alert rules are provisioned out of the box. They query `system_memory_utilization_ratio`, which the OTel Collector's `host_metrics` memory scraper emits once `system.memory.utilization` is enabled in its config:
 
 | Rule | Threshold | `for` | Severity |
 |------|-----------|-------|----------|

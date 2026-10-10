@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
-import httpx
+import httpx2
 
 from .config import LoadConfig
 from .stats import StatsCollector
@@ -32,13 +32,13 @@ class APIClient:
     def __init__(self, cfg: LoadConfig, stats: StatsCollector) -> None:
         self.cfg = cfg
         self.stats = stats
-        self.client = httpx.AsyncClient(verify=cfg.verify_tls, timeout=20.0)
+        self.client = httpx2.AsyncClient(verify=cfg.verify_tls, timeout=20.0)
         self.csrf_token: str | None = None
 
     async def close(self) -> None:
         await self.client.aclose()
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx2.Response:
         t0 = time.perf_counter()
         try:
             resp = await self.client.request(method, url, **kwargs)
@@ -64,7 +64,7 @@ class APIClient:
         url = self.cfg.api("/auth/login")
         data = {"username": username, "password": password}
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        r = await self._request("POST", url, data=httpx.QueryParams(data), headers=headers)
+        r = await self._request("POST", url, data=httpx2.QueryParams(data), headers=headers)
         if r.status_code == 200:
             # Extract csrf cookie (not httpOnly) for subsequent writes
             for cookie in self.client.cookies.jar:
@@ -80,7 +80,7 @@ class APIClient:
         return h
 
     # ---------- User endpoints ----------
-    async def me(self) -> httpx.Response:
+    async def me(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/auth/me"))
 
     # ---------- Execution flows ----------
@@ -95,17 +95,17 @@ class APIClient:
             body = {}
         return r.status_code, body
 
-    async def result(self, execution_id: str) -> httpx.Response:
+    async def result(self, execution_id: str) -> httpx2.Response:
         return await self._request("GET", self.cfg.api(f"/result/{execution_id}"))
 
-    async def execution_events(self, execution_id: str, limit: int = 50) -> httpx.Response:
+    async def execution_events(self, execution_id: str, limit: int = 50) -> httpx2.Response:
         return await self._request("GET", self.cfg.api(f"/executions/{execution_id}/events?limit={limit}"))
 
     async def sse_execution(self, execution_id: str, max_seconds: float = 10.0) -> Tuple[int, int]:
         """Stream SSE for an execution; returns (http_status, bytes_rx)."""
         url = self.cfg.api(f"/events/executions/{execution_id}")
         # Use a separate streaming client to avoid interfering with normal client timeouts
-        async with httpx.AsyncClient(verify=self.cfg.verify_tls, timeout=None) as s:
+        async with httpx2.AsyncClient(verify=self.cfg.verify_tls, timeout=None) as s:
             # Reuse cookies for auth
             s.cookies.update(self.client.cookies)
             t0 = time.perf_counter()
@@ -127,37 +127,37 @@ class APIClient:
                 return 599, 0
 
     # ---------- Saved scripts ----------
-    async def create_script(self, name: str, content: str) -> httpx.Response:
+    async def create_script(self, name: str, content: str) -> httpx2.Response:
         url = self.cfg.api("/scripts")
         payload = {"name": name, "content": content}
         return await self._request("POST", url, json=payload, headers=self._with_csrf())
 
-    async def list_scripts(self) -> httpx.Response:
+    async def list_scripts(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/scripts"))
 
-    async def update_script(self, script_id: str, name: str, content: str) -> httpx.Response:
+    async def update_script(self, script_id: str, name: str, content: str) -> httpx2.Response:
         url = self.cfg.api(f"/scripts/{script_id}")
         payload = {"name": name, "content": content}
         return await self._request("PUT", url, json=payload, headers=self._with_csrf())
 
-    async def delete_script(self, script_id: str) -> httpx.Response:
+    async def delete_script(self, script_id: str) -> httpx2.Response:
         url = self.cfg.api(f"/scripts/{script_id}")
         return await self._request("DELETE", url, headers=self._with_csrf())
 
     # ---------- User settings ----------
-    async def get_settings(self) -> httpx.Response:
+    async def get_settings(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/user/settings/"))
 
-    async def update_theme(self) -> httpx.Response:
+    async def update_theme(self) -> httpx2.Response:
         url = self.cfg.api("/user/settings/theme")
         theme = random.choice(["light", "dark"])  # schema expects enum name depending on model; send string
         return await self._request("PUT", url, json={"theme": theme}, headers=self._with_csrf())
 
     # ---------- Notifications ----------
-    async def list_notifications(self) -> httpx.Response:
+    async def list_notifications(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/notifications"))
 
-    async def mark_all_read(self) -> httpx.Response:
+    async def mark_all_read(self) -> httpx2.Response:
         url = self.cfg.api("/notifications/mark-all-read")
         return await self._request("POST", url, headers=self._with_csrf())
 

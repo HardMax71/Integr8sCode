@@ -2,7 +2,7 @@ import pytest
 import redis.asyncio as redis
 from app.domain.enums import ExecutionStatus
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResult
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 from tests.e2e.conftest import wait_for_pod_created, wait_for_result
 

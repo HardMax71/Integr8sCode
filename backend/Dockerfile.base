@@ -2,7 +2,7 @@
 # Contains: Python, system deps, uv, and all Python dependencies
 # Multi-stage build: gcc + dev headers only in builder, not in final image
 
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 
@@ -10,12 +10,12 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     gcc \
-    libsnappy-dev \
     liblzma-dev \
+    libsnappy-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (using Docker Hub mirror - ghcr.io has rate limiting issues)
-COPY --from=astral/uv:latest /uv /uvx /bin/
+COPY --from=astral/uv:0.13.0 /uv /uvx /bin/
 
 # Pre-compile bytecode for faster startup; copy mode avoids symlink issues with cache mounts
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -25,9 +25,9 @@ COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies with BuildKit cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --locked --no-dev --no-install-project --no-build
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -35,8 +35,8 @@ WORKDIR /app
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
     curl \
-    libsnappy1v5 \
     liblzma5 \
+    libsnappy1v5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy uv from builder (avoids second Docker Hub pull, guarantees version consistency)

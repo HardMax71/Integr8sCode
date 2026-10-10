@@ -1,15 +1,15 @@
 <script lang="ts">
     import {
-        PlayCircle,
-        CheckCircle,
-        XCircle,
+        CirclePlay,
+        CircleCheckBig,
+        CircleX,
         Clock,
         FileInput,
         Zap,
         Check,
         X,
-        MinusCircle,
-        HelpCircle,
+        CircleMinus,
+        CircleQuestionMark,
     } from '@lucide/svelte';
 
     interface Props {
@@ -20,16 +20,16 @@
     let { eventType, size = 20 }: Props = $props();
 
     // Map event types to icon components
-    const iconMap: Record<string, typeof PlayCircle> = {
+    const iconMap: Record<string, typeof CirclePlay> = {
         // Execution events
         'execution.requested': FileInput,
         execution_requested: FileInput,
-        'execution.started': PlayCircle,
-        execution_started: PlayCircle,
-        'execution.completed': CheckCircle,
-        execution_completed: CheckCircle,
-        'execution.failed': XCircle,
-        execution_failed: XCircle,
+        'execution.started': CirclePlay,
+        execution_started: CirclePlay,
+        'execution.completed': CircleCheckBig,
+        execution_completed: CircleCheckBig,
+        'execution.failed': CircleX,
+        execution_failed: CircleX,
         'execution.timeout': Clock,
         execution_timeout: Clock,
         // Pod events
@@ -41,11 +41,11 @@
         pod_succeeded: Check,
         'pod.failed': X,
         pod_failed: X,
-        'pod.terminated': MinusCircle,
-        pod_terminated: MinusCircle,
+        'pod.terminated': CircleMinus,
+        pod_terminated: CircleMinus,
     };
 
-    const Icon = $derived(iconMap[eventType] || HelpCircle);
+    const Icon = $derived(iconMap[eventType] || CircleQuestionMark);
 </script>
 
 <Icon {size} />

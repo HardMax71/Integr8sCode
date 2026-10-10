@@ -517,7 +517,7 @@ class PodEventMapper:
             nl = logs.index("\n", idx)
             stderr_len = int(logs[idx:nl])
             stderr = logs[nl + 1 : nl + 1 + stderr_len]
-        except (ValueError, IndexError):
+        except ValueError, IndexError:
             return "", ""
 
         return stdout, stderr

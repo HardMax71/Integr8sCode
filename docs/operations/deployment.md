@@ -72,7 +72,7 @@ The backend uses a multi-stage build with a shared base image to keep startup fa
 ```mermaid
 flowchart LR
     subgraph Base["Dockerfile.base"]
-        B1[python:3.12-slim]
+        B1[python:3.14-slim]
         B2[system deps]
         B3[uv sync --locked]
     end
@@ -145,10 +145,10 @@ Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent
 | Backend API | 768 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
 | Frontend | 128 m | nginx serving static assets | |
 | Each worker (x6) | 160 m | Single-process Python | k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
-| Grafana | 192 m | | Observability profile |
+| Grafana | 512 m | | Observability profile |
 | Jaeger | 256 m | All-in-one, in-memory storage | Observability profile |
 | Victoria Metrics | 256 m | 30-day retention | Observability profile |
-| OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor; includes `kafkametrics` receiver | Observability profile |
+| OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor; includes `kafka_metrics` receiver | Observability profile |
 
 All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all six workers (k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
 
@@ -284,7 +284,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 ## Production deployment
 
 Merges to `main` trigger automatic deployment to the production server via the
-[Release & Deploy](cicd.md#release--deploy) workflow. The full pipeline chain is:
+[Release & Deploy](cicd.md#release-deploy) workflow. The full pipeline chain is:
 
 1. **Stack Tests** — unit tests, image build, E2E tests
 2. **Docker Scan & Promote** — Trivy vulnerability scan, promote `sha-xxx` to `latest`

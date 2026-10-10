@@ -112,13 +112,23 @@ class TestSanitizeSensitiveData:
             ("admin@example.com", "adm***@example.com"),
             ("ab@example.com", "ab***@example.com"),
             ("longlocal@domain.org", "lon***@domain.org"),
+            ("u\u017fer@example.com", "u\u017fe***@example.com"),
         ],
-        ids=["normal", "short_local", "long_local"],
+        ids=["normal", "short_local", "long_local", "casefolded_non_ascii"],
     )
     def test_email_masked_preserves_prefix_and_domain(self, email: str, expected: str) -> None:
         event_dict: dict[str, Any] = {"event": "action", "detail": email}
         result = sanitize_sensitive_data(None, "info", event_dict)
         assert result["detail"] == expected
+
+    @pytest.mark.timeout(2)
+    @pytest.mark.parametrize(
+        "line",
+        ["x@" + "a." * 20_000 + "1", "a" * 40_000 + "!"],
+        ids=["long_domain_run", "long_run_without_at"],
+    )
+    def test_email_masking_stays_linear_on_long_lines(self, line: str) -> None:
+        assert self._run_processor(line) == line
 
 
 class TestAddOtelContext:

@@ -11,7 +11,7 @@ from app.schemas_pydantic.admin_executions import (
     QueueStatusResponse,
 )
 from dishka import AsyncContainer
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
 

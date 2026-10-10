@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Eye, Play, Trash2 } from '@lucide/svelte';
+    import { Eye, Play, Trash } from '@lucide/svelte';
     import type { EventBrowseResponse } from '$lib/api';
     import { formatTimestamp, formatDateOnly, formatTimeOnly } from '$lib/formatters';
     import { getEventTypeColor } from '$lib/admin/events';
@@ -133,7 +133,7 @@
                                 title="Delete"
                                 aria-label="Delete"
                             >
-                                <Trash2 size={16} />
+                                <Trash size={16} />
                             </button>
                         </div>
                     </td>
@@ -218,7 +218,7 @@
                         title="Delete"
                         aria-label="Delete"
                     >
-                        <Trash2 size={16} />
+                        <Trash size={16} />
                     </button>
                 </div>
             </div>

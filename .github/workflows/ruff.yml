@@ -12,10 +12,10 @@ jobs:
     name: Ruff Linting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -23,10 +23,10 @@ jobs:
       - name: Install Python and dependencies
         run: |
           cd backend
-          uv python install 3.12
-          uv sync --frozen --group lint --no-dev
+          uv python install 3.14
+          uv sync --frozen --group lint --no-dev --no-install-project --no-build
 
       - name: Run ruff
         run: |
           cd backend
-          uv run --no-sync ruff check . --config pyproject.toml
+          uv run --no-sync --no-build ruff check . --config pyproject.toml

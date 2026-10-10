@@ -49,12 +49,11 @@ class SecurityService:
             allow_expired: If True, accept expired tokens (used for logout).
         """
         try:
-            options = {"verify_exp": not allow_expired}
             payload = jwt.decode(
                 token,
                 self.settings.SECRET_KEY,
                 algorithms=[self.settings.ALGORITHM],
-                options=options,
+                options={"verify_exp": not allow_expired},
             )
             username: str | None = payload.get("sub")
             if username is None:

@@ -1,4 +1,4 @@
-import json as json_mod
+import asyncio
 import uuid
 
 import pytest
@@ -17,12 +17,12 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from app.services.admin import AdminEventsService
-from app.services.sse import SSEService
 from dishka import AsyncContainer
-from httpx import AsyncClient
+from fastapi import FastAPI
+from httpx2 import AsyncClient
 
 from tests.conftest import make_execution_requested_event
+from tests.e2e.conftest import streaming_client
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
 
@@ -382,9 +382,9 @@ class TestStreamReplayStatus:
 
     @pytest.mark.asyncio
     async def test_stream_replay_status_after_replay(
-            self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
+            self, app: FastAPI, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
-        """Replay creates a session whose SSE pipeline yields correct initial status."""
+        """Replay creates a session whose status stream opens with the session's status."""
         request = EventReplayRequest(
             aggregate_id=stored_event.aggregate_id,
             dry_run=False,
@@ -397,18 +397,14 @@ class TestStreamReplayStatus:
         replay_result = EventReplayResponse.model_validate(replay_response.json())
         assert replay_result.session_id is not None
 
-        # httpx ASGITransport cannot stream SSE (buffers entire body).
-        # Test the pipeline directly via DI — first yield is the initial status.
-        admin_service = await scope.get(AdminEventsService)
-        initial_status = await admin_service.get_replay_sse_status(replay_result.session_id)
-        assert initial_status is not None
+        async with (
+            streaming_client(app, test_admin) as client,
+            client.sse(f"/api/v1/admin/events/replay/{replay_result.session_id}/status") as source,
+        ):
+            assert source.response.status_code == 200
+            first_event = await asyncio.wait_for(anext(aiter(source)), timeout=5.0)
 
-        sse_service = await scope.get(SSEService)
-        stream = await sse_service.create_replay_stream(initial_status)
-        first_event = await anext(stream)
-        status = EventReplayStatusResponse.model_validate(
-            json_mod.loads(first_event["data"])
-        )
+        status = EventReplayStatusResponse.model_validate_json(first_event.data)
         assert status.session_id == replay_result.session_id
         assert status.status in (
             ReplayStatus.SCHEDULED, ReplayStatus.CREATED,

@@ -3429,6 +3429,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "additionalProperties": true,
                 "title": "Value"
               }
             }
@@ -4528,9 +4529,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "allocate_resources_command"
-            ],
             "const": "allocate_resources_command",
             "title": "Event Type",
             "default": "allocate_resources_command"
@@ -4590,9 +4588,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "auth_failed"
-            ],
             "const": "auth_failed",
             "title": "Event Type",
             "default": "auth_failed"
@@ -4820,7 +4815,8 @@
         "required": [
           "name"
         ],
-        "title": "ContainerStatusInfo"
+        "title": "ContainerStatusInfo",
+        "description": "Container status information from Kubernetes pod."
       },
       "CreatePodCommandEvent": {
         "properties": {
@@ -4830,9 +4826,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "create_pod_command"
-            ],
             "const": "create_pod_command",
             "title": "Event Type",
             "default": "create_pod_command"
@@ -4939,9 +4932,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "dlq_message_discarded"
-            ],
             "const": "dlq_message_discarded",
             "title": "Event Type",
             "default": "dlq_message_discarded"
@@ -5009,9 +4999,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "dlq_message_received"
-            ],
             "const": "dlq_message_received",
             "title": "Event Type",
             "default": "dlq_message_received"
@@ -5088,9 +5075,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "dlq_message_retried"
-            ],
             "const": "dlq_message_retried",
             "title": "Event Type",
             "default": "dlq_message_retried"
@@ -5172,9 +5156,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "delete_pod_command"
-            ],
             "const": "delete_pod_command",
             "title": "Event Type",
             "default": "delete_pod_command"
@@ -5454,7 +5435,8 @@
           "algorithm",
           "remaining"
         ],
-        "title": "EndpointUsageStats"
+        "title": "EndpointUsageStats",
+        "description": "Usage statistics for a single endpoint (IETF RateLimit-style)."
       },
       "Environment": {
         "type": "string",
@@ -6180,7 +6162,8 @@
           "service_name",
           "service_version"
         ],
-        "title": "EventMetadata"
+        "title": "EventMetadata",
+        "description": "Event metadata - embedded in all events."
       },
       "EventReplayRequest": {
         "properties": {
@@ -6742,9 +6725,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_accepted"
-            ],
             "const": "execution_accepted",
             "title": "Event Type",
             "default": "execution_accepted"
@@ -6815,9 +6795,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_cancelled"
-            ],
             "const": "execution_cancelled",
             "title": "Event Type",
             "default": "execution_cancelled"
@@ -6878,9 +6855,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_completed"
-            ],
             "const": "execution_completed",
             "title": "Event Type",
             "default": "execution_completed"
@@ -6968,9 +6942,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_failed"
-            ],
             "const": "execution_failed",
             "title": "Event Type",
             "default": "execution_failed"
@@ -7087,9 +7058,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_queued"
-            ],
             "const": "execution_queued",
             "title": "Event Type",
             "default": "execution_queued"
@@ -7192,9 +7160,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_requested"
-            ],
             "const": "execution_requested",
             "title": "Event Type",
             "default": "execution_requested"
@@ -7413,9 +7378,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_running"
-            ],
             "const": "execution_running",
             "title": "Event Type",
             "default": "execution_running"
@@ -7482,9 +7444,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_started"
-            ],
             "const": "execution_started",
             "title": "Event Type",
             "default": "execution_started"
@@ -7577,9 +7536,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "execution_timeout"
-            ],
             "const": "execution_timeout",
             "title": "Event Type",
             "default": "execution_timeout"
@@ -7810,9 +7766,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_all_read"
-            ],
             "const": "notification_all_read",
             "title": "Event Type",
             "default": "notification_all_read"
@@ -7883,9 +7836,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_clicked"
-            ],
             "const": "notification_clicked",
             "title": "Event Type",
             "default": "notification_clicked"
@@ -7957,9 +7907,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_created"
-            ],
             "const": "notification_created",
             "title": "Event Type",
             "default": "notification_created"
@@ -8040,9 +7987,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_delivered"
-            ],
             "const": "notification_delivered",
             "title": "Event Type",
             "default": "notification_delivered"
@@ -8106,9 +8050,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_failed"
-            ],
             "const": "notification_failed",
             "title": "Event Type",
             "default": "notification_failed"
@@ -8203,9 +8144,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_preferences_updated"
-            ],
             "const": "notification_preferences_updated",
             "title": "Event Type",
             "default": "notification_preferences_updated"
@@ -8264,9 +8202,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_read"
-            ],
             "const": "notification_read",
             "title": "Event Type",
             "default": "notification_read"
@@ -8395,9 +8330,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "notification_sent"
-            ],
             "const": "notification_sent",
             "title": "Event Type",
             "default": "notification_sent"
@@ -8710,9 +8642,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_created"
-            ],
             "const": "pod_created",
             "title": "Event Type",
             "default": "pod_created"
@@ -8773,9 +8702,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_deleted"
-            ],
             "const": "pod_deleted",
             "title": "Event Type",
             "default": "pod_deleted"
@@ -8842,9 +8768,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_failed"
-            ],
             "const": "pod_failed",
             "title": "Event Type",
             "default": "pod_failed"
@@ -8949,9 +8872,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_running"
-            ],
             "const": "pod_running",
             "title": "Event Type",
             "default": "pod_running"
@@ -9014,9 +8934,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_scheduled"
-            ],
             "const": "pod_scheduled",
             "title": "Event Type",
             "default": "pod_scheduled"
@@ -9077,9 +8994,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_succeeded"
-            ],
             "const": "pod_succeeded",
             "title": "Event Type",
             "default": "pod_succeeded"
@@ -9162,9 +9076,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "pod_terminated"
-            ],
             "const": "pod_terminated",
             "title": "Event Type",
             "default": "pod_terminated"
@@ -9309,9 +9220,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "quota_exceeded"
-            ],
             "const": "quota_exceeded",
             "title": "Event Type",
             "default": "quota_exceeded"
@@ -9385,9 +9293,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "rate_limit_exceeded"
-            ],
             "const": "rate_limit_exceeded",
             "title": "Event Type",
             "default": "rate_limit_exceeded"
@@ -9658,9 +9563,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "release_resources_command"
-            ],
             "const": "release_resources_command",
             "title": "Event Type",
             "default": "release_resources_command"
@@ -9761,6 +9663,9 @@
                 "additionalProperties": {
                   "type": "string"
                 },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/EventType"
+                },
                 "type": "object"
               },
               {
@@ -9856,9 +9761,12 @@
         "type": "object",
         "required": [
           "timestamp",
-          "error"
+          "error",
+          "error_type",
+          "event_id"
         ],
-        "title": "ReplayError"
+        "title": "ReplayError",
+        "description": "Error details for replay operations.\n\nAttributes:\n    timestamp: When the error occurred.\n    error: Human-readable error message.\n    error_type: Python exception class name (e.g., \"ValueError\", \"KafkaException\").\n        This is the result of `type(exception).__name__`, NOT the ErrorType enum.\n        Present for session-level errors.\n    event_id: ID of the event that failed to replay. Present for event-level errors."
       },
       "ReplayFilter": {
         "properties": {
@@ -10168,6 +10076,9 @@
                 "additionalProperties": {
                   "type": "string"
                 },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/EventType"
+                },
                 "type": "object"
               },
               {
@@ -10366,9 +10277,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "resource_limit_exceeded"
-            ],
             "const": "resource_limit_exceeded",
             "title": "Event Type",
             "default": "resource_limit_exceeded"
@@ -10530,7 +10438,8 @@
           }
         },
         "type": "object",
-        "title": "ResourceUsageDomain"
+        "title": "ResourceUsageDomain",
+        "description": "Resource usage metrics from script execution."
       },
       "RestoreSettingsRequest": {
         "properties": {
@@ -10566,9 +10475,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "result_failed"
-            ],
             "const": "result_failed",
             "title": "Event Type",
             "default": "result_failed"
@@ -10630,9 +10536,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "result_stored"
-            ],
             "const": "result_stored",
             "title": "Event Type",
             "default": "result_stored"
@@ -10701,7 +10604,6 @@
         "enum": [
           "status"
         ],
-        "const": "status",
         "title": "SSEControlEvent",
         "description": "Control events for execution SSE streams (not from Kafka)."
       },
@@ -10816,9 +10718,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_cancelled"
-            ],
             "const": "saga_cancelled",
             "title": "Event Type",
             "default": "saga_cancelled"
@@ -10919,9 +10818,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_compensated"
-            ],
             "const": "saga_compensated",
             "title": "Event Type",
             "default": "saga_compensated"
@@ -10988,9 +10884,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_compensating"
-            ],
             "const": "saga_compensating",
             "title": "Event Type",
             "default": "saga_compensating"
@@ -11054,9 +10947,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_completed"
-            ],
             "const": "saga_completed",
             "title": "Event Type",
             "default": "saga_completed"
@@ -11123,9 +11013,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_failed"
-            ],
             "const": "saga_failed",
             "title": "Event Type",
             "default": "saga_failed"
@@ -11230,9 +11117,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "saga_started"
-            ],
             "const": "saga_started",
             "title": "Event Type",
             "default": "saga_started"
@@ -11586,9 +11470,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "script_deleted"
-            ],
             "const": "script_deleted",
             "title": "Event Type",
             "default": "script_deleted"
@@ -11655,9 +11536,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "script_saved"
-            ],
             "const": "script_saved",
             "title": "Event Type",
             "default": "script_saved"
@@ -11721,9 +11599,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "script_shared"
-            ],
             "const": "script_shared",
             "title": "Event Type",
             "default": "script_shared"
@@ -11790,9 +11665,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "security_violation"
-            ],
             "const": "security_violation",
             "title": "Event Type",
             "default": "security_violation"
@@ -11888,9 +11760,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "service_recovered"
-            ],
             "const": "service_recovered",
             "title": "Event Type",
             "default": "service_recovered"
@@ -11950,9 +11819,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "service_unhealthy"
-            ],
             "const": "service_unhealthy",
             "title": "Event Type",
             "default": "service_unhealthy"
@@ -12306,9 +12172,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "system_error"
-            ],
             "const": "system_error",
             "title": "Event Type",
             "default": "system_error"
@@ -12648,9 +12511,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_deleted"
-            ],
             "const": "user_deleted",
             "title": "Event Type",
             "default": "user_deleted"
@@ -12774,9 +12634,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_logged_in"
-            ],
             "const": "user_logged_in",
             "title": "Event Type",
             "default": "user_logged_in"
@@ -12853,9 +12710,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_logged_out"
-            ],
             "const": "user_logged_out",
             "title": "Event Type",
             "default": "user_logged_out"
@@ -12918,9 +12772,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_login"
-            ],
             "const": "user_login",
             "title": "Event Type",
             "default": "user_login"
@@ -13100,9 +12951,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_registered"
-            ],
             "const": "user_registered",
             "title": "Event Type",
             "default": "user_registered"
@@ -13283,6 +13131,7 @@
             "$ref": "#/components/schemas/EditorSettings-Output"
           },
           "custom_settings": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Custom Settings"
           },
@@ -13387,6 +13236,7 @@
           "custom_settings": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -13408,9 +13258,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_settings_updated"
-            ],
             "const": "user_settings_updated",
             "title": "Event Type",
             "default": "user_settings_updated"
@@ -13544,9 +13391,6 @@
           },
           "event_type": {
             "type": "string",
-            "enum": [
-              "user_updated"
-            ],
             "const": "user_updated",
             "title": "Event Type",
             "default": "user_updated"
@@ -13631,6 +13475,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

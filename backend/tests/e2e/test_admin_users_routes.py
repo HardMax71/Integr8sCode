@@ -16,7 +16,7 @@ from app.schemas_pydantic.user import (
     UserResponse,
     UserUpdate,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin]
 

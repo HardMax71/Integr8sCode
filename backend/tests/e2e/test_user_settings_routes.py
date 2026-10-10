@@ -9,7 +9,7 @@ from app.schemas_pydantic.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 

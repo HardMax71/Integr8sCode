@@ -49,5 +49,5 @@ class TestLifespanInitialization:
     async def test_redis_connected(self, scope: AsyncContainer) -> None:
         """Redis client is connected and functional."""
         redis_client = await scope.get(aioredis.Redis)
-        pong = await redis_client.ping()  # type: ignore[misc]
+        pong = await redis_client.ping()
         assert pong is True

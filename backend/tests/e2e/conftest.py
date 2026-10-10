@@ -1,7 +1,10 @@
 import asyncio
+import contextlib
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
+import httpx2
 import pytest
 import redis.asyncio as redis
 from app.db.docs.saga import SagaDocument
@@ -13,10 +16,105 @@ from app.schemas_pydantic.notification import NotificationListResponse, Notifica
 from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
-from httpx import AsyncClient
+from fastapi import FastAPI
+from httpx2 import AsyncClient
 from pydantic import TypeAdapter
+from starlette.types import ASGIApp, Message
 
 _sse_adapter = TypeAdapter(SSEExecutionEventData)
+
+
+class _QueuedBody(httpx2.AsyncByteStream):
+    def __init__(self, chunks: asyncio.Queue[bytes | None], disconnect: asyncio.Event, app_task: asyncio.Task[None]):
+        self._chunks = chunks
+        self._disconnect = disconnect
+        self._app_task = app_task
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        while (chunk := await self._chunks.get()) is not None:
+            yield chunk
+        if self._app_task.done() and not self._app_task.cancelled() and (error := self._app_task.exception()):
+            raise error
+
+    async def aclose(self) -> None:
+        self._disconnect.set()
+        await asyncio.wait({self._app_task}, timeout=1.0)
+        self._app_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._app_task
+
+
+class StreamingASGITransport(httpx2.AsyncBaseTransport):
+    """Returns once response headers arrive; httpx2.ASGITransport waits for the whole body (encode/httpx#2186)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
+        body = await request.aread()
+        chunks: asyncio.Queue[bytes | None] = asyncio.Queue()
+        started: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
+        disconnect = asyncio.Event()
+        request_sent = False
+
+        async def receive() -> Message:
+            nonlocal request_sent
+            if not request_sent:
+                request_sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await disconnect.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                started.set_result(message)
+            elif message["type"] == "http.response.body":
+                await chunks.put(message.get("body", b""))
+                if not message.get("more_body", False):
+                    await chunks.put(None)
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": request.method,
+            "headers": [(k.lower(), v) for (k, v) in request.headers.raw],
+            "scheme": request.url.scheme,
+            "path": request.url.path,
+            "raw_path": request.url.raw_path.split(b"?")[0],
+            "query_string": request.url.query,
+            "server": (request.url.host, request.url.port),
+            "client": ("127.0.0.1", 123),
+            "root_path": "",
+        }
+
+        async def run_app() -> None:
+            await self._app(scope, receive, send)
+
+        app_task = asyncio.create_task(run_app())
+        app_task.add_done_callback(lambda _: chunks.put_nowait(None))
+        first: set[asyncio.Future[Any]] = {app_task, started}
+        await asyncio.wait(first, return_when=asyncio.FIRST_COMPLETED)
+        if not started.done():
+            app_task.result()
+            raise RuntimeError("ASGI app returned without starting a response")
+        start = started.result()
+        return httpx2.Response(
+            start["status"],
+            headers=start.get("headers", []),
+            stream=_QueuedBody(chunks, disconnect, app_task),
+            request=request,
+        )
+
+
+def streaming_client(app: FastAPI, user: AsyncClient) -> AsyncClient:
+    """Client that streams responses (SSE) with the same session as ``user``."""
+    return AsyncClient(
+        transport=StreamingASGITransport(app),
+        base_url=user.base_url,
+        cookies=user.cookies,
+        headers=user.headers,
+    )
 
 
 async def wait_for_sse_event(

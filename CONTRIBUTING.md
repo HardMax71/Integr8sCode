@@ -6,8 +6,8 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ### Prerequisites
 
-- Python 3.12+
-- Node.js 20+
+- Python 3.14 (uv reads backend/.python-version)
+- Node.js 26
 - Docker & Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - k3s (for Kubernetes integration)
@@ -73,7 +73,7 @@ npm install
 npm run dev
 
 # Run E2E tests
-npx playwright test
+npm run test:e2e
 ```
 
 ## Code Style
@@ -104,7 +104,7 @@ npx playwright test
    ```bash
    pre-commit run --all-files
    cd backend && uv run pytest
-   cd frontend && npx playwright test
+   cd frontend && npm run test:e2e
    ```
 
 4. **Push and create a PR** against `main`

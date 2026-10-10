@@ -10,10 +10,10 @@ Users submit code through a Svelte 5 frontend → FastAPI backend → K8s pods.
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Svelte 5 (runes), TypeScript strict, Rollup, TailwindCSS 4 |
-| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.12, async throughout |
+| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14, async throughout |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
-| Infra | MongoDB 8, Redis 7, optional Grafana / Jaeger / Victoria Metrics |
+| Infra | MongoDB 9, Redis 8, optional Grafana / Jaeger / Victoria Metrics |
 
 ---
 
@@ -48,7 +48,7 @@ uv run pytest tests/unit/                       # unit only
 uv run pytest -k "test_name" -x                 # single test, stop on failure
 uv run ruff check . --config pyproject.toml     # lint (must pass)
 uv run mypy --config-file pyproject.toml --strict .  # types (must pass)
-uv run python scripts/check_orphan_modules.py   # dead code (must pass)
+uv run python -m scripts.check_orphan_modules   # dead code (must pass)
 
 # Frontend (from frontend/)
 npm run dev             # dev server with hot reload
@@ -88,7 +88,7 @@ These layer boundaries are enforced throughout the codebase:
 ## Python Conventions
 
 ### Runtime & Tools
-- Python **3.12+** — use modern syntax everywhere
+- Python **3.14**, use modern syntax everywhere
 - Always `uv run python`, never bare `python` or `python3`
 - Max line length: **120 characters** (pyproject.toml)
 
@@ -732,7 +732,7 @@ vi.mock('../../../lib/api', () => ({
 # Backend
 uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293
 uv run mypy --config-file pyproject.toml --strict . # 318 source files
-uv run python scripts/check_orphan_modules.py       # orphan module detection
+uv run python -m scripts.check_orphan_modules       # orphan module detection
 
 # Frontend
 npm run check   # svelte-check: 0 errors, 0 warnings

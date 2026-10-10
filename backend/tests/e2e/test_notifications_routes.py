@@ -9,7 +9,7 @@ from app.schemas_pydantic.notification import (
     SubscriptionsResponse,
     UnreadCountResponse,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 from tests.e2e.conftest import create_execution_with_notification
 

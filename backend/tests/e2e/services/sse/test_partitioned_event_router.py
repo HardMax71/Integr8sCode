@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -33,12 +34,20 @@ async def test_bus_routes_event_to_redis(redis_client: redis.Redis, test_setting
         execution_id=execution_id,
     )
 
-    # Start generator (subscription happens on first __anext__) and publish concurrently.
-    # By the time publish fires (~1 Redis RTT), the subscribe is already established.
     messages = bus.listen_execution(execution_id)
-    pub_task = asyncio.create_task(bus.publish_event(execution_id, ev))
-    msg = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
-    await pub_task
+    next_msg = asyncio.ensure_future(anext(messages))
+    try:
+        # Pub/sub drops messages published before SUBSCRIBE lands, so wait until Redis reports the subscriber
+        async with asyncio.timeout(2.0):
+            while (await redis_client.pubsub_numsub(f"sse:exec:{suffix}:{execution_id}"))[0][1] == 0:
+                await asyncio.sleep(0.01)
+        await bus.publish_event(execution_id, ev)
+        msg = await asyncio.wait_for(next_msg, timeout=2.0)
+    finally:
+        next_msg.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await next_msg
+        await messages.aclose()
 
     assert msg is not None
     assert msg.event_type == ev.event_type

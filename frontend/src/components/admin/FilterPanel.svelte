@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { X, ChevronDown, Filter } from '@lucide/svelte';
+    import { X, ChevronDown, Funnel } from '@lucide/svelte';
     import type { Snippet } from 'svelte';
 
     interface Props {
@@ -46,7 +46,7 @@
         class:dark:ring-offset-dark-bg-default={open}
     >
         <span class="transition-transform duration-200" class:rotate-180={open}>
-            <Filter size={16} />
+            <Funnel size={16} />
         </span>
         <span class="hidden sm:inline">Filters</span>
         {#if hasActiveFilters}

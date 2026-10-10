@@ -7,7 +7,7 @@ from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_result_processor_subscriber
 from app.settings import Settings
 from beanie import init_beanie
-from dishka.integrations.faststream import setup_dishka
+from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient

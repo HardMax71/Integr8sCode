@@ -144,9 +144,9 @@ Workers reuse the `backend` image with different `command:` overrides in docker-
 are needed. All 4 images are scanned by Trivy and promoted to `latest` in the
 [Docker Scan & Promote](#docker-scan-promote) workflow.
 
-The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
-image uses `docker/build-push-action@v6` with GHA layer cache (`scope=backend`, `mode=max`), so intermediate layers
-are reused when only application code changes. Utility and frontend images also use GHA layer caching.
+The base image is built with `docker/build-push-action@v7` (GHA cache `scope=backend-base`) and cached separately as a
+zstd-compressed tarball, since its dependencies rarely change. The backend image is a plain `docker build` on top of
+that cached base, so only the application layers rebuild. Utility and frontend images use GHA layer caching.
 
 All 4 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 
@@ -177,7 +177,7 @@ stack, pulling pre-built images from GHCR.
 
 This action kicks off three slow tasks that can overlap:
 
-1. **GHCR login** using `docker/login-action@v3`
+1. **GHCR login** using `docker/login-action@v4`
 2. **Background image pull + infra pre-warm** — pulls all compose images then starts infrastructure services
    (mongo, redis, kafka) in a background `nohup` process. The exit status is persisted
    to `/tmp/infra-pull.exit` so the next action can check for failures.
@@ -210,7 +210,7 @@ e2e-boot (GHCR login + pull + k3s install)
     |
 e2e-ready (finalize k3s + start stack + health check)
     |
-    └── npx playwright test --shard=N/2
+    └── npm run test:e2e -- --shard=N/2
 ```
 
 ### Coverage reporting
@@ -248,7 +248,7 @@ Runs automatically when `Stack Tests` completes successfully on `main`. Can also
 
 ### Scan
 
-Uses [Trivy](https://trivy.dev/) (pinned at `v0.68.2`) to scan all 4 deployed images in parallel via matrix strategy.
+Uses [Trivy](https://trivy.dev/) (pinned at `v0.75.0`) to scan all 4 deployed images in parallel via matrix strategy.
 Scans for `CRITICAL` and `HIGH` severity vulnerabilities with unfixed issues ignored. Results are uploaded as SARIF
 files to GitHub's Security tab.
 
@@ -289,7 +289,7 @@ registry-level manifest copy as the promote step).
 
 ### GitHub Release
 
-The workflow creates an annotated git tag and a GitHub Release using `softprops/action-gh-release@v2` with
+The workflow creates an annotated git tag and a GitHub Release using `softprops/action-gh-release@v3` with
 `generate_release_notes: true`, which auto-generates a changelog from merged PRs since the previous release. The release
 body includes the commit SHA and docker pull commands for the tagged images.
 
@@ -341,10 +341,10 @@ For each component:
 
 The k3s installation in CI is hardened against supply-chain attacks:
 
-1. **Pinned version** — `K3S_VERSION` is set as a workflow-level env var (`v1.32.11+k3s1`), not fetched dynamically
-2. **Source pinning** — the install script is fetched from the k3s GitHub repository at the exact tagged version
-   (e.g., `https://raw.githubusercontent.com/k3s-io/k3s/v1.32.11%2Bk3s1/install.sh`), not from the `get.k3s.io` CDN
-3. **SHA256 verification** — the install script is verified against a known checksum before execution:
+1. **Pinned version**: `K3S_VERSION` is set as a workflow-level env var (`v1.37.1+k3s1`), not fetched dynamically
+2. **Source pinning**: the install script is fetched from the k3s GitHub repository at the exact tagged version
+   (e.g., `https://raw.githubusercontent.com/k3s-io/k3s/v1.37.1%2Bk3s1/install.sh`), not from the `get.k3s.io` CDN
+3. **SHA256 verification**: the install script is verified against a known checksum before execution:
 
 ```bash
 K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
@@ -367,8 +367,9 @@ applied by the Docker Scan & Promote workflow after all tests and security scans
 
 ### Dependency pinning
 
-All GitHub Actions are pinned to major versions (e.g., `actions/checkout@v6`, `docker/build-push-action@v6`). Trivy is
-pinned to a specific version (`aquasecurity/trivy-action@0.33.1`) for scan reproducibility.
+GitHub Actions are pinned to major versions (e.g., `actions/checkout@v7`, `docker/build-push-action@v7`). setup-uv no
+longer publishes major tags, so it's pinned to `v10.3.0`. The Trivy action is pinned to the commit of `v0.36.0`, since
+Aqua deleted its older version tags.
 
 ## Linting and type checking
 
@@ -412,7 +413,7 @@ cache. Each service has its own cache scope, preventing pollution between unrela
 
 ```yaml
 - name: Build cert-generator image
-  uses: docker/build-push-action@v6
+  uses: docker/build-push-action@v7
   with:
     context: ./cert-generator
     file: ./cert-generator/Dockerfile
@@ -458,7 +459,7 @@ uv run ruff check . --config pyproject.toml
 uv run mypy --config-file pyproject.toml --strict .
 
 # Dead code detection (orphan modules)
-uv run python scripts/check_orphan_modules.py
+uv run python -m scripts.check_orphan_modules
 
 # Security scan
 uv tool run bandit -r . -x tests/ -ll
@@ -490,7 +491,7 @@ For E2E tests, use the deployment script to bring up the full stack:
 docker compose exec -T backend uv run pytest tests/e2e -v
 
 # Run frontend E2E tests
-cd frontend && npx playwright test
+cd frontend && npm run test:e2e
 ```
 
 Or use `./deploy.sh test` which handles stack setup, testing, and teardown automatically.

@@ -173,7 +173,8 @@ export default {
             preventAssignment: true
         }),
         svelte({
-            preprocess: sveltePreprocess({ postcss: true }),
+            // globalStyle would strip Svelte 5 `:global {}` blocks, which is how svelte-sonner ships its CSS
+            preprocess: sveltePreprocess({ globalStyle: false }),
             compilerOptions: {
                 dev: !production,
                 runes: true

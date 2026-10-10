@@ -7,7 +7,7 @@ import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka import AsyncContainer
-from dishka.integrations.faststream import setup_dishka as setup_dishka_faststream
+from dishka_faststream import setup_dishka as setup_dishka_faststream
 from fastapi import FastAPI
 from faststream.kafka import KafkaBroker
 from opentelemetry import trace

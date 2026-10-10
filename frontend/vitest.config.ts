@@ -5,13 +5,12 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 // --8<-- [start:config]
 export default defineConfig({
   plugins: [
-    svelte({ hot: !process.env.VITEST }),
+    svelte({ compilerOptions: { hmr: !process.env.VITEST } }),
     svelteTesting(),
   ],
   test: {
     pool: 'threads',
     maxWorkers: process.env.CI ? 4 : 8,
-    minWorkers: process.env.CI ? 4 : 2,
     isolate: true,
     css: false,
     testTimeout: 10_000,
@@ -20,7 +19,7 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{js,ts}'],
     deps: {
       optimizer: {
-        web: {
+        client: {
           include: ['svelte', '@lucide/svelte', 'date-fns', 'dompurify', 'ansi_up', 'svelte-sonner'],
         },
       },

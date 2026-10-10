@@ -26,13 +26,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  MONGO_IMAGE: mongo:8.0
-  REDIS_IMAGE: redis:7-alpine
-  KAFKA_IMAGE: confluentinc/cp-kafka:7.8.2
-  K3S_VERSION: v1.32.11+k3s1
-  K3S_INSTALL_SHA256: d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
-  KUEUE_VERSION: v0.16.1
-  KUEUE_MANIFEST_SHA256: 3201a66ff731be440ecfcf3c0fa5979d001b834f68389208fe7ee18017fbcfe8
+  K3S_VERSION: v1.37.1+k3s1
+  K3S_INSTALL_SHA256: ed01f89fd977bf20ac1516bbebf8370bf3ddbaa55dac8aba610956a4c78cc00b
+  KUEUE_VERSION: v0.20.1
+  KUEUE_MANIFEST_SHA256: c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd
 
 jobs:
   # Fast unit tests (no infrastructure needed)
@@ -40,10 +37,10 @@ jobs:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -51,20 +48,20 @@ jobs:
       - name: Install Python dependencies
         run: |
           cd backend
-          uv python install 3.12
-          uv sync --frozen --group test --no-dev
+          uv python install 3.14
+          uv sync --frozen --group test --no-dev --no-install-project --no-build
 
       - name: Run unit tests
         timeout-minutes: 5
         run: |
           cd backend
-          uv run --no-sync pytest tests/unit -v -rs \
+          uv run --no-sync --no-build pytest tests/unit -v -rs \
             --durations=0 \
             --cov=app \
             --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -78,25 +75,25 @@ jobs:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
-          node-version: '22'
+          node-version: '26'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run unit tests with coverage
         working-directory: frontend
         run: npm run test:coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: frontend/coverage/lcov.info
@@ -118,14 +115,14 @@ jobs:
       sha-tag: ${{ steps.tags.outputs.sha-tag }}
       image-prefix: ${{ steps.tags.outputs.image-prefix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       - name: Log in to GHCR
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -141,7 +138,7 @@ jobs:
 
       # ── Base image (cached separately — rarely changes) ──────────────
       - name: Cache base image
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         id: base-cache
         with:
           path: /tmp/base-image.tar.zst
@@ -153,7 +150,7 @@ jobs:
 
       - name: Build base image
         if: steps.base-cache.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ./backend
           file: ./backend/Dockerfile.base
@@ -175,7 +172,7 @@ jobs:
 
       # ── Utility images (GHA-cached, independent of base) ────────────
       - name: Build cert-generator image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ./cert-generator
           file: ./cert-generator/Dockerfile
@@ -186,7 +183,7 @@ jobs:
 
       # ── Frontend (nginx + SSL) ─────────────────────────────────────
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -234,7 +231,7 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Boot E2E environment
         uses: ./.github/actions/e2e-boot
@@ -251,7 +248,7 @@ jobs:
         timeout-minutes: 15
         run: |
           docker compose exec -T backend \
-            sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e -v -rs \
+            sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \
             --cov-report=xml:coverage-e2e.xml \
@@ -262,7 +259,7 @@ jobs:
         run: docker compose cp backend:/app/coverage-e2e.xml backend/coverage-e2e.xml || true
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         if: always()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -285,7 +282,7 @@ jobs:
 
       - name: Upload logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: backend-e2e-logs
           path: logs/
@@ -304,7 +301,7 @@ jobs:
         shardIndex: [1, 2]
         shardTotal: [2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # Phase 1: kick off image pull + infra + k3s in background
       - name: Boot E2E environment
@@ -315,18 +312,18 @@ jobs:
 
       # Phase 2: Node + Playwright setup (overlaps with k3s boot + image pull)
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
-          node-version: '22'
+          node-version: '26'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -334,12 +331,12 @@ jobs:
 
       - name: Install Playwright system dependencies
         working-directory: frontend
-        run: npx playwright install-deps chromium
+        run: npm run test:e2e:deps
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: frontend
-        run: npx playwright install chromium
+        run: npm run test:e2e:browsers
 
       # Phase 3: finalize k3s + start stack (k3s has been booting since e2e-boot)
       - name: Finalize k3s & start stack
@@ -352,10 +349,10 @@ jobs:
       - name: Run Playwright tests
         timeout-minutes: 10
         working-directory: frontend
-        run: CI=true npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: npm run test:e2e -- --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
           name: playwright-report-${{ matrix.shardIndex }}
@@ -372,7 +369,7 @@ jobs:
 
       - name: Upload logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: frontend-e2e-logs-${{ matrix.shardIndex }}
           path: logs/

@@ -93,7 +93,12 @@ describe('initializeApiInterceptors', () => {
     let mockToast: Record<string, ReturnType<typeof vi.fn>>;
     let mockGoto: ReturnType<typeof vi.fn>;
     let mockAuthStore: { isAuthenticated: boolean; csrfToken: string | null; clearAuth: ReturnType<typeof vi.fn> };
-    let errorInterceptor: (error: unknown, response: Response | undefined, request: Request, opts: unknown) => unknown;
+    let errorInterceptor: (
+        error: unknown,
+        response: Response | undefined,
+        request: Request | undefined,
+        opts: { url?: string },
+    ) => unknown;
     let requestInterceptor: (request: Request, opts: unknown) => Request;
 
     beforeEach(async () => {
@@ -250,6 +255,15 @@ describe('initializeApiInterceptors', () => {
                 {},
             );
             expect(result).toBe('my-error');
+        });
+
+        it('returns the error without a toast when the request was never built', () => {
+            vi.spyOn(console, 'error').mockImplementation(() => {});
+            const buildError = new TypeError('Invalid URL');
+            const result = errorInterceptor(buildError, undefined, undefined, { url: '/api/v1/execute' });
+            expect(result).toBe(buildError);
+            expect(mockToast.error).not.toHaveBeenCalled();
+            expect(mockToast.warning).not.toHaveBeenCalled();
         });
     });
 

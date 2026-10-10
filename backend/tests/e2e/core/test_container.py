@@ -52,7 +52,7 @@ class TestCoreInfrastructure:
 
         assert redis_client is not None
         # Verify connection works
-        pong = await redis_client.ping()  # type: ignore[misc]
+        pong = await redis_client.ping()
         assert pong is True
 
 

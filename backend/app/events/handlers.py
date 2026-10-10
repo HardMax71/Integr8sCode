@@ -2,7 +2,7 @@ import dataclasses
 from collections.abc import Awaitable, Callable
 
 import structlog
-from dishka.integrations.faststream import FromDishka
+from dishka_faststream import FromDishka
 from faststream import AckPolicy
 from faststream.kafka import KafkaBroker
 

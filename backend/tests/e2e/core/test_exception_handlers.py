@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from app.domain.exceptions import DomainError
 from fastapi import FastAPI
@@ -19,7 +19,7 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_not_found_returns_404(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Nonexistent execution returns 404."""
         response = await test_user.get(
@@ -32,7 +32,7 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_unauthorized_returns_401(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Invalid credentials return 401."""
         response = await client.post(
@@ -44,7 +44,7 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_forbidden_returns_403(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Accessing admin endpoint as user returns 403."""
         response = await test_user.get("/api/v1/admin/users")
@@ -53,7 +53,7 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_validation_error_format(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Validation errors return proper format."""
         # Send invalid data (unsupported language version)
@@ -71,7 +71,7 @@ class TestExceptionHandlerBehavior:
 
     @pytest.mark.asyncio
     async def test_conflict_error_on_duplicate(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Duplicate registration returns 409."""
         # First registration

@@ -3,7 +3,7 @@
     import type { ExecutionResult } from '$lib/api';
     import type { ExecutionPhase } from '$lib/editor';
     import Spinner from '$components/Spinner.svelte';
-    import { AlertTriangle, FileText, Copy } from '@lucide/svelte';
+    import { TriangleAlert, FileText, Copy } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
 
     let {
@@ -89,7 +89,7 @@
         {:else if error && !result}
             <div class="flex flex-col items-center justify-center h-full text-center p-4 animate-fade-in">
                 <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-3">
-                    <AlertTriangle class="w-6 h-6 text-red-600 dark:text-red-400" />
+                    <TriangleAlert class="w-6 h-6 text-red-600 dark:text-red-400" />
                 </div>
                 <p class="text-sm font-medium text-red-700 dark:text-red-300">Execution Failed</p>
                 <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{error}</p>

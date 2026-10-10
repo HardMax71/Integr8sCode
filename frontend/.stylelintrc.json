@@ -7,6 +7,9 @@
         "custom-variant", "apply", "reference"
       ]
     }],
+    "at-rule-prelude-no-invalid": [true, {
+      "ignoreAtRules": ["apply"]
+    }],
     "import-notation": null,
     "no-descending-specificity": null,
     "nesting-selector-no-missing-scoping-root": [true, {

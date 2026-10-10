@@ -7,7 +7,7 @@ receivers:
         endpoint: 0.0.0.0:4318
   
   # Collect host metrics
-  hostmetrics:
+  host_metrics:
     collection_interval: 10s
     root_path: /hostfs
     scrapers:
@@ -19,11 +19,14 @@ receivers:
           match_type: regexp
       load:
       memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
       network:
       paging:
       processes:
 
-  kafkametrics:
+  kafka_metrics:
     brokers: ["kafka:29092"]
     protocol_version: 3.0.0
     collection_interval: 15s
@@ -38,6 +41,9 @@ receivers:
       - endpoint: mongo:27017
     username: ${env:MONGO_USER}
     password: ${env:MONGO_PASSWORD}
+    # mongo runs without TLS; the receiver attempts a TLS handshake unless told otherwise
+    tls:
+      insecure: true
     collection_interval: 15s
     initial_delay: 10s
     metrics:
@@ -122,28 +128,29 @@ processors:
 
 exporters:
   # Export to Jaeger for traces via OTLP
-  otlp/jaeger:
+  otlp_grpc/jaeger:
     endpoint: jaeger:4317
     tls:
       insecure: true
   
   # Export metrics to Victoria Metrics via Prometheus Remote Write
   # Victoria Metrics is a Prometheus-compatible time series database
-  prometheusremotewrite:
+  prometheus_remote_write:
     endpoint: http://victoria-metrics:8428/api/v1/write
     tls:
       insecure: true
-    resource_to_telemetry_conversion:
-      enabled: true
+    # Every resource attribute becomes a label
+    resource_constant_labels:
+      included: ["*"]
   
   # Export logs to Loki via OTLP
-  otlphttp/loki:
+  otlp_http/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
 
   # Console logging for debugging
-  logging:
+  debug:
     verbosity: normal
     sampling_initial: 10
     sampling_thereafter: 100
@@ -165,14 +172,14 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, tail_sampling, batch, resource, attributes]
-      exporters: [otlp/jaeger, logging]
+      exporters: [otlp_grpc/jaeger, debug]
     
     metrics:
-      receivers: [otlp, hostmetrics, kafkametrics, mongodb]
+      receivers: [otlp, host_metrics, kafka_metrics, mongodb]
       processors: [memory_limiter, batch, resource, attributes]
-      exporters: [prometheusremotewrite, logging]
+      exporters: [prometheus_remote_write, debug]
     
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource, attributes]
-      exporters: [otlphttp/loki, logging]
+      exporters: [otlp_http/loki, debug]

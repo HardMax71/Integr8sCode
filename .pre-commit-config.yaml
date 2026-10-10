@@ -30,26 +30,26 @@ repos:
         files: ^backend/.*\.py$
         pass_filenames: false
 
-      # Grimp - matches CI: cd backend && uv run python scripts/check_orphan_modules.py
+      # Grimp - matches CI: cd backend && uv run python -m scripts.check_orphan_modules
       - id: grimp-backend
         name: grimp orphan modules (backend)
-        entry: bash -c 'cd backend && uv run python scripts/check_orphan_modules.py'
+        entry: bash -c 'cd backend && uv run python -m scripts.check_orphan_modules'
         language: system
         files: ^backend/.*\.py$
         pass_filenames: false
 
-      # ESLint - matches CI: cd frontend && npx eslint src
+      # ESLint - matches CI: cd frontend && npm run lint
       - id: eslint-frontend
         name: eslint (frontend)
-        entry: bash -c 'cd frontend && npx eslint src'
+        entry: bash -c 'cd frontend && npm run lint'
         language: system
         files: ^frontend/src/.*\.(ts|svelte)$
         pass_filenames: false
 
-      # Stylelint - matches CI: cd frontend && npx stylelint "src/**/*.css"
+      # Stylelint - matches CI: cd frontend && npm run stylelint
       - id: stylelint-frontend
         name: stylelint (frontend)
-        entry: bash -c 'cd frontend && npx stylelint "src/**/*.css"'
+        entry: bash -c 'cd frontend && npm run stylelint'
         language: system
         files: ^frontend/src/.*\.css$
         pass_filenames: false
@@ -57,15 +57,15 @@ repos:
       # Prettier - auto-fix formatting
       - id: prettier-frontend
         name: prettier (frontend)
-        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{ts,svelte,json}"'
+        entry: bash -c 'cd frontend && npm run format'
         language: system
         files: ^frontend/src/.*\.(ts|svelte|json)$
         pass_filenames: false
 
-      # Svelte Check - matches CI: cd frontend && npx svelte-check
+      # Svelte Check - matches CI: cd frontend && npm run check
       - id: svelte-check-frontend
         name: svelte-check (frontend)
-        entry: bash -c 'cd frontend && npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings'
+        entry: bash -c 'cd frontend && npm run check'
         language: system
         files: ^frontend/src/.*\.(ts|svelte)$
         pass_filenames: false

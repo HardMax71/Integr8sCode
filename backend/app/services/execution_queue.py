@@ -115,8 +115,8 @@ class ExecutionQueueService:
         pipe.set(_event_key(execution_id), event.model_dump_json(), ex=_EVENT_TTL)
         await pipe.execute()
 
-        rank: int | None = await self._redis.zrank(key, execution_id)
-        position = rank if rank is not None else 0
+        rank = await self._redis.zrank(key, execution_id)
+        position = rank if isinstance(rank, int) else 0
 
         self._metrics.record_enqueue()
         self._logger.info("Enqueued execution", execution_id=execution_id, priority=event.priority, position=position)
@@ -139,7 +139,7 @@ class ExecutionQueueService:
                 "Event data expired/missing for scheduled execution — execution lost",
                 execution_id=execution_id,
             )
-            await self._redis.srem(_ACTIVE_KEY, execution_id)  # type: ignore[misc]
+            await self._redis.srem(_ACTIVE_KEY, execution_id)
             self._metrics.record_event_data_lost()
             return None
 

@@ -100,7 +100,7 @@ class SagaRepository:
             ),
             response_type=UpdateResponse.NEW_DOCUMENT,
         )
-        if not doc:
+        if not isinstance(doc, SagaDocument):
             existing = await SagaDocument.find_one(SagaDocument.saga_id == saga_id)
             if not existing:
                 raise SagaNotFoundError(saga_id)
@@ -127,7 +127,7 @@ class SagaRepository:
             response_type=UpdateResponse.NEW_DOCUMENT,
             upsert=True,
         )
-        assert doc is not None
+        assert isinstance(doc, SagaDocument)
         created = doc.saga_id == saga.saga_id
         return self._to_domain(doc), created
 

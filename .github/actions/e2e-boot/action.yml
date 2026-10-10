@@ -13,7 +13,7 @@ runs:
   using: 'composite'
   steps:
     - name: Log in to GHCR
-      uses: docker/login-action@v3
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -37,7 +37,7 @@ runs:
       shell: bash
       run: |
         K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
-        curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
+        curl --proto =https --tlsv1.2 -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
         echo "$K3S_INSTALL_SHA256  /tmp/k3s-install.sh" | sha256sum -c -
         chmod +x /tmp/k3s-install.sh
         INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
@@ -45,10 +45,10 @@ runs:
     - name: Pre-pull executor images and Kueue manifest (background)
       shell: bash
       run: |
-        KUEUE_VERSION="${KUEUE_VERSION:-v0.16.1}"
+        KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
 
         nohup bash -c '
-          curl -fsSL -o /tmp/kueue-manifests.yaml \
+          curl --proto =https --tlsv1.2 -fsSL -o /tmp/kueue-manifests.yaml \
             "https://github.com/kubernetes-sigs/kueue/releases/download/'"$KUEUE_VERSION"'/manifests.yaml"
           echo $? > /tmp/kueue-download.exit
         ' > /tmp/kueue-download.log 2>&1 &

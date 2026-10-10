@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+
 from app.db.repositories import ExecutionRepository
 from app.domain.admin.settings_models import SystemSettings
 from app.domain.enums import ExecutionStatus, QueuePriority
@@ -9,7 +10,6 @@ from app.domain.execution import ExecutionNotFoundError
 from app.services.admin import AdminExecutionService
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
-
 from tests.unit.conftest import make_domain_execution
 
 pytestmark = pytest.mark.unit
@@ -42,7 +42,9 @@ def mock_runtime_settings() -> AsyncMock:
 
 @pytest.fixture
 def service(
-    mock_repo: AsyncMock, mock_queue: AsyncMock, mock_runtime_settings: AsyncMock,
+    mock_repo: AsyncMock,
+    mock_queue: AsyncMock,
+    mock_runtime_settings: AsyncMock,
 ) -> AdminExecutionService:
     logger = structlog.get_logger("test")
     return AdminExecutionService(mock_repo, mock_queue, mock_runtime_settings, logger)
@@ -51,7 +53,9 @@ def service(
 class TestListExecutions:
     @pytest.mark.asyncio
     async def test_list_executions_no_filters(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         execs = [make_domain_execution()]
         mock_repo.get_executions.return_value = execs
@@ -62,13 +66,18 @@ class TestListExecutions:
         assert result == execs
         assert total == 1
         mock_repo.get_executions.assert_awaited_once_with(
-            query={}, limit=50, skip=0, sort=[("created_at", -1)],
+            query={},
+            limit=50,
+            skip=0,
+            sort=[("created_at", -1)],
         )
         mock_repo.count_executions.assert_awaited_once_with({})
 
     @pytest.mark.asyncio
     async def test_list_executions_with_status(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         await service.list_executions(status=ExecutionStatus.RUNNING)
         mock_repo.get_executions.assert_awaited_once()
@@ -77,7 +86,9 @@ class TestListExecutions:
 
     @pytest.mark.asyncio
     async def test_list_executions_with_priority(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         await service.list_executions(priority=QueuePriority.HIGH)
         call_kwargs = mock_repo.get_executions.call_args
@@ -85,7 +96,9 @@ class TestListExecutions:
 
     @pytest.mark.asyncio
     async def test_list_executions_with_user_id(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         await service.list_executions(user_id="u1")
         call_kwargs = mock_repo.get_executions.call_args
@@ -93,7 +106,9 @@ class TestListExecutions:
 
     @pytest.mark.asyncio
     async def test_list_executions_with_all_filters(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         await service.list_executions(
             status=ExecutionStatus.QUEUED,
@@ -109,7 +124,9 @@ class TestListExecutions:
 
     @pytest.mark.asyncio
     async def test_list_executions_pagination(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         await service.list_executions(limit=10, skip=20)
         call_kwargs = mock_repo.get_executions.call_args
@@ -120,7 +137,10 @@ class TestListExecutions:
 class TestUpdatePriority:
     @pytest.mark.asyncio
     async def test_update_priority_success(
-        self, service: AdminExecutionService, mock_repo: AsyncMock, mock_queue: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
+        mock_queue: AsyncMock,
     ) -> None:
         updated_exec = make_domain_execution(priority=QueuePriority.HIGH)
         mock_repo.update_priority.return_value = updated_exec
@@ -133,7 +153,9 @@ class TestUpdatePriority:
 
     @pytest.mark.asyncio
     async def test_update_priority_not_found(
-        self, service: AdminExecutionService, mock_repo: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
     ) -> None:
         mock_repo.update_priority.return_value = None
 
@@ -142,7 +164,10 @@ class TestUpdatePriority:
 
     @pytest.mark.asyncio
     async def test_update_priority_updates_redis(
-        self, service: AdminExecutionService, mock_repo: AsyncMock, mock_queue: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_repo: AsyncMock,
+        mock_queue: AsyncMock,
     ) -> None:
         mock_repo.update_priority.return_value = make_domain_execution(priority=QueuePriority.CRITICAL)
 
@@ -154,8 +179,10 @@ class TestUpdatePriority:
 class TestGetQueueStatus:
     @pytest.mark.asyncio
     async def test_get_queue_status(
-        self, service: AdminExecutionService,
-        mock_queue: AsyncMock, mock_runtime_settings: AsyncMock,
+        self,
+        service: AdminExecutionService,
+        mock_queue: AsyncMock,
+        mock_runtime_settings: AsyncMock,
     ) -> None:
         result = await service.get_queue_status()
 

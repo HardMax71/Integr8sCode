@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+
 from app.core.metrics import KubernetesMetrics, NotificationMetrics
 from app.settings import Settings
 

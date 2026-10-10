@@ -1,10 +1,10 @@
 import uuid
 
 import pytest
-from app.domain.idempotency import IdempotencyStatus, KeyStrategy
-from app.services.idempotency import IdempotencyManager
 from dishka import AsyncContainer
 
+from app.domain.idempotency import IdempotencyStatus, KeyStrategy
+from app.services.idempotency import IdempotencyManager
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]

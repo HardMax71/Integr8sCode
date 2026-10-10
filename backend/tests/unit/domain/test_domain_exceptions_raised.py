@@ -4,8 +4,9 @@ import pkgutil
 from collections.abc import Iterator
 from pathlib import Path
 
-import app
 import pytest
+
+import app
 from app.domain.exceptions import DomainError
 
 pytestmark = pytest.mark.unit

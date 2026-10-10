@@ -3,10 +3,11 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
+
 from app.domain.exceptions import DomainError
 from app.main import create_app
 from app.settings import Settings
-from fastapi import FastAPI
 
 pytestmark = pytest.mark.unit
 
@@ -111,8 +112,12 @@ class TestMiddlewareStack:
 
     def test_middleware_count(self, app: FastAPI) -> None:
         expected = {
-            "CORSMiddleware", "RequestSizeLimitMiddleware", "CacheControlMiddleware",
-            "MetricsMiddleware", "RateLimitMiddleware", "CSRFMiddleware",
+            "CORSMiddleware",
+            "RequestSizeLimitMiddleware",
+            "CacheControlMiddleware",
+            "MetricsMiddleware",
+            "RateLimitMiddleware",
+            "CSRFMiddleware",
         }
         assert expected.issubset(self._get_middleware_class_names(app))
 

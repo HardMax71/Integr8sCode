@@ -1,4 +1,6 @@
 import pytest
+from httpx2 import AsyncClient
+
 from app.domain.enums import Theme
 from app.schemas_pydantic.user_settings import (
     EditorSettings,
@@ -9,7 +11,6 @@ from app.schemas_pydantic.user_settings import (
     UserSettings,
     UserSettingsUpdate,
 )
-from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 
@@ -30,9 +31,7 @@ class TestGetUserSettings:
         assert settings.editor is not None
 
     @pytest.mark.asyncio
-    async def test_get_user_settings_unauthenticated(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_get_user_settings_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/user/settings/")
         assert response.status_code == 401
@@ -42,9 +41,7 @@ class TestUpdateUserSettings:
     """Tests for PUT /api/v1/user/settings/."""
 
     @pytest.mark.asyncio
-    async def test_update_user_settings_full(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_user_settings_full(self, test_user: AsyncClient) -> None:
         """Update all user settings."""
         request = UserSettingsUpdate(
             theme=Theme.DARK,
@@ -74,9 +71,7 @@ class TestUpdateUserSettings:
         assert settings.timezone == "America/New_York"
 
     @pytest.mark.asyncio
-    async def test_update_user_settings_partial(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_user_settings_partial(self, test_user: AsyncClient) -> None:
         """Update only some settings."""
         request = UserSettingsUpdate(theme=Theme.LIGHT)
         response = await test_user.put(
@@ -94,9 +89,7 @@ class TestUpdateTheme:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("theme", list(Theme), ids=str)
-    async def test_update_theme(
-        self, test_user: AsyncClient, theme: Theme
-    ) -> None:
+    async def test_update_theme(self, test_user: AsyncClient, theme: Theme) -> None:
         """Update theme to each valid value."""
         request = ThemeUpdateRequest(theme=theme)
         response = await test_user.put(
@@ -113,9 +106,7 @@ class TestUpdateNotificationSettings:
     """Tests for PUT /api/v1/user/settings/notifications."""
 
     @pytest.mark.asyncio
-    async def test_update_notification_settings(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_notification_settings(self, test_user: AsyncClient) -> None:
         """Update notification settings."""
         request = NotificationSettings(
             execution_completed=True,
@@ -140,9 +131,7 @@ class TestUpdateEditorSettings:
     """Tests for PUT /api/v1/user/settings/editor."""
 
     @pytest.mark.asyncio
-    async def test_update_editor_settings(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_editor_settings(self, test_user: AsyncClient) -> None:
         """Update editor settings."""
         request = EditorSettings(
             tab_size=2,
@@ -162,9 +151,7 @@ class TestUpdateEditorSettings:
         assert settings.editor.word_wrap is True
 
     @pytest.mark.asyncio
-    async def test_update_editor_settings_partial(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_editor_settings_partial(self, test_user: AsyncClient) -> None:
         """Update only some editor settings."""
         response = await test_user.put(
             "/api/v1/user/settings/editor",
@@ -201,9 +188,7 @@ class TestSettingsHistory:
         assert len(history.history) >= 1
 
     @pytest.mark.asyncio
-    async def test_get_settings_history_default_limit(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_settings_history_default_limit(self, test_user: AsyncClient) -> None:
         """History uses default limit."""
         response = await test_user.get("/api/v1/user/settings/history")
 
@@ -260,9 +245,7 @@ class TestCustomSettings:
         assert "my_preference" in settings.custom_settings
 
     @pytest.mark.asyncio
-    async def test_update_multiple_custom_settings(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_multiple_custom_settings(self, test_user: AsyncClient) -> None:
         """Update multiple custom settings."""
         # First setting
         first_response = await test_user.put(

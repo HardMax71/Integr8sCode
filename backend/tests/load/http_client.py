@@ -16,7 +16,7 @@ UUID_RE = re.compile(r"[0-9a-fA-F-]{36}")
 
 
 def _rand_str(n: int = 8) -> str:
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+    return "".join(random.choices(string.ascii_letters + string.digits, k=n))
 
 
 @dataclass

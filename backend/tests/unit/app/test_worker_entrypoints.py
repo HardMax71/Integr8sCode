@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

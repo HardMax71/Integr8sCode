@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
+from starlette.responses import PlainTextResponse
+from starlette.types import Message, Receive, Scope, Send
+
 from app.core.middlewares import RateLimitMiddleware
 from app.domain.rate_limit import RateLimitStatus
 from app.services.rate_limit_service import RateLimitService
-from starlette.responses import PlainTextResponse
-from starlette.types import Message, Receive, Scope, Send
 
 pytestmark = pytest.mark.unit
 

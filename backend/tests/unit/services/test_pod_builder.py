@@ -2,11 +2,12 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from kubernetes_asyncio import client as k8s_client
+
 from app.domain.enums import QueuePriority
 from app.domain.events import CreatePodCommandEvent, EventMetadata
 from app.runtime_registry import LANGUAGE_SPECS, POD_RUNTIME_CONFIGS, RUNTIME_REGISTRY
 from app.services.k8s_worker import PodBuilder
-from kubernetes_asyncio import client as k8s_client
 
 pytestmark = pytest.mark.unit
 
@@ -48,18 +49,10 @@ class TestPodBuilder:
             cpu_limit="1000m",
             memory_limit="1Gi",
             priority=QueuePriority.NORMAL,
-            metadata=EventMetadata(
-                user_id=str(uuid4()),
-                service_name="test-service",
-                service_version="1.0.0"
-            )
+            metadata=EventMetadata(user_id=str(uuid4()), service_name="test-service", service_version="1.0.0"),
         )
 
-    def test_build_pod_manifest(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_pod_manifest(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test building pod manifest."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
 
@@ -80,11 +73,7 @@ class TestPodBuilder:
         assert pod.metadata.annotations["integr8s.io/execution-id"] == create_pod_command.execution_id
         assert pod.metadata.annotations["integr8s.io/saga-id"] == create_pod_command.saga_id
 
-    def test_build_pod_spec_security(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_pod_spec_security(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod security settings."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         spec = pod.spec
@@ -104,9 +93,7 @@ class TestPodBuilder:
         assert spec.host_ipc is False
 
     def test_container_security_context(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
+        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
     ) -> None:
         """Test container security context."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
@@ -125,11 +112,7 @@ class TestPodBuilder:
         assert container.stdin is False
         assert container.tty is False
 
-    def test_container_resources(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_resources(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container resource limits."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -140,11 +123,7 @@ class TestPodBuilder:
         assert container.resources.limits["cpu"] == "1000m"
         assert container.resources.limits["memory"] == "1Gi"
 
-    def test_container_resources_defaults(
-            self,
-            pod_builder: PodBuilder,
-            mock_settings: MagicMock
-    ) -> None:
+    def test_container_resources_defaults(self, pod_builder: PodBuilder, mock_settings: MagicMock) -> None:
         """Test container resource defaults."""
         command = CreatePodCommandEvent(
             execution_id=str(uuid4()),
@@ -166,7 +145,7 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=str(uuid4()),
-            )
+            ),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -178,11 +157,7 @@ class TestPodBuilder:
         assert container.resources.limits["cpu"] == mock_settings.K8S_POD_CPU_LIMIT
         assert container.resources.limits["memory"] == mock_settings.K8S_POD_MEMORY_LIMIT
 
-    def test_pod_volumes(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_pod_volumes(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod volume configuration."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         volumes = {v.name: v for v in pod.spec.volumes}
@@ -209,11 +184,7 @@ class TestPodBuilder:
         tmp_vol = volumes["tmp-volume"]
         assert tmp_vol.empty_dir.size_limit == "10Mi"
 
-    def test_container_volume_mounts(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_volume_mounts(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container volume mounts."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -232,20 +203,12 @@ class TestPodBuilder:
         assert mounts["tmp-volume"].mount_path == "/tmp"
         assert mounts["tmp-volume"].read_only is None  # Writable
 
-    def test_build_config_map(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_config_map(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test ConfigMap creation."""
         script_content = "print('hello world')"
         entrypoint_content = "#!/bin/sh\nexec $@"
 
-        config_map = pod_builder.build_config_map(
-            create_pod_command,
-            script_content,
-            entrypoint_content
-        )
+        config_map = pod_builder.build_config_map(create_pod_command, script_content, entrypoint_content)
 
         # Verify ConfigMap structure
         assert isinstance(config_map, k8s_client.V1ConfigMap)
@@ -263,9 +226,7 @@ class TestPodBuilder:
         assert config_map.data["entrypoint.sh"] == entrypoint_content
 
     def test_pod_timeout_configuration(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
+        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
     ) -> None:
         """Test pod timeout configuration."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
@@ -274,8 +235,8 @@ class TestPodBuilder:
         assert pod.spec.active_deadline_seconds == 300
 
     def test_pod_timeout_default(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test default pod timeout."""
         command = CreatePodCommandEvent(
@@ -294,7 +255,7 @@ class TestPodBuilder:
             cpu_limit="500m",
             memory_limit="512Mi",
             priority=QueuePriority.NORMAL,
-            metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+            metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -302,24 +263,16 @@ class TestPodBuilder:
         # Default timeout should be 300 seconds
         assert pod.spec.active_deadline_seconds == 300
 
-    def test_container_command(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_command(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container command construction."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
 
         # Verify command
-        expected_command = ['/bin/sh', '/entry/entrypoint.sh', 'python', '/scripts/script.py']
+        expected_command = ["/bin/sh", "/entry/entrypoint.sh", "python", "/scripts/script.py"]
         assert container.command == expected_command
 
-    def test_container_environment(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_environment(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container environment variables."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -330,8 +283,8 @@ class TestPodBuilder:
         assert env_vars["OUTPUT_PATH"] == "/output"
 
     def test_pod_labels_truncation(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test label value truncation for K8s limits."""
         long_id = "a" * 100  # Exceeds K8s 63 char limit
@@ -355,7 +308,7 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=long_id,
-            )
+            ),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -367,11 +320,7 @@ class TestPodBuilder:
         # But annotations should have full values
         assert pod.metadata.annotations["integr8s.io/saga-id"] == long_id
 
-    def test_pod_restart_policy(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_pod_restart_policy(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod restart policy."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
 
@@ -379,14 +328,14 @@ class TestPodBuilder:
         assert pod.spec.restart_policy == "Never"
 
     def test_different_languages(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test pod creation for different languages."""
         languages = [
             ("python", "python:3.11-slim", "script.py", ["python", "/scripts/script.py"]),
             ("node", "node:18-slim", "script.js", ["node", "/scripts/script.js"]),
-            ("bash", "alpine:latest", "script.sh", ["sh", "/scripts/script.sh"])
+            ("bash", "alpine:latest", "script.sh", ["sh", "/scripts/script.sh"]),
         ]
 
         for language, image, filename, command in languages:
@@ -405,7 +354,7 @@ class TestPodBuilder:
                 cpu_limit="200m",
                 memory_limit="256Mi",
                 priority=QueuePriority.NORMAL,
-                metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+                metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
             )
 
             pod = pod_builder.build_pod_manifest(cmd)

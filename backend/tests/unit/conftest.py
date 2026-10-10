@@ -4,22 +4,6 @@ from typing import NoReturn
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.core.metrics import (
-    ConnectionMetrics,
-    IdempotencyMetrics,
-    DLQMetrics,
-    EventMetrics,
-    ExecutionMetrics,
-    KubernetesMetrics,
-    NotificationMetrics,
-    QueueMetrics,
-    RateLimitMetrics,
-    ReplayMetrics,
-    SecurityMetrics,
-)
-from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import DomainExecution
-from app.settings import Settings
 from kubernetes_asyncio.client import (
     V1ContainerState,
     V1ContainerStateTerminated,
@@ -31,6 +15,23 @@ from kubernetes_asyncio.client import (
     V1PodSpec,
     V1PodStatus,
 )
+
+from app.core.metrics import (
+    ConnectionMetrics,
+    DLQMetrics,
+    EventMetrics,
+    ExecutionMetrics,
+    IdempotencyMetrics,
+    KubernetesMetrics,
+    NotificationMetrics,
+    QueueMetrics,
+    RateLimitMetrics,
+    ReplayMetrics,
+    SecurityMetrics,
+)
+from app.domain.enums import ExecutionStatus, QueuePriority
+from app.domain.execution import DomainExecution
+from app.settings import Settings
 
 # ===== Domain execution factory =====
 
@@ -163,9 +164,7 @@ class MockWatchStream:
         return event
 
 
-def make_mock_watch(
-    events: list[dict[str, V1Pod | str]], resource_version: str = "rv2"
-) -> MagicMock:
+def make_mock_watch(events: list[dict[str, V1Pod | str]], resource_version: str = "rv2") -> MagicMock:
     """Create a mock Watch that returns the given events."""
     stream = MockWatchStream(events, resource_version)
     mock = MagicMock()
@@ -184,7 +183,9 @@ def make_pod_log_response(logs: bytes) -> MagicMock:
 
 
 def make_mock_v1_api(
-    logs: bytes = b"{}", pods: list[V1Pod] | None = None, list_resource_version: str = "list-rv1",
+    logs: bytes = b"{}",
+    pods: list[V1Pod] | None = None,
+    list_resource_version: str = "list-rv1",
 ) -> MagicMock:
     """Create a mock CoreV1Api with configurable responses."""
 

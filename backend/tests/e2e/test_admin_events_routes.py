@@ -3,6 +3,10 @@ import uuid
 
 import pytest
 import pytest_asyncio
+from dishka import AsyncContainer
+from fastapi import FastAPI
+from httpx2 import AsyncClient
+
 from app.db.docs import EventArchiveDocument
 from app.db.repositories import AdminEventsRepository, EventRepository
 from app.domain.enums import EventType, ReplayStatus
@@ -18,10 +22,6 @@ from app.schemas_pydantic.admin_events import (
     EventReplayStatusResponse,
     EventStatsResponse,
 )
-from dishka import AsyncContainer
-from fastapi import FastAPI
-from httpx2 import AsyncClient
-
 from tests.conftest import make_execution_requested_event
 from tests.e2e.conftest import streaming_client
 
@@ -48,9 +48,7 @@ class TestBrowseEvents:
             skip=0,
             limit=50,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/browse", json=request.model_dump())
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
@@ -61,7 +59,7 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_event_type_filter(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+        self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Browse events filtered by event type."""
         request = EventBrowseRequest(
@@ -72,27 +70,21 @@ class TestBrowseEvents:
             skip=0,
             limit=20,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/browse", json=request.model_dump())
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
         assert result.total >= 1
 
     @pytest.mark.asyncio
-    async def test_browse_events_with_pagination(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_browse_events_with_pagination(self, test_admin: AsyncClient) -> None:
         """Pagination works for event browsing."""
         request = EventBrowseRequest(
             filters=EventFilter(),
             skip=10,
             limit=25,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/browse", json=request.model_dump())
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
@@ -101,16 +93,14 @@ class TestBrowseEvents:
 
     @pytest.mark.asyncio
     async def test_browse_events_with_aggregate_filter(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
+        self, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Browse events filtered by aggregate ID."""
         request = EventBrowseRequest(
             filters=EventFilter(aggregate_id=stored_event.aggregate_id),
             limit=50,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/browse", json=request.model_dump())
 
         assert response.status_code == 200
         result = EventBrowseResponse.model_validate(response.json())
@@ -118,25 +108,19 @@ class TestBrowseEvents:
         assert len(result.events) >= 1
 
     @pytest.mark.asyncio
-    async def test_browse_events_with_search_text(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_browse_events_with_search_text(self, test_admin: AsyncClient) -> None:
         """Browse events with text search."""
         request = EventBrowseRequest(
             filters=EventFilter(search_text="execution"),
             limit=20,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/browse", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/browse", json=request.model_dump())
 
         assert response.status_code == 200
         EventBrowseResponse.model_validate(response.json())
 
     @pytest.mark.asyncio
-    async def test_browse_events_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_browse_events_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot browse admin events."""
         response = await test_user.post(
             "/api/v1/admin/events/browse",
@@ -146,9 +130,7 @@ class TestBrowseEvents:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_browse_events_unauthenticated(
-            self, client: AsyncClient
-    ) -> None:
+    async def test_browse_events_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.post(
             "/api/v1/admin/events/browse",
@@ -174,9 +156,7 @@ class TestEventStats:
         assert stats.avg_processing_time >= 0.0
 
     @pytest.mark.asyncio
-    async def test_get_event_stats_with_hours(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_get_event_stats_with_hours(self, test_admin: AsyncClient) -> None:
         """Get event statistics for specific time period."""
         response = await test_admin.get(
             "/api/v1/admin/events/stats",
@@ -188,9 +168,7 @@ class TestEventStats:
         assert stats.total_events >= 0
 
     @pytest.mark.asyncio
-    async def test_get_event_stats_max_hours(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_get_event_stats_max_hours(self, test_admin: AsyncClient) -> None:
         """Get event statistics for maximum time period (168 hours)."""
         response = await test_admin.get(
             "/api/v1/admin/events/stats",
@@ -201,9 +179,7 @@ class TestEventStats:
         EventStatsResponse.model_validate(response.json())
 
     @pytest.mark.asyncio
-    async def test_get_event_stats_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_event_stats_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot get event stats."""
         response = await test_user.get("/api/v1/admin/events/stats")
 
@@ -248,9 +224,7 @@ class TestExportEvents:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("export_format", ["csv", "json"])
-    async def test_export_events_with_filters(
-            self, test_admin: AsyncClient, export_format: str
-    ) -> None:
+    async def test_export_events_with_filters(self, test_admin: AsyncClient, export_format: str) -> None:
         """Export with event type filters works for both formats."""
         response = await test_admin.get(
             f"/api/v1/admin/events/export/{export_format}",
@@ -264,9 +238,7 @@ class TestExportEvents:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("export_format", ["csv", "json"])
-    async def test_export_events_forbidden_for_regular_user(
-            self, test_user: AsyncClient, export_format: str
-    ) -> None:
+    async def test_export_events_forbidden_for_regular_user(self, test_user: AsyncClient, export_format: str) -> None:
         """Regular user cannot export events."""
         response = await test_user.get(f"/api/v1/admin/events/export/{export_format}")
 
@@ -284,9 +256,7 @@ class TestGetEventDetail:
     """Tests for GET /api/v1/admin/events/{event_id}."""
 
     @pytest.mark.asyncio
-    async def test_get_event_detail(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
-    ) -> None:
+    async def test_get_event_detail(self, test_admin: AsyncClient, stored_event: DomainEvent) -> None:
         """Admin can get event details."""
         response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
 
@@ -296,21 +266,15 @@ class TestGetEventDetail:
         assert detail.event is not None
 
     @pytest.mark.asyncio
-    async def test_get_event_detail_not_found(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_get_event_detail_not_found(self, test_admin: AsyncClient) -> None:
         """Get nonexistent event returns 404."""
-        response = await test_admin.get(
-            "/api/v1/admin/events/nonexistent-event-id"
-        )
+        response = await test_admin.get("/api/v1/admin/events/nonexistent-event-id")
 
         assert response.status_code == 404
         assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "type": "EventNotFoundError"}
 
     @pytest.mark.asyncio
-    async def test_get_event_detail_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_event_detail_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot get event details."""
         response = await test_user.get("/api/v1/admin/events/some-event-id")
 
@@ -321,17 +285,13 @@ class TestReplayEvents:
     """Tests for POST /api/v1/admin/events/replay."""
 
     @pytest.mark.asyncio
-    async def test_replay_events_dry_run(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
-    ) -> None:
+    async def test_replay_events_dry_run(self, test_admin: AsyncClient, stored_event: DomainEvent) -> None:
         """Admin can replay events in dry run mode."""
         request = EventReplayRequest(
             aggregate_id=stored_event.aggregate_id,
             dry_run=True,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/replay", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/replay", json=request.model_dump())
 
         assert response.status_code == 200
         result = EventReplayResponse.model_validate(response.json())
@@ -341,24 +301,18 @@ class TestReplayEvents:
         assert result.status == ReplayStatus.PREVIEW
 
     @pytest.mark.asyncio
-    async def test_replay_events_no_events_found(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_replay_events_no_events_found(self, test_admin: AsyncClient) -> None:
         """Replay with non-matching filter returns 404."""
         request = EventReplayRequest(
             aggregate_id="nonexistent-aggregate-id-12345",
             dry_run=True,
         )
-        response = await test_admin.post(
-            "/api/v1/admin/events/replay", json=request.model_dump()
-        )
+        response = await test_admin.post("/api/v1/admin/events/replay", json=request.model_dump())
 
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_replay_events_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_replay_events_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot replay events."""
         response = await test_user.post(
             "/api/v1/admin/events/replay",
@@ -372,13 +326,9 @@ class TestStreamReplayStatus:
     """Tests for GET /api/v1/admin/events/replay/{session_id}/status (SSE)."""
 
     @pytest.mark.asyncio
-    async def test_stream_replay_status_not_found(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_stream_replay_status_not_found(self, test_admin: AsyncClient) -> None:
         """Get nonexistent replay session returns 404."""
-        response = await test_admin.get(
-            "/api/v1/admin/events/replay/nonexistent-session/status"
-        )
+        response = await test_admin.get("/api/v1/admin/events/replay/nonexistent-session/status")
 
         assert response.status_code == 404
         assert response.json() == {
@@ -388,16 +338,14 @@ class TestStreamReplayStatus:
 
     @pytest.mark.asyncio
     async def test_stream_replay_status_after_replay(
-            self, app: FastAPI, test_admin: AsyncClient, stored_event: DomainEvent
+        self, app: FastAPI, test_admin: AsyncClient, stored_event: DomainEvent
     ) -> None:
         """Replay creates a session whose status stream opens with the session's status."""
         request = EventReplayRequest(
             aggregate_id=stored_event.aggregate_id,
             dry_run=False,
         )
-        replay_response = await test_admin.post(
-            "/api/v1/admin/events/replay", json=request.model_dump()
-        )
+        replay_response = await test_admin.post("/api/v1/admin/events/replay", json=request.model_dump())
         assert replay_response.status_code == 200
 
         replay_result = EventReplayResponse.model_validate(replay_response.json())
@@ -413,21 +361,19 @@ class TestStreamReplayStatus:
         status = EventReplayStatusResponse.model_validate_json(first_event.data)
         assert status.session_id == replay_result.session_id
         assert status.status in (
-            ReplayStatus.SCHEDULED, ReplayStatus.CREATED,
-            ReplayStatus.RUNNING, ReplayStatus.COMPLETED,
+            ReplayStatus.SCHEDULED,
+            ReplayStatus.CREATED,
+            ReplayStatus.RUNNING,
+            ReplayStatus.COMPLETED,
         )
         assert status.total_events >= 1
         assert status.replayed_events >= 0
         assert status.progress_percentage >= 0.0
 
     @pytest.mark.asyncio
-    async def test_stream_replay_status_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_stream_replay_status_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot stream replay status."""
-        response = await test_user.get(
-            "/api/v1/admin/events/replay/some-session/status"
-        )
+        response = await test_user.get("/api/v1/admin/events/replay/some-session/status")
 
         assert response.status_code == 403
 
@@ -436,9 +382,7 @@ class TestDeleteEvent:
     """Tests for DELETE /api/v1/admin/events/{event_id}."""
 
     @pytest.mark.asyncio
-    async def test_delete_event(
-            self, test_admin: AsyncClient, stored_event: DomainEvent
-    ) -> None:
+    async def test_delete_event(self, test_admin: AsyncClient, stored_event: DomainEvent) -> None:
         """Admin can delete an event."""
         response = await test_admin.delete(f"/api/v1/admin/events/{stored_event.event_id}")
 
@@ -452,7 +396,7 @@ class TestDeleteEvent:
 
     @pytest.mark.asyncio
     async def test_delete_event_completes_after_an_interrupted_delete(
-            self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
+        self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
     ) -> None:
         """A delete that archived the event but stopped before removing it succeeds on retry."""
         repo = await scope.get(AdminEventsRepository)
@@ -469,9 +413,7 @@ class TestDeleteEvent:
         assert verify_response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_delete_event_not_found(
-            self, test_admin: AsyncClient
-    ) -> None:
+    async def test_delete_event_not_found(self, test_admin: AsyncClient) -> None:
         """Deleting a nonexistent event returns 404."""
         response = await test_admin.delete("/api/v1/admin/events/nonexistent-event-id")
 
@@ -479,20 +421,14 @@ class TestDeleteEvent:
         assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "type": "EventNotFoundError"}
 
     @pytest.mark.asyncio
-    async def test_delete_event_forbidden_for_regular_user(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_delete_event_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot delete events."""
-        response = await test_user.delete(
-            "/api/v1/admin/events/some-event-id"
-        )
+        response = await test_user.delete("/api/v1/admin/events/some-event-id")
 
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_delete_event_unauthenticated(
-            self, client: AsyncClient
-    ) -> None:
+    async def test_delete_event_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.delete("/api/v1/admin/events/some-event-id")
 

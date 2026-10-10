@@ -47,6 +47,7 @@ class EndpointStats:
                 "p99": _pct(values, 0.99),
                 "max": max(values) if values else 0.0,
             }
+
         return {
             "count": self.count,
             "errors": self.errors,
@@ -98,9 +99,7 @@ class StatsCollector:
 
     def finalize(self) -> dict[str, Any]:
         runtime = time.time() - self.started_at
-        endpoints = {
-            f"{m} {u}": s.summary() for (m, u), s in self.per_endpoint.items()
-        }
+        endpoints = {f"{m} {u}": s.summary() for (m, u), s in self.per_endpoint.items()}
         # Build simple timeline arrays for plotting
         seconds_sorted = sorted(self._timeline_counts.keys())
         rps = [self._timeline_counts[s] for s in seconds_sorted]

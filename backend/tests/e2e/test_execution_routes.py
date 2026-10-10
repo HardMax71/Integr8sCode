@@ -2,8 +2,12 @@ import asyncio
 
 import pytest
 import redis.asyncio as redis
-from app.domain.enums import EXECUTION_TERMINAL, EventType, ExecutionStatus
+from httpx2 import AsyncClient
+from pydantic import TypeAdapter
+
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
+from app.runtime_registry import at_least
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -16,10 +20,6 @@ from app.schemas_pydantic.execution import (
     LanguageLimits,
     ResourceLimits,
 )
-from app.runtime_registry import at_least
-from httpx2 import AsyncClient
-from pydantic import TypeAdapter
-
 from tests.e2e.conftest import wait_for_pod_created, wait_for_result
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
@@ -208,9 +208,7 @@ class TestExecutionCancel:
         assert cancel_result.message
 
     @pytest.mark.asyncio
-    async def test_cancel_completed_execution_fails(
-        self, test_user: AsyncClient, redis_client: redis.Redis
-    ) -> None:
+    async def test_cancel_completed_execution_fails(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
         """Cannot cancel already completed execution."""
         request = ExecutionRequest(script="print('quick')", lang="python", lang_version="3.11")
         exec_response, _ = await submit_and_wait(test_user, redis_client, request)
@@ -229,9 +227,7 @@ class TestExecutionRetry:
     """Tests for execution retry."""
 
     @pytest.mark.asyncio
-    async def test_retry_completed_execution(
-        self, test_user: AsyncClient, redis_client: redis.Redis
-    ) -> None:
+    async def test_retry_completed_execution(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
         """Completed execution can be retried."""
         request = ExecutionRequest(script="print('original')", lang="python", lang_version="3.11")
         original, _ = await submit_and_wait(test_user, redis_client, request)

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.services.execution_queue import (
@@ -13,7 +14,6 @@ from app.services.execution_queue import (
     _pending_key,
 )
 from app.settings import Settings
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit

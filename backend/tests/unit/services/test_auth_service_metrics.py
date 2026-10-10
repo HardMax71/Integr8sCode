@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.db import UserRepository

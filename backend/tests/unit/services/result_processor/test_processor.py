@@ -1,7 +1,8 @@
-import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
+
 from app.core.metrics import ExecutionMetrics
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
@@ -50,7 +51,9 @@ class TestHandlerTypeGuards:
 
     async def test_completed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
         processor = _make_processor(execution_metrics)
-        wrong = ExecutionFailedEvent(execution_id="e1", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA)
+        wrong = ExecutionFailedEvent(
+            execution_id="e1", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, metadata=_METADATA
+        )
         with pytest.raises(TypeError, match="Expected ExecutionCompletedEvent"):
             await processor.handle_execution_completed(wrong)
 
@@ -79,15 +82,17 @@ class TestHandleExecutionCompleted:
 
     async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(
-            execution_id="e1", lang="python", lang_version="3.11"
-        )
+        repo.get_execution.return_value = DomainExecution(execution_id="e1", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
 
         event = ExecutionCompletedEvent(
-            execution_id="e1", exit_code=0, stdout="ok", stderr="", metadata=_METADATA,
+            execution_id="e1",
+            exit_code=0,
+            stdout="ok",
+            stderr="",
+            metadata=_METADATA,
             resource_usage=ResourceUsageDomain(execution_time_wall_seconds=1.5, peak_memory_kb=51200),
         )
         await processor.handle_execution_completed(event)
@@ -98,7 +103,6 @@ class TestHandleExecutionCompleted:
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
         producer.produce.assert_awaited_once()
-
 
     @pytest.mark.parametrize(
         ("lang", "peak_memory_kb", "expected_percent"),
@@ -116,7 +120,9 @@ class TestHandleExecutionCompleted:
         processor = _make_processor(metrics, exec_repo=repo, admin_memory_limit="128Mi")
 
         event = ExecutionCompletedEvent(
-            execution_id="e1", exit_code=0, metadata=_METADATA,
+            execution_id="e1",
+            exit_code=0,
+            metadata=_METADATA,
             resource_usage=ResourceUsageDomain(peak_memory_kb=peak_memory_kb),
         )
         await processor.handle_execution_completed(event)
@@ -128,15 +134,16 @@ class TestHandleExecutionCompleted:
 class TestHandleExecutionFailed:
     async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(
-            execution_id="e2", lang="python", lang_version="3.11"
-        )
+        repo.get_execution.return_value = DomainExecution(execution_id="e2", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
 
         event = ExecutionFailedEvent(
-            execution_id="e2", exit_code=1, error_type=ExecutionErrorType.SCRIPT_ERROR, stderr="error",
+            execution_id="e2",
+            exit_code=1,
+            error_type=ExecutionErrorType.SCRIPT_ERROR,
+            stderr="error",
             metadata=_METADATA,
         )
         await processor.handle_execution_failed(event)
@@ -152,16 +159,12 @@ class TestHandleExecutionFailed:
 class TestHandleExecutionTimeout:
     async def test_stores_result_and_publishes(self, execution_metrics: ExecutionMetrics) -> None:
         repo = AsyncMock()
-        repo.get_execution.return_value = DomainExecution(
-            execution_id="e3", lang="python", lang_version="3.11"
-        )
+        repo.get_execution.return_value = DomainExecution(execution_id="e3", lang="python", lang_version="3.11")
         repo.write_terminal_result.return_value = True
         producer = AsyncMock()
         processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
 
-        event = ExecutionTimeoutEvent(
-            execution_id="e3", timeout_seconds=30, metadata=_METADATA
-        )
+        event = ExecutionTimeoutEvent(execution_id="e3", timeout_seconds=30, metadata=_METADATA)
         await processor.handle_execution_timeout(event)
 
         repo.write_terminal_result.assert_awaited_once()

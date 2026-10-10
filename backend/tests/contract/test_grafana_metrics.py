@@ -8,17 +8,18 @@ import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import app.core.metrics as metrics_pkg
 import pytest
 import yaml
-from app.core.metrics.base import BaseMetrics
-from app.core.middlewares.metrics import MetricsMiddleware, create_system_metrics
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from opentelemetry import metrics as otel_api
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from prometheus_client.metrics_core import Metric
+
+import app.core.metrics as metrics_pkg
+from app.core.metrics.base import BaseMetrics
+from app.core.middlewares.metrics import MetricsMiddleware, create_system_metrics
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 GRAFANA_DIR = BACKEND_ROOT / "grafana" / "provisioning"
@@ -31,33 +32,119 @@ COLLECTOR_PREFIXES: dict[str, str] = {
     "system_memory_utilization_": "host_metrics receiver, memory scraper",
 }
 
-PROMQL_BUILTINS = frozenset({
-    "sum", "avg", "min", "max", "count", "stddev", "stdvar", "group",
-    "count_values", "topk", "bottomk", "quantile",
-    "by", "without", "on", "ignoring", "group_left", "group_right", "bool",
-    "sum_over_time", "avg_over_time", "min_over_time", "max_over_time",
-    "count_over_time", "stddev_over_time", "stdvar_over_time",
-    "last_over_time", "present_over_time", "quantile_over_time",
-    "rate", "irate", "increase", "delta", "idelta", "deriv", "predict_linear",
-    "histogram_quantile", "histogram_avg", "histogram_count", "histogram_sum",
-    "histogram_fraction", "histogram_stddev", "histogram_stdvar",
-    "holt_winters",
-    "changes", "resets",
-    "vector", "scalar", "time", "timestamp",
-    "absent", "absent_over_time", "sgn",
-    "sort", "sort_desc", "sort_by_label", "sort_by_label_desc",
-    "label_replace", "label_join",
-    "round", "ceil", "floor", "clamp", "clamp_min", "clamp_max",
-    "abs", "sqrt", "ln", "log2", "log10", "exp", "exp2",
-    "acos", "asin", "atan", "atan2", "cos", "sin", "tan",
-    "acosh", "asinh", "atanh", "cosh", "sinh", "tanh",
-    "deg", "rad", "pi",
-    "day_of_month", "day_of_week", "day_of_year", "days_in_month",
-    "hour", "minute", "month", "year",
-    "or", "and", "unless",
-    "offset", "inf", "nan",
-    "le", "result", "status", "type", "format", "table", "instant",
-})
+PROMQL_BUILTINS = frozenset(
+    {
+        "sum",
+        "avg",
+        "min",
+        "max",
+        "count",
+        "stddev",
+        "stdvar",
+        "group",
+        "count_values",
+        "topk",
+        "bottomk",
+        "quantile",
+        "by",
+        "without",
+        "on",
+        "ignoring",
+        "group_left",
+        "group_right",
+        "bool",
+        "sum_over_time",
+        "avg_over_time",
+        "min_over_time",
+        "max_over_time",
+        "count_over_time",
+        "stddev_over_time",
+        "stdvar_over_time",
+        "last_over_time",
+        "present_over_time",
+        "quantile_over_time",
+        "rate",
+        "irate",
+        "increase",
+        "delta",
+        "idelta",
+        "deriv",
+        "predict_linear",
+        "histogram_quantile",
+        "histogram_avg",
+        "histogram_count",
+        "histogram_sum",
+        "histogram_fraction",
+        "histogram_stddev",
+        "histogram_stdvar",
+        "holt_winters",
+        "changes",
+        "resets",
+        "vector",
+        "scalar",
+        "time",
+        "timestamp",
+        "absent",
+        "absent_over_time",
+        "sgn",
+        "sort",
+        "sort_desc",
+        "sort_by_label",
+        "sort_by_label_desc",
+        "label_replace",
+        "label_join",
+        "round",
+        "ceil",
+        "floor",
+        "clamp",
+        "clamp_min",
+        "clamp_max",
+        "abs",
+        "sqrt",
+        "ln",
+        "log2",
+        "log10",
+        "exp",
+        "exp2",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "cos",
+        "sin",
+        "tan",
+        "acosh",
+        "asinh",
+        "atanh",
+        "cosh",
+        "sinh",
+        "tanh",
+        "deg",
+        "rad",
+        "pi",
+        "day_of_month",
+        "day_of_week",
+        "day_of_year",
+        "days_in_month",
+        "hour",
+        "minute",
+        "month",
+        "year",
+        "or",
+        "and",
+        "unless",
+        "offset",
+        "inf",
+        "nan",
+        "le",
+        "result",
+        "status",
+        "type",
+        "format",
+        "table",
+        "instant",
+    }
+)
 
 
 def _stub_observation(_: CallbackOptions) -> list[Observation]:

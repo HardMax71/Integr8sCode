@@ -2,11 +2,12 @@ import asyncio
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums import NotificationChannel, NotificationSeverity
 from app.domain.notification import DomainSubscriptionUpdate
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
@@ -24,15 +25,17 @@ async def test_in_app_notification_published_to_sse(scope: AsyncContainer) -> No
     # Start generator (subscription happens on first __anext__) and publish concurrently.
     # By the time create_notification fires, the subscribe is already established.
     messages = bus.listen_notifications(user_id)
-    pub_task = asyncio.create_task(svc.create_notification(
-        user_id=user_id,
-        subject="Hello",
-        body="World",
-        tags=["test"],
-        action_url="/api/v1/notifications",
-        severity=NotificationSeverity.MEDIUM,
-        channel=NotificationChannel.IN_APP,
-    ))
+    pub_task = asyncio.create_task(
+        svc.create_notification(
+            user_id=user_id,
+            subject="Hello",
+            body="World",
+            tags=["test"],
+            action_url="/api/v1/notifications",
+            severity=NotificationSeverity.MEDIUM,
+            channel=NotificationChannel.IN_APP,
+        )
+    )
     msg = await asyncio.wait_for(messages.__anext__(), timeout=5.0)
     await pub_task
 

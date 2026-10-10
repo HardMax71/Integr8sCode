@@ -1,18 +1,19 @@
 import asyncio
 from typing import Any
 
-from app.core.container import create_saga_orchestrator_container
-from app.core.logging import setup_log_exporter, setup_logger
-from app.db.docs import ALL_DOCUMENTS
-from app.events.handlers import register_saga_subscriber
-from app.services.saga import SagaOrchestrator
-from app.settings import Settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
+
+from app.core.container import create_saga_orchestrator_container
+from app.core.logging import setup_log_exporter, setup_logger
+from app.db.docs import ALL_DOCUMENTS
+from app.events.handlers import register_saga_subscriber
+from app.services.saga import SagaOrchestrator
+from app.settings import Settings
 
 
 def main() -> None:

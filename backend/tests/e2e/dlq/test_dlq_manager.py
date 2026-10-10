@@ -1,11 +1,14 @@
 import asyncio
 import json
-import structlog
 import uuid
 from datetime import datetime, timezone
 
 import pytest
+import structlog
 from aiokafka import AIOKafkaConsumer
+from dishka import AsyncContainer
+from faststream.kafka import KafkaBroker
+
 from app.core.metrics import DLQMetrics
 from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
@@ -13,9 +16,6 @@ from app.dlq.models import DLQMessage
 from app.domain.enums import EventType
 from app.domain.events import DLQMessageReceivedEvent, DomainEventAdapter
 from app.settings import Settings
-from dishka import AsyncContainer
-from faststream.kafka import KafkaBroker
-
 from tests.conftest import make_execution_requested_event
 
 # xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,

@@ -1,10 +1,11 @@
 import json
 
 import pytest
-from app.core.middlewares import RequestSizeLimitMiddleware
 from fastapi import FastAPI
 from pydantic import BaseModel
 from starlette.types import Message
+
+from app.core.middlewares import RequestSizeLimitMiddleware
 
 pytestmark = pytest.mark.unit
 

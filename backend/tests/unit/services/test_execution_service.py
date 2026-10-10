@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.exceptions.handlers import _map_to_status_code
 from app.core.metrics import ExecutionMetrics, IdempotencyMetrics
 from app.db import ExecutionRepository
@@ -17,7 +18,6 @@ from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
-
 from tests.unit.conftest import make_domain_execution
 
 pytestmark = pytest.mark.unit

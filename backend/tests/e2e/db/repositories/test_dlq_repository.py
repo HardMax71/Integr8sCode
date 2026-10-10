@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq import DLQMessageStatus
 from app.domain.enums import EventType
-from dishka import AsyncContainer
 
 pytestmark = pytest.mark.e2e
 

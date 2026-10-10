@@ -1,12 +1,13 @@
-import structlog
 from decimal import Decimal
 from time import monotonic
 from unittest.mock import AsyncMock
 
 import pytest
+import structlog
+from pymongo.errors import ServerSelectionTimeoutError
+
 from app.domain.admin import SystemSettings
 from app.domain.execution import LanguageLimitsDomain
-from pymongo.errors import ServerSelectionTimeoutError
 from app.runtime_registry import at_least, parse_quantity
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
@@ -19,12 +20,14 @@ _logger = structlog.get_logger("test.services.runtime_settings")
 def _make_settings() -> Settings:
     """Create settings with values that pass SystemSettings validation."""
     base = Settings(config_path="config.test.toml")
-    return base.model_copy(update={
-        "K8S_POD_EXECUTION_TIMEOUT": 30,
-        "K8S_POD_MEMORY_LIMIT": "128Mi",
-        "K8S_POD_CPU_LIMIT": "1000m",
-        "ACCESS_TOKEN_EXPIRE_MINUTES": 60,
-    })
+    return base.model_copy(
+        update={
+            "K8S_POD_EXECUTION_TIMEOUT": 30,
+            "K8S_POD_MEMORY_LIMIT": "128Mi",
+            "K8S_POD_CPU_LIMIT": "1000m",
+            "ACCESS_TOKEN_EXPIRE_MINUTES": 60,
+        }
+    )
 
 
 def _make_loader(

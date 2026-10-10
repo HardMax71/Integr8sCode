@@ -20,12 +20,13 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from app.settings import Settings
 from bson import ObjectId
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
+
+from app.settings import Settings
 
 
 async def upsert_user(

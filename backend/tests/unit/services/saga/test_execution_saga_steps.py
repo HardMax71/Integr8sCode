@@ -1,5 +1,6 @@
-import structlog
 import pytest
+import structlog
+
 from app.db.repositories import ResourceAllocationRepository
 from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
@@ -13,7 +14,6 @@ from app.services.saga import (
     SagaContext,
     ValidateExecutionStep,
 )
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
@@ -75,7 +75,8 @@ async def test_allocate_resources_step_paths() -> None:
     ctx = SagaContext("s1", "e1")
     ctx.set("execution_id", "e1")
     ok = await AllocateResourcesStep(
-        alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1"), logger=_logger,
+        alloc_repo=_FakeAllocRepo(active=0, alloc_id="alloc-1"),
+        logger=_logger,
     ).execute(ctx, _req())
     assert ok is True and ctx.get("resources_allocated") is True and ctx.get("allocation_id") == "alloc-1"
 
@@ -92,8 +93,9 @@ class _FakeProducer(UnifiedProducer):
     def __init__(self) -> None:
         self.events: list[DomainEvent] = []
 
-    async def produce(self, event_to_produce: DomainEvent, key: str | None = None,
-                      headers: dict[str, str] | None = None) -> None:
+    async def produce(
+        self, event_to_produce: DomainEvent, key: str | None = None, headers: dict[str, str] | None = None
+    ) -> None:
         self.events.append(event_to_produce)
 
 
@@ -153,10 +155,12 @@ async def test_delete_pod_compensation_variants() -> None:
     # get_compensation return types
     assert ValidateExecutionStep(logger=_logger).get_compensation() is None
     assert isinstance(
-        AllocateResourcesStep(_FakeAllocRepo(), logger=_logger).get_compensation(), ReleaseResourcesCompensation,
+        AllocateResourcesStep(_FakeAllocRepo(), logger=_logger).get_compensation(),
+        ReleaseResourcesCompensation,
     )
     assert isinstance(
-        CreatePodStep(prod, publish_commands=False, logger=_logger).get_compensation(), DeletePodCompensation,
+        CreatePodStep(prod, publish_commands=False, logger=_logger).get_compensation(),
+        DeletePodCompensation,
     )
 
 

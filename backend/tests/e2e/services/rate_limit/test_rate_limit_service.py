@@ -3,6 +3,8 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.rate_limit import (
     EndpointGroup,
     RateLimitAlgorithm,
@@ -11,7 +13,6 @@ from app.domain.rate_limit import (
     UserRateLimit,
 )
 from app.services.rate_limit_service import RateLimitService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
@@ -26,9 +27,7 @@ async def test_normalize_and_bypass_and_no_rule(scope: AsyncContainer) -> None:
     assert "*" in n
 
     # bypass user is always allowed
-    cfg = RateLimitConfig(default_rules=[], user_overrides={
-        "u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)
-    })
+    cfg = RateLimitConfig(default_rules=[], user_overrides={"u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)})
     await svc.update_config(cfg)
     res2 = await svc.check_rate_limit("u1", "/api/x", config=None)
     assert res2.allowed is True
@@ -44,14 +43,19 @@ async def test_sliding_window_allowed_and_rejected(scope: AsyncContainer) -> Non
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
     # matching rule with window 5, limit 3
-    rule = RateLimitRule(endpoint_pattern=r"^/api/v1/x", group=EndpointGroup.API, requests=3, window_seconds=5,
-                         algorithm=RateLimitAlgorithm.SLIDING_WINDOW)
+    rule = RateLimitRule(
+        endpoint_pattern=r"^/api/v1/x",
+        group=EndpointGroup.API,
+        requests=3,
+        window_seconds=5,
+        algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+    )
     await svc.update_config(RateLimitConfig(default_rules=[rule]))
 
     # Make 3 requests - all should be allowed
     for i in range(3):
         ok = await svc.check_rate_limit("u", "/api/v1/x")
-        assert ok.allowed is True, f"Request {i+1} should be allowed"
+        assert ok.allowed is True, f"Request {i + 1} should be allowed"
 
     # 4th request should be rejected
     rej = await svc.check_rate_limit("u", "/api/v1/x")
@@ -67,24 +71,38 @@ async def test_sliding_window_allowed_and_rejected(scope: AsyncContainer) -> Non
 async def test_token_bucket_paths(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
-    rule = RateLimitRule(endpoint_pattern=r"^/api/v1/t", group=EndpointGroup.API, requests=2, window_seconds=10,
-                         burst_multiplier=1.0, algorithm=RateLimitAlgorithm.TOKEN_BUCKET)
+    rule = RateLimitRule(
+        endpoint_pattern=r"^/api/v1/t",
+        group=EndpointGroup.API,
+        requests=2,
+        window_seconds=10,
+        burst_multiplier=1.0,
+        algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
+    )
     await svc.update_config(RateLimitConfig(default_rules=[rule]))
 
     # Make 2 requests - both should be allowed
     for i in range(2):
         ok = await svc.check_rate_limit("u", "/api/v1/t")
-        assert ok.allowed is True, f"Request {i+1} should be allowed"
+        assert ok.allowed is True, f"Request {i + 1} should be allowed"
 
     # 3rd request should be rejected (tokens exhausted)
     rej = await svc.check_rate_limit("u", "/api/v1/t")
     assert rej.allowed is False and rej.retry_after is not None
 
     # User multiplier applied; still allowed path
-    cfg_mul = RateLimitConfig(default_rules=[
-        RateLimitRule(endpoint_pattern=r"^/m", group=EndpointGroup.API, requests=2, window_seconds=10,
-                      algorithm=RateLimitAlgorithm.SLIDING_WINDOW)],
-                              user_overrides={"u": UserRateLimit(user_id="u", global_multiplier=2.0)})
+    cfg_mul = RateLimitConfig(
+        default_rules=[
+            RateLimitRule(
+                endpoint_pattern=r"^/m",
+                group=EndpointGroup.API,
+                requests=2,
+                window_seconds=10,
+                algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+            )
+        ],
+        user_overrides={"u": UserRateLimit(user_id="u", global_multiplier=2.0)},
+    )
     await svc.update_config(cfg_mul)
     ok_mul = await svc.check_rate_limit("u", "/m")
     assert ok_mul.allowed is True
@@ -95,7 +113,8 @@ async def test_config_update_and_user_helpers(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
     cfg = RateLimitConfig(
-        default_rules=[RateLimitRule(endpoint_pattern=r"^/a", group=EndpointGroup.API, requests=1, window_seconds=1)])
+        default_rules=[RateLimitRule(endpoint_pattern=r"^/a", group=EndpointGroup.API, requests=1, window_seconds=1)]
+    )
     await svc.update_config(cfg)
     # _get_config from cache path
     got = await svc._get_config()
@@ -121,14 +140,7 @@ async def test_ip_based_rate_limiting(scope: AsyncContainer) -> None:
 
     # Test IP-based check
     cfg = RateLimitConfig(
-        default_rules=[
-            RateLimitRule(
-                endpoint_pattern=r"^/api",
-                group=EndpointGroup.API,
-                requests=5,
-                window_seconds=60
-            )
-        ]
+        default_rules=[RateLimitRule(endpoint_pattern=r"^/api", group=EndpointGroup.API, requests=5, window_seconds=60)]
     )
     await svc.update_config(cfg)
 
@@ -137,7 +149,7 @@ async def test_ip_based_rate_limiting(scope: AsyncContainer) -> None:
     assert result.allowed is True
 
     # Verify metrics object has _requests counter for checks
-    assert hasattr(svc.metrics, '_requests')
+    assert hasattr(svc.metrics, "_requests")
 
 
 @pytest.mark.asyncio
@@ -145,9 +157,7 @@ async def test_get_config_roundtrip(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
     svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
     cfg = RateLimitConfig(
-        default_rules=[
-            RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)
-        ]
+        default_rules=[RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)]
     )
     await svc.update_config(cfg)
     got = await svc._get_config()
@@ -210,9 +220,7 @@ async def test_sliding_window_pipeline_failure(scope: AsyncContainer, monkeypatc
     )
 
     with pytest.raises(ConnectionError):
-        await svc._check_sliding_window(
-            "user1", "/api/test", int(rule.requests), rule.window_seconds, rule
-        )
+        await svc._check_sliding_window("user1", "/api/test", int(rule.requests), rule.window_seconds, rule)
 
 
 @pytest.mark.asyncio

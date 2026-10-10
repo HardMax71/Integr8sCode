@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+
 from app.db import UserSettingsRepository
 from app.domain.enums import EventType, Theme
 from app.domain.events import DomainEvent

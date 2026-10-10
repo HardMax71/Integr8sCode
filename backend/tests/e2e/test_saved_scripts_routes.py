@@ -1,12 +1,12 @@
-
 import pytest
+from httpx2 import AsyncClient
+
 from app.schemas_pydantic.saved_script import (
     SavedScriptCreateRequest,
     SavedScriptListResponse,
     SavedScriptResponse,
     SavedScriptUpdate,
 )
-from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 
@@ -19,9 +19,7 @@ class TestCreateSavedScript:
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Create a new saved script."""
-        response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
 
         assert response.status_code == 200
         script = SavedScriptResponse.model_validate(response.json())
@@ -38,18 +36,14 @@ class TestCreateSavedScript:
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Create script with minimal required fields."""
-        response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
 
         assert response.status_code == 200
         script = SavedScriptResponse.model_validate(response.json())
         assert script.name == new_script_request.name
 
     @pytest.mark.asyncio
-    async def test_create_saved_script_unauthenticated(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_create_saved_script_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.post(
             "/api/v1/scripts",
@@ -82,8 +76,7 @@ class TestListSavedScripts:
 
     @pytest.mark.asyncio
     async def test_list_saved_scripts_only_own(
-        self, test_user: AsyncClient, another_user: AsyncClient,
-        new_script_request: SavedScriptCreateRequest
+        self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """User only sees their own scripts."""
         await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
@@ -100,13 +93,9 @@ class TestGetSavedScript:
     """Tests for GET /api/v1/scripts/{script_id}."""
 
     @pytest.mark.asyncio
-    async def test_get_saved_script(
-        self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
-    ) -> None:
+    async def test_get_saved_script(self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest) -> None:
         """Get a specific saved script."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         created = SavedScriptResponse.model_validate(create_response.json())
 
         response = await test_user.get(f"/api/v1/scripts/{created.script_id}")
@@ -118,22 +107,17 @@ class TestGetSavedScript:
         assert script.script == new_script_request.script
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_script(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_nonexistent_script(self, test_user: AsyncClient) -> None:
         """Get nonexistent script returns 404."""
         response = await test_user.get("/api/v1/scripts/nonexistent-id")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_other_users_script_forbidden(
-        self, test_user: AsyncClient, another_user: AsyncClient,
-        new_script_request: SavedScriptCreateRequest
+        self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Cannot get another user's script."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         script_id = create_response.json()["script_id"]
 
         response = await another_user.get(f"/api/v1/scripts/{script_id}")
@@ -148,9 +132,7 @@ class TestUpdateSavedScript:
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Update a saved script."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         script = SavedScriptResponse.model_validate(create_response.json())
 
         update_request = SavedScriptUpdate(
@@ -170,13 +152,10 @@ class TestUpdateSavedScript:
 
     @pytest.mark.asyncio
     async def test_update_other_users_script_forbidden(
-        self, test_user: AsyncClient, another_user: AsyncClient,
-        new_script_request: SavedScriptCreateRequest
+        self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Cannot update another user's script."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         script_id = create_response.json()["script_id"]
 
         update_request = SavedScriptUpdate(name="Hacked")
@@ -195,9 +174,7 @@ class TestDeleteSavedScript:
         self, test_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Delete a saved script returns 204."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         script_id = create_response.json()["script_id"]
 
         response = await test_user.delete(f"/api/v1/scripts/{script_id}")
@@ -208,13 +185,10 @@ class TestDeleteSavedScript:
 
     @pytest.mark.asyncio
     async def test_delete_other_users_script_forbidden(
-        self, test_user: AsyncClient, another_user: AsyncClient,
-        new_script_request: SavedScriptCreateRequest
+        self, test_user: AsyncClient, another_user: AsyncClient, new_script_request: SavedScriptCreateRequest
     ) -> None:
         """Cannot delete another user's script."""
-        create_response = await test_user.post(
-            "/api/v1/scripts", json=new_script_request.model_dump()
-        )
+        create_response = await test_user.post("/api/v1/scripts", json=new_script_request.model_dump())
         assert create_response.status_code == 200
         script_id = create_response.json()["script_id"]
 
@@ -222,9 +196,7 @@ class TestDeleteSavedScript:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_script(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_delete_nonexistent_script(self, test_user: AsyncClient) -> None:
         """Deleting nonexistent script returns 404."""
         response = await test_user.delete("/api/v1/scripts/nonexistent-id")
         assert response.status_code == 404

@@ -6,6 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import structlog
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from pymongo.logger import LogMessage
+
 from app.core.logging import (
     SENSITIVE_PATTERNS,
     add_otel_context,
@@ -14,9 +18,6 @@ from app.core.logging import (
     setup_logger,
 )
 from app.settings import Settings
-from opentelemetry.instrumentation.logging.handler import LoggingHandler
-from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
-from pymongo.logger import LogMessage
 
 _EMAIL = "john.doe@example.com"
 _PASSWORD = "hunter2-secret"
@@ -68,9 +69,7 @@ class TestSanitizeSensitiveData:
             "https_credentials",
         ],
     )
-    def test_sanitizes_sensitive_data(
-        self, input_data: str, forbidden_text: str, expected_marker: str
-    ) -> None:
+    def test_sanitizes_sensitive_data(self, input_data: str, forbidden_text: str, expected_marker: str) -> None:
         result = self._run_processor(input_data)
         assert forbidden_text not in result
         assert expected_marker in result

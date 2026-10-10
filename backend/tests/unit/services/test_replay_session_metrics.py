@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
 from app.domain.enums import ReplayStatus, ReplayType
@@ -91,5 +92,7 @@ def test_session_created_counts_towards_created_status() -> None:
     metrics.record_session_created(ReplayType.EXECUTION, "kafka")
     metrics.record_status_change("s1", ReplayStatus.CREATED, ReplayStatus.RUNNING)
 
-    calls = [(c.args[0], c.kwargs["attributes"]["status"]) for c in metrics.replay_sessions_by_status.add.call_args_list]
+    calls = [
+        (c.args[0], c.kwargs["attributes"]["status"]) for c in metrics.replay_sessions_by_status.add.call_args_list
+    ]
     assert calls == [(1, ReplayStatus.CREATED), (-1, ReplayStatus.CREATED), (1, ReplayStatus.RUNNING)]

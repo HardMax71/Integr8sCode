@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+
 from app.core.metrics import ReplayMetrics, SecurityMetrics
 from app.settings import Settings
 

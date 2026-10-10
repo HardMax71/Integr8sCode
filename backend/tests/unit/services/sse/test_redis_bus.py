@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import structlog
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -9,6 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import redis.asyncio as redis_async
+import structlog
+
 from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType, NotificationSeverity, NotificationStatus, ReplayStatus
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
@@ -95,16 +96,17 @@ async def test_publish_and_subscribe_round_trip() -> None:
     assert msg.execution_id == "exec-1"
 
     # A second valid message passes through cleanly
-    good_payload = _sse_event_adapter.dump_json(SSEExecutionEventData(
-        event_type=EventType.EXECUTION_COMPLETED,
-        execution_id="exec-1",
-    ))
+    good_payload = _sse_event_adapter.dump_json(
+        SSEExecutionEventData(
+            event_type=EventType.EXECUTION_COMPLETED,
+            execution_id="exec-1",
+        )
+    )
     await r._pubsub.push(ch, good_payload)
     msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
     assert msg2.event_type == EventType.EXECUTION_COMPLETED
     assert metrics.record_sse_message_sent.call_count == 2
     metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
-
 
 
 @pytest.mark.asyncio
@@ -136,7 +138,6 @@ async def test_notifications_channels() -> None:
     assert "sse:notif:user-1" in r._pubsub.subscribed
     assert got.notification_id == "n1"
     metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
-
 
 
 @pytest.mark.asyncio

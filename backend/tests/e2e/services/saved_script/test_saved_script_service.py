@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
@@ -8,7 +10,6 @@ from app.domain.saved_script import (
     SavedScriptNotFoundError,
 )
 from app.services.saved_script_service import SavedScriptService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 
@@ -50,9 +51,7 @@ class TestCreateSavedScript:
         assert created.updated_at is not None
 
     @pytest.mark.asyncio
-    async def test_create_saved_script_with_description(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_saved_script_with_description(self, scope: AsyncContainer) -> None:
         """Create saved script with description."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user_id = _unique_user_id()
@@ -84,9 +83,7 @@ if __name__ == '__main__':
         assert "def hello():" in created.script
 
     @pytest.mark.asyncio
-    async def test_create_multiple_scripts_same_user(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_multiple_scripts_same_user(self, scope: AsyncContainer) -> None:
         """User can create multiple scripts."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user_id = _unique_user_id()
@@ -102,9 +99,7 @@ if __name__ == '__main__':
         assert len(set(script_ids)) == 3
 
     @pytest.mark.asyncio
-    async def test_create_scripts_different_users_isolated(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_scripts_different_users_isolated(self, scope: AsyncContainer) -> None:
         """Scripts from different users are isolated."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user1 = _unique_user_id()
@@ -190,9 +185,7 @@ class TestUpdateSavedScript:
 
         # Update
         update = DomainSavedScriptUpdate(name="Updated Name", script=created.script)
-        updated = await service.update_saved_script(
-            str(created.script_id), user_id, update
-        )
+        updated = await service.update_saved_script(str(created.script_id), user_id, update)
 
         assert updated is not None
         assert updated.name == "Updated Name"
@@ -209,16 +202,12 @@ class TestUpdateSavedScript:
 
         # Update
         update = DomainSavedScriptUpdate(name=created.name, script="print('updated')")
-        updated = await service.update_saved_script(
-            str(created.script_id), user_id, update
-        )
+        updated = await service.update_saved_script(str(created.script_id), user_id, update)
 
         assert updated.script == "print('updated')"
 
     @pytest.mark.asyncio
-    async def test_update_saved_script_description(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_update_saved_script_description(self, scope: AsyncContainer) -> None:
         """Update script description."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user_id = _unique_user_id()
@@ -234,9 +223,7 @@ class TestUpdateSavedScript:
             script=created.script,
             description="Now has description",
         )
-        updated = await service.update_saved_script(
-            str(created.script_id), user_id, update
-        )
+        updated = await service.update_saved_script(str(created.script_id), user_id, update)
 
         assert updated.description == "Now has description"
 
@@ -351,9 +338,7 @@ class TestListSavedScripts:
             assert expected_name in names
 
     @pytest.mark.asyncio
-    async def test_list_saved_scripts_user_isolated(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_list_saved_scripts_user_isolated(self, scope: AsyncContainer) -> None:
         """Each user only sees their own scripts."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user1 = _unique_user_id()
@@ -426,9 +411,7 @@ class TestSavedScriptIntegration:
             await service.get_saved_script(script_id, user_id)
 
     @pytest.mark.asyncio
-    async def test_script_with_special_characters(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_script_with_special_characters(self, scope: AsyncContainer) -> None:
         """Script content with special characters is preserved."""
         service: SavedScriptService = await scope.get(SavedScriptService)
         user_id = _unique_user_id()

@@ -1,7 +1,8 @@
-import structlog
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog
+
 from app.domain.admin import SystemSettings
 from app.services.admin import AdminSettingsService
 

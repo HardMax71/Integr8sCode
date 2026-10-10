@@ -1,17 +1,18 @@
 import asyncio
 from typing import Any
 
+from beanie import init_beanie
+from dishka_faststream import setup_dishka
+from faststream import FastStream
+from faststream.kafka import KafkaBroker
+from pymongo import AsyncMongoClient
+
 from app.core.container import create_k8s_worker_container
 from app.core.logging import setup_log_exporter, setup_logger
 from app.db.docs import ALL_DOCUMENTS
 from app.events.handlers import register_k8s_worker_subscriber
 from app.services.k8s_worker import KubernetesWorker
 from app.settings import Settings
-from beanie import init_beanie
-from dishka_faststream import setup_dishka
-from faststream import FastStream
-from faststream.kafka import KafkaBroker
-from pymongo import AsyncMongoClient
 
 
 def main() -> None:

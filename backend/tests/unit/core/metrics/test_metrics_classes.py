@@ -1,10 +1,11 @@
 import pytest
+
 from app.core.metrics import (
     ConnectionMetrics,
-    IdempotencyMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
+    IdempotencyMetrics,
     KubernetesMetrics,
     NotificationMetrics,
     QueueMetrics,

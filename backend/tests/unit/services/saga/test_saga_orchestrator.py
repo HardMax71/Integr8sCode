@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 import structlog
+
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import SagaState
@@ -25,7 +26,6 @@ from app.events.core import UnifiedProducer
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.services.saga import ExecutionSaga, SagaOrchestrator
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit

@@ -1,7 +1,8 @@
-import structlog
 from unittest.mock import AsyncMock
 
 import pytest
+import structlog
+
 from app.domain.admin import SystemSettings
 from app.services.login_lockout import LoginLockoutService
 

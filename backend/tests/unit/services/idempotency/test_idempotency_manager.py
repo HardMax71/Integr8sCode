@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.events import BaseEvent

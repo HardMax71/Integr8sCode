@@ -1,11 +1,12 @@
 import asyncio
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.docs import AuditLogDocument, SystemSettingsDocument
 from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from app.settings import Settings
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.xdist_group("system_settings")]
 

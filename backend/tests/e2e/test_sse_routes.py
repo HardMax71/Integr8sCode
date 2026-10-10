@@ -3,13 +3,13 @@ import contextlib
 
 import pytest
 import redis.asyncio as redis
+from fastapi import FastAPI
+from httpx2 import AsyncClient
+
 from app.domain.enums import SSEControlEvent
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationResponse
 from app.schemas_pydantic.sse import SSEExecutionEventSchema
-from fastapi import FastAPI
-from httpx2 import AsyncClient
-
 from tests.e2e.conftest import create_execution, streaming_client, wait_for_result
 
 pytestmark = [pytest.mark.e2e]

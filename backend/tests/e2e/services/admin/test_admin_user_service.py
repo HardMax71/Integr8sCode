@@ -1,11 +1,12 @@
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.docs import UserDocument
 from app.domain.enums import UserRole
 from app.domain.exceptions import NotFoundError
 from app.services.admin import AdminUserService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 

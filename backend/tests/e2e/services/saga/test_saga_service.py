@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.repositories import ExecutionRepository, SagaRepository
 from app.domain.enums import SagaState, UserRole
 from app.domain.execution import DomainExecutionCreate
@@ -9,7 +11,6 @@ from app.domain.saga import Saga, SagaAccessDeniedError, SagaContextData, SagaLi
 from app.domain.user import User
 from app.services.execution_service import ExecutionService
 from app.services.saga import SagaService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 
@@ -138,9 +139,7 @@ class TestListUserSagas:
         assert len(result_skip.sagas) == created_count - 2
 
     @pytest.mark.asyncio
-    async def test_list_user_sagas_filter_by_state(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_list_user_sagas_filter_by_state(self, scope: AsyncContainer) -> None:
         """List sagas filtered by state returns only matching state."""
         svc: SagaService = await scope.get(SagaService)
         exec_repo: ExecutionRepository = await scope.get(ExecutionRepository)
@@ -154,17 +153,13 @@ class TestListUserSagas:
         created_count = 3
         for i in range(created_count):
             exec_id = await create_execution_for_user(exec_repo, user_id)
-            await create_saga_for_execution(
-                saga_repo, exec_id, state=SagaState.CREATED, saga_name=f"created_{i}"
-            )
+            await create_saga_for_execution(saga_repo, exec_id, state=SagaState.CREATED, saga_name=f"created_{i}")
 
         # Create 2 sagas with RUNNING state
         running_count = 2
         for i in range(running_count):
             exec_id = await create_execution_for_user(exec_repo, user_id)
-            await create_saga_for_execution(
-                saga_repo, exec_id, state=SagaState.RUNNING, saga_name=f"running_{i}"
-            )
+            await create_saga_for_execution(saga_repo, exec_id, state=SagaState.RUNNING, saga_name=f"running_{i}")
 
         # Filter by CREATED state
         result = await svc.list_user_sagas(user, state=SagaState.CREATED)
@@ -204,9 +199,7 @@ class TestCheckExecutionAccess:
     """Tests for check_execution_access method."""
 
     @pytest.mark.asyncio
-    async def test_admin_has_access_to_any_execution(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_admin_has_access_to_any_execution(self, scope: AsyncContainer) -> None:
         """Admin has access to any execution."""
         svc: SagaService = await scope.get(SagaService)
         exec_svc: ExecutionService = await scope.get(ExecutionService)
@@ -216,20 +209,15 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('admin access test')",
             user_id="other_user",
-
             lang="python",
             lang_version="3.11",
         )
 
-        has_access = await svc.check_execution_access(
-            exec_result.execution_id, admin
-        )
+        has_access = await svc.check_execution_access(exec_result.execution_id, admin)
         assert has_access is True
 
     @pytest.mark.asyncio
-    async def test_user_has_access_to_own_execution(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_user_has_access_to_own_execution(self, scope: AsyncContainer) -> None:
         """User has access to their own execution."""
         svc: SagaService = await scope.get(SagaService)
         exec_svc: ExecutionService = await scope.get(ExecutionService)
@@ -239,20 +227,15 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('owner access test')",
             user_id=user_id,
-
             lang="python",
             lang_version="3.11",
         )
 
-        has_access = await svc.check_execution_access(
-            exec_result.execution_id, user
-        )
+        has_access = await svc.check_execution_access(exec_result.execution_id, user)
         assert has_access is True
 
     @pytest.mark.asyncio
-    async def test_user_no_access_to_other_execution(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_user_no_access_to_other_execution(self, scope: AsyncContainer) -> None:
         """User does not have access to other user's execution."""
         svc: SagaService = await scope.get(SagaService)
         exec_svc: ExecutionService = await scope.get(ExecutionService)
@@ -261,20 +244,15 @@ class TestCheckExecutionAccess:
         exec_result = await exec_svc.execute_script(
             script="print('no access test')",
             user_id="owner_user",
-
             lang="python",
             lang_version="3.11",
         )
 
-        has_access = await svc.check_execution_access(
-            exec_result.execution_id, other_user
-        )
+        has_access = await svc.check_execution_access(exec_result.execution_id, other_user)
         assert has_access is False
 
     @pytest.mark.asyncio
-    async def test_access_to_nonexistent_execution(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_access_to_nonexistent_execution(self, scope: AsyncContainer) -> None:
         """Access check for nonexistent execution returns False."""
         svc: SagaService = await scope.get(SagaService)
         user = make_test_user()
@@ -287,9 +265,7 @@ class TestGetExecutionSagas:
     """Tests for get_execution_sagas method."""
 
     @pytest.mark.asyncio
-    async def test_get_execution_sagas_access_denied(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_execution_sagas_access_denied(self, scope: AsyncContainer) -> None:
         """Get sagas for execution without access raises error."""
         svc: SagaService = await scope.get(SagaService)
         exec_svc: ExecutionService = await scope.get(ExecutionService)
@@ -298,7 +274,6 @@ class TestGetExecutionSagas:
         exec_result = await exec_svc.execute_script(
             script="print('saga access denied')",
             user_id="owner_user",
-
             lang="python",
             lang_version="3.11",
         )
@@ -307,9 +282,7 @@ class TestGetExecutionSagas:
             await svc.get_execution_sagas(exec_result.execution_id, other_user)
 
     @pytest.mark.asyncio
-    async def test_get_execution_sagas_owner_access(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_execution_sagas_owner_access(self, scope: AsyncContainer) -> None:
         """Owner can get sagas for their execution."""
         svc: SagaService = await scope.get(SagaService)
         exec_svc: ExecutionService = await scope.get(ExecutionService)
@@ -319,7 +292,6 @@ class TestGetExecutionSagas:
         exec_result = await exec_svc.execute_script(
             script="print('owner sagas')",
             user_id=user_id,
-
             lang="python",
             lang_version="3.11",
         )
@@ -344,9 +316,7 @@ class TestGetSagaStatistics:
         assert isinstance(stats, dict)
 
     @pytest.mark.asyncio
-    async def test_get_saga_statistics_admin_all(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_saga_statistics_admin_all(self, scope: AsyncContainer) -> None:
         """Admin can get all saga statistics."""
         svc: SagaService = await scope.get(SagaService)
         admin = make_test_user(user_id="stats_admin", role=UserRole.ADMIN)

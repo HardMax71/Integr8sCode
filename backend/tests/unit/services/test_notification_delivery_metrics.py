@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
 from app.domain.enums import NotificationChannel

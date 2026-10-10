@@ -2,7 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import redis
-from app.core.metrics import IdempotencyMetrics, DLQMetrics
+
+from app.core.metrics import DLQMetrics, IdempotencyMetrics
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

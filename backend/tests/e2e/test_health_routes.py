@@ -2,8 +2,9 @@ import asyncio
 import time
 
 import pytest
-from app.schemas_pydantic.health import LivenessResponse
 from httpx2 import AsyncClient
+
+from app.schemas_pydantic.health import LivenessResponse
 
 pytestmark = [pytest.mark.e2e]
 

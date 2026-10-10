@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import redis.asyncio as redis
+from pymongo.errors import DuplicateKeyError
+
 from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.services.idempotency.redis_repository import (
@@ -11,7 +13,6 @@ from app.services.idempotency.redis_repository import (
     _json_default,
     _parse_iso_datetime,
 )
-from pymongo.errors import DuplicateKeyError
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
 
@@ -133,5 +134,3 @@ async def test_update_record_when_missing(
     # If key missing, update returns 0
     res = await repository.update_record(sample_record)
     assert res == 0
-
-

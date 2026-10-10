@@ -7,14 +7,15 @@ import httpx2
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
+from dishka import AsyncContainer
+from fastapi import FastAPI
+from httpx2 import ASGITransport
+
 from app.db.docs.user import UserDocument
 from app.domain.enums import QueuePriority, UserRole
 from app.domain.events import EventMetadata, ExecutionRequestedEvent
 from app.main import create_app
 from app.settings import Settings
-from dishka import AsyncContainer
-from fastapi import FastAPI
-from httpx2 import ASGITransport
 
 
 def _get_worker_num() -> int:
@@ -60,10 +61,10 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
 async def client(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
     async with httpx2.AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="https://test",
-            timeout=30.0,
-            follow_redirects=True,
+        transport=ASGITransport(app=app),
+        base_url="https://test",
+        timeout=30.0,
+        follow_redirects=True,
     ) as c:
         yield c
 
@@ -97,25 +98,29 @@ async def _create_authenticated_client(
         follow_redirects=True,
     )
     try:
-        r = await c.post("/api/v1/auth/register", json={
-            "username": username,
-            "email": email,
-            "password": password,
-        })
+        r = await c.post(
+            "/api/v1/auth/register",
+            json={
+                "username": username,
+                "email": email,
+                "password": password,
+            },
+        )
         # 200: created, 400: username exists, 409: email exists - all OK to proceed to login
         if r.status_code not in (200, 400, 409):
             pytest.fail(f"Cannot create {role} (status {r.status_code}): {r.text}")
 
         # Register always creates UserRole.USER; promote via DB if needed
         if role != UserRole.USER:
-            await UserDocument.find_one(UserDocument.username == username).set(
-                {UserDocument.role: role}
-            )
+            await UserDocument.find_one(UserDocument.username == username).set({UserDocument.role: role})
 
-        login_resp = await c.post("/api/v1/auth/login", data={
-            "username": username,
-            "password": password,
-        })
+        login_resp = await c.post(
+            "/api/v1/auth/login",
+            data={
+                "username": username,
+                "password": password,
+            },
+        )
         login_resp.raise_for_status()
 
         login_data = login_resp.json()
@@ -123,8 +128,7 @@ async def _create_authenticated_client(
         if not csrf:
             await c.aclose()
             pytest.fail(
-                f"Login succeeded but csrf_token missing or empty for {role} '{username}'. "
-                f"Response: {login_resp.text}"
+                f"Login succeeded but csrf_token missing or empty for {role} '{username}'. Response: {login_resp.text}"
             )
 
         c.headers["X-CSRF-Token"] = csrf

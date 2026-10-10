@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 import structlog
+
 from app.db.repositories import ExecutionRepository
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.execution import DomainExecutionCreate, ExecutionResultDomain
@@ -48,17 +49,24 @@ async def _create_and_complete(
     lang_version: str = "3.11",
 ) -> str:
     """Helper: create an execution then transition it to a terminal status."""
-    created = await repo.create_execution(DomainExecutionCreate(
-        script="x = 1", lang=lang, lang_version=lang_version, user_id=user_id,
-    ))
-    wrote = await repo.write_terminal_result(ExecutionResultDomain(
-        execution_id=created.execution_id,
-        status=status,
-        exit_code=0 if status == ExecutionStatus.COMPLETED else 1,
-        stdout="ok",
-        stderr="",
-        error_type=ExecutionErrorType.SCRIPT_ERROR if status == ExecutionStatus.FAILED else None,
-    ))
+    created = await repo.create_execution(
+        DomainExecutionCreate(
+            script="x = 1",
+            lang=lang,
+            lang_version=lang_version,
+            user_id=user_id,
+        )
+    )
+    wrote = await repo.write_terminal_result(
+        ExecutionResultDomain(
+            execution_id=created.execution_id,
+            status=status,
+            exit_code=0 if status == ExecutionStatus.COMPLETED else 1,
+            stdout="ok",
+            stderr="",
+            error_type=ExecutionErrorType.SCRIPT_ERROR if status == ExecutionStatus.FAILED else None,
+        )
+    )
     assert wrote, f"write_terminal_result failed for {created.execution_id}"
     return created.execution_id
 

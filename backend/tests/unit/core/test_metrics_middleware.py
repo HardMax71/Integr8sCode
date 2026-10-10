@@ -2,9 +2,10 @@ import asyncio
 from unittest.mock import MagicMock, call
 
 import pytest
-from app.core.middlewares import MetricsMiddleware
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from app.core.middlewares import MetricsMiddleware
 
 pytestmark = pytest.mark.unit
 

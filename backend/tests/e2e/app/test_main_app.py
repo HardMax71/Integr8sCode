@@ -1,9 +1,10 @@
 import pytest
 import redis.asyncio as aioredis
-from app.db.docs import UserDocument
-from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
+
+from app.db.docs import UserDocument
+from app.settings import Settings
 
 pytestmark = pytest.mark.e2e
 

@@ -3,6 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 import structlog
+from kubernetes_asyncio.client import V1Pod, V1PodCondition
+from kubernetes_asyncio.client.rest import ApiException
+
 from app.domain.enums import EventType, ExecutionErrorType
 from app.domain.events import (
     EventMetadata,
@@ -12,9 +15,6 @@ from app.domain.events import (
     PodRunningEvent,
 )
 from app.services.pod_monitor import PodContext, PodEventMapper, WatchEventType
-from kubernetes_asyncio.client import V1Pod, V1PodCondition
-from kubernetes_asyncio.client.rest import ApiException
-
 from tests.unit.conftest import make_container_status, make_pod, make_pod_log_response
 
 pytestmark = pytest.mark.unit
@@ -124,9 +124,7 @@ async def test_failed_timeout_and_deleted() -> None:
         phase="Failed",
         labels={"execution-id": "e0"},
         container_statuses=[
-            make_container_status(
-                terminated_exit_code=0, terminated_reason="Completed", terminated_message=_TERM_MSG
-            )
+            make_container_status(terminated_exit_code=0, terminated_reason="Completed", terminated_message=_TERM_MSG)
         ],
         reason="DeadlineExceeded",
         active_deadline_seconds=5,
@@ -444,7 +442,11 @@ def test_parse_termination_message() -> None:
     # Normal message
     result = parse("exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwall_seconds=0.5\n")
     assert result == {
-        "exit_code": "0", "cpu_jiffies": "100", "clk_tck": "100", "peak_memory_kb": "1024", "wall_seconds": "0.5",
+        "exit_code": "0",
+        "cpu_jiffies": "100",
+        "clk_tck": "100",
+        "peak_memory_kb": "1024",
+        "wall_seconds": "0.5",
     }
 
     # Empty string

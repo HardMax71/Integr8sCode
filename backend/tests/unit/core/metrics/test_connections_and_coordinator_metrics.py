@@ -1,4 +1,5 @@
 import pytest
+
 from app.core.metrics import ConnectionMetrics, QueueMetrics
 from app.settings import Settings
 

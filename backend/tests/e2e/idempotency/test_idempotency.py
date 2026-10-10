@@ -1,17 +1,17 @@
 import asyncio
 import json
-import structlog
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
 import redis.asyncio as redis
+import structlog
+
 from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus, KeyStrategy
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.settings import Settings
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = [pytest.mark.e2e, pytest.mark.redis]
@@ -86,10 +86,7 @@ class TestIdempotencyManager:
         """Test handling of concurrent requests for the same event"""
         real_event = make_execution_requested_event(execution_id="exec-race-1")
         # Simulate concurrent requests
-        tasks = [
-            manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED)
-            for _ in range(5)
-        ]
+        tasks = [manager.check_and_reserve(real_event, key_strategy=KeyStrategy.EVENT_BASED) for _ in range(5)]
 
         results = await asyncio.gather(*tasks)
 
@@ -175,9 +172,7 @@ class TestIdempotencyManager:
         # Complete with cached result
         cached_result = json.dumps({"output": "Hello, World!", "exit_code": 0})
         success = await manager.mark_completed_with_json(
-            real_event,
-            cached_json=cached_result,
-            key_strategy=KeyStrategy.EVENT_BASED
+            real_event, cached_json=cached_result, key_strategy=KeyStrategy.EVENT_BASED
         )
         assert success is True
 
@@ -233,7 +228,7 @@ class TestIdempotencyManager:
             event_id="expired-1",
             created_at=datetime.now(timezone.utc) - timedelta(hours=2),
             ttl_seconds=3600,
-            completed_at=datetime.now(timezone.utc) - timedelta(hours=2)
+            completed_at=datetime.now(timezone.utc) - timedelta(hours=2),
         )
         await manager._repo.insert_processing(expired_record)
 
@@ -249,11 +244,7 @@ class TestIdempotencyManager:
         )
 
         fields = {"script", "language"}
-        result1 = await manager.check_and_reserve(
-            event1,
-            key_strategy=KeyStrategy.CONTENT_HASH,
-            fields=fields
-        )
+        result1 = await manager.check_and_reserve(event1, key_strategy=KeyStrategy.CONTENT_HASH, fields=fields)
         assert result1.is_duplicate is False
         await manager.mark_completed(event1, key_strategy=KeyStrategy.CONTENT_HASH, fields=fields)
 
@@ -267,9 +258,5 @@ class TestIdempotencyManager:
             service_name="test-service",
         )
 
-        result2 = await manager.check_and_reserve(
-            event2,
-            key_strategy=KeyStrategy.CONTENT_HASH,
-            fields=fields
-        )
+        result2 = await manager.check_and_reserve(event2, key_strategy=KeyStrategy.CONTENT_HASH, fields=fields)
         assert result2.is_duplicate is True

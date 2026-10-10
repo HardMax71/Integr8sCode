@@ -63,9 +63,8 @@ class TestEventSchemaCoverage:
         covered_types = set(domain_mapping.keys())
         missing = all_types - covered_types
 
-        assert not missing, (
-            f"Missing domain event classes for {len(missing)} EventType(s):\n"
-            + "\n".join(f"  - {et}: needs a class in typed.py" for et in sorted(missing))
+        assert not missing, f"Missing domain event classes for {len(missing)} EventType(s):\n" + "\n".join(
+            f"  - {et}: needs a class in typed.py" for et in sorted(missing)
         )
 
     def test_all_event_types_have_kafka_event_class(self) -> None:
@@ -75,12 +74,8 @@ class TestEventSchemaCoverage:
         covered_types = set(kafka_mapping.keys())
         missing = all_types - covered_types
 
-        assert not missing, (
-            f"Missing Kafka event classes for {len(missing)} EventType(s):\n"
-            + "\n".join(
-                f"  - {et}: needs a class in infrastructure/kafka/events/"
-                for et in sorted(missing)
-            )
+        assert not missing, f"Missing Kafka event classes for {len(missing)} EventType(s):\n" + "\n".join(
+            f"  - {et}: needs a class in infrastructure/kafka/events/" for et in sorted(missing)
         )
 
     def test_DomainEventAdapter_covers_all_types(self) -> None:
@@ -153,13 +148,9 @@ class TestEventSchemaCoverage:
 
             if domain_cls and kafka_cls:
                 if domain_cls.__name__ != kafka_cls.__name__:
-                    mismatches.append(
-                        f"  - {et}: domain={domain_cls.__name__}, kafka={kafka_cls.__name__}"
-                    )
+                    mismatches.append(f"  - {et}: domain={domain_cls.__name__}, kafka={kafka_cls.__name__}")
 
-        assert not mismatches, (
-            f"Event class name mismatches for {len(mismatches)} type(s):\n" + "\n".join(mismatches)
-        )
+        assert not mismatches, f"Event class name mismatches for {len(mismatches)} type(s):\n" + "\n".join(mismatches)
 
 
 class TestEventSchemaConsistency:

@@ -1,5 +1,6 @@
 import httpx2
 import pytest
+
 from app.settings import Settings
 
 pytestmark = pytest.mark.e2e
@@ -9,18 +10,14 @@ class TestCSRFMiddleware:
     """Tests for CSRFMiddleware."""
 
     @pytest.mark.asyncio
-    async def test_get_requests_skip_csrf(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_get_requests_skip_csrf(self, client: httpx2.AsyncClient) -> None:
         """GET requests skip CSRF validation."""
         response = await client.get("/api/v1/health/live")
 
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_auth_endpoints_skip_csrf(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_auth_endpoints_skip_csrf(self, client: httpx2.AsyncClient) -> None:
         """Auth endpoints skip CSRF validation."""
         # Login endpoint should work without CSRF token
         response = await client.post(
@@ -32,9 +29,7 @@ class TestCSRFMiddleware:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_authenticated_post_requires_csrf(
-        self, test_user: httpx2.AsyncClient
-    ) -> None:
+    async def test_authenticated_post_requires_csrf(self, test_user: httpx2.AsyncClient) -> None:
         """Authenticated POST requires CSRF token."""
         # Remove CSRF header temporarily
         csrf_token = test_user.headers["X-CSRF-Token"]
@@ -52,9 +47,7 @@ class TestCSRFMiddleware:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_authenticated_post_with_csrf_succeeds(
-        self, test_user: httpx2.AsyncClient
-    ) -> None:
+    async def test_authenticated_post_with_csrf_succeeds(self, test_user: httpx2.AsyncClient) -> None:
         """Authenticated POST with valid CSRF token succeeds."""
         response = await test_user.post(
             "/api/v1/execute",
@@ -73,9 +66,7 @@ class TestRequestSizeLimitMiddleware:
     """Tests for RequestSizeLimitMiddleware."""
 
     @pytest.mark.asyncio
-    async def test_small_request_allowed(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_small_request_allowed(self, client: httpx2.AsyncClient) -> None:
         """Small requests are allowed through."""
         response = await client.post(
             "/api/v1/auth/register",
@@ -90,9 +81,7 @@ class TestRequestSizeLimitMiddleware:
         assert response.status_code != 413
 
     @pytest.mark.asyncio
-    async def test_large_request_rejected(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_large_request_rejected(self, client: httpx2.AsyncClient) -> None:
         """Requests exceeding size limit are rejected."""
         # Create a payload larger than 10MB
         large_payload = "x" * (11 * 1024 * 1024)  # 11MB
@@ -121,9 +110,7 @@ class TestCacheControlMiddleware:
         assert "max-age=300" in cache_control
 
     @pytest.mark.asyncio
-    async def test_example_scripts_cached(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_example_scripts_cached(self, client: httpx2.AsyncClient) -> None:
         """Example scripts endpoint has cache headers."""
         response = await client.get("/api/v1/example-scripts")
 
@@ -133,9 +120,7 @@ class TestCacheControlMiddleware:
         assert "max-age=600" in cache_control
 
     @pytest.mark.asyncio
-    async def test_notifications_no_cache(
-        self, test_user: httpx2.AsyncClient
-    ) -> None:
+    async def test_notifications_no_cache(self, test_user: httpx2.AsyncClient) -> None:
         """Notifications endpoint has no-cache headers."""
         response = await test_user.get("/api/v1/notifications")
 
@@ -144,9 +129,7 @@ class TestCacheControlMiddleware:
         assert "no-cache" in cache_control
 
     @pytest.mark.asyncio
-    async def test_post_no_cache_headers(
-        self, test_user: httpx2.AsyncClient
-    ) -> None:
+    async def test_post_no_cache_headers(self, test_user: httpx2.AsyncClient) -> None:
         """POST requests don't get cache headers."""
         response = await test_user.post(
             "/api/v1/execute",
@@ -168,9 +151,7 @@ class TestRateLimitMiddleware:
     """Tests for RateLimitMiddleware."""
 
     @pytest.mark.asyncio
-    async def test_rate_limit_headers_present(
-        self, client: httpx2.AsyncClient, test_settings: Settings
-    ) -> None:
+    async def test_rate_limit_headers_present(self, client: httpx2.AsyncClient, test_settings: Settings) -> None:
         """Rate limit headers are added to responses when rate limiting is enabled."""
         if not test_settings.RATE_LIMIT_ENABLED:
             pytest.skip("Rate limiting is disabled in test config")
@@ -184,9 +165,7 @@ class TestRateLimitMiddleware:
         assert "X-RateLimit-Reset" in response.headers
 
     @pytest.mark.asyncio
-    async def test_health_endpoint_exempt(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_health_endpoint_exempt(self, client: httpx2.AsyncClient) -> None:
         """Health endpoints are exempt from rate limiting."""
         # Make many requests to health endpoint
         for _ in range(20):
@@ -195,9 +174,7 @@ class TestRateLimitMiddleware:
             assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_auth_endpoints_exempt(
-        self, client: httpx2.AsyncClient
-    ) -> None:
+    async def test_auth_endpoints_exempt(self, client: httpx2.AsyncClient) -> None:
         """Auth endpoints are exempt from rate limiting."""
         # Make many login attempts
         for _ in range(10):
@@ -213,9 +190,7 @@ class TestMiddlewareOrder:
     """Tests for middleware execution order."""
 
     @pytest.mark.asyncio
-    async def test_all_middlewares_work_together(
-        self, test_user: httpx2.AsyncClient, test_settings: Settings
-    ) -> None:
+    async def test_all_middlewares_work_together(self, test_user: httpx2.AsyncClient, test_settings: Settings) -> None:
         """All middlewares work correctly in combination."""
         response = await test_user.get("/api/v1/notifications")
 

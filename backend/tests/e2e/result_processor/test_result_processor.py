@@ -1,6 +1,7 @@
-import structlog
-
 import pytest
+import structlog
+from dishka import AsyncContainer
+
 from app.core.metrics import ExecutionMetrics
 from app.db.docs import ExecutionDocument
 from app.db.repositories import ExecutionRepository
@@ -14,7 +15,6 @@ from app.domain.execution import DomainExecutionCreate
 from app.events.core import UnifiedProducer
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
-from dishka import AsyncContainer
 
 pytestmark = [
     pytest.mark.e2e,
@@ -36,13 +36,15 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     producer: UnifiedProducer = await scope.get(UnifiedProducer)
 
     # Create a base execution to satisfy ResultProcessor lookup
-    created = await repo.create_execution(DomainExecutionCreate(
-        script="print('x')",
-        user_id="u1",
-        lang="python",
-        lang_version="3.11",
-        status=ExecutionStatus.RUNNING,
-    ))
+    created = await repo.create_execution(
+        DomainExecutionCreate(
+            script="print('x')",
+            user_id="u1",
+            lang="python",
+            lang_version="3.11",
+            status=ExecutionStatus.RUNNING,
+        )
+    )
     execution_id = created.execution_id
 
     # Build the processor
@@ -76,6 +78,4 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     # Verify DB persistence using Beanie ODM
     doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
     assert doc is not None, f"Execution {execution_id} not found in DB after processing"
-    assert doc.status == ExecutionStatus.COMPLETED, (
-        f"Expected COMPLETED status, got {doc.status}"
-    )
+    assert doc.status == ExecutionStatus.COMPLETED, f"Expected COMPLETED status, got {doc.status}"

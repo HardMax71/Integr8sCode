@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import structlog
+
 from app.db import SavedScriptRepository
 from app.domain.execution import RuntimeNotSupportedError
 from app.domain.saved_script import (
@@ -16,9 +17,7 @@ pytestmark = pytest.mark.unit
 
 
 def _stored(lang: str = "python", lang_version: str = "3.12") -> DomainSavedScript:
-    return DomainSavedScript(
-        name="s", script="x", script_id="sid", user_id="u1", lang=lang, lang_version=lang_version
-    )
+    return DomainSavedScript(name="s", script="x", script_id="sid", user_id="u1", lang=lang, lang_version=lang_version)
 
 
 @pytest.fixture

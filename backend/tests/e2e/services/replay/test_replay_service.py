@@ -1,8 +1,9 @@
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums import ReplayStatus, ReplayTarget, ReplayType
 from app.domain.replay import ReplaySessionNotFoundError
 from app.services.event_replay import EventReplayService, ReplayConfig, ReplayFilter
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
 
@@ -11,9 +12,7 @@ class TestCreateSession:
     """Tests for create_session_from_config method."""
 
     @pytest.mark.asyncio
-    async def test_create_session_execution_type(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_session_execution_type(self, scope: AsyncContainer) -> None:
         """Create replay session for execution events."""
         svc: EventReplayService = await scope.get(EventReplayService)
 
@@ -31,9 +30,7 @@ class TestCreateSession:
         assert result.message is not None
 
     @pytest.mark.asyncio
-    async def test_create_session_with_max_events(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_session_with_max_events(self, scope: AsyncContainer) -> None:
         """Create session with event limit."""
         svc: EventReplayService = await scope.get(EventReplayService)
 
@@ -49,9 +46,7 @@ class TestCreateSession:
         assert result.status == ReplayStatus.CREATED
 
     @pytest.mark.asyncio
-    async def test_create_session_with_filter(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_session_with_filter(self, scope: AsyncContainer) -> None:
         """Create session with event filter."""
         svc: EventReplayService = await scope.get(EventReplayService)
 
@@ -159,9 +154,7 @@ class TestCancelSession:
         assert result.status == ReplayStatus.CANCELLED
 
     @pytest.mark.asyncio
-    async def test_cancel_nonexistent_session(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_cancel_nonexistent_session(self, scope: AsyncContainer) -> None:
         """Cancel nonexistent session raises error."""
         svc: EventReplayService = await scope.get(EventReplayService)
 

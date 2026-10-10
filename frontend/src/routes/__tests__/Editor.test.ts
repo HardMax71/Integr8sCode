@@ -55,7 +55,10 @@ vi.mock('$stores/userSettings.svelte', () => ({
     },
 }));
 
-vi.mock('$lib/editor', () => ({ createExecutionState: () => mocks.mockExecutionState }));
+vi.mock('$lib/editor', async () => ({
+    createExecutionState: () => mocks.mockExecutionState,
+    newestVersion: (await import('$lib/editor/runtimes')).newestVersion,
+}));
 
 vi.mock('$components/editor', async () => {
     const utils = await import('$test/test-utils');
@@ -181,7 +184,7 @@ describe('Editor', () => {
                     body: expect.objectContaining({
                         name: 'My New Script',
                         lang: 'python',
-                        lang_version: '3.11',
+                        lang_version: '3.14',
                     }),
                 });
             });
@@ -298,7 +301,56 @@ describe('Editor', () => {
             });
 
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
-            expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), 'python', '3.11');
+            expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), 'python', '3.14');
+        });
+    });
+
+    describe('Initial language and version', () => {
+        function storeSelection(lang: string, version: string) {
+            localStorage.setItem('selectedLang', JSON.stringify(lang));
+            localStorage.setItem('selectedVersion', JSON.stringify(version));
+        }
+
+        async function runAndExpect(lang: string, version: string) {
+            await renderEditor();
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
+                    `${lang} ${version}`,
+                );
+            });
+            await user.click(screen.getByRole('button', { name: /Run Script/i }));
+            expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), lang, version);
+            expect(toast.info).not.toHaveBeenCalled();
+        }
+
+        it('defaults to the newest version the runtimes endpoint returns, whatever its order', async () => {
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+                ...createMockLimits(),
+                supported_runtimes: { python: { versions: ['3.12', '3.14', '3.13'], file_ext: 'py' } },
+            });
+            await runAndExpect('python', '3.14');
+        });
+
+        it('keeps a stored version that is still offered', async () => {
+            storeSelection('python', '3.12');
+            await runAndExpect('python', '3.12');
+        });
+
+        it('keeps the stored language and picks its newest version when the stored version was dropped', async () => {
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+                ...createMockLimits(),
+                supported_runtimes: {
+                    python: { versions: ['3.14', '3.13'], file_ext: 'py' },
+                    go: { versions: ['1.26', '1.27'], file_ext: 'go' },
+                },
+            });
+            storeSelection('go', '1.22');
+            await runAndExpect('go', '1.27');
+        });
+
+        it('falls back to the first language and its newest version when the stored language is gone', async () => {
+            storeSelection('cobol', '1.0');
+            await runAndExpect('python', '3.14');
         });
     });
 

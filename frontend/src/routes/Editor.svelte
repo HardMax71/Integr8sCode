@@ -19,7 +19,7 @@
     import { updateMetaTags, pageMeta } from '$utils/meta';
     import { userSettingsStore } from '$stores/userSettings.svelte';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
-    import { createExecutionState } from '$lib/editor';
+    import { createExecutionState, newestVersion } from '$lib/editor';
     import { logger } from '$lib/logger';
 
     const log = logger.withTag('Editor');
@@ -50,7 +50,7 @@
     let scriptName = $state(loadFromStorage('scriptName', ''));
     let currentScriptId = $state<string | null>(loadFromStorage('currentScriptId', null));
     let selectedLang = $state(loadFromStorage('selectedLang', 'python'));
-    let selectedVersion = $state(loadFromStorage('selectedVersion', '3.11'));
+    let selectedVersion = $state(loadFromStorage('selectedVersion', ''));
 
     // Persist to localStorage (debounced to avoid serializing on every keystroke)
     $effect(() => {
@@ -123,13 +123,11 @@
         ]);
         k8sLimits = limitsData ?? null;
         supportedRuntimes = k8sLimits?.supported_runtimes || {};
-        const info = supportedRuntimes[selectedLang];
-        if (!info || !info.versions.includes(selectedVersion)) {
-            const first = Object.keys(supportedRuntimes)[0];
-            if (first) {
-                selectedLang = first;
-                selectedVersion = supportedRuntimes[first]!.versions[0] ?? '';
-            }
+        const lang = selectedLang in supportedRuntimes ? selectedLang : Object.keys(supportedRuntimes)[0];
+        const versions = lang ? (supportedRuntimes[lang]?.versions ?? []) : [];
+        if (lang && !versions.includes(selectedVersion)) {
+            selectedLang = lang;
+            selectedVersion = newestVersion(versions) ?? '';
         }
         exampleScripts = examplesData?.scripts || {};
 
@@ -266,8 +264,8 @@
             script = text;
             scriptName = file.name;
             selectedLang = detectedLang;
-            const info = supportedRuntimes[detectedLang];
-            if (info?.versions.length) selectedVersion = info.versions[0]!;
+            const newest = newestVersion(supportedRuntimes[detectedLang]?.versions ?? []);
+            if (newest) selectedVersion = newest;
             editorRef?.setContent(text);
             toast.info(`Loaded ${detectedLang} script from ${file.name}`);
         };

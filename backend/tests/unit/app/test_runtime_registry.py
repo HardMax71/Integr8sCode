@@ -1,0 +1,46 @@
+import ast
+
+import pytest
+from app.runtime_registry import EXAMPLE_SCRIPTS, LANGUAGE_SPECS, RUNTIME_REGISTRY, SUPPORTED_RUNTIMES
+
+pytestmark = pytest.mark.unit
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+@pytest.mark.parametrize("lang", list(LANGUAGE_SPECS))
+def test_versions_are_unique_and_listed_newest_first(lang: str) -> None:
+    versions = LANGUAGE_SPECS[lang]["versions"]
+    assert versions
+    assert versions == sorted(set(versions), key=_version_key, reverse=True)
+
+
+@pytest.mark.parametrize("lang", list(LANGUAGE_SPECS))
+def test_registry_builds_image_and_command_for_every_version(lang: str) -> None:
+    spec = LANGUAGE_SPECS[lang]
+    file_name = f"main.{spec['file_ext']}"
+
+    assert list(RUNTIME_REGISTRY[lang]) == spec["versions"]
+    for version, cfg in RUNTIME_REGISTRY[lang].items():
+        assert cfg.image == spec["image_tpl"].format(version=version)
+        assert cfg.file_name == file_name
+        assert cfg.command == [*spec["interpreter"], f"/scripts/{file_name}"]
+
+
+def test_supported_runtimes_mirror_specs() -> None:
+    assert {lang: (info.versions, info.file_ext) for lang, info in SUPPORTED_RUNTIMES.items()} == {
+        lang: (spec["versions"], spec["file_ext"]) for lang, spec in LANGUAGE_SPECS.items()
+    }
+
+
+def test_every_language_has_an_example_script() -> None:
+    assert set(EXAMPLE_SCRIPTS) == set(LANGUAGE_SPECS)
+    assert all(script.strip() for script in EXAMPLE_SCRIPTS.values())
+
+
+@pytest.mark.parametrize("version", LANGUAGE_SPECS["python"]["versions"])
+def test_python_example_parses_on_every_offered_version(version: str) -> None:
+    major, minor = _version_key(version)
+    ast.parse(EXAMPLE_SCRIPTS["python"], feature_version=(major, minor))

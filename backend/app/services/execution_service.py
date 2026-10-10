@@ -150,7 +150,7 @@ class ExecutionService:
             script_length=len(script),
         )
 
-        # Metadata and event — use admin-configurable limits
+        # Metadata and event, with admin-configurable limits
         metadata = self._create_event_metadata(user_id=user_id)
         effective = await self._runtime_settings.get_effective_settings()
         event = ExecutionRequestedEvent(
@@ -570,7 +570,7 @@ class ExecutionService:
         """Publish cancellation event for a deleted execution.
 
         Uses ExecutionCancelledEvent because no dedicated deletion event type
-        exists yet — the saga orchestrator treats both the same way.
+        exists yet. The saga orchestrator treats both the same way.
         """
         metadata = self._create_event_metadata(user_id=user_id)
 

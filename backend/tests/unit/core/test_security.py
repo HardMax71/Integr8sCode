@@ -344,7 +344,7 @@ class TestDecodeToken:
     def test_invalid_signature_raises(self, security_service: SecurityService) -> None:
         token = jwt.encode(
             {"sub": "testuser", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)},
-            "wrong-secret-key",
+            "wrong-secret-key-padded-to-32-bytes",
             algorithm=security_service.settings.ALGORITHM,
         )
 
@@ -360,7 +360,7 @@ class TestDecodeToken:
         "claims,key,reason",
         [
             ({"sub": "u", "exp": datetime.now(timezone.utc) - timedelta(seconds=5)}, None, "expired"),
-            ({"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, "wrong-secret-key", "invalid_signature"),
+            ({"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, "wrong-secret-key-padded-to-32-bytes", "invalid_signature"),
             ({"user_id": "x", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, None, "missing_subject"),
             (None, None, "invalid"),
         ],

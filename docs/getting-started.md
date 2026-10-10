@@ -1,10 +1,16 @@
-# Getting Started
+# Getting started
 
-This guide walks you through running Integr8sCode locally and executing your first script. You'll need Docker and Docker Compose installed - that's it.
+You need Docker with Compose and a Kubernetes cluster that kubectl on your machine can reach. Docker alone isn't enough: every script runs in a Kubernetes pod, and there's no Docker fallback. The project runs on k3s, locally and in CI.
 
-## What you're deploying
+## Set up k3s
 
-The full stack includes a Svelte frontend, FastAPI backend, MongoDB, Redis, Kafka, and six background workers. Sounds like a lot, but `docker compose` handles all of it. First startup takes a few minutes to pull images and initialize services; subsequent starts are much faster.
+If you don't have a cluster yet, install k3s with the flags CI uses, so containers can reach its API at `host.docker.internal` with a valid certificate:
+
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
+```
+
+On startup the `cert-generator` container looks for the cluster through `~/.kube` and `/etc/rancher/k3s`. When it finds one, it creates the `integr8scode` namespace, installs Kueue, sets up a service account and writes `backend/kubeconfig.yaml` for the workers. When it can't connect, it logs "Cannot connect to Kubernetes cluster" and skips all of that. The rest of the stack still starts and you can log in, but the k8s worker and pod monitor have no kubeconfig, so scripts stay queued forever.
 
 ## Start the stack
 
@@ -14,87 +20,53 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-Secrets (JWT key, MongoDB and Redis credentials) are read from environment variables with dev defaults baked in — no config files to copy for local development.
+The first start pulls or builds the images and takes a few minutes. Secrets (JWT key, MongoDB and Redis passwords) come from environment variables with dev defaults, so there's nothing to copy or fill in. Add `--wait` to block until every service is healthy.
 
-Wait for the services to come up. You can watch progress with `docker compose logs -f` in another terminal. When you see the backend responding to health checks, you're ready.
-
-Verify everything is running:
+Check the backend:
 
 ```bash
 curl -k https://localhost/api/v1/health/live
 ```
 
-If everything is up, you'll get:
-
 ```json
-{"status":"ok","uptime_seconds":42,"timestamp":"2025-01-25T12:00:00Z"}
+{"status":"ok","uptime_seconds":42,"timestamp":"2026-01-25T12:00:00Z"}
 ```
 
-## Access the UI
+## Log in and run a script
 
-Open [https://localhost:5001](https://localhost:5001) in your browser. You'll get a certificate warning since it's a self-signed cert - accept it and continue.
+Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, sagas, users, system settings) use `admin` / `admin123`. A one-shot `user-seed` container creates both accounts, or resets their passwords, on every start. Set `DEFAULT_USER_PASSWORD` and `ADMIN_USER_PASSWORD` before deploying anywhere that isn't your laptop.
 
-Log in with the default credentials:
+After login you land in the editor, which starts with a small Python script. Click **Run Script** and the output streams in as the pod runs. The language picker offers what the runtime registry lists: Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3.
 
-- **Username:** `user`
-- **Password:** `user123`
+Limits are system-wide, not per execution. An execution request carries only the script, `lang` and `lang_version`. CPU, memory and timeout are admin system settings, seeded on first start from config.toml: 1000m CPU, 128Mi memory and a 5 second timeout. Admins change them at `/admin/settings`. A language can raise them for its own pods. Go gets at least 30 seconds, 1000m CPU, 320Mi memory and 64Mi of `/tmp`, since a cold `go run` compiles the standard library first.
 
-For admin access (user management, system settings, event browser), use `admin` / `admin123`.
+## What happens when you click Run
 
-!!! warning "Development only"
-    These credentials are seeded automatically for local development. For production, set `DEFAULT_USER_PASSWORD` and `ADMIN_USER_PASSWORD` environment variables before deploying.
+1. The frontend posts the script, language and version to `POST /api/v1/execute`.
+2. The API checks the version is offered, writes an execution document and publishes `execution_requested` to Kafka.
+3. The saga orchestrator puts the execution in a Redis priority queue. When fewer than 10 executions are active (an admin setting), it runs the saga, which publishes `create_pod_command`.
+4. The k8s worker creates a ConfigMap with the script and a locked-down pod.
+5. The pod monitor sees the pod finish, reads its output and publishes `execution_completed`, `execution_failed` or `execution_timeout`, then deletes the pod.
+6. The result processor writes the result onto the execution document and publishes `result_stored`.
+7. The API forwards these events from Kafka through Redis to your browser over Server-Sent Events.
 
-## Run your first script
+[Workers](components/workers/index.md) and [Execution SSE flow](components/sse/execution-sse-flow.md) go through each step.
 
-The editor opens with a Python example. Click **Run** to execute it. You'll see output streaming in real-time as the script runs in an isolated Kubernetes pod (or Docker container in dev mode).
+## Look around
 
-Try modifying the script or switching languages using the dropdown. Each execution gets its own isolated environment with configurable resource limits.
+Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel collector, and `--debug` adds Kafdrop on top. All of them listen on localhost only.
 
-## What's happening under the hood
-
-When you click Run:
-
-1. The frontend sends your script to the backend API
-2. Backend validates it, creates an execution record, and publishes an event to Kafka
-3. The saga orchestrator picks up the event, enqueues the execution in a Redis-backed priority queue, and publishes a pod creation command
-4. K8s worker spins up an isolated pod with the appropriate runtime
-5. Pod monitor watches for completion and captures output
-6. Result processor stores the result and publishes it to Redis
-7. Your browser receives the result via Server-Sent Events
-
-All of this happens in a few seconds. The event-driven architecture means you can scale each component independently and replay events for debugging.
-
-## Explore the stack
-
-With the stack running, you can poke around:
-
-| Service | URL | What it shows |
-|---------|-----|---------------|
-| Kafdrop | [http://localhost:9000](http://localhost:9000) | Kafka topics and messages |
-| Grafana | [http://localhost:3000](http://localhost:3000) | Metrics dashboards (admin/admin123) |
-| Jaeger | [http://localhost:16686](http://localhost:16686) | Distributed traces |
+| Service | URL | Needs |
+|---------|-----|-------|
+| Grafana | [http://localhost:3000](http://localhost:3000) (admin / admin123) | `--observability` or `--debug` |
+| Jaeger | [http://localhost:16686](http://localhost:16686) | `--observability` or `--debug` |
+| Kafdrop | [http://localhost:9000](http://localhost:9000) | `--debug` |
 
 ## Troubleshooting
 
-**CPU/memory metrics show as `null`**
+If scripts stay queued, check `docker compose logs cert-generator` for the connection error above, then `docker compose logs k8s-worker pod-monitor`. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
-The metrics server isn't installed by default in most local Kubernetes setups. Enable it:
-
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-```
-
-**Certificate warnings in browser**
-
-Expected - the stack uses self-signed certs for local development. Accept the warning and continue.
-
-**Services failing to start**
-
-Check logs for the specific service: `docker compose logs backend` or `docker compose logs kafka`. Most issues are either port conflicts (something else using 443, 5001, or 9092) or Docker running out of resources.
-
-**Kafka connection errors**
-
-Kafka takes longer to initialize than most services. Give it a minute after `deploy.sh dev` finishes, or watch `docker compose logs kafka` until you see "started" messages.
+If a service fails to start, `docker compose logs <service>` usually says why. The usual causes are a port already in use (443, 5001, or 27017, 6379 and 9092 on localhost) or Docker running out of memory.
 
 ## Stop the stack
 
@@ -102,15 +74,10 @@ Kafka takes longer to initialize than most services. Give it a minute after `dep
 ./deploy.sh down
 ```
 
-To also remove persistent data (MongoDB, Redis volumes):
+To delete the MongoDB, Redis and Kafka data as well:
 
 ```bash
 docker compose down -v
 ```
 
-## Next steps
-
-- [Architecture Overview](architecture/overview.md) - How the pieces fit together
-- [Deployment](operations/deployment.md) - Docker Compose deployment
-- [API Reference](reference/api-reference.md) - Full endpoint documentation
-- [Configuration Reference](reference/configuration.md) - TOML configuration options
+[Configuration](reference/configuration.md) lists every setting, and the [API reference](reference/api-reference.md) has every endpoint.

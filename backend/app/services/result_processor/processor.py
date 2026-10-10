@@ -78,7 +78,9 @@ class ResultProcessor:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
         except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
+            self.logger.error(
+                "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
+            )
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_failed(self, event: DomainEvent) -> None:
@@ -110,7 +112,7 @@ class ResultProcessor:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
         except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
+            self.logger.error("Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
@@ -143,7 +145,7 @@ class ResultProcessor:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
         except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
+            self.logger.error("Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def _publish_result_stored(

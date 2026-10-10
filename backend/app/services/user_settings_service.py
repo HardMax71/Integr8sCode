@@ -55,7 +55,7 @@ class UserSettingsService:
         """Get settings with cache; rebuild and cache on miss."""
         if user_id in self._cache:
             cached = self._cache[user_id]
-            self.logger.debug(f"Settings cache hit for user {user_id}", cache_size=len(self._cache))
+            self.logger.debug("Settings cache hit", user_id=user_id, cache_size=len(self._cache))
             return cached
 
         return await self.get_user_settings_fresh(user_id)
@@ -227,9 +227,9 @@ class UserSettingsService:
     async def invalidate_cache(self, user_id: str) -> None:
         """Invalidate cached settings for a user."""
         if self._cache.pop(user_id, None) is not None:
-            self.logger.debug(f"Invalidated cache for user {user_id}", cache_size=len(self._cache))
+            self.logger.debug("Invalidated settings cache", user_id=user_id, cache_size=len(self._cache))
 
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings
-        self.logger.debug(f"Cached settings for user {user_id}", cache_size=len(self._cache))
+        self.logger.debug("Cached settings", user_id=user_id, cache_size=len(self._cache))

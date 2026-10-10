@@ -63,7 +63,7 @@ class EventReplayService:
                 message="Replay session created successfully",
             )
         except Exception as e:
-            self.logger.error(f"Failed to create replay session: {e}")
+            self.logger.error("Failed to create replay session", error=str(e))
             raise ReplayOperationError("", "create", str(e)) from e
 
     async def start_session(self, session_id: str) -> ReplayOperationResult:
@@ -399,7 +399,7 @@ class EventReplayService:
             )
             await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
         except Exception as e:
-            self.logger.error(f"Failed to update session in database: {e}")
+            self.logger.error("Failed to update session in database", session_id=session.session_id, error=str(e))
         await self._publish_replay_status(session)
 
     async def _publish_replay_status(self, session: ReplaySessionState) -> None:

@@ -54,9 +54,9 @@ class EventRepository:
         try:
             await doc.insert()
         except DuplicateKeyError:
-            self.logger.debug(f"Event {event.event_id} already stored, skipping")
+            self.logger.debug("Event already stored, skipping", event_id=event.event_id)
             return event.event_id
-        self.logger.debug(f"Stored event {event.event_id} of type {event.event_type}")
+        self.logger.debug("Stored event", event_id=event.event_id, event_type=event.event_type)
         return event.event_id
 
     async def mark_publish_failed(self, event_id: str) -> None:

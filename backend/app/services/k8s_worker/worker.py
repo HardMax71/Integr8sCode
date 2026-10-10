@@ -64,7 +64,7 @@ class KubernetesWorker:
         # State tracking
         self._active_creations: set[str] = set()
 
-        self.logger.info(f"KubernetesWorker initialized for namespace {self._settings.K8S_NAMESPACE}")
+        self.logger.info("KubernetesWorker initialized", namespace=self._settings.K8S_NAMESPACE)
 
     async def handle_create_pod_command(self, command: CreatePodCommandEvent) -> None:
         """Handle create pod command from saga orchestrator"""
@@ -72,7 +72,7 @@ class KubernetesWorker:
 
         # Check if already processing
         if execution_id in self._active_creations:
-            self.logger.warning(f"Already creating pod for execution {execution_id}")
+            self.logger.warning("Already creating pod for execution", execution_id=execution_id)
             return
 
         await self._create_pod_for_execution(command)
@@ -84,7 +84,7 @@ class KubernetesWorker:
         to the pod, so K8s garbage-collects it automatically.
         """
         execution_id = command.execution_id
-        self.logger.info(f"Deleting pod for execution {execution_id} due to: {command.reason}")
+        self.logger.info("Deleting pod for execution", execution_id=execution_id, reason=command.reason)
 
         try:
             pod_name = f"executor-{execution_id}"
@@ -93,7 +93,7 @@ class KubernetesWorker:
                 namespace=self._settings.K8S_NAMESPACE,
                 grace_period_seconds=30,
             )
-            self.logger.info(f"Successfully deleted pod {pod_name} (ConfigMap will be GC'd by K8s)")
+            self.logger.info("Deleted pod, K8s garbage-collects its ConfigMap", pod_name=pod_name)
 
         except ApiException as e:
             self.logger.warning("Failed to delete pod", execution_id=execution_id, status=e.status, reason=e.reason)
@@ -133,11 +133,14 @@ class KubernetesWorker:
             self.metrics.record_k8s_pod_created("success", command.language)
 
             self.logger.info(
-                f"Successfully created pod {pod.metadata.name} for execution {execution_id}. Duration: {duration:.2f}s"
+                "Created pod for execution",
+                pod_name=pod.metadata.name,
+                execution_id=execution_id,
+                duration_seconds=round(duration, 2),
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to create pod for execution {execution_id}: {e}", exc_info=True)
+            self.logger.error("Failed to create pod for execution", execution_id=execution_id, exc_info=True)
             self.metrics.record_k8s_pod_created("failed", "unknown")
             await self._publish_pod_creation_failed(command, str(e))
 
@@ -173,10 +176,10 @@ exec "$@"
         try:
             await self.v1.create_namespaced_config_map(namespace=self._settings.K8S_NAMESPACE, body=config_map)
             self.metrics.record_k8s_config_map_created("success")
-            self.logger.debug(f"Created ConfigMap {config_map.metadata.name}")
+            self.logger.debug("Created ConfigMap", config_map=config_map.metadata.name)
         except ApiException as e:
             if e.status == 409:  # Already exists
-                self.logger.warning(f"ConfigMap {config_map.metadata.name} already exists")
+                self.logger.warning("ConfigMap already exists", config_map=config_map.metadata.name)
                 self.metrics.record_k8s_config_map_created("already_exists")
             else:
                 self.metrics.record_k8s_config_map_created("failed")
@@ -188,11 +191,11 @@ exec "$@"
             created: k8s_client.V1Pod = await self.v1.create_namespaced_pod(
                 namespace=self._settings.K8S_NAMESPACE, body=pod
             )
-            self.logger.debug(f"Created Pod {pod.metadata.name}")
+            self.logger.debug("Created Pod", pod_name=pod.metadata.name)
             return created
         except ApiException as e:
             if e.status == 409:  # Already exists
-                self.logger.warning(f"Pod {pod.metadata.name} already exists")
+                self.logger.warning("Pod already exists", pod_name=pod.metadata.name)
                 return None
             else:
                 raise
@@ -217,7 +220,9 @@ exec "$@"
                 body=patch_body,
             )
             self.logger.debug(
-                f"Set ownerReference on ConfigMap {config_map.metadata.name} -> Pod {owner_pod.metadata.name}"
+                "Set ownerReference on ConfigMap",
+                config_map=config_map.metadata.name,
+                pod_name=owner_pod.metadata.name,
             )
         except ApiException as e:
             self.logger.warning("Failed to set ownerReference on ConfigMap", reason=e.reason)
@@ -285,7 +290,7 @@ exec "$@"
             force=True,
             _content_type="application/apply-patch+yaml",
         )
-        self.logger.info(f"NetworkPolicy '{policy_name}' applied in namespace {namespace}")
+        self.logger.info("NetworkPolicy applied", policy_name=policy_name, namespace=namespace)
 
     async def _apply_psa_labels(self, namespace: str) -> None:
         """Apply Pod Security Admission labels to the executor namespace."""
@@ -297,7 +302,7 @@ exec "$@"
         }
 
         await self.v1.patch_namespace(name=namespace, body={"metadata": {"labels": psa_labels}})
-        self.logger.info(f"Pod Security Admission labels applied to namespace {namespace}")
+        self.logger.info("Pod Security Admission labels applied", namespace=namespace)
 
     async def ensure_image_pre_puller_daemonset(self) -> None:
         """Ensure the runtime image pre-puller DaemonSet exists."""
@@ -323,7 +328,9 @@ exec "$@"
 
             for i, image_ref in enumerate(sorted(all_images)):
                 sanitized_image_ref = image_ref.split("/")[-1].replace(":", "-").replace(".", "-").replace("_", "-")
-                self.logger.info(f"DAEMONSET: before: {image_ref} -> {sanitized_image_ref}")
+                self.logger.info(
+                    "Adding image to pre-puller DaemonSet", image=image_ref, sanitized_name=sanitized_image_ref
+                )
                 init_containers.append(
                     k8s_client.V1Container(
                         name=f"pull-{i}-{sanitized_image_ref}",
@@ -373,9 +380,13 @@ exec "$@"
                 force=True,
                 _content_type="application/apply-patch+yaml",
             )
-            self.logger.info(f"DaemonSet '{daemonset_name}' applied successfully")
+            self.logger.info("DaemonSet applied", daemonset=daemonset_name)
 
         except ApiException as e:
-            self.logger.error(f"K8s API error applying DaemonSet '{daemonset_name}': {e.reason}", exc_info=True)
-        except Exception as e:
-            self.logger.error(f"Unexpected error applying image-puller DaemonSet: {e}", exc_info=True)
+            self.logger.error(
+                "K8s API error applying DaemonSet", daemonset=daemonset_name, reason=e.reason, exc_info=True
+            )
+        except Exception:
+            self.logger.error(
+                "Unexpected error applying image-puller DaemonSet", daemonset=daemonset_name, exc_info=True
+            )

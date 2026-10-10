@@ -136,7 +136,7 @@ class RedisProvider(Provider):
         )
         # Test connection
         await client.ping()
-        logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
+        logger.info("Redis connected", host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
         try:
             yield client
         finally:
@@ -234,7 +234,7 @@ class KubernetesProvider(Provider):
         """Provide Kubernetes ApiClient with config loading and cleanup."""
         await k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
         api_client = k8s_client.ApiClient()
-        logger.info(f"Kubernetes API host: {api_client.configuration.host}")
+        logger.info("Kubernetes API client ready", host=api_client.configuration.host)
         try:
             yield api_client
         finally:

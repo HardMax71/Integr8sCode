@@ -261,7 +261,7 @@ class DLQManager:
                     failed += 1
                     details.append(DLQRetryResult(event_id=event_id, status="failed", error="Retry failed"))
             except Exception as e:
-                self.logger.error(f"Error retrying message {event_id}: {e}")
+                self.logger.error("Error retrying message", event_id=event_id, error=str(e))
                 self.metrics.record_dlq_processing_error("batch_retry", "unknown", type(e).__name__)
                 failed += 1
                 details.append(DLQRetryResult(event_id=event_id, status="failed", error=str(e)))

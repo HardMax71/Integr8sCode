@@ -467,7 +467,8 @@ class ExecutionService:
         )
 
         self.logger.debug(
-            f"Retrieved {len(executions)} executions for user",
+            "Retrieved executions for user",
+            count=len(executions),
             user_id=user_id,
             filters={k: v for k, v in query.items() if k != "user_id"},
             limit=limit,

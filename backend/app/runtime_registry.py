@@ -1,4 +1,5 @@
-from typing import NamedTuple, TypedDict
+from dataclasses import dataclass, field
+from typing import NamedTuple, NotRequired, TypedDict
 
 from app.domain.execution import LanguageInfoDomain
 
@@ -13,12 +14,22 @@ class RuntimeConfig(NamedTuple):
 # --8<-- [end:RuntimeConfig]
 
 
+@dataclass(frozen=True)
+class PodRuntimeConfig:
+    env: dict[str, str] = field(default_factory=dict)
+    tmp_size: str = "10Mi"
+    min_cpu: str | None = None
+    min_memory: str | None = None
+    min_timeout_seconds: int | None = None
+
+
 # --8<-- [start:LanguageSpec]
 class LanguageSpec(TypedDict):
     versions: list[str]
     image_tpl: str
     file_ext: str
     interpreter: list[str]
+    pod: NotRequired[PodRuntimeConfig]
 
 
 # --8<-- [end:LanguageSpec]
@@ -54,7 +65,15 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
         "versions": ["1.27", "1.26"],
         "image_tpl": "golang:{version}-alpine",
         "file_ext": "go",
-        "interpreter": ["go", "run"],
+        "interpreter": ["go", "run", "-ldflags=-s -w", "-gcflags=all=-dwarf=false"],
+        # A cold `go run` compiles the runtime and std into GOCACHE: about 50Mi of /tmp, 230Mi RSS, 10s of CPU.
+        "pod": PodRuntimeConfig(
+            env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},
+            tmp_size="64Mi",
+            min_cpu="1000m",
+            min_memory="320Mi",
+            min_timeout_seconds=30,
+        ),
     },
 }
 # --8<-- [end:LANGUAGE_SPECS]
@@ -193,6 +212,10 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
 
 
 RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
+
+POD_RUNTIME_CONFIGS: dict[str, PodRuntimeConfig] = {
+    lang: spec.get("pod", PodRuntimeConfig()) for lang, spec in LANGUAGE_SPECS.items()
+}
 
 SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = {
     lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])

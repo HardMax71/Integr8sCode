@@ -1,7 +1,38 @@
+import re
+from decimal import Decimal
+
 from kubernetes_asyncio import client as k8s_client
 
 from app.domain.events import CreatePodCommandEvent
+from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig
 from app.settings import Settings
+
+_QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
+_QUANTITY_SCALE = {
+    None: Decimal(1),
+    "m": Decimal("0.001"),
+    "k": Decimal(10**3),
+    "M": Decimal(10**6),
+    "G": Decimal(10**9),
+    "T": Decimal(10**12),
+    "Ki": Decimal(2**10),
+    "Mi": Decimal(2**20),
+    "Gi": Decimal(2**30),
+    "Ti": Decimal(2**40),
+}
+
+
+def _quantity(value: str) -> Decimal:
+    match = _QUANTITY.fullmatch(value)
+    if not match:
+        raise ValueError(f"Unsupported resource quantity: {value!r}")
+    return Decimal(match[1]) * _QUANTITY_SCALE[match[2]]
+
+
+def _at_least(configured: str, minimum: str | None) -> str:
+    if minimum is None or _quantity(configured) >= _quantity(minimum):
+        return configured
+    return minimum
 
 
 class PodBuilder:
@@ -11,9 +42,10 @@ class PodBuilder:
     def build_pod_manifest(self, command: CreatePodCommandEvent) -> k8s_client.V1Pod:
         execution_id = command.execution_id
         pod_name = f"executor-{execution_id}"
+        pod_config = POD_RUNTIME_CONFIGS.get(command.language, PodRuntimeConfig())
 
-        container = self._build_container(command)
-        pod_spec = self._build_pod_spec(container, command)
+        container = self._build_container(command, pod_config)
+        pod_spec = self._build_pod_spec(container, command, pod_config)
 
         metadata = self._build_pod_metadata(
             name=pod_name,
@@ -47,7 +79,7 @@ class PodBuilder:
             data={command.runtime_filename: script_content, "entrypoint.sh": entrypoint_content},
         )
 
-    def _build_container(self, command: CreatePodCommandEvent) -> k8s_client.V1Container:
+    def _build_container(self, command: CreatePodCommandEvent, pod_config: PodRuntimeConfig) -> k8s_client.V1Container:
         execution_id = command.execution_id
 
         # Timeout is enforced by activeDeadlineSeconds on the pod spec
@@ -56,8 +88,8 @@ class PodBuilder:
         # Get resources - prefer command values, fallback to settings
         cpu_request = command.cpu_request or self._settings.K8S_POD_CPU_REQUEST
         memory_request = command.memory_request or self._settings.K8S_POD_MEMORY_REQUEST
-        cpu_limit = command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT
-        memory_limit = command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT
+        cpu_limit = _at_least(command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu)
+        memory_limit = _at_least(command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory)
 
         container = k8s_client.V1Container(
             name="executor",
@@ -76,6 +108,7 @@ class PodBuilder:
             env=[
                 k8s_client.V1EnvVar(name="EXECUTION_ID", value=execution_id),
                 k8s_client.V1EnvVar(name="OUTPUT_PATH", value="/output"),
+                *(k8s_client.V1EnvVar(name=name, value=value) for name, value in pod_config.env.items()),
             ],
             termination_message_policy="FallbackToLogsOnError",
         )
@@ -96,11 +129,11 @@ class PodBuilder:
         return container
 
     def _build_pod_spec(
-        self, container: k8s_client.V1Container, command: CreatePodCommandEvent
+        self, container: k8s_client.V1Container, command: CreatePodCommandEvent, pod_config: PodRuntimeConfig
     ) -> k8s_client.V1PodSpec:
         """Build pod specification"""
         execution_id = command.execution_id
-        timeout = command.timeout_seconds or 300
+        timeout = max(command.timeout_seconds or 300, pod_config.min_timeout_seconds or 0)
 
         spec = k8s_client.V1PodSpec(
             containers=[container],
@@ -126,7 +159,9 @@ class PodBuilder:
                 k8s_client.V1Volume(
                     name="output-volume", empty_dir=k8s_client.V1EmptyDirVolumeSource(size_limit="10Mi")
                 ),
-                k8s_client.V1Volume(name="tmp-volume", empty_dir=k8s_client.V1EmptyDirVolumeSource(size_limit="10Mi")),
+                k8s_client.V1Volume(
+                    name="tmp-volume", empty_dir=k8s_client.V1EmptyDirVolumeSource(size_limit=pod_config.tmp_size)
+                ),
             ],
             # Critical security boundaries (not network-related)
             enable_service_links=False,  # Defense in depth - no service discovery

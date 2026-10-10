@@ -48,7 +48,7 @@ uv run pytest tests/unit/                       # unit only
 uv run pytest -k "test_name" -x                 # single test, stop on failure
 uv run ruff check . --config pyproject.toml     # lint (must pass)
 uv run mypy --config-file pyproject.toml --strict .  # types (must pass)
-uv run python scripts/check_orphan_modules.py   # dead code (must pass)
+uv run python -m scripts.check_orphan_modules   # dead code (must pass)
 
 # Frontend (from frontend/)
 npm run dev             # dev server with hot reload
@@ -732,7 +732,7 @@ vi.mock('../../../lib/api', () => ({
 # Backend
 uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293
 uv run mypy --config-file pyproject.toml --strict . # 318 source files
-uv run python scripts/check_orphan_modules.py       # orphan module detection
+uv run python -m scripts.check_orphan_modules       # orphan module detection
 
 # Frontend
 npm run check   # svelte-check: 0 errors, 0 warnings

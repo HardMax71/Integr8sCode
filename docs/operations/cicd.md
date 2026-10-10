@@ -144,9 +144,9 @@ Workers reuse the `backend` image with different `command:` overrides in docker-
 are needed. All 4 images are scanned by Trivy and promoted to `latest` in the
 [Docker Scan & Promote](#docker-scan-promote) workflow.
 
-The base image is cached separately as a zstd-compressed tarball since its dependencies rarely change. The backend
-image uses `docker/build-push-action@v7` with GHA layer cache (`scope=backend`, `mode=max`), so intermediate layers
-are reused when only application code changes. Utility and frontend images also use GHA layer caching.
+The base image is built with `docker/build-push-action@v7` (GHA cache `scope=backend-base`) and cached separately as a
+zstd-compressed tarball, since its dependencies rarely change. The backend image is a plain `docker build` on top of
+that cached base, so only the application layers rebuild. Utility and frontend images use GHA layer caching.
 
 All 4 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
 
@@ -210,7 +210,7 @@ e2e-boot (GHCR login + pull + k3s install)
     |
 e2e-ready (finalize k3s + start stack + health check)
     |
-    └── npx playwright test --shard=N/2
+    └── npm run test:e2e -- --shard=N/2
 ```
 
 ### Coverage reporting
@@ -459,7 +459,7 @@ uv run ruff check . --config pyproject.toml
 uv run mypy --config-file pyproject.toml --strict .
 
 # Dead code detection (orphan modules)
-uv run python scripts/check_orphan_modules.py
+uv run python -m scripts.check_orphan_modules
 
 # Security scan
 uv tool run bandit -r . -x tests/ -ll
@@ -491,7 +491,7 @@ For E2E tests, use the deployment script to bring up the full stack:
 docker compose exec -T backend uv run pytest tests/e2e -v
 
 # Run frontend E2E tests
-cd frontend && npx playwright test
+cd frontend && npm run test:e2e
 ```
 
 Or use `./deploy.sh test` which handles stack setup, testing, and teardown automatically.

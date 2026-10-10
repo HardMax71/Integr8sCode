@@ -2,6 +2,7 @@ import dataclasses
 import re
 from datetime import datetime, timezone
 
+import structlog
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, Or, RegEx
 from pymongo.errors import DuplicateKeyError
@@ -31,6 +32,9 @@ _user_fields = set(User.__dataclass_fields__)
 
 
 class UserRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     async def get_user(self, username: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.username == username)
         return User(**doc.model_dump(include=_user_fields)) if doc else None

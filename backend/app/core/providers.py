@@ -305,16 +305,16 @@ class RepositoryProvider(Provider):
         return ExecutionRepository(logger)
 
     @provide
-    def get_saga_repository(self) -> SagaRepository:
-        return SagaRepository()
+    def get_saga_repository(self, logger: structlog.stdlib.BoundLogger) -> SagaRepository:
+        return SagaRepository(logger)
 
     @provide
-    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
-        return ResourceAllocationRepository()
+    def get_resource_allocation_repository(self, logger: structlog.stdlib.BoundLogger) -> ResourceAllocationRepository:
+        return ResourceAllocationRepository(logger)
 
     @provide
-    def get_saved_script_repository(self) -> SavedScriptRepository:
-        return SavedScriptRepository()
+    def get_saved_script_repository(self, logger: structlog.stdlib.BoundLogger) -> SavedScriptRepository:
+        return SavedScriptRepository(logger)
 
     @provide
     def get_dlq_repository(self, logger: structlog.stdlib.BoundLogger) -> DLQRepository:
@@ -333,8 +333,8 @@ class RepositoryProvider(Provider):
         return UserSettingsRepository(logger)
 
     @provide
-    def get_admin_events_repository(self) -> AdminEventsRepository:
-        return AdminEventsRepository()
+    def get_admin_events_repository(self, logger: structlog.stdlib.BoundLogger) -> AdminEventsRepository:
+        return AdminEventsRepository(logger)
 
     @provide
     def get_admin_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> AdminSettingsRepository:
@@ -345,8 +345,8 @@ class RepositoryProvider(Provider):
         return NotificationRepository(logger)
 
     @provide
-    def get_user_repository(self) -> UserRepository:
-        return UserRepository()
+    def get_user_repository(self, logger: structlog.stdlib.BoundLogger) -> UserRepository:
+        return UserRepository(logger)
 
 
 class SSEProvider(Provider):

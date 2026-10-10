@@ -2,6 +2,7 @@ import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from beanie.odm.enums import SortDirection
 from beanie.operators import GTE, LTE, In, Text
 from monggregate import Pipeline, S
@@ -33,6 +34,9 @@ from app.domain.sse import DomainReplaySSEPayload
 
 
 class AdminEventsRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     def _event_filter_conditions(self, f: EventFilter) -> list[Any]:
         """Build Beanie query conditions from EventFilter for EventDocument."""
         conditions = [

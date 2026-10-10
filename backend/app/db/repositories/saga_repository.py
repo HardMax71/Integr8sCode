@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+import structlog
 from beanie.exceptions import RevisionIdWasChanged
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
@@ -26,6 +27,9 @@ _saga_fields = set(Saga.__dataclass_fields__)
 
 
 class SagaRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     @staticmethod
     def _to_domain(doc: SagaDocument) -> Saga:
         return Saga(

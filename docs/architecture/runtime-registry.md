@@ -16,7 +16,7 @@ Each entry follows this shape:
 
 The registry offers only versions that upstream still supports, and lists them newest first. Today that is Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3. A unit test in `tests/unit/app/test_runtime_registry.py` pins that order.
 
-`DEFAULT_LANG` is `"python"` and `DEFAULT_LANG_VERSION` is the first Python version, so 3.14 today. Every `lang` and `lang_version` default in the schemas, domain models and documents reads these two constants.
+`DEFAULT_LANG` is `"python"` and `DEFAULT_LANG_VERSION` is the first Python version, so 3.14 today. Every `lang` and `lang_version` default in the schemas, domain models and documents reads these two constants, except in the saved-script update models, where both default to None so an update leaves them alone.
 
 ## From spec to pod
 

@@ -4,7 +4,7 @@ Domain models are stdlib dataclasses, and they're what services work with. They 
 
 ## What dataclasses don't do
 
-A dataclass doesn't validate types and doesn't convert nested dicts. `DomainUserSettings(notifications={"execution_failed": False})` builds fine and leaves a dict where a `DomainNotificationSettings` should be. `dataclasses.asdict()` recurses into nested dataclasses on the way out, but nothing reverses it on the way in. So whoever builds a dataclass from a dict converts the nested fields first. In practice that's the repositories, and [Model Conversion](model-conversion.md) shows how.
+A dataclass doesn't validate types and doesn't convert nested dicts. `DomainUserSettings(user_id="u1", notifications={"execution_failed": False})` builds fine and leaves a dict where a `DomainNotificationSettings` should be. `dataclasses.asdict()` recurses into nested dataclasses on the way out, but nothing reverses it on the way in. So whoever builds a dataclass from a dict converts the nested fields first. In practice that's the repositories, and [Model Conversion](model-conversion.md) shows how.
 
 The opposite holds inside Pydantic models. When a dataclass is a field type of a `BaseModel`, Pydantic validates it and converts dicts. Events rely on that for `EventMetadata` and `ResourceUsageDomain`. Some Beanie documents use domain dataclasses as field types too: `EventDocument.metadata` is an `EventMetadata`, and `ReplaySessionDocument` keeps a `ReplayFilter` in its embedded config and a list of `ReplayError`. Those documents register `dataclasses.asdict` in `bson_encoders` so the values can be written to MongoDB.
 
@@ -23,6 +23,10 @@ The opposite holds inside Pydantic models. When a dataclass is a field type of a
 | `app/domain/saved_script/models.py` | `DomainSavedScript`, `DomainSavedScriptCreate`, `DomainSavedScriptUpdate` |
 | `app/domain/rate_limit/rate_limit_models.py` | `RateLimitConfig`, `RateLimitRule`, `UserRateLimit` |
 | `app/domain/admin/settings_models.py` | `SystemSettings` |
+| `app/domain/admin/overview_models.py` | `AdminUserOverviewDomain`, `DerivedCountsDomain`, `RateLimitSummaryDomain` |
+| `app/domain/admin/replay_models.py` | `ReplaySessionData`, `ReplaySessionStatusDetail`, `ReplaySessionStatusInfo`, `ExecutionResultSummary` |
+| `app/domain/admin/replay_updates.py` | `ReplaySessionUpdate` |
+| `app/domain/idempotency/models.py` | `IdempotencyRecord` |
 | `app/domain/sse/models.py` | `SSEExecutionEventData` |
 | `app/dlq/models.py` | `DLQMessage`, `RetryPolicy` |
 

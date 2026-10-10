@@ -46,7 +46,7 @@ async def create_user(self, create_data: DomainUserCreate) -> User:
 
 `include=` drops Beanie's `id` and `revision_id` and any other field the dataclass doesn't have, without listing them. Reads return None for a missing document, and the service decides whether that's a `NotFoundError`.
 
-Partial updates use an update dataclass whose fields default to None. The repository keeps only the fields that were set:
+Partial updates use an update dataclass whose fields default to None. The repository keeps only the fields that aren't None, so None means "leave it as is" and a nullable field such as a saved script's `description` can't be set back to null this way:
 
 ```python
 update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}

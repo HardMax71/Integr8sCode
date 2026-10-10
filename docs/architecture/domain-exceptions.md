@@ -82,7 +82,7 @@ Subclasses that carry context take it in the constructor and keep it as attribut
 --8<-- "backend/app/core/exceptions/handlers.py:configure_exception_handlers"
 ```
 
-The body matches `ErrorResponse(detail, type)` from `app/schemas_pydantic/common.py`. `type` is the class name, so a client can tell `ExecutionNotFoundError` from `SagaNotFoundError` even though both are 404. Routes list these cases in `responses={...}` so they show up in the OpenAPI spec.
+The body matches `ErrorResponse(detail, type)` from `app/schemas_pydantic/common.py`. `type` is the class name, so a client can tell `ExecutionNotFoundError` from `SagaNotFoundError` even though both are 404. Routes list the errors their services raise in `responses={...}` so they show up in the OpenAPI spec. The 401 and 403 from the `current_user` and `admin_user` dependencies mostly aren't listed, so the spec leaves them out.
 
 ## Where exceptions are raised
 

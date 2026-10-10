@@ -216,60 +216,6 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Current number of active user sessions",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 7
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "pluginVersion": "8.3.3",
-      "targets": [
-        {
-          "expr": "authentication_sessions_active",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Active Sessions",
-      "type": "stat"
-    },
-    {
-      "datasource": "Victoria Metrics",
       "description": "Number of accounts locked in the last 24 hours",
       "fieldConfig": {
         "defaults": {
@@ -299,8 +245,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 8,
+        "x": 0,
         "y": 7
       },
       "id": 4,
@@ -332,7 +278,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Detected brute force attempts in the last hour",
+      "description": "Login attempts rejected because the account is locked, last hour",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -361,8 +307,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 7
       },
       "id": 5,
@@ -384,12 +330,12 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "increase(brute_force_attempts_total[1h])",
+          "expr": "sum(increase(brute_force_attempts_total[1h]))",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Brute Force Attempts (1h)",
+      "title": "Logins Blocked by Lockout (1h)",
       "type": "stat"
     },
     {
@@ -423,8 +369,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
+        "w": 8,
+        "x": 16,
         "y": 7
       },
       "id": 6,
@@ -470,7 +416,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Token generation, revocation, and validation failure rates",
+      "description": "Access tokens rejected while decoding, by reason",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -540,111 +486,18 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(tokens_generated_total[5m])",
-          "legendFormat": "Generated",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(tokens_revoked_total[5m])",
-          "legendFormat": "Revoked",
-          "refId": "B",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(token_validation_failures_total[5m])",
-          "legendFormat": "Validation Failures",
+          "expr": "sum by (reason) (rate(token_validation_failures_total[5m]))",
+          "legendFormat": "{{reason}}",
           "refId": "C",
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Token Operations",
+      "title": "Token Validation Failures",
       "type": "timeseries"
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Median token expiry time distribution",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "pluginVersion": "8.3.3",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(token_expiry_time_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p50",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Token Expiry Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "description": "CSRF token generation and validation failure rates",
+      "description": "CSRF validation failures by reason",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -694,8 +547,8 @@
       "gridPos": {
         "h": 6,
         "w": 12,
-        "x": 0,
-        "y": 18
+        "x": 12,
+        "y": 12
       },
       "id": 9,
       "options": {
@@ -714,19 +567,13 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "rate(csrf_tokens_generated_total[5m])",
-          "legendFormat": "Generated",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(csrf_validation_failures_total[5m])",
-          "legendFormat": "Failures",
+          "expr": "sum by (reason) (rate(csrf_validation_failures_total[5m]))",
+          "legendFormat": "{{reason}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "CSRF",
+      "title": "CSRF Validation Failures",
       "type": "timeseries"
     },
     {
@@ -736,7 +583,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 18
       },
       "id": 102,
       "panels": [],
@@ -796,7 +643,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 25
+        "y": 19
       },
       "id": 10,
       "options": {
@@ -883,7 +730,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 25
+        "y": 19
       },
       "id": 11,
       "options": {

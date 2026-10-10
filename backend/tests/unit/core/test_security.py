@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import jwt
@@ -354,3 +355,34 @@ class TestDecodeToken:
     def test_malformed_token_raises(self, security_service: SecurityService, bad_token: str) -> None:
         with pytest.raises(InvalidCredentialsError):
             security_service.decode_token(bad_token)
+
+    @pytest.mark.parametrize(
+        "claims,key,reason",
+        [
+            ({"sub": "u", "exp": datetime.now(timezone.utc) - timedelta(seconds=5)}, None, "expired"),
+            ({"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, "wrong-secret-key", "invalid_signature"),
+            ({"user_id": "x", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, None, "missing_subject"),
+            (None, None, "invalid"),
+        ],
+    )
+    def test_rejected_token_records_reason(
+        self, test_settings: Settings, claims: dict[str, object] | None, key: str | None, reason: str
+    ) -> None:
+        metrics = MagicMock(spec=SecurityMetrics)
+        svc = SecurityService(test_settings, metrics)
+        token = "not.a.token" if claims is None else jwt.encode(
+            claims, key or test_settings.SECRET_KEY, algorithm=test_settings.ALGORITHM
+        )
+
+        with pytest.raises(InvalidCredentialsError):
+            svc.decode_token(token)
+
+        metrics.record_token_validation_failure.assert_called_once_with(reason)
+
+    def test_valid_token_records_no_failure(self, test_settings: Settings) -> None:
+        metrics = MagicMock(spec=SecurityMetrics)
+        svc = SecurityService(test_settings, metrics)
+
+        svc.decode_token(svc.create_access_token({"sub": "u"}, expires_delta=timedelta(minutes=5)))
+
+        metrics.record_token_validation_failure.assert_not_called()

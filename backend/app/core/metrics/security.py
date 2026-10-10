@@ -22,25 +22,11 @@ class SecurityMetrics(BaseMetrics):
             name="authentication.duration", description="Time taken for authentication in seconds", unit="s"
         )
 
-        self.active_sessions = self._meter.create_up_down_counter(
-            name="authentication.sessions.active", description="Number of active user sessions", unit="1"
-        )
-
         # Token metrics
-        self.tokens_generated = self._meter.create_counter(
-            name="tokens.generated.total", description="Total number of tokens generated", unit="1"
-        )
-
-        self.tokens_revoked = self._meter.create_counter(
-            name="tokens.revoked.total", description="Total number of tokens revoked", unit="1"
-        )
-
         self.token_validation_failures = self._meter.create_counter(
-            name="token.validation.failures.total", description="Total number of token validation failures", unit="1"
-        )
-
-        self.token_expiry_time = self._meter.create_histogram(
-            name="token.expiry.time", description="Token expiry time in seconds", unit="s"
+            name="token.validation.failures.total",
+            description="Access tokens rejected while decoding, by reason",
+            unit="1",
         )
 
         # Authorization metrics
@@ -53,10 +39,6 @@ class SecurityMetrics(BaseMetrics):
         )
 
         # CSRF protection metrics
-        self.csrf_tokens_generated = self._meter.create_counter(
-            name="csrf.tokens.generated.total", description="Total number of CSRF tokens generated", unit="1"
-        )
-
         self.csrf_validation_failures = self._meter.create_counter(
             name="csrf.validation.failures.total", description="Total number of CSRF validation failures", unit="1"
         )
@@ -72,19 +54,14 @@ class SecurityMetrics(BaseMetrics):
 
         # Brute force detection
         self.brute_force_attempts = self._meter.create_counter(
-            name="brute.force.attempts.total", description="Total number of detected brute force attempts", unit="1"
+            name="brute.force.attempts.total",
+            description="Login attempts rejected because the account is locked",
+            unit="1",
         )
 
         self.accounts_locked = self._meter.create_counter(
             name="accounts.locked.total", description="Total number of accounts locked due to security", unit="1"
         )
-
-    def record_authentication_attempt(self, method: str, success: bool, duration_seconds: float) -> None:
-        attrs = {"method": method, "success": str(success)}
-        self.authentication_attempts.add(1, attributes=attrs)
-        if not success:
-            self.authentication_failures.add(1, attributes={"method": method})
-        self.authentication_duration.record(duration_seconds, attributes={"method": method})
 
     @contextmanager
     def track_authentication(self, method: str) -> Generator[None, None, None]:
@@ -94,23 +71,13 @@ class SecurityMetrics(BaseMetrics):
             yield
             success = True
         finally:
-            self.record_authentication_attempt(method, success, time.monotonic() - start)
+            self.authentication_attempts.add(1, attributes={"method": method, "success": str(success)})
+            if not success:
+                self.authentication_failures.add(1, attributes={"method": method})
+            self.authentication_duration.record(time.monotonic() - start, attributes={"method": method})
 
-    def increment_active_sessions(self) -> None:
-        self.active_sessions.add(1)
-
-    def decrement_active_sessions(self) -> None:
-        self.active_sessions.add(-1)
-
-    def record_token_generated(self, token_type: str, expiry_seconds: float) -> None:
-        self.tokens_generated.add(1, attributes={"token_type": token_type})
-        self.token_expiry_time.record(expiry_seconds, attributes={"token_type": token_type})
-
-    def record_token_revoked(self, token_type: str, reason: str) -> None:
-        self.tokens_revoked.add(1, attributes={"token_type": token_type, "reason": reason})
-
-    def record_token_validation_failure(self, token_type: str, failure_reason: str) -> None:
-        self.token_validation_failures.add(1, attributes={"token_type": token_type, "failure_reason": failure_reason})
+    def record_token_validation_failure(self, reason: str) -> None:
+        self.token_validation_failures.add(1, attributes={"reason": reason})
 
     def record_authorization_check(
         self, resource: str, action: str, allowed: bool, user_role: str | None = None
@@ -130,9 +97,6 @@ class SecurityMetrics(BaseMetrics):
                 1, attributes={"resource": resource, "action": action, "user_role": user_role or "unknown"}
             )
 
-    def record_csrf_token_generated(self) -> None:
-        self.csrf_tokens_generated.add(1)
-
     def record_csrf_validation_failure(self, reason: str) -> None:
         self.csrf_validation_failures.add(1, attributes={"reason": reason})
 
@@ -142,23 +106,8 @@ class SecurityMetrics(BaseMetrics):
     def record_weak_password_attempt(self, weakness_type: str) -> None:
         self.weak_password_attempts.add(1, attributes={"weakness_type": weakness_type})
 
-    def record_brute_force_attempt(
-        self, ip_address: str, target_user: str | None = None, action_taken: str = "logged"
-    ) -> None:
-        self.brute_force_attempts.add(
-            1,
-            attributes={
-                "ip_address": ip_address,
-                "target_user": target_user or "multiple",
-                "action_taken": action_taken,
-            },
-        )
+    def record_brute_force_attempt(self) -> None:
+        self.brute_force_attempts.add(1)
 
-    def record_account_locked(self, reason: str, duration_seconds: float | None = None) -> None:
-        self.accounts_locked.add(
-            1,
-            attributes={
-                "reason": reason,
-                "duration": str(duration_seconds) if duration_seconds else "permanent",
-            },
-        )
+    def record_account_locked(self, reason: str) -> None:
+        self.accounts_locked.add(1, attributes={"reason": reason})

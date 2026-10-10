@@ -31,10 +31,10 @@ async def test_validate_execution_step_success_and_failures() -> None:
     ok = await ValidateExecutionStep(logger=_logger).execute(ctx, _req())
     assert ok is True and ctx.get("execution_id") == "e1"
 
-    # Timeout too large → raises
+    # The admin settings bound the timeout (up to 3600 s), so the step accepts their maximum
     ctx2 = SagaContext("s1", "e1")
-    with pytest.raises(ValueError, match="Timeout exceeds maximum"):
-        await ValidateExecutionStep(logger=_logger).execute(ctx2, _req(timeout=301))
+    assert await ValidateExecutionStep(logger=_logger).execute(ctx2, _req(timeout=3600)) is True
+    assert ctx2.get("timeout_seconds") == 3600
 
     # Script too big → raises
     ctx3 = SagaContext("s1", "e1")

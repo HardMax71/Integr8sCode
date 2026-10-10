@@ -10,14 +10,12 @@ The execution saga in `app/services/saga/execution_saga.py` has three steps:
 
 ```text
 execution popped from the Redis queue
-  ValidateExecutionStep    script at most 1 MiB, timeout at most 300 s
+  ValidateExecutionStep    script at most 1 MiB
   AllocateResourcesStep    count active allocations for the language, insert one
   CreatePodStep            publish create_pod_command
 ```
 
 `AllocateResourcesStep` counts allocations with status `active` for the language and raises "Resource limit exceeded" at 100. Otherwise it inserts an allocation with a fresh uuid4 `allocation_id`, the execution id, the language and the CPU and memory requests and limits from the event, and stores the id in the saga context.
-
-`ValidateExecutionStep` rejects any timeout above 300 seconds. The admin settings accept a `max_timeout_seconds` up to 3600, and every execution carries that value, so setting it above 300 makes every saga fail at this step.
 
 ## Compensation
 

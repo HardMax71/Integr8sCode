@@ -30,9 +30,6 @@ class ValidateExecutionStep(SagaStep[ExecutionRequestedEvent]):
         if len(event.script) > 1024 * 1024:
             raise ValueError("Script size exceeds limit")
 
-        if event.timeout_seconds is not None and event.timeout_seconds > 300:
-            raise ValueError("Timeout exceeds maximum allowed")
-
         return True
 
     def get_compensation(self) -> CompensationStep | None:

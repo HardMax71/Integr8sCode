@@ -64,7 +64,7 @@ graph TB
 --8<-- "backend/app/services/user_settings_service.py:cache_init"
 ```
 
-It's a `cachetools.TTLCache` with up to 1000 entries. The TTL is a hardcoded 5 minutes (`self._cache_ttl = timedelta(minutes=5)`). The service is app-scoped, so each API process has its own cache, and only the process that handled an update refreshes it. Other processes keep serving their cached copy until it expires. `invalidate_cache()` exists, but nothing calls it.
+It's a `cachetools.TTLCache` with up to 1000 entries. The TTL is a hardcoded 5 minutes (`self._cache_ttl = timedelta(minutes=5)`). The service is app-scoped, so each API process has its own cache, and only the process that handled an update refreshes it. Other processes keep serving their cached copy until it expires.
 
 ## History and restore
 

@@ -443,25 +443,6 @@ class TestRestoreSettingsToPoint:
         assert rebuilt.theme == initial.theme
 
 
-class TestCacheManagement:
-    """Tests for cache management methods."""
-
-    @pytest.mark.asyncio
-    async def test_invalidate_cache(self, scope: AsyncContainer) -> None:
-        """Invalidate cache for user."""
-        svc: UserSettingsService = await scope.get(UserSettingsService)
-        user_id = _unique_user_id()
-
-        # Cache settings
-        await svc.get_user_settings(user_id)
-
-        # Invalidate
-        await svc.invalidate_cache(user_id)
-
-        # Should still work (cache miss)
-        settings = await svc.get_user_settings(user_id)
-        assert settings.user_id == user_id
-
 class TestSettingsIntegration:
     """Integration tests for settings workflow."""
 

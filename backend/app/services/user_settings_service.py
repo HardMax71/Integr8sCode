@@ -227,11 +227,6 @@ class UserSettingsService:
             filtered["editor"] = DomainEditorSettings(**filtered["editor"])
         return DomainUserSettings(**filtered)
 
-    async def invalidate_cache(self, user_id: str) -> None:
-        """Invalidate cached settings for a user."""
-        if self._cache.pop(user_id, None) is not None:
-            self.logger.debug("Invalidated settings cache", user_id=user_id, cache_size=len(self._cache))
-
     def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
         """Add settings to TTL+LRU cache."""
         self._cache[user_id] = settings

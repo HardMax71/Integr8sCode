@@ -69,7 +69,7 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-Secrets (MongoDB, Redis, JWT) fall back to dev defaults, so local development needs no config. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD` and `REDIS_PASSWORD` as env vars.
+Secrets (MongoDB, Redis, JWT) fall back to dev defaults, so local development needs no config. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD` and `REDIS_PASSWORD` as env vars, plus `MONGO_MONITOR_PASSWORD` with `--observability`.
 
 ### Verify
 

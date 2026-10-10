@@ -172,7 +172,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Rate limiting (backend)
 
-`RateLimitService.check_rate_limit`, called from `RateLimitMiddleware`. `endpoint` is the path with UUIDs and numeric IDs replaced by `*`.
+`RateLimitService.check_rate_limit`, called from `RateLimitMiddleware`. `endpoint` is the path with UUIDs and any segment of 20 or more letters and digits replaced by `*`. Shorter IDs such as `/42` stay as they are.
 
 | Metric | Type | Labels | Notes |
 |--------|------|--------|-------|

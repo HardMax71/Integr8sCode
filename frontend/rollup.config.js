@@ -7,7 +7,6 @@ import sveltePreprocess from 'svelte-preprocess';
 import replace from '@rollup/plugin-replace';
 import typescript from '@rollup/plugin-typescript';
 import alias from '@rollup/plugin-alias';
-import dotenv from 'dotenv';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import https from 'node:https';
@@ -29,7 +28,6 @@ const aliases = alias({
     ]
 });
 
-dotenv.config();
 const production = !process.env.ROLLUP_WATCH;
 
 let server;
@@ -167,8 +165,6 @@ export default {
     plugins: [
         aliases,
         replace({
-            'process.env.VITE_BACKEND_URL': JSON.stringify(''),
-            'process.env.VITE_GRAFANA_URL': JSON.stringify(process.env.VITE_GRAFANA_URL || '/grafana'),
             'const isProduction = false': `const isProduction = ${production}`,
             preventAssignment: true
         }),

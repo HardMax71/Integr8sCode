@@ -1,146 +1,98 @@
 # Kafka topic architecture
 
-## 1-topic-per-event-type
+Every event type has its own topic, and the topic name is the `EventType` value itself, with no prefix: `ExecutionRequestedEvent` goes to `execution_requested`. Since `EventType` is a `StringEnum`, the member already is that string, so neither side needs a lookup table or `.value`.
 
-The system uses a **1:1 mapping** between `EventType` enum values and Kafka topics. Each event type gets its own dedicated topic. The topic name IS the `EventType` string value — no prefix, no transformation.
-
-```
-Topic name = EventType.EXECUTION_REQUESTED
-           = "execution_requested"
+```python
+await self._transport.publish(event_to_produce, event_to_produce.event_type, key)
 ```
 
-Since `EventType` extends `StringEnum` (which extends `str`), no `.value` accessor is needed — the enum member IS the string.
+That line in `UnifiedProducer.produce` is the whole routing layer. Subscribers name the same enum member:
 
-## Why one topic per event type?
+```python
+@broker.subscriber(
+    EventType.EXECUTION_REQUESTED,
+    group_id="saga-orchestrator",
+    ack_policy=AckPolicy.ACK,
+)
+async def on_execution_requested(
+    body: ExecutionRequestedEvent,
+    ...
+```
 
-Previous designs multiplexed many event types onto shared topics (e.g. `execution_events` carried 9 different event types consumed by 4 separate consumer groups). This created problems:
+Each handler gets exactly one typed model. Nobody decodes a message only to drop it because the type doesn't match.
 
-- **Body-based filtering**: Every consumer decoded every message just to check `event_type`, wasting CPU
-- **Catch-all handlers**: Unmatched events were silently dropped by `on_unhandled` handlers
-- **Tight coupling**: Unrelated event types shared partition counts, retention policies, and consumer group offsets
-- **Debugging difficulty**: Hard to reason about which consumer is processing what
+## Topic configuration
 
-The 1:1 approach eliminates all of these:
+No code creates topics. The broker has `KAFKA_AUTO_CREATE_TOPICS_ENABLE` on, so a topic appears the first time a client uses it, with the broker defaults from `docker-compose.yaml`: 3 partitions (`KAFKA_NUM_PARTITIONS`) and 7 days of retention (`KAFKA_LOG_RETENTION_HOURS: 168`). Every topic gets the same settings.
 
-- **No filtering**: Each `@broker.subscriber(topic)` receives exactly one event type with its typed Pydantic model
-- **No catch-alls**: Nothing to drop — every message on a topic matches the subscriber's type
-- **Independent tuning**: Each topic can have its own partition count and retention policy
-- **Clear ownership**: Easy to see which consumer groups subscribe to which event types
+`EventType` has 57 members, but the code constructs fewer than half of them, so most of those topics never come into existence. `app/infrastructure/kafka/topics.py` groups event types into sets such as `EXECUTION_TYPES`, `POD_TYPES` and `COMMAND_TYPES`. The DLQ uses those sets to choose a retry policy, and they have nothing to do with partitions or retention.
 
-## Topic categories and configuration
-
-Topics are grouped into categories for configuration purposes (partition count, retention):
-
-| Category | Partitions | Retention | Event Types |
-|----------|-----------|-----------|-------------|
-| Execution | 6 | 7 days | `execution_requested`, `execution_completed`, `execution_failed`, etc. |
-| Pod | 3 | 1 day | `pod_created`, `pod_scheduled`, `pod_running`, etc. |
-| Command | 3 | 1 day | `create_pod_command`, `delete_pod_command`, etc. |
-| User/Security | 3 | 30 days | `user_registered`, `security_violation`, etc. |
-| Default | 3 | 7 days | Everything else (saga, notification, DLQ, etc.) |
-
-Configuration is defined in `infrastructure/kafka/topics.py` using category sets.
+Execution, pod, command, result and saga events are keyed by execution ID. User events use the username, notifications the user ID and settings events `user_settings_{user_id}`. Within a topic, Kafka sends every message with the same key to the same partition, so they stay in order. Across topics there is no ordering at all, so a group that reads several topics, like the SSE bridge, can see one execution's events out of order. With 3 partitions, up to three consumers in one group can share a topic.
 
 ## Consumer groups
 
-Each worker subscribes to only the topics it needs, with its own consumer group:
+Group IDs are string literals in `app/events/handlers.py`. The `KAFKA_CONSUMER_GROUP_ID` setting in the per-worker TOML files isn't read anywhere ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
 
-| Consumer Group | Subscribed Topics |
-|---------------|-------------------|
-| `k8s-worker` | `create_pod_command`, `delete_pod_command` |
-| `result-processor` | `execution_completed`, `execution_failed`, `execution_timeout` |
-| `saga-orchestrator` | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
-| `notification-service` | `execution_completed`, `execution_failed`, `execution_timeout` |
-| `sse-bridge-pool` | 16 event types (execution + pod lifecycle + result) |
+| Group | Runs in | Topics |
+|-------|---------|--------|
+| `saga-orchestrator` | saga-orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
+| `k8s-worker` | k8s-worker | `create_pod_command`, `delete_pod_command` |
+| `result-processor` | result-processor | `execution_completed`, `execution_failed`, `execution_timeout` |
+| `notification-service` | API | `execution_completed`, `execution_failed`, `execution_timeout` |
+| `sse-bridge-pool` | API | 17 types: every `execution_*` event except `execution_accepted`, all seven `pod_*` events, `result_stored` and `result_failed` |
 
-Multiple consumer groups can subscribe to the same topic — Kafka delivers each message to every group independently.
+Kafka delivers each message to every group that subscribes to the topic, so one `execution_completed` reaches the saga orchestrator, the result processor, the notification service and the SSE bridge. The pod monitor, event-replay and dlq-processor containers only publish.
+
+Most subscribers use `AckPolicy.ACK`, which commits the offset after the handler returns, even when it raised. The SSE bridge uses `ACK_FIRST` and starts from the latest offset, since a browser only cares about events from now on. The result processor reads one record per poll and starts from the earliest offset.
 
 ## Request flow
 
-When a user submits code, the API creates an `ExecutionRequestedEvent` and publishes it to the `execution_requested` topic. Multiple consumers receive it:
+The execution service publishes `ExecutionRequestedEvent` to `execution_requested`. Two groups receive it: the saga orchestrator queues it, and the SSE bridge forwards it to the browser. When a slot is free, the orchestrator publishes `CreatePodCommandEvent` to `create_pod_command`, which only the k8s worker reads. From there the pod, execution and result events flow back through their own topics, as described in the [overview](overview.md#execution-lifecycle).
 
-1. **Saga orchestrator**: Creates a saga, enqueues the execution in a Redis-backed priority queue, and publishes a `CreatePodCommandEvent`
-2. **SSE bridge**: Pushes the event to the user's browser in real-time
-
-The saga orchestrator publishes `CreatePodCommandEvent` to the `create_pod_command` topic. The K8s worker — the sole consumer — creates the pod. Pod lifecycle events flow back through their respective topics.
-
-## Scaling
-
-With dedicated topics per event type, each can be scaled independently:
-
-- High-throughput execution events get 6 partitions
-- Lower-volume pod events use 3 partitions
-- Command topics (work queues) use 3 partitions, optimized for the worker's consumption pattern
-
-## Failure isolation
-
-If the K8s worker crashes, only `create_pod_command` and `delete_pod_command` topics accumulate messages. The rest of the system continues normally — SSE streams updates, the saga orchestrator processes requests, notifications fire.
+If the k8s worker is down, only `create_pod_command` and `delete_pod_command` pile up. SSE, notifications and the queue keep working, though the orchestrator stops scheduling once every concurrency slot is taken, since a slot frees up only when its execution finishes or is cancelled.
 
 ## Sagas
 
 ```mermaid
 graph TD
-    SagaService[SagaService]
     Orchestrator[SagaOrchestrator]
-    ExecutionSaga["ExecutionSaga<br/>(steps/compensations)"]
-    SagaRepo[(SagaRepository<br/>Mongo)]
-    EventStore[(EventStore + Kafka topics)]
+    ExecutionSaga["ExecutionSaga<br/>(steps and compensations)"]
+    SagaRepo[(SagaRepository<br/>MongoDB)]
+    Producer[UnifiedProducer]
+    Kafka[(Kafka)]
 
-    SagaService -- starts --> Orchestrator
-    SagaService --> SagaRepo
-
-    Orchestrator -- "binds explicit dependencies<br/>(producers, repos, command publisher)" --> ExecutionSaga
-    Orchestrator --> EventStore
-
-    ExecutionSaga -- "step.run(...) -> publish commands (Kafka)" --> EventStore
-    ExecutionSaga -- "compensation() -> publish compensations" --> EventStore
+    Orchestrator --> SagaRepo
+    Orchestrator -- "bind_dependencies(producer, alloc_repo, ...)" --> ExecutionSaga
+    ExecutionSaga -- "create_pod step, delete_pod compensation" --> Producer
+    Producer --> Kafka
 ```
 
-Sagas coordinate multi-step workflows where each step publishes commands to Kafka and the orchestrator tracks progress in MongoDB. If a step fails, *compensation actions* roll back previous steps by publishing compensating events. This keeps long-running operations reliable without distributed transactions.
-
-Key design choices:
-
-- Dependencies injected *explicitly* rather than pulled from context
-- Only *serializable* data persisted — sagas can resume after restarts
+The orchestrator creates an `ExecutionSaga`, binds its dependencies explicitly and runs the steps one by one, saving the current step, the completed steps and the context to MongoDB after each one. Only plain data goes into that context, which is what lets `cancel_saga` rebuild the compensations later from the stored saga. When a step fails, the compensations of the completed steps run in reverse and publish commands like `delete_pod_command`. See [Saga Orchestrator](../components/workers/saga_orchestrator.md).
 
 ## Replay
 
 ```mermaid
 graph LR
-    Admin[Admin API] --> ReplayService
-    ReplayService --> ReplayRepo[(ReplayRepository)]
-    ReplayService --> EventStore[(EventStore)]
+    Admin[Admin API] --> ReplayService[EventReplayService]
+    ReplayService --> ReplayRepo[(ReplayRepository<br/>MongoDB)]
     ReplayService --> Producer[UnifiedProducer]
     Producer --> Kafka[(Kafka)]
 ```
 
-The replay system re-emits historical events from EventStore back to Kafka. Useful for:
+`EventReplayService` reads stored events that match a filter from MongoDB in batches and publishes them again through `UnifiedProducer`, so each one goes back to the topic of its own type. The event store ignores the duplicate `event_id`, so a replay doesn't double the stored history. A session can also write events to a file instead, or go nowhere for a dry test, and the admin can pause, resume or cancel it.
 
-- Rebuilding projections
-- Testing new consumers
-- Recovering from data issues
-
-Create a replay session with filters (time range, event type), and ReplayService reads matching events from MongoDB and publishes to the target topic. Sessions track progress — pause and resume long replays as needed.
+The service runs inside the API process, and a session's live state is kept in that process's memory. With more than one Gunicorn worker, a follow-up call for a session can land in a process that doesn't know it and get a 404. The `target_topics` field of a replay request is accepted and stored but never used. See [Event Replay](../components/workers/event_replay.md).
 
 ## Dead letters
 
-```mermaid
-graph LR
-    Consumer[Consumer] -->|"failure"| Manager[DLQ Manager]
-    Manager -->|"persist"| MongoDB[(MongoDB)]
-    Manager -->|"retry"| Original[(Original Topic)]
-    Manager -->|"status events"| Kafka[(dlq_* topics)]
-```
+The DLQ is a MongoDB collection, `dlq_messages`, not a Kafka topic. `DLQManager.handle_message` stores a failed message there and schedules a retry by the event type's category: execution and command events get 5 retries with exponential backoff from 30 seconds, pod events 3 retries from 60 seconds, result events 3 immediate retries, and everything else 4 retries from 60 seconds. The dlq-processor republishes due messages to their original topic every 10 seconds and publishes `dlq_message_retried`.
 
-When a consumer fails to process an event, the DLQ manager receives it via direct `handle_message()` calls (not Kafka consumption). Messages are persisted to MongoDB and the manager handles retry logic with *exponential backoff* and configurable thresholds. Retry policies are determined by event type category (execution events get aggressive retries, pod events get cautious retries). Status events (`dlq_message_received`, `dlq_message_retried`, `dlq_message_discarded`) are published to their own per-event-type topics.
+Nothing calls `handle_message` today, so the collection stays empty. Combined with `AckPolicy.ACK`, an event whose handler raises is logged, counted in a metric and then lost ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). See [Dead Letter Queue](../components/dead-letter-queue.md).
 
-## Event schemas
+## Key files
 
-Key files:
-
-- `domain/events/typed.py` — all Pydantic event models (plain `BaseModel` subclasses)
-- `infrastructure/kafka/topics.py` — category-based topic configs (partitions, retention)
-- `events/core/producer.py` — UnifiedProducer (persists to MongoDB, publishes to Kafka)
-- `events/handlers.py` — FastStream subscriber registrations for all workers
-
-All events are Pydantic models with strict typing. FastStream handles JSON serialization natively — the producer publishes Pydantic instances directly via `broker.publish()`, and subscribers receive typed model instances. Pydantic validation on both ends ensures structural agreement between producers and consumers.
+- `app/domain/enums/events.py` holds `EventType`, which doubles as the topic list.
+- `app/domain/events/typed.py` holds the Pydantic event models and the `DomainEvent` union.
+- `app/events/core/producer.py` and `transport.py` hold `UnifiedProducer` and `KafkaEventTransport`.
+- `app/events/handlers.py` registers every subscriber.
+- `app/infrastructure/kafka/topics.py` has the event type category sets.

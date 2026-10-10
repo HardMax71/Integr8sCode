@@ -8,7 +8,7 @@ Every event the system produces is written to one MongoDB collection, `events`, 
 --8<-- "backend/app/db/docs/event.py:EventDocument"
 ```
 
-The class declares the fields every event shares, plus `stored_at`, `ttl_expires_at` and `execution_id`. Everything else comes in through `extra="allow"`. A `PodCreatedEvent` stores `pod_name` and `namespace` next to `event_type`, a `UserSettingsUpdatedEvent` stores whichever settings changed. That's why the indexes on `execution_id` and `pod_name` are sparse: only some event types have those fields.
+The class declares the fields every event shares, plus `stored_at`, `ttl_expires_at` and `execution_id`. Everything else comes in through `extra="allow"`. A `PodCreatedEvent` stores `pod_name` and `namespace` next to `event_type`, a `UserSettingsUpdatedEvent` stores whichever settings changed. Only some event types have `execution_id` or `pod_name`, so both indexes are declared sparse. Only the `pod_name` one stays sparse in practice: `execution_id` is a declared field, so an event without one is stored with `execution_id: null`, and a sparse index still indexes nulls.
 
 Queries hit event fields directly, with no prefix:
 
@@ -30,7 +30,7 @@ graph LR
 
 `UnifiedProducer.produce()` in `app/events/core/producer.py` does both steps. First `EventRepository.store_event()` dumps the event with `model_dump(exclude_none=True)`, sets `stored_at` and inserts it. A duplicate `event_id` hits the unique index, and the repository logs it and returns, so storing the same event twice is a no-op. Replayed events keep their `event_id`, so a replay doesn't create new rows.
 
-Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, `mark_publish_failed()` sets `publish_failed` and `publish_failed_at` on the stored document and the exception goes back to the caller. Nothing re-publishes flagged events later.
+Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, `mark_publish_failed()` sets `publish_failed` and `publish_failed_at` on the stored document and the exception goes back to the caller. Nothing re-publishes flagged events automatically, though a replay session with the Kafka target sends stored events again.
 
 Services call the producer directly or through `KafkaEventService.publish_event()`, which wraps the same call in a trace span and records publish metrics.
 

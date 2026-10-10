@@ -73,7 +73,7 @@ graph TD
     - Kafka layer: `UnifiedProducer` on the way out, FastStream subscribers on the way in
     - Observability: the OTel Collector, which forwards to VictoriaMetrics, Jaeger and Loki
 
-A request passes through seven middlewares before it reaches a route handler. Handlers get their services from Dishka, services read and write MongoDB through repositories, and anything that changes state publishes an event through `UnifiedProducer`, which stores the event in MongoDB first and then sends it to Kafka. Redis holds rate limit counters, idempotency keys, the execution queue and the SSE pub/sub channels.
+A request passes through seven middlewares before it reaches a route handler. Handlers get their services from Dishka, services read and write MongoDB through repositories, and the event-driven flows (executions, auth, user settings, notifications) publish events through `UnifiedProducer`, which stores the event in MongoDB first and then sends it to Kafka. Saved scripts and admin changes to users and system settings write to MongoDB without an event. Redis holds rate limit counters, idempotency keys, the execution queue and the SSE pub/sub channels.
 
 The API process also consumes Kafka. On startup it registers two subscriber groups: `sse-bridge-pool`, which copies execution events into Redis for SSE, and `notification-service`, which turns finished executions into notifications.
 

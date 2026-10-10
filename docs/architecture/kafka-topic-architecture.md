@@ -27,7 +27,7 @@ No code creates topics. The broker has `KAFKA_AUTO_CREATE_TOPICS_ENABLE` on, so 
 
 `EventType` has 57 members, but the code constructs fewer than half of them, so most of those topics never come into existence. `app/infrastructure/kafka/topics.py` groups event types into sets such as `EXECUTION_TYPES`, `POD_TYPES` and `COMMAND_TYPES`. The DLQ uses those sets to choose a retry policy, and they have nothing to do with partitions or retention.
 
-Execution, pod, command, result and saga events are keyed by execution ID. User events use the username, notifications the user ID and settings events `user_settings_{user_id}`. Within a topic, Kafka sends every message with the same key to the same partition, so they stay in order. Across topics there is no ordering at all, so a group that reads several topics, like the SSE bridge, can see one execution's events out of order. With 3 partitions, up to three consumers in one group can share a topic.
+When the producer first publishes them, execution, pod, command, result and saga events are keyed by execution ID. User events use the username, notifications the user ID and settings events `user_settings_{user_id}`. Within a topic, Kafka sends every message with the same key to the same partition, so they stay in order. Resends don't keep those keys: a DLQ retry keys the message by `event_id`, and a replay by `aggregate_id`, falling back to `event_id`. So a retried or replayed event can land on another partition and arrive out of order with the rest of its execution. Across topics there is no ordering at all, so a group that reads several topics, like the SSE bridge, can see one execution's events out of order. With 3 partitions, up to three consumers in one group can share a topic.
 
 ## Consumer groups
 

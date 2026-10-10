@@ -1,6 +1,6 @@
 # Event system design
 
-Each event is defined once, as a Pydantic model in `app/domain/events/typed.py`. The same class is stored in MongoDB, published to Kafka and handed to subscribers, so there is no separate Kafka schema and no mapping layer to keep in sync.
+Each event is defined once, as a Pydantic model in `app/domain/events/typed.py`. The same model is dumped into an `EventDocument` in MongoDB, published to Kafka and handed to subscribers, so there is no separate Kafka schema and no per-event mapping to keep in sync.
 
 ```mermaid
 graph LR
@@ -79,7 +79,7 @@ async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
         raise
 ```
 
-`store_event` ignores a duplicate `event_id`, so storing the same event twice is a no-op. If Kafka fails, the stored event gets `publish_failed: true` and the exception goes back to the caller. Nothing re-sends those events later.
+`store_event` ignores a duplicate `event_id`, so storing the same event twice is a no-op. If Kafka fails, the stored event gets `publish_failed: true` and the exception goes back to the caller. Nothing re-sends those events automatically. A replay session with the Kafka target is the only way they go out again.
 
 ```mermaid
 graph TB

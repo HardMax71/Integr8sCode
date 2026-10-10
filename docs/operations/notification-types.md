@@ -38,7 +38,7 @@ A new notification is `pending`. Delivery claims it atomically by moving it to `
 
 ## Delivery
 
-A notification without `scheduled_for` is delivered right away. A scheduled one stays `pending` until the backend's APScheduler job, which runs every 15 seconds, picks up everything due. `scheduled_for` must be in the future and at most `NOTIF_MAX_SCHEDULE_DAYS` (25) days ahead.
+A notification without `scheduled_for` is delivered right away. A scheduled one stays `pending` until the backend's APScheduler job picks it up. The job runs every 15 seconds and delivers at most 50 due notifications per run. `scheduled_for` must be in the future and at most `NOTIF_MAX_SCHEDULE_DAYS` (25) days ahead.
 
 Before delivery the service loads the user's subscription for that channel. A user without one gets an enabled default. The subscription can switch the channel off or filter by severity and tags:
 
@@ -56,7 +56,9 @@ In-app delivery publishes to the SSE bus. Webhook and Slack send an HTTP POST wi
 
 ## Throttling
 
-Creation is throttled per user and severity, `NOTIF_THROTTLE_MAX_PER_HOUR` (5) per `NOTIF_THROTTLE_WINDOW_HOURS` (1). Past the limit the service raises `NotificationThrottledError`. Throttling is off when `ENVIRONMENT` is `test`.
+Creation is throttled per user and severity, `NOTIF_THROTTLE_MAX_PER_HOUR` (5) per `NOTIF_THROTTLE_WINDOW_HOURS` (1). Past the limit `create_notification` raises `NotificationThrottledError`. That check is off when `ENVIRONMENT` is `test`.
+
+`create_system_notification` checks the same cache once more before it calls `create_notification`, unless the severity is `high` or `urgent`. That extra check runs in `test` too, and outside `test` a `low` or `medium` system notification counts twice against the limit.
 
 ```python
 --8<-- "backend/app/services/notification_service.py:ThrottleCache"

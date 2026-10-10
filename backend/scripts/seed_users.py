@@ -6,6 +6,10 @@ Creates:
   1. Default user (role=user) for testing/demo
   2. Admin user (role=admin, is_superuser=True) for administration
 
+Also drops duplicate system settings documents, which an old get-or-insert race could create
+and which would stop the unique settings_id index from building. Compose starts the API and
+the workers only after this script succeeds.
+
 Uses main Settings for MongoDB connection. Password env vars are script-specific:
   DEFAULT_USER_PASSWORD: Default user password (default: user123)
   ADMIN_USER_PASSWORD: Admin user password (default: admin123)
@@ -68,6 +72,15 @@ async def upsert_user(
         )
 
 
+async def drop_duplicate_system_settings(db: AsyncDatabase[dict[str, Any]]) -> None:
+    """Keep only the most recently updated system settings document."""
+    cursor = db.system_settings.find({"settings_id": "global"}, {"_id": 1}).sort("updated_at", -1).skip(1)
+    stale = [doc["_id"] async for doc in cursor]
+    if stale:
+        print(f"Removing {len(stale)} duplicate system settings documents")
+        await db.system_settings.delete_many({"_id": {"$in": stale}})
+
+
 async def seed_users(settings: Settings) -> None:
     """Seed default users using provided settings for MongoDB connection."""
     pwd_hasher = PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))
@@ -77,6 +90,8 @@ async def seed_users(settings: Settings) -> None:
     client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL)
     db = client.get_default_database(default=settings.MONGO_DB)
     print(f"Connecting to MongoDB (database: {db.name})...")
+
+    await drop_duplicate_system_settings(db)
 
     # Default user
     await upsert_user(

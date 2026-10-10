@@ -234,7 +234,7 @@ services:
       retries: 10
       start_period: 30s
 
-  # Kafka (KRaft mode — no ZooKeeper)
+  # Kafka in KRaft mode, no ZooKeeper
   kafka:
     image: confluentinc/cp-kafka:8.3.2
     container_name: kafka

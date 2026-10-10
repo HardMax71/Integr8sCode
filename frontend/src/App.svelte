@@ -14,8 +14,7 @@
     const log = logger.withTag('App');
 
     // Page components (lazy-loaded for code splitting)
-    // NOTE: must be async functions (not plain arrows) — svelte5-router checks
-    // constructor.name === "AsyncFunction" to detect lazy components.
+    // Must be async functions, not plain arrows: svelte5-router checks constructor.name === "AsyncFunction"
     const Home = async () => import('$routes/Home.svelte');
     const Login = async () => import('$routes/Login.svelte');
     const Register = async () => import('$routes/Register.svelte');

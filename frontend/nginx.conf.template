@@ -77,7 +77,7 @@ server {
     }
 
     # --8<-- [start:static_caching]
-    # Cache static assets (no add_header here — server-level security headers inherit)
+    # Cache static assets; no add_header here, so the server-level security headers still apply
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
     }

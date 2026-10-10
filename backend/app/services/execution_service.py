@@ -68,13 +68,15 @@ class ExecutionService:
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
+        runtimes = self.settings.SUPPORTED_RUNTIMES
         return ResourceLimitsDomain(
             cpu_limit=effective.cpu_limit,
             memory_limit=effective.memory_limit,
             cpu_request=self.settings.K8S_POD_CPU_REQUEST,
             memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
             execution_timeout=effective.max_timeout_seconds,
-            supported_runtimes=self.settings.SUPPORTED_RUNTIMES,
+            supported_runtimes=runtimes,
+            language_limits={lang: await self._runtime_settings.get_language_limits(lang) for lang in runtimes},
         )
 
     async def get_example_scripts(self) -> dict[str, str]:

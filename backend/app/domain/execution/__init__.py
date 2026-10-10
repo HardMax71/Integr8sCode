@@ -13,6 +13,7 @@ from .models import (
     DomainExecutionUpdate,
     ExecutionResultDomain,
     LanguageInfoDomain,
+    LanguageLimitsDomain,
     ResourceLimitsDomain,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "ExecutionResultDomain",
     "ExecutionTerminalError",
     "LanguageInfoDomain",
+    "LanguageLimitsDomain",
     "ResourceLimitsDomain",
     "RuntimeNotSupportedError",
     "EventPublishError",

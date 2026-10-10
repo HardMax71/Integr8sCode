@@ -59,6 +59,15 @@ class LanguageInfoDomain:
 
 
 @dataclass
+class LanguageLimitsDomain:
+    """Limits a pod for one language gets: the admin limits raised to the language minimums."""
+
+    cpu_limit: str
+    memory_limit: str
+    execution_timeout: int
+
+
+@dataclass
 class ResourceLimitsDomain:
     """K8s resource limits configuration."""
 
@@ -68,6 +77,7 @@ class ResourceLimitsDomain:
     memory_request: str
     execution_timeout: int
     supported_runtimes: dict[str, LanguageInfoDomain]
+    language_limits: dict[str, LanguageLimitsDomain]
 
 
 @dataclass

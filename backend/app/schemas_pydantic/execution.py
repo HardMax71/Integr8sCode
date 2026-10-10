@@ -101,6 +101,16 @@ class LanguageInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
 
+class LanguageLimits(BaseModel):
+    """Limits a pod for one language gets: the admin limits raised to the language minimums."""
+
+    cpu_limit: str
+    memory_limit: str
+    execution_timeout: int
+
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+
 class ResourceLimits(BaseModel):
     """Model for resource limits configuration."""
 
@@ -110,6 +120,7 @@ class ResourceLimits(BaseModel):
     memory_request: str
     execution_timeout: int
     supported_runtimes: dict[str, LanguageInfo]
+    language_limits: dict[str, LanguageLimits]
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 

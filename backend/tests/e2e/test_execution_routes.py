@@ -13,8 +13,10 @@ from app.schemas_pydantic.execution import (
     ExecutionRequest,
     ExecutionResponse,
     ExecutionResult,
+    LanguageLimits,
     ResourceLimits,
 )
+from app.services.runtime_settings import at_least
 from httpx2 import AsyncClient
 from pydantic import TypeAdapter
 
@@ -532,3 +534,12 @@ class TestPublicEndpoints:
         assert result.execution_timeout > 0
         assert "python" in result.supported_runtimes
         assert len(result.supported_runtimes["python"].versions) >= 1
+        assert result.language_limits.keys() == result.supported_runtimes.keys()
+        assert result.language_limits["python"] == LanguageLimits(
+            cpu_limit=result.cpu_limit, memory_limit=result.memory_limit, execution_timeout=result.execution_timeout
+        )
+        assert result.language_limits["go"] == LanguageLimits(
+            cpu_limit=at_least(result.cpu_limit, "1000m"),
+            memory_limit=at_least(result.memory_limit, "320Mi"),
+            execution_timeout=max(result.execution_timeout, 30),
+        )

@@ -8,7 +8,7 @@ from app.core.metrics import ExecutionMetrics
 from app.db import ExecutionRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionStatus, UserRole
-from app.domain.execution import RuntimeNotSupportedError
+from app.domain.execution import LanguageLimitsDomain, RuntimeNotSupportedError
 from app.domain.user import User
 from app.events import UnifiedProducer
 from app.services.execution_service import ExecutionService
@@ -75,3 +75,32 @@ async def test_retry_of_an_unoffered_runtime_is_rejected(
     assert _map_to_status_code(exc.value) == 422
     repo.create_execution.assert_not_awaited()
     producer.produce.assert_not_awaited()
+
+
+async def test_k8s_limits_report_effective_limits_per_language(
+    repo: AsyncMock, producer: AsyncMock, test_settings: Settings
+) -> None:
+    settings_repo = AsyncMock()
+    settings_repo.get_system_settings.return_value = SystemSettings(
+        cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5
+    )
+    service = ExecutionService(
+        execution_repo=repo,
+        producer=producer,
+        settings=test_settings,
+        logger=structlog.get_logger("test"),
+        execution_metrics=MagicMock(spec=ExecutionMetrics),
+        idempotency_manager=AsyncMock(spec=IdempotencyManager),
+        runtime_settings=RuntimeSettingsLoader(settings_repo, test_settings, structlog.get_logger("test")),
+    )
+
+    limits = await service.get_k8s_resource_limits()
+
+    assert (limits.cpu_limit, limits.memory_limit, limits.execution_timeout) == ("500m", "128Mi", 5)
+    assert limits.language_limits.keys() == test_settings.SUPPORTED_RUNTIMES.keys()
+    assert limits.language_limits["python"] == LanguageLimitsDomain(
+        cpu_limit="500m", memory_limit="128Mi", execution_timeout=5
+    )
+    assert limits.language_limits["go"] == LanguageLimitsDomain(
+        cpu_limit="1000m", memory_limit="320Mi", execution_timeout=30
+    )

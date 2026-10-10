@@ -19,6 +19,9 @@ receivers:
           match_type: regexp
       load:
       memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
       network:
       paging:
       processes:

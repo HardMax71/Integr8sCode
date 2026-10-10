@@ -35,7 +35,7 @@ groups:
               to: 0
             datasourceUid: victoria-metrics
             model:
-              expr: avg_over_time(system_memory_utilization{state="used"}[5m]) * 100
+              expr: avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100
               intervalMs: 15000
               maxDataPoints: 43200
           - refId: C
@@ -66,7 +66,7 @@ groups:
               to: 0
             datasourceUid: victoria-metrics
             model:
-              expr: avg_over_time(system_memory_utilization{state="used"}[5m]) * 100
+              expr: avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100
               intervalMs: 15000
               maxDataPoints: 43200
           - refId: C

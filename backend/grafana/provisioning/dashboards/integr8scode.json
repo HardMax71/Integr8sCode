@@ -715,7 +715,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "system_memory_utilization{state=\"used\"} * 100 or vector(0)",
+          "expr": "system_memory_utilization_ratio{state=\"used\"} * 100 or vector(0)",
           "refId": "A"
         }
       ],

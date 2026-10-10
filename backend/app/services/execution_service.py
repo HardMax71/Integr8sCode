@@ -188,7 +188,7 @@ class ExecutionService:
             # Success metrics and return
             duration = time() - start_time
             self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
-            self.metrics.record_queue_wait_time(duration, lang_and_version)
+            self.metrics.record_submission_duration(duration, lang_and_version)
             self.logger.info(
                 "Script execution submitted successfully",
                 execution_id=created_execution.execution_id,

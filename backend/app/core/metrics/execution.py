@@ -56,5 +56,5 @@ class ExecutionMetrics(BaseMetrics):
     def record_error(self, error_type: str) -> None:
         self.error_counter.add(1, attributes={"error_type": error_type})
 
-    def record_queue_wait_time(self, duration_seconds: float, lang_and_version: str) -> None:
+    def record_submission_duration(self, duration_seconds: float, lang_and_version: str) -> None:
         self.submission_duration.record(duration_seconds, attributes={"lang_and_version": lang_and_version})

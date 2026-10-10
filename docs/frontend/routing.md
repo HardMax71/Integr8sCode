@@ -12,34 +12,34 @@ Every page component is lazy-loaded with an `async () => import(...)` wrapper, s
 
 | Path                 | Component                | Guard            |
 |----------------------|--------------------------|------------------|
-| `/`                  | `Home.svelte`            | none             |
-| `/login`             | `Login.svelte`           | none             |
-| `/register`          | `Register.svelte`        | none             |
-| `/privacy`           | `Privacy.svelte`         | none             |
-| `/editor`            | `Editor.svelte`          | login            |
-| `/settings`          | `Settings.svelte`        | login            |
-| `/notifications`     | `Notifications.svelte`   | login            |
+| `/`                  | Home.svelte            | none             |
+| `/login`             | Login.svelte           | none             |
+| `/register`          | Register.svelte        | none             |
+| `/privacy`           | Privacy.svelte         | none             |
+| `/editor`            | Editor.svelte          | login            |
+| `/settings`          | Settings.svelte        | login            |
+| `/notifications`     | Notifications.svelte   | login            |
 | `/admin`, `/admin/events` | `admin/AdminEvents.svelte` | login, admin |
 | `/admin/executions`  | `admin/AdminExecutions.svelte` | login, admin |
 | `/admin/sagas`       | `admin/AdminSagas.svelte` | login, admin    |
 | `/admin/users`       | `admin/AdminUsers.svelte` | login, admin    |
 | `/admin/settings`    | `admin/AdminSettings.svelte` | login, admin |
 
-There's no catch-all route, so an unknown path renders the header and footer with no page in between. nginx serves `index.html` for any path that isn't a file, so deep links and reloads work on every route above.
+There's no catch-all route, so an unknown path renders the header and footer with no page in between. nginx serves index.html for any path that isn't a file, so deep links and reloads work on every route above.
 
 ## Startup and the login guard
 
-`App.svelte` calls `authStore.initialize()` in `onMount` and shows a spinner instead of the router until it finishes, whether it succeeds or fails. The route hook waits for that too:
+App.svelte calls `authStore.initialize()` in `onMount` and shows a spinner instead of the router until it finishes, whether it succeeds or fails. The route hook waits for that too:
 
 ```typescript
 --8<-- "frontend/src/App.svelte:require_auth"
 ```
 
-A logged-out visitor to a protected route is sent to `/login`, and the path they wanted goes into `sessionStorage` as `redirectAfterLogin`. After a successful login, `Login.svelte` reads and removes that key and navigates there if it's a local path (starts with `/` but not `//`, so it can't redirect off-site). Otherwise it goes to `/editor`. The API interceptor does the same when a request gets a 401 mid-session.
+A logged-out visitor to a protected route is sent to `/login`, and the path they wanted goes into `sessionStorage` as `redirectAfterLogin`. After a successful login, Login.svelte reads and removes that key and navigates there if it's a local path (starts with `/` but not `//`, so it can't redirect off-site). Otherwise it goes to `/editor`. The API interceptor does the same when a request gets a 401 mid-session.
 
 ## Admin check
 
-The routes only require a login. The role check lives in [`AdminLayout.svelte`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/routes/admin/AdminLayout.svelte), which every admin page wraps itself in:
+The routes only require a login. The role check lives in [AdminLayout.svelte](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/routes/admin/AdminLayout.svelte), which every admin page wraps itself in:
 
 ```typescript
 onMount(() => {

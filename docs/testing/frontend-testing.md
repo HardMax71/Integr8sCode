@@ -14,7 +14,7 @@ npm run test:e2e         # playwright, needs the stack on https://localhost:5001
 
 Unit tests sit in `__tests__/` directories next to the code they cover, under `src/`: `components/`, `routes/` and `routes/admin/`, `stores/`, `lib/` and its `admin/`, `editor/` and `notifications/` subfolders, and `utils/`. Vitest picks up `src/**/*.{test,spec}.{js,ts}`.
 
-Stores are Svelte 5 rune classes in `*.svelte.ts` files (`auth.svelte.ts`, `theme.svelte.ts`, `errorStore.svelte.ts`, `notificationStore.svelte.ts`, `userSettings.svelte.ts`), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again.
+Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts, theme.svelte.ts, errorStore.svelte.ts, notificationStore.svelte.ts, userSettings.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again.
 
 Shared helpers live in `src/__tests__/test-utils.ts`, imported as `$test/test-utils`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and a preconfigured `user` from `@testing-library/user-event`.
 
@@ -28,7 +28,7 @@ E2E specs live in `frontend/e2e/`, not under `src/`.
 
 Coverage excludes the generated client in `src/lib/api/` and fails below the thresholds above.
 
-[`vitest.setup.ts`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts) runs before every test file and sets up global mocks, so most tests don't mock these themselves:
+[vitest.setup.ts](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts) runs before every test file and sets up global mocks, so most tests don't mock these themselves:
 
 - fake timers with `shouldAdvanceTime: true`
 - `$lib/api` automocked, so every generated API function is a `vi.fn()`

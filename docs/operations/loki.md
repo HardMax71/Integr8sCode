@@ -13,7 +13,7 @@ flowchart LR
 
 `setup_log_exporter` in [`app/core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) builds an OTel `LoggerProvider` with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter`, then adds a `LoggingHandler` to the root logger. The handler carries the same `RedactingFilter` as the stderr handler, so only redacted text leaves the process. The backend calls it in `create_app`, and each worker calls it right after `setup_logger` in its `main()`.
 
-The only switch is `OTEL_EXPORTER_OTLP_ENDPOINT`: empty means no export. `config.toml` sets it to `http://otel-collector:4317`; `config.test.toml` leaves it unset.
+The only switch is `OTEL_EXPORTER_OTLP_ENDPOINT`: empty means no export. config.toml sets it to `http://otel-collector:4317`; config.test.toml leaves it unset.
 
 The OTel resource on every record has `service.name` from `SERVICE_NAME`, `service.version`, `service.namespace=integr8scode`, `deployment.environment` and `service.instance.id` from `HOSTNAME`.
 

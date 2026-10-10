@@ -4,7 +4,7 @@ API errors are shown in one place, the error interceptor in `src/lib/api-interce
 
 ## The interceptor
 
-`initializeApiInterceptors()` runs once in `main.ts`. Its error interceptor logs every failed call and picks a toast by status:
+`initializeApiInterceptors()` runs once in main.ts. Its error interceptor logs every failed call and picks a toast by status:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
@@ -47,12 +47,12 @@ showUserModal = false;   // only on success
 
 ## Known problem: unwrap in event handlers
 
-An error from `unwrap` inside an async click handler is never caught. It becomes an unhandled rejection, and the global handler in `main.ts` passes it to `appError.setError()`. `App.svelte` renders `ErrorDisplay` ("Unexpected Error", with Reload and Go to Home buttons) instead of the whole app whenever `appError.current` is set. So a failed delete in the admin users page shows the toast and then replaces the page with the error screen. It's tracked in [#291](https://github.com/HardMax71/Integr8sCode/issues/291).
+An error from `unwrap` inside an async click handler is never caught. It becomes an unhandled rejection, and the global handler in main.ts passes it to `appError.setError()`. App.svelte renders `ErrorDisplay` ("Unexpected Error", with Reload and Go to Home buttons) instead of the whole app whenever `appError.current` is set. So a failed delete in the admin users page shows the toast and then replaces the page with the error screen. It's tracked in [#291](https://github.com/HardMax71/Integr8sCode/issues/291).
 
-`window.onerror` does the same for uncaught synchronous errors. If `App` fails to mount at all, `main.ts` mounts `ErrorDisplay` directly with the title "Failed to Load Application". `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
+`window.onerror` does the same for uncaught synchronous errors. If `App` fails to mount at all, main.ts mounts `ErrorDisplay` directly with the title "Failed to Load Application". `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
 
-In unit tests, `vitest.setup.ts` swallows unhandled rejections, so tests don't see this.
+In unit tests, vitest.setup.ts swallows unhandled rejections, so tests don't see this.
 
 ## Login and register
 
-`Login.svelte` and `Register.svelte` wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.
+Login.svelte and Register.svelte wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.

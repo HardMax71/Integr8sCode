@@ -12,9 +12,9 @@ The backend and every worker export OpenTelemetry traces straight to Jaeger. A r
 - sets the W3C TraceContext propagator
 - instruments HTTPX through `HTTPX2ClientInstrumentor` (the backend uses httpx2), PyMongo, and stdlib logging
 
-The backend resolves `Tracer` in `dishka_lifespan` and then instruments FastAPI with `FastAPIInstrumentor`, skipping `health`, `metrics`, `docs` and `openapi.json`. Workers never ask for it directly, but the broker provider depends on it, so every process that builds a `KafkaBroker` sets up tracing first.
+The backend resolves `Tracer` in `dishka_lifespan` and then instruments FastAPI with `FastAPIInstrumentor`, skipping `health`, `metrics`, `docs` and openapi.json. Workers never ask for it directly, but the broker provider depends on it, so every process that builds a `KafkaBroker` sets up tracing first.
 
-`config.toml` sends traces to `http://jaeger:4317` with a sampling rate of 1.0. The collector also has a traces pipeline (with tail sampling) into Jaeger, but the app doesn't use it. `config.test.toml` leaves the endpoint empty, so tests create spans and export nothing, and pytest sets `OTEL_SDK_DISABLED=true` on top.
+config.toml sends traces to `http://jaeger:4317` with a sampling rate of 1.0. The collector also has a traces pipeline (with tail sampling) into Jaeger, but the app doesn't use it. config.test.toml leaves the endpoint empty, so tests create spans and export nothing, and pytest sets `OTEL_SDK_DISABLED=true` on top.
 
 Each worker's `config.<worker>.toml` overrides `TRACING_SERVICE_NAME`, so Jaeger lists `integr8scode-backend`, `k8s-worker`, `pod-monitor`, `result-processor`, `saga-orchestrator`, `event-replay` and `dlq-processor` as separate services.
 

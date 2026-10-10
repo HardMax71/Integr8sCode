@@ -24,16 +24,16 @@ graph LR
 
 | Workflow                       | File                   | Runs on                                                                 |
 |--------------------------------|------------------------|-------------------------------------------------------------------------|
-| Stack Tests                    | `stack-tests.yml`      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, `deploy.sh` or CI files change; manual |
-| Docker Scan & Promote          | `docker.yml`           | after Stack Tests completes; manual with an optional SHA                |
-| Release & Deploy               | `release-deploy.yml`   | after Docker Scan & Promote completes; manual on `main` with `skip_deploy` |
-| Ruff Linting                   | `ruff.yml`             | push and PRs to `main`; manual                                          |
-| MyPy Type Checking             | `mypy.yml`             | push and PRs to `main`; manual                                          |
-| Dead Code Detection            | `grimp.yml`            | push and PRs to `main`; manual                                          |
-| Security Scanning              | `security.yml`         | push and PRs to `main`; manual                                          |
-| SBOM & Supply Chain Security   | `sbom-compliance.yml`  | push and PRs to `main`; Sundays at midnight                             |
-| Frontend CI                    | `frontend-ci.yml`      | push and PRs to `main` touching `frontend/`; manual                     |
-| docs                           | `docs.yml`             | push and PRs to `main` touching `docs/`, `mkdocs.yml` or the workflow; manual |
+| Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh or CI files change; manual |
+| Docker Scan & Promote          | docker.yml           | after Stack Tests completes; manual with an optional SHA                |
+| Release & Deploy               | release-deploy.yml   | after Docker Scan & Promote completes; manual on `main` with `skip_deploy` |
+| Ruff Linting                   | ruff.yml             | push and PRs to `main`; manual                                          |
+| MyPy Type Checking             | mypy.yml             | push and PRs to `main`; manual                                          |
+| Dead Code Detection            | grimp.yml            | push and PRs to `main`; manual                                          |
+| Security Scanning              | security.yml         | push and PRs to `main`; manual                                          |
+| SBOM & Supply Chain Security   | sbom-compliance.yml  | push and PRs to `main`; Sundays at midnight                             |
+| Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
+| docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
 
 The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports. Security Scanning runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
@@ -47,7 +47,7 @@ Once both pass, one job builds the four images and pushes them to GHCR as `sha-<
 
 | Image            | Dockerfile                  | Build                                                         |
 |------------------|-----------------------------|---------------------------------------------------------------|
-| `base`           | `backend/Dockerfile.base`   | cached as a zstd tarball keyed on `Dockerfile.base`, `pyproject.toml` and `uv.lock`; GHA layer cache on a miss |
+| `base`           | `backend/Dockerfile.base`   | cached as a zstd tarball keyed on `Dockerfile.base`, pyproject.toml and uv.lock; GHA layer cache on a miss |
 | `backend`        | `backend/Dockerfile`        | plain `docker build` on top of the local base image           |
 | `cert-generator` | `cert-generator/Dockerfile` | GHA layer cache                                               |
 | `frontend`       | `frontend/Dockerfile`       | GHA layer cache                                               |
@@ -60,9 +60,9 @@ Each E2E job gets its own runner with k3s and the full compose stack, pulling th
 
 `e2e-boot` logs in to GHCR, starts `docker compose pull` and then `mongo redis shared-ca kafka` in the background, and installs k3s. Also in the background, it downloads the Kueue manifest and pre-pulls `python:3.11-slim` and `python:3.14-slim` into k3s with crictl, so the first executor pods don't wait on an image pull.
 
-`e2e-ready` writes `backend/kubeconfig.yaml` pointing at `host.docker.internal:6443` and creates the `integr8scode` namespace. Unless `install-kueue` is `false`, it applies the Kueue manifest, waits for the controller and creates the `ResourceFlavor`, `ClusterQueue` and `LocalQueue` (`kueue.x-k8s.io/v1beta2`), then waits for the image pre-pulls. It copies `config.test.toml` over `config.toml`, waits for the background infra start, runs `docker compose up -d --no-build` and polls `/api/v1/health/live` (and the frontend, when asked).
+`e2e-ready` writes `backend/kubeconfig.yaml` pointing at `host.docker.internal:6443` and creates the `integr8scode` namespace. Unless `install-kueue` is `false`, it applies the Kueue manifest, waits for the controller and creates the `ResourceFlavor`, `ClusterQueue` and `LocalQueue` (`kueue.x-k8s.io/v1beta2`), then waits for the image pre-pulls. It copies config.test.toml over config.toml, waits for the background infra start, runs `docker compose up -d --no-build` and polls `/api/v1/health/live` (and the frontend, when asked).
 
-The backend E2E job runs `pytest tests/e2e` inside the backend container after `uv sync --group test --no-dev --frozen --no-install-project --no-build`. The frontend E2E job runs as two shards. It caches Playwright browsers by `package-lock.json`, always runs `npm run test:e2e:deps`, runs `npm run test:e2e:browsers` on a cache miss, skips Kueue, and runs `npm run test:e2e -- --shard=N/2`. On failure both jobs upload compose logs; the backend one adds `kubectl get events`.
+The backend E2E job runs `pytest tests/e2e` inside the backend container after `uv sync --group test --no-dev --frozen --no-install-project --no-build`. The frontend E2E job runs as two shards. It caches Playwright browsers by package-lock.json, always runs `npm run test:e2e:deps`, runs `npm run test:e2e:browsers` on a cache miss, skips Kueue, and runs `npm run test:e2e -- --shard=N/2`. On failure both jobs upload compose logs; the backend one adds `kubectl get events`.
 
 ## Docker Scan & Promote
 
@@ -102,7 +102,7 @@ k3s comes from the install script in the k3s repo at the pinned tag (`v1.37.1+k3
 
 ## Dependabot
 
-Dependabot checks weekly and opens one grouped PR per ecosystem: uv in `backend/`, npm in `frontend/`, the three Dockerfiles, the images in `docker-compose.yaml`, and GitHub Actions including the composite actions. It ignores TypeScript 7 and later, because typescript-eslint and svelte-check need the compiler API that 7 dropped, and Jaeger 2.21 and later, because Grafana can't search it yet.
+Dependabot checks weekly and opens one grouped PR per ecosystem: uv in `backend/`, npm in `frontend/`, the three Dockerfiles, the images in docker-compose.yaml, and GitHub Actions including the composite actions. It ignores TypeScript 7 and later, because typescript-eslint and svelte-check need the compiler API that 7 dropped, and Jaeger 2.21 and later, because Grafana can't search it yet.
 
 ## Running checks locally
 

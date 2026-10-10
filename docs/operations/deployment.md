@@ -1,12 +1,12 @@
 # Deployment
 
-Everything runs from one `docker-compose.yaml`: the backend, the frontend, six workers, MongoDB, Redis, Kafka and the optional observability stack. The workers reuse the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and workers reach it through a kubeconfig that the cert-generator container writes.
+Everything runs from one docker-compose.yaml: the backend, the frontend, six workers, MongoDB, Redis, Kafka and the optional observability stack. The workers reuse the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and workers reach it through a kubeconfig that the cert-generator container writes.
 
 `backend/Dockerfile.base` is a two-stage build on `python:3.14-slim`. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, and the final stage copies only the virtualenv plus a few runtime libraries. `backend/Dockerfile` adds the application code on top and starts gunicorn with uvicorn workers on port 443. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
 ## deploy.sh
 
-[`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) is a thin wrapper around Docker Compose:
+[deploy.sh](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) is a thin wrapper around Docker Compose:
 
 ```bash
 --8<-- "deploy.sh:usage"

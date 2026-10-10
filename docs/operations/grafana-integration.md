@@ -10,7 +10,7 @@ Grafana runs under the `observability` compose profile. Everything it shows is p
 | Jaeger           | jaeger     | `jaeger`           | needs Jaeger below 2.21, see [Tracing](tracing.md#jaeger) |
 | Loki             | loki       | `loki`             | `trace_id` derived field, broken today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)) |
 
-Grafana 13 downloads the prometheus and jaeger plugins on first start. `preinstall_sync` in `grafana.ini` makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
+Grafana 13 downloads the prometheus and jaeger plugins on first start. `preinstall_sync` in grafana.ini makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
 
 ## Dashboards
 
@@ -18,18 +18,18 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 
 | File                           | Title                      |
 |--------------------------------|----------------------------|
-| `integr8scode.json`            | System Overview            |
-| `coordinator-execution.json`   | Queue & Execution          |
-| `dlq-monitoring.json`          | Dead Letter Queue          |
-| `event-replay.json`            | Event Replay               |
-| `event-stream-monitoring.json` | Event Stream               |
-| `http-middleware.json`         | HTTP & Middleware          |
-| `kafka-events-monitoring.json` | Kafka Events               |
-| `kubernetes-pods.json`         | Kubernetes & Pods          |
-| `mongodb-monitoring.json`      | MongoDB Monitoring         |
-| `notifications.json`           | Notifications              |
-| `rate-limiting-dashboard.json` | Rate Limiting              |
-| `security-auth.json`           | Security & Authentication  |
+| integr8scode.json            | System Overview            |
+| coordinator-execution.json   | Queue & Execution          |
+| dlq-monitoring.json          | Dead Letter Queue          |
+| event-replay.json            | Event Replay               |
+| event-stream-monitoring.json | Event Stream               |
+| http-middleware.json         | HTTP & Middleware          |
+| kafka-events-monitoring.json | Kafka Events               |
+| kubernetes-pods.json         | Kubernetes & Pods          |
+| mongodb-monitoring.json      | MongoDB Monitoring         |
+| notifications.json           | Notifications              |
+| rate-limiting-dashboard.json | Rate Limiting              |
+| security-auth.json           | Security & Authentication  |
 
 ## Alerting
 
@@ -41,7 +41,7 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 
 Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the collector's `host_metrics` memory scraper, which only emits `system.memory.utilization` because the collector config enables it.
 
-Alerts go to the `email-alerts` contact point, one email to every address in `GRAFANA_ALERT_RECIPIENTS`. SMTP is configured in `grafana.ini` from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
+Alerts go to the `email-alerts` contact point, one email to every address in `GRAFANA_ALERT_RECIPIENTS`. SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
 
 The rule group names its folder by title, `Integr8sCode`. If the rules load before the dashboard provider creates that folder, Grafana makes a second `Integr8sCode` folder with a random UID and puts the rules there. The compose entrypoint avoids that: it starts Grafana without the alerting files, waits for `/api/folders/integr8scode`, then copies them in and calls `/api/admin/provisioning/alerting/reload`.
 

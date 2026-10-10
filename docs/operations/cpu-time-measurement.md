@@ -1,6 +1,6 @@
 # CPU time measurement
 
-Every executor pod runs the user's command under [`entrypoint.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/scripts/entrypoint.sh), a POSIX sh wrapper started as `/bin/sh /entry/entrypoint.sh <runtime command>`. It measures wall time, CPU time and peak memory, and hands the results back through two channels: the container's termination message and its stdout.
+Every executor pod runs the user's command under [entrypoint.sh](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/scripts/entrypoint.sh), a POSIX sh wrapper started as `/bin/sh /entry/entrypoint.sh <runtime command>`. It measures wall time, CPU time and peak memory, and hands the results back through two channels: the container's termination message and its stdout.
 
 ## What the wrapper does
 

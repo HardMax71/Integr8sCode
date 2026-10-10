@@ -56,7 +56,7 @@ Libraries that are chatty below WARNING, or that dump whole payloads (Mongo comm
 
 ## Log level
 
-`LOG_LEVEL` is `INFO` in `config.toml` and `WARNING` in `config.test.toml`. It used to be `DEBUG`, which logged every Mongo command without redaction. With the quiet list in place, `DEBUG` now only affects our own loggers and libraries outside that list.
+`LOG_LEVEL` is `INFO` in config.toml and `WARNING` in config.test.toml. It used to be `DEBUG`, which logged every Mongo command without redaction. With the quiet list in place, `DEBUG` now only affects our own loggers and libraries outside that list.
 
 ## Structured arguments
 

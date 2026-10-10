@@ -16,7 +16,7 @@ nginx sends a nonce-based Content Security Policy: scripts and `<style>` element
 
 User code runs as a non-root user with a read-only root filesystem, no capabilities, `RuntimeDefault` seccomp, user namespaces (`hostUsers: false`) and no service account token. Each pod has an `activeDeadlineSeconds` set from the execution timeout, raised to a per-language minimum where one is defined. `K8S_POD_RUNTIME_CLASS_NAME` can put pods under gVisor or another sandboxed runtime.
 
-The k8s worker owns the namespace controls and applies them at startup: the `executor-deny-all` NetworkPolicy, which blocks all executor ingress and egress, and the `restricted` Pod Security Admission labels. Total CPU and memory are capped by Kueue, which `setup-k8s.sh` installs; pods over quota wait behind a scheduling gate instead of failing. See [Pod and namespace security](security/policies.md).
+The k8s worker owns the namespace controls and applies them at startup: the `executor-deny-all` NetworkPolicy, which blocks all executor ingress and egress, and the `restricted` Pod Security Admission labels. Total CPU and memory are capped by Kueue, which setup-k8s.sh installs; pods over quota wait behind a scheduling gate instead of failing. See [Pod and namespace security](security/policies.md).
 
 Passwords are hashed with `pwdlib`'s `BcryptHasher`, with `BCRYPT_ROUNDS` rounds. Sessions are a JWT in an httpOnly cookie plus a CSRF double-submit token, and repeated failed logins lock the account. See [Authentication](architecture/authentication.md).
 

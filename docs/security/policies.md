@@ -4,7 +4,7 @@ User code runs in executor pods in the `integr8scode` namespace. The pod builder
 
 ## Executor pods
 
-[`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) builds every executor pod the same way. The container runs as UID and GID 1000 with `runAsNonRoot`, a read-only root filesystem, `allowPrivilegeEscalation: false`, all capabilities dropped and the `RuntimeDefault` seccomp profile.
+[pod_builder.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) builds every executor pod the same way. The container runs as UID and GID 1000 with `runAsNonRoot`, a read-only root filesystem, `allowPrivilegeEscalation: false`, all capabilities dropped and the `RuntimeDefault` seccomp profile.
 
 | Setting                          | Value                                    | Why                                                       |
 |----------------------------------|------------------------------------------|-----------------------------------------------------------|
@@ -16,15 +16,15 @@ User code runs in executor pods in the `integr8scode` namespace. The pod builder
 | `activeDeadlineSeconds`          | the execution timeout, at least the language minimum | the kubelet kills the pod at the deadline        |
 | `runtimeClassName`               | `K8S_POD_RUNTIME_CLASS_NAME`, unset by default | lets you run pods under gVisor or another sandbox   |
 
-The script and `entrypoint.sh` come from a per-execution ConfigMap, mounted read-only. The only writable paths are two `emptyDir` volumes: `/output` (10Mi) and `/tmp` (10Mi, or more for languages that need it).
+The script and entrypoint.sh come from a per-execution ConfigMap, mounted read-only. The only writable paths are two `emptyDir` volumes: `/output` (10Mi) and `/tmp` (10Mi, or more for languages that need it).
 
-The timeout is the admin setting `max_timeout_seconds`, which falls back to `K8S_POD_EXECUTION_TIMEOUT` (5 seconds in `config.toml`). CPU and memory limits come from `K8S_POD_CPU_LIMIT` and `K8S_POD_MEMORY_LIMIT`. A language can raise all three through its `PodRuntimeConfig` in `runtime_registry.py`. Today only Go does: at least 1000m CPU, 320Mi memory, 30 seconds and a 64Mi `/tmp` for its build cache.
+The timeout is the admin setting `max_timeout_seconds`, which falls back to `K8S_POD_EXECUTION_TIMEOUT` (5 seconds in config.toml). CPU and memory limits come from `K8S_POD_CPU_LIMIT` and `K8S_POD_MEMORY_LIMIT`. A language can raise all three through its `PodRuntimeConfig` in runtime_registry.py. Today only Go does: at least 1000m CPU, 320Mi memory, 30 seconds and a 64Mi `/tmp` for its build cache.
 
 ## Namespace
 
 The k8s worker calls `ensure_namespace_security()` when it starts. Both steps are server-side applies, so they're safe to repeat.
 
-The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; `setup-k8s.sh` doesn't create it.
+The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; setup-k8s.sh doesn't create it.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -45,11 +45,11 @@ The second labels the namespace with the `restricted` Pod Security Standard for 
 
 The worker also applies a `runtime-image-pre-puller` DaemonSet that pulls every runtime image onto each node, so executor pods don't wait on a pull. Its containers also follow the restricted profile.
 
-The worker reaches the cluster with the `integr8scode-sa` service account that `setup-k8s.sh` creates. `setup-k8s.sh` also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs and exec), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
+The worker reaches the cluster with the `integr8scode-sa` service account that setup-k8s.sh creates. setup-k8s.sh also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs and exec), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
 
 ## Quota with Kueue
 
-Kueue enforces the namespace's total CPU and memory, not the worker and not a ResourceQuota. `setup-k8s.sh` installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
+Kueue enforces the namespace's total CPU and memory, not the worker and not a ResourceQuota. setup-k8s.sh installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
 
 | Resource       | Name             | Purpose                                        |
 |----------------|------------------|------------------------------------------------|

@@ -4,7 +4,7 @@ Four things in CI cover the supply chain: SBOMs with a Grype scan of the depende
 
 ## SBOM and dependency scan
 
-[`sbom-compliance.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/sbom-compliance.yml) runs on pushes and PRs to `main` and every Sunday. For `backend/` and `frontend/` it generates an SPDX JSON SBOM with `anchore/sbom-action` (Syft), scans it with `anchore/scan-action` (Grype) at a `high` cutoff, and uploads the findings as SARIF. The scan has `fail-build: false`, so it reports without blocking. The SBOMs are kept as workflow artifacts for 5 days.
+[sbom-compliance.yml](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/sbom-compliance.yml) runs on pushes and PRs to `main` and every Sunday. For `backend/` and `frontend/` it generates an SPDX JSON SBOM with `anchore/sbom-action` (Syft), scans it with `anchore/scan-action` (Grype) at a `high` cutoff, and uploads the findings as SARIF. The scan has `fail-build: false`, so it reports without blocking. The SBOMs are kept as workflow artifacts for 5 days.
 
 Findings show up in the repository's Security tab under code scanning, as `backend-dependencies` and `frontend-dependencies`.
 
@@ -12,7 +12,7 @@ Findings show up in the repository's Security tab under code scanning, as `backe
 
 Docker Scan & Promote runs Trivy v0.75.0 on the `base`, `backend`, `frontend` and `cert-generator` images of every commit that passed Stack Tests on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore` (empty today), and uploads SARIF per image as `trivy-<image>`. Like the SBOM scan it doesn't fail the job, so it doesn't block the promote to `latest`. See [CI/CD](../operations/cicd.md#docker-scan-promote).
 
-`security.yml` runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes and PRs to `main`. `-ll` reports medium severity and up, and any finding fails the workflow.
+security.yml runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes and PRs to `main`. `-ll` reports medium severity and up, and any finding fails the workflow.
 
 ## Pinning
 

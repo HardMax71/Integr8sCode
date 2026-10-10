@@ -162,8 +162,10 @@ class UserSettingsService:
 
     # --8<-- [start:get_settings_history]
     async def get_settings_history(self, user_id: str, limit: int = 50) -> list[DomainSettingsHistoryEntry]:
-        """Get history from changed fields recorded in events."""
-        events = await self.repository.get_settings_events(user_id, [EventType.USER_SETTINGS_UPDATED], limit=limit)
+        """Get history from changed fields recorded in the newest events, newest first."""
+        events = await self.repository.get_settings_events(
+            user_id, [EventType.USER_SETTINGS_UPDATED], limit=limit, newest_first=True
+        )
         history: list[DomainSettingsHistoryEntry] = []
         for event in events:
             for fld in event.changed_fields:

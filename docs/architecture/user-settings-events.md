@@ -72,6 +72,6 @@ It's a `cachetools.TTLCache` with up to 1000 entries. The TTL is a hardcoded 5 m
 --8<-- "backend/app/services/user_settings_service.py:get_settings_history"
 ```
 
-`GET /api/v1/user/settings/history` returns one entry per changed field. `new_value` is read off the event, and `old_value` is always None. Events come back oldest first and are cut at `limit` (default 50), so with more events than that, the newest changes are missing.
+`GET /api/v1/user/settings/history` returns one entry per changed field. `new_value` is read off the event, and `old_value` is always None. It reads the newest `limit` events (default 50) and returns them newest first.
 
 `POST /api/v1/user/settings/restore` replays events up to the given timestamp onto defaults, saves the result as a snapshot, caches it, and publishes a `UserSettingsUpdatedEvent` with empty `changed_fields` and the restore as its `reason`. The snapshot's `updated_at` is the restore event's timestamp, so a later rebuild from that snapshot (a cache miss, or another process) skips everything up to the restore and applies only changes made after it.

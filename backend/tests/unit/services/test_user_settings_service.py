@@ -10,7 +10,6 @@ from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
-from beanie.odm.enums import SortDirection
 
 pytestmark = pytest.mark.unit
 
@@ -35,12 +34,12 @@ class _MemoryRepo(UserSettingsRepository):
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
-        sort_order: SortDirection = SortDirection.ASCENDING,
+        newest_first: bool = False,
     ) -> list[DomainUserSettingsChangedEvent]:
         events = [
             e for e in self.events if (since is None or e.timestamp > since) and (until is None or e.timestamp <= until)
         ]
-        events.sort(key=lambda e: e.timestamp, reverse=sort_order == SortDirection.DESCENDING)
+        events.sort(key=lambda e: e.timestamp, reverse=newest_first)
         return events[:limit] if limit else events
 
     async def count_events_since_snapshot(self, user_id: str) -> int:
@@ -89,3 +88,14 @@ async def test_restore_survives_a_rebuild_and_later_updates_still_apply(
 
     await service.update_theme("u1", Theme.LIGHT)
     assert (await service.get_user_settings_fresh("u1")).theme == Theme.LIGHT
+
+
+async def test_history_returns_the_newest_events_newest_first(service: UserSettingsService, repo: _MemoryRepo) -> None:
+    start = datetime.now(timezone.utc) - timedelta(minutes=10)
+    repo.events = [_changed(start + timedelta(minutes=i), custom_settings={"n": i}) for i in range(5)]
+
+    history = await service.get_settings_history("u1", limit=3)
+
+    assert [entry.new_value for entry in history] == [{"n": 4}, {"n": 3}, {"n": 2}]
+    assert [entry.timestamp for entry in history] == [start + timedelta(minutes=i) for i in (4, 3, 2)]
+    assert {entry.field for entry in history} == {"/custom_settings"}

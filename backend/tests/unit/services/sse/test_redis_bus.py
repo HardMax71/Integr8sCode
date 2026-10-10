@@ -70,7 +70,8 @@ class _FakeRedis:
 @pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
+    metrics = MagicMock(spec=ConnectionMetrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
 
     # Publish event as SSEExecutionEventData (field projection happens in handlers.py)
     evt = SSEExecutionEventData(
@@ -101,13 +102,16 @@ async def test_publish_and_subscribe_round_trip() -> None:
     await r._pubsub.push(ch, good_payload)
     msg2 = await asyncio.wait_for(messages.__anext__(), timeout=2.0)
     assert msg2.event_type == EventType.EXECUTION_COMPLETED
+    assert metrics.record_sse_message_sent.call_count == 2
+    metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
 
 
 
 @pytest.mark.asyncio
 async def test_notifications_channels() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
+    metrics = MagicMock(spec=ConnectionMetrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
 
     notif = DomainNotificationSSEPayload(
         notification_id="n1",
@@ -131,13 +135,15 @@ async def test_notifications_channels() -> None:
     # Subscription happened inside __anext__
     assert "sse:notif:user-1" in r._pubsub.subscribed
     assert got.notification_id == "n1"
+    metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
 
 
 
 @pytest.mark.asyncio
 async def test_replay_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
-    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=MagicMock(spec=ConnectionMetrics))
+    metrics = MagicMock(spec=ConnectionMetrics)
+    bus = SSERedisBus(cast(redis_async.Redis, r), logger=_test_logger, connection_metrics=metrics)
 
     status = DomainReplaySSEPayload(
         session_id="sess-1",
@@ -162,3 +168,4 @@ async def test_replay_publish_and_subscribe_round_trip() -> None:
     assert got.session_id == "sess-1"
     assert got.status == ReplayStatus.RUNNING
     assert got.replayed_events == 3
+    metrics.record_sse_message_sent.assert_called_once_with("replay", "replay_status")

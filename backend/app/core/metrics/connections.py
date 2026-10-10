@@ -17,12 +17,6 @@ class ConnectionMetrics(BaseMetrics):
             name="sse.connection.duration", description="Duration of SSE connections in seconds", unit="s"
         )
 
-        self.sse_draining_connections = self._meter.create_up_down_counter(
-            name="sse.connections.draining",
-            description="Number of SSE connections being drained during shutdown",
-            unit="1",
-        )
-
     def increment_sse_connections(self, endpoint: str = "default") -> None:
         self.sse_active_connections.add(1, attributes={"endpoint": endpoint})
 
@@ -34,6 +28,3 @@ class ConnectionMetrics(BaseMetrics):
 
     def record_sse_connection_duration(self, duration_seconds: float, endpoint: str) -> None:
         self.sse_connection_duration.record(duration_seconds, attributes={"endpoint": endpoint})
-
-    def update_sse_draining_connections(self, delta: int) -> None:
-        self.sse_draining_connections.add(delta)

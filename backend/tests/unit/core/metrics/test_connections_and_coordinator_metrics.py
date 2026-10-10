@@ -12,7 +12,6 @@ def test_connection_metrics_methods(test_settings: Settings) -> None:
     m.decrement_sse_connections("/events")
     m.record_sse_message_sent("/events", "etype")
     m.record_sse_connection_duration(1.2, "/events")
-    m.update_sse_draining_connections(1)
 
 
 def test_queue_metrics_methods(test_settings: Settings) -> None:

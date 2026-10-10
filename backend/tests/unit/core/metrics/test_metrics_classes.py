@@ -25,7 +25,6 @@ def test_connection_metrics_smoke(test_settings: Settings) -> None:
     m.decrement_sse_connections("exec")
     m.record_sse_message_sent("exec", "evt")
     m.record_sse_connection_duration(0.1, "exec")
-    m.update_sse_draining_connections(1)
 
 
 def test_event_metrics_smoke(test_settings: Settings) -> None:

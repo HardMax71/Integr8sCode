@@ -25,7 +25,7 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
 
 # Lookbehind starts a match only at the beginning of a run, so sanitizing stays linear on long lines
 _EMAIL_PATTERN = re.compile(
-    r"(?<![a-zA-Z0-9._%+-])([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,})", re.IGNORECASE
+    r"(?<![a-zA-Z0-9._%+-])([a-zA-Z0-9._%+-]++)@([a-zA-Z0-9-]++(?:\.[a-zA-Z0-9-]++)*\.[a-zA-Z]{2,})"
 )
 
 

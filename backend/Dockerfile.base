@@ -25,7 +25,7 @@ COPY pyproject.toml uv.lock ./
 
 # Install Python dependencies with BuildKit cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --locked --no-dev --no-install-project --no-build
 
 FROM python:3.14-slim
 

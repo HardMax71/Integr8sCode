@@ -94,7 +94,7 @@ KUEUE_VERSION="${KUEUE_VERSION:-v0.20.1}"
 KUEUE_MANIFEST_SHA256="${KUEUE_MANIFEST_SHA256:-c48514295365aae0c7dc578c70330befdd0015fec57cb4a06ba872bbef8750dd}"
 echo "Installing Kueue ${KUEUE_VERSION}..."
 KUEUE_MANIFEST="$(mktemp /tmp/kueue-manifests.XXXXXXXXXX)"
-curl -fsSL -o "$KUEUE_MANIFEST" "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
+curl --proto =https --tlsv1.2 -fsSL -o "$KUEUE_MANIFEST" "https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml"
 echo "${KUEUE_MANIFEST_SHA256}  ${KUEUE_MANIFEST}" | sha256sum -c -
 kubectl apply --server-side -f "$KUEUE_MANIFEST"
 rm -f "$KUEUE_MANIFEST"

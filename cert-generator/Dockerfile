@@ -16,7 +16,7 @@ RUN apk add --no-cache ca-certificates openssl curl dos2unix netcat-openbsd ipro
         *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
     esac && \
     # Install kubectl (pinned version for reproducibility)
-    curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" -o /usr/local/bin/kubectl && \
+    curl --proto =https --tlsv1.2 -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
 # Create shared directory for root CA

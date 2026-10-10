@@ -24,6 +24,10 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint and svelte-check need the compiler API that TypeScript 7 dropped
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
 
   # Docker base images, one entry so one group covers all three Dockerfiles
   - package-ecosystem: "docker"

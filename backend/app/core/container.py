@@ -77,6 +77,7 @@ def create_result_processor_container(settings: Settings) -> AsyncContainer:
         RepositoryProvider(),
         MessagingProvider(),
         DLQProvider(),
+        RuntimeSettingsProvider(),
         ResultProcessorProvider(),
         context={Settings: settings},
     )

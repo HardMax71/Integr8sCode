@@ -714,14 +714,14 @@ class ResultProcessorProvider(Provider):
         self,
         execution_repo: ExecutionRepository,
         kafka_producer: UnifiedProducer,
-        settings: Settings,
+        runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
     ) -> ResultProcessor:
         return ResultProcessor(
             execution_repo=execution_repo,
             producer=kafka_producer,
-            settings=settings,
+            runtime_settings=runtime_settings,
             logger=logger,
             execution_metrics=execution_metrics,
         )

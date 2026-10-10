@@ -14,7 +14,7 @@ from app.domain.events import (
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events import PRODUCE_ERRORS, UnifiedProducer
-from app.settings import Settings
+from app.services.runtime_settings import RuntimeSettingsLoader, parse_quantity
 
 
 class ResultProcessor:
@@ -24,13 +24,13 @@ class ResultProcessor:
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
-        settings: Settings,
+        runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
     ) -> None:
         self._execution_repo = execution_repo
         self._producer = producer
-        self._settings = settings
+        self._runtime_settings = runtime_settings
         self._metrics = execution_metrics
         self.logger = logger
 
@@ -56,8 +56,8 @@ class ResultProcessor:
         memory_mib = event.resource_usage.peak_memory_kb / 1024
         self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
-        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
-        memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
+        limits = await self._runtime_settings.get_language_limits(exec_obj.lang)
+        memory_limit_mib = float(parse_quantity(limits.memory_limit)) / 2**20
         memory_percent = (memory_mib / memory_limit_mib) * 100
         self._metrics.memory_utilization_percent.record(
             memory_percent, attributes={"lang_and_version": lang_and_version}

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.metrics import ExecutionMetrics
+from app.domain.admin import SystemSettings
 from app.domain.enums import ExecutionErrorType, ExecutionStatus
 from app.domain.events import (
     EventMetadata,
@@ -14,6 +15,8 @@ from app.domain.events import (
 from app.domain.execution import ExecutionNotFoundError
 from app.domain.execution.models import DomainExecution
 from app.services.result_processor import ResultProcessor
+from app.services.runtime_settings import RuntimeSettingsLoader
+from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
@@ -26,13 +29,17 @@ def _make_processor(
     execution_metrics: ExecutionMetrics,
     exec_repo: AsyncMock | None = None,
     producer: AsyncMock | None = None,
+    admin_memory_limit: str = "256Mi",
 ) -> ResultProcessor:
-    settings = MagicMock()
-    settings.K8S_POD_MEMORY_LIMIT = "256Mi"
+    settings_repo = AsyncMock()
+    settings_repo.get_system_settings.return_value = SystemSettings(memory_limit=admin_memory_limit)
+    runtime_settings = RuntimeSettingsLoader(
+        repo=settings_repo, settings=Settings(config_path="config.test.toml"), logger=_test_logger
+    )
     return ResultProcessor(
         execution_repo=exec_repo or AsyncMock(),
         producer=producer or AsyncMock(),
-        settings=settings,
+        runtime_settings=runtime_settings,
         logger=_test_logger,
         execution_metrics=execution_metrics,
     )
@@ -91,6 +98,31 @@ class TestHandleExecutionCompleted:
         assert result_arg.status == ExecutionStatus.COMPLETED
         assert result_arg.exit_code == 0
         producer.produce.assert_awaited_once()
+
+
+    @pytest.mark.parametrize(
+        ("lang", "peak_memory_kb", "expected_percent"),
+        [
+            ("python", 64 * 1024, 50.0),
+            ("go", 160 * 1024, 50.0),
+        ],
+    )
+    async def test_memory_percent_uses_effective_language_limit(
+        self, execution_metrics: ExecutionMetrics, lang: str, peak_memory_kb: int, expected_percent: float
+    ) -> None:
+        repo = AsyncMock()
+        repo.get_execution.return_value = DomainExecution(execution_id="e1", lang=lang, lang_version="1")
+        metrics = MagicMock(spec=execution_metrics)
+        processor = _make_processor(metrics, exec_repo=repo, admin_memory_limit="128Mi")
+
+        event = ExecutionCompletedEvent(
+            execution_id="e1", exit_code=0, metadata=_METADATA,
+            resource_usage=ResourceUsageDomain(peak_memory_kb=peak_memory_kb),
+        )
+        await processor.handle_execution_completed(event)
+
+        recorded_percent = metrics.memory_utilization_percent.record.call_args.args[0]
+        assert recorded_percent == pytest.approx(expected_percent)
 
 
 class TestHandleExecutionFailed:

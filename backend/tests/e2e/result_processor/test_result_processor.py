@@ -13,7 +13,7 @@ from app.domain.events import (
 from app.domain.execution import DomainExecutionCreate
 from app.events.core import UnifiedProducer
 from app.services.result_processor import ResultProcessor
-from app.settings import Settings
+from app.services.runtime_settings import RuntimeSettingsLoader
 from dishka import AsyncContainer
 
 pytestmark = [
@@ -28,7 +28,7 @@ _test_logger = structlog.get_logger("test.result_processor.processor")
 
 @pytest.mark.asyncio
 async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
-    settings: Settings = await scope.get(Settings)
+    runtime_settings: RuntimeSettingsLoader = await scope.get(RuntimeSettingsLoader)
     execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
 
     # Dependencies
@@ -49,7 +49,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
     processor = ResultProcessor(
         execution_repo=repo,
         producer=producer,
-        settings=settings,
+        runtime_settings=runtime_settings,
         logger=_test_logger,
         execution_metrics=execution_metrics,
     )

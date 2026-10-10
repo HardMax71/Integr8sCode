@@ -2,6 +2,7 @@ import dataclasses
 from datetime import datetime, timezone
 
 import structlog
+from beanie.odm.queries.update import UpdateResponse
 
 from app.db.docs.admin_settings import AuditLogDocument, SystemSettingsDocument
 from app.domain.admin import AuditAction, SystemSettings
@@ -15,21 +16,23 @@ class AdminSettingsRepository:
         self,
         defaults: SystemSettings,
     ) -> SystemSettings:
-        doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
-        if not doc:
-            self.logger.info("System settings not found, creating defaults")
-            doc = SystemSettingsDocument(config=defaults)
-            await doc.insert()
-        return doc.config
+        insert_data = SystemSettingsDocument(config=defaults).model_dump(exclude={"id", "revision_id"})
+        existing = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global").update(
+            {"$setOnInsert": insert_data},
+            upsert=True,
+            response_type=UpdateResponse.OLD_DOCUMENT,
+        )
+        if not isinstance(existing, SystemSettingsDocument):
+            self.logger.info("System settings not found, created defaults")
+            return defaults
+        return existing.config
 
     async def update_system_settings(self, settings: SystemSettings, user_id: str) -> SystemSettings:
-        doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")
-        if not doc:
-            doc = SystemSettingsDocument()
-
-        doc.config = settings
-        doc.updated_at = datetime.now(timezone.utc)
-        await doc.save()
+        now = datetime.now(timezone.utc)
+        await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global").update(
+            {"$set": {"config": settings, "updated_at": now}, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
 
         audit_entry = AuditLogDocument(
             action=AuditAction.SYSTEM_SETTINGS_UPDATED,
@@ -38,7 +41,7 @@ class AdminSettingsRepository:
         )
         await audit_entry.insert()
 
-        return doc.config
+        return settings
 
     async def reset_system_settings(self, user_id: str) -> SystemSettings:
         doc = await SystemSettingsDocument.find_one(SystemSettingsDocument.settings_id == "global")

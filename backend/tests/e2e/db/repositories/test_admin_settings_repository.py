@@ -1,5 +1,7 @@
+import asyncio
+
 import pytest
-from app.db.docs import AuditLogDocument
+from app.db.docs import AuditLogDocument, SystemSettingsDocument
 from app.db.repositories import AdminSettingsRepository
 from app.domain.admin import SystemSettings
 from app.settings import Settings
@@ -77,3 +79,39 @@ async def test_reset_creates_audit_log(repo: AdminSettingsRepository) -> None:
     count_before = await AuditLogDocument.count()
     await repo.reset_system_settings(user_id="u1")
     assert await AuditLogDocument.count() > count_before
+
+
+@pytest.mark.asyncio
+async def test_settings_id_has_unique_index() -> None:
+    indexes = await SystemSettingsDocument.get_pymongo_collection().index_information()
+    assert any(index.get("unique") and index["key"] == [("settings_id", 1)] for index in indexes.values())
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_reads_create_one_document(
+    repo: AdminSettingsRepository, toml_defaults: SystemSettings
+) -> None:
+    await SystemSettingsDocument.find(SystemSettingsDocument.settings_id == "global").delete()
+    # Warm the connection pool, otherwise the first reads queue on one connection and never overlap.
+    await asyncio.gather(*(SystemSettingsDocument.find_one({"settings_id": "-"}) for _ in range(20)))
+
+    results = await asyncio.gather(*(repo.get_system_settings(defaults=toml_defaults) for _ in range(20)))
+
+    assert all(result == toml_defaults for result in results)
+    assert await SystemSettingsDocument.find(SystemSettingsDocument.settings_id == "global").count() == 1
+
+
+@pytest.mark.asyncio
+async def test_update_racing_first_read_keeps_one_document(
+    repo: AdminSettingsRepository, toml_defaults: SystemSettings
+) -> None:
+    await SystemSettingsDocument.find(SystemSettingsDocument.settings_id == "global").delete()
+    updated = SystemSettings(max_timeout_seconds=42)
+
+    await asyncio.gather(
+        repo.update_system_settings(updated, user_id="test"),
+        *(repo.get_system_settings(defaults=toml_defaults) for _ in range(10)),
+    )
+
+    assert await SystemSettingsDocument.find(SystemSettingsDocument.settings_id == "global").count() == 1
+    assert await repo.get_system_settings(defaults=toml_defaults) == updated

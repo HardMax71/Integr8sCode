@@ -10,7 +10,7 @@ from app.domain.admin import AuditAction, SystemSettings
 
 
 class SystemSettingsDocument(Document):
-    settings_id: str = "global"
+    settings_id: Indexed(str, unique=True) = "global"  # type: ignore[valid-type]
     config: SystemSettings = Field(default_factory=SystemSettings)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

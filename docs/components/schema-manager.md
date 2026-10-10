@@ -20,14 +20,16 @@ The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in c
 
 | Collection | Unique on | Why |
 |------------|-----------|-----|
-| `sagas` | `execution_id` + `saga_name` | One saga per execution; `get_or_create_saga` upserts on it |
+| `sagas` | `execution_id` + `saga_name` | One saga of each name per execution; `get_or_create_saga` upserts on it |
 | `events` | `event_id` | The producer stores before publishing and skips a duplicate id, so a replayed event isn't stored twice |
 | `dlq_messages` | `event.event_id` | One DLQ row per event |
 | `notification_subscriptions` | `user_id` + `channel` | One subscription per channel |
 | `users` | `username`, `email`, `user_id` | Registration conflicts become 409 |
 | `user_settings` | `user_id` | One settings document per user |
+| `system_settings` | `settings_id` | One `global` document; every read upserts it on this key |
+| `events_archive` | `event_id` | A retried admin delete upserts the same archive row |
 
-`executions.execution_id`, `saved_scripts.script_id`, `resource_allocations.allocation_id`, `replay_sessions.session_id`, `audit_log.audit_id` and `notifications.notification_id` are unique as well.
+`executions.execution_id`, `saved_scripts.script_id`, `sagas.saga_id`, `resource_allocations.allocation_id`, `replay_sessions.session_id`, `audit_log.audit_id` and `notifications.notification_id` are unique as well.
 
 Idempotency keys, the execution queue and the SSE channels live in Redis, not MongoDB.
 

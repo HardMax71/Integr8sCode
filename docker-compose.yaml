@@ -180,12 +180,26 @@ services:
     profiles: ["observability"]
     image: grafana/grafana:13.2.3
     user: "472"
+    # Alert rules load after dashboards create the integr8scode folder; loaded first, they'd make one with a random UID
     entrypoint:
       - sh
       - -c
       - |
         grafana-cli --homepath /usr/share/grafana admin reset-admin-password "$$GF_SECURITY_ADMIN_PASSWORD" > /dev/null 2>&1 || true
-        exec /run.sh
+        rm -rf /tmp/provisioning && cp -r /etc/grafana/provisioning /tmp/provisioning
+        rm -f /tmp/provisioning/alerting/*
+        GF_PATHS_PROVISIONING=/tmp/provisioning /run.sh &
+        pid=$$!
+        trap 'kill -TERM $$pid' TERM INT
+        auth="$$GF_SECURITY_ADMIN_USER:$$GF_SECURITY_ADMIN_PASSWORD"
+        until curl -sf -u "$$auth" localhost:3000/api/folders/integr8scode > /dev/null; do
+          kill -0 $$pid 2> /dev/null || exit 1
+          sleep 2
+        done
+        cp /etc/grafana/provisioning/alerting/* /tmp/provisioning/alerting/
+        curl -sf -X POST -u "$$auth" localhost:3000/api/admin/provisioning/alerting/reload > /dev/null
+        wait $$pid
+        wait $$pid
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

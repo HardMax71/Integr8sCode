@@ -22,7 +22,6 @@ groups:
   - orgId: 1
     name: infrastructure-alerts
     folder: 'Integr8sCode'
-    folderUid: 'integr8scode'
     interval: 1m
     rules:
       - uid: host-memory-warning

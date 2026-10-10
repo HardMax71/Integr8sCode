@@ -16,7 +16,7 @@ from app.schemas_pydantic.execution import (
     LanguageLimits,
     ResourceLimits,
 )
-from app.services.runtime_settings import at_least
+from app.runtime_registry import at_least
 from httpx2 import AsyncClient
 from pydantic import TypeAdapter
 

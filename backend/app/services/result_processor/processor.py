@@ -14,7 +14,8 @@ from app.domain.events import (
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events import PRODUCE_ERRORS, UnifiedProducer
-from app.services.runtime_settings import RuntimeSettingsLoader, parse_quantity
+from app.runtime_registry import parse_quantity
+from app.services.runtime_settings import RuntimeSettingsLoader
 
 
 class ResultProcessor:

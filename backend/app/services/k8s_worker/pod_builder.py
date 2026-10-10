@@ -1,38 +1,8 @@
-import re
-from decimal import Decimal
-
 from kubernetes_asyncio import client as k8s_client
 
 from app.domain.events import CreatePodCommandEvent
-from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig
+from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig, at_least
 from app.settings import Settings
-
-_QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
-_QUANTITY_SCALE = {
-    None: Decimal(1),
-    "m": Decimal("0.001"),
-    "k": Decimal(10**3),
-    "M": Decimal(10**6),
-    "G": Decimal(10**9),
-    "T": Decimal(10**12),
-    "Ki": Decimal(2**10),
-    "Mi": Decimal(2**20),
-    "Gi": Decimal(2**30),
-    "Ti": Decimal(2**40),
-}
-
-
-def _quantity(value: str) -> Decimal:
-    match = _QUANTITY.fullmatch(value)
-    if not match:
-        raise ValueError(f"Unsupported resource quantity: {value!r}")
-    return Decimal(match[1]) * _QUANTITY_SCALE[match[2]]
-
-
-def _at_least(configured: str, minimum: str | None) -> str:
-    if minimum is None or _quantity(configured) >= _quantity(minimum):
-        return configured
-    return minimum
 
 
 class PodBuilder:
@@ -88,8 +58,8 @@ class PodBuilder:
         # Get resources - prefer command values, fallback to settings
         cpu_request = command.cpu_request or self._settings.K8S_POD_CPU_REQUEST
         memory_request = command.memory_request or self._settings.K8S_POD_MEMORY_REQUEST
-        cpu_limit = _at_least(command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu)
-        memory_limit = _at_least(command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory)
+        cpu_limit = at_least(command.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu)
+        memory_limit = at_least(command.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory)
 
         container = k8s_client.V1Container(
             name="executor",

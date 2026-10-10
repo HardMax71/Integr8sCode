@@ -7,7 +7,8 @@ import pytest
 from app.domain.admin import SystemSettings
 from app.domain.execution import LanguageLimitsDomain
 from pymongo.errors import ServerSelectionTimeoutError
-from app.services.runtime_settings import RuntimeSettingsLoader, at_least, parse_quantity
+from app.runtime_registry import at_least, parse_quantity
+from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit

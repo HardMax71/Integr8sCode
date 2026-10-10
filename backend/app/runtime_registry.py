@@ -1,4 +1,6 @@
+import re
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import NamedTuple, NotRequired, TypedDict
 
 
@@ -19,6 +21,40 @@ class PodRuntimeConfig:
     min_cpu: str | None = None
     min_memory: str | None = None
     min_timeout_seconds: int | None = None
+
+
+_QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
+_QUANTITY_SCALE = {
+    None: Decimal(1),
+    "m": Decimal("0.001"),
+    "k": Decimal(10**3),
+    "M": Decimal(10**6),
+    "G": Decimal(10**9),
+    "T": Decimal(10**12),
+    "Ki": Decimal(2**10),
+    "Mi": Decimal(2**20),
+    "Gi": Decimal(2**30),
+    "Ti": Decimal(2**40),
+}
+
+
+def parse_quantity(value: str) -> Decimal:
+    """Parse a Kubernetes resource quantity such as ``500m`` or ``320Mi`` into base units.
+
+    Raises:
+        ValueError: If the quantity uses a format this parser does not support.
+    """
+    match = _QUANTITY.fullmatch(value)
+    if not match:
+        raise ValueError(f"Unsupported resource quantity: {value!r}")
+    return Decimal(match[1]) * _QUANTITY_SCALE[match[2]]
+
+
+def at_least(configured: str, minimum: str | None) -> str:
+    """Return the larger of a configured quantity and an optional minimum."""
+    if minimum is None or parse_quantity(configured) >= parse_quantity(minimum):
+        return configured
+    return minimum
 
 
 # --8<-- [start:LanguageSpec]

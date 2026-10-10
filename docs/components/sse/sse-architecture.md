@@ -1,6 +1,6 @@
 # SSE architecture
 
-The browser gets live updates over Server-Sent Events, and every SSE stream reads from a Redis pub/sub channel. Workers never write to Redis for SSE. They publish to Kafka, and a subscriber inside the API process copies the relevant events into Redis.
+The browser gets live updates over Server-Sent Events, and every live update comes through a Redis pub/sub channel. Workers never write to Redis for SSE. They publish to Kafka, and a subscriber inside the API process copies the relevant events into Redis.
 
 ```mermaid
 graph LR
@@ -36,11 +36,11 @@ The only pool is this subscriber. `SSE_CONSUMER_POOL_SIZE` (10 in config.toml) i
 | `GET /api/v1/events/notifications/stream` | `sse:notif:{user_id}` | `NotificationService` |
 | `GET /api/v1/admin/events/replay/{session_id}/status` | `sse:replay:{session_id}` | `EventReplayService` |
 
-All three need a logged-in user. The execution stream returns 404 for an unknown execution and 403 when the execution belongs to someone else, unless the caller is an admin. Those checks run before streaming starts, so they come back as normal HTTP errors.
+All three need a logged-in user, and the replay stream needs an admin. The execution stream returns 404 for an unknown execution and 403 when the execution belongs to someone else, unless the caller is an admin. Those checks run before streaming starts, so they come back as normal HTTP errors.
 
 Redis pub/sub keeps nothing. An event published before the browser subscribes is gone, which is why the execution stream opens with a `status` event built from the execution document in MongoDB. The execution flow is described in [Execution SSE flow](execution-sse-flow.md).
 
-Event names on the wire are the `EventType` values, with underscores: `execution_requested`, `pod_running`, `result_stored` and so on. The notification stream sets the SSE event name to `notification` and pings every 30 seconds. The execution and replay streams ping every 15 seconds. `SSE_HEARTBEAT_INTERVAL` exists in Settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+The execution and replay streams set no SSE event name, so every message arrives as the default `message` event. An execution payload names its type in the `event_type` field: an `EventType` value such as `execution_requested`, `pod_running` or `result_stored`, or `status` for the opening event. A replay payload carries the session's `status` instead. The notification stream sets the SSE event name to `notification` and pings every 30 seconds. The execution and replay streams ping every 15 seconds. `SSE_HEARTBEAT_INTERVAL` exists in Settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
 
 ## Scaling
 

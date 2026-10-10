@@ -1,7 +1,9 @@
 <script lang="ts">
     import { fly } from 'svelte/transition';
     import { ChevronDown, ChevronRight } from '@lucide/svelte';
+    import { toast } from 'svelte-sonner';
     import type { LanguageInfo } from '$lib/api';
+    import { newestVersion } from '$lib/editor/runtimes';
 
     interface Props {
         runtimes: Record<string, LanguageInfo>;
@@ -19,6 +21,14 @@
 
     const available = $derived(Object.keys(runtimes).length > 0);
     const langKeys = $derived(Object.keys(runtimes));
+
+    $effect(() => {
+        const versions = runtimes[lang]?.versions ?? [];
+        const fallback = newestVersion(versions);
+        if (!fallback || versions.includes(version)) return;
+        toast.info(`Version ${version} of ${lang} is no longer available, switched to ${fallback}.`);
+        onselect(lang, fallback);
+    });
 
     function closeMenu() {
         showOptions = false;

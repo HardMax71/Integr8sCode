@@ -13,7 +13,7 @@ function createMockLimits() {
         memory_request: '256Mi',
         execution_timeout: 60,
         supported_runtimes: {
-            python: { versions: ['3.11', '3.12'], file_ext: 'py', display_name: 'Python' },
+            python: { versions: ['3.14', '3.13', '3.12', '3.11'], file_ext: 'py', display_name: 'Python' },
         },
     };
 }
@@ -61,7 +61,6 @@ vi.mock('$components/editor', async () => {
     const utils = await import('$test/test-utils');
     const components = utils.createMockNamedComponents({
         OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
-        LanguageSelect: '<div data-testid="lang-select"></div>',
         ResourceLimits: '<div data-testid="resource-limits"></div>',
     });
     // CodeMirrorEditor needs setContent for bind:this usage in newScript/loadScript
@@ -80,6 +79,8 @@ vi.mock('$components/editor', async () => {
     components.ScriptActions = ScriptActions;
     const { default: SavedScripts } = await import('$components/editor/SavedScripts.svelte');
     components.SavedScripts = SavedScripts;
+    const { default: LanguageSelect } = await import('$components/editor/LanguageSelect.svelte');
+    components.LanguageSelect = LanguageSelect;
     return components;
 });
 
@@ -298,6 +299,55 @@ describe('Editor', () => {
 
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
             expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), 'python', '3.11');
+        });
+    });
+
+    describe('Saved script with a dropped version', () => {
+        it('switches to the newest offered version before running or saving', async () => {
+            mockApi(listSavedScriptsApiV1ScriptsGet).ok({
+                scripts: [
+                    {
+                        script_id: 'old-1',
+                        name: 'Old Script',
+                        script: 'print(1)',
+                        lang: 'python',
+                        lang_version: '3.7',
+                        description: null,
+                        created_at: '2024-01-01T00:00:00Z',
+                        updated_at: '2024-01-01T00:00:00Z',
+                    },
+                ],
+            });
+
+            await renderEditor();
+            await waitFor(() => {
+                expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled();
+            });
+
+            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+            await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
+            await user.click(await screen.findByTitle('Load Old Script (python 3.7)'));
+
+            await waitFor(() => {
+                expect(toast.info).toHaveBeenCalledWith(
+                    'Version 3.7 of python is no longer available, switched to 3.14.',
+                );
+            });
+            expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
+                'python 3.14',
+            );
+
+            await user.click(screen.getByRole('button', { name: /Run Script/i }));
+            expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith('print(1)', 'python', '3.14');
+
+            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+            await user.click(screen.getByTitle('Save current script'));
+            await waitFor(() => {
+                expect(vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut)).toHaveBeenCalledWith({
+                    path: { script_id: 'old-1' },
+                    body: expect.objectContaining({ lang: 'python', lang_version: '3.14' }),
+                });
+            });
         });
     });
 

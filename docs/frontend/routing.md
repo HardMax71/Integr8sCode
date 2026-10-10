@@ -1,6 +1,6 @@
 # Frontend routing
 
-The frontend is a Svelte 5 single-page app routed by `@mateothegreat/svelte5-router`. All routes are one array in `src/App.svelte`. Protected routes share a `requireAuth` pre-hook, and admin pages check the role in `AdminLayout`.
+The frontend is a Svelte 5 single-page app routed by `@mateothegreat/svelte5-router`. All routes are one array in `src/App.svelte`. Protected routes share a `requireAuth` pre-hook, and admin routes use `requireAdmin`, which also checks the role.
 
 ## Routes
 
@@ -39,20 +39,13 @@ A logged-out visitor to a protected route is sent to `/login`, and the path they
 
 ## Admin check
 
-The routes only require a login. The role check lives in [AdminLayout.svelte](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/routes/admin/AdminLayout.svelte), which every admin page wraps itself in:
+Admin routes use `requireAdmin`, which runs `requireAuth` first and then checks the role before the page component mounts:
 
 ```typescript
-onMount(() => {
-    if (authStore.userRole !== 'admin') {
-        toast.error('Admin access required');
-        goto('/');
-        return;
-    }
-    // ...
-});
+--8<-- "frontend/src/App.svelte:require_admin"
 ```
 
-Until the check passes, the layout shows a spinner instead of the page. The backend enforces the role on every `/api/v1/admin/` endpoint anyway, so the client check is only about what the UI shows.
+Running it as a route hook matters because each admin page starts loading its data in its own `onMount`. When the check lived only in [AdminLayout.svelte](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/src/routes/admin/AdminLayout.svelte), a regular user got the page's 403 "Access denied." toast on top of "Admin access required". AdminLayout still repeats the check and shows a spinner until it passes. The backend enforces the role on every `/api/v1/admin/` endpoint anyway, so the client check is only about what the UI shows.
 
 ## Navigation
 

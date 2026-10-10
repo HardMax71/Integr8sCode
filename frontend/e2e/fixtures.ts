@@ -277,6 +277,9 @@ export function describeAdminAccessControl(testFn: typeof base, path: AdminPath)
     testFn('redirects non-admin users to home', async ({ userPage }) => {
       await userPage.goto(path);
       await expectRedirectToHome(userPage);
+      await expect(userPage.getByText('Admin access required')).toBeVisible();
+      await userPage.waitForLoadState('networkidle');
+      await expect(userPage.getByText('Access denied.')).toHaveCount(0);
     });
 
     testFn('redirects unauthenticated users to login', async ({ page }) => {

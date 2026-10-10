@@ -73,10 +73,10 @@ On success the manager stores the new execution as JSON in the record. A repeat 
 |------------------------|----------|
 | After the first one succeeded | 200 with the cached execution, same `execution_id`, nothing new runs |
 | While the first one is still running | 409, "Duplicate request '<key>' is still being processed" |
-| After the first one failed | 409, "Previous request '<key>' failed", for the rest of the 24 hours |
+| After the first one failed | Runs again, since a failed request deletes its key |
 | After the cached result went missing | 409, "Cached result for '<key>' is no longer available" |
 
-A client that hits an error should retry with a fresh key, since the failed one stays blocked.
+A client that hits an error can retry with the same key.
 
 ## Configuration
 

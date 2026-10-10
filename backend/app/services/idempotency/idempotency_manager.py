@@ -232,6 +232,17 @@ class IdempotencyManager:
             full_key, existing, IdempotencyStatus.FAILED, cached_json=None, error=error
         )
 
+    async def release(
+        self,
+        event: BaseEvent,
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
+    ) -> bool:
+        """Drop a reserved key so the next caller with the same key runs again."""
+        full_key = self._generate_key(event, key_strategy, custom_key, fields)
+        return (await self._repo.delete_key(full_key)) > 0
+
     async def mark_completed_with_json(
         self,
         event: BaseEvent,

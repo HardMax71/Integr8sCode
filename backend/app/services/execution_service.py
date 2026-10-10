@@ -325,24 +325,21 @@ class ExecutionService:
                 lang_version=lang_version,
                 user_id=user_id,
             )
-
-            await self.idempotency_manager.mark_completed_with_json(
+        except Exception:
+            await self.idempotency_manager.release(
                 event=pseudo_event,
-                cached_json=_exec_adapter.dump_json(exec_result).decode(),
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=custom_key,
-            )
-
-            return exec_result
-
-        except Exception as e:
-            await self.idempotency_manager.mark_failed(
-                event=pseudo_event,
-                error=str(e),
                 key_strategy=KeyStrategy.CUSTOM,
                 custom_key=custom_key,
             )
             raise
+
+        await self.idempotency_manager.mark_completed_with_json(
+            event=pseudo_event,
+            cached_json=_exec_adapter.dump_json(exec_result).decode(),
+            key_strategy=KeyStrategy.CUSTOM,
+            custom_key=custom_key,
+        )
+        return exec_result
 
     async def _update_execution_error(self, execution_id: str, error_message: str) -> None:
         result = ExecutionResultDomain(

@@ -120,3 +120,6 @@ class RedisIdempotencyRepository:
         else:
             await self._r.set(k, payload)
         return 1
+
+    async def delete_key(self, key: str) -> int:
+        return int(await self._r.delete(self._full_key(key)))

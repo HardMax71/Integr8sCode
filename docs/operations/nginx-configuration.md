@@ -1,143 +1,24 @@
 # Nginx configuration
 
-The frontend uses Nginx as a reverse proxy and static file server. The configuration lives in
-[`frontend/nginx.conf.template`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/nginx.conf.template).
-
-## Architecture
+The frontend container is nginx. It serves the Svelte build, proxies `/api/` to the backend, and has a second server block that proxies Grafana on its own hostname. The config is [`frontend/nginx.conf.template`](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/nginx.conf.template).
 
 ```mermaid
 flowchart LR
-    Browser --> Nginx
-    Nginx -->|"/api/*"| Backend["Backend :443"]
-    Nginx -->|"/grafana/*"| Grafana["Grafana :3000"]
-    Nginx -->|"static files"| Static["Static files"]
+    Browser -->|"app host :5001"| App["server _"]
+    Browser -->|"grafana.integr8scode.cc :5001"| G["server grafana.integr8scode.cc"]
+    App -->|"/api/*"| Backend["${BACKEND_URL}"]
+    App -->|"/grafana"| Redirect["302 to ${GRAFANA_PUBLIC_URL}"]
+    App -->|"everything else"| Static["static files, SPA fallback"]
+    G --> Grafana["${GRAFANA_URL}"]
 ```
 
-Nginx serves three purposes: static file server for the Svelte frontend build, reverse proxy for API requests to the
-backend, and reverse proxy for Grafana (when the `observability` Docker Compose profile is active).
-
-## Configuration breakdown
-
-### Server block
+## App server
 
 ```nginx
 --8<-- "frontend/nginx.conf.template:server_block"
 ```
 
-| Directive       | Purpose                                             |
-|-----------------|-----------------------------------------------------|
-| `listen 5001`   | Internal container port (mapped via Docker Compose) |
-| `server_name _` | Catch-all server name                               |
-| `root`          | Static files from Svelte build                      |
-
-### Compression
-
-```nginx
---8<-- "frontend/nginx.conf.template:compression"
-```
-
-Gzip compression reduces bandwidth for text-based assets. Binary files (images, fonts) are excluded as they're already
-compressed.
-
-| Directive         | Value                           | Purpose                                                           |
-|-------------------|---------------------------------|-------------------------------------------------------------------|
-| `gzip on`         |                                 | Enable gzip compression globally                                  |
-| `gzip_vary`       | `on`                            | Add `Vary: Accept-Encoding` header so caches store both versions  |
-| `gzip_min_length` | `1024`                          | Skip compression for responses under 1 KB (overhead not worth it) |
-| `gzip_types`      | text/css, application/json, ... | MIME types to compress (text-based only, not images/video)        |
-| `gzip_disable`    | `"msie6"`                       | Disable for IE6 which mishandles gzipped responses                |
-
-### API proxy
-
-```nginx
---8<-- "frontend/nginx.conf.template:api_proxy"
-```
-
-| Directive                            | Purpose                                                                                                                                                                                                                                                                                   |
-|--------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `proxy_pass ${BACKEND_URL}`          | Forward requests to the backend; the variable is replaced by `envsubst` at container start                                                                                                                                                                                                |
-| `proxy_ssl_verify off`               | Skip TLS certificate verification — safe because this is container-to-container traffic on an internal Docker network. **Never use this when proxying to external or untrusted backends** — it disables certificate validation entirely, making the connection vulnerable to MITM attacks |
-| `proxy_set_header Host $host`        | Forward the original `Host` header so the backend sees the client's requested hostname                                                                                                                                                                                                    |
-| `proxy_set_header X-Real-IP`         | Pass the client's real IP address for rate limiting and audit logging                                                                                                                                                                                                                     |
-| `proxy_set_header X-Forwarded-For`   | Append client IP to the proxy chain header (standard for multi-layer proxies)                                                                                                                                                                                                             |
-| `proxy_set_header X-Forwarded-Proto` | Preserve the original protocol (`http`/`https`) so the backend can build correct redirect URLs                                                                                                                                                                                            |
-| `proxy_pass_request_headers on`      | Forward all client request headers to the backend (default, made explicit for clarity)                                                                                                                                                                                                    |
-| `proxy_set_header Cookie`            | Forward authentication cookies (`access_token`, `csrf_token`) to the backend                                                                                                                                                                                                              |
-
-### SSE (Server-Sent Events)
-
-SSE endpoints require special handling to prevent buffering:
-
-```nginx
---8<-- "frontend/nginx.conf.template:sse_proxy"
-```
-
-| Directive                               | Purpose                                                                                                    |
-|-----------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `proxy_set_header Connection ''`        | Clear the `Connection` header so nginx doesn't inject `close` — required for HTTP/1.1 keep-alive streaming |
-| `proxy_http_version 1.1`                | Use HTTP/1.1 between nginx and the backend, which supports chunked transfer encoding needed by SSE         |
-| `proxy_buffering off`                   | Disable response buffering — pass each chunk from the backend to the client immediately                    |
-| `proxy_cache off`                       | Disable response caching — SSE streams must never be served from cache                                     |
-| `proxy_read_timeout 86400s`             | 24-hour read timeout — SSE connections are long-lived; the default 60s would close them                    |
-| `proxy_send_timeout 86400s`             | 24-hour send timeout — matches read timeout to prevent asymmetric timeout disconnects                      |
-| `proxy_set_header X-Accel-Buffering no` | Tell nginx's upstream module to disable buffering (belt-and-suspenders with `proxy_buffering off`)         |
-
-Without these settings, SSE events would be buffered and delivered in batches instead of real-time.
-
-This location block is nested inside `location /api/` using a regex match (`~ ^/api/v1/events/`). Nesting is used here
-so that the SSE location inherits the parent's `proxy_pass` context while adding stream-specific directives. Because
-the SSE block defines its own `proxy_set_header` directives (e.g., `Connection ''`, `X-Accel-Buffering no`), it must
-redeclare all of them — `proxy_set_header` follows the same all-or-nothing inheritance as `add_header`: once a child
-block defines **any** `proxy_set_header`, all parent-level `proxy_set_header` directives are dropped for that block.
-
-### Grafana proxy
-
-```nginx
---8<-- "frontend/nginx.conf.template:grafana_proxy"
-```
-
-Grafana is only available when the `observability` Docker Compose profile is active. Without it, requests to `/grafana/`
-return 502 (expected).
-
-The `resolver` + `set $upstream` pattern is used here so nginx resolves `grafana` at request time instead of at startup.
-Without this, nginx would fail to start when the Grafana container is not running (e.g., when the `observability`
-profile
-is not active). Docker's embedded DNS resolver (`127.0.0.11`) handles container name resolution on the internal network.
-
-| Directive                                                     | Purpose                                                                             |
-|---------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| `resolver 127.0.0.11 valid=30s ipv6=off`                      | Use Docker's embedded DNS; cache results for 30s; skip IPv6 (Docker bridge is IPv4) |
-| `set $grafana_upstream http://grafana:3000`                   | Store upstream in a variable so nginx resolves it at request time, not startup      |
-| `proxy_pass $grafana_upstream`                                | Forward requests to the Grafana container on the internal Docker network            |
-| `proxy_set_header Host $host`                                 | Forward the original `Host` header so Grafana sees the client's hostname            |
-| `proxy_set_header X-Real-IP $remote_addr`                     | Pass the client's real IP address                                                   |
-| `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` | Append client IP to the proxy chain header                                          |
-| `proxy_set_header X-Forwarded-Proto $scheme`                  | Preserve the original protocol so Grafana can build correct redirect URLs           |
-
-Grafana must also be configured to serve from a subpath. This is done in `backend/grafana/grafana.ini`:
-
-```ini
-[server]
-root_url = %(protocol)s://%(domain)s:%(http_port)s/grafana/
-serve_from_sub_path = true
-```
-
-### Static asset caching
-
-```nginx
---8<-- "frontend/nginx.conf.template:static_caching"
-```
-
-| Location pattern           | `expires` value | Effect                                                               |
-|----------------------------|-----------------|----------------------------------------------------------------------|
-| `~* \.(js\|css\|png\|...)` | `1y`            | Sets `Cache-Control: max-age=31536000` — browser caches for one year |
-| `/build/`                  | `1y`            | Same treatment for the Svelte build output directory                 |
-| `~* \.html$`               | `-1`            | Sets `Cache-Control: no-cache` — browser must revalidate every time  |
-
-Svelte build outputs hashed filenames (`app.abc123.js`), making them safe to cache indefinitely. HTML files must never
-be cached to ensure users get the latest asset references.
-
-The `~*` modifier makes the regex case-insensitive (matches `.JS`, `.Css`, etc.).
+Both server blocks listen on `5001 ssl` with the cert and key that cert-generator writes into `frontend/certs`. Compose publishes the port as `5001:5001`.
 
 ### Nonce injection
 
@@ -145,23 +26,7 @@ The `~*` modifier makes the regex case-insensitive (matches `.JS`, `.Css`, etc.)
 --8<-- "frontend/nginx.conf.template:nonce_injection"
 ```
 
-Nginx replaces every occurrence of the literal string `**CSP_NONCE**` in HTML responses with `$request_id` — a unique
-value generated per request. This same `$request_id` is interpolated into the CSP header's `nonce-` directive, so the
-browser sees matching nonces and allows those `<script>` and `<style>` tags.
-
-| Directive                                  | Purpose                                         |
-|--------------------------------------------|-------------------------------------------------|
-| `sub_filter_once off`                      | Replace all occurrences, not just the first     |
-| `sub_filter '**CSP_NONCE**' '$request_id'` | Inject the per-request nonce into HTML          |
-| `sub_filter_types text/html`               | Only process HTML responses (not JS, CSS, JSON) |
-
-**Nonce consumers in `index.html`:**
-
-- `<meta name="csp-nonce" content="**CSP_NONCE**">` — read at runtime by CodeMirror's `getCspNonce()` so dynamically
-  injected `<style>` tags carry the nonce
-- `<style nonce="**CSP_NONCE**">` — initial page styles
-- `<script nonce="**CSP_NONCE**" type="module">` — main app bundle
-- `<script nonce="**CSP_NONCE**">` — loading spinner cleanup
+`index.html` carries the literal `**CSP_NONCE**` in four places: a `<meta name="csp-nonce">` tag, the inline `<style>`, the loader `<script>`, and the module `<script>` that Rollup injects for the hashed bundle. `sub_filter` swaps each one for `$request_id`, which nginx generates per request, and the CSP header uses the same value. CodeMirror reads the meta tag so the `<style>` tags it injects at runtime carry the nonce too.
 
 ### Security headers
 
@@ -169,156 +34,84 @@ browser sees matching nonces and allows those `<script>` and `<style>` tags.
 --8<-- "frontend/nginx.conf.template:security_headers"
 ```
 
-All security headers are defined at the `server` level so they apply to every response. See
-[`add_header` inheritance](#add_header-inheritance) for why no location block in this config uses `add_header`.
+There are six headers: CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`. Only HSTS has `always`, so it's the only one nginx also sends on 4xx and 5xx responses.
 
-#### Content Security Policy
+The CSP locks scripts and `<style>` elements to the nonce. `style-src-elem` also allows `https://fonts.googleapis.com`, and `font-src` allows `https://fonts.gstatic.com`, because `index.html` loads Inter and Fira Code from Google Fonts. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime and which nonces can't cover. That doesn't reopen the CSS exfiltration path through injected `<style>` tags, since those still need the nonce. Scanners that only know CSP Level 2 flag the `'unsafe-inline'` anyway.
 
-| Directive         | Value                        | Purpose                                                                 |
-|-------------------|------------------------------|-------------------------------------------------------------------------|
-| `default-src`     | `'self'`                     | Fallback for unspecified directives                                     |
-| `script-src`      | `'self' 'nonce-$request_id'` | Nonce-locked — only `<script>` tags with the matching nonce can execute |
-| `style-src-elem`  | `'self' 'nonce-$request_id'` | Nonce-locked — blocks injected `<style>` tags without the nonce         |
-| `style-src-attr`  | `'unsafe-inline'`            | Allows `style=""` attributes (Svelte transitions, CodeMirror)           |
-| `img-src`         | `'self' data: blob:`         | Allow data: URLs for inline SVG icons                                   |
-| `font-src`        | `'self' data:`               | Allow embedded fonts                                                    |
-| `object-src`      | `'none'`                     | Block plugins (Flash, Java)                                             |
-| `base-uri`        | `'self'`                     | Prevent `<base>` tag hijacking of relative URLs                         |
-| `form-action`     | `'self'`                     | Restrict form submission targets                                        |
-| `frame-ancestors` | `'none'`                     | Prevent clickjacking                                                    |
-| `connect-src`     | `'self'`                     | XHR/fetch/WebSocket/SSE same-origin only                                |
+No `location` block uses `add_header`. That's on purpose: one `add_header` inside a location drops every `add_header` inherited from the `server` block, so the security headers would disappear from that location. If a location ever needs its own response header, it has to repeat all six. `proxy_set_header` has the same all-or-nothing inheritance, which is why the SSE location repeats the proxy headers of `/api/`.
 
-**Why nonce-based `script-src`?** This is the critical XSS control. Without it, any injected `<script>` tag would
-execute. With the nonce, only scripts carrying the per-request nonce are allowed. An attacker cannot predict the nonce
-value (it changes on every request), so injected scripts are blocked.
-
-**Why `style-src-elem` + `style-src-attr` split instead of blanket `style-src`?** CSP Level 3 splits the old
-`style-src` into two directives. `style-src-elem` governs `<style>` tags and `<link rel="stylesheet">` — the dangerous
-vector where an injected `<style>` tag can use `@font-face` + attribute selectors to exfiltrate secrets
-character-by-character. We lock this down with nonces. `style-src-attr` governs `style=""` attributes on elements —
-much lower risk because exfiltration (e.g., `background-image: url(...)`) requires `img-src`/`connect-src` to allow
-attacker domains, and our `default-src 'self'` blocks that channel entirely. We allow `'unsafe-inline'` only on
-`style-src-attr` because Svelte transitions, CodeMirror, and inline style bindings inject `style=""` attributes at
-runtime, where nonces/hashes are impossible (CSP has no mechanism for per-attribute nonces).
-
-!!! note "Scanner false positives"
-    Security scanners that only understand CSP Level 2 (`style-src`) will flag `'unsafe-inline'` without recognizing
-    the Level 3 `style-src-elem` / `style-src-attr` split. Since `style-src-elem` is nonce-locked, the
-    `'unsafe-inline'` on `style-src-attr` does not weaken the policy — the dangerous CSS vector (`<style>` tag
-    injection) is already blocked.
-
-#### Other security headers
-
-| Header                   | Value                             | Purpose                                                                   |
-|--------------------------|-----------------------------------|---------------------------------------------------------------------------|
-| `X-Frame-Options`        | `DENY`                            | Legacy clickjacking protection (aligns with CSP `frame-ancestors 'none'`) |
-| `X-Content-Type-Options` | `nosniff`                         | Prevent MIME sniffing                                                     |
-| `Referrer-Policy`        | `strict-origin-when-cross-origin` | Limit referrer leakage                                                    |
-| `Permissions-Policy`     | Deny geolocation, mic, camera     | Disable unused APIs                                                       |
-
-### SPA routing
-
-The `try_files $uri $uri/ /index.html` directive enables client-side routing. When a URL like `/editor` is requested
-directly, Nginx serves `index.html` and lets the Svelte router handle the path.
-
-## `add_header` inheritance
-
-Nginx has a critical inheritance rule: if **any** `add_header` directive appears inside a `location` block, **all**
-`add_header` directives from the parent `server` block are silently dropped for that location. This is an all-or-nothing
-behavior — there is no merging.
+### Compression
 
 ```nginx
-# BAD — security headers NOT sent for /api/v1/events/ responses
-server {
-    add_header X-Frame-Options "DENY";                 # defined at server level
+--8<-- "frontend/nginx.conf.template:compression"
+```
 
-    location ~ ^/api/v1/events/ {
-        add_header Cache-Control "no-cache";           # this single add_header
-                                                       # drops ALL server-level headers
-    }
-}
+Text types only. Images other than SVG and icons are already compressed.
+
+### API proxy and SSE
+
+```nginx
+--8<-- "frontend/nginx.conf.template:api_proxy"
 ```
 
 ```nginx
-# GOOD — security headers sent for all responses including SSE
-server {
-    add_header X-Frame-Options "DENY";                 # defined at server level
-
-    location ~ ^/api/v1/events/ {
-        proxy_buffering off;                           # no add_header here,
-                                                       # server-level headers inherit
-    }
-}
+--8<-- "frontend/nginx.conf.template:sse_proxy"
 ```
 
-This config intentionally avoids `add_header` in every `location` block so that the five security headers defined at
-the `server` level apply uniformly to all responses:
+`proxy_ssl_verify off` is fine here because the backend sits on the internal compose network with a self-signed cert. Don't copy it to a proxy that leaves the host.
 
-| Location                      | Has `add_header`? | Security headers inherited? |
-|-------------------------------|-------------------|-----------------------------|
-| `location /api/`              | No                | Yes                         |
-| `location ~ ^/api/v1/events/` | No                | Yes                         |
-| `location /grafana/`          | No                | Yes                         |
-| `location ~* \.(js\|css\|…)`  | No                | Yes                         |
-| `location /build/`            | No                | Yes                         |
-| `location ~* \.html$`         | No                | Yes                         |
-| `location /`                  | No                | Yes                         |
+The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connection` header, turns off buffering and caching, and raises both timeouts to 24 hours so long-lived streams aren't cut after the default 60 seconds. `proxy_buffering off` alone is enough to pass each event through as it arrives.
 
-!!! warning "Adding `add_header` to a location"
-    If you need to add a response header in a specific location, you must **repeat all five security headers** in that
-    same block, or use the `always` parameter with an `include` file. Prefer solving the problem without `add_header`
-    when possible (e.g., use `proxy_set_header` for upstream-facing headers, or let the backend set its own response
-    headers).
+### Static files and SPA routing
 
-### `proxy_set_header` vs `add_header`
+```nginx
+--8<-- "frontend/nginx.conf.template:static_caching"
+```
 
-These two directives are often confused but serve different purposes:
+Rollup writes the bundle as `build/[name]-[hash].js` and `build/bundle-<hash>.css`, so a year of caching is safe. HTML gets `expires -1` so the browser always fetches the current asset names. Everything that isn't a file falls through to `location /`, which serves `index.html` and lets the Svelte router handle the path.
 
-| Directive          | Direction       | Affects                                              |
-|--------------------|-----------------|------------------------------------------------------|
-| `proxy_set_header` | nginx → backend | Modifies request headers sent to the upstream server |
-| `add_header`       | nginx → client  | Adds response headers sent to the browser            |
+`location = /grafana` returns a 302 to `${GRAFANA_PUBLIC_URL}`. There's no `/grafana/` subpath proxy.
 
-`proxy_set_header` has its own inheritance rules (also all-or-nothing per block), but it does not interact with
-`add_header` inheritance. The SSE block uses `proxy_set_header X-Accel-Buffering no` to tell nginx's upstream module
-to disable buffering — this is a request-direction header and does not trigger the `add_header` inheritance problem.
+## Grafana server
 
-## Deployment
+```nginx
+--8<-- "frontend/nginx.conf.template:grafana_proxy"
+```
 
-The nginx configuration uses environment variable substitution via the official nginx Docker image's built-in `envsubst`
-feature:
+Grafana gets its own hostname, `grafana.integr8scode.cc`, and is proxied at the root. `grafana.ini` sets no `root_url`; compose passes `GF_SERVER_ROOT_URL` from `GRAFANA_ROOT_URL`. `/api/live/` is the Grafana Live websocket, so it gets the `Upgrade` and `Connection` headers.
+
+The upstream goes through a variable with Docker's resolver (`127.0.0.11`), so nginx resolves `grafana` per request instead of at startup. Without that, nginx would refuse to start when the observability profile is off. In that case the Grafana host just returns 502. This server block sets no security headers.
+
+## Environment variables
+
+The nginx image runs `envsubst` on `/etc/nginx/templates/*.template` at startup and only replaces variables that are set, so nginx's own `$host` or `$request_id` stay intact.
 
 ```dockerfile
 --8<-- "frontend/Dockerfile:production_stage"
 ```
 
-The nginx image automatically processes files in `/etc/nginx/templates/*.template` and outputs the result to
-`/etc/nginx/conf.d/` with the `.template` suffix removed.
+| Variable             | Compose value                                     | Used for                     |
+|----------------------|---------------------------------------------------|------------------------------|
+| `BACKEND_URL`        | `https://backend:443`                             | `/api/` proxy                |
+| `GRAFANA_URL`        | `${GRAFANA_URL:-http://grafana:3000}`             | Grafana server upstream      |
+| `GRAFANA_PUBLIC_URL` | `${GRAFANA_ROOT_URL:-http://localhost:3000/}`     | `/grafana` redirect target   |
 
-### Environment variables
+## Applying changes
 
-| Variable      | Purpose                           | Example               |
-|---------------|-----------------------------------|-----------------------|
-| `BACKEND_URL` | Backend service URL for API proxy | `https://backend:443` |
-
-Set this via the docker-compose environment section.
-
-### Rebuilding
-
-To apply nginx configuration changes:
+The template is baked into the image, so rebuild and recreate:
 
 ```bash
-docker compose build --no-cache frontend
-docker compose restart frontend
+docker compose up -d --build frontend
 ```
+
+`docker compose restart frontend` keeps the old container and the old image, so it doesn't pick up a change. With pre-built images, `docker compose pull frontend` followed by `docker compose up -d frontend` does the same.
 
 ## Troubleshooting
 
-| Issue                                   | Cause                            | Solution                                                                                       |
-|-----------------------------------------|----------------------------------|------------------------------------------------------------------------------------------------|
-| SSE connections dropping                | Default 60s `proxy_read_timeout` | Verify 86400s timeout is set                                                                   |
-| CSP blocking resources                  | Missing source in directive      | Check browser console, add blocked source                                                      |
-| 502 Bad Gateway                         | Backend unreachable              | `docker compose logs backend`                                                                  |
-| Assets not updating                     | Browser cache                    | Clear cache or verify `no-cache` on HTML                                                       |
-| Security headers missing on SSE         | `add_header` in location block   | Remove `add_header` from the location; see [`add_header` inheritance](#add_header-inheritance) |
-| Security headers missing on some routes | Same inheritance issue           | Verify no location block has `add_header`; use `curl -I` to check                              |
+| Issue                                  | Likely cause                                  |
+|----------------------------------------|-----------------------------------------------|
+| SSE events arrive in batches or stop   | SSE location missing `proxy_buffering off` or the 24h timeouts |
+| CSP blocks a resource                  | Source missing from the policy; the browser console names the directive |
+| 502 on `/api/`                         | Backend down: `docker compose logs backend`   |
+| 502 on the Grafana host                | Observability profile not running             |
+| Security headers missing on a route    | An `add_header` in that location; check with `curl -kI` |

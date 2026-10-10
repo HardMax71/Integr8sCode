@@ -1,16 +1,14 @@
 # Contributing to Integr8sCode
 
-Thank you for your interest in contributing! This guide will help you get started.
-
 ## Development Setup
 
 ### Prerequisites
 
-- Python 3.14 (uv reads backend/.python-version)
+- Python 3.14 (uv reads backend/.python-version and installs it)
 - Node.js 26
-- Docker & Docker Compose
+- Docker and Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
-- k3s (for Kubernetes integration)
+- k3s or another Kubernetes cluster, to run executions and the E2E suites
 
 ### Clone and Setup
 
@@ -18,30 +16,40 @@ Thank you for your interest in contributing! This guide will help you get starte
 git clone https://github.com/HardMax71/Integr8sCode.git
 cd Integr8sCode
 
+# Install dependencies (the hooks below call uv run and npm run, so they need these)
+(cd backend && uv sync)
+(cd frontend && npm ci)
+
 # Install pre-commit hooks (required before submitting PRs)
 uv tool install pre-commit
 pre-commit install
 
-# Start the development environment
+# Start the stack
 ./deploy.sh dev
 ```
 
 ### Pre-commit Hooks
 
-**Before submitting any PR**, ensure pre-commit hooks are installed. They run automatically on `git commit` and check:
+Install the hooks before you open a PR. They run on `git commit` whenever backend Python files or frontend sources are staged:
 
-- **ruff**: Python linting (style, imports, potential bugs)
-- **mypy --strict**: Static type checking
-- **eslint**: Frontend TypeScript/Svelte linting
-- **svelte-check**: Frontend type checking
+| Hook | What it runs | Also in CI |
+|------|--------------|------------|
+| ruff format | `uv run ruff format`, rewrites files | no |
+| ruff check | `uv run ruff check --fix` | yes, without `--fix` |
+| mypy | `uv run mypy --strict .` | yes |
+| grimp | `uv run python -m scripts.check_orphan_modules` | yes |
+| eslint | `npm run lint` | yes |
+| stylelint | `npm run stylelint` | yes |
+| prettier | `npm run format`, rewrites files | yes, as `npm run format:check` |
+| svelte-check | `npm run check` | yes |
 
-Run manually on all files:
+Run them on everything with:
 
 ```bash
 pre-commit run --all-files
 ```
 
-If hooks fail, fix the issues before committing. The same checks run in CI, so local failures will also fail the pipeline.
+Fix whatever fails before committing. CI runs the same checks, so a local failure fails the pipeline too. The exception is ruff format, which CI doesn't check.
 
 ### Backend Development
 
@@ -51,14 +59,22 @@ cd backend
 # Install dependencies
 uv sync
 
-# Run linting
+# Lint (covers tests too) and type check
 uv run ruff check . --config pyproject.toml
-
-# Run type checking
 uv run mypy --config-file pyproject.toml --strict .
 
-# Run tests
-uv run pytest
+# Dead code check
+uv run python -m scripts.check_orphan_modules
+
+# Unit tests
+uv run pytest tests/unit
+```
+
+Always pass a path to pytest. A plain `uv run pytest` also collects tests/e2e, which needs the running stack and Kubernetes. The E2E suite runs inside the backend container, the same way CI runs it:
+
+```bash
+./deploy.sh dev --wait
+docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e'
 ```
 
 ### Frontend Development
@@ -67,52 +83,45 @@ uv run pytest
 cd frontend
 
 # Install dependencies
-npm install
+npm ci
 
-# Run dev server
-npm run dev
+# Unit tests, type check, lint
+npm run test
+npm run check
+npm run lint
 
-# Run E2E tests
+# E2E tests (Playwright, needs the stack from ./deploy.sh dev)
+npm run test:e2e:deps      # once, installs system deps for Chromium
+npm run test:e2e:browsers  # once, installs Chromium
 npm run test:e2e
 ```
 
+The stack serves a production build of the frontend on https://localhost:5001, so rebuild it with `./deploy.sh dev --build` after frontend changes. `npm run dev` only works inside the compose network, since it proxies to the backend container and needs the shared CA.
+
 ## Code Style
 
-### Python (Backend)
-
-- Follow PEP 8 with 120 character line limit
-- Use type hints for all function signatures
-- Ruff handles import sorting and style enforcement
-- MyPy strict mode enforces complete type coverage
-
-### TypeScript/Svelte (Frontend)
-
-- Use TypeScript for all new code
-- Follow existing component patterns
-- Use Svelte 5 runes syntax
+Python follows PEP 8 with a 120 character line limit and type hints on every signature; ruff and strict mypy enforce both. Frontend code is TypeScript with Svelte 5 runes and follows the existing component patterns. AGENTS.md has the full conventions for both sides.
 
 ## Pull Request Process
 
-1. **Create a feature branch** from `main`:
+1. Create a feature branch from `main`:
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
-2. **Make your changes** with clear, atomic commits
+2. Make your changes in clear, atomic commits
 
-3. **Ensure all checks pass**:
+3. Make sure all checks pass (from the repo root):
    ```bash
    pre-commit run --all-files
-   cd backend && uv run pytest
-   cd frontend && npm run test:e2e
+   (cd backend && uv run pytest tests/unit)
+   (cd frontend && npm run test)
+   (cd frontend && npm run test:e2e)
    ```
 
-4. **Push and create a PR** against `main`
+4. Push and open a PR against `main`
 
-5. **Fill out the PR template** with:
-   - Summary of changes
-   - Test plan
-   - Any breaking changes
+5. Fill out the PR template: summary, test plan and any breaking changes
 
 ## Commit Messages
 
@@ -123,18 +132,13 @@ feat: add user notification preferences
 fix: resolve race condition in execution coordinator
 docs: update deployment guide for k3s setup
 refactor: extract common validation logic
-test: add integration tests for DLQ processor
+test: add e2e tests for DLQ processor
 ```
 
 ## Reporting Issues
 
-Use GitHub Issues with the provided templates:
-
-- **Bug Report**: For unexpected behavior or errors
-- **Feature Request**: For new functionality suggestions
-
-Include reproduction steps, environment details, and relevant logs.
+Use GitHub Issues: the Bug Report template for unexpected behavior or errors, the Feature Request template for new functionality. Include reproduction steps, environment details and relevant logs.
 
 ## Questions?
 
-Open a GitHub Discussion or reach out via issues.
+Search the [existing issues](https://github.com/HardMax71/Integr8sCode/issues) first. If none answers it, open a blank issue with your question.

@@ -22,7 +22,7 @@ Each worker's `config.<worker>.toml` overrides `TRACING_SERVICE_NAME`, so Jaeger
 
 The broker is created with FastStream's `KafkaTelemetryMiddleware`. On publish it opens a producer span and writes the trace context into the message headers. On consume it reads the headers and opens a consumer span as a child. There's no custom consumer code involved.
 
-A message published with no active span starts a new trace. That happens in three places: pod monitor events, which come from the Kubernetes watch; DLQ retries, which the DLQ processor publishes from an APScheduler job; and sagas that wait in the queue and start later from the scheduler job or from another execution's completion.
+A message published with no active span starts a new trace. That happens in three places: pod monitor events, which come from the Kubernetes watch; DLQ retries, which the DLQ processor publishes from an APScheduler job; and queued sagas that the scheduler job starts. A queued saga started while the orchestrator handles another event, such as another execution's completion, joins that event's trace instead.
 
 ## Spans and attributes
 
@@ -64,4 +64,4 @@ The API stores the event in MongoDB, publishes `execution_requested` and answers
 
 Jaeger runs as `jaegertracing/jaeger:2.20.0` under the `observability` profile, with in-memory storage and the UI on `http://localhost:16686`. OTLP ports 4317 and 4318 stay on the compose network. Grafana also has a Jaeger datasource. Jaeger is pinned below 2.21 because 2.21 removed the search API that datasource calls ([grafana/grafana#112336](https://github.com/grafana/grafana/issues/112336)), so trace search in Grafana would stop working.
 
-To turn tracing off, set `TRACING_SAMPLING_RATE = 0` or leave `OTLP_TRACES_ENDPOINT` empty.
+To turn tracing off, set `TRACING_SAMPLING_RATE = 0`. Leaving `OTLP_TRACES_ENDPOINT` empty only stops the export; spans are still recorded in process, so log lines keep their `trace_id`.

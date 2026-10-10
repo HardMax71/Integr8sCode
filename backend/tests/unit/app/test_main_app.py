@@ -1,5 +1,6 @@
 from importlib import import_module
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from app.domain.exceptions import DomainError
@@ -173,4 +174,6 @@ class TestCreateAppFunction:
 
     def test_create_app_without_settings_uses_defaults(self) -> None:
         create_app_fn = import_module("app.main").create_app
-        assert isinstance(create_app_fn(), FastAPI)
+        # config.toml sets an OTLP endpoint, and the real setup would install process-wide OTel providers
+        with patch("app.main.setup_metrics"), patch("app.main.setup_log_exporter"):
+            assert isinstance(create_app_fn(), FastAPI)

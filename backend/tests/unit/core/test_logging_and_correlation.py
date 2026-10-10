@@ -15,7 +15,7 @@ from app.core.logging import (
 )
 from app.settings import Settings
 from opentelemetry.instrumentation.logging.handler import LoggingHandler
-from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from pymongo.logger import LogMessage
 
 _EMAIL = "john.doe@example.com"
@@ -274,12 +274,16 @@ class TestStdlibRecordRedaction:
         monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
         settings = test_settings.model_copy(update={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317"})
         exporter = InMemoryLogRecordExporter()  # type: ignore[no-untyped-call]
-        with patch("app.core.logging.OTLPLogExporter", return_value=exporter):
+        root = logging.getLogger()
+        before = list(root.handlers)
+        with (
+            patch("app.core.logging.OTLPLogExporter", return_value=exporter),
+            patch("app.core.logging.BatchLogRecordProcessor", SimpleLogRecordProcessor),
+        ):
             setup_log_exporter(settings, MagicMock())
-        otel_handler = next(h for h in logging.getLogger().handlers if isinstance(h, LoggingHandler))
+        (otel_handler,) = [h for h in root.handlers if h not in before and isinstance(h, LoggingHandler)]
 
         otel_handler.handle(logging.getLogger(name).makeRecord(name, logging.WARNING, __file__, 0, msg, args, None))
-        otel_handler.flush()
 
         bodies = [str(log.log_record.body) for log in exporter.get_finished_logs()]
         assert len(bodies) == 1

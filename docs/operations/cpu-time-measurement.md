@@ -4,7 +4,7 @@ Every executor pod runs the user's command under [entrypoint.sh](https://github.
 
 ## What the wrapper does
 
-It starts the command in the background with stdout and stderr going into two named pipes. A reader on each pipe keeps the first 256 KiB in `/tmp` and throws the rest away, so a chatty script can't fill the 10Mi `/tmp` or stall on a full pipe. The cap also keeps both streams inside one Kafka message, which is 1 MiB by default. Meanwhile the wrapper polls `/proc/$PID` every 5 ms while the process is alive. Each sample reads `VmHWM` from `/proc/$PID/status` for peak RSS and fields 14 and 15 of `/proc/$PID/stat` (user plus system time, in jiffies) for CPU. Wall time is the difference of two `date +%s.%N` readings. `CLK_TCK` comes from `getconf`, falling back to 100.
+It starts the command in the background with stdout and stderr going into two named pipes. A reader on each pipe keeps the first 256 KiB in `/tmp` and throws the rest away, so a chatty script can't fill the 10Mi `/tmp` or stall on a full pipe. The cap also keeps both streams inside one Kafka message, which is 1 MiB by default. Meanwhile the wrapper polls `/proc/$PID` every 5 ms while the process is alive. Each sample reads `VmHWM` from `/proc/$PID/status` for peak RSS and fields 14 and 15 of `/proc/$PID/stat` (user plus system time, in jiffies) for CPU. Wall time is the difference of two `date +%s.%N` readings. BusyBox `date` prints nothing for `%N`, so in the Alpine-based images (Node, Ruby, Bash and Go) the wrapper reads `/proc/uptime` instead, which moves in 10 ms steps. `CLK_TCK` comes from `getconf`, falling back to 100.
 
 When the command exits, the wrapper writes `key=value` lines to `/dev/termination-log`:
 
@@ -26,7 +26,7 @@ STDOUT <bytes>
 
 A stream that went over the cap ends with a line such as `[stdout truncated: showing the first 262144 bytes]`, counted inside its frame.
 
-The wrapper itself always exits 0, so the real exit code travels in the termination message. If it's called with no command, it writes `exit_code=127` and an error message in the same format.
+After running a command, the wrapper itself exits 0, so the real exit code travels in the termination message. If it's called with no command, it writes `exit_code=127` and an error message in the same format and exits 127.
 
 ## How the backend reads it
 
@@ -36,7 +36,7 @@ The editor's output panel converts jiffies to milliseconds with `clk_tck_hertz`.
 
 ## Why short scripts show zero CPU
 
-Linux accounts CPU time in jiffies, which are 10 ms at the usual `CLK_TCK` of 100. A script that uses less than 10 ms of CPU reports 0, one that uses 10 to 19 ms reports 1, and so on. A `print("hello")` usually lands at 0 even though its wall time is tens of milliseconds. The output panel shows that case as `< 10 m` instead of zero.
+Linux reports CPU time in jiffies, which are 10 ms at the usual `CLK_TCK` of 100, and rounds user and system time down separately. A script that uses less than 10 ms of CPU reports 0, and one that uses 10 to 19 ms reports 0 or 1. A `print("hello")` usually lands at 0 even though its wall time is tens of milliseconds. The output panel shows that case as `< 10 m` instead of zero.
 
 Two more effects push short runs toward 0. A process that finishes before the first 5 ms sample is never read at all. And `/proc/$PID/stat` disappears the moment the process exits, so CPU time used after the last sample is lost.
 

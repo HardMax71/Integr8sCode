@@ -348,6 +348,24 @@ class TestUpdateUser:
         assert updated.updated_at > user.updated_at
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["username", "email"])
+    async def test_update_user_to_taken_value_conflicts(self, test_admin: AsyncClient, field: str) -> None:
+        """Renaming a user to another user's username or email is a 409, not a 500."""
+        taken = UserResponse.model_validate(
+            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("taken").model_dump())).json()
+        )
+        target = UserResponse.model_validate(
+            (await test_admin.post("/api/v1/admin/users/", json=make_user_create("target").model_dump())).json()
+        )
+
+        response = await test_admin.put(
+            f"/api/v1/admin/users/{target.user_id}", json={field: getattr(taken, field)}
+        )
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": f"{field.capitalize()} already exists", "type": "ConflictError"}
+
+    @pytest.mark.asyncio
     async def test_update_user_role(self, test_admin: AsyncClient) -> None:
         """Admin can update user's role."""
         # Create user

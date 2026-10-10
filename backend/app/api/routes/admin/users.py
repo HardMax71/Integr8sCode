@@ -105,6 +105,7 @@ async def get_user_overview(
     response_model=UserResponse,
     responses={
         404: {"model": ErrorResponse, "description": "User not found"},
+        409: {"model": ErrorResponse, "description": "Username or email already exists"},
     },
 )
 async def update_user(

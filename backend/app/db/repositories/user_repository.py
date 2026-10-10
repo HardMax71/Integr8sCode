@@ -89,7 +89,11 @@ class UserRepository:
         update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
-            await doc.set(update_dict)
+            try:
+                await doc.set(update_dict)
+            except DuplicateKeyError as e:
+                field = next(iter((e.details or {}).get("keyPattern", {})), "username or email")
+                raise ConflictError(f"{field.capitalize()} already exists") from e
         return User(**doc.model_dump(include=_user_fields))
 
     async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult | None:

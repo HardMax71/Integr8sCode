@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from typing import NamedTuple, NotRequired, TypedDict
 
-from app.domain.execution import LanguageInfoDomain
-
 
 # --8<-- [start:RuntimeConfig]
 class RuntimeConfig(NamedTuple):
@@ -77,6 +75,9 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     },
 }
 # --8<-- [end:LANGUAGE_SPECS]
+
+DEFAULT_LANG = "python"
+DEFAULT_LANG_VERSION = LANGUAGE_SPECS[DEFAULT_LANG]["versions"][0]
 
 # --8<-- [start:EXAMPLE_SCRIPTS]
 EXAMPLE_SCRIPTS: dict[str, str] = {
@@ -215,9 +216,4 @@ RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
 
 POD_RUNTIME_CONFIGS: dict[str, PodRuntimeConfig] = {
     lang: spec.get("pod", PodRuntimeConfig()) for lang, spec in LANGUAGE_SPECS.items()
-}
-
-SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = {
-    lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])
-    for lang, spec in LANGUAGE_SPECS.items()
 }

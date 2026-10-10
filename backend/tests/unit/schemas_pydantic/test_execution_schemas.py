@@ -1,6 +1,6 @@
 
 import pytest
-from app.runtime_registry import SUPPORTED_RUNTIMES
+from app.runtime_registry import LANGUAGE_SPECS
 from app.schemas_pydantic.execution import ExecutionRequest
 
 
@@ -23,7 +23,7 @@ def test_execution_request_unsupported_version_raises() -> None:
 
 @pytest.mark.parametrize(
     ("lang", "version"),
-    [(lang, version) for lang, info in SUPPORTED_RUNTIMES.items() for version in info.versions],
+    [(lang, version) for lang, spec in LANGUAGE_SPECS.items() for version in spec["versions"]],
 )
 def test_execution_request_accepts_every_offered_version(lang: str, version: str) -> None:
     req = ExecutionRequest(script="x", lang=lang, lang_version=version)

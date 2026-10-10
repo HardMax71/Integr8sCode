@@ -7,7 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.execution import LanguageInfoDomain
 from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
-from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
+from app.runtime_registry import LANGUAGE_SPECS
+
+
+def _supported_runtimes() -> dict[str, LanguageInfoDomain]:
+    return {
+        lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])
+        for lang, spec in LANGUAGE_SPECS.items()
+    }
 
 
 class Settings(BaseModel):
@@ -93,7 +100,7 @@ class Settings(BaseModel):
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
     K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
 
-    SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
+    SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=_supported_runtimes)
 
     EXAMPLE_SCRIPTS: dict[str, str] = Field(default_factory=lambda: EXEC_EXAMPLE_SCRIPTS)
 

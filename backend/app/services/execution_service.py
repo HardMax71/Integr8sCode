@@ -31,7 +31,7 @@ from app.domain.execution import (
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.domain.user import User
 from app.events import UnifiedProducer
-from app.runtime_registry import RUNTIME_REGISTRY
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
@@ -93,8 +93,8 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        lang: str = "python",
-        lang_version: str = "3.11",
+        lang: str = DEFAULT_LANG,
+        lang_version: str = DEFAULT_LANG_VERSION,
         priority: QueuePriority = QueuePriority.NORMAL,
     ) -> DomainExecution:
         """
@@ -260,8 +260,8 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        lang: str = "python",
-        lang_version: str = "3.11",
+        lang: str = DEFAULT_LANG,
+        lang_version: str = DEFAULT_LANG_VERSION,
         idempotency_key: str | None = None,
     ) -> DomainExecution:
         """

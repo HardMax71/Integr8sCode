@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
+
 
 @dataclass
 class DomainSavedScriptBase:
@@ -12,8 +14,8 @@ class DomainSavedScriptBase:
 
 @dataclass
 class DomainSavedScriptCreate(DomainSavedScriptBase):
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     description: str | None = None
 
 
@@ -21,8 +23,8 @@ class DomainSavedScriptCreate(DomainSavedScriptBase):
 class DomainSavedScript(DomainSavedScriptBase):
     script_id: str = ""
     user_id: str = ""
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     description: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

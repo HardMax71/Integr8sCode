@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pymongo import IndexModel
 
 from app.domain.enums import ExecutionErrorType, ExecutionStatus, QueuePriority
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 
 
 # Pydantic model required here because Beanie embedded documents must be Pydantic BaseModel subclasses.
@@ -30,8 +31,8 @@ class ExecutionDocument(Document):
     status: ExecutionStatus = ExecutionStatus.QUEUED  # Indexed via Settings.indexes
     stdout: str | None = None
     stderr: str | None = None
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
 
     # From ExecutionInDB
     execution_id: Indexed(str, unique=True) = Field(default_factory=lambda: str(uuid4()))  # type: ignore[valid-type]

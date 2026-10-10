@@ -6,7 +6,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus, QueuePriority
-from app.runtime_registry import SUPPORTED_RUNTIMES
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, LANGUAGE_SPECS
 
 
 class ExecutionBase(BaseModel):
@@ -16,8 +16,8 @@ class ExecutionBase(BaseModel):
     status: ExecutionStatus = ExecutionStatus.QUEUED
     stdout: str | None = None
     stderr: str | None = None
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -52,16 +52,16 @@ class ExecutionRequest(BaseModel):
     """Model for execution request."""
 
     script: str = Field(..., max_length=50000, description="Script content (max 50,000 characters)")
-    lang: str = Field(default="python", description="Language name")
-    lang_version: str = Field(default="3.11", description="Language version to use for execution")
+    lang: str = Field(default=DEFAULT_LANG, description="Language name")
+    lang_version: str = Field(default=DEFAULT_LANG_VERSION, description="Language version to use for execution")
 
     @model_validator(mode="after")
     def validate_runtime_supported(self) -> "ExecutionRequest":  # noqa: D401
-        if not (lang_info := SUPPORTED_RUNTIMES.get(self.lang)):
-            raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(SUPPORTED_RUNTIMES.keys())}")
-        if self.lang_version not in lang_info.versions:
+        if not (spec := LANGUAGE_SPECS.get(self.lang)):
+            raise ValueError(f"Language '{self.lang}' not supported. Supported: {list(LANGUAGE_SPECS)}")
+        if self.lang_version not in spec["versions"]:
             raise ValueError(
-                f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {lang_info.versions}"
+                f"Version '{self.lang_version}' not supported for {self.lang}. Supported: {spec['versions']}"
             )
         return self
 

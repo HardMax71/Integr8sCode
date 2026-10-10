@@ -4,6 +4,8 @@ from uuid import uuid4
 from beanie import Document, Indexed
 from pydantic import ConfigDict, Field
 
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
+
 
 class SavedScriptDocument(Document):
     """Saved script document as stored in database.
@@ -14,8 +16,8 @@ class SavedScriptDocument(Document):
     # From SavedScriptBase
     name: str
     script: str
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     description: str | None = None
 
     # From SavedScriptInDB

@@ -1,14 +1,26 @@
 import ast
+import inspect
+from datetime import datetime, timezone
+from typing import Any
 
 import pytest
+from app.db.docs import ExecutionDocument, SavedScriptDocument
+from app.domain.enums import ExecutionStatus
+from app.domain.execution import DomainExecution, DomainExecutionCreate, ExecutionResultDomain
+from app.domain.saved_script import DomainSavedScript, DomainSavedScriptCreate
 from app.runtime_registry import (
+    DEFAULT_LANG,
+    DEFAULT_LANG_VERSION,
     EXAMPLE_SCRIPTS,
     LANGUAGE_SPECS,
     POD_RUNTIME_CONFIGS,
     RUNTIME_REGISTRY,
-    SUPPORTED_RUNTIMES,
     PodRuntimeConfig,
 )
+from app.schemas_pydantic.execution import ExecutionBase, ExecutionRequest
+from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
+from app.services.execution_service import ExecutionService
+from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
@@ -36,10 +48,42 @@ def test_registry_builds_image_and_command_for_every_version(lang: str) -> None:
         assert cfg.command == [*spec["interpreter"], f"/scripts/{file_name}"]
 
 
-def test_supported_runtimes_mirror_specs() -> None:
-    assert {lang: (info.versions, info.file_ext) for lang, info in SUPPORTED_RUNTIMES.items()} == {
+def test_settings_supported_runtimes_mirror_specs(test_settings: Settings) -> None:
+    assert {lang: (info.versions, info.file_ext) for lang, info in test_settings.SUPPORTED_RUNTIMES.items()} == {
         lang: (spec["versions"], spec["file_ext"]) for lang, spec in LANGUAGE_SPECS.items()
     }
+
+
+def test_default_runtime_is_the_newest_python() -> None:
+    assert DEFAULT_LANG == "python"
+    assert DEFAULT_LANG_VERSION == max(LANGUAGE_SPECS["python"]["versions"], key=_version_key)
+    assert DEFAULT_LANG_VERSION in RUNTIME_REGISTRY[DEFAULT_LANG]
+
+
+def test_every_lang_version_default_uses_the_registry_default() -> None:
+    now = datetime.now(timezone.utc)
+    defaults: dict[str, Any] = {
+        "ExecutionRequest": ExecutionRequest(script="x"),
+        "ExecutionBase": ExecutionBase(script="x"),
+        "SavedScriptCreateRequest": SavedScriptCreateRequest(name="n", script="x"),
+        "DomainExecution": DomainExecution(),
+        "DomainExecutionCreate": DomainExecutionCreate(script="x", user_id="u"),
+        "ExecutionResultDomain": ExecutionResultDomain(
+            execution_id="e", status=ExecutionStatus.COMPLETED, exit_code=0, stdout="", stderr="", created_at=now
+        ),
+        "DomainSavedScriptCreate": DomainSavedScriptCreate(name="n", script="x"),
+        "DomainSavedScript": DomainSavedScript(name="n", script="x"),
+    }
+    for name, obj in defaults.items():
+        assert (obj.lang, obj.lang_version) == (DEFAULT_LANG, DEFAULT_LANG_VERSION), name
+
+    for document in (ExecutionDocument, SavedScriptDocument):
+        fields = document.model_fields
+        assert (fields["lang"].default, fields["lang_version"].default) == (DEFAULT_LANG, DEFAULT_LANG_VERSION)
+
+    for method in (ExecutionService.execute_script, ExecutionService.execute_script_idempotent):
+        params = inspect.signature(method).parameters
+        assert (params["lang"].default, params["lang_version"].default) == (DEFAULT_LANG, DEFAULT_LANG_VERSION)
 
 
 def test_pod_runtime_configs_default_unless_a_language_needs_more() -> None:

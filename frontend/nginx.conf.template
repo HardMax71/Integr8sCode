@@ -88,6 +88,10 @@ server {
     }
     # --8<-- [end:static_caching]
 
+    location = /grafana {
+        return 302 ${GRAFANA_PUBLIC_URL};
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

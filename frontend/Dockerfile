@@ -23,6 +23,7 @@ COPY --from=builder /app/public /usr/share/nginx/html
 # The nginx image automatically processes /etc/nginx/templates/*.template
 # and outputs to /etc/nginx/conf.d/ with the .template suffix removed
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV GRAFANA_PUBLIC_URL=http://localhost:3000/
 
 # Create writable directories for nginx (required for read-only root filesystem)
 # and certs directory for TLS certificates mounted at runtime

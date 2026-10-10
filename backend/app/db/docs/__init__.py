@@ -24,7 +24,6 @@ from app.db.docs.user_settings import (
     EditorSettings,
     NotificationSettings,
     UserSettingsDocument,
-    UserSettingsSnapshotDocument,
 )
 
 # All document classes that need to be initialized with Beanie
@@ -35,7 +34,6 @@ ALL_DOCUMENTS = [
     NotificationDocument,
     NotificationSubscriptionDocument,
     UserSettingsDocument,
-    UserSettingsSnapshotDocument,
     SagaDocument,
     DLQMessageDocument,
     EventDocument,
@@ -59,7 +57,6 @@ __all__ = [
     "NotificationSubscriptionDocument",
     # User Settings
     "UserSettingsDocument",
-    "UserSettingsSnapshotDocument",
     "NotificationSettings",
     "EditorSettings",
     # Saga

@@ -107,7 +107,7 @@ LANGUAGE_SPECS: dict[str, LanguageSpec] = {
         ],
         # A cold build compiles the runtime and std into GOCACHE: about 50Mi of /tmp, 230Mi RSS, 10s of CPU.
         "pod": PodRuntimeConfig(
-            env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},  # nosec B108  # NOSONAR: paths inside the executor pod
+            env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},  # NOSONAR  # nosec B108
             tmp_size="64Mi",
             min_cpu="1000m",
             min_memory="320Mi",

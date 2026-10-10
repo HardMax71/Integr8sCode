@@ -84,6 +84,7 @@ class EventReplayService:
         if not await self._load_next_batch(session_id):
             session.status = ReplayStatus.COMPLETED
             session.completed_at = datetime.now(timezone.utc)
+            self._metrics.record_status_change(session_id, ReplayStatus.CREATED, ReplayStatus.COMPLETED)
             await self._update_session_in_db(session)
             return ReplayOperationResult(
                 session_id=session_id, status=ReplayStatus.COMPLETED, message="No events to replay"
@@ -177,6 +178,7 @@ class EventReplayService:
             session = self._sessions[session_id]
             if session.status.is_terminal and session.created_at < cutoff_time:
                 del self._sessions[session_id]
+                self._metrics.update_sessions_by_status(session.status, -1)
                 removed_memory += 1
 
         removed_db = await self._repository.delete_old_sessions(cutoff_time)
@@ -215,6 +217,7 @@ class EventReplayService:
             )
             if not session.config.skip_errors:
                 session.failed_events += 1
+                self._metrics.record_event_replayed(session.config.replay_type, event.event_type, False)
                 await self._finalize_session(session, ReplayStatus.FAILED)
                 return
         else:
@@ -225,9 +228,7 @@ class EventReplayService:
             session.replayed_events += 1
         else:
             session.failed_events += 1
-        self._metrics.record_event_replayed(
-            session.config.replay_type, event.event_type, "success" if success else "failed"
-        )
+        self._metrics.record_event_replayed(session.config.replay_type, event.event_type, success)
         session.last_event_at = event.timestamp
         await self._update_session_in_db(session)
 
@@ -292,7 +293,8 @@ class EventReplayService:
             total_events = session.replayed_events + session.failed_events
             self._metrics.record_replay_duration(duration, session.config.replay_type, total_events=total_events)
         self._metrics.record_status_change(session.session_id, previous_status, final_status)
-        self._metrics.decrement_active_replays()
+        if previous_status in (ReplayStatus.RUNNING, ReplayStatus.PAUSED):
+            self._metrics.decrement_active_replays()
         self._metrics.update_replay_queue_size(session.session_id, 0)
         await self._update_session_in_db(session)
         scheduler = self._schedulers.pop(session.session_id, None)

@@ -240,9 +240,10 @@
       "pluginVersion": "8.3.3",
       "targets": [
         {
-          "expr": "replay_sessions_by_status or vector(0)",
+          "expr": "sum by (status) (replay_sessions_by_status) or vector(0)",
           "refId": "A",
-          "datasource": "Victoria Metrics"
+          "datasource": "Victoria Metrics",
+          "legendFormat": "{{status}}"
         }
       ],
       "title": "By Status",
@@ -340,12 +341,6 @@
           "expr": "rate(replay_events_failed_total[5m]) or vector(0)",
           "legendFormat": "Failed",
           "refId": "B",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(replay_events_skipped_total[5m]) or vector(0)",
-          "legendFormat": "Skipped",
-          "refId": "C",
           "datasource": "Victoria Metrics"
         }
       ],

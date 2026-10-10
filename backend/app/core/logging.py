@@ -23,7 +23,10 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
     (r"(https?://[^:]+:)([^@]+)(@)", r"\1***URL_CREDS_REDACTED***\3"),
 ]
 
-_EMAIL_PATTERN = re.compile(r"([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", re.IGNORECASE)
+# Lookbehind starts a match only at the beginning of a run, so sanitizing stays linear on long lines
+_EMAIL_PATTERN = re.compile(
+    r"(?<![a-zA-Z0-9._%+-])([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,})", re.IGNORECASE
+)
 
 
 def _mask_email(match: re.Match[str]) -> str:

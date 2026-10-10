@@ -120,6 +120,15 @@ class TestSanitizeSensitiveData:
         result = sanitize_sensitive_data(None, "info", event_dict)
         assert result["detail"] == expected
 
+    @pytest.mark.timeout(2)
+    @pytest.mark.parametrize(
+        "line",
+        ["x@" + "a." * 20_000 + "1", "a" * 40_000 + "!"],
+        ids=["long_domain_run", "long_run_without_at"],
+    )
+    def test_email_masking_stays_linear_on_long_lines(self, line: str) -> None:
+        assert self._run_processor(line) == line
+
 
 class TestAddOtelContext:
     """Tests for the add_otel_context structlog processor."""

@@ -33,9 +33,12 @@ class _QueuedBody(httpx2.AsyncByteStream):
     async def __aiter__(self) -> AsyncIterator[bytes]:
         while (chunk := await self._chunks.get()) is not None:
             yield chunk
+        if self._app_task.done() and not self._app_task.cancelled() and (error := self._app_task.exception()):
+            raise error
 
     async def aclose(self) -> None:
         self._disconnect.set()
+        await asyncio.wait({self._app_task}, timeout=1.0)
         self._app_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await self._app_task
@@ -89,6 +92,7 @@ class StreamingASGITransport(httpx2.AsyncBaseTransport):
             await self._app(scope, receive, send)
 
         app_task = asyncio.create_task(run_app())
+        app_task.add_done_callback(lambda _: chunks.put_nowait(None))
         first: set[asyncio.Future[Any]] = {app_task, started}
         await asyncio.wait(first, return_when=asyncio.FIRST_COMPLETED)
         if not started.done():

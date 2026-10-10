@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 
 import pytest
 import redis.asyncio as redis
@@ -42,16 +43,21 @@ class TestNotificationStream:
         ):
             assert source.response.status_code == 200
             first_event = asyncio.ensure_future(anext(aiter(source)))
-            async with asyncio.timeout(5.0):
-                while (await redis_client.pubsub_numsub(channel))[0][1] == 0:
-                    await asyncio.sleep(0.01)
+            try:
+                async with asyncio.timeout(5.0):
+                    while (await redis_client.pubsub_numsub(channel))[0][1] == 0:
+                        await asyncio.sleep(0.01)
 
-            resp = await test_user.post("/api/v1/execute", json=exec_request.model_dump())
-            assert resp.status_code == 200
-            execution = ExecutionResponse.model_validate(resp.json())
-            await wait_for_result(redis_client, execution.execution_id)
+                resp = await test_user.post("/api/v1/execute", json=exec_request.model_dump())
+                assert resp.status_code == 200
+                execution = ExecutionResponse.model_validate(resp.json())
+                await wait_for_result(redis_client, execution.execution_id)
 
-            event = await asyncio.wait_for(first_event, timeout=10.0)
+                event = await asyncio.wait_for(first_event, timeout=10.0)
+            finally:
+                first_event.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await first_event
 
         assert event.event == "notification"
         notification = NotificationResponse.model_validate_json(event.data)

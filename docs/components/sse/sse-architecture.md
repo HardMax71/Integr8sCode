@@ -66,7 +66,7 @@ data = SSEExecutionEventSchema.model_validate_json(event.data)
 assert data.event_type == SSEControlEvent.STATUS
 ```
 
-Leaving the `async with` closes the stream: the transport sends `http.disconnect` and cancels the app task, so the SSE generator's cleanup runs. Responses that aren't streams, like a 403 for someone else's execution, go through the normal test clients.
+Leaving the `async with` closes the stream: the transport delivers `http.disconnect`, gives the app a second to wind down on its own, then cancels whatever is left, so the SSE generator's cleanup always runs. If the app crashes after sending headers, reading the stream raises that error instead of hanging. Responses that aren't streams, like a 403 for someone else's execution, go through the normal test clients.
 
 ## Key files
 

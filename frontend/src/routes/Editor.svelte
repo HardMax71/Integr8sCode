@@ -307,7 +307,7 @@
         <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">
             Code Editor
         </h2>
-        <ResourceLimitsPanel limits={k8sLimits} />
+        <ResourceLimitsPanel limits={k8sLimits} lang={selectedLang} />
     </div>
 
     <div

@@ -15,13 +15,6 @@ class InvalidCredentialsError(UnauthorizedError):
         super().__init__(message)
 
 
-class TokenExpiredError(UnauthorizedError):
-    """Raised when a token has expired."""
-
-    def __init__(self) -> None:
-        super().__init__("Token has expired")
-
-
 class CSRFValidationError(ForbiddenError):
     """Raised when CSRF validation fails."""
 

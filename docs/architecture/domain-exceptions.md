@@ -43,8 +43,7 @@ DomainError
 │   └── SagaConcurrencyError          saga
 ├── UnauthorizedError
 │   ├── AuthenticationRequiredError   user
-│   ├── InvalidCredentialsError       user
-│   └── TokenExpiredError             user
+│   └── InvalidCredentialsError       user
 ├── ForbiddenError
 │   ├── ExecutionAccessDeniedError    execution
 │   ├── SagaAccessDeniedError         saga
@@ -57,15 +56,13 @@ DomainError
 │   ├── SagaInvalidStateError         saga
 │   └── SelfDeletionError             user
 ├── InfrastructureError
-│   ├── EventPublishError             execution
-│   ├── SagaTimeoutError              saga
 │   └── ReplayOperationError          replay
 └── AccountLockedError
 ```
 
 The right column is the package under `app/domain/`, so `EventNotFoundError` lives in `app/domain/events/exceptions.py`. A few of these have a status worth knowing. `RuntimeNotSupportedError` (422) rejects a language version that isn't offered, on execute, retry and saved scripts. `ExecutionNotRetryableError` (400) refuses to retry a queued or running execution, and `ExecutionTerminalError` (400) refuses to cancel a finished one. `SelfDeletionError` (400) stops an admin from deleting their own account.
 
-`EventPublishError`, `SagaTimeoutError` and `TokenExpiredError` are defined but nothing raises them. `CSRFValidationError` never reaches the global handler: `CSRFMiddleware` catches it and answers 403 itself.
+`CSRFValidationError` never reaches the global handler: `CSRFMiddleware` catches it and answers 403 itself.
 
 Subclasses that carry context take it in the constructor and keep it as attributes, so logs and tests can read `exc.saga_id` or `exc.limit` without parsing the message:
 

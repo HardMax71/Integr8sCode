@@ -1,5 +1,5 @@
-from app.domain.enums import EventType, ExecutionStatus
-from app.domain.exceptions import ForbiddenError, InfrastructureError, InvalidStateError, NotFoundError, ValidationError
+from app.domain.enums import ExecutionStatus
+from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, ValidationError
 
 
 class ExecutionNotFoundError(NotFoundError):
@@ -42,11 +42,3 @@ class ExecutionTerminalError(InvalidStateError):
         self.execution_id = execution_id
         self.status = status
         super().__init__(f"Cannot cancel execution in {status} state")
-
-
-class EventPublishError(InfrastructureError):
-    """Raised when event publishing fails."""
-
-    def __init__(self, event_type: EventType, reason: str) -> None:
-        self.event_type = event_type
-        super().__init__(f"Failed to publish {event_type}: {reason}")

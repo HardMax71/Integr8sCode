@@ -1,5 +1,5 @@
 from app.domain.enums import SagaState
-from app.domain.exceptions import ConflictError, ForbiddenError, InfrastructureError, InvalidStateError, NotFoundError
+from app.domain.exceptions import ConflictError, ForbiddenError, InvalidStateError, NotFoundError
 
 
 class SagaNotFoundError(NotFoundError):
@@ -30,15 +30,6 @@ class SagaInvalidStateError(InvalidStateError):
         self.current_state = current_state
         self.operation = operation
         super().__init__(f"Cannot {operation} saga '{saga_id}' in state '{current_state}'")
-
-
-class SagaTimeoutError(InfrastructureError):
-    """Raised when a saga times out."""
-
-    def __init__(self, saga_id: str, timeout_seconds: int) -> None:
-        self.saga_id = saga_id
-        self.timeout_seconds = timeout_seconds
-        super().__init__(f"Saga '{saga_id}' timed out after {timeout_seconds}s")
 
 
 class SagaConcurrencyError(ConflictError):

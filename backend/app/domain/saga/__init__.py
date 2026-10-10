@@ -3,7 +3,6 @@ from app.domain.saga.exceptions import (
     SagaConcurrencyError,
     SagaInvalidStateError,
     SagaNotFoundError,
-    SagaTimeoutError,
 )
 from app.domain.saga.models import (
     DomainResourceAllocation,
@@ -33,5 +32,4 @@ __all__ = [
     "SagaInvalidStateError",
     "SagaConcurrencyError",
     "SagaNotFoundError",
-    "SagaTimeoutError",
 ]

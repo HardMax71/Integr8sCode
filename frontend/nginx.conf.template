@@ -72,9 +72,6 @@ server {
             proxy_cache off;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
-
-            # Disable buffering for SSE
-            proxy_set_header X-Accel-Buffering no;
         }
         # --8<-- [end:sse_proxy]
     }

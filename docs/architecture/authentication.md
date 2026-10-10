@@ -105,7 +105,7 @@ The error interceptor turns status codes into toasts. On a 401 outside login and
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-`verifyAuth()` has a branch meant to keep the cached state when the network is down, but it never runs. The generated client returns network failures as `{ error }` instead of throwing, so any failed `/auth/me` call clears the session like a 401 would.
+`verifyAuth()` clears the session only when `/auth/me` answers 401. The generated client returns a network failure as `{ error }` with no response, and on that or any other error the store keeps its cached answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
 
 ## Endpoints
 

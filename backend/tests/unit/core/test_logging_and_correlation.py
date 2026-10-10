@@ -115,6 +115,20 @@ class TestSanitizeSensitiveData:
         assert "URL_CREDS_REDACTED" in result["url"]
         assert result["count"] == 5
 
+    @pytest.mark.parametrize(
+        "key", ["password", "new_password", "hashed_password", "api_key", "csrf_token", "SECRET", "Authorization"]
+    )
+    def test_redacts_values_under_sensitive_keys(self, key: str) -> None:
+        event_dict: dict[str, Any] = {"event": "login", key: "hunter2"}
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert result[key] == "***REDACTED***"
+
+    @pytest.mark.parametrize("key", ["key", "idempotency_key", "token_type", "token_expires_in_minutes", "keyword"])
+    def test_keeps_values_under_ordinary_keys(self, key: str) -> None:
+        event_dict: dict[str, Any] = {"event": "x", key: "plain-value"}
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert result[key] == "plain-value"
+
     def test_has_expected_pattern_count(self) -> None:
         assert len(SENSITIVE_PATTERNS) == 5
 

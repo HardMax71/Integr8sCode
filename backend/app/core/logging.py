@@ -31,6 +31,12 @@ SENSITIVE_PATTERNS: list[tuple[str, str]] = [
 _EMAIL_PATTERN = re.compile(r"(?<![a-z0-9._%+-])([a-z0-9._%+-]++)@([a-z0-9.-]+\.[a-z]{2,})", re.IGNORECASE)
 
 
+_SENSITIVE_KEY = re.compile(
+    r"(?:^|_)(?:password|passwd|pwd|secret|token|api_?key|credentials?|authorization|cookie)$", re.IGNORECASE
+)
+_REDACTED_VALUE = "***REDACTED***"
+
+
 def _mask_email(match: re.Match[str]) -> str:
     local = match.group(1)
     domain = match.group(2)
@@ -52,11 +58,15 @@ def sanitize_sensitive_data(
     """Structlog processor that redacts sensitive data from all string fields.
 
     Covers event message, formatted exception text, stack info, and any
-    string value added by prior processors.  Emails are masked to show the
-    first 3 characters of the local part plus the full domain.
+    string value added by prior processors.  Values under a sensitive key
+    name (``password``, ``api_key``, ``csrf_token``...) are replaced whole,
+    whatever their type.  Emails are masked to show the first 3 characters
+    of the local part plus the full domain.
     """
     for key, value in event_dict.items():
-        if isinstance(value, str):
+        if _SENSITIVE_KEY.search(key) and value is not None:
+            event_dict[key] = _REDACTED_VALUE
+        elif isinstance(value, str):
             event_dict[key] = _redact(value)
     return event_dict
 

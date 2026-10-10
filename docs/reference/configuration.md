@@ -36,7 +36,6 @@ For each secret, `Settings` takes the environment variable if it's set and non-e
 | Key | Value | Source | What it does |
 |-----|-------|--------|--------------|
 | `PROJECT_NAME` | `integr8scode` | config.toml | FastAPI title and startup log |
-| `DATABASE_NAME` | `integr8scode_db` | config.toml | No effect: `MONGODB_URL` always names `MONGO_DB`, and the URL's database wins, so data lives in `integr8scode` |
 | `API_V1_STR` | `/api/v1` | default | Prefix for every router |
 | `ALGORITHM` | `HS256` | config.toml | JWT signing algorithm |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | config.toml | Seeds the `session_timeout_minutes` system setting, which sets the cookie lifetime |

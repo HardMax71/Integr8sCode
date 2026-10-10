@@ -588,7 +588,7 @@ services:
         const role = {
           privileges: [
             { resource: { cluster: true }, actions: ["serverStatus", "top"] },
-            { resource: { db: "integr8scode_db", collection: "" }, actions: ["dbStats", "indexStats", "listCollections"] },
+            { resource: { db: "integr8scode", collection: "" }, actions: ["dbStats", "indexStats", "listCollections"] },
           ],
           roles: [],
         };

@@ -210,19 +210,19 @@ EOF
 # Resolve current context/cluster and extract server + CA (no insecure fallback)
 CTX=$(kubectl config current-context)
 echo "Context: ${CTX}"
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name=="'$CTX'")].context.cluster}')
+CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name=="'"$CTX"'")].context.cluster}')
 echo "Resolved cluster: ${CLUSTER_NAME}"
-K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.server}')
+K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.server}')
 echo "Server (host kubeconfig): ${K8S_SERVER}"
 SERVER_HOST=$(echo "$K8S_SERVER" | sed -E 's#https?://([^/:]+).*#\1#')
 K8S_PORT=$(echo "$K8S_SERVER" | sed -nE 's#.*:([0-9]+).*#\1#p')
 K8S_PORT=${K8S_PORT:-6443}
 echo "Parsed server host: ${SERVER_HOST}"
 echo "Parsed API port: ${K8S_PORT}"
-CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.certificate-authority-data}')
+CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.certificate-authority-data}')
 CA_SOURCE="embedded"
 if [ -z "$CA_CERT" ]; then
-  CA_FILE=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.certificate-authority}')
+  CA_FILE=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.certificate-authority}')
   if [ -n "$CA_FILE" ] && [ -f "$CA_FILE" ]; then
     CA_CERT=$(base64 < "$CA_FILE" | tr -d '\n')
     CA_SOURCE="file: ${CA_FILE}"

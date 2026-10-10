@@ -1,4 +1,5 @@
 import os
+import socket
 import tomllib
 from typing import Literal
 from urllib.parse import quote
@@ -170,7 +171,7 @@ class Settings(BaseModel):
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"  # deployment environment (production, staging, development)
-    HOSTNAME: str = "unknown"  # container hostname, set via TOML or override
+    HOSTNAME: str = Field(default_factory=socket.gethostname)
 
     # OpenTelemetry metrics export endpoint
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None

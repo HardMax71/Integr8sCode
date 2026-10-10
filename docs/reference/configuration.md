@@ -121,7 +121,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 | `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on metrics and logs, Kafka client id, event metadata |
 | `SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on metrics and logs |
 | `ENVIRONMENT` | `development` | default | `deployment.environment` attribute; `test` also turns off notification throttling |
-| `HOSTNAME` | `unknown` | default | `service.instance.id` on logs and spans; read from TOML only, not from the environment |
+| `HOSTNAME` | the machine's hostname | default | `service.instance.id` on logs and spans; inside a container that's the container ID |
 | `LOG_LEVEL` | `INFO` | config.toml | structlog level |
 
 Jaeger and the OTel collector only run with `./deploy.sh dev --observability` or `--debug`. Without them the exporters log connection errors and the app keeps working.

@@ -4,11 +4,13 @@ You need Docker with Compose and a Kubernetes cluster that kubectl on your machi
 
 ## Set up k3s
 
-If you don't have a cluster yet, install k3s with the flags CI uses, so containers can reach its API at `host.docker.internal` with a valid certificate:
+If you don't have a cluster yet, install k3s with these flags, so containers can reach its API at `host.docker.internal` with a valid certificate:
 
 ```bash
 curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" sh -
 ```
+
+CI also passes `--disable-network-policy` to dodge the iptables race under [Troubleshooting](#troubleshooting). Leave it out here: without the policy controller, k3s doesn't enforce the NetworkPolicy that cuts executor pods off the network.
 
 On startup the `cert-generator` container looks for the cluster through `~/.kube` and `/etc/rancher/k3s`. When it finds one, it creates the `integr8scode` namespace, installs Kueue, sets up a service account and writes `backend/kubeconfig.yaml` for the workers. When it can't connect, it logs "Cannot connect to Kubernetes cluster" and skips all of that. The rest of the stack still starts and you can log in, but the k8s worker and pod monitor have no kubeconfig, so scripts stay queued forever.
 
@@ -20,7 +22,7 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-The first start pulls or builds the images and takes a few minutes. Secrets (JWT key, MongoDB and Redis passwords) come from environment variables with dev defaults, so there's nothing to copy or fill in. Add `--wait` to block until every service is healthy.
+The first start pulls or builds the images and takes a few minutes. Secrets (JWT key, MongoDB and Redis passwords) come from environment variables with dev defaults, so there's nothing to copy or fill in. Add `--wait` to block until every service is running, and healthy where it has a healthcheck.
 
 Check the backend:
 
@@ -36,7 +38,7 @@ curl -k https://localhost/api/v1/health/live
 
 Open [https://localhost:5001](https://localhost:5001) and accept the self-signed certificate. Log in with username `user` and password `user123`. For the admin pages (events, executions, sagas, users, system settings) use `admin` / `admin123`. A one-shot `user-seed` container creates both accounts, or resets their passwords, on every start. Set `DEFAULT_USER_PASSWORD` and `ADMIN_USER_PASSWORD` before deploying anywhere that isn't your laptop.
 
-After login you land in the editor, which starts with a small Python script. Click **Run Script** and the output streams in as the pod runs. The language picker offers what the runtime registry lists: Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3.
+After login you land in the editor, which starts with a small Python script. Click **Run Script** and the editor shows the status while the pod runs, then the output once it finishes. The language picker offers what the runtime registry lists: Python 3.14, 3.13, 3.12 and 3.11, Node 26, 24 and 22, Ruby 4.0, 3.4 and 3.3, Go 1.27 and 1.26, and Bash 5.3.
 
 Limits are system-wide, not per execution. An execution request carries only the script, `lang` and `lang_version`. CPU, memory and timeout are admin system settings, seeded on first start from config.toml: 1000m CPU, 128Mi memory and a 5 second timeout. Admins change them at `/admin/settings`. A language can raise them for its own pods. Go gets at least 30 seconds, 1000m CPU, 320Mi memory and 64Mi of `/tmp`, since a cold `go run` compiles the standard library first.
 

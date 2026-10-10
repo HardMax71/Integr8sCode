@@ -554,25 +554,6 @@ class DLQMessageDiscardedEvent(BaseEvent):
     retry_count: int  # Final retry count when discarded
 
 
-class ArchivedEvent(BaseModel):
-    """Archived event with deletion metadata. Wraps the original event data."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    event_id: str
-    event_type: EventType
-    event_version: str = "1.0"
-    timestamp: datetime
-    aggregate_id: str | None = None
-    metadata: EventMetadata
-    stored_at: datetime | None = None
-    ttl_expires_at: datetime | None = None
-    # Archive-specific fields
-    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    deleted_by: str | None = None
-    deletion_reason: str | None = None
-
-
 DomainEvent = Annotated[
     # Execution Events
     ExecutionRequestedEvent

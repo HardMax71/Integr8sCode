@@ -9,10 +9,9 @@ from monggregate import Pipeline, S
 from opentelemetry import trace
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from app.db.docs import EventArchiveDocument, EventDocument
+from app.db.docs import EventDocument
 from app.domain.enums import EventType
 from app.domain.events import (
-    ArchivedEvent,
     DomainEvent,
     DomainEventAdapter,
     EventListResult,
@@ -272,24 +271,6 @@ class EventRepository:
         return EventListResult(
             events=events, total=total_count, skip=skip, limit=limit, has_more=(skip + limit) < total_count
         )
-
-    async def delete_event_with_archival(
-        self, event_id: str, deleted_by: str, deletion_reason: str = "Admin deletion via API"
-    ) -> ArchivedEvent | None:
-        doc = await EventDocument.find_one(EventDocument.event_id == event_id)
-        if not doc:
-            return None
-
-        deleted_at = datetime.now(timezone.utc)
-        archive_fields = {"deleted_at": deleted_at, "deleted_by": deleted_by, "deletion_reason": deletion_reason}
-        archived_doc = EventArchiveDocument.model_validate(doc).model_copy(update=archive_fields)
-
-        async with EventDocument.get_pymongo_collection().database.client.start_session() as session:
-            async with await session.start_transaction():
-                await archived_doc.insert(session=session)
-                await doc.delete(session=session)
-
-        return ArchivedEvent.model_validate(doc).model_copy(update=archive_fields)
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
         # Match on both aggregate_id and execution_id (consistent with get_execution_events)

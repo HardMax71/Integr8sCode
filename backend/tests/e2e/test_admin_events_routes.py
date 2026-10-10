@@ -3,7 +3,8 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from app.db.repositories import EventRepository
+from app.db.docs import EventArchiveDocument
+from app.db.repositories import AdminEventsRepository, EventRepository
 from app.domain.enums import EventType, ReplayStatus
 from app.domain.events import DomainEvent
 from app.schemas_pydantic.admin_events import (
@@ -446,6 +447,24 @@ class TestDeleteEvent:
         assert result.event_id == stored_event.event_id
         assert "deleted" in result.message.lower()
 
+        verify_response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
+        assert verify_response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_event_completes_after_an_interrupted_delete(
+            self, test_admin: AsyncClient, stored_event: DomainEvent, scope: AsyncContainer
+    ) -> None:
+        """A delete that archived the event but stopped before removing it succeeds on retry."""
+        repo = await scope.get(AdminEventsRepository)
+        await repo.archive_event(stored_event, deleted_by="earlier-attempt")
+
+        response = await test_admin.delete(f"/api/v1/admin/events/{stored_event.event_id}")
+
+        assert response.status_code == 200
+        assert EventDeleteResponse.model_validate(response.json()).event_id == stored_event.event_id
+        archived = await EventArchiveDocument.find(EventArchiveDocument.event_id == stored_event.event_id).to_list()
+        assert len(archived) == 1
+        assert archived[0].deleted_by not in (None, "earlier-attempt")
         verify_response = await test_admin.get(f"/api/v1/admin/events/{stored_event.event_id}")
         assert verify_response.status_code == 404
 

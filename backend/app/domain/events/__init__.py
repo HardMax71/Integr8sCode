@@ -17,7 +17,6 @@ from app.domain.events.typed import (
     # Saga Command Events
     AllocateResourcesCommandEvent,
     # Base types
-    ArchivedEvent,
     # Security Events
     AuthFailedEvent,
     BaseEvent,
@@ -111,7 +110,6 @@ __all__ = [
     "EventExportRow",
     "EventNotFoundError",
     # Base types
-    "ArchivedEvent",
     "BaseEvent",
     "ContainerStatusInfo",
     "DomainEvent",

@@ -64,7 +64,7 @@ describe('SavedScripts', () => {
     });
 
     it.each([
-        { lang: 'go', lang_version: '1.21', expected: 'go 1.21' },
+        { lang: 'go', lang_version: '1.27', expected: 'go 1.27' },
         { lang: 'python', lang_version: '3.12', expected: 'python 3.12' },
     ])('displays "$expected" for lang=$lang version=$lang_version', async ({ lang, lang_version, expected }) => {
         await renderAndExpand([
@@ -104,12 +104,12 @@ describe('SavedScripts', () => {
                 name: 'Go App',
                 script: 'x',
                 lang: 'go',
-                lang_version: '1.21',
+                lang_version: '1.27',
                 description: null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             },
         ]);
-        expect(screen.getByTitle('Load Go App (go 1.21)')).toBeInTheDocument();
+        expect(screen.getByTitle('Load Go App (go 1.27)')).toBeInTheDocument();
     });
 });

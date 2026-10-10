@@ -13,7 +13,6 @@ dependencies = [
     "asgiref==3.12.1",
     "async-timeout==5.0.1",
     "attrs==26.1.0",
-    "backoff==2.2.1",
     "cachetools==7.2.1",
     "certifi==2026.7.22",
     "charset-normalizer==3.5.2",
@@ -92,6 +91,7 @@ dependencies = [
     "APScheduler==3.11.3",
     "faststream[kafka]==0.7.7",
     "structlog==26.1.0",
+    "tenacity==9.2.1",
 ]
 
 [build-system]

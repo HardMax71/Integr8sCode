@@ -1,13 +1,13 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
-import backoff
 import httpx2
 import structlog
 from opentelemetry import trace
+from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exponential
 
 from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
@@ -662,28 +662,25 @@ class NotificationService:
         start_time = asyncio.get_running_loop().time()
         notification_type = notification.tags[0] if notification.tags else "unknown"
 
-        @backoff.on_exception(
-            backoff.expo,
-            Exception,
-            max_tries=notification.max_retries,
-            max_value=30,
-            jitter=None,
-            on_backoff=[
-                lambda details: self.logger.warning(
-                    "Delivery attempt failed",
-                    notification_id=str(notification.notification_id),
-                    attempt=details["tries"],
-                    max_attempts=notification.max_retries,
-                    error=str(details["exception"]),
-                ),
-                lambda _: self.metrics.record_notification_retry(notification_type, notification.channel),
-            ],
+        def _on_retry(state: RetryCallState) -> None:
+            self.logger.warning(
+                "Delivery attempt failed",
+                notification_id=str(notification.notification_id),
+                attempt=state.attempt_number,
+                max_attempts=notification.max_retries,
+                error=str(state.outcome.exception() if state.outcome else None),
+            )
+            self.metrics.record_notification_retry(notification_type, notification.channel)
+
+        retrying = AsyncRetrying(
+            stop=stop_after_attempt(notification.max_retries),
+            wait=wait_exponential(max=30),
+            before_sleep=_on_retry,
+            reraise=True,
         )
-        async def _attempt() -> None:
-            await handler(notification, subscription)
 
         try:
-            await _attempt()
+            await retrying(handler, notification, subscription)
             delivery_time = asyncio.get_running_loop().time() - start_time
             await self.repository.update_notification(
                 notification.notification_id,

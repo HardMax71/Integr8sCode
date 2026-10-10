@@ -6,12 +6,12 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import aiofiles
-import backoff
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import ValidationError
 from pymongo.errors import PyMongoError
 from redis.exceptions import RedisError
+from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
@@ -351,19 +351,22 @@ class EventReplayService:
 
         max_attempts = config.retry_attempts if config.retry_failed else 1
 
-        @backoff.on_exception(
-            backoff.expo,
-            _DISPATCH_ERRORS,
-            max_tries=max_attempts,
-            max_value=10,
-            jitter=None,
-            on_backoff=lambda details: self.logger.error(
+        def _log_retry(state: RetryCallState) -> None:
+            self.logger.error(
                 "Failed to replay event",
-                attempt=details["tries"],
+                attempt=state.attempt_number,
                 max_attempts=max_attempts,
-                error=str(details["exception"]),
-            ),
+                error=str(state.outcome.exception() if state.outcome else None),
+            )
+
+        retrying = AsyncRetrying(
+            retry=retry_if_exception_type(_DISPATCH_ERRORS),
+            stop=stop_after_attempt(max_attempts),
+            wait=wait_exponential(max=10),
+            before_sleep=_log_retry,
+            reraise=True,
         )
+
         async def _dispatch() -> None:
             match config.target:
                 case ReplayTarget.KAFKA:
@@ -378,7 +381,7 @@ class EventReplayService:
                     raise ValueError(f"Unknown replay target: {config.target}")
 
         try:
-            await _dispatch()
+            await retrying(_dispatch)
             self._metrics.record_replay_by_target(config.target, success=True)
             return True
         except _DISPATCH_ERRORS:

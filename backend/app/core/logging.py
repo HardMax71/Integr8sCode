@@ -32,7 +32,7 @@ _EMAIL_PATTERN = re.compile(r"(?<![a-z0-9._%+-])([a-z0-9._%+-]++)@([a-z0-9.-]+\.
 
 
 _SENSITIVE_KEY = re.compile(
-    r"(?:^|_)(?:password|passwd|pwd|secret|token|api_?key|credentials?|authorization|cookie)$", re.IGNORECASE
+    r"(?:^|[_-])(?:password|passwd|pwd|secret|token|api[_-]?key|credentials?|authorization|cookie)$", re.IGNORECASE
 )
 _REDACTED_VALUE = "***REDACTED***"
 

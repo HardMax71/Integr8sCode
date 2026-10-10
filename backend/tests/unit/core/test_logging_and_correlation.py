@@ -115,7 +115,17 @@ class TestSanitizeSensitiveData:
         assert result["count"] == 5
 
     @pytest.mark.parametrize(
-        "key", ["password", "new_password", "hashed_password", "api_key", "csrf_token", "SECRET", "Authorization"]
+        "key",
+        [
+            "password",
+            "new_password",
+            "hashed_password",
+            "api_key",
+            "csrf_token",
+            "SECRET",
+            "Authorization",
+            "x-api-key",
+        ],
     )
     def test_redacts_values_under_sensitive_keys(self, key: str) -> None:
         event_dict: dict[str, Any] = {"event": "login", key: "hunter2"}

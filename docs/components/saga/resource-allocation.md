@@ -34,6 +34,8 @@ graph TD
     R --> F[saga FAILED]
 ```
 
+A saga that fails this way publishes nothing about the execution. The execution stays `queued`, its SSE stream never closes, and its slot in the Redis queue stays taken, since only a terminal execution event releases it.
+
 `CreatePodStep` only fails if storing or publishing the command fails, and then its own compensation isn't registered yet, so only the allocation is released. The other path that compensates is `POST /api/v1/sagas/{saga_id}/cancel`, which runs the compensations of every completed step: it sends `delete_pod_command` and releases the allocation.
 
 Every other ending skips compensation. `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` and the orchestrator's own timeout check mark the saga terminal and leave the allocation `active`.

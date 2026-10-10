@@ -1,53 +1,36 @@
-# Saved Scripts
+# Saved scripts
 
-Users can save scripts to their account for later reuse. Scripts are stored in MongoDB and associated with the user who created them. Each script includes the code, language, version, and optional description.
-
-## Data Model
-
-Each saved script contains:
+Users can save scripts to their account and load them back into the editor. Each script stores the code, its language and version, a name and an optional description, and belongs to the user who created it. Every repository query filters by `user_id`, so a user only ever sees their own scripts. Someone else's script id answers 404.
 
 ```python
 --8<-- "backend/app/schemas_pydantic/saved_script.py:SavedScriptResponse"
 ```
 
-Scripts are scoped to individual users—a user can only access their own saved scripts.
+## Runtime check
 
-## API Endpoints
-
-<swagger-ui src="../reference/openapi.json" filter="scripts" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
-
-## Service Layer
-
-The `SavedScriptService` handles business logic with comprehensive logging:
+Create and update refuse a language version the runtime registry doesn't offer, with a 422 `RuntimeNotSupportedError`. An update that changes only the language or only the version is checked against the stored other half. Reads aren't checked, so a script saved on a version that has since been dropped still loads. Running it is what fails.
 
 ```python
 --8<-- "backend/app/services/saved_script_service.py:create_saved_script"
 ```
 
-All operations log the user ID, script ID, and relevant metadata for auditing.
+## API
+
+<swagger-ui src="../reference/openapi.json" filter="scripts" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
 
 ## Storage
 
-Scripts are stored in the `saved_scripts` MongoDB collection with individual indexes on `script_id` (unique) and `user_id` for efficient per-user queries.
+Scripts live in the `saved_scripts` collection, with a unique index on `script_id` and an index on `user_id`.
 
-The repository enforces user isolation—queries always filter by `user_id` to prevent cross-user access.
+## Frontend
 
-## Frontend Integration
+The editor lists saved scripts in its options panel. Loading one sets the code, the language and the version. Save updates the loaded script, or creates a new one if nothing is loaded, the name was changed, or the update answers 404.
 
-The frontend displays saved scripts in a dropdown, allowing users to:
-
-1. Select a saved script to load into the editor
-2. Save the current editor content as a new script
-3. Update an existing script with new content
-4. Delete scripts they no longer need
-
-When loading a script, the frontend sets both the code content and the language/version selectors to match the saved values.
-
-## Key Files
+## Key files
 
 | File | Purpose |
 |------|---------|
-| [`services/saved_script_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saved_script_service.py) | Business logic |
-| [`api/routes/saved_scripts.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/saved_scripts.py) | API endpoints |
-| [`schemas_pydantic/saved_script.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/schemas_pydantic/saved_script.py) | Request/response models |
-| [`db/repositories/saved_script_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/saved_script_repository.py) | MongoDB operations |
+| [`saved_script_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saved_script_service.py) | Business logic and runtime check |
+| [`saved_scripts.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/saved_scripts.py) | API routes |
+| [`saved_script.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/schemas_pydantic/saved_script.py) | Request and response models |
+| [`saved_script_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/saved_script_repository.py) | MongoDB access |

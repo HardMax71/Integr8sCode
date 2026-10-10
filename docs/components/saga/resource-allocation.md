@@ -1,6 +1,6 @@
 # Resource allocation
 
-The execution saga books a row in `resource_allocations` for every execution and refuses to start a 101st one per language while 100 are active. Those rows are released only by compensation, which a normal run never triggers, so they pile up until every new run of that language fails. [#287](https://github.com/HardMax71/Integr8sCode/issues/287) tracks it.
+The execution saga books a row in `resource_allocations` for every execution and refuses a new one for a language once it counts 100 active. Those rows are released only by compensation, which a normal run never triggers, so they pile up until every new run of that language fails. [#287](https://github.com/HardMax71/Integr8sCode/issues/287) tracks it.
 
 The limit that actually controls concurrency is elsewhere. Before a saga exists, the [saga orchestrator](../workers/saga_orchestrator.md) holds each execution in a Redis queue and starts it only while fewer than `max_concurrent_executions` (an admin system setting, 10 by default) are active.
 
@@ -10,7 +10,7 @@ The execution saga in `app/services/saga/execution_saga.py` has three steps:
 
 ```text
 execution popped from the Redis queue
-  ValidateExecutionStep    script at most 1 MiB
+  ValidateExecutionStep    script at most 1,048,576 characters
   AllocateResourcesStep    count active allocations for the language, insert one
   CreatePodStep            publish create_pod_command
 ```
@@ -32,9 +32,9 @@ graph TD
     R --> F[saga FAILED]
 ```
 
-A saga that fails this way publishes nothing about the execution. The execution stays `queued`, its SSE stream never closes, and its slot in the Redis queue stays taken, since only a terminal execution event releases it.
+A saga that fails this way publishes no terminal event for the execution. The execution stays `queued`, its SSE stream never closes, and its slot in the Redis queue stays taken, since only a terminal execution event releases it.
 
-`CreatePodStep` only fails if storing or publishing the command fails, and then its own compensation isn't registered yet, so only the allocation is released. The other path that compensates is `POST /api/v1/sagas/{saga_id}/cancel`, which runs the compensations of every completed step: it sends `delete_pod_command` and releases the allocation.
+`CreatePodStep` only fails if storing or publishing the command fails, and then its own compensation isn't registered yet, so only the allocation is released. The other path that compensates is `POST /api/v1/sagas/{saga_id}/cancel`, which runs the compensation of each completed step: it releases the allocation if one was made, and sends `delete_pod_command` only if `CreatePodStep` finished.
 
 Every other ending skips compensation. `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` and the orchestrator's own timeout check mark the saga terminal and leave the allocation `active`.
 

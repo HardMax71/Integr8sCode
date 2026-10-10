@@ -35,11 +35,12 @@ stateDiagram-v2
     RUNNING --> TIMEOUT: execution_timeout or check_timeouts
     COMPENSATING --> TIMEOUT: check_timeouts
     RUNNING --> CANCELLED: execution_cancelled or POST /sagas/{id}/cancel
+    COMPENSATING --> CANCELLED: execution_cancelled or POST /sagas/{id}/cancel
 ```
 
 `check_timeouts` runs every 30 seconds. It marks any `RUNNING` or `COMPENSATING` saga created more than 300 seconds ago as `TIMEOUT`. It only writes the state: it doesn't compensate and doesn't release the queue slot.
 
-`POST /api/v1/sagas/{saga_id}/cancel` runs in the API process, not in this worker. It sets `CANCELLED` atomically, publishes `saga_cancelled`, and runs the compensations of the steps that had completed, which publishes `delete_pod_command` and releases the allocation.
+`POST /api/v1/sagas/{saga_id}/cancel` runs in the API process, not in this worker. It sets `CANCELLED` atomically, publishes `saga_cancelled`, and runs the compensations of the steps that had completed: it releases the allocation if one was made, and publishes `delete_pod_command` only if `CreatePodStep` finished. Unlike `execution_cancelled`, it doesn't release the execution's slot in the Redis queue or schedule the next one, so the slot stays taken until a terminal event arrives for that execution.
 
 ## Topics
 

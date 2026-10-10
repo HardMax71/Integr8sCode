@@ -1,28 +1,40 @@
-# Schema management
+# MongoDB indexes and TTLs
 
-The backend manages MongoDB collection schemas — indexes and TTL policies. These are initialized at process start, whether the process is the main API or a standalone worker.
+There's no schema manager or migration step. Each Beanie document declares its own indexes, either as `Indexed(...)` fields or in `Settings.indexes`, and every process creates them at startup: the API in its lifespan and each worker in its entry point call `init_beanie` with `ALL_DOCUMENTS` from `app/db/docs/__init__.py`. Beanie sends every declared index to `create_indexes` on each boot, which MongoDB treats as a no-op for an index that already exists with the same spec. Repositories never create indexes.
 
-Kafka event serialization is handled entirely by FastStream with Pydantic JSON; there is no schema registry involved. See [Event System Design](../architecture/event-system-design.md) for details on event serialization.
+Beanie runs with index dropping off, so an index removed from a document stays in the database until someone drops it. Changing the options of an existing index makes MongoDB reject the create, and the process fails at startup. Drop the old index in mongosh first, then restart.
 
-## MongoDB schema
+## TTLs
 
-MongoDB indexes are defined declaratively on each Beanie `Document` subclass via an inner `Settings` class. When `init_beanie()` runs at startup, Beanie reads the `indexes` list from every registered document model and calls `create_indexes` on the collection. Because `create_indexes` is idempotent (a no-op when an index with the same name and spec already exists), every process can safely call `init_beanie()` on boot without worrying about duplicate work.
+Three collections expire documents on their own:
 
-Each document class owns its own index definitions. For example, the events collection declares a unique index on `event_id`, compound indexes for queries by event type, aggregate, user, service, and status, a TTL index for automatic expiration, and a text search index across several fields. Other documents define TTL indexes for idempotency keys (one-hour TTL) and DLQ messages (seven-day TTL) so old documents are cleaned up automatically.
+| Collection | Expires |
+|------------|---------|
+| `events` | at `ttl_expires_at`, which `EventDocument` sets to 30 days after the event is created |
+| `notifications` | 30 days after `created_at` |
+| `dlq_messages` | 7 days after `created_at` |
 
-Repositories don't create their own indexes — they only read and write. This separation keeps startup behavior predictable and prevents the same index being created from multiple code paths.
+The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions`, `sagas` and `resource_allocations`. The event replay worker deletes finished `replay_sessions` older than 48 hours.
 
-## Startup sequence
+## Unique indexes the code relies on
 
-During API startup, the `lifespan` function in `dishka_lifespan.py` initializes Beanie with the MongoDB client, then resolves the `KafkaBroker` from DI, registers FastStream subscribers, sets up Dishka integration, and starts the broker. Workers follow the same pattern — they connect to MongoDB, initialize Beanie, register their subscribers on the broker, and start consuming.
+| Collection | Unique on | Why |
+|------------|-----------|-----|
+| `sagas` | `execution_id` + `saga_name` | One saga per execution; `get_or_create_saga` upserts on it |
+| `events` | `event_id` | The producer stores before publishing and skips a duplicate id, so a replayed event isn't stored twice |
+| `dlq_messages` | `event.event_id` | One DLQ row per event |
+| `notification_subscriptions` | `user_id` + `channel` | One subscription per channel |
+| `users` | `username`, `email`, `user_id` | Registration conflicts become 409 |
+| `user_settings` | `user_id` | One settings document per user |
 
-## Local development
+`executions.execution_id`, `saved_scripts.script_id`, `resource_allocations.allocation_id`, `replay_sessions.session_id`, `audit_log.audit_id` and `notifications.notification_id` are unique as well.
 
-Indexes are additive and idempotent. To rebuild an index with different options, drop it manually in `mongosh` and restart the process — `init_beanie()` will recreate it from the document class definition. To start fresh, point the app at a new database.
+Idempotency keys, the execution queue and the SSE channels live in Redis, not MongoDB.
 
 ## Key files
 
-| File                                                                                                                           | Purpose                    |
-|--------------------------------------------------------------------------------------------------------------------------------|----------------------------|
-| [`typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py)                           | Domain events (Pydantic BaseModel) |
-| [`dishka_lifespan.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/dishka_lifespan.py)                | Startup initialization     |
+| File | Purpose |
+|------|---------|
+| [`docs/__init__.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/__init__.py) | `ALL_DOCUMENTS` |
+| [`event.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/event.py) | `events` indexes and TTL |
+| [`dishka_lifespan.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/dishka_lifespan.py) | `init_beanie` in the API |

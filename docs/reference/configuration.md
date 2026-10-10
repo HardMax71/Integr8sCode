@@ -1,6 +1,6 @@
 # Configuration reference
 
-The backend reads its configuration from TOML files, not from environment variables. `Settings` in `app/settings.py` builds it in this order, each layer overriding the one before:
+The backend reads its non-secret configuration from TOML files, not from environment variables. `Settings` in `app/settings.py` builds it in this order, each layer overriding the one before:
 
 1. `config.toml`, the base file committed to git
 2. an optional per-worker override such as `config.saga-orchestrator.toml`
@@ -216,4 +216,8 @@ A few variables are read by containers other than the backend's `Settings`:
 | `MONGO_MONITOR_USER`, `MONGO_MONITOR_PASSWORD` | `otel-monitor`, `monitorpassword` | `mongo-monitor-user` creates this least-privilege MongoDB user, and the OTel collector's mongodb receiver logs in with it |
 | `GRAFANA_ROOT_URL` | `http://localhost:3000/` | Grafana's root URL, and the frontend's `GRAFANA_PUBLIC_URL`, where `/grafana` redirects |
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | `admin`, `admin123` | Grafana |
+| `GF_SMTP_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` | empty | Grafana, as the SMTP server and login for alert mail. The release deploy fills the host from the `MAILJET_HOST` secret |
+| `MAILJET_FROM_ADDRESS`, `GRAFANA_ALERT_RECIPIENTS` | `noreply@integr8scode.cc` | Grafana, as the alert mail sender and recipients |
 | `IMAGE_TAG` | `latest` | Image tag for every service built from this repo |
+
+The password defaults are for local runs. Compose falls back to a default whenever its variable is unset or empty, so a deployment has to set every password itself.

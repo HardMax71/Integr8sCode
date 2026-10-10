@@ -45,7 +45,16 @@ OUT_READER=$!
 capture "$ERR" < "$WORK/err.pipe" &
 ERR_READER=$!
 
-START_TIME="$(date +%s.%N)"
+# busybox date (the alpine images) prints nothing for %N, so fall back to /proc/uptime there (10 ms steps)
+now() {
+    T="$(date +%s.%N)"
+    case "$T" in
+        *.) cut -d' ' -f1 /proc/uptime ;;
+        *) printf '%s\n' "$T" ;;
+    esac
+}
+
+START_TIME="$(now)"
 
 # ---------- run user command in the background -----------------------------
 
@@ -81,7 +90,7 @@ done
 wait "$PID"
 EXIT_CODE=$?
 
-END_TIME="$(date +%s.%N)"
+END_TIME="$(now)"
 ELAPSED_S=$(printf '%s\n' "$END_TIME $START_TIME" | awk '{printf "%.6f",$1-$2}')
 
 # A background child of the script can hold the pipes open, so wait for the readers about a second at most.

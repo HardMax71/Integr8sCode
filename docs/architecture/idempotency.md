@@ -51,7 +51,7 @@ A record has one of three states:
 --8<-- "backend/app/services/idempotency/redis_repository.py:insert_processing"
 ```
 
-When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. Updates keep the key's remaining TTL.
+When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. Updates keep the key's remaining TTL, read with `TTL` in whole seconds. If that reads 0 because the key is about to expire, the rewrite sets no expiry at all and the key stays until something deletes it.
 
 A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires.
 
@@ -93,7 +93,7 @@ The DI provider builds `IdempotencyConfig()` with these defaults; nothing in `co
 | Instrument | Series | Meaning |
 |------------|--------|---------|
 | `idempotency.cache.hits.total` | `idempotency_cache_hits_total` | Lookups that found a record, by `event_type` and `operation` |
-| `idempotency.cache.misses.total` | `idempotency_cache_misses_total` | Lookups that reserved a new key |
+| `idempotency.cache.misses.total` | `idempotency_cache_misses_total` | Lookups that found no record and went on to `SET NX`, whether or not they won it |
 | `idempotency.duplicates.blocked.total` | `idempotency_duplicates_blocked_total` | Calls rejected as duplicates, by `event_type` |
 | `idempotency.check.duration` | `idempotency_check_duration_seconds` | Histogram of `check_and_reserve` time |
 | `idempotency.processing.duration` | `idempotency_processing_duration_seconds` | Histogram of reserve to completed or failed, by `event_type` and `status` |

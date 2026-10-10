@@ -33,7 +33,7 @@ Every execution submitted through `POST /api/v1/execute` starts as `normal`. Onl
 
 The service then loads the stored event. If that key already expired, the execution is lost: the id leaves the active set, `queue.event_data_lost` goes up and nothing is scheduled.
 
-`try_schedule_from_queue` reads `max_concurrent_executions` from the admin system settings (default 10, admins can set 1 to 100, cached for 60 seconds by `RuntimeSettingsLoader`). It calls `try_schedule` in a loop and starts a saga for each id it gets, until the queue is empty or the cap is reached.
+`try_schedule_from_queue` reads `max_concurrent_executions` from the admin system settings (default 10, admins can set 1 to 100, cached for 60 seconds by `RuntimeSettingsLoader`). It calls `try_schedule` in a loop and starts a saga for each id it gets, until the queue is empty, the cap is reached or it pops an id whose event expired. That last case ends the pass even with entries still pending, and the next pass picks them up.
 
 If starting a saga raises, the orchestrator bumps `exec_queue:retries:{id}`, releases the slot and puts the event back at the end of its priority. On the third failure it gives up: the saga is marked failed if one was created, no event goes out, and the execution stays `queued` in MongoDB. Either way that scheduling pass stops.
 
@@ -74,4 +74,4 @@ The queue status reads Redis directly: `queue_depth` is the sum of `ZCARD` over 
 | `queue.wait_time` | `queue_wait_time_seconds` | Histogram of enqueue to schedule, by `priority` |
 | `queue.event_data_lost` | `queue_event_data_lost_total` | Scheduled ids whose stored event had expired |
 
-`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `release` also decrements `queue_active` for ids that never held a slot, like a cancelled pending execution, so the series drifts. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.
+`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `release` also decrements `queue_active` for ids that never held a slot, like a cancelled pending execution, so the series drifts. `queue_depth` drifts the other way: an id popped with an expired event, or removed by a cancel, leaves the pending set without decrementing it. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.

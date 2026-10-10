@@ -35,7 +35,7 @@ FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_st
 | dlq-processor | none | APScheduler runs `process_monitoring_cycle` every 10s | scheduler, then container |
 | event-replay | none | APScheduler runs `cleanup_old_sessions(older_than_hours=48)` every 6 hours | scheduler, then container |
 
-The pod monitor's watch cycle calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error is counted in the watch error and reconnect metrics.
+The pod monitor's watch cycle calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error that ends the cycle is counted in the watch error and reconnect metrics. An error while handling one pod event is caught inside `PodMonitor` and counted as a watch error only, and the watch carries on.
 
 Replay sessions are created and driven through the API's replay routes, so they live in the API process. The event-replay worker never holds a session in memory, and its cleanup job only deletes terminal sessions older than 48 hours from MongoDB.
 

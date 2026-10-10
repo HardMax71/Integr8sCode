@@ -65,7 +65,7 @@ Three consumers wrap their handler in `with_idempotency` from `app/events/handle
 
 ## Network isolation
 
-The k8s worker owns the executor network policy and is the only thing that sets it. At startup `ensure_namespace_security` applies a NetworkPolicy named `executor-deny-all` that selects pods labelled `component=executor` and allows no ingress and no egress. The same call labels the namespace with the Pod Security Admission `restricted` profile for enforce, warn and audit. Then `ensure_image_pre_puller_daemonset` applies the `runtime-image-pre-puller` DaemonSet so every runtime image is already on the node when a pod needs it.
+The k8s worker owns the executor network policy and is the only thing that sets it. At startup `ensure_namespace_security` applies a NetworkPolicy named `executor-deny-all` that selects pods labelled `component=executor` and allows no ingress and no egress. The same call labels the namespace with the Pod Security Admission `restricted` profile for enforce, warn and audit. Then `ensure_image_pre_puller_daemonset` applies the `runtime-image-pre-puller` DaemonSet, which pulls every runtime image onto each node. The worker doesn't wait for those pulls, so an execution that arrives first can still hit a cold image pull.
 
 A NetworkPolicy does nothing unless the cluster's network plugin enforces it, so check that before you rely on it. See [Security Policies](../security/policies.md).
 

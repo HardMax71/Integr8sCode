@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
@@ -18,8 +18,22 @@ from app.services.saved_script_service import SavedScriptService
 
 router = APIRouter(route_class=DishkaRoute, tags=["scripts"])
 
+_RUNTIME_NOT_OFFERED: dict[str, Any] = {
+    "description": "Language version is not offered, or invalid request body",
+    "content": {
+        "application/json": {
+            "schema": {
+                "anyOf": [
+                    {"$ref": "#/components/schemas/ErrorResponse"},
+                    {"$ref": "#/components/schemas/HTTPValidationError"},
+                ]
+            }
+        }
+    },
+}
 
-@router.post("/scripts", response_model=SavedScriptResponse)
+
+@router.post("/scripts", response_model=SavedScriptResponse, responses={422: _RUNTIME_NOT_OFFERED})
 async def create_saved_script(
     user: Annotated[User, Depends(current_user)],
     saved_script: SavedScriptCreateRequest,
@@ -59,7 +73,7 @@ async def get_saved_script(
 @router.put(
     "/scripts/{script_id}",
     response_model=SavedScriptResponse,
-    responses={404: {"model": ErrorResponse, "description": "Script not found"}},
+    responses={404: {"model": ErrorResponse, "description": "Script not found"}, 422: _RUNTIME_NOT_OFFERED},
 )
 async def update_saved_script(
     script_id: str,

@@ -40,7 +40,8 @@ runs:
         curl --proto =https --tlsv1.2 -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
         echo "$K3S_INSTALL_SHA256  /tmp/k3s-install.sh" | sha256sum -c -
         chmod +x /tmp/k3s-install.sh
-        INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
+        # kube-router's policy sync rewrites the whole filter table and drops Docker rules added meanwhile (kube-router#1248)
+        INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_EXEC="--disable=traefik --disable-network-policy --bind-address 0.0.0.0 --tls-san host.docker.internal" /tmp/k3s-install.sh
 
     - name: Pre-pull executor images and Kueue manifest (background)
       shell: bash

@@ -66,6 +66,8 @@ Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev -
 
 If scripts stay queued, check `docker compose logs cert-generator` for the connection error above, then `docker compose logs k8s-worker pod-monitor`. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
+If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `./deploy.sh dev` recreates the network and its rules.
+
 If a service fails to start, `docker compose logs <service>` usually says why. The usual causes are a port already in use (443, 5001, or 27017, 6379 and 9092 on localhost) or Docker running out of memory.
 
 ## Stop the stack

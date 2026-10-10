@@ -1,53 +1,50 @@
 # SSE architecture
 
-Server-Sent Events is the real-time communication channel between backend and frontend. Think of it as a one-way street where the server pushes updates to the browser whenever something interesting happens. Unlike WebSockets (which were removed), SSE is simpler, more reliable, and perfect for server-to-client communication.
-
-## Event flow
+The browser gets live updates over Server-Sent Events, and every SSE stream reads from a Redis pub/sub channel. Workers never write to Redis for SSE. They publish to Kafka, and a subscriber inside the API process copies the relevant events into Redis.
 
 ```mermaid
-graph TD
-    subgraph "Event producers"
-        API[API]
-        PodMon[Pod Monitor]
-        ResultProc[Result Processor]
-    end
-
-    subgraph "SSE layer"
-        Redis[(Redis pub/sub)]
-        SSESvc[SSEService]
-    end
-
-    Browser[Browser]
-
-    API -->|"publish"| Redis
-    PodMon -->|"publish"| Redis
-    ResultProc -->|"publish"| Redis
-
-    Redis -->|"subscribe"| SSESvc
-    SSESvc -->|"stream"| Browser
+graph LR
+    Workers["Saga orchestrator, K8s worker,<br/>pod monitor, result processor"] -->|domain events| Kafka[(Kafka)]
+    Kafka -->|17 event types| Bridge["sse-bridge-pool subscriber<br/>(API process)"]
+    Bridge -->|"sse:exec:{id}"| Redis[(Redis pub/sub)]
+    Notif["NotificationService<br/>(API process)"] -->|"sse:notif:{user_id}"| Redis
+    Replay["EventReplayService<br/>(API process)"] -->|"sse:replay:{session_id}"| Redis
+    Redis --> SSE[SSEService]
+    SSE -->|text/event-stream| Browser
 ```
 
-When a user submits code, the API returns an execution ID and the frontend opens an SSE connection to `/api/v1/events/executions/{id}`. The SSEService subscribes to a Redis channel keyed by execution ID (`sse:exec:{id}`). Events from producers (API, Pod Monitor, Result Processor) are published to Redis. The SSEService receives them and streams to the browser.
+## The Kafka bridge
 
-Events include: `execution.requested`, `execution.queued`, `pod.created`, `pod.running`, `execution.completed`, `execution.failed`, `result_stored`.
+`register_sse_subscriber` in `app/events/handlers.py` registers one FastStream subscriber with group id `sse-bridge-pool` on 17 topics, listed in `_SSE_EVENT_TYPES`:
 
-## Components
+- `execution_requested`, `execution_queued`, `execution_started`, `execution_running`
+- `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled`
+- `result_stored`, `result_failed`
+- `pod_created`, `pod_scheduled`, `pod_running`, `pod_succeeded`, `pod_failed`, `pod_terminated`, `pod_deleted`
 
-### SSE service
+For each event that has an `execution_id`, it keeps the fields `SSEExecutionEventData` knows about and publishes them to `sse:exec:{execution_id}`. Other fields are dropped. The subscriber uses `AckPolicy.ACK_FIRST` and `auto_offset_reset="latest"`, so it skips history on a fresh group and acks before handling: if the Redis publish fails, that event never reaches the browser.
 
-`app/services/sse/sse_service.py` manages client connections and streams events. When a client connects, it subscribes to a Redis channel via SSERedisBus and yields events as they arrive. Handles connection lifecycle, initial status fetch from repository, and terminal event detection (`result_stored`, `execution_failed`, `execution_timeout`).
+The only pool is this subscriber. `SSE_CONSUMER_POOL_SIZE` (10 in config.toml) is passed as FastStream's `max_workers`, which lets one Kafka consumer handle up to that many events at once. Every API worker process (gunicorn runs `WEB_CONCURRENCY` of them) joins the same group, so each event lands in exactly one process. That's why Redis sits in the middle: the process that consumed the event is often not the one holding the browser's connection.
 
-### Redis bus
+## Channels and streams
 
-`app/services/sse/redis_bus.py` wraps Redis pub/sub operations. Provides `publish_event(execution_id, event)` and `open_subscription(execution_id)` for execution streams, plus `publish_notification(user_id, payload)` and `open_notification_subscription(user_id)` for user notification streams. Channels are named `sse:exec:{id}` and `sse:notif:{user_id}`.
+`SSERedisBus` (`app/services/sse/redis_bus.py`) owns the three channel prefixes and one listener per stream type: `listen_execution`, `listen_notifications` and `listen_replay`.
 
-## Operations
+| Endpoint | Channel | Published by |
+|----------|---------|--------------|
+| `GET /api/v1/events/executions/{execution_id}` | `sse:exec:{execution_id}` | the Kafka bridge |
+| `GET /api/v1/events/notifications/stream` | `sse:notif:{user_id}` | `NotificationService` |
+| `GET /api/v1/admin/events/replay/{session_id}/status` | `sse:replay:{session_id}` | `EventReplayService` |
 
-Browsers automatically reconnect dropped SSE connections. Every SSE connection requires authentication via JWT token, validated before establishing connection. Users can only subscribe to their own executions (ownership verified, admin users exempt).
+All three need a logged-in user. The execution stream returns 404 for an unknown execution and 403 when the execution belongs to someone else, unless the caller is an admin. Those checks run before streaming starts, so they come back as normal HTTP errors.
 
-## Why not WebSockets?
+Redis pub/sub keeps nothing. An event published before the browser subscribes is gone, which is why the execution stream opens with a `status` event built from the execution document in MongoDB. The execution flow is described in [Execution SSE flow](execution-sse-flow.md).
 
-WebSockets were initially implemented but removed because SSE is sufficient for server-to-client communication, simpler connection management, better proxy compatibility (many corporate proxies block WebSockets), excellent browser support with automatic reconnection, and works great with HTTP/2 multiplexing.
+Event names on the wire are the `EventType` values, with underscores: `execution_requested`, `pod_running`, `result_stored` and so on. The notification stream sets the SSE event name to `notification` and pings every 30 seconds. The execution and replay streams ping every 15 seconds. `SSE_HEARTBEAT_INTERVAL` exists in Settings but nothing reads it ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+
+## Scaling
+
+Any number of API processes or replicas can serve SSE connections, since each one subscribes to Redis for the clients it holds and Redis fans the message out. The bridge scales with the API too: more processes means more consumers in `sse-bridge-pool`, up to the partition count of each topic.
 
 ## Testing SSE endpoints
 
@@ -70,7 +67,9 @@ Leaving the `async with` closes the stream: the transport delivers `http.disconn
 
 ## Key files
 
-| File                                                                                                                | Purpose                |
-|---------------------------------------------------------------------------------------------------------------------|------------------------|
-| [`sse_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/sse_service.py)     | Client connections     |
-| [`redis_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/redis_bus.py)         | Redis pub/sub wrapper  |
+| File | Purpose |
+|------|---------|
+| [`handlers.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/handlers.py) | `sse-bridge-pool` subscriber |
+| [`redis_bus.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/redis_bus.py) | Redis channels and listeners |
+| [`sse_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/sse/sse_service.py) | Stream generators |
+| [`sse.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/sse.py) | Execution and notification routes |

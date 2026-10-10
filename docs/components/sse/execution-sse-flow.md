@@ -1,18 +1,35 @@
 # Execution SSE flow
 
-The system uses an event-driven pipeline to run code and stream progress to the browser with Server-Sent Events. The Editor subscribes to a per-execution SSE stream and renders updates as the execution advances. When the result is ready, the stream delivers a `result_stored` event that already carries the final payload, so the browser can render immediately.
+After `POST /api/v1/execute` returns an execution id, the editor opens `GET /api/v1/events/executions/{execution_id}` and renders events until the stream closes. The stream closes on `result_stored`, `result_failed`, `execution_failed` or `execution_timeout` (`EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES` in `app/infrastructure/kafka/topics.py`).
 
-The flow starts when the API receives a request to execute a script. It writes an execution record in MongoDB and publishes an `execution_requested` event to Kafka. The saga orchestrator picks it up, enqueues it in a Redis-backed priority queue, and sends a `CreatePodCommandEvent` to the Kubernetes worker. The worker creates the pod and emits `pod_created`/`pod_running`. The pod monitor watches Kubernetes and emits pod and terminal execution events. The result processor listens for terminal events, writes the final state into the executions collection, and publishes a `result_stored` event.
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant API
+    participant K as Kafka
+    participant W as Workers
+    participant R as Redis
 
-The SSE service subscribes to a Redis channel for the given execution and streams events to the browser. Progress events like `pod_running` arrive quickly and render status changes without polling. The stream closes when `result_stored` is delivered — emitted only after the result processor has written the final output to MongoDB, with the event containing the final result payload.
+    B->>API: POST /api/v1/execute
+    API->>K: execution_requested
+    API-->>B: execution_id, status queued
+    B->>API: GET /api/v1/events/executions/{id}
+    API-->>B: status event from MongoDB
+    K->>W: execution_requested
+    W->>K: pod_created, pod_scheduled, pod_running
+    W->>K: execution_completed, then result_stored
+    K->>API: sse-bridge-pool subscriber
+    API->>R: PUBLISH sse:exec:{id}
+    R-->>API: message for this stream
+    API-->>B: each event, result_stored with the result
+```
 
-Using `result_stored` as the terminal signal removes artificial waiting. Earlier iterations ended the SSE stream on `execution_completed`/`failed`/`timeout` and slept on the server to "give Mongo time" to commit. That pause is unnecessary once the stream ends only after the result processor confirms persistence.
+The API writes the execution document and publishes `execution_requested`. The saga orchestrator queues it in Redis and, once a slot is free, runs the saga, which sends `create_pod_command`. The k8s worker creates the pod and publishes `pod_created`. The pod monitor turns pod phases into `pod_scheduled`, `pod_running` and finally `execution_completed`, `execution_failed` or `execution_timeout`. The result processor writes the outcome onto the execution document and publishes `result_stored`, or `result_failed` if it couldn't. Each of these goes through the Kafka bridge described in [SSE architecture](sse-architecture.md).
 
-This approach preserves clean attribution and ordering. The saga orchestrator enriches pod creation commands with user information so pods are labeled correctly. The pod monitor converts Kubernetes phases into domain events. Timeout classification is deterministic: any pod finishing with `reason=DeadlineExceeded` results in an `execution_timeout` event. The result processor is the single writer of terminal state, so the UI never races the database — when the browser sees `result_stored`, the result is already present.
+The first event on the stream is a `status` control event built from the execution document, so a browser that connects late still learns where the execution is. `result_stored` itself carries only a storage reference, so the SSE service reads the result from MongoDB and attaches it before sending. Because the result processor publishes `result_stored` only after the write succeeded, the browser never sees a result that isn't stored yet.
 
-## Related docs
+`execution_failed` and `execution_timeout` close the stream as soon as the pod monitor publishes them, before the result processor has written anything. Their `result` field is null, and the editor shows a failure or timeout message instead of output. A pod whose status reason is `DeadlineExceeded` maps to `execution_timeout`, unless all its containers already exited with code 0.
 
-- [SSE Architecture](sse-architecture.md) — overall SSE design and components
-- [SSE Partitioned Router](sse-partitioned-architecture.md) — consumer pool and scaling
-- [Result Processor](../workers/result_processor.md) — terminal event handling
-- [Pod Monitor](../workers/pod_monitor.md) — Kubernetes event translation
+`execution_cancelled` passes through the bridge but doesn't close the stream.
+
+The pod monitor page has the [phase mapping](../workers/pod_monitor.md), and the result processor page covers the [terminal write](../workers/result_processor.md).

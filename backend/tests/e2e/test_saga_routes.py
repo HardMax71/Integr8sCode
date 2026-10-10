@@ -7,7 +7,7 @@ from app.schemas_pydantic.saga import (
     SagaListResponse,
     SagaStatusResponse,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 from tests.e2e.conftest import create_execution_with_saga
 

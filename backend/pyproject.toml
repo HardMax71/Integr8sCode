@@ -30,8 +30,7 @@ dependencies = [
     "grpcio==1.84.0",
     "gunicorn==26.2.0",
     "h11==0.16.0",
-    "httpcore==1.0.9",
-    "httpx==0.28.1",
+    "httpx2==2.13.1",
     "idna==3.20",
     "importlib-metadata==9.0.1",
     "kubernetes_asyncio==36.1.0",
@@ -104,7 +103,6 @@ packages = ["app", "workers"]
 
 [dependency-groups]
 test = [
-    "async-asgi-testclient==1.4.11",
     "coverage==7.16.2",
     "hypothesis==6.168.5",
     "iniconfig==2.3.1",

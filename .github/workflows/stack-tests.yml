@@ -49,7 +49,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.14
-          uv sync --frozen --group test --no-dev --no-install-project --no-install-package async-asgi-testclient --no-build
+          uv sync --frozen --group test --no-dev --no-install-project --no-build
 
       - name: Run unit tests
         timeout-minutes: 5
@@ -248,7 +248,7 @@ jobs:
         timeout-minutes: 15
         run: |
           docker compose exec -T backend \
-            sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e -v -rs \
+            sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e -v -rs \
             --durations=0 \
             --cov=app \
             --cov-report=xml:coverage-e2e.xml \

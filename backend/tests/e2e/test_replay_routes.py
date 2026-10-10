@@ -8,7 +8,7 @@ from app.schemas_pydantic.replays import (
     ReplaySession,
     SessionSummary,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.kafka]
 

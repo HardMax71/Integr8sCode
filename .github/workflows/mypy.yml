@@ -24,7 +24,7 @@ jobs:
         run: |
           cd backend
           uv python install 3.14
-          uv sync --frozen --group lint --group test --no-dev --no-install-project --no-install-package async-asgi-testclient --no-build
+          uv sync --frozen --group lint --group test --no-dev --no-install-project --no-build
 
       - name: Run mypy
         env:

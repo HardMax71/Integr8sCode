@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from app.settings import Settings
 
@@ -10,7 +10,7 @@ class TestCSRFMiddleware:
 
     @pytest.mark.asyncio
     async def test_get_requests_skip_csrf(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """GET requests skip CSRF validation."""
         response = await client.get("/api/v1/health/live")
@@ -19,7 +19,7 @@ class TestCSRFMiddleware:
 
     @pytest.mark.asyncio
     async def test_auth_endpoints_skip_csrf(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Auth endpoints skip CSRF validation."""
         # Login endpoint should work without CSRF token
@@ -33,11 +33,11 @@ class TestCSRFMiddleware:
 
     @pytest.mark.asyncio
     async def test_authenticated_post_requires_csrf(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Authenticated POST requires CSRF token."""
         # Remove CSRF header temporarily
-        csrf_token = test_user.headers.get("X-CSRF-Token")
+        csrf_token = test_user.headers["X-CSRF-Token"]
         del test_user.headers["X-CSRF-Token"]
 
         response = await test_user.post(
@@ -53,7 +53,7 @@ class TestCSRFMiddleware:
 
     @pytest.mark.asyncio
     async def test_authenticated_post_with_csrf_succeeds(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Authenticated POST with valid CSRF token succeeds."""
         response = await test_user.post(
@@ -74,7 +74,7 @@ class TestRequestSizeLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_small_request_allowed(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Small requests are allowed through."""
         response = await client.post(
@@ -91,7 +91,7 @@ class TestRequestSizeLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_large_request_rejected(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Requests exceeding size limit are rejected."""
         # Create a payload larger than 10MB
@@ -111,7 +111,7 @@ class TestCacheControlMiddleware:
     """Tests for CacheControlMiddleware."""
 
     @pytest.mark.asyncio
-    async def test_k8s_limits_cached(self, client: httpx.AsyncClient) -> None:
+    async def test_k8s_limits_cached(self, client: httpx2.AsyncClient) -> None:
         """K8s limits endpoint has cache headers."""
         response = await client.get("/api/v1/k8s-limits")
 
@@ -122,7 +122,7 @@ class TestCacheControlMiddleware:
 
     @pytest.mark.asyncio
     async def test_example_scripts_cached(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Example scripts endpoint has cache headers."""
         response = await client.get("/api/v1/example-scripts")
@@ -134,7 +134,7 @@ class TestCacheControlMiddleware:
 
     @pytest.mark.asyncio
     async def test_notifications_no_cache(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """Notifications endpoint has no-cache headers."""
         response = await test_user.get("/api/v1/notifications")
@@ -145,7 +145,7 @@ class TestCacheControlMiddleware:
 
     @pytest.mark.asyncio
     async def test_post_no_cache_headers(
-        self, test_user: httpx.AsyncClient
+        self, test_user: httpx2.AsyncClient
     ) -> None:
         """POST requests don't get cache headers."""
         response = await test_user.post(
@@ -169,7 +169,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_rate_limit_headers_present(
-        self, client: httpx.AsyncClient, test_settings: Settings
+        self, client: httpx2.AsyncClient, test_settings: Settings
     ) -> None:
         """Rate limit headers are added to responses when rate limiting is enabled."""
         if not test_settings.RATE_LIMIT_ENABLED:
@@ -185,7 +185,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_health_endpoint_exempt(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Health endpoints are exempt from rate limiting."""
         # Make many requests to health endpoint
@@ -196,7 +196,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_auth_endpoints_exempt(
-        self, client: httpx.AsyncClient
+        self, client: httpx2.AsyncClient
     ) -> None:
         """Auth endpoints are exempt from rate limiting."""
         # Make many login attempts
@@ -214,7 +214,7 @@ class TestMiddlewareOrder:
 
     @pytest.mark.asyncio
     async def test_all_middlewares_work_together(
-        self, test_user: httpx.AsyncClient, test_settings: Settings
+        self, test_user: httpx2.AsyncClient, test_settings: Settings
     ) -> None:
         """All middlewares work correctly in combination."""
         response = await test_user.get("/api/v1/notifications")

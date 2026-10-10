@@ -6,7 +6,7 @@ from app.schemas_pydantic.saved_script import (
     SavedScriptResponse,
     SavedScriptUpdate,
 )
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 

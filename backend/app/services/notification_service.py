@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
 import backoff
-import httpx
+import httpx2
 import structlog
 from opentelemetry import trace
 
@@ -362,7 +362,7 @@ class NotificationService:
                 "notification.webhook_host": safe_host,
             }
         )
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(webhook_url, json=payload, headers=headers)
             response.raise_for_status()
         self.logger.debug(
@@ -412,7 +412,7 @@ class NotificationService:
                 "notification.channel": "slack",
             }
         )
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx2.AsyncClient(timeout=30.0) as client:
             response = await client.post(subscription.slack_webhook, json=slack_message)
             response.raise_for_status()
         self.logger.debug(

@@ -3,7 +3,7 @@ import time
 
 import pytest
 from app.schemas_pydantic.health import LivenessResponse
-from httpx import AsyncClient
+from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 

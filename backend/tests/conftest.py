@@ -3,7 +3,7 @@ import uuid
 from collections.abc import Iterable
 from typing import AsyncGenerator
 
-import httpx
+import httpx2
 import pytest
 import pytest_asyncio
 import redis.asyncio as redis
@@ -14,7 +14,7 @@ from app.main import create_app
 from app.settings import Settings
 from dishka import AsyncContainer
 from fastapi import FastAPI
-from httpx import ASGITransport
+from httpx2 import ASGITransport
 
 
 def _get_worker_num() -> int:
@@ -57,9 +57,9 @@ async def app(test_settings: Settings) -> AsyncGenerator[FastAPI, None]:
 
 
 @pytest_asyncio.fixture
-async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]:
     """HTTP client for testing API endpoints."""
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="https://test",
             timeout=30.0,
@@ -83,14 +83,14 @@ async def redis_client(scope: AsyncContainer) -> AsyncGenerator[redis.Redis, Non
 
 
 # ===== Authenticated client fixtures =====
-# Return httpx.AsyncClient with CSRF header pre-set. Just use test_user.post(...) directly.
+# Return httpx2.AsyncClient with CSRF header pre-set. Just use test_user.post(...) directly.
 
 
 async def _create_authenticated_client(
     app: FastAPI, username: str, email: str, password: str, role: UserRole
-) -> httpx.AsyncClient:
+) -> httpx2.AsyncClient:
     """Create and return an authenticated client with CSRF header set."""
-    c = httpx.AsyncClient(
+    c = httpx2.AsyncClient(
         transport=ASGITransport(app=app),
         base_url="https://test",
         timeout=30.0,
@@ -135,7 +135,7 @@ async def _create_authenticated_client(
 
 
 @pytest_asyncio.fixture
-async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def test_user(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]:
     """Authenticated user client. CSRF header is set automatically."""
     uid = uuid.uuid4().hex[:8]
     c = await _create_authenticated_client(
@@ -150,7 +150,7 @@ async def test_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def test_admin(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]:
     """Authenticated admin client. CSRF header is set automatically."""
     uid = uuid.uuid4().hex[:8]
     c = await _create_authenticated_client(
@@ -165,7 +165,7 @@ async def test_admin(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def another_user(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def another_user(app: FastAPI) -> AsyncGenerator[httpx2.AsyncClient, None]:
     """Another authenticated user client (for multi-user tests)."""
     uid = uuid.uuid4().hex[:8]
     c = await _create_authenticated_client(

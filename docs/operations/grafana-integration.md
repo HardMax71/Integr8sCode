@@ -39,9 +39,9 @@ All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8sc
 --8<-- "backend/grafana/provisioning/alerting/alerting.yml"
 ```
 
-Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the collector's `host_metrics` memory scraper, which only emits `system.memory.utilization` because the collector config enables it.
+Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the collector's `host_metrics` memory scraper, which emits `system.memory.utilization` only because the collector config turns it on; it's off by default.
 
-Alerts go to the `email-alerts` contact point, one email to every address in `GRAFANA_ALERT_RECIPIENTS`. SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
+Alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
 
 The rule group names its folder by title, `Integr8sCode`. If the rules load before the dashboard provider creates that folder, Grafana makes a second `Integr8sCode` folder with a random UID and puts the rules there. The compose entrypoint avoids that: it starts Grafana without the alerting files, waits for `/api/folders/integr8scode`, then copies them in and calls `/api/admin/provisioning/alerting/reload`.
 

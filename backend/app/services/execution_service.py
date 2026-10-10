@@ -131,73 +131,69 @@ class ExecutionService:
             self.logger.warning("Runtime not supported", lang=lang, lang_version=lang_version)
             raise RuntimeNotSupportedError(lang, lang_version)
 
-        self.metrics.increment_active_executions()
-        try:
-            # Create execution record
-            created_execution = await self.execution_repo.create_execution(
-                DomainExecutionCreate(
-                    script=script,
-                    lang=lang,
-                    lang_version=lang_version,
-                    user_id=user_id,
-                )
-            )
-
-            self.logger.info(
-                "Created execution record",
-                execution_id=created_execution.execution_id,
+        # Create execution record
+        created_execution = await self.execution_repo.create_execution(
+            DomainExecutionCreate(
+                script=script,
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
-                script_length=len(script),
             )
+        )
 
-            # Metadata and event — use admin-configurable limits
-            metadata = self._create_event_metadata(user_id=user_id)
-            effective = await self._runtime_settings.get_effective_settings()
-            event = ExecutionRequestedEvent(
-                execution_id=created_execution.execution_id,
-                aggregate_id=created_execution.execution_id,
-                script=script,
-                language=lang,
-                language_version=lang_version,
-                runtime_image=runtime_cfg.image,
-                runtime_command=runtime_cfg.command,
-                runtime_filename=runtime_cfg.file_name,
-                timeout_seconds=effective.max_timeout_seconds,
-                cpu_limit=effective.cpu_limit,
-                memory_limit=effective.memory_limit,
-                cpu_request=self.settings.K8S_POD_CPU_REQUEST,
-                memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
-                priority=priority,
-                metadata=metadata,
+        self.logger.info(
+            "Created execution record",
+            execution_id=created_execution.execution_id,
+            lang=lang,
+            lang_version=lang_version,
+            user_id=user_id,
+            script_length=len(script),
+        )
+
+        # Metadata and event — use admin-configurable limits
+        metadata = self._create_event_metadata(user_id=user_id)
+        effective = await self._runtime_settings.get_effective_settings()
+        event = ExecutionRequestedEvent(
+            execution_id=created_execution.execution_id,
+            aggregate_id=created_execution.execution_id,
+            script=script,
+            language=lang,
+            language_version=lang_version,
+            runtime_image=runtime_cfg.image,
+            runtime_command=runtime_cfg.command,
+            runtime_filename=runtime_cfg.file_name,
+            timeout_seconds=effective.max_timeout_seconds,
+            cpu_limit=effective.cpu_limit,
+            memory_limit=effective.memory_limit,
+            cpu_request=self.settings.K8S_POD_CPU_REQUEST,
+            memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
+            priority=priority,
+            metadata=metadata,
+        )
+
+        # Publish to Kafka; on failure, mark error and raise
+        try:
+            await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
+        except Exception as e:  # pragma: no cover - mapped behavior
+            self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
+            self.metrics.record_error(type(e).__name__)
+            await self._update_execution_error(
+                created_execution.execution_id,
+                f"Failed to submit execution: {e}",
             )
+            raise InfrastructureError("Failed to submit execution request") from e
 
-            # Publish to Kafka; on failure, mark error and raise
-            try:
-                await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
-            except Exception as e:  # pragma: no cover - mapped behavior
-                self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
-                self.metrics.record_error(type(e).__name__)
-                await self._update_execution_error(
-                    created_execution.execution_id,
-                    f"Failed to submit execution: {e}",
-                )
-                raise InfrastructureError("Failed to submit execution request") from e
-
-            # Success metrics and return
-            duration = time() - start_time
-            self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
-            self.metrics.record_submission_duration(duration, lang_and_version)
-            self.logger.info(
-                "Script execution submitted successfully",
-                execution_id=created_execution.execution_id,
-                status=created_execution.status,
-                duration_seconds=duration,
-            )
-            return created_execution
-        finally:
-            self.metrics.decrement_active_executions()
+        # Success metrics and return
+        duration = time() - start_time
+        self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
+        self.metrics.record_submission_duration(duration, lang_and_version)
+        self.logger.info(
+            "Script execution submitted successfully",
+            execution_id=created_execution.execution_id,
+            status=created_execution.status,
+            duration_seconds=duration,
+        )
+        return created_execution
 
     async def cancel_execution(
         self,

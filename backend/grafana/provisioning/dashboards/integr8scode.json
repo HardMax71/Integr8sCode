@@ -246,7 +246,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "Number of active executions",
+      "description": "Executions the saga orchestrator has scheduled and not yet released",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -299,7 +299,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "sum(script_executions_active)",
+          "expr": "sum(queue_active)",
           "refId": "A"
         }
       ],

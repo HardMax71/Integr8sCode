@@ -11,8 +11,6 @@ def test_execution_metrics_methods(test_settings: Settings) -> None:
     m = ExecutionMetrics(test_settings)
     m.record_script_execution(ExecutionStatus.QUEUED, "python-3.11")
     m.record_execution_duration(0.5, "python-3.11")
-    m.increment_active_executions()
-    m.decrement_active_executions()
     m.record_memory_usage(123.4, "python-3.11")
     m.record_error("timeout")
     m.record_submission_duration(0.1, "python-3.11")

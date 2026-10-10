@@ -124,7 +124,7 @@ docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$M
 | Issue                 | Cause                              | Fix                                                         |
 |-----------------------|------------------------------------|-------------------------------------------------------------|
 | Unknown topic errors  | Kafka not ready yet                | `docker compose logs kafka`                                 |
-| MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialised with |
+| MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialized with |
 | Workers can't reach k8s | Stale or expired kubeconfig (the token lasts 24h) | `docker compose restart cert-generator`, then restart the workers |
 
 List topics from inside the broker:
@@ -154,7 +154,7 @@ The cluster comes back empty, so Kueue and the `integr8scode` namespace are recr
 
 ## Pre-built images
 
-Stack Tests builds `base`, `backend`, `frontend` and `cert-generator` and pushes them to GHCR as `sha-<7 chars>`. On `main`, once the scans pass, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
+Stack Tests builds `base`, `backend`, `frontend` and `cert-generator` and pushes them to GHCR as `sha-<7 chars>`. On `main`, after the Trivy scan job, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
 
 ```bash
 IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
@@ -162,7 +162,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Merges to `main` deploy automatically: Stack Tests, then Docker Scan & Promote, then [Release & Deploy](cicd.md#release-deploy). The deploy job SSHes into the server, runs `git pull` in `/opt/Integr8sCode`, logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
+Merges to `main` that trigger Stack Tests deploy automatically: Stack Tests, then Docker Scan & Promote, then [Release & Deploy](cicd.md#release-deploy). The deploy job SSHes into the server, runs `git pull` in `/opt/Integr8sCode`, logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
 
 ```bash
 docker compose pull

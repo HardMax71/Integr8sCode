@@ -1,42 +1,19 @@
 # Admin API
 
-The admin API provides endpoints for user management, system settings, and event browsing. All endpoints require
-authentication with an admin-role user. The API is organized into three routers: users, settings, and events.
+Five routers under `/api/v1/admin/` make up the admin API. Each one has the `admin_user` dependency at router level, so an anonymous request gets 401 and a logged-in non-admin gets 403. See [Authentication](../architecture/authentication.md) for cookies and CSRF.
 
-## Authentication
+| Router        | Prefix                       | What it does                                                                 |
+|---------------|------------------------------|------------------------------------------------------------------------------|
+| users         | `/admin/users`               | list with search and role filter, create, read, overview, update, delete (cascading by default), reset password, unlock |
+| events        | `/admin/events`              | browse, stats, CSV or JSON export, detail, delete, replay, replay status over SSE |
+| settings      | `/admin/settings`            | read, replace and reset the system settings (execution limits, login lockout, log level, sampling) |
+| executions    | `/admin/executions`          | list executions by status, priority or user, change an execution's priority, queue status |
+| rate-limits   | `/admin/rate-limits`         | default rules, and per-user limits: read, update, reset                      |
 
-All admin endpoints require the `admin_user` dependency, which validates that the current user has the `admin` role.
-Requests from non-admin users receive a 403 Forbidden response.
+Per-user rate limits live under `/admin/rate-limits/{user_id}`, not under the users router.
 
-See [Authentication](../architecture/authentication.md) for details on JWT tokens, CSRF protection, and login flow.
+`POST /admin/events/browse` and the export endpoint filter on `event_types`, `aggregate_id`, `user_id`, `service_name` and a `start_time`/`end_time` range. Browse also takes `search_text`. Results come newest first. Export returns up to 10,000 events by default and 50,000 at most.
 
-## User Management
+<swagger-ui src="../reference/openapi.json" filter="admin" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
 
-The `/api/v1/admin/users` router provides full CRUD operations for user accounts, including listing with
-pagination/filtering, creating users, updating profiles, resetting passwords, and managing per-user rate limits.
-
-<swagger-ui src="../reference/openapi.json" filter="users" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
-
-## System Settings
-
-The `/api/v1/admin/settings` router manages global system configuration including execution limits, security settings,
-and monitoring parameters.
-
-<swagger-ui src="../reference/openapi.json" filter="settings" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
-
-## Event Management
-
-The `/api/v1/admin/events` router provides event browsing, export, and replay capabilities. Events can be filtered by
-type, time range, user, or correlation ID. Results are always sorted by timestamp descending (most recent first).
-Export supports CSV and JSON formats.
-
-<swagger-ui src="../reference/openapi.json" filter="admin-events" docExpansion="none" defaultModelsExpandDepth="-1" supportedSubmitMethods="[]"/>
-
-## Key Files
-
-| File                                                                                                                           | Purpose                   |
-|--------------------------------------------------------------------------------------------------------------------------------|---------------------------|
-| [`api/routes/admin/users.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/users.py)       | User management endpoints |
-| [`api/routes/admin/settings.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/settings.py) | System settings endpoints |
-| [`api/routes/admin/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/events.py)     | Event browsing and replay |
-| [`services/admin/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/services/admin)                            | Admin service layer       |
+The handlers are in [`api/routes/admin/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/api/routes/admin) and the services in [`services/admin/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/services/admin).

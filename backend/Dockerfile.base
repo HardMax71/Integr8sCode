@@ -10,8 +10,8 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     gcc \
-    libsnappy-dev \
     liblzma-dev \
+    libsnappy-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (using Docker Hub mirror - ghcr.io has rate limiting issues)
@@ -35,8 +35,8 @@ WORKDIR /app
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
     curl \
-    libsnappy1v5 \
     liblzma5 \
+    libsnappy1v5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy uv from builder (avoids second Docker Hub pull, guarantees version consistency)

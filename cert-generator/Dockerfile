@@ -5,11 +5,11 @@ FROM alpine:3.24
 ARG KUBECTL_VERSION=v1.37.1
 
 # Install required packages and tools for all architectures
-RUN apk add --no-cache ca-certificates openssl curl dos2unix netcat-openbsd iproute2 && \
+RUN apk add --no-cache ca-certificates curl dos2unix iproute2 netcat-openbsd openssl && \
     update-ca-certificates && \
     # Detect architecture and install appropriate binaries
     ARCH=$(uname -m); \
-    case $ARCH in \
+    case "$ARCH" in \
         x86_64) KUBECTL_ARCH=amd64 ;; \
         aarch64) KUBECTL_ARCH=arm64 ;; \
         armv7l) KUBECTL_ARCH=arm ;; \

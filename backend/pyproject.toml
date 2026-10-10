@@ -195,7 +195,7 @@ asyncio_default_test_loop_scope = "session"
 log_cli = false
 log_cli_level = "ERROR"
 log_level = "ERROR"
-addopts = "--tb=short -n auto --dist=loadfile"
+addopts = "--tb=short -n auto --dist=loadgroup"
 timeout = 120
 timeout_method = "signal"
 

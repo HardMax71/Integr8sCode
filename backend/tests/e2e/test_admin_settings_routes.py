@@ -5,7 +5,7 @@ from app.domain.admin import SystemSettings
 from app.settings import Settings
 from httpx2 import AsyncClient
 
-pytestmark = [pytest.mark.e2e, pytest.mark.admin]
+pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.xdist_group("system_settings")]
 
 
 class TestGetSystemSettings:

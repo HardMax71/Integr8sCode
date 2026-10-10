@@ -84,7 +84,7 @@ Count, duration and response size are labelled with method, path template and st
 --8<-- "backend/app/core/middlewares/metrics.py:path_template"
 ```
 
-Request size comes from `Content-Length` and is only recorded when the header is present, the same for response size. The `/metrics` path is skipped. If a route raises an exception no handler maps, the middleware records nothing for that request and `http_requests_active` stays incremented.
+Request size comes from `Content-Length` and is only recorded when the header is present, the same for response size. The `/metrics` path is skipped. If a route raises an exception no handler maps, the request is counted with status 500 and `http_requests_active` still goes back down.
 
 `setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise the instruments use the no-op provider. When it does run, it also registers three process-level gauges:
 

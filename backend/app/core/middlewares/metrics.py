@@ -86,21 +86,21 @@ class MetricsMiddleware:
 
             await send(message)
 
-        await self.app(scope, receive, send_wrapper)
+        raised = True
+        try:
+            await self.app(scope, receive, send_wrapper)
+            raised = False
+        finally:
+            duration = time.time() - start_time
+            labels = {"method": method, "path": path_template, "status": "500" if raised else str(status_code)}
 
-        # Record metrics after response
-        duration = time.time() - start_time
+            self.request_counter.add(1, labels)
+            self.request_duration.record(duration, labels)
 
-        labels = {"method": method, "path": path_template, "status": str(status_code)}
+            if response_content_length is not None:
+                self.response_size.record(response_content_length, labels)
 
-        self.request_counter.add(1, labels)
-        self.request_duration.record(duration, labels)
-
-        if response_content_length is not None:
-            self.response_size.record(response_content_length, labels)
-
-        # Decrement active requests
-        self.active_requests.add(-1, {"method": method, "path": path_template})
+            self.active_requests.add(-1, {"method": method, "path": path_template})
 
     # --8<-- [start:path_template]
     @staticmethod

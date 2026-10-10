@@ -10,7 +10,7 @@
 6. `RateLimitMiddleware`
 7. `MetricsMiddleware`
 
-The order has visible effects. A request that fails the size limit, CSRF or the rate limit is answered before it reaches `MetricsMiddleware`, so those 413, 403 and 429 responses never show up in the HTTP metrics. They still get CORS and security headers, since those two sit further out. Domain exceptions are turned into responses by the exception handlers inside the app, so every middleware sees them as normal responses.
+The order has visible effects. A request that fails CSRF or the rate limit, or declares a `Content-Length` over the size limit, is answered before it reaches `MetricsMiddleware`, so those 403, 429 and 413 responses never show up in the HTTP metrics. They still get CORS and security headers, since those two sit further out. Domain exceptions are turned into responses by the exception handlers inside the app, so every middleware sees them as normal responses.
 
 ## CORS
 
@@ -54,7 +54,7 @@ It checks two things. A `Content-Length` above the limit is rejected with 413 be
 {"detail": "Request too large. Maximum size is 10.0MB"}
 ```
 
-Then it wraps `receive` and counts bytes as they stream in, which catches chunked uploads that send no `Content-Length`. Reading stops as soon as the count passes the limit. The status differs, though: on routes that parse a body, FastAPI catches the exception while parsing and answers 400 with "There was an error parsing the body" instead of 413.
+Then it wraps `receive` and counts bytes as they stream in, which catches chunked uploads that send no `Content-Length`. Reading stops as soon as the count passes the limit, with an `HTTPException` that the app answers as 413 with the same body. It has to be that exception: FastAPI turns anything else raised while it reads a body into a 400.
 
 ## CSRF
 

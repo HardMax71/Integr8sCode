@@ -1,5 +1,7 @@
 import logging
 import re
+import sys
+from typing import TextIO
 
 import structlog
 from opentelemetry import trace
@@ -13,8 +15,10 @@ from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
 from app.settings import Settings
 
 SENSITIVE_PATTERNS: list[tuple[str, str]] = [
+    # Optional backslashes also catch escaped quotes, as in JSON nested inside JSON (pymongo command logs)
     (
-        r'(["\']?(?:api[_-]?)?(?:key|token|secret|password|passwd|pwd)["\']?\s*[:=]\s*["\']?)([^"\']+)(["\']?)',
+        r"((?:\\?[\"'])?(?:api[_-]?)?(?:key|token|secret|password|passwd|pwd)(?:\\?[\"'])?\s*[:=]\s*(?:\\?[\"'])?)"
+        r"((?:[^\"'\\]|\\(?![\"']))+)((?:\\?[\"'])?)",
         r"\1***API_KEY_OR_TOKEN_REDACTED***\3",
     ),
     (r"(Bearer\s+)([A-Za-z0-9\-_]+)", r"\1***BEARER_TOKEN_REDACTED***"),
@@ -57,6 +61,81 @@ def sanitize_sensitive_data(
     return event_dict
 
 
+class RedactedMessage(str):
+    """A log message that already went through redaction."""
+
+
+_render_json = structlog.processors.JSONRenderer()
+
+
+def render_json(
+    logger: structlog.types.WrappedLogger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> RedactedMessage:
+    """Render the event as JSON, marked so RedactingFilter passes it through untouched."""
+    return RedactedMessage(_render_json(logger, method_name, event_dict))
+
+
+class RedactingFilter(logging.Filter):
+    """Redacts stdlib records from third-party libraries with the rules structlog events get.
+
+    Structlog events arrive already sanitized field by field, so they pass as they are.
+    Any other record has its message, traceback and stack rendered to text and redacted
+    in place, so every handler after this filter sees only the redacted text.
+    """
+
+    _formatter = logging.Formatter()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, RedactedMessage):
+            return True
+        message = record.getMessage()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self._formatter.formatException(record.exc_info)
+        if record.exc_text:
+            message = f"{message}\n{record.exc_text}"
+        record.msg = RedactedMessage(_redact(message))
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        if record.stack_info:
+            record.stack_info = _redact(record.stack_info)
+        return True
+
+
+class _StderrHandler(logging.StreamHandler[TextIO]):
+    """Writes to whatever sys.stderr is at emit time, so a swapped or closed stream never goes stale."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.stream = sys.stderr
+        super().emit(record)
+
+
+_redacting_filter = RedactingFilter()
+
+_stream_handler = _StderrHandler()
+_stream_handler.setFormatter(logging.Formatter("%(message)s"))
+_stream_handler.addFilter(_redacting_filter)
+
+# Third-party loggers that are chatty or dump payloads (command documents, API responses, SSE chunks) below WARNING
+_QUIET_LOGGERS = (
+    "aiohttp",
+    "aiokafka",
+    "apscheduler",
+    "asyncio",
+    "grpc",
+    "httpcore2",
+    "httpx2",
+    "kubernetes_asyncio",
+    "pymongo",
+    "python_multipart",
+    "redis",
+    "sse_starlette",
+    "urllib3",
+)
+
+
 def add_otel_context(
     logger: structlog.types.WrappedLogger,
     method_name: str,
@@ -90,7 +169,7 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             sanitize_sensitive_data,
-            structlog.processors.JSONRenderer(),
+            render_json,
         ],
         # --8<-- [end:log_processors]
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -99,8 +178,12 @@ def setup_logger(log_level: str) -> structlog.stdlib.BoundLogger:
         cache_logger_on_first_use=True,
     )
 
-    logging.basicConfig(format="%(message)s", handlers=[logging.StreamHandler()])
-    logging.getLogger().setLevel(log_level.upper())
+    level = logging.getLevelNamesMapping()[log_level.upper()]
+    root = logging.getLogger()
+    root.addHandler(_stream_handler)
+    root.setLevel(level)
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(max(level, logging.WARNING))
 
     logger: structlog.stdlib.BoundLogger = structlog.get_logger("integr8scode")
     return logger
@@ -147,6 +230,7 @@ def setup_log_exporter(settings: Settings, logger: structlog.stdlib.BoundLogger)
     set_logger_provider(logger_provider)
 
     otel_handler = LoggingHandler(level=logging.DEBUG, logger_provider=logger_provider)
+    otel_handler.addFilter(_redacting_filter)
     logging.getLogger().addHandler(otel_handler)
 
     logger.info("OTLP log export configured", endpoint=endpoint)

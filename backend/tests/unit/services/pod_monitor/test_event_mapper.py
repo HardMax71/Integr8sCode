@@ -15,7 +15,7 @@ from app.services.pod_monitor import PodContext, PodEventMapper, WatchEventType
 from kubernetes_asyncio.client import V1Pod, V1PodCondition
 from kubernetes_asyncio.client.rest import ApiException
 
-from tests.unit.conftest import make_container_status, make_pod
+from tests.unit.conftest import make_container_status, make_pod, make_pod_log_response
 
 pytestmark = pytest.mark.unit
 
@@ -25,9 +25,11 @@ _TERM_MSG = "exit_code=0\ncpu_jiffies=100\nclk_tck=100\npeak_memory_kb=1024\nwal
 _TERM_MSG_EMPTY = "exit_code=0\ncpu_jiffies=0\nclk_tck=100\npeak_memory_kb=0\nwall_seconds=0\n"
 
 
-def _framed(stdout: str = "", stderr: str = "") -> str:
-    """Build length-prefixed framed output string."""
-    return f"STDOUT {len(stdout)}\n{stdout}STDERR {len(stderr)}\n{stderr}"
+def _framed(stdout: str | bytes = "", stderr: str | bytes = "") -> bytes:
+    """Frame output the way entrypoint.sh does: each length counts the stream's bytes."""
+    out = stdout.encode() if isinstance(stdout, str) else stdout
+    err = stderr.encode() if isinstance(stderr, str) else stderr
+    return b"STDOUT %d\n%bSTDERR %d\n%b" % (len(out), out, len(err), err)
 
 
 def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodContext:
@@ -40,9 +42,9 @@ def _ctx(pod: V1Pod, event_type: WatchEventType = WatchEventType.ADDED) -> PodCo
     )
 
 
-def _make_mock_api(logs: str = "") -> MagicMock:
+def _make_mock_api(logs: bytes = b"") -> MagicMock:
     mock = MagicMock()
-    mock.read_namespaced_pod_log = AsyncMock(return_value=logs)
+    mock.read_namespaced_pod_log = AsyncMock(return_value=make_pod_log_response(logs))
     return mock
 
 
@@ -134,7 +136,7 @@ async def test_failed_timeout_and_deleted() -> None:
     assert ev_done.event_type == EventType.EXECUTION_COMPLETED
 
     # Failed: terminated exit_code nonzero
-    pem_no_logs = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
+    pem_no_logs = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
     pod_fail = make_pod(
         name="p2",
         phase="Failed",
@@ -163,7 +165,7 @@ async def test_failed_timeout_and_deleted() -> None:
 
 
 def test_extract_id_and_metadata_priority_and_duplicates() -> None:
-    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
 
     # From label
     p = make_pod(
@@ -194,7 +196,7 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
 
 @pytest.mark.asyncio
 async def test_scheduled_requires_condition() -> None:
-    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
     pod = make_pod(name="p", phase="Pending")
 
     # No conditions -> None
@@ -229,6 +231,39 @@ async def test_extract_logs_with_framed_output() -> None:
     assert result.resource_usage.clk_tck_hertz == 100
     assert result.resource_usage.peak_memory_kb == 1024
     assert result.resource_usage.execution_time_wall_seconds == 0.5
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_reads_from_the_start_as_bytes() -> None:
+    """The STDOUT header is at the start, so a capped read from the start always keeps it."""
+    api = _make_mock_api(_framed("ok", ""))
+    pem = PodEventMapper(k8s_api=api, logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    await pem._extract_logs(pod)
+
+    kwargs = api.read_namespaced_pod_log.call_args.kwargs
+    assert kwargs["limit_bytes"] == PodEventMapper._MAX_LOG_BYTES
+    assert kwargs["_preload_content"] is False
+    assert "tail_lines" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_extract_logs_utf8_output() -> None:
+    """Non-ASCII output used to overrun the char-sliced STDOUT frame and lose both streams."""
+    pem = PodEventMapper(k8s_api=_make_mock_api(_framed("héllo ✓\n", "🚀 done\n")), logger=_test_logger)
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0, terminated_message=_TERM_MSG)],
+    )
+    result = await pem._extract_logs(pod)
+    assert result is not None
+    assert result.stdout == "héllo ✓\n"
+    assert result.stderr == "🚀 done\n"
 
 
 @pytest.mark.asyncio
@@ -285,7 +320,7 @@ async def test_extract_logs_missing_termination_message() -> None:
 @pytest.mark.asyncio
 async def test_extract_logs_malformed_framing_returns_empty() -> None:
     """Test that malformed log framing returns empty strings."""
-    pem = PodEventMapper(k8s_api=_make_mock_api("garbage data"), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(b"garbage data"), logger=_test_logger)
     pod = make_pod(
         name="p",
         phase="Succeeded",
@@ -326,9 +361,24 @@ async def test_extract_logs_returns_none_on_api_failure(error: Exception) -> Non
     assert await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod) is None
 
 
+@pytest.mark.asyncio
+async def test_extract_logs_returns_none_on_http_error_status() -> None:
+    """A raw response does not raise on its own, so an error status must still be caught."""
+    pod = make_pod(
+        name="p",
+        phase="Succeeded",
+        container_statuses=[make_container_status(terminated_exit_code=0)],
+    )
+    api = _make_mock_api()
+    api.read_namespaced_pod_log.return_value.raise_for_status.side_effect = aiohttp.ClientResponseError(
+        request_info=MagicMock(), history=(), status=404
+    )
+    assert await PodEventMapper(k8s_api=api, logger=_test_logger)._extract_logs(pod) is None
+
+
 def test_analyze_failure_variants() -> None:
     """Test _analyze_failure with various pod failure scenarios."""
-    pem = PodEventMapper(k8s_api=_make_mock_api(""), logger=_test_logger)
+    pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
 
     # Evicted
     pod_e = make_pod(name="p", phase="Failed", reason="Evicted")
@@ -412,19 +462,41 @@ def test_parse_framed_output() -> None:
     parse = PodEventMapper._parse_framed_output
 
     # Normal case
-    assert parse("STDOUT 5\nhelloSTDERR 3\nerr") == ("hello", "err")
+    assert parse(b"STDOUT 5\nhelloSTDERR 3\nerr") == ("hello", "err")
 
     # Empty both
-    assert parse("STDOUT 0\nSTDERR 0\n") == ("", "")
+    assert parse(b"STDOUT 0\nSTDERR 0\n") == ("", "")
 
     # Content with newlines
-    content = "line1\nline2\nline3"
-    assert parse(f"STDOUT {len(content)}\n{content}STDERR 0\n") == (content, "")
+    assert parse(_framed("line1\nline2\nline3", "")) == ("line1\nline2\nline3", "")
 
     # Malformed input
-    assert parse("garbage") == ("", "")
-    assert parse("") == ("", "")
+    assert parse(b"garbage") == ("", "")
+    assert parse(b"") == ("", "")
 
     # Content containing STDOUT/STDERR markers (length-prefix makes this safe)
     tricky = "STDOUT 5\nfake"
-    assert parse(f"STDOUT {len(tricky)}\n{tricky}STDERR 0\n") == (tricky, "")
+    assert parse(_framed(tricky, "")) == (tricky, "")
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [
+        ("héllo ✓\n", "🚀\n"),
+        ("日本語のテキスト", ""),
+        ("", "Ошибка: STDERR 3\n"),
+        ("mixed ascii and ünïcödé\nsecond line ✓\n", "warn ⚠\n"),
+    ],
+)
+def test_parse_framed_output_utf8_roundtrip(stdout: str, stderr: str) -> None:
+    assert PodEventMapper._parse_framed_output(_framed(stdout, stderr)) == (stdout, stderr)
+
+
+def test_parse_framed_output_keeps_truncated_stream() -> None:
+    """entrypoint.sh cuts a long stream at a byte count, which can split a character before its notice."""
+    kept = "a" * 10 + "é"
+    cut = kept.encode()[:-1]
+    notice = b"\n[stdout truncated: showing the first 11 bytes]\n"
+    stdout, stderr = PodEventMapper._parse_framed_output(_framed(cut + notice, "🚀"))
+    assert stdout == "a" * 10 + "\ufffd" + notice.decode()
+    assert stderr == "🚀"

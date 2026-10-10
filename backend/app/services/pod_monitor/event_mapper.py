@@ -68,6 +68,8 @@ class PodEventMapper:
     """Maps Kubernetes pod objects to application events"""
 
     _MAX_CACHE_SIZE = 10_000
+    # Read the log from its start so the STDOUT header survives; entrypoint.sh frames far less than this.
+    _MAX_LOG_BYTES = 2 * 1024 * 1024
 
     def __init__(self, logger: structlog.stdlib.BoundLogger, k8s_api: k8s_client.CoreV1Api | None = None) -> None:
         self.logger = logger
@@ -501,16 +503,20 @@ class PodEventMapper:
         meta = self._parse_termination_message(terminated.message or "")
 
         try:
-            logs = await self._k8s_api.read_namespaced_pod_log(
+            # The stub says str, but with _preload_content=False the client returns the raw aiohttp response.
+            response: aiohttp.ClientResponse = await self._k8s_api.read_namespaced_pod_log(  # type: ignore[assignment]
                 name=pod.metadata.name,
                 namespace=pod.metadata.namespace or "integr8scode",
-                tail_lines=10000,
+                limit_bytes=self._MAX_LOG_BYTES,
+                _preload_content=False,
             )
+            response.raise_for_status()
+            logs = await response.read()
         except ApiException, aiohttp.ClientError, TimeoutError:
             self.logger.warning("Failed to fetch pod logs", pod_name=pod.metadata.name, exc_info=True)
             return None
 
-        stdout, stderr = self._parse_framed_output(logs or "")
+        stdout, stderr = self._parse_framed_output(logs)
 
         return PodLogs(
             exit_code=int(meta.get("exit_code", str(terminated.exit_code or 0))),
@@ -530,19 +536,19 @@ class PodEventMapper:
         return dict(line.split("=", 1) for line in raw.strip().splitlines() if "=" in line)
 
     @staticmethod
-    def _parse_framed_output(logs: str) -> tuple[str, str]:
-        """Extract stdout/stderr from length-prefixed framed output."""
+    def _parse_framed_output(logs: bytes) -> tuple[str, str]:
+        """Extract stdout/stderr from the entrypoint's framed output, whose lengths count bytes."""
         try:
-            idx = logs.index("STDOUT ") + 7
-            nl = logs.index("\n", idx)
+            idx = logs.index(b"STDOUT ") + 7
+            nl = logs.index(b"\n", idx)
             stdout_len = int(logs[idx:nl])
             stdout = logs[nl + 1 : nl + 1 + stdout_len]
 
-            idx = logs.index("STDERR ", nl + 1 + stdout_len) + 7
-            nl = logs.index("\n", idx)
+            idx = logs.index(b"STDERR ", nl + 1 + stdout_len) + 7
+            nl = logs.index(b"\n", idx)
             stderr_len = int(logs[idx:nl])
             stderr = logs[nl + 1 : nl + 1 + stderr_len]
         except ValueError, IndexError:
             return "", ""
 
-        return stdout, stderr
+        return stdout.decode(errors="replace"), stderr.decode(errors="replace")

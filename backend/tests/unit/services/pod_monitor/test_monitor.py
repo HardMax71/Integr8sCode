@@ -95,7 +95,7 @@ def make_pod_monitor(
     """Create PodMonitor with sensible test defaults."""
     cfg = config or PodMonitorConfig()
     client = api_client or make_mock_api_client()
-    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api("{}"))
+    mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api())
     service = kafka_service or create_test_kafka_event_service(event_metrics)[0]
 
     monitor = PodMonitor(

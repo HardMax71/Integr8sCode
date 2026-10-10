@@ -176,8 +176,15 @@ def make_mock_watch(
     return mock
 
 
+def make_pod_log_response(logs: bytes) -> MagicMock:
+    """Raw pod log response, as read_namespaced_pod_log returns it with _preload_content=False."""
+    response = MagicMock()
+    response.read = AsyncMock(return_value=logs)
+    return response
+
+
 def make_mock_v1_api(
-    logs: str = "{}", pods: list[V1Pod] | None = None, list_resource_version: str = "list-rv1",
+    logs: bytes = b"{}", pods: list[V1Pod] | None = None, list_resource_version: str = "list-rv1",
 ) -> MagicMock:
     """Create a mock CoreV1Api with configurable responses."""
 
@@ -187,7 +194,7 @@ def make_mock_v1_api(
             self.metadata = V1ObjectMeta(resource_version=resource_version)
 
     mock = MagicMock()
-    mock.read_namespaced_pod_log = AsyncMock(return_value=logs)
+    mock.read_namespaced_pod_log = AsyncMock(return_value=make_pod_log_response(logs))
     mock.get_api_resources = AsyncMock(return_value=None)
     mock.list_namespaced_pod = AsyncMock(return_value=PodList(list(pods or []), list_resource_version))
     return mock

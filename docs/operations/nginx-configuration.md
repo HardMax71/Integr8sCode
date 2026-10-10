@@ -36,7 +36,7 @@ index.html carries the literal `**CSP_NONCE**` in four places: a `<meta name="cs
 
 There are six headers: CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`. Only HSTS has `always`, so it's the only one nginx also sends on 4xx and 5xx responses.
 
-The CSP locks scripts and `<style>` elements to the nonce. `style-src-elem` also allows `https://fonts.googleapis.com`, and `font-src` allows `https://fonts.gstatic.com`, because index.html loads Inter and Fira Code from Google Fonts. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime and which nonces can't cover. That doesn't reopen the CSS exfiltration path through injected `<style>` tags, since those still need the nonce. Scanners that only know CSP Level 2 flag the `'unsafe-inline'` anyway.
+The CSP allows scripts that are same-origin or carry the nonce, and inline `<style>` elements only with the nonce. `style-src-elem` also allows same-origin stylesheets and `https://fonts.googleapis.com`, and `font-src` allows `https://fonts.gstatic.com`, because index.html loads Inter and Fira Code from Google Fonts. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime and which nonces can't cover. That doesn't reopen the CSS exfiltration path through injected `<style>` tags, since those still need the nonce. Scanners that only know CSP Level 2 flag the `'unsafe-inline'` anyway.
 
 No `location` block uses `add_header`. That's on purpose: one `add_header` inside a location drops every `add_header` inherited from the `server` block, so the security headers would disappear from that location. If a location ever needs its own response header, it has to repeat all six. `proxy_set_header` has the same all-or-nothing inheritance, which is why the SSE location repeats the proxy headers of `/api/`.
 
@@ -68,7 +68,7 @@ The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connecti
 --8<-- "frontend/nginx.conf.template:static_caching"
 ```
 
-Rollup writes the bundle as `build/[name]-[hash].js` and `build/bundle-<hash>.css`, so a year of caching is safe. HTML gets `expires -1` so the browser always fetches the current asset names. Everything that isn't a file falls through to `location /`, which serves index.html and lets the Svelte router handle the path.
+Rollup writes the bundle as `build/[name]-[hash].js` and `build/bundle-<hash>.css`, so a year of caching is safe. HTML gets `expires -1` so the browser always fetches the current asset names. Every other path goes to `location /`, which serves index.html when no file matches and lets the Svelte router handle the path. A missing file with one of the asset or `.html` extensions above gets a 404 instead, since its regex location has no fallback.
 
 `location = /grafana` returns a 302 to `${GRAFANA_PUBLIC_URL}`. There's no `/grafana/` subpath proxy.
 

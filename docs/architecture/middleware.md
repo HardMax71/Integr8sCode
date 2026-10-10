@@ -28,7 +28,7 @@ An exact match wins, otherwise the first key the path starts with. So everything
 
 ## Security headers
 
-`SecurityHeadersMiddleware` adds the same five headers to every HTTP response:
+`SecurityHeadersMiddleware` adds the same five headers to every HTTP response that passes back through it:
 
 | Header | Value |
 |--------|-------|
@@ -38,7 +38,7 @@ An exact match wins, otherwise the first key the path starts with. So everything
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
 | `Content-Security-Policy` | `default-src 'self'; frame-ancestors 'none'` |
 
-These cover the API responses. The SPA's own CSP comes from nginx.
+Two kinds of response never pass through it: a CORS preflight, which `CORSMiddleware` answers further out, and the bare 500 that Starlette's outermost error handler sends for an exception nothing maps. These headers cover the other API responses. The SPA's own CSP comes from nginx.
 
 ## Request size limit
 
@@ -86,7 +86,7 @@ Count, duration and response size are labelled with method, path template and st
 
 Request size comes from `Content-Length` and is only recorded when the header is present, the same for response size. The `/metrics` path is skipped. If a route raises an exception no handler maps, the request is counted with status 500 and `http_requests_active` still goes back down.
 
-`setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise the instruments use the no-op provider. When it does run, it also registers three process-level gauges:
+`setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise the instruments use the no-op provider. When it does run, it also registers three gauges, two for the host and one for the process:
 
 ```python
 --8<-- "backend/app/core/middlewares/metrics.py:system_metrics"

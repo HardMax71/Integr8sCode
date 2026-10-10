@@ -46,13 +46,13 @@ The bucket key comes from the client IP:
 | `^/api/v1/ws` | websocket | 5 per 60s | 3 |
 | `^/api/v1/.*` | api | 60 per 60s | 1 |
 
-All six use the sliding window. Since login, register and logout are excluded, the auth rule only ever sees `/api/v1/auth/me`. No route lives under `/api/v1/ws`, so the websocket rule never fires.
+All six use the sliding window. The middleware matches the raw path before routing, so a rule also counts requests to URLs that don't exist. Since login, register and logout are excluded, `/api/v1/auth/me` is the only real route the auth rule covers. No route lives under `/api/v1/ws`, so the websocket rule only counts requests that end in 404.
 
 The counter key is `rate_limit:sw:ip:<addr>:<path>` with the raw request path. A limit therefore applies to each URL separately, not to the group: two different execution IDs under `/api/v1/events/executions/` get two separate budgets of 5.
 
 ## Algorithms
 
-The sliding window keeps one sorted-set entry per request, scored by its timestamp. Each check drops entries older than the window, adds the current one, counts, and refreshes the TTL to twice the window:
+The sliding window keeps one sorted-set entry per request, with the timestamp as both member and score. Two requests with the exact same timestamp therefore share one entry and count once. Each check drops entries older than the window, adds the current one, counts, and refreshes the TTL to twice the window:
 
 ```python
 --8<-- "backend/app/services/rate_limit_service.py:check_sliding_window"
@@ -70,7 +70,7 @@ No default rule uses it. The only way to add a token bucket rule is a per-user o
 
 ## Responses
 
-Allowed requests get three headers. Requests where no rule matched get them too, with a limit of 999999.
+Allowed requests that go through the check get three headers. Requests where no rule matched get them too, with a limit of 999999. Excluded paths skip the check and get none, and so does every request while `RATE_LIMIT_ENABLED` is off.
 
 | Header | Value |
 |--------|-------|

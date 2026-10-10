@@ -189,9 +189,6 @@ class UserSettingsService:
         for event in events:
             settings = self._apply_event(settings, event)
 
-        await self.repository.create_snapshot(settings)
-        self._add_to_cache(user_id, settings)
-
         restore_event = UserSettingsUpdatedEvent(
             aggregate_id=f"user_settings_{user_id}",
             user_id=user_id,
@@ -203,6 +200,10 @@ class UserSettingsService:
                 user_id=user_id,
             ),
         )
+        # Rebuilds replay events after updated_at, so the snapshot carries the restore time
+        settings = dataclasses.replace(settings, updated_at=restore_event.timestamp)
+        await self.repository.create_snapshot(settings)
+        self._add_to_cache(user_id, settings)
         await self.event_service.publish_event(restore_event, key=f"user_settings_{user_id}")
 
         return settings

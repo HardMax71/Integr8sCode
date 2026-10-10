@@ -1,0 +1,91 @@
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
+
+import pytest
+import structlog
+from app.db import UserSettingsRepository
+from app.domain.enums import EventType, Theme
+from app.domain.events import DomainEvent
+from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
+from app.services.kafka_event_service import KafkaEventService
+from app.services.user_settings_service import UserSettingsService
+from app.settings import Settings
+from beanie.odm.enums import SortDirection
+
+pytestmark = pytest.mark.unit
+
+_event_fields = set(DomainUserSettingsChangedEvent.__dataclass_fields__)
+
+
+class _MemoryRepo(UserSettingsRepository):
+    def __init__(self) -> None:
+        self.snapshot: DomainUserSettings | None = None
+        self.events: list[DomainUserSettingsChangedEvent] = []
+
+    async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
+        return self.snapshot
+
+    async def create_snapshot(self, settings: DomainUserSettings) -> None:
+        self.snapshot = settings
+
+    async def get_settings_events(
+        self,
+        user_id: str,
+        event_types: list[EventType],
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int | None = None,
+        sort_order: SortDirection = SortDirection.ASCENDING,
+    ) -> list[DomainUserSettingsChangedEvent]:
+        events = [
+            e for e in self.events if (since is None or e.timestamp > since) and (until is None or e.timestamp <= until)
+        ]
+        events.sort(key=lambda e: e.timestamp, reverse=sort_order == SortDirection.DESCENDING)
+        return events[:limit] if limit else events
+
+    async def count_events_since_snapshot(self, user_id: str) -> int:
+        return 0
+
+
+def _changed(at: datetime, **changes: object) -> DomainUserSettingsChangedEvent:
+    return DomainUserSettingsChangedEvent(
+        event_id=f"ev-{at.timestamp()}",
+        event_type=EventType.USER_SETTINGS_UPDATED,
+        timestamp=at,
+        user_id="u1",
+        changed_fields=list(changes),
+        reason=f"changed {', '.join(f'{k}={v}' for k, v in changes.items())}",
+        **changes,  # type: ignore[arg-type]
+    )
+
+
+@pytest.fixture
+def repo() -> _MemoryRepo:
+    return _MemoryRepo()
+
+
+@pytest.fixture
+def service(repo: _MemoryRepo, test_settings: Settings) -> UserSettingsService:
+    async def store(event: DomainEvent, key: str) -> str:
+        data = {k: v for k, v in event.model_dump().items() if k in _event_fields}
+        repo.events.append(DomainUserSettingsChangedEvent(**data))
+        return event.event_id
+
+    events = AsyncMock(spec=KafkaEventService)
+    events.publish_event.side_effect = store
+    return UserSettingsService(repo, events, test_settings, structlog.get_logger("test"))
+
+
+async def test_restore_survives_a_rebuild_and_later_updates_still_apply(
+    service: UserSettingsService, repo: _MemoryRepo
+) -> None:
+    start = datetime.now(timezone.utc) - timedelta(minutes=10)
+    repo.events = [_changed(start, theme=Theme.DARK), _changed(start + timedelta(minutes=1), theme=Theme.LIGHT)]
+
+    restored = await service.restore_settings_to_point("u1", start + timedelta(seconds=30))
+
+    assert restored.theme == Theme.DARK
+    assert (await service.get_user_settings_fresh("u1")).theme == Theme.DARK
+
+    await service.update_theme("u1", Theme.LIGHT)
+    assert (await service.get_user_settings_fresh("u1")).theme == Theme.LIGHT

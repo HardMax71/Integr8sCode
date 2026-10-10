@@ -439,6 +439,8 @@ class TestRestoreSettingsToPoint:
         assert restored.timezone == initial.timezone, (
             f"Restored timezone should match initial ({initial.timezone}), got {restored.timezone}"
         )
+        rebuilt = await svc.get_user_settings_fresh(user_id)
+        assert rebuilt.theme == initial.theme
 
 
 class TestCacheManagement:

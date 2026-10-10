@@ -35,7 +35,7 @@ graph LR
 | Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
 | docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
 
-The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports. Security Scanning runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
+The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
 The docs workflow installs the backend dependencies, runs `./deploy.sh openapi`, builds with `mkdocs build --strict` and deploys to GitHub Pages on pushes to `main`.
 
@@ -111,7 +111,7 @@ cd backend
 uv run ruff check . --config pyproject.toml
 uv run mypy --config-file pyproject.toml --strict .
 uv run python -m scripts.check_orphan_modules
-uvx --no-build bandit==1.9.4 -r . -x tests/ -ll
+uvx --no-build --python 3.14 bandit==1.9.4 -r . -x tests/,.venv -ll
 uv run pytest tests/unit
 uv run pytest tests/contract -m grafana_contract
 ```

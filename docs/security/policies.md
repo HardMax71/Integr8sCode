@@ -1,42 +1,30 @@
-# Pod & Namespace Security
+# Pod and namespace security
 
-Executor pods run user code in a hardened environment with strict security controls. Defenses are layered across three
-levels: container, pod, and namespace.
+User code runs in executor pods in the `integr8scode` namespace. The pod builder locks down each pod, the k8s worker locks down the namespace at startup, and Kueue caps how much the namespace can use in total.
 
-## Container Security Context
+## Executor pods
 
-Each executor container runs with:
+[`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) builds every executor pod the same way. The container runs as UID and GID 1000 with `runAsNonRoot`, a read-only root filesystem, `allowPrivilegeEscalation: false`, all capabilities dropped and the `RuntimeDefault` seccomp profile.
 
-- Non-root user (UID/GID 1000)
-- Read-only root filesystem
-- No privilege escalation allowed
-- All Linux capabilities dropped
-- RuntimeDefault seccomp profile
+| Setting                          | Value                                    | Why                                                       |
+|----------------------------------|------------------------------------------|-----------------------------------------------------------|
+| `hostUsers`                      | `false`                                  | user namespaces: container UIDs map to unprivileged host UIDs |
+| `automountServiceAccountToken`   | `false`                                  | no token, so no Kubernetes API access                     |
+| `enableServiceLinks`             | `false`                                  | no service env vars to discover the cluster               |
+| `hostNetwork`, `hostPID`, `hostIPC` | `false`                               | no host namespaces                                        |
+| `restartPolicy`                  | `Never`                                  | one-shot pods                                             |
+| `activeDeadlineSeconds`          | the execution timeout, at least the language minimum | the kubelet kills the pod at the deadline        |
+| `runtimeClassName`               | `K8S_POD_RUNTIME_CLASS_NAME`, unset by default | lets you run pods under gVisor or another sandbox   |
 
-The pod spec also sets `automount_service_account_token: false`, preventing containers from accessing the Kubernetes
-API.
+The script and `entrypoint.sh` come from a per-execution ConfigMap, mounted read-only. The only writable paths are two `emptyDir` volumes: `/output` (10Mi) and `/tmp` (10Mi, or more for languages that need it).
 
-These are enforced by the pod builder in `backend/app/services/k8s_worker/pod_builder.py`.
+The timeout is the admin setting `max_timeout_seconds`, which falls back to `K8S_POD_EXECUTION_TIMEOUT` (5 seconds in `config.toml`). CPU and memory limits come from `K8S_POD_CPU_LIMIT` and `K8S_POD_MEMORY_LIMIT`. A language can raise all three through its `PodRuntimeConfig` in `runtime_registry.py`. Today only Go does: at least 1000m CPU, 320Mi memory, 30 seconds and a 64Mi `/tmp` for its build cache.
 
-## Pod-Level Isolation
+## Namespace
 
-| Control                  | Setting                                              | Purpose                                                                                                              |
-|--------------------------|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| User namespace isolation | `host_users: false`                                  | Remaps container UIDs to unprivileged host UIDs — even if a process escapes the container, it has no host privileges |
-| Runtime class            | `runtime_class_name` (configurable, e.g. `"gvisor"`) | Sandboxed execution via an alternative OCI runtime. Set via `K8S_POD_RUNTIME_CLASS_NAME` in settings                 |
-| Active deadline          | `active_deadline_seconds`                            | Hard timeout at the K8s level — the kubelet kills the pod regardless of what the process is doing                    |
-| Restart policy           | `Never`                                              | Pods are one-shot executors; no restart loops                                                                        |
-| Script injection         | ConfigMap volume mount                               | Script content is mounted read-only via a ConfigMap, not written to the container filesystem                         |
+The k8s worker calls `ensure_namespace_security()` when it starts. Both steps are server-side applies, so they're safe to repeat.
 
-## Namespace-Level Controls
-
-Applied automatically at k8s_worker startup via `ensure_namespace_security()` in
-`backend/app/services/k8s_worker/worker.py`. These are idempotent (create-or-update).
-
-### Network Policy
-
-A default-deny NetworkPolicy blocks all ingress and egress traffic from executor pods — preventing lateral movement
-within the cluster and data exfiltration to external hosts.
+The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; `setup-k8s.sh` doesn't create it.
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -44,65 +32,35 @@ kind: NetworkPolicy
 metadata:
   name: executor-deny-all
   namespace: integr8scode
-  labels:
-    app: integr8s
-    component: security
+  labels: {app: integr8s, component: security}
 spec:
   podSelector:
-    matchLabels:
-      component: executor
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress: [ ]
-  egress: [ ]
+    matchLabels: {component: executor}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
 ```
 
-This policy matches pods with the `component: executor` label, which the pod builder applies to all executor pods.
+The second labels the namespace with the `restricted` Pod Security Standard for `enforce`, `warn` and `audit`. The API server then rejects any pod that asks for privileges the profile forbids.
 
-### Kueue (Resource Quota with Queuing)
+The worker also applies a `runtime-image-pre-puller` DaemonSet that pulls every runtime image onto each node, so executor pods don't wait on a pull. Its containers also follow the restricted profile.
 
-[Kueue](https://kueue.sigs.k8s.io/) manages CPU/memory quota for executor pods. Unlike ResourceQuota (which rejects pod
-creation with 403 Forbidden when quota is full), Kueue adds a **scheduling gate** to pods — they exist in the API server
-but the scheduler ignores them (status: `SchedulingGated`). When quota frees up, the gate is removed and the pod is
-scheduled normally.
+The worker reaches the cluster with the `integr8scode-sa` service account that `setup-k8s.sh` creates. `setup-k8s.sh` also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs and exec), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
 
-Kueue resources (created by `setup-k8s.sh`):
+## Quota with Kueue
 
-| Resource        | Name             | Purpose                                                      |
-|-----------------|------------------|--------------------------------------------------------------|
-| ResourceFlavor  | `default-flavor` | Represents the cluster's default resource pool               |
-| ClusterQueue    | `executor-queue` | Defines CPU/memory quota (32 CPU, 4Gi memory)               |
-| LocalQueue      | `executor-queue` | Namespace-scoped queue in `integr8scode`, bound to ClusterQueue |
+Kueue enforces the namespace's total CPU and memory, not the worker and not a ResourceQuota. `setup-k8s.sh` installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
 
-Executor pods carry the label `kueue.x-k8s.io/queue-name: executor-queue` (set by the pod builder). Kueue only manages
-pods with this label — DaemonSet pods (e.g., the image pre-puller) are invisible to Kueue.
+| Resource       | Name             | Purpose                                        |
+|----------------|------------------|------------------------------------------------|
+| ResourceFlavor | `default-flavor` | the cluster's default resources                |
+| ClusterQueue   | `executor-queue` | quota of 32 CPU and 4Gi memory                 |
+| LocalQueue     | `executor-queue` | queue in `integr8scode`, bound to the ClusterQueue |
 
-Key behavior:
-- `active_deadline_seconds` only counts from when the pod is scheduled, so gated time does not consume execution timeout
-- Concurrency is still controlled by the execution queue; Kueue acts as a safety net for aggregate resource consumption
+Executor pods carry `kueue.x-k8s.io/queue-name: executor-queue`. When the quota is used up, Kueue holds new pods behind a scheduling gate instead of rejecting them the way a ResourceQuota would, and releases them as quota frees up. `activeDeadlineSeconds` only starts once a pod is running on a node, so time spent gated doesn't eat into the execution timeout. How many executions run at once is still decided by the saga orchestrator's queue; Kueue is the backstop for total resource use.
 
-### Pod Security Admission (PSA)
+## Network policy enforcement
 
-The executor namespace is labeled with the **restricted** Pod Security Standard:
+A NetworkPolicy only works if something enforces it. k3s does, through its embedded network policy controller, unless it was started with `--disable-network-policy`. On other clusters you need a CNI that enforces policies, such as Calico or Cilium; plain Flannel doesn't.
 
-```yaml
-metadata:
-  labels:
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/enforce-version: latest
-    pod-security.kubernetes.io/warn: restricted
-    pod-security.kubernetes.io/audit: restricted
-```
-
-This is a Kubernetes-native admission control (no webhook required). Pods that violate the restricted profile (e.g.,
-requesting privileged mode, host networking, or writable root filesystem) are rejected at admission time.
-
-## CNI Requirements
-
-The NetworkPolicy requires a CNI plugin that supports network policies (Calico, Cilium, Weave Net, etc). K3s includes
-Flannel by default, which does not enforce policies. For production, install a policy-capable CNI or use K3s with the
-`--flannel-backend=none` flag and a separate CNI.
-
-To allow specific egress traffic (for example, to internal services), create an additional NetworkPolicy with explicit
-egress rules rather than modifying the deny-all policy.
+To let executors reach something specific, add a separate NetworkPolicy with explicit egress rules instead of editing `executor-deny-all`. The worker would overwrite your edit on its next start anyway.

@@ -1,41 +1,31 @@
-# Supply Chain Security
+# Supply chain security
 
-Modern applications pull in hundreds of transitive dependencies. When something like Log4Shell hits, the first question is "are we affected?" - and if you don't know exactly what's in your software, you can't answer that quickly. This is where SBOMs come in.
+Four things in CI cover the supply chain: SBOMs with a Grype scan of the dependencies, Trivy scans of the built images, Bandit on the Python code, and pinning of everything CI runs. Dependabot keeps the pins moving.
 
-## SBOM generation
+## SBOM and dependency scan
 
-An SBOM (Software Bill of Materials) is essentially an ingredients list for software - a machine-readable inventory of every library, package, and dependency your application uses. Integr8sCode generates SBOMs automatically using [Anchore Syft](https://github.com/anchore/syft), which scans both the Python backend and JavaScript frontend to produce SPDX-formatted JSON files.
+[`sbom-compliance.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/sbom-compliance.yml) runs on pushes and PRs to `main` and every Sunday. For `backend/` and `frontend/` it generates an SPDX JSON SBOM with `anchore/sbom-action` (Syft), scans it with `anchore/scan-action` (Grype) at a `high` cutoff, and uploads the findings as SARIF. The scan has `fail-build: false`, so it reports without blocking. The SBOMs are kept as workflow artifacts for 5 days.
 
-The workflow in [`.github/workflows/sbom-compliance.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/sbom-compliance.yml) runs on every push to main, every PR, and weekly on Sundays. It does three things:
+Findings show up in the repository's Security tab under code scanning, as `backend-dependencies` and `frontend-dependencies`.
 
-1. Generates separate SBOMs for backend and frontend
-2. Scans those SBOMs for known vulnerabilities using [Anchore Grype](https://github.com/anchore/grype)
-3. Uploads findings to GitHub's Security tab as SARIF reports
+## Image and code scans
 
-The SBOM artifacts stick around for 5 days in case you need to inspect them. The vulnerability scan doesn't block builds yet (we set `fail-build: false`) - it just reports. Once the dependency situation stabilizes, flipping that to `true` would enforce a clean bill of health on every PR.
+Docker Scan & Promote runs Trivy v0.75.0 on the `base`, `backend`, `frontend` and `cert-generator` images of every commit that passed Stack Tests on `main`. It reports `CRITICAL` and `HIGH` findings that have a fix, skips anything listed in `backend/.trivyignore` (empty today), and uploads SARIF per image as `trivy-<image>`. Like the SBOM scan it doesn't fail the job, so it doesn't block the promote to `latest`. See [CI/CD](../operations/cicd.md#docker-scan-promote).
 
-## Viewing results
+`security.yml` runs `uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll` on pushes and PRs to `main`. `-ll` reports medium severity and up, and any finding fails the workflow.
 
-Vulnerability findings show up in the repository's Security tab under Code Scanning alerts. They're categorized by component (`backend-dependencies`, `frontend-dependencies`) so you can see which part of the stack is affected.
+## Pinning
 
-You can also grab the SBOM artifacts directly from the [workflow runs](https://github.com/HardMax71/Integr8sCode/actions/workflows/sbom-compliance.yml) page - useful if you need to share them with security auditors or feed them into other tools.
+Every GitHub Action, including those used inside the composite actions, is pinned to a full commit SHA with the version in a comment. The Trivy action is pinned to the commit of v0.36.0, since its older tags were deleted upstream. Tools are pinned to exact versions (bandit, Trivy, mkdocs and its plugins), Python installs are `uv sync --frozen --no-build` from the lockfile, and npm installs are `npm ci --ignore-scripts`. The k3s install script and the Kueue manifest are fetched over HTTPS only and checked against a SHA256 before use.
 
-## Running locally
+Dependabot opens one grouped PR per ecosystem every week, for uv, npm, the Dockerfiles, the compose images and the GitHub Actions, and updates SHA and version comment together. Details are in [CI/CD](../operations/cicd.md#dependabot).
 
-If you want to generate an SBOM on your machine:
+## Running it locally
 
 ```bash
-# Install syft
-curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-# Generate SBOM for backend
 syft ./backend -o spdx-json=backend-sbom.json
-
-# Scan it for vulnerabilities
-curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 grype sbom:backend-sbom.json
+trivy image ghcr.io/hardmax71/integr8scode/backend:latest
 ```
 
-## Other security tooling
-
-Beyond SBOM scanning, the project uses Bandit for Python static analysis (see [`security.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/security.yml)) and Dependabot for automated dependency updates. Between these three - SAST, SCA, and automated patching - most of the low-hanging supply chain risks are covered.
+Install Syft, Grype and Trivy from their release pages or your package manager.

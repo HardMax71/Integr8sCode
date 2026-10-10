@@ -4,7 +4,7 @@ Every executor pod runs the user's command under [entrypoint.sh](https://github.
 
 ## What the wrapper does
 
-It starts the command in the background with stdout and stderr redirected to temp files, then polls `/proc/$PID` every 5 ms while the process is alive. Each sample reads `VmHWM` from `/proc/$PID/status` for peak RSS and fields 14 and 15 of `/proc/$PID/stat` (user plus system time, in jiffies) for CPU. Wall time is the difference of two `date +%s.%N` readings. `CLK_TCK` comes from `getconf`, falling back to 100.
+It starts the command in the background with stdout and stderr going into two named pipes. A reader on each pipe keeps the first 256 KiB in `/tmp` and throws the rest away, so a chatty script can't fill the 10Mi `/tmp` or stall on a full pipe. The cap also keeps both streams inside one Kafka message, which is 1 MiB by default. Meanwhile the wrapper polls `/proc/$PID` every 5 ms while the process is alive. Each sample reads `VmHWM` from `/proc/$PID/status` for peak RSS and fields 14 and 15 of `/proc/$PID/stat` (user plus system time, in jiffies) for CPU. Wall time is the difference of two `date +%s.%N` readings. `CLK_TCK` comes from `getconf`, falling back to 100.
 
 When the command exits, the wrapper writes `key=value` lines to `/dev/termination-log`:
 
@@ -24,11 +24,13 @@ STDOUT <bytes>
 <stderr>
 ```
 
+A stream that went over the cap ends with a line such as `[stdout truncated: showing the first 262144 bytes]`, counted inside its frame.
+
 The wrapper itself always exits 0, so the real exit code travels in the termination message. If it's called with no command, it writes `exit_code=127` and an error message in the same format.
 
 ## How the backend reads it
 
-The pod monitor's `PodEventMapper` picks this up once the container has terminated. `_parse_termination_message` splits the termination message into a dict, and `_parse_framed_output` cuts stdout and stderr out of the pod log by the length headers. If the framing can't be parsed, both streams come back empty. The values end up in `ResourceUsageDomain` (`execution_time_wall_seconds`, `cpu_time_jiffies`, `clk_tck_hertz`, `peak_memory_kb`) on the completion event, and the result processor stores them with the execution.
+The pod monitor's `PodEventMapper` picks this up once the container has terminated. `_parse_termination_message` splits the termination message into a dict, and `_parse_framed_output` cuts stdout and stderr out of the pod log by the length headers. The log is read raw from its start (at most 2 MiB) and cut by bytes, since the headers count bytes, and each stream is decoded as UTF-8 with invalid bytes replaced. If the framing can't be parsed, both streams come back empty. The values end up in `ResourceUsageDomain` (`execution_time_wall_seconds`, `cpu_time_jiffies`, `clk_tck_hertz`, `peak_memory_kb`) on the completion event, and the result processor stores them with the execution.
 
 The editor's output panel converts jiffies to milliseconds with `clk_tck_hertz`.
 

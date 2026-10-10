@@ -61,7 +61,7 @@ Gauges listed as "in process" are up-down counters the process keeps itself. The
 | `script_errors_total` | counter | error_type | `ExecutionService` in backend when the publish fails; `ResultProcessor` in result-processor |
 | `script_execution_duration_seconds` | histogram | lang_and_version | `ResultProcessor` in result-processor: wall time from the pod's resource usage, or the timeout for timed out runs |
 | `script_memory_usage_MiB` | histogram | lang_and_version | `ResultProcessor` in result-processor: peak memory |
-| `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in result-processor: peak memory over `K8S_POD_MEMORY_LIMIT` |
+| `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in result-processor: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
 | `queue_depth` | gauge, in process | none | `ExecutionQueueService` in saga-orchestrator: enqueued minus scheduled |
 | `queue_active` | gauge, in process | none | `ExecutionQueueService` in saga-orchestrator: scheduled minus released |
 | `queue_enqueue_total` | counter | none | `ExecutionQueueService.enqueue` in saga-orchestrator |

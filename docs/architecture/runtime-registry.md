@@ -36,7 +36,7 @@ Most languages get the same pod. A language that needs more sets `pod` to a `Pod
 
 Go is the only language with settings today. A cold `go run` compiles the runtime and standard library first, so Go pods get `HOME=/tmp` and `GOCACHE=/tmp/go-cache` (the root filesystem is read-only), 64Mi of `/tmp`, and at least 1000m CPU, 320Mi memory and 30 seconds.
 
-`GET /api/v1/k8s-limits` reports the configured limits, not the per-language minimums.
+`GET /api/v1/k8s-limits` reports the configured limits at the top level and the effective ones per language under `language_limits`. The editor shows the entry for the selected language. The result processor rates peak memory against the same effective limit, and `parse_quantity` and `at_least` in the registry are the one copy of that rule for all three.
 
 ## Dropped versions
 

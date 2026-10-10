@@ -224,10 +224,10 @@ func main() {
 # --8<-- [end:EXAMPLE_SCRIPTS]
 
 
-def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
+def _make_runtime_configs(specs: dict[str, LanguageSpec]) -> dict[str, dict[str, RuntimeConfig]]:
     registry: dict[str, dict[str, RuntimeConfig]] = {}
 
-    for lang, spec in LANGUAGE_SPECS.items():
+    for lang, spec in specs.items():
         versions = spec["versions"]
         image_tpl: str = spec["image_tpl"]
         file_ext: str = spec["file_ext"]
@@ -240,7 +240,7 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
             v: RuntimeConfig(
                 image=image_tpl.format(version=v),
                 file_name=file_name,
-                command=(interpreter_cmd if "{file}" in " ".join(interpreter_cmd) else interpreter_cmd + [full_path]),
+                command=[*interpreter_cmd, full_path],
             )
             for v in versions
         }
@@ -248,7 +248,7 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
     return registry
 
 
-RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
+RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs(LANGUAGE_SPECS)
 
 POD_RUNTIME_CONFIGS: dict[str, PodRuntimeConfig] = {
     lang: spec.get("pod", PodRuntimeConfig()) for lang, spec in LANGUAGE_SPECS.items()

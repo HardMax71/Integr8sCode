@@ -15,7 +15,10 @@ from app.runtime_registry import (
     LANGUAGE_SPECS,
     POD_RUNTIME_CONFIGS,
     RUNTIME_REGISTRY,
+    LanguageSpec,
     PodRuntimeConfig,
+    RuntimeConfig,
+    _make_runtime_configs,
 )
 from app.schemas_pydantic.execution import ExecutionBase, ExecutionRequest
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
@@ -46,6 +49,25 @@ def test_registry_builds_image_and_command_for_every_version(lang: str) -> None:
         assert cfg.image == spec["image_tpl"].format(version=version)
         assert cfg.file_name == file_name
         assert cfg.command == [*spec["interpreter"], f"/scripts/{file_name}"]
+
+
+def test_script_path_is_always_the_last_argument() -> None:
+    spec: LanguageSpec = {
+        "versions": ["1.99"],
+        "image_tpl": "rust:{version}-slim",
+        "file_ext": "rs",
+        "interpreter": ["sh", "-c", 'rustc -o /tmp/main "$0" && exec /tmp/main {file}'],
+    }
+
+    assert _make_runtime_configs({"rust": spec}) == {
+        "rust": {
+            "1.99": RuntimeConfig(
+                image="rust:1.99-slim",
+                file_name="main.rs",
+                command=["sh", "-c", 'rustc -o /tmp/main "$0" && exec /tmp/main {file}', "/scripts/main.rs"],
+            )
+        }
+    }
 
 
 def test_settings_supported_runtimes_mirror_specs(test_settings: Settings) -> None:

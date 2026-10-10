@@ -78,4 +78,4 @@ A compiled language needs a build step before the run, and the command has no sh
 },
 ```
 
-Don't reach for a `{file}` placeholder: `_make_runtime_configs()` skips appending the path when it sees one, but never fills it in. The binary goes to `/tmp` because the root filesystem is read-only. A small program builds and runs within the default pod (10Mi of `/tmp`, 128Mi, 1000m); give it a `pod` entry if bigger scripts run out of memory, disk or time.
+There's no `{file}` placeholder: the path is always appended as the last argument. The binary goes to `/tmp` because the root filesystem is read-only. A small program builds and runs within the default pod (10Mi of `/tmp`, 128Mi, 1000m); give it a `pod` entry if bigger scripts run out of memory, disk or time.

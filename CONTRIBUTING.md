@@ -6,8 +6,8 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ### Prerequisites
 
-- Python 3.12+
-- Node.js 20+
+- Python 3.14 (uv reads backend/.python-version)
+- Node.js 26
 - Docker & Docker Compose
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
 - k3s (for Kubernetes integration)

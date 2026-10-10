@@ -10,10 +10,10 @@ Users submit code through a Svelte 5 frontend → FastAPI backend → K8s pods.
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Svelte 5 (runes), TypeScript strict, Rollup, TailwindCSS 4 |
-| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.12, async throughout |
+| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14, async throughout |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
-| Infra | MongoDB 8, Redis 7, optional Grafana / Jaeger / Victoria Metrics |
+| Infra | MongoDB 9, Redis 8, optional Grafana / Jaeger / Victoria Metrics |
 
 ---
 
@@ -88,7 +88,7 @@ These layer boundaries are enforced throughout the codebase:
 ## Python Conventions
 
 ### Runtime & Tools
-- Python **3.12+** — use modern syntax everywhere
+- Python **3.14**, use modern syntax everywhere
 - Always `uv run python`, never bare `python` or `python3`
 - Max line length: **120 characters** (pyproject.toml)
 

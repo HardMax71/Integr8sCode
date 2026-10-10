@@ -34,7 +34,7 @@ The collector receives OTLP logs on `:4317` (same endpoint used for traces and m
 
 ```yaml
 exporters:
-  otlphttp/loki:
+  otlp_http/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
@@ -119,6 +119,6 @@ The container has a 256 MiB memory limit and stores data in the `loki_data` volu
 | File | Purpose |
 |------|---------|
 | [`loki/loki-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/loki/loki-config.yaml) | Loki server configuration |
-| [`otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml) | Collector pipeline with `otlphttp/loki` exporter |
+| [`otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml) | Collector pipeline with `otlp_http/loki` exporter |
 | [`grafana/provisioning/datasources/datasources.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/datasources/datasources.yml) | Loki datasource with trace linking |
 | [`core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) | `setup_log_exporter` — OTLP log export initialization |

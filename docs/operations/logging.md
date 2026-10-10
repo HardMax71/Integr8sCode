@@ -1,6 +1,6 @@
 # Logging
 
-Every process logs one JSON object per line to stderr through structlog. Secrets and emails are redacted before anything is written, for our own events and for third-party library records alike. With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the same records also go to the OTel Collector and on to [Loki](loki.md).
+Every process logs to stderr. Our own events go through structlog as one JSON object per line; third-party library records are plain message text. Secrets and emails are redacted before anything is written, for our own events and for third-party library records alike. With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the same records also go to the OTel Collector and on to [Loki](loki.md).
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,7 @@ The processor chain:
 --8<-- "backend/app/core/logging.py:log_processors"
 ```
 
-`add_otel_context` adds `trace_id` and `span_id` when there's a recording span. `sanitize_sensitive_data` redacts every string value in the event. `render_json` renders the event and marks the result as already redacted, so the filter further down passes it through untouched.
+`add_otel_context` adds `trace_id` and `span_id` when there's a recording span. `sanitize_sensitive_data` replaces the value of any sensitive-looking key whole and redacts every other top-level string value. Strings nested inside a dict or list pass through unredacted. `render_json` renders the event and marks the result as already redacted, so the filter further down passes it through untouched.
 
 A line looks like this:
 
@@ -45,10 +45,10 @@ The same rules apply in two places. `sanitize_sensitive_data` runs them on struc
 | `Bearer <token>`                                          | `Bearer ***BEARER_TOKEN_REDACTED***`      |
 | JWTs (`eyJ...`)                                           | `***JWT_REDACTED***`                      |
 | `mongodb://user:pass@`                                    | `mongodb://user:***MONGODB_REDACTED***@`  |
-| `http(s)://user:pass@`                                    | `https://user:***URL_CREDS_REDACTED***@`  |
+| `http(s)://user:pass@`                                    | `http(s)://user:***URL_CREDS_REDACTED***@` |
 | email addresses                                           | first 3 characters of the local part, then `***@domain` |
 
-The patterns match values, not field names. `logger.info("x", password="hunter2")` writes `hunter2` as is, so never pass a secret as its own keyword argument.
+For structlog events, field names count too. A key named `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `credential(s)`, `authorization` or `cookie`, or ending in `_` plus one of those such as `csrf_token`, has its whole value replaced with `***REDACTED***`. So `logger.info("x", password="hunter2")` writes `"password": "***REDACTED***"`. Stdlib records have no fields, so only the patterns apply to them.
 
 ## Third-party loggers
 

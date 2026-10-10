@@ -41,7 +41,7 @@ Login sets two cookies, both `secure`, `samesite=strict` and scoped to `/`:
 
 `access_token` is httpOnly and carries the JWT. `csrf_token` is readable so the frontend can echo it back in `X-CSRF-Token`. The login and `/auth/me` responses also set `Cache-Control: no-store`.
 
-Routes get the caller through the `current_user` and `admin_user` dependencies in `app/api/dependencies.py`. Both call `AuthService`, which decodes the cookie, loads the user and answers 401 when the token is missing, invalid, expired or belongs to a deactivated account. A non-admin on an admin route gets 403 (`AdminAccessRequiredError`). Logout publishes `UserLoggedOutEvent` and deletes both cookies. Nothing revokes the JWT itself, so a copied token stays valid until it expires.
+Routes get the caller through the `current_user` and `admin_user` dependencies in `app/api/dependencies.py`. Both call `AuthService`, which decodes the cookie, loads the user and answers 401 when the token is missing, invalid or expired, or when its `sub` no longer names an active user. A non-admin on an admin route gets 403 (`AdminAccessRequiredError`). Logout publishes `UserLoggedOutEvent` and deletes both cookies. Logout doesn't revoke the JWT itself, so a copied token keeps working until it expires, unless the account is deactivated, deleted or renamed first.
 
 Passwords are hashed with bcrypt through pwdlib's `BcryptHasher`. `BCRYPT_ROUNDS` sets the cost (12, and 4 in `config.test.toml`):
 
@@ -57,7 +57,7 @@ Passwords are hashed with bcrypt through pwdlib's `BcryptHasher`. `BCRYPT_ROUNDS
 --8<-- "backend/app/core/security.py:csrf_validation"
 ```
 
-The check is skipped for GET, HEAD and OPTIONS, for paths outside `/api/`, and for requests with no `access_token` cookie, since the route's auth dependency rejects those anyway. Only two paths are exempt by name: `/api/v1/auth/login` and `/api/v1/auth/register`. Logout is not one of them. So every POST, PUT, PATCH and DELETE from a logged-in browser needs an `X-CSRF-Token` header that equals the `csrf_token` cookie (compared in constant time) and carries a valid signature for the current `access_token`.
+The check is skipped for GET, HEAD and OPTIONS, for paths outside `/api/`, and for requests with no `access_token` cookie, since a forged request without one has no session to act on: routes that need a user answer 401, and logout, which has no auth dependency, only deletes cookies. Only two paths are exempt by name: `/api/v1/auth/login` and `/api/v1/auth/register`. Logout is not one of them. So every POST, PUT, PATCH and DELETE from a logged-in browser needs an `X-CSRF-Token` header that equals the `csrf_token` cookie (compared in constant time) and carries a valid signature for the current `access_token`.
 
 The token has the form `{nonce}.{hmac}`, where the HMAC is SHA-256 over `nonce:access_token` keyed with `SECRET_KEY`. A token issued for one session fails against another. Any failure returns 403 with `{"detail": "CSRF validation failed"}` and adds to `csrf.validation.failures.total` with the reason (`missing_header`, `token_mismatch` or `invalid_signature`).
 
@@ -65,7 +65,7 @@ The token has the form `{nonce}.{hmac}`, where the HMAC is SHA-256 over `nonce:a
 
 Failed logins are counted per username in Redis. Each failure increments `login_lockout:attempts:{username}` and resets its TTL to `lockout_duration_minutes`. When the count reaches `max_login_attempts`, `login_lockout:locked:{username}` is set with the same TTL, and logins answer 423 until it expires. Both values live in `SystemSettings` (defaults 5 attempts and 15 minutes).
 
-Unknown usernames are counted the same way, and a bcrypt check against a dummy hash keeps their response time close to a wrong password, so neither the status nor the timing tells whether a user exists. Every failure also publishes an `AuthFailedEvent`. A successful login clears both keys, and an admin can clear them with `POST /api/v1/admin/users/{user_id}/unlock`.
+Unknown usernames are counted the same way, and a bcrypt check against a dummy hash keeps their response time close to a wrong password, so neither the status nor the timing tells an unknown username from a wrong password. Both of those failures also publish an `AuthFailedEvent`. A login refused because the name is already locked, or because the account is deactivated, publishes none. A successful login clears both keys, and an admin can clear them with `POST /api/v1/admin/users/{user_id}/unlock`.
 
 ## Errors
 

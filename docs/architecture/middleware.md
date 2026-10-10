@@ -1,138 +1,95 @@
 # Middleware
 
-The backend uses a stack of ASGI middleware to handle cross-cutting concerns like rate limiting, request size
-validation, caching, and metrics collection. Middleware runs in order from outermost to innermost, with response
-processing in reverse order.
+`create_app` in `app/main.py` adds seven ASGI middlewares. Starlette's `add_middleware` puts each new one outside the previous ones, so the last one added runs first. A request passes through them in this order, and the response comes back in reverse:
 
-## Middleware Stack
+1. `CORSMiddleware`
+2. `CacheControlMiddleware`
+3. `SecurityHeadersMiddleware`
+4. `RequestSizeLimitMiddleware`
+5. `CSRFMiddleware`
+6. `RateLimitMiddleware`
+7. `MetricsMiddleware`
 
-The middleware is applied in this order (outermost first):
+The order has visible effects. A request that fails the size limit, CSRF or the rate limit is answered before it reaches `MetricsMiddleware`, so those 413, 403 and 429 responses never show up in the HTTP metrics. They still get CORS and security headers, since those two sit further out. Domain exceptions are turned into responses by the exception handlers inside the app, so every middleware sees them as normal responses.
 
-1. **CORSMiddleware** - Handles Cross-Origin Resource Sharing headers
-2. **CacheControlMiddleware** - Adds cache headers to responses
-3. **RequestSizeLimitMiddleware** - Rejects oversized requests
-4. **CSRFMiddleware** - Validates CSRF tokens on state-changing requests
-5. **RateLimitMiddleware** - Enforces per-user/per-endpoint limits
-6. **MetricsMiddleware** - Collects HTTP request metrics
+## CORS
 
-## Request Size Limit
+Starlette's `CORSMiddleware` allows the origins in `CORS_ORIGINS` with credentials, the methods GET, POST, PUT, DELETE and PATCH, and request headers including `X-CSRF-Token`. It exposes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` and `Retry-After` so the browser can read them.
 
-Rejects requests exceeding a configurable size limit (default 10MB). This protects against denial-of-service attacks
-from large payloads.
+## Cache control
 
-```python
---8<-- "backend/app/core/middlewares/request_size_limit.py:RequestSizeLimitMiddleware"
-```
-
-Requests exceeding the limit receive a 413 response:
-
-```json
-{"detail": "Request too large. Maximum size is 10.0MB"}
-```
-
-The middleware checks the `Content-Length` header before reading the body, avoiding wasted processing on oversized
-requests.
-
-## Rate Limit
-
-The `RateLimitMiddleware` intercepts all HTTP requests and checks them against configured [rate limits](rate-limiting.md).
-
-Excluded paths bypass rate limiting:
-
-```python
---8<-- "backend/app/core/middlewares/rate_limit.py:excluded_paths"
-```
-
-When a request is allowed, rate limit headers are added to the response. When rejected, a 429 response is returned with
-`Retry-After` indicating when to retry.
-
-## Cache Control
-
-Adds appropriate `Cache-Control` headers to GET responses based on endpoint patterns:
+`CacheControlMiddleware` sets `Cache-Control` on GET responses with status 200 whose path matches one of these prefixes:
 
 ```python
 --8<-- "backend/app/core/middlewares/cache.py:cache_policies"
 ```
 
-| Endpoint                    | Policy            | TTL        |
-|-----------------------------|-------------------|------------|
-| `/api/v1/k8s-limits`        | public            | 5 minutes  |
-| `/api/v1/example-scripts`   | public            | 10 minutes |
-| `/api/v1/auth/me`           | private, no-cache | -          |
-| `/api/v1/notifications`     | private, no-cache | -          |
+An exact match wins, otherwise the first key the path starts with. So everything under `/api/v1/notifications` is `private, no-cache`. Public entries also get `Vary: Accept-Encoding`. Other paths are left alone. The login and `/api/v1/auth/me` routes set `Cache-Control: no-store` themselves.
 
-Public endpoints also get a `Vary: Accept-Encoding` header for proper proxy caching. Cache headers are only added to
-successful (200) responses.
+## Security headers
+
+`SecurityHeadersMiddleware` adds the same five headers to every HTTP response:
+
+| Header | Value |
+|--------|-------|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` |
+| `Content-Security-Policy` | `default-src 'self'; frame-ancestors 'none'` |
+
+These cover the API responses. The SPA's own CSP comes from nginx.
+
+## Request size limit
+
+`RequestSizeLimitMiddleware` rejects bodies over 10 MB. `main.py` doesn't pass `max_size_mb`, so the default applies:
+
+```python
+--8<-- "backend/app/core/middlewares/request_size_limit.py:RequestSizeLimitMiddleware"
+```
+
+It checks two things. A `Content-Length` above the limit is rejected with 413 before the body is read:
+
+```json
+{"detail": "Request too large. Maximum size is 10.0MB"}
+```
+
+Then it wraps `receive` and counts bytes as they stream in, which catches chunked uploads that send no `Content-Length`. Reading stops as soon as the count passes the limit. The status differs, though: on routes that parse a body, FastAPI catches the exception while parsing and answers 400 with "There was an error parsing the body" instead of 413.
+
+## CSRF
+
+`CSRFMiddleware` enforces the double-submit check on state-changing `/api/` requests from logged-in browsers. It gets `SecurityService` from the Dishka container and answers 403 with `{"detail": "CSRF validation failed"}` on failure. The rules and exemptions are on the [Authentication](authentication.md#csrf) page.
+
+## Rate limit
+
+`RateLimitMiddleware` checks each request against Redis, keyed by client IP, and adds `X-RateLimit-*` headers or answers 429. It skips these paths:
+
+```python
+--8<-- "backend/app/core/middlewares/rate_limit.py:excluded_paths"
+```
+
+[Rate limiting](rate-limiting.md) has the rules, the key format and the known gaps.
 
 ## Metrics
 
-The `MetricsMiddleware` collects HTTP request telemetry using OpenTelemetry:
+`MetricsMiddleware` records HTTP telemetry through the OpenTelemetry API:
 
 ```python
 --8<-- "backend/app/core/middlewares/metrics.py:instruments"
 ```
 
-The middleware tracks:
-
-- **Request count** by method, path template, and status code
-- **Request duration** histogram
-- **Request/response size** histograms
-- **Active requests** gauge
-
-Path templates use pattern replacement to reduce metric cardinality:
+Count, duration and response size are labelled with method, path template and status, the other two with method and path template only. The path template replaces UUIDs, numeric segments and MongoDB ObjectIds with `{id}` to keep cardinality down:
 
 ```python
 --8<-- "backend/app/core/middlewares/metrics.py:path_template"
 ```
 
-UUIDs, numeric IDs, and MongoDB ObjectIds are replaced with `{id}` to prevent metric explosion.
+Request size comes from `Content-Length` and is only recorded when the header is present, the same for response size. The `/metrics` path is skipped. If a route raises an exception no handler maps, the middleware records nothing for that request and `http_requests_active` stays incremented.
 
-## CSRF Protection
-
-`CSRFMiddleware` implements the **double-submit cookie** pattern. At login the server issues two cookies: an httpOnly `access_token` cookie (the JWT) and a readable `csrf_token` cookie. The CSRF token is HMAC-signed against the `access_token` so it cannot be forged independently.
-
-On every mutating request (POST, PUT, DELETE, PATCH) that targets an `/api/` path, the middleware reads the `csrf_token` cookie and the `X-CSRF-Token` request header, then validates that they match (constant-time comparison) and that the token's HMAC signature is valid for the current `access_token`. Requests that fail any check receive a 403 response.
-
-Safe methods (GET, HEAD, OPTIONS), auth endpoints (`/api/v1/auth/login`, `/api/v1/auth/register`), non-API paths, and unauthenticated requests (no `access_token` cookie) are exempt.
-
-**Frontend behaviour:** The API interceptor in `api-interceptors.ts` auto-injects `authStore.csrfToken` into the `X-CSRF-Token` header for every non-GET request. The store obtains the token from the login response body and refreshes it by reading the `csrf_token` cookie on auth verification (`auth.svelte.ts`).
-
-## System Metrics
-
-In addition to HTTP metrics, the middleware module provides system-level observables:
+`setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise the instruments use the no-op provider. When it does run, it also registers three process-level gauges:
 
 ```python
 --8<-- "backend/app/core/middlewares/metrics.py:system_metrics"
 ```
 
-These expose:
-
-- `system_memory_bytes` - System memory (used, available, percent)
-- `system_cpu_percent` - System CPU utilization
-- `process_metrics` - Process RSS, VMS, CPU, thread count
-
-## Key Files
-
-<div class="grid cards" markdown>
-
--   :material-speedometer:{ .lg .middle } **[rate_limit.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/rate_limit.py)**
-
-    Per-user / per-endpoint rate limiting
-
--   :material-cached:{ .lg .middle } **[cache.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/cache.py)**
-
-    Cache-Control headers for GET responses
-
--   :material-file-document-check-outline:{ .lg .middle } **[request_size_limit.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/request_size_limit.py)**
-
-    Reject oversized payloads before reading the body
-
--   :material-chart-line:{ .lg .middle } **[metrics.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/metrics.py)**
-
-    HTTP request telemetry and system-level observables
-
--   :material-shield-lock:{ .lg .middle } **[csrf.py](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/csrf.py)**
-
-    CSRF token validation for state-changing requests
-
-</div>
+`system_memory_bytes` reports used, available and percent, `system_cpu_percent` the host CPU, and `process_metrics` the process RSS, VMS, CPU and thread count.

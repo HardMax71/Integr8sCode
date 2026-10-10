@@ -1,6 +1,6 @@
 # CI/CD pipeline
 
-CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. Production only changes when the whole chain succeeds on `main`.
+CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. An automatic deploy only happens when the whole chain succeeds on `main`. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
@@ -24,7 +24,7 @@ graph LR
 
 | Workflow                       | File                   | Runs on                                                                 |
 |--------------------------------|------------------------|-------------------------------------------------------------------------|
-| Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh or CI files change; manual |
+| Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh, stack-tests.yml or the composite actions change; manual |
 | Docker Scan & Promote          | docker.yml           | after Stack Tests completes; manual with an optional SHA                |
 | Release & Deploy               | release-deploy.yml   | after Docker Scan & Promote completes; manual on `main` with `skip_deploy` |
 | Ruff Linting                   | ruff.yml             | push and PRs to `main`; manual                                          |
@@ -35,7 +35,7 @@ graph LR
 | Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
 | docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
 
-The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
+The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
 The docs workflow installs the backend dependencies, runs `./deploy.sh openapi`, builds with `mkdocs build --strict` and deploys to GitHub Pages on pushes to `main`.
 
@@ -98,7 +98,7 @@ Tools are pinned exactly: mkdocs 1.6.1 with material 9.7.7, mermaid2 1.2.3 and s
 
 k3s comes from the install script in the k3s repo at the pinned tag (`v1.37.1+k3s1`), not from get.k3s.io, and the script's SHA256 is checked before it runs. The Kueue manifest (`v0.20.1`) is checked the same way. All these downloads use `curl --proto =https --tlsv1.2`.
 
-`latest` is only ever set by the promote job, so it always points at images that passed the tests. Any build stays pullable by its `sha-` tag.
+`latest` is only ever set by the promote job, so after an automatic promote it points at images that passed the tests and the Trivy scan. A manual promote still needs the scan but can pick a SHA whose E2E jobs failed, since the build job pushes the `sha-` tags before E2E runs. Any build stays pullable by its `sha-` tag.
 
 ## Dependabot
 

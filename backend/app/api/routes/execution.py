@@ -122,6 +122,7 @@ async def cancel_execution(
         400: {"model": ErrorResponse, "description": "Execution is still running or queued"},
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
         404: {"model": ErrorResponse, "description": "Execution not found"},
+        422: {"model": ErrorResponse, "description": "The execution's language version is no longer offered"},
     },
 )
 async def retry_execution(

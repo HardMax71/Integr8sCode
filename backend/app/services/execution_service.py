@@ -26,6 +26,7 @@ from app.domain.execution import (
     ExecutionResultDomain,
     ExecutionTerminalError,
     ResourceLimitsDomain,
+    RuntimeNotSupportedError,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.domain.user import User
@@ -110,7 +111,8 @@ class ExecutionService:
             DomainExecution record with queued status.
 
         Raises:
-            InfrastructureError: If validation fails or event publishing fails.
+            RuntimeNotSupportedError: If the language version is not offered.
+            InfrastructureError: If event publishing fails.
         """
         lang_and_version = f"{lang}-{lang_version}"
         start_time = time()
@@ -124,7 +126,10 @@ class ExecutionService:
             priority=priority,
         )
 
-        runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
+        runtime_cfg = RUNTIME_REGISTRY.get(lang, {}).get(lang_version)
+        if runtime_cfg is None:
+            self.logger.warning("Runtime not supported", lang=lang, lang_version=lang_version)
+            raise RuntimeNotSupportedError(lang, lang_version)
 
         self.metrics.increment_active_executions()
         try:
@@ -424,6 +429,7 @@ class ExecutionService:
             ExecutionNotFoundError: If execution not found.
             ExecutionAccessDeniedError: If the execution belongs to another user.
             ExecutionNotRetryableError: If the execution is still queued or running.
+            RuntimeNotSupportedError: If the execution's language version is no longer offered.
         """
         original = await self.get_execution_for_user(execution_id, user)
         if original.status in (ExecutionStatus.RUNNING, ExecutionStatus.QUEUED):

@@ -902,7 +902,7 @@
       "targets": [
         {
           "datasource": "Victoria Metrics",
-          "expr": "(sum(rate(pod_creation_failures_total[5m])) or vector(0)) * 300",
+          "expr": "(sum(rate(pod_creations_total{status=\"failed\"}[5m])) or vector(0)) * 300",
           "refId": "A"
         }
       ],

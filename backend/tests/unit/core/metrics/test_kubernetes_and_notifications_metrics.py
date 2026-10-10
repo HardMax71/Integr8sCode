@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from app.core.metrics import KubernetesMetrics, NotificationMetrics
 from app.settings import Settings
@@ -8,25 +10,30 @@ pytestmark = pytest.mark.unit
 def test_kubernetes_metrics_methods(test_settings: Settings) -> None:
     """Test with no-op metrics."""
     m = KubernetesMetrics(test_settings)
-    m.record_pod_creation_failure("quota")
-    m.record_pod_created("success", "python")
-    m.record_pod_creation_duration(0.4, "python")
     m.update_active_pod_creations(2)
-    m.increment_active_pod_creations()
-    m.decrement_active_pod_creations()
-    m.record_config_map_created("ok")
     m.record_k8s_pod_created("success", "python")
     m.record_k8s_pod_creation_duration(0.3, "python")
     m.record_k8s_config_map_created("ok")
     m.increment_pod_monitor_watch_reconnects()
     m.record_pod_monitor_event_processing_duration(0.2, "ADDED")
     m.record_pod_monitor_event_published("PodRunning", "Running")
-    m.record_pod_monitor_reconciliation_run("ok")
+    m.record_pod_monitor_reconciliation_run()
     m.record_pod_monitor_watch_error("EOF")
-    m.update_pod_monitor_pods_watched(3)
-    m.record_pod_phase_transition("Pending", "Running", "pod1")
     m.record_pod_lifetime(12.0, "Succeeded", "python")
-    m.update_pods_by_phase("Running", 2)
+    m.update_pods_by_phase({"Running": 2})
+
+
+def test_pods_by_phase_emits_deltas_and_zeroes_vanished_phases(test_settings: Settings) -> None:
+    m = KubernetesMetrics(test_settings)
+    m.pods_by_phase = MagicMock()
+
+    m.update_pods_by_phase({"Running": 2})
+    m.update_pods_by_phase({"Running": 1, "Succeeded": 1})
+    m.update_pods_by_phase({"Running": 1, "Succeeded": 1})
+    m.update_pods_by_phase({})
+
+    adds = sorted((c.args[0], c.kwargs["attributes"]["phase"]) for c in m.pods_by_phase.add.call_args_list)
+    assert adds == [(-1, "Running"), (-1, "Running"), (-1, "Succeeded"), (1, "Succeeded"), (2, "Running")]
 
 
 def test_notification_metrics_methods(test_settings: Settings) -> None:

@@ -51,13 +51,13 @@
       "id": 1,
       "targets": [
         {
-          "expr": "rate(pod_creations_total[5m])",
+          "expr": "sum(rate(pod_creations_total{status=\"success\"}[5m]))",
           "legendFormat": "Created",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(pod_creation_failures_total[5m])",
+          "expr": "sum(rate(pod_creations_total{status=\"failed\"}[5m]))",
           "legendFormat": "Failed",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -156,38 +156,13 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 5,
-      "targets": [
-        {
-          "expr": "rate(pod_phase_transitions_total[5m])",
-          "legendFormat": "{{phase}}",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Phase Transitions",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
           "unit": "s"
         }
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
-        "x": 12,
+        "w": 24,
+        "x": 0,
         "y": 12
       },
       "id": 6,
@@ -224,9 +199,10 @@
       "id": 7,
       "targets": [
         {
-          "expr": "pods_by_phase",
+          "expr": "sum by (phase) (pods_by_phase)",
           "refId": "A",
-          "datasource": "Victoria Metrics"
+          "datasource": "Victoria Metrics",
+          "legendFormat": "{{phase}}"
         }
       ],
       "title": "Pods by Phase",
@@ -248,7 +224,7 @@
       "id": 8,
       "targets": [
         {
-          "expr": "pods_monitored",
+          "expr": "sum(pods_by_phase)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -292,7 +268,7 @@
         },
         {
           "expr": "rate(pod_monitor_reconciliations_total[5m])",
-          "legendFormat": "Reconciliations",
+          "legendFormat": "Relists",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }

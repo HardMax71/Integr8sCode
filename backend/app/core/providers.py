@@ -633,12 +633,14 @@ class K8sWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
+        kubernetes_metrics: KubernetesMetrics,
     ) -> KubernetesWorker:
         return KubernetesWorker(
             api_client=api_client,
             producer=kafka_producer,
             settings=settings,
             logger=logger,
+            kubernetes_metrics=kubernetes_metrics,
         )
 
 

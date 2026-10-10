@@ -7,7 +7,7 @@ import structlog
 from kubernetes_asyncio import client as k8s_client
 from kubernetes_asyncio.client.rest import ApiException
 
-from app.core.metrics import ExecutionMetrics, KubernetesMetrics
+from app.core.metrics import KubernetesMetrics
 from app.domain.enums import ExecutionErrorType
 from app.domain.events import (
     CreatePodCommandEvent,
@@ -41,10 +41,10 @@ class KubernetesWorker:
         producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
+        kubernetes_metrics: KubernetesMetrics,
     ):
         self.logger = logger
-        self.metrics = KubernetesMetrics(settings)
-        self.execution_metrics = ExecutionMetrics(settings)
+        self.metrics = kubernetes_metrics
         self._settings = settings
 
         # Validate namespace
@@ -142,7 +142,7 @@ class KubernetesWorker:
 
         except Exception as e:
             self.logger.error("Failed to create pod for execution", execution_id=execution_id, exc_info=True)
-            self.metrics.record_k8s_pod_created("failed", "unknown")
+            self.metrics.record_k8s_pod_created("failed", command.language)
             await self._publish_pod_creation_failed(command, str(e))
 
         finally:

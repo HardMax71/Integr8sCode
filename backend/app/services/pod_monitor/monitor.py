@@ -1,5 +1,7 @@
 import time
+from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import auto
 from typing import Any
 
@@ -69,6 +71,8 @@ class PodMonitor:
         # Watch cursor — set from LIST on first run or after 410 Gone
         self._last_resource_version: str | None = None
 
+        self._pod_phases: dict[str, str] = {}
+
         # Metrics
         self._metrics = kubernetes_metrics
 
@@ -122,6 +126,8 @@ class PodMonitor:
             kwargs["field_selector"] = self.config.field_selector
 
         pod_list = await self._v1.list_namespaced_pod(**kwargs)
+        self._metrics.record_pod_monitor_reconciliation_run()
+        self._pod_phases.clear()
 
         for pod in pod_list.items:
             event = PodEvent(event_type=WatchEventType.ADDED, pod=pod)
@@ -140,8 +146,10 @@ class PodMonitor:
         """Process a pod event."""
         start_time = time.time()
 
-        # Skip ignored phases
         pod_phase = event.pod.status.phase if event.pod.status else None
+        self._track_pod_phase(event.event_type, event.pod, pod_phase)
+
+        # Skip ignored phases
         if pod_phase in self.config.ignored_pod_phases:
             return
 
@@ -158,6 +166,7 @@ class PodMonitor:
             self._metrics.record_pod_monitor_event_processing_duration(duration, event.event_type)
 
         if any(e.event_type in EXECUTION_TERMINAL_EVENT_TYPES for e in app_events):
+            self._record_pod_lifetime(event.pod, pod_phase)
             await self._delete_pod(event.pod)
 
         if app_events:
@@ -169,6 +178,25 @@ class PodMonitor:
                 phase=pod_phase or "Unknown",
                 published=len(app_events),
             )
+
+    def _track_pod_phase(self, event_type: WatchEventType, pod: k8s_client.V1Pod, phase: str | None) -> None:
+        """Keep the per-phase pod count current for the pods.by.phase gauge."""
+        if not pod.metadata or not pod.metadata.name:
+            return
+        if event_type == WatchEventType.DELETED:
+            self._pod_phases.pop(pod.metadata.name, None)
+        else:
+            self._pod_phases[pod.metadata.name] = phase or "Unknown"
+        self._metrics.update_pods_by_phase(Counter(self._pod_phases.values()))
+
+    def _record_pod_lifetime(self, pod: k8s_client.V1Pod, phase: str | None) -> None:
+        """Record seconds from pod creation until the monitor saw the execution finish."""
+        created_at = pod.metadata.creation_timestamp if pod.metadata else None
+        if created_at is None:
+            return
+        lifetime = (datetime.now(timezone.utc) - created_at).total_seconds()
+        language = (pod.metadata.labels or {}).get("language", "unknown")
+        self._metrics.record_pod_lifetime(lifetime, phase or "Unknown", language)
 
     async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""

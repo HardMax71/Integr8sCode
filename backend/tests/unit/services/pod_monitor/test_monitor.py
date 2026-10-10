@@ -1,10 +1,12 @@
 import structlog
 import types
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from app.core.metrics import EventMetrics, KubernetesMetrics
+from app.domain.enums import EventType
 from app.domain.events import (
     DomainEvent,
     EventMetadata,
@@ -359,3 +361,77 @@ async def test_publish_event_exception_handling(
     # Exception propagates — _process_pod_event's broad except handles it
     with pytest.raises(RuntimeError, match="Publish failed"):
         await pm._publish_event(event, pod)
+
+
+@pytest.mark.asyncio
+async def test_list_and_watch_keep_pods_by_phase_current(event_metrics: EventMetrics) -> None:
+    metrics = MagicMock(spec=KubernetesMetrics)
+    pm = make_pod_monitor(
+        event_metrics, metrics,
+        pods=[make_pod(name="p1", phase="Pending"), make_pod(name="p2", phase="Running")],
+        events=[
+            {"type": "MODIFIED", "object": make_pod(name="p1", phase="Running")},
+            {"type": "DELETED", "object": make_pod(name="p2", phase="Succeeded")},
+        ],
+    )
+
+    await pm.watch_pod_events()
+
+    metrics.record_pod_monitor_reconciliation_run.assert_called_once_with()
+    counts = [dict(c.args[0]) for c in metrics.update_pods_by_phase.call_args_list]
+    assert counts == [{"Pending": 1}, {"Pending": 1, "Running": 1}, {"Running": 2}, {"Running": 1}]
+
+
+@pytest.mark.asyncio
+async def test_relist_drops_pods_the_watch_missed(event_metrics: EventMetrics) -> None:
+    metrics = MagicMock(spec=KubernetesMetrics)
+    pm = make_pod_monitor(event_metrics, metrics, pods=[make_pod(name="gone", phase="Running")])
+    await pm.watch_pod_events()
+
+    pm._last_resource_version = None
+    pm._v1 = make_mock_v1_api(pods=[make_pod(name="fresh", phase="Pending")])
+    pm._watch = make_mock_watch([])
+    await pm.watch_pod_events()
+
+    assert metrics.record_pod_monitor_reconciliation_run.call_count == 2
+    assert dict(metrics.update_pods_by_phase.call_args.args[0]) == {"Pending": 1}
+
+
+@pytest.mark.asyncio
+async def test_terminal_event_records_pod_lifetime(event_metrics: EventMetrics) -> None:
+    class TerminalMapper:
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+            return [types.SimpleNamespace(event_type=EventType.EXECUTION_COMPLETED, execution_id="exec1")]
+
+    metrics = MagicMock(spec=KubernetesMetrics)
+    mock_v1 = make_mock_v1_api()
+    mock_v1.delete_namespaced_pod = AsyncMock()
+    pm = make_pod_monitor(event_metrics, metrics, event_mapper=TerminalMapper(), mock_v1=mock_v1)  # type: ignore[arg-type]
+    pm._publish_event = AsyncMock()  # type: ignore[method-assign]
+
+    pod = make_pod(name="done", phase="Succeeded", labels={"language": "python"})
+    pod.metadata.creation_timestamp = datetime.now(timezone.utc) - timedelta(seconds=30)
+    await pm._process_pod_event(PodEvent(event_type=WatchEventType.MODIFIED, pod=pod))
+
+    metrics.record_pod_lifetime.assert_called_once()
+    lifetime, phase, language = metrics.record_pod_lifetime.call_args.args
+    assert 30 <= lifetime < 40
+    assert (phase, language) == ("Succeeded", "python")
+    mock_v1.delete_namespaced_pod.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_non_terminal_event_records_no_lifetime(event_metrics: EventMetrics) -> None:
+    class RunningMapper:
+        async def map_pod_event(self, pod: Any, event_type: WatchEventType) -> list[Any]:  # noqa: ARG002
+            return [types.SimpleNamespace(event_type=EventType.POD_RUNNING, execution_id="exec1")]
+
+    metrics = MagicMock(spec=KubernetesMetrics)
+    pm = make_pod_monitor(event_metrics, metrics, event_mapper=RunningMapper())  # type: ignore[arg-type]
+    pm._publish_event = AsyncMock()  # type: ignore[method-assign]
+
+    pod = make_pod(name="busy", phase="Running", labels={"language": "python"})
+    pod.metadata.creation_timestamp = datetime.now(timezone.utc)
+    await pm._process_pod_event(PodEvent(event_type=WatchEventType.MODIFIED, pod=pod))
+
+    metrics.record_pod_lifetime.assert_not_called()

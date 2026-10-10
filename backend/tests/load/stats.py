@@ -6,7 +6,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 
 def _pct(values: list[float], p: float) -> float:
@@ -21,7 +21,7 @@ def _pct(values: list[float], p: float) -> float:
 class EndpointStats:
     count: int = 0
     errors: int = 0
-    status_count: Dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    status_count: dict[int, int] = field(default_factory=lambda: defaultdict(int))
     durations_ms: list[float] = field(default_factory=list)
     durations_ms_success: list[float] = field(default_factory=list)
     durations_ms_error: list[float] = field(default_factory=list)
@@ -63,16 +63,16 @@ class EndpointStats:
 @dataclass(slots=True)
 class StatsCollector:
     started_at: float = field(default_factory=time.time)
-    per_endpoint: Dict[Tuple[str, str], EndpointStats] = field(default_factory=lambda: defaultdict(EndpointStats))
-    exceptions: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    per_endpoint: dict[tuple[str, str], EndpointStats] = field(default_factory=lambda: defaultdict(EndpointStats))
+    exceptions: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     notes: list[str] = field(default_factory=list)
 
     # High-level counters
     total_requests: int = 0
     total_errors: int = 0
     # Simple time-bucketed counters for RPS plots
-    _timeline_counts: Dict[int, int] = field(default_factory=lambda: defaultdict(int))
-    _timeline_errors: Dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    _timeline_counts: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    _timeline_errors: dict[int, int] = field(default_factory=lambda: defaultdict(int))
 
     def record(self, method: str, url: str, status: int, duration_ms: float, bytes_rx: int) -> None:
         key = (method, url.split("?")[0])

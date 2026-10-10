@@ -117,12 +117,6 @@ processors:
       - key: service.namespace
         value: integr8scode
         action: insert
-  
-  attributes:
-    actions:
-      - key: environment
-        value: production
-        action: upsert
 
 exporters:
   # Export to Jaeger for traces via OTLP
@@ -169,15 +163,15 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, tail_sampling, batch, resource, attributes]
+      processors: [memory_limiter, tail_sampling, batch, resource]
       exporters: [otlp_grpc/jaeger, debug]
     
     metrics:
       receivers: [otlp, host_metrics, kafka_metrics, mongodb]
-      processors: [memory_limiter, batch, resource, attributes]
+      processors: [memory_limiter, batch, resource]
       exporters: [prometheus_remote_write, debug]
     
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource, attributes]
+      processors: [memory_limiter, batch, resource]
       exporters: [otlp_http/loki, debug]

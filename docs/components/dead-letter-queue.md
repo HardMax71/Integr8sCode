@@ -4,7 +4,7 @@ Nothing feeds the dead letter queue today, so a Kafka event whose handler fails 
 
 ## What happens to a failed event
 
-Every subscriber in `app/events/handlers.py` uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in the `event.processing.errors.total` metric. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs.
+Every subscriber in `app/events/handlers.py` except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in the `event.processing.errors.total` metric. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs, and its failures aren't counted in that metric.
 
 `DLQManager.handle_message` in `app/dlq/manager.py` is the code that would take a failed message in: drop it if it's older than 7 days or its event id starts with `test-` (outside the test environment), save it to MongoDB, publish `dlq_message_received`, and schedule a retry. It has had no caller since the switch to one topic per event type in commit 95389b4.
 
@@ -25,7 +25,7 @@ Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
 
 Exponential delays get 10% jitter. At intake, a message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded` and `dlq_message_discarded` is published.
 
-The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ either: the `/api/v1/dlq` routes were removed in the same commit.
+The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are loaded and validated by `Settings`, but no code uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ either: the `/api/v1/dlq` routes were removed in the same commit.
 
 ## Key files
 

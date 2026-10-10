@@ -1,323 +1,175 @@
 # Deployment
 
-Integr8sCode uses Docker Compose for deployment. All services — backend, frontend, workers, and infrastructure —
-run as containers orchestrated by a single `docker-compose.yaml`. Workers reuse the backend image with different
-`command:` overrides, so there's only one application image to build. Kubernetes is used only for executor pods
-(running user code); workers just need a kubeconfig to talk to the K8s API.
+Everything runs from one `docker-compose.yaml`: the backend, the frontend, six workers, MongoDB, Redis, Kafka and the optional observability stack. The workers reuse the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and workers reach it through a kubeconfig that the cert-generator container writes.
 
-## Architecture
+`backend/Dockerfile.base` is a two-stage build on `python:3.14-slim`. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, and the final stage copies only the virtualenv plus a few runtime libraries. `backend/Dockerfile` adds the application code on top and starts gunicorn with uvicorn workers on port 443. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
-```mermaid
-flowchart TB
-    Script[deploy.sh] --> DC
+## deploy.sh
 
-    subgraph Images["Container Images"]
-        Base[Dockerfile.base] --> Backend[Backend Image]
-    end
-
-    subgraph DC["Docker Compose"]
-        Compose[docker-compose.yaml] --> Containers
-    end
-
-    Images --> Containers
-```
-
-## Deployment script
-
-The [`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) script wraps Docker Compose:
+[`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh) is a thin wrapper around Docker Compose:
 
 ```bash
 --8<-- "deploy.sh:usage"
 ```
 
-The script wraps Docker Compose with convenience commands for building, starting, stopping, and running tests.
+`check` and `test` are broken right now ([#292](https://github.com/HardMax71/Integr8sCode/issues/292)). `test` runs `pytest tests/integration`, a directory that no longer exists, and `check` calls `uv run bandit`, which isn't installed in any dependency group. Use the commands in [CI/CD](cicd.md#running-checks-locally) instead.
 
-## Local development
-
-Local development uses Docker Compose to spin up the entire stack on your machine. The compose file defines all services
-with health checks and dependency ordering, so containers start in the correct sequence.
+## Local stack
 
 ```bash
-./deploy.sh dev
+./deploy.sh dev                  # core stack
+./deploy.sh dev --observability  # plus Grafana, Jaeger, Loki, Victoria Metrics, OTel Collector
+./deploy.sh dev --debug          # all of the above plus Kafdrop
 ```
 
-This brings up MongoDB, Redis, Kafka (KRaft mode), all six workers, the backend API, and the
-frontend. One initialization container runs automatically: `user-seed` populates the database with default user accounts.
-Kafka topics are created on-demand via `auto.create.topics.enable` when producers first publish or consumers subscribe.
+The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the six workers. A few one-shot containers run first and exit: `shared-ca` prepares the shared CA volume, `cert-generator` writes TLS certs and `backend/kubeconfig.yaml`, and `user-seed` creates the default accounts. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
 
-Once the stack is running, you can access the services at their default ports.
+| Service            | URL                     | Needs                         |
+|--------------------|-------------------------|-------------------------------|
+| Frontend           | https://localhost:5001  |                               |
+| Backend API        | https://localhost:443   |                               |
+| Kafka (host)       | localhost:9092          |                               |
+| MongoDB            | 127.0.0.1:27017         |                               |
+| Redis              | 127.0.0.1:6379          |                               |
+| Grafana            | http://localhost:3000   | `--observability` or `--debug` |
+| Jaeger UI          | http://localhost:16686  | `--observability` or `--debug` |
+| Victoria Metrics   | http://localhost:8428   | `--observability` or `--debug` |
+| Loki               | http://localhost:3100   | `--observability` or `--debug` |
+| Kafdrop            | http://localhost:9000   | `--debug`                     |
 
-| Service            | URL                    |
-|--------------------|------------------------|
-| Frontend           | https://localhost:5001 |
-| Backend API        | https://localhost:443  |
-| Kafdrop (Kafka UI) | http://localhost:9000  |
-| Jaeger (Tracing)   | http://localhost:16686 |
-| Grafana            | http://localhost:3000  |
+Inside the compose network Kafka is `kafka:29092`. From the host use `localhost:9092`, since that's the listener advertised for host clients.
 
-The default credentials created by the seed job are `user` / `user123` for a regular account and `admin` / `admin123`
-for an administrator. You can override these via environment variables if needed.
+The seed job creates `user` / `user123` and `admin` / `admin123`. Override the passwords with env vars:
 
 ```bash
 DEFAULT_USER_PASSWORD=mypass ADMIN_USER_PASSWORD=myadmin ./deploy.sh dev
 ```
 
-Hot reloading works for the backend since the source directory is mounted into the container. Changes to Python files
-trigger Uvicorn to restart automatically. The frontend runs its own dev server with similar behavior.
+There's no hot reload. Gunicorn runs without `--reload` and the frontend is an nginx production build. The backend and workers bind-mount `backend/app` and `backend/workers`, so a Python change needs `docker compose restart backend` (and the affected workers). A frontend change needs `docker compose up -d --build frontend`.
 
-### Docker build strategy
-
-The backend uses a multi-stage build with a shared base image to keep startup fast:
-
-```mermaid
-flowchart LR
-    subgraph Base["Dockerfile.base"]
-        B1[python:3.14-slim]
-        B2[system deps]
-        B3[uv sync --locked]
-    end
-
-    subgraph Services["Service Images"]
-        S1[Backend + Workers]
-    end
-
-    Base --> S1
-```
-
-The base image installs all production dependencies:
-
-```dockerfile
---8<-- "backend/Dockerfile.base"
-```
-
-Each service image extends the base and copies only application code. Since dependencies rarely change, Docker's layer
-caching means most builds only rebuild the thin application layer.
-
-For local development, the compose file mounts source directories:
+Data lives in named volumes:
 
 ```yaml
 --8<-- "docker-compose.yaml:dev_volumes"
 ```
 
-This preserves the container's `.venv` while allowing live code changes. Gunicorn watches for file changes and reloads
-automatically. The design means `git clone` followed by `docker compose up` just works—no local Python environment
-needed.
+`./deploy.sh down` stops the stack and keeps them. `docker compose down -v` deletes them too.
 
-To stop everything and clean up volumes:
+## Healthchecks
+
+| Service          | Healthcheck                                                                 |
+|------------------|-----------------------------------------------------------------------------|
+| MongoDB          | `mongosh` ping, with the root credentials read from the container env       |
+| Redis            | `redis-cli -a $REDIS_PASSWORD ping`                                         |
+| Kafka            | `kafka-broker-api-versions --bootstrap-server localhost:9092`               |
+| Backend          | `curl -k https://localhost:443/api/v1/health/live`                          |
+| Frontend         | `curl -k https://localhost:5001`                                            |
+| Grafana          | `curl localhost:3000/api/health`                                            |
+| Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
+
+Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, Kafdrop and the workers have no healthcheck either.
+
+## Memory limits
+
+Every long-running service except Kafdrop has a `mem_limit`.
+
+| Service              | `mem_limit` | Notes                                                       |
+|----------------------|-------------|-------------------------------------------------------------|
+| MongoDB              | 1024m       | `--wiredTigerCacheSizeGB 0.4`                               |
+| Redis                | 300m        | `--maxmemory 256mb`, `allkeys-lru`, persistence off         |
+| Kafka                | 1280m       | `-Xms256m -Xmx1g`                                           |
+| Backend              | 768m        | `WEB_CONCURRENCY` gunicorn workers (default 2)              |
+| Frontend             | 128m        |                                                             |
+| Each of six workers  | 160m        |                                                             |
+| Grafana              | 512m        | Grafana 13 idles near 300 MiB                               |
+| Jaeger               | 256m        | in-memory storage                                           |
+| Loki                 | 256m        |                                                             |
+| Victoria Metrics     | 256m        | `--retentionPeriod=30d`                                     |
+| OTel Collector       | 192m        | `memory_limiter` at 150 MiB                                 |
+
+Kafdrop runs with `-Xmx512M` and no limit. All services above except Jaeger have `restart: unless-stopped`.
+
+## Observability profile
+
+The `observability` profile adds a one-shot `mongo-monitor-user` container. It connects as root and creates (or updates) an `otelMonitor` role with `serverStatus`, `top`, `dbStats`, `indexStats` and `listCollections`, plus a user with only that role. The collector's mongodb receiver logs in as that user, since root fails `$indexStats` on `admin.system.*`. Set the credentials with `MONGO_MONITOR_USER` (default `otel-monitor`) and `MONGO_MONITOR_PASSWORD` (default `monitorpassword`).
+
+Grafana starts through a small entrypoint. It resets the admin password from `GF_SECURITY_ADMIN_PASSWORD`, starts Grafana without the alert rules, waits until the dashboard provider has created the `integr8scode` folder, then copies the rules back and calls the alerting reload API. Loaded first, the rules would create their own folder with a random UID. See [Grafana integration](grafana-integration.md).
+
+The frontend gets `GRAFANA_PUBLIC_URL` from `GRAFANA_ROOT_URL` (default `http://localhost:3000/`), which is where `/grafana` on the app host redirects.
+
+## Image versions
+
+| Image                                  | Version   |
+|----------------------------------------|-----------|
+| `mongo`                                | 9.0.2     |
+| `redis`                                | 8.10.2-alpine |
+| `confluentinc/cp-kafka`                | 8.3.2     |
+| `grafana/grafana`                      | 13.2.3    |
+| `jaegertracing/jaeger`                 | 2.20.0    |
+| `grafana/loki`                         | 3.7.8     |
+| `victoriametrics/victoria-metrics`     | v1.153.0  |
+| `otel/opentelemetry-collector-contrib` | 0.162.0   |
+| `obsidiandynamics/kafdrop`             | 4.3.0     |
+
+Jaeger stays on 2.20.0 because 2.21 removed the search API that Grafana's Jaeger datasource calls ([grafana/grafana#112336](https://github.com/grafana/grafana/issues/112336)). Dependabot ignores newer Jaeger versions until that ships.
+
+MongoDB 9 starts fine on a volume created by 8.0 but keeps the feature compatibility version at 8.0. Raise it once you're sure you won't roll back:
 
 ```bash
-./deploy.sh down
-docker compose down -v  # Also removes persistent volumes
-```
-
-### Running tests locally
-
-The `test` command runs the full unit and E2E test suite:
-
-```bash
-./deploy.sh test
-```
-
-This builds images, starts services, waits for the backend health endpoint using curl's built-in retry mechanism, runs
-pytest with coverage reporting, then tears down the stack. The curl retry approach is cleaner than shell loops and
-avoids issues with Docker Compose's `--wait` flag (which fails on init containers that exit after completion). Key
-services define healthchecks in `docker-compose.yaml`:
-
-| Service         | Healthcheck                                   |
-|-----------------|-----------------------------------------------|
-| MongoDB         | `mongosh ping`                                |
-| Redis           | `redis-cli ping`                              |
-| Backend         | `curl /api/v1/health/live`                    |
-| Kafka           | `kafka-broker-api-versions`                   |
-
-Services without explicit healthchecks (workers, Grafana, Kafdrop) are considered "started" when their container is
-running. The test suite doesn't require worker containers since tests instantiate worker classes directly.
-
-## Container resource limits
-
-Every long-running service has a `mem_limit` in `docker-compose.yaml` to prevent any single container from starving the host. The budget targets a 7.7 GB server with the observability profile enabled, leaving ~2 GB for the OS and page cache.
-
-| Service | `mem_limit` | Internal cap | Notes |
-|---------|-------------|--------------|-------|
-| MongoDB | 1024 m | wiredTiger 0.4 GB | `--wiredTigerCacheSizeGB 0.4` prevents default 50 %-of-RAM behavior |
-| Redis | 300 m | 256 MB maxmemory | LRU eviction, persistence disabled |
-| Kafka | 1280 m | JVM `-Xms256m -Xmx1g` | Single-broker KRaft mode, low throughput workload |
-| Backend API | 768 m | 2 gunicorn workers | Controlled by `WEB_CONCURRENCY` env var |
-| Frontend | 128 m | nginx serving static assets | |
-| Each worker (x6) | 160 m | Single-process Python | k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor |
-| Grafana | 512 m | | Observability profile |
-| Jaeger | 256 m | All-in-one, in-memory storage | Observability profile |
-| Victoria Metrics | 256 m | 30-day retention | Observability profile |
-| OTel Collector | 192 m | `limit_mib: 150` in memory_limiter processor; includes `kafka_metrics` receiver | Observability profile |
-
-All long-running services — core infrastructure (MongoDB, Redis, Kafka, backend, frontend), all six workers (k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor), and observability components (Grafana, victoria-metrics, otel-collector) — have `restart: unless-stopped` so they recover automatically after an OOM kill or crash.
-
-## Monitoring
-
-Check service status using the deploy script or Docker Compose directly.
-
-```bash
-./deploy.sh status
-docker compose ps
-docker compose logs backend
+docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand({ setFeatureCompatibilityVersion: \"9.0\", confirm: true })"'
 ```
 
 ## Troubleshooting
 
-| Issue                 | Cause                             | Solution                                          |
-|-----------------------|-----------------------------------|---------------------------------------------------|
-| Unknown topic errors  | Kafka not ready or wrong prefix   | Check `docker compose logs kafka`                 |
-| MongoDB auth errors   | Password mismatch                 | Verify `MONGO_USER`/`MONGO_PASSWORD` env vars match MongoDB init |
-| Worker crash loop     | Config file missing               | Ensure `config.<worker>.toml` exists              |
+| Issue                 | Cause                              | Fix                                                         |
+|-----------------------|------------------------------------|-------------------------------------------------------------|
+| Unknown topic errors  | Kafka not ready yet                | `docker compose logs kafka`                                 |
+| MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialised with |
+| Workers can't reach k8s | Stale or expired kubeconfig (the token lasts 24h) | `docker compose restart cert-generator`, then restart the workers |
 
-### Kafka topic debugging
+List topics from inside the broker:
 
 ```bash
-docker compose logs kafka
-docker compose exec kafka kafka-topics --list --bootstrap-server localhost:29092
+docker compose exec kafka kafka-topics --list --bootstrap-server localhost:9092
 ```
 
-Topics are auto-created on first use. Each topic name = event type value with prefix (e.g., `dev_execution_requested`).
+### k3s crash loop after a VPN or IP change
 
-### k3s crash loop after VPN or IP change
+When the host IP changes (VPN on or off, new network, DHCP renewal), k3s keeps the old IP in its datastore under `/var/lib/rancher/k3s/server/db/` and in the certificate SANs under `/var/lib/rancher/k3s/server/tls/`. It then crash-loops: `systemctl status k3s` shows `activating (auto-restart)` and `kubectl` gets `connection refused`.
 
-**Symptoms:**
-
-- `systemctl status k3s` shows `Active: activating (auto-restart) (Result: exit-code)`
-- k3s repeatedly crashes with `status=1/FAILURE`
-- `kubectl` commands fail with `connection refused` or `ServiceUnavailable`
-- API intermittently responds then stops
-
-**Root cause:**
-
-When the host IP changes (VPN on/off, network switch, DHCP renewal), k3s stores stale IP references in two locations:
-
-1. **SQLite database** (`/var/lib/rancher/k3s/server/db/`) — contains cluster state with old IP
-2. **TLS certificates** (`/var/lib/rancher/k3s/server/tls/`) — generated with old IP in SAN field
-
-k3s detects the mismatch between config (`node-ip` in `/etc/rancher/k3s/config.yaml`) and stored data, causing the crash loop.
-
-**Solution:**
-
-> **WARNING: DATA LOSS** — The steps below will permanently delete all cluster state, including:
-> - All deployed workloads (pods, deployments, services)
-> - All cluster configuration (namespaces, RBAC, ConfigMaps, Secrets)
-> - All PersistentVolume data stored in the default local-path provisioner
->
-> **Before proceeding, back up:**
-> - etcd snapshots: `sudo k3s etcd-snapshot save`
-> - kubeconfig files
-> - Application manifests
-> - Any critical PersistentVolume data
->
-> Confirm backups are complete before continuing.
+!!! warning "This deletes all cluster state"
+    The fix wipes every workload, namespace, secret and local-path volume in the cluster. Take an etcd snapshot (`sudo k3s etcd-snapshot save`) and back up anything you need first.
 
 ```bash
-# 1. Stop k3s
 sudo systemctl stop k3s
-
-# 2. Delete corrupted database (k3s will rebuild it)
-sudo rm -rf /var/lib/rancher/k3s/server/db/
-
-# 3. Delete old TLS certificates (k3s will regenerate them)
-sudo rm -rf /var/lib/rancher/k3s/server/tls/
-
-# 4. Start k3s with clean state
+sudo rm -rf /var/lib/rancher/k3s/server/db/ /var/lib/rancher/k3s/server/tls/
 sudo systemctl start k3s
-```
 
-After k3s restarts, regenerate the application kubeconfig:
-
-```bash
-# Regenerate kubeconfig with fresh ServiceAccount token
+# regenerate the kubeconfig and reconnect the workers
 docker compose restart cert-generator
-
-# Restart workers to pick up new kubeconfig
 docker compose restart k8s-worker pod-monitor
 ```
 
-**Verification:**
-
-```bash
-# Check k3s is running
-systemctl status k3s  # Should show "active (running)"
-
-# Test API access
-KUBECONFIG=/path/to/backend/kubeconfig.yaml kubectl get namespaces
-
-# Check workers connected
-docker logs k8s-worker 2>&1 | tail -5
-docker logs pod-monitor 2>&1 | tail -5
-```
-
-**VPN-specific notes:**
-
-When using VPN (e.g., NordVPN with WireGuard/NordLynx):
-
-- **LAN Discovery must be enabled**: `nordvpn set lan-discovery enabled`
-- VPN can interfere with Docker's `host` network mode and k3s flannel networking
-- Consider using bridge networking for containers that need to reach k3s
-
-**References:**
-
-- [k3s IP change issue #277](https://github.com/k3s-io/k3s/issues/277)
-- [k3s crash loop troubleshooting](https://dev.to/shankar_t/my-k3s-pi-cluster-died-after-a-reboot-a-troubleshooting-war-story-m93)
-- [k3s certificate documentation](https://docs.k3s.io/cli/certificate)
+The cluster comes back empty, so Kueue and the `integr8scode` namespace are recreated by cert-generator on that restart. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
 
 ## Pre-built images
 
-The CI pipeline automatically builds and pushes images to GitHub Container Registry on every merge to main. To use
-pre-built images instead of building locally, set `IMAGE_TAG`:
+Stack Tests builds `base`, `backend`, `frontend` and `cert-generator` and pushes them to GHCR as `sha-<7 chars>`. On `main`, once the scans pass, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
 
 ```bash
 IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 ```
 
-### Available tags
+## Production
 
-| Tag           | Description                        |
-|---------------|------------------------------------|
-| `latest`      | Most recent build from main branch |
-| `sha-abc1234` | Specific commit SHA                |
-| `2026.2.0`    | CalVer release version             |
-
-## Production deployment
-
-Merges to `main` trigger automatic deployment to the production server via the
-[Release & Deploy](cicd.md#release-deploy) workflow. The full pipeline chain is:
-
-1. **Stack Tests** — unit tests, image build, E2E tests
-2. **Docker Scan & Promote** — Trivy vulnerability scan, promote `sha-xxx` to `latest`
-3. **Release & Deploy** — create CalVer tag + GitHub Release, SSH deploy to production
-
-The deploy step pulls the latest images on the server and recreates containers with zero-downtime health checks. No
-manual intervention is required for normal merges.
-
-### Rollback
-
-To roll back to a previous release, use a specific CalVer or SHA tag:
+Merges to `main` deploy automatically: Stack Tests, then Docker Scan & Promote, then [Release & Deploy](cicd.md#release-deploy). The deploy job SSHes into the server, runs `git pull` in `/opt/Integr8sCode`, logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
 
 ```bash
-# On the production server
-IMAGE_TAG=2026.2.0 docker compose pull
-IMAGE_TAG=2026.2.0 docker compose up -d --remove-orphans
+docker compose pull
+docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
+docker image prune -af --filter "until=72h"
 ```
 
-Or trigger the Release & Deploy workflow manually with `skip_deploy` enabled to create a release without deploying,
-then deploy a specific version via SSH.
+To roll back by hand, set `IMAGE_TAG` to an older CalVer or SHA tag and run the same `pull` and `up`. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
 
-### First-time setup
-
-To configure the production server and GitHub Secrets, follow the [Required secrets](cicd.md#required-secrets) section
-in the CI/CD docs. You will need to generate an SSH key pair, create a GitHub PAT with `read:packages` scope, and add
-all four secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_GHCR_TOKEN`) to the repository settings.
-
-## Key files
-
-| File                                                                                                                           | Purpose                     |
-|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
-| [`deploy.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/deploy.sh)                                                   | Deployment script           |
-| [`docker-compose.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/docker-compose.yaml)                               | Full stack definition       |
-| [`backend/Dockerfile.base`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/Dockerfile.base)                       | Shared base image with deps |
-| [`.github/workflows/docker.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/docker.yml)             | CI/CD image build pipeline  |
-| [`.github/workflows/release-deploy.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/.github/workflows/release-deploy.yml) | Release + deploy pipeline   |
+To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).

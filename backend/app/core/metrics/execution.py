@@ -32,21 +32,9 @@ class ExecutionMetrics(BaseMetrics):
             name="script.errors.total", description="Total number of script errors by type", unit="1"
         )
 
-        self.executions_assigned = self._meter.create_counter(
-            name="executions.assigned.total", description="Total number of executions assigned to workers", unit="1"
-        )
-
-        self.executions_queued = self._meter.create_counter(
-            name="executions.queued.total", description="Total number of executions queued", unit="1"
-        )
-
-        self.queue_depth = self._meter.create_up_down_counter(
-            name="execution.queue.depth", description="Current number of executions waiting in queue", unit="1"
-        )
-
-        self.queue_wait_time = self._meter.create_histogram(
-            name="execution.queue.wait_time",
-            description="Time spent waiting in queue before execution starts in seconds",
+        self.submission_duration = self._meter.create_histogram(
+            name="script.submission.duration",
+            description="Time to persist and publish an execution request in seconds",
             unit="s",
         )
 
@@ -68,17 +56,5 @@ class ExecutionMetrics(BaseMetrics):
     def record_error(self, error_type: str) -> None:
         self.error_counter.add(1, attributes={"error_type": error_type})
 
-    def update_queue_depth(self, delta: int) -> None:
-        self.queue_depth.add(delta)
-
-    def record_queue_wait_time(self, wait_seconds: float, lang_and_version: str) -> None:
-        self.queue_wait_time.record(wait_seconds, attributes={"lang_and_version": lang_and_version})
-
-    def record_execution_assigned(self) -> None:
-        self.executions_assigned.add(1)
-
-    def record_execution_queued(self) -> None:
-        self.executions_queued.add(1)
-
-    def record_execution_scheduled(self) -> None:
-        self.executions_assigned.add(1)
+    def record_queue_wait_time(self, duration_seconds: float, lang_and_version: str) -> None:
+        self.submission_duration.record(duration_seconds, attributes={"lang_and_version": lang_and_version})

@@ -15,12 +15,7 @@ def test_execution_metrics_methods(test_settings: Settings) -> None:
     m.decrement_active_executions()
     m.record_memory_usage(123.4, "python-3.11")
     m.record_error("timeout")
-    m.update_queue_depth(1)
-    m.update_queue_depth(-1)
     m.record_queue_wait_time(0.1, "python-3.11")
-    m.record_execution_assigned()
-    m.record_execution_queued()
-    m.record_execution_scheduled()
 
 
 def test_event_metrics_methods(test_settings: Settings) -> None:

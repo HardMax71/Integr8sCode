@@ -1,6 +1,6 @@
 # Log aggregation (Loki)
 
-Loki stores the JSON logs of the backend and all six workers so you can query them in Grafana across processes and time. It runs only with the `observability` compose profile. Without it, logs stay on container stderr for `docker compose logs`.
+Loki stores the logs of the backend and all six workers so you can query them in Grafana across processes and time. It runs only with the `observability` compose profile. Without it, logs stay on container stderr for `docker compose logs`.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ The OTel resource on every record has `service.name` from `SERVICE_NAME`, `servi
 
 The logs pipeline receives OTLP, runs `memory_limiter`, `batch` and `resource`, and exports with `otlp_http/loki` to `http://loki:3100/otlp`. The full config is [`backend/otel-collector-config.yaml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/otel-collector-config.yaml).
 
-Loki 3 accepts OTLP natively. Resource attributes such as `service.name` and `service.namespace` become stream labels (`service_name`, `service_namespace`). The record's `trace_id` and `span_id` become structured metadata. The log line is the JSON that structlog rendered.
+Loki 3 accepts OTLP natively. Resource attributes such as `service.name` and `service.namespace` become stream labels (`service_name`, `service_namespace`). The record's `trace_id` and `span_id` become structured metadata. For our own events the log line is the JSON that structlog rendered. Third-party library records arrive as plain text, so `| json` can't pull fields out of them.
 
 ## Loki
 
@@ -37,7 +37,7 @@ The container has a 256m memory limit, keeps data in the `loki_data` volume and 
 
 Two things don't work as intended today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)).
 
-Every process logs as `service_name="integr8scode-backend"`. The per-worker `config.<worker>.toml` files only override `TRACING_SERVICE_NAME`, not `SERVICE_NAME`, and the collector's `resource` processor copies from a `service_name` attribute that doesn't exist. So the API and all six workers share one stream, and a selector such as `{service_name="integr8scode-saga-orchestrator"}` returns nothing.
+Every process logs as `service_name="integr8scode-backend"`. The per-worker `config.<worker>.toml` files only override `TRACING_SERVICE_NAME`, not `SERVICE_NAME`, and the collector's `resource` processor copies from a `service_name` attribute that doesn't exist. So the API and all six workers share one `service_name` label (Loki tells their streams apart by `service_instance_id`), and a selector such as `{service_name="integr8scode-saga-orchestrator"}` returns nothing.
 
 The Loki datasource has a derived field that should link `trace_id` to Jaeger, but its regex is `"trace_id":"(\w+)"` and structlog writes `"trace_id": "..."` with a space after the colon. The link never appears.
 

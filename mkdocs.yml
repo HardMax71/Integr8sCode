@@ -158,7 +158,7 @@ nav:
     - Saga:
       - Resource Allocation: components/saga/resource-allocation.md
     - Dead Letter Queue: components/dead-letter-queue.md
-    - Schema Manager: components/schema-manager.md
+    - MongoDB Indexes: components/schema-manager.md
     - Saved Scripts: components/saved-scripts.md
 
   - Operations:

@@ -79,7 +79,7 @@
       "id": 1,
       "targets": [
         {
-          "expr": "mongodb_health or vector(0)",
+          "expr": "mongodb_health_ratio or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -103,7 +103,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "(mongodb_uptime / 1000) or vector(0)",
+          "expr": "(mongodb_uptime_milliseconds_total / 1000) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -285,7 +285,7 @@
       "id": 10,
       "targets": [
         {
-          "expr": "sum(mongodb_data_size) by (db_namespace) or vector(0)",
+          "expr": "sum(mongodb_data_size_bytes) by (db_namespace) or vector(0)",
           "legendFormat": "{{db_namespace}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -310,7 +310,7 @@
       "id": 11,
       "targets": [
         {
-          "expr": "sum(mongodb_storage_size) by (db_namespace) or vector(0)",
+          "expr": "sum(mongodb_storage_size_bytes_total) by (db_namespace) or vector(0)",
           "legendFormat": "{{db_namespace}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -335,7 +335,7 @@
       "id": 12,
       "targets": [
         {
-          "expr": "sum(mongodb_index_size) by (db_namespace) or vector(0)",
+          "expr": "sum(mongodb_index_size_bytes) by (db_namespace) or vector(0)",
           "legendFormat": "{{db_namespace}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -424,8 +424,8 @@
       "id": 20,
       "targets": [
         {
-          "expr": "sum(mongodb_memory_usage) by (memory_type) or vector(0)",
-          "legendFormat": "{{memory_type}}",
+          "expr": "max(mongodb_memory_usage_bytes) by (type) or vector(0)",
+          "legendFormat": "{{type}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -458,7 +458,7 @@
       "id": 21,
       "targets": [
         {
-          "expr": "rate(mongodb_cache_operations{type=\"hit\"}[5m]) / (rate(mongodb_cache_operations{type=\"hit\"}[5m]) + rate(mongodb_cache_operations{type=\"miss\"}[5m]) + 0.001) or vector(0)",
+          "expr": "sum(rate(mongodb_cache_operations_total{type=\"hit\"}[5m])) / (sum(rate(mongodb_cache_operations_total[5m])) + 0.001) or vector(0)",
           "legendFormat": "Hit Ratio",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -491,7 +491,7 @@
       "id": 22,
       "targets": [
         {
-          "expr": "rate(mongodb_page_faults[5m]) or vector(0)",
+          "expr": "rate(mongodb_page_faults_total[5m]) or vector(0)",
           "legendFormat": "Page Faults/s",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -516,13 +516,13 @@
       "id": 23,
       "targets": [
         {
-          "expr": "rate(mongodb_cache_operations{type=\"hit\"}[5m]) or vector(0)",
+          "expr": "rate(mongodb_cache_operations_total{type=\"hit\"}[5m]) or vector(0)",
           "legendFormat": "Hits",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(mongodb_cache_operations{type=\"miss\"}[5m]) or vector(0)",
+          "expr": "rate(mongodb_cache_operations_total{type=\"miss\"}[5m]) or vector(0)",
           "legendFormat": "Misses",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -547,7 +547,7 @@
       "id": 24,
       "targets": [
         {
-          "expr": "rate(mongodb_wtcache_bytes_read[5m]) or vector(0)",
+          "expr": "rate(mongodb_wtcache_bytes_read_total[5m]) or vector(0)",
           "legendFormat": "WT Cache Bytes Read/s",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -586,13 +586,13 @@
       "id": 30,
       "targets": [
         {
-          "expr": "rate(mongodb_network_io_receive[5m]) or vector(0)",
+          "expr": "rate(mongodb_network_io_receive_bytes[5m]) or vector(0)",
           "legendFormat": "Receive",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(mongodb_network_io_transmit[5m]) or vector(0)",
+          "expr": "rate(mongodb_network_io_transmit_bytes[5m]) or vector(0)",
           "legendFormat": "Transmit",
           "refId": "B",
           "datasource": "Victoria Metrics"
@@ -656,7 +656,7 @@
       "id": 40,
       "targets": [
         {
-          "expr": "rate(mongodb_global_lock_time[5m]) or vector(0)",
+          "expr": "rate(mongodb_global_lock_time_milliseconds_total[5m]) or vector(0)",
           "legendFormat": "Global Lock Time",
           "refId": "A",
           "datasource": "Victoria Metrics"
@@ -681,8 +681,8 @@
       "id": 41,
       "targets": [
         {
-          "expr": "mongodb_operation_latency_time or vector(0)",
-          "legendFormat": "{{operation_latency}}",
+          "expr": "mongodb_operation_latency_time_microseconds or vector(0)",
+          "legendFormat": "{{operation}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -706,21 +706,15 @@
       "id": 42,
       "targets": [
         {
-          "expr": "rate(mongodb_lock_acquire_count[5m]) or vector(0)",
+          "expr": "sum(max without (db_namespace) (rate(mongodb_lock_acquire_count_total[5m]))) or vector(0)",
           "legendFormat": "Acquires/s",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(mongodb_lock_acquire_wait_count[5m]) or vector(0)",
+          "expr": "sum(max without (db_namespace) (rate(mongodb_lock_acquire_wait_count_total[5m]))) or vector(0)",
           "legendFormat": "Waits/s",
           "refId": "B",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(mongodb_lock_deadlock_count[5m]) or vector(0)",
-          "legendFormat": "Deadlocks/s",
-          "refId": "C",
           "datasource": "Victoria Metrics"
         }
       ],
@@ -757,37 +751,37 @@
       "id": 50,
       "targets": [
         {
-          "expr": "mongodb_commands_rate or vector(0)",
+          "expr": "mongodb_commands_rate_per_second or vector(0)",
           "legendFormat": "Commands",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "mongodb_queries_rate or vector(0)",
+          "expr": "mongodb_queries_rate_per_second or vector(0)",
           "legendFormat": "Queries",
           "refId": "B",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "mongodb_inserts_rate or vector(0)",
+          "expr": "mongodb_inserts_rate_per_second or vector(0)",
           "legendFormat": "Inserts",
           "refId": "C",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "mongodb_updates_rate or vector(0)",
+          "expr": "mongodb_updates_rate_per_second or vector(0)",
           "legendFormat": "Updates",
           "refId": "D",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "mongodb_deletes_rate or vector(0)",
+          "expr": "mongodb_deletes_rate_per_second or vector(0)",
           "legendFormat": "Deletes",
           "refId": "E",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "mongodb_getmores_rate or vector(0)",
+          "expr": "mongodb_getmores_rate_per_second or vector(0)",
           "legendFormat": "Getmores",
           "refId": "F",
           "datasource": "Victoria Metrics"
@@ -812,7 +806,7 @@
       "id": 51,
       "targets": [
         {
-          "expr": "mongodb_flushes_rate or vector(0)",
+          "expr": "mongodb_flushes_rate_per_second or vector(0)",
           "legendFormat": "Flushes/s",
           "refId": "A",
           "datasource": "Victoria Metrics"

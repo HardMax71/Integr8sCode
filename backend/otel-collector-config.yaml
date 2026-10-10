@@ -39,8 +39,10 @@ receivers:
   mongodb:
     hosts:
       - endpoint: mongo:27017
-    username: ${env:MONGO_USER}
-    password: ${env:MONGO_PASSWORD}
+    username: ${env:MONGO_MONITOR_USER}
+    password: ${env:MONGO_MONITOR_PASSWORD}
+    # standalone mongod: replica-set discovery would fail with NoReplicationEnabled
+    direct_connection: true
     # mongo runs without TLS; the receiver attempts a TLS handshake unless told otherwise
     tls:
       insecure: true
@@ -75,11 +77,7 @@ receivers:
         enabled: true
       mongodb.lock.acquire.count:
         enabled: true
-      mongodb.lock.acquire.time:
-        enabled: true
       mongodb.lock.acquire.wait_count:
-        enabled: true
-      mongodb.lock.deadlock.count:
         enabled: true
       mongodb.wtcache.bytes.read:
         enabled: true

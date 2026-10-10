@@ -529,8 +529,8 @@ services:
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
     environment:
-      - MONGO_USER=${MONGO_USER:-root}
-      - MONGO_PASSWORD=${MONGO_PASSWORD:-rootpassword}
+      - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
+      - MONGO_MONITOR_PASSWORD=${MONGO_MONITOR_PASSWORD:-monitorpassword}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
@@ -546,9 +546,47 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
+      mongo-monitor-user:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Least-privilege MongoDB user for the collector's mongodb receiver (root fails $indexStats on admin.system.*)
+  mongo-monitor-user:
+    image: mongo:9.0.2
+    container_name: mongo-monitor-user
+    profiles: ["observability"]
+    depends_on:
       mongo:
         condition: service_healthy
-    restart: unless-stopped
+    environment:
+      MONGO_USER: ${MONGO_USER:-root}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
+      MONGO_MONITOR_USER: ${MONGO_MONITOR_USER:-otel-monitor}
+      MONGO_MONITOR_PASSWORD: ${MONGO_MONITOR_PASSWORD:-monitorpassword}
+    entrypoint:
+      - mongosh
+      - --quiet
+      - --nodb
+      - --eval
+      - |
+        const admin = connect("mongodb://mongo:27017/admin");
+        admin.auth(process.env.MONGO_USER, process.env.MONGO_PASSWORD);
+        const role = {
+          privileges: [
+            { resource: { cluster: true }, actions: ["serverStatus", "top"] },
+            { resource: { db: "integr8scode_db", collection: "" }, actions: ["dbStats", "indexStats", "listCollections"] },
+          ],
+          roles: [],
+        };
+        if (admin.getRole("otelMonitor")) admin.updateRole("otelMonitor", role);
+        else admin.createRole({ role: "otelMonitor", ...role });
+        const user = process.env.MONGO_MONITOR_USER;
+        const spec = { pwd: process.env.MONGO_MONITOR_PASSWORD, roles: ["otelMonitor"] };
+        if (admin.getUser(user)) admin.updateUser(user, spec);
+        else admin.createUser({ user, ...spec });
+    networks:
+      - app-network
+    restart: "no"
 
 # --8<-- [start:dev_volumes]
 volumes:

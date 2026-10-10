@@ -52,11 +52,15 @@ def main() -> None:
             scheduler.start()
             logger.info("Event replay service initialized (APScheduler interval=6h)")
 
-        async def shutdown() -> None:
+        async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
-            await container.close()
 
-        app = FastStream(broker, on_startup=[init_replay], on_shutdown=[shutdown])
+        app = FastStream(
+            broker,
+            on_startup=[init_replay],
+            on_shutdown=[stop_scheduler],
+            after_shutdown=[container.close],
+        )
         await app.run()
         logger.info("EventReplayService shutdown complete")
 

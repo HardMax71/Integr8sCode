@@ -41,7 +41,7 @@ def main() -> None:
         register_result_processor_subscriber(broker)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker, on_shutdown=[container.close])
+        app = FastStream(broker, after_shutdown=[container.close])
         await app.run()
         logger.info("ResultProcessor shutdown complete")
 

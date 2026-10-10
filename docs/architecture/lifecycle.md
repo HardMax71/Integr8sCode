@@ -22,9 +22,9 @@ gunicorn runs the API with `WEB_CONCURRENCY` workers (2 by default), and each on
 
 ## Workers
 
-All six workers follow the same shape. Each loads `Settings(override_path="config.<worker>.toml")`, sets up logging, runs `init_beanie`, builds its own container with `create_<worker>_container`, registers its subscribers if it has any, calls `setup_dishka`, and then blocks on `FastStream(broker, on_startup=[...], on_shutdown=[...]).run()`.
+All six workers follow the same shape. Each loads `Settings(override_path="config.<worker>.toml")`, sets up logging, runs `init_beanie`, builds its own container with `create_<worker>_container`, registers its subscribers if it has any, calls `setup_dishka`, and then blocks on `FastStream(broker, on_startup=[...], after_shutdown=[container.close]).run()`.
 
-FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_startup` hooks after. The same goes for shutdown: `on_shutdown` runs before `broker.stop()`. No worker uses the `after_*` hooks, so startup work happens before the broker connects, and `container.close()` runs while the broker is still draining.
+FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_startup` hooks after. The same goes for shutdown: `on_shutdown` runs before `broker.stop()` and `after_shutdown` after it. Startup work happens before the broker connects. A worker with a scheduler stops it in `on_shutdown`, and every worker closes its container in `after_shutdown`, so Redis and the Kubernetes client stay open until the broker has drained its handlers.
 
 | Worker | Subscribers | Startup work | Shutdown |
 |--------|-------------|--------------|----------|
@@ -43,4 +43,4 @@ Replay sessions are created and driven through the API's replay routes, so they 
 
 A new service is a plain class with constructor dependencies and async methods. If it needs periodic work, add an APScheduler job in the entry point that owns it and keep the service unaware of scheduling.
 
-A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a `register_*_subscriber` function in `app/events/handlers.py` if it consumes events. Register subscribers and call `setup_dishka` before `app.run()`. The existing workers use only `on_startup` and `on_shutdown`; FastStream's `after_startup` and `after_shutdown` are there for work that has to wait for the broker to start or stop.
+A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a `register_*_subscriber` function in `app/events/handlers.py` if it consumes events. Register subscribers and call `setup_dishka` before `app.run()`. Stop schedulers in `on_shutdown` and close the container in `after_shutdown`, so nothing the handlers use closes before the broker stops.

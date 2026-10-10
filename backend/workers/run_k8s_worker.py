@@ -48,7 +48,7 @@ def main() -> None:
             await worker.ensure_image_pre_puller_daemonset()
             logger.info("KubernetesWorker initialized with namespace security and pre-puller daemonset")
 
-        app = FastStream(broker, on_startup=[init_k8s_worker], on_shutdown=[container.close])
+        app = FastStream(broker, on_startup=[init_k8s_worker], after_shutdown=[container.close])
         await app.run()
         logger.info("KubernetesWorker shutdown complete")
 

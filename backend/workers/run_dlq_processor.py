@@ -57,11 +57,15 @@ def main() -> None:
             scheduler.start()
             logger.info("DLQ Processor initialized (APScheduler interval=10s)")
 
-        async def shutdown() -> None:
+        async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
-            await container.close()
 
-        app = FastStream(broker, on_startup=[init_dlq], on_shutdown=[shutdown])
+        app = FastStream(
+            broker,
+            on_startup=[init_dlq],
+            on_shutdown=[stop_scheduler],
+            after_shutdown=[container.close],
+        )
         await app.run()
         logger.info("DLQ Processor shutdown complete")
 

@@ -66,11 +66,15 @@ def main() -> None:
             scheduler.start()
             logger.info("SagaOrchestrator initialized (APScheduler: timeouts=30s, scheduling=10s)")
 
-        async def shutdown() -> None:
+        async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
-            await container.close()
 
-        app = FastStream(broker, on_startup=[init_saga], on_shutdown=[shutdown])
+        app = FastStream(
+            broker,
+            on_startup=[init_saga],
+            on_shutdown=[stop_scheduler],
+            after_shutdown=[container.close],
+        )
         await app.run()
         logger.info("SagaOrchestrator shutdown complete")
 

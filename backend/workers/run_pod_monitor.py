@@ -80,11 +80,15 @@ def main() -> None:
             scheduler.start()
             logger.info("PodMonitor initialized (APScheduler interval=5s)")
 
-        async def shutdown() -> None:
+        async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
-            await container.close()
 
-        app = FastStream(broker, on_startup=[init_monitor], on_shutdown=[shutdown])
+        app = FastStream(
+            broker,
+            on_startup=[init_monitor],
+            on_shutdown=[stop_scheduler],
+            after_shutdown=[container.close],
+        )
         await app.run()
         logger.info("PodMonitor shutdown complete")
 

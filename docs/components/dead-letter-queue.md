@@ -23,7 +23,7 @@ Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
 | `result_stored`, `result_failed` | Immediate | 3 | | |
 | Everything else | Exponential, x2.5 | 4 | 60 s | 1800 s |
 
-Exponential delays get 10% jitter. A message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded` and `dlq_message_discarded` is published.
+Exponential delays get 10% jitter. At intake, a message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded` and `dlq_message_discarded` is published.
 
 The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ either: the `/api/v1/dlq` routes were removed in the same commit.
 

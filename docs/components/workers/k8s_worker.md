@@ -22,7 +22,7 @@ The image and command come from the command event, which the API filled in from 
 
 CPU and memory limits and the timeout arrive in the command, taken from the admin system settings when the execution was requested. Requests come from `K8S_POD_CPU_REQUEST` and `K8S_POD_MEMORY_REQUEST`. The timeout becomes the pod's `activeDeadlineSeconds`.
 
-For `delete_pod_command`, sent when a saga is compensated, the worker deletes the pod with a 30 second grace period and lets the ownerReference take the ConfigMap with it.
+For `delete_pod_command`, which only the API's saga cancel route sends today, the worker deletes the pod with a 30 second grace period and lets the ownerReference take the ConfigMap with it.
 
 ## Pod security
 

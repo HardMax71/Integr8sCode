@@ -21,7 +21,7 @@ There are two admin-only ways in.
 
 ## What a replay does
 
-The service reads matching events from the MongoDB `events` collection in batches and dispatches them one at a time. With a speed multiplier below 100 it keeps the original spacing between events, divided by the multiplier. The `kafka` target re-produces each stored event with the same `event_id` and the same payload, and no marker says it's a replay. Its timestamp is set to now unless `preserve_timestamps` is on. Handlers behind an idempotency key skip it as a duplicate while that key lives (one hour for the saga orchestrator and k8s worker, two for the result processor). The `file` target appends each event as a JSON line to `target_file_path` on the API host.
+The service reads matching events from the MongoDB `events` collection in batches and dispatches them one at a time. With a speed multiplier below 100 it keeps the original spacing between events, divided by the multiplier. The `kafka` target re-produces each stored event with the same `event_id` and the same payload, and no marker says it's a replay. Its timestamp is set to now unless `preserve_timestamps` is on. Handlers behind an idempotency key skip it as a duplicate while that key lives (one hour for `execution_requested` in the saga orchestrator and for the k8s worker, two hours for the result processor). The `file` target appends each event as a JSON line to `target_file_path` on the API host.
 
 Session state lives in a dict in the API process and is mirrored to `replay_sessions`. A session started in one gunicorn worker can't be paused or read from another, and an API restart drops the in-memory sessions.
 

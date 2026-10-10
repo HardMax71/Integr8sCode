@@ -43,7 +43,7 @@ stateDiagram-v2
 
 ## Topics
 
-The orchestrator consumes `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout` and `execution_cancelled`, all with group id `saga-orchestrator`. It produces `saga_started`, `create_pod_command`, and `delete_pod_command` when a failed step is compensated.
+The orchestrator consumes `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout` and `execution_cancelled`, all with group id `saga-orchestrator`. It produces `saga_started` and `create_pod_command`. The worker never sends `delete_pod_command` in practice: create pod is the last step, so its compensation is never registered when a step fails. Only the API's cancel route sends it.
 
 ## Key files
 

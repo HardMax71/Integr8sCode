@@ -59,9 +59,3 @@ runs:
           echo $? > /tmp/crictl-python.exit
         ' > /tmp/crictl-python.log 2>&1 &
         echo $! > /tmp/crictl-python.pid
-
-        nohup bash -c '
-          sudo k3s crictl pull docker.io/library/busybox:1.36
-          echo $? > /tmp/crictl-busybox.exit
-        ' > /tmp/crictl-busybox.log 2>&1 &
-        echo $! > /tmp/crictl-busybox.pid

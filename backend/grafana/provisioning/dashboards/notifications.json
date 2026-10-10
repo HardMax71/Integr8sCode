@@ -44,81 +44,27 @@
       },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 1
       },
       "id": 1,
       "targets": [
         {
-          "expr": "rate(notifications_sent_total[5m])",
+          "expr": "sum(rate(notifications_sent_total[5m]))",
           "legendFormat": "Sent",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "rate(notifications_failed_total[5m])",
+          "expr": "sum(rate(notifications_failed_total[5m]))",
           "legendFormat": "Failed",
           "refId": "B",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(notifications_read_total[5m])",
-          "legendFormat": "Read",
-          "refId": "C",
           "datasource": "Victoria Metrics"
         }
       ],
       "title": "Notification Flow",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 1
-      },
-      "id": 2,
-      "targets": [
-        {
-          "expr": "notifications_pending",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Pending",
-      "type": "stat"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 1
-      },
-      "id": 3,
-      "targets": [
-        {
-          "expr": "notifications_queued",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Queued",
-      "type": "stat"
     },
     {
       "collapsed": false,
@@ -199,8 +145,8 @@
       "id": 7,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(notification_channel_delivery_time_seconds_bucket[5m])) by (le, channel))",
+          "legendFormat": "{{channel}} p95",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -224,8 +170,8 @@
       "id": 8,
       "targets": [
         {
-          "expr": "rate(notification_channel_failures_total[5m])",
-          "legendFormat": "{{channel}}",
+          "expr": "sum by (channel, error) (rate(notification_channel_failures_total[5m]))",
+          "legendFormat": "{{channel}} {{error}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -255,7 +201,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 25
       },
@@ -269,31 +215,6 @@
         }
       ],
       "title": "Overall Delivery Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 25
-      },
-      "id": 10,
-      "targets": [
-        {
-          "expr": "rate(notification_status_changes_total[5m])",
-          "legendFormat": "Changes",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Status Changes",
       "type": "timeseries"
     },
     {
@@ -325,15 +246,9 @@
       "id": 11,
       "targets": [
         {
-          "expr": "rate(notifications_throttled_total[5m])",
-          "legendFormat": "Throttled",
+          "expr": "sum by (category) (rate(notifications_throttled_total[5m]))",
+          "legendFormat": "{{category}}",
           "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(notification_throttle_window_hits_total[5m])",
-          "legendFormat": "Window Hits",
-          "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],
@@ -356,15 +271,9 @@
       "id": 12,
       "targets": [
         {
-          "expr": "rate(notification_retries_total[5m])",
-          "legendFormat": "Retries",
+          "expr": "sum by (channel) (rate(notification_retries_total[5m]))",
+          "legendFormat": "{{channel}}",
           "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(notification_retry_success_rate_percent_bucket[5m])) by (le))",
-          "legendFormat": "Success Rate p50",
-          "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],
@@ -378,81 +287,6 @@
         "w": 24,
         "x": 0,
         "y": 42
-      },
-      "id": 104,
-      "panels": [],
-      "title": "Webhooks & Slack",
-      "type": "row"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 43
-      },
-      "id": 13,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(notification_webhook_delivery_time_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(notification_webhook_response_status_total[5m])",
-          "legendFormat": "{{status}}",
-          "refId": "B",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Webhook Delivery",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Victoria Metrics",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 43
-      },
-      "id": 14,
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(notification_slack_delivery_time_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "A",
-          "datasource": "Victoria Metrics"
-        },
-        {
-          "expr": "rate(notification_slack_api_errors_total[5m])",
-          "legendFormat": "Errors",
-          "refId": "B",
-          "datasource": "Victoria Metrics"
-        }
-      ],
-      "title": "Slack",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 51
       },
       "id": 105,
       "panels": [],
@@ -470,7 +304,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 43
       },
       "id": 15,
       "targets": [

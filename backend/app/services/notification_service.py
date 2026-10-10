@@ -302,6 +302,7 @@ class NotificationService:
                     max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
                 )
                 if throttled:
+                    self.metrics.record_notification_throttled("system")
                     return "throttled"
 
             await self.create_notification(
@@ -659,6 +660,7 @@ class NotificationService:
             return False
 
         start_time = asyncio.get_running_loop().time()
+        notification_type = notification.tags[0] if notification.tags else "unknown"
 
         @backoff.on_exception(
             backoff.expo,
@@ -666,13 +668,16 @@ class NotificationService:
             max_tries=notification.max_retries,
             max_value=30,
             jitter=None,
-            on_backoff=lambda details: self.logger.warning(
-                "Delivery attempt failed",
-                notification_id=str(notification.notification_id),
-                attempt=details["tries"],
-                max_attempts=notification.max_retries,
-                error=str(details["exception"]),
-            ),
+            on_backoff=[
+                lambda details: self.logger.warning(
+                    "Delivery attempt failed",
+                    notification_id=str(notification.notification_id),
+                    attempt=details["tries"],
+                    max_attempts=notification.max_retries,
+                    error=str(details["exception"]),
+                ),
+                lambda _: self.metrics.record_notification_retry(notification_type, notification.channel),
+            ],
         )
         async def _attempt() -> None:
             await handler(notification, subscription)
@@ -691,7 +696,6 @@ class NotificationService:
                 channel=notification.channel,
                 delivery_time_ms=int(delivery_time * 1000),
             )
-            notification_type = notification.tags[0] if notification.tags else "unknown"
             self.metrics.record_notification_sent(
                 notification_type, channel=notification.channel, severity=notification.severity
             )
@@ -710,8 +714,9 @@ class NotificationService:
                     retry_count=notification.max_retries,
                 ),
             )
-            notification_type = notification.tags[0] if notification.tags else "unknown"
-            self.metrics.record_notification_failed(notification_type, str(last_error), channel=notification.channel)
+            self.metrics.record_notification_failed(
+                notification_type, type(last_error).__name__, channel=notification.channel
+            )
             self.logger.error(
                 "All delivery attempts exhausted",
                 notification_id=str(notification.notification_id),

@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 
 import pytest
 from dishka import AsyncContainer
@@ -14,6 +15,13 @@ pytestmark = [pytest.mark.e2e, pytest.mark.xdist_group("system_settings")]
 @pytest.fixture()
 async def repo(scope: AsyncContainer) -> AdminSettingsRepository:
     return await scope.get(AdminSettingsRepository)
+
+
+@pytest.fixture(autouse=True)
+async def _drop_global_settings(repo: AdminSettingsRepository) -> AsyncIterator[None]:
+    # MongoDB is shared across xdist workers, so leave no test values behind; the next read reseeds TOML defaults
+    yield
+    await repo.reset_system_settings(user_id="test")
 
 
 @pytest.fixture()

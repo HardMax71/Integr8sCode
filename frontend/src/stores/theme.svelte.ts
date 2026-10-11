@@ -21,7 +21,9 @@ export const themeStore = {
 
 export function setTheme(theme: Theme): void {
     // mode-watcher's persisted setter reads its own state, which would make a calling effect loop
-    untrack(() => setMode(toMode[theme]));
+    untrack(() => {
+        setMode(toMode[theme]);
+    });
 }
 
 export function toggleTheme(): void {

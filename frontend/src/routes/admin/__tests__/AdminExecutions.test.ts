@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor, within } from '@testing-library/svelte';
 import {
     user,
     selectOption,
@@ -33,6 +33,8 @@ async function renderWithExecutions(executions = createMockExecutions(5), queueS
     return result;
 }
 
+const executionsTable = () => screen.getByRole('table', { name: 'Executions' });
+
 describe('AdminExecutions', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -64,7 +66,7 @@ describe('AdminExecutions', () => {
         it('displays execution data in table', async () => {
             const execs = [createMockExecution({ execution_id: 'exec-test-1', status: 'queued' })];
             await renderWithExecutions(execs);
-            expect(screen.getByText('exec-test-1')).toBeInTheDocument();
+            expect(within(executionsTable()).getByText('exec-test-1')).toBeInTheDocument();
         });
     });
 
@@ -166,13 +168,13 @@ describe('AdminExecutions', () => {
         it('shows language info', async () => {
             const execs = [createMockExecution({ lang: 'python', lang_version: '3.12' })];
             await renderWithExecutions(execs);
-            expect(screen.getByText('python 3.12')).toBeInTheDocument();
+            expect(within(executionsTable()).getByText('python 3.12')).toBeInTheDocument();
         });
 
         it('shows status badge', async () => {
             const execs = [createMockExecution({ status: 'running' })];
             await renderWithExecutions(execs);
-            expect(screen.getByText('running')).toBeInTheDocument();
+            expect(within(executionsTable()).getByText('running')).toBeInTheDocument();
         });
     });
 

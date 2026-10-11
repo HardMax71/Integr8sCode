@@ -14,7 +14,7 @@ A store builds its queries in class fields, and the options callback reads the s
 --8<-- "frontend/src/lib/admin/stores/sagasStore.svelte.ts:list"
 ```
 
-Every key is its own cache entry, so a slow response for an old filter can't overwrite a newer one. `keepPreviousData` keeps the last page on screen while the next one loads. `refetchInterval` is the polling: TanStack pauses it while the tab is hidden and stops it when the page unmounts. Filter setters send the store back to the first page, since the old page may not exist under the new filter.
+Every key is its own cache entry, so a slow response for an old filter can't overwrite a newer one. `keepPreviousData` keeps the last page on screen while the next one loads. `refetchInterval` is the polling: TanStack pauses it while the tab is hidden and stops it when the page unmounts. The page and its size are one TanStack Table `PaginationState` in the store, which the table component binds and the query turns into `skip` and `limit`; the table only renders the page the server sent. Filter setters send the store back to the first page, since the old page may not exist under the new filter.
 
 `isPending` is true until the first data arrives, and the tables show their spinner for it. `isFetching` is true during any request, polls included, and only drives the refresh buttons.
 

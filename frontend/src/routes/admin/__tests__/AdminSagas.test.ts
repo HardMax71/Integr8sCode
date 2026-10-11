@@ -77,7 +77,7 @@ describe('AdminSagas', () => {
         it('shows retry count when > 0', async () => {
             const sagas = [createMockSaga({ retry_count: 3 })];
             await renderWithSagas(sagas);
-            expect(screen.getByText('(3)', { exact: false })).toBeInTheDocument();
+            expect(screen.getAllByText('(Retry: 3)').length).toBeGreaterThan(0);
         });
     });
 

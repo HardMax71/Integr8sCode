@@ -1,119 +1,70 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { describe, it, expect } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/svelte';
 import { user, selectOption } from '#test/test-utils.ts';
-import Pagination from '#components/Pagination.svelte';
+import TableHarness from './TableHarness.svelte';
 
-const defaultProps = {
-    currentPage: 1,
-    totalPages: 5,
-    totalItems: 50,
-    pageSize: 10,
-    onPageChange: vi.fn(),
-};
+const things = (count: number) => Array.from({ length: count }, (_, i) => ({ id: `t${i}`, name: `thing ${i}` }));
 
-function renderPagination(overrides: Partial<typeof defaultProps> = {}) {
-    const props = { ...defaultProps, onPageChange: vi.fn(), ...overrides };
-    return { ...render(Pagination, { props }), onPageChange: props.onPageChange };
+function renderPage(rowCount: number, pageIndex = 0, pageSize = 10) {
+    render(TableHarness, {
+        props: { rows: things(Math.min(pageSize, rowCount)), rowCount, pagination: { pageIndex, pageSize } },
+    });
 }
 
+const state = () => screen.getByTestId('pagination').textContent;
+const button = (name: string) => screen.getByRole('button', { name });
+
 describe('Pagination', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
+    it.each([
+        { rowCount: 50, pageIndex: 0, expected: 'Showing 1 - 10 of 50 things' },
+        { rowCount: 50, pageIndex: 2, expected: 'Showing 21 - 30 of 50 things' },
+        { rowCount: 23, pageIndex: 2, expected: 'Showing 21 - 23 of 23 things' },
+    ])('shows "$expected"', ({ rowCount, pageIndex, expected }) => {
+        renderPage(rowCount, pageIndex);
+        expect(screen.getByText(expected)).toBeInTheDocument();
     });
 
-    describe('page info text', () => {
-        it.each([
-            { page: 1, totalPages: 5, totalItems: 50, pageSize: 10, expected: /Showing 1 - 10 of 50 items/ },
-            { page: 3, totalPages: 5, totalItems: 50, pageSize: 10, expected: /Showing 21 - 30 of 50 items/ },
-            { page: 3, totalPages: 3, totalItems: 23, pageSize: 10, expected: /Showing 21 - 23 of 23 items/ },
-        ])(
-            'shows "$expected" for page $page of $totalPages ($totalItems items)',
-            ({ page, totalPages, totalItems, pageSize, expected }) => {
-                renderPagination({ currentPage: page, totalPages, totalItems, pageSize });
-                expect(screen.getByText(expected)).toBeInTheDocument();
-            },
-        );
-
-        it('uses custom itemName', () => {
-            renderPagination({ itemName: 'events' } as Record<string, unknown>);
-            expect(screen.getByText(/of 50 events/)).toBeInTheDocument();
-        });
+    it('shows nothing when there are no rows', () => {
+        renderPage(0);
+        expect(screen.queryByText(/Showing/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('combobox', { name: 'Items per page' })).not.toBeInTheDocument();
     });
 
-    describe('navigation buttons', () => {
-        it.each([
-            { name: 'First page', expectedPage: 1 },
-            { name: 'Previous page', expectedPage: 2 },
-            { name: 'Next page', expectedPage: 4 },
-            { name: 'Last page', expectedPage: 5 },
-        ])('$name calls onPageChange($expectedPage)', async ({ name, expectedPage }) => {
-            const { onPageChange } = renderPagination({ currentPage: 3 });
-            await user.click(screen.getByRole('button', { name }));
-            expect(onPageChange).toHaveBeenCalledWith(expectedPage);
-        });
+    it('shows the page size but no page buttons for a single page', () => {
+        renderPage(7);
+        expect(screen.getByRole('combobox', { name: 'Items per page' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Next page' })).not.toBeInTheDocument();
     });
 
-    describe('disabled states', () => {
-        it.each([
-            { page: 1, disabled: ['First page', 'Previous page'] },
-            { page: 5, disabled: ['Next page', 'Last page'] },
-        ])('disables $disabled on page $page', ({ page, disabled }) => {
-            renderPagination({ currentPage: page });
-            for (const name of disabled) {
-                expect(screen.getByRole('button', { name })).toBeDisabled();
-            }
-        });
+    it('shows the page out of the page count', () => {
+        renderPage(25, 1);
+        expect(screen.getByText('2', { selector: '.pagination-text span' })).toBeInTheDocument();
+        expect(screen.getByText('3', { selector: '.pagination-text span' })).toBeInTheDocument();
     });
 
-    describe('page size selector', () => {
-        it('hidden when onPageSizeChange not provided', () => {
-            renderPagination();
-            expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-        });
-
-        it('renders select with default options when onPageSizeChange provided', () => {
-            renderPagination({ onPageSizeChange: vi.fn() } as Record<string, unknown>);
-            expect(screen.getByRole('combobox')).toBeInTheDocument();
-            expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
-                '10 / page',
-                '25 / page',
-                '50 / page',
-                '100 / page',
-            ]);
-        });
-
-        it('fires onPageSizeChange on select change', async () => {
-            const onPageSizeChange = vi.fn();
-            renderPagination({ onPageSizeChange } as Record<string, unknown>);
-            selectOption(screen.getByRole('combobox'), '25');
-            expect(onPageSizeChange).toHaveBeenCalled();
-        });
+    it.each([
+        { pageIndex: 0, disabled: ['First page', 'Previous page'], enabled: ['Next page', 'Last page'] },
+        { pageIndex: 2, disabled: ['Next page', 'Last page'], enabled: ['First page', 'Previous page'] },
+    ])('disables $disabled on page $pageIndex', ({ pageIndex, disabled, enabled }) => {
+        renderPage(25, pageIndex);
+        for (const name of disabled) expect(button(name)).toBeDisabled();
+        for (const name of enabled) expect(button(name)).toBeEnabled();
     });
 
-    describe('visibility', () => {
-        it('renders nothing when totalPages=1 and no onPageSizeChange', () => {
-            const { container } = renderPagination({ totalPages: 1, totalItems: 5, pageSize: 10 });
-            expect(container.querySelector('.pagination-container')).not.toBeInTheDocument();
-        });
+    it.each([
+        { start: 1, name: 'Next page', expected: '2/10' },
+        { start: 1, name: 'Previous page', expected: '0/10' },
+        { start: 1, name: 'Last page', expected: '2/10' },
+        { start: 2, name: 'First page', expected: '0/10' },
+    ])('$name from page $start writes pagination $expected', async ({ start, name, expected }) => {
+        renderPage(25, start);
+        await user.click(button(name));
+        expect(state()).toBe(expected);
+    });
 
-        it('still shows when totalPages=1 if onPageSizeChange present', () => {
-            const { container } = renderPagination({
-                totalPages: 1,
-                totalItems: 5,
-                pageSize: 10,
-                onPageSizeChange: vi.fn(),
-            } as Record<string, unknown>);
-            expect(container.querySelector('.pagination-container')).toBeInTheDocument();
-        });
-
-        it('hides nav buttons when totalPages=1', () => {
-            renderPagination({
-                totalPages: 1,
-                totalItems: 5,
-                pageSize: 10,
-                onPageSizeChange: vi.fn(),
-            } as Record<string, unknown>);
-            expect(screen.queryByRole('button', { name: 'First page' })).not.toBeInTheDocument();
-        });
+    it('keeps the top row in view when the page size changes', async () => {
+        renderPage(60, 3);
+        selectOption(screen.getByRole('combobox', { name: 'Items per page' }), '25');
+        await waitFor(() => expect(state()).toBe('1/25'));
     });
 });

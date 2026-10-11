@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor, within } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
@@ -52,6 +52,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 vi.mock('#stores/theme.svelte.ts', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
+
+const historyTable = () => within(screen.getByRole('table', { name: 'Settings history' }));
 
 describe('Settings', () => {
     beforeEach(() => {
@@ -243,10 +245,10 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: /view history/i }));
             await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+                expect(historyTable().getByRole('button', { name: 'Restore' })).toBeInTheDocument();
             });
 
-            await user.click(screen.getByRole('button', { name: 'Restore' }));
+            await user.click(historyTable().getByRole('button', { name: 'Restore' }));
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('Settings restored successfully');
             });
@@ -272,10 +274,10 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: /view history/i }));
             await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+                expect(historyTable().getByRole('button', { name: 'Restore' })).toBeInTheDocument();
             });
 
-            await user.click(screen.getByRole('button', { name: 'Restore' }));
+            await user.click(historyTable().getByRole('button', { name: 'Restore' }));
             expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).not.toHaveBeenCalled();
         });
     });

@@ -43,7 +43,7 @@ describe('ExecutionsStore', () => {
             expect(store.statusFilter).toBe('all');
             expect(store.priorityFilter).toBe('all');
             expect(store.userSearch).toBe('');
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
         });
     });
 
@@ -83,7 +83,7 @@ describe('ExecutionsStore', () => {
             store.statusFilter = 'running';
             store.priorityFilter = 'high';
             store.userSearch = 'user-42';
-            store.currentPage = 2;
+            store.pagination = { pageIndex: 1, pageSize: 20 };
 
             await vi.waitFor(() =>
                 expect(lastQuery()).toEqual({
@@ -98,17 +98,17 @@ describe('ExecutionsStore', () => {
 
         it('goes back to the first page when a filter changes', () => {
             const { value: store } = createStore();
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 20 };
             store.statusFilter = 'failed';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
 
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 20 };
             store.priorityFilter = 'low';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
 
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 20 };
             store.userSearch = 'u';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
         });
     });
 

@@ -1,5 +1,4 @@
 <script lang="ts">
-    import Pagination from '#components/Pagination.svelte';
     import { AutoRefreshControl } from '#components/admin/index.ts';
     import { SagaStatsCards, SagaFilters, SagasTable, SagaDetailsModal } from '#components/admin/sagas/index.ts';
     import { createSagasStore } from '#lib/admin/stores/sagasStore.svelte.ts';
@@ -38,24 +37,12 @@
 
     <SagasTable
         sagas={store.sagas}
+        rowCount={store.totalItems}
+        bind:pagination={store.pagination}
         loading={store.list.isPending}
         onViewDetails={(id) => store.openDetails(id)}
         onViewExecution={showExecution}
     />
-
-    {#if store.totalItems > 0}
-        <div class="p-4 border-t divider">
-            <Pagination
-                currentPage={store.currentPage}
-                totalPages={store.totalPages}
-                totalItems={store.totalItems}
-                bind:pageSize={store.pageSize}
-                onPageChange={(page) => (store.currentPage = page)}
-                onPageSizeChange={() => (store.currentPage = 1)}
-                itemName="sagas"
-            />
-        </div>
-    {/if}
 </div>
 
 {#if store.selectedSaga}

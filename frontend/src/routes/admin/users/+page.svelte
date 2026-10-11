@@ -22,7 +22,6 @@
     import { firstIssue } from '#lib/validation.ts';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
-    import Pagination from '#components/Pagination.svelte';
     import { Plus, RefreshCw } from '@lucide/svelte';
     import {
         UserFilters,
@@ -73,11 +72,11 @@
         globalMultiplier: 'all',
     });
 
-    // Pagination; a new filter or page size goes back to the first page, since the old one may not exist
+    // Pagination; a new filter goes back to the first page, since the old one may not exist under it
     let pageSize = $state(10);
-    let currentPage = $derived.by(() => {
-        void [searchQuery, roleFilter, statusFilter, pageSize, { ...advancedFilters }];
-        return 1;
+    let pageIndex = $derived.by(() => {
+        void [searchQuery, roleFilter, statusFilter, { ...advancedFilters }];
+        return 0;
     });
 
     const queryClient = useQueryClient();
@@ -95,7 +94,7 @@
                 custom_multiplier:
                     advancedFilters.globalMultiplier === 'all' ? null : advancedFilters.globalMultiplier === 'custom',
                 limit: pageSize,
-                offset: (currentPage - 1) * pageSize,
+                offset: pageIndex * pageSize,
             },
         }),
         placeholderData: keepPreviousData,
@@ -171,7 +170,6 @@
             }),
     }));
 
-    let totalPages = $derived(Math.ceil(totalUsers / pageSize));
     let hasFiltersActive = $derived(
         searchQuery !== '' ||
             roleFilter !== 'all' ||
@@ -302,26 +300,19 @@
 
             <UsersTable
                 {users}
+                rowCount={totalUsers}
+                bind:pagination={
+                    () => ({ pageIndex, pageSize }),
+                    (next) => {
+                        pageSize = next.pageSize;
+                        pageIndex = next.pageIndex;
+                    }
+                }
                 loading={usersQuery.isPending}
                 onEdit={openEditUserModal}
                 onRateLimits={openRateLimitModal}
                 onDelete={handleDelete}
             />
-
-            {#if totalUsers > 0}
-                <div class="mt-4 border-t divider pt-4">
-                    <Pagination
-                        {currentPage}
-                        {totalPages}
-                        totalItems={totalUsers}
-                        bind:pageSize
-                        onPageChange={(page) => (currentPage = page)}
-                        onPageSizeChange={() => {}}
-                        pageSizeOptions={[5, 10, 20, 50]}
-                        itemName="users"
-                    />
-                </div>
-            {/if}
         </div>
     </div>
 </div>

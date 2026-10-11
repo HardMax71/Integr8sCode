@@ -114,7 +114,7 @@ describe('EventsStore', () => {
 
         it('sends the page as skip and limit', async () => {
             createStore();
-            store.currentPage = 2;
+            store.pagination = { pageIndex: 1, pageSize: 10 };
 
             await vi.waitFor(() => expect(lastBrowseBody()).toMatchObject({ skip: 10, limit: 10 }));
         });
@@ -122,7 +122,7 @@ describe('EventsStore', () => {
         it('sends the filters only once they are applied', async () => {
             createStore();
             await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
-            store.currentPage = 2;
+            store.pagination = { pageIndex: 1, pageSize: 10 };
             await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(2));
 
             store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') };
@@ -131,7 +131,7 @@ describe('EventsStore', () => {
 
             store.applyFilters();
 
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
             await vi.waitFor(() =>
                 expect(lastBrowseBody()).toEqual({
                     filters: { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') },
@@ -382,13 +382,13 @@ describe('EventsStore', () => {
             createStore();
             store.filters = { user_id: 'test' };
             store.applyFilters();
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 10 };
 
             store.clearFilters();
 
             expect(store.filters).toEqual({});
             expect(store.appliedFilters).toEqual({});
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
         });
     });
 

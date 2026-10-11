@@ -1,24 +1,13 @@
 <script lang="ts">
     import { ExecutionStatus, QueuePriority } from '#lib/api/index.ts';
     import Spinner from '#components/Spinner.svelte';
-    import Pagination from '#components/Pagination.svelte';
+    import { ExecutionsTable } from '#components/admin/executions/index.ts';
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '#lib/admin/constants.ts';
     import { createExecutionsStore } from '#lib/admin/stores/executionsStore.svelte.ts';
-    import { formatEnumLabel, formatTimestamp, truncate } from '#lib/formatters.ts';
+    import { formatEnumLabel } from '#lib/formatters.ts';
 
     const store = createExecutionsStore();
-
-    const statusColors: Record<ExecutionStatus, string> = {
-        queued: 'badge-info',
-        scheduled: 'badge-info',
-        running: 'badge-warning',
-        completed: 'badge-success',
-        failed: 'badge-danger',
-        timeout: 'badge-danger',
-        cancelled: 'badge-neutral',
-        error: 'badge-danger',
-    };
 
     const priorityOptions = Object.values(QueuePriority);
 
@@ -116,77 +105,14 @@
                 Executions ({store.total})
             </h3>
 
-            {#if store.list.isPending}
-                <div class="flex justify-center py-8"><Spinner size="large" /></div>
-            {:else if store.executions.length === 0}
-                <p class="empty-state">No executions found</p>
-            {:else}
-                <div class="table-container">
-                    <table class="table text-sm">
-                        <thead class="table-header">
-                            <tr>
-                                <th scope="col" class="table-header-cell-sm">ID</th>
-                                <th scope="col" class="table-header-cell-sm">User</th>
-                                <th scope="col" class="table-header-cell-sm">Language</th>
-                                <th scope="col" class="table-header-cell-sm">Status</th>
-                                <th scope="col" class="table-header-cell-sm">Priority</th>
-                                <th scope="col" class="table-header-cell-sm">Created</th>
-                            </tr>
-                        </thead>
-                        <tbody class="table-body">
-                            {#each store.executions as exec}
-                                <tr class="table-row">
-                                    <td class="table-cell-sm font-mono text-xs">{truncate(exec.execution_id, 12)}</td>
-                                    <td class="table-cell-sm text-xs"
-                                        >{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td
-                                    >
-                                    <td class="table-cell-sm">{exec.lang} {exec.lang_version}</td>
-                                    <td class="table-cell-sm">
-                                        <span class="badge {statusColors[exec.status] || 'badge-neutral'}"
-                                            >{exec.status}</span
-                                        >
-                                    </td>
-                                    <td class="table-cell-sm">
-                                        <select
-                                            value={exec.priority}
-                                            onchange={(e) =>
-                                                store.updatePriority.mutate({
-                                                    path: { execution_id: exec.execution_id },
-                                                    body: {
-                                                        priority: (e.target as HTMLSelectElement)
-                                                            .value as QueuePriority,
-                                                    },
-                                                })}
-                                            class="form-select-standard text-xs py-1 px-2"
-                                            aria-label="Priority for {exec.execution_id}"
-                                        >
-                                            {#each priorityOptions as p}
-                                                <option value={p}>{p}</option>
-                                            {/each}
-                                        </select>
-                                    </td>
-                                    <td class="table-cell-sm text-xs">{formatTimestamp(exec.created_at)}</td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                </div>
-            {/if}
-
-            {#if store.totalPages > 1}
-                <div class="mt-4 border-t divider pt-4">
-                    <Pagination
-                        currentPage={store.currentPage}
-                        totalPages={store.totalPages}
-                        totalItems={store.total}
-                        bind:pageSize={store.pageSize}
-                        onPageChange={(page) => (store.currentPage = page)}
-                        onPageSizeChange={() => (store.currentPage = 1)}
-                        pageSizeOptions={[10, 20, 50, 100]}
-                        itemName="executions"
-                    />
-                </div>
-            {/if}
+            <ExecutionsTable
+                executions={store.executions}
+                rowCount={store.total}
+                bind:pagination={store.pagination}
+                loading={store.list.isPending}
+                onPriorityChange={(executionId, priority) =>
+                    store.updatePriority.mutate({ path: { execution_id: executionId }, body: { priority } })}
+            />
         </div>
     </div>
 </div>

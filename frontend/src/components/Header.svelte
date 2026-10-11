@@ -9,6 +9,7 @@
     import { authStore } from '#stores/auth.svelte.ts';
     import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
     import { fade } from 'svelte/transition';
+    import { MediaQuery } from 'svelte/reactivity';
     import NotificationCenter from '#components/NotificationCenter.svelte';
     import { DropdownMenu } from 'bits-ui';
     import {
@@ -26,8 +27,7 @@
     } from '@lucide/svelte';
 
     let isMenuActive = $state(false);
-    let innerWidth = $state(0);
-    let isMobile = $derived(innerWidth < 1024);
+    const desktop = new MediaQuery('min-width: 1024px');
     let logoImgClass = 'h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110';
 
     function toggleMenu() {
@@ -66,7 +66,7 @@
     }
 
     $effect(() => {
-        if (!isMobile && isMenuActive) {
+        if (desktop.current && isMenuActive) {
             isMenuActive = false;
         }
     });
@@ -86,8 +86,6 @@
         return `${base} ${isActive ? active : inactive}`;
     };
 </script>
-
-<svelte:window bind:innerWidth />
 
 <header
     class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-xs z-50 transition-colors duration-300 h-16"

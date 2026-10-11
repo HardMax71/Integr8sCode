@@ -644,7 +644,7 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "percentunit"
         }
       },
       "gridPos": {
@@ -656,7 +656,7 @@
       "id": 40,
       "targets": [
         {
-          "expr": "rate(mongodb_global_lock_time_milliseconds_total[5m]) or vector(0)",
+          "expr": "rate(mongodb_global_lock_time_milliseconds_total[5m]) / 1000 or vector(0)",
           "legendFormat": "Global Lock Time",
           "refId": "A",
           "datasource": "Victoria Metrics"

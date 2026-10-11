@@ -354,7 +354,7 @@
     },
     {
       "datasource": "Victoria Metrics",
-      "description": "P95 queue wait time for all executions",
+      "description": "p95 and p50 time for the API to persist an execution and publish its request",
       "fieldConfig": {
         "defaults": {
           "color": {

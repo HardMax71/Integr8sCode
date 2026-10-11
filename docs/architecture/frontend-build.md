@@ -24,7 +24,9 @@ SvelteKit 3 reads its configuration from the `sveltekit()` plugin in `vite.confi
 --8<-- "frontend/vite.config.ts:csp"
 ```
 
-A per-request nonce would need a server, and SvelteKit forbids nonces on prerendered pages, so it writes the policy into `200.html` as a `<meta http-equiv="content-security-policy">` tag with a sha256 hash of its one inline bootstrap script. A meta CSP can't carry `frame-ancestors`, so nginx sends that one as a header. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime; CodeMirror's own styles go through constructed stylesheets, which `style-src` doesn't govern.
+SvelteKit forbids its own nonces on prerendered pages, so it writes the policy into `200.html` as a `<meta http-equiv="content-security-policy">` tag with a sha256 hash of its one inline bootstrap script. A meta CSP can't carry `frame-ancestors`, so nginx sends that one as a header. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime.
+
+CodeMirror injects its theme as a `<style>` tag in the document head, so `style-src-elem` has to let that one tag through. It carries a `nonce-**CSP_NONCE**` source, and `app.html` has a `<meta name="csp-nonce" content="**CSP_NONCE**">` tag. nginx replaces the placeholder in both with `$request_id` on every response, and the editor hands the value to CodeMirror through `EditorView.cspNonce`. Without it the browser drops the editor's styles: no gutter, no highlighting. A Playwright test in `e2e/editor.spec.ts` checks the gutter's layout and fails on any CSP violation.
 
 Imports use package.json subpath imports instead of the `$lib` alias that SvelteKit 3 dropped: `#lib/*`, `#components/*`, `#stores/*`, `#routes/*` and `#test/*`, each with an explicit file extension, such as `#stores/auth.svelte.ts` or `#lib/api/index.ts`. Vite and TypeScript resolve them natively. `tsconfig.json` extends `$app/tsconfig`, which `svelte-kit sync` writes into `node_modules`; `npm run check` and `npm run lint` run the sync first, and `npm install` runs it through `prepare`.
 

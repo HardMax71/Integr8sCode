@@ -14,6 +14,16 @@ test.describe('Editor Page', () => {
     await expect(userPage.getByRole('button', { name: /Run Script/i })).toBeVisible();
   });
 
+  test('loads CodeMirror styles under the CSP', async ({ userPage }) => {
+    const violations: string[] = [];
+    userPage.on('console', (m) => {
+      if (m.text().includes('Content Security Policy')) violations.push(m.text());
+    });
+    await userPage.goto(PATH);
+    await expect(userPage.locator('.cm-gutters')).toHaveCSS('display', 'flex');
+    expect(violations).toEqual([]);
+  });
+
   test('shows language selector with available languages', async ({ userPage }) => {
     await userPage.goto(PATH);
     const languageButton = userPage.getByRole('button', { name: 'Select language and version' });

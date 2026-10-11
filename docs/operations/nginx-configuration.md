@@ -30,6 +30,12 @@ There are six headers: CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `
 
 The page's real CSP isn't here. SvelteKit writes it into `200.html` as a `<meta>` tag with a hash of its inline bootstrap script, from the `csp` option in `vite.config.ts`; [Frontend build](../architecture/frontend-build.md#configuration) has the policy. A meta CSP can't carry `frame-ancestors`, so nginx sends just that directive as a header. The browser enforces both.
 
+```nginx
+--8<-- "frontend/nginx.conf.template:nonce_injection"
+```
+
+The meta CSP allows one nonce for `<style>` tags, the one CodeMirror puts on its theme. `200.html` ships with a `**CSP_NONCE**` placeholder in the policy and in a `csp-nonce` meta tag, and `sub_filter` swaps in `$request_id`, so every response gets a fresh value. HTML is served with `expires -1`, so a cached page never reuses an old nonce.
+
 No `location` block uses `add_header`. That's on purpose: one `add_header` inside a location drops every `add_header` inherited from the `server` block, so the security headers would disappear from that location. If a location ever needs its own response header, it has to repeat all six. `proxy_set_header` has the same all-or-nothing inheritance, which is why the SSE location repeats the proxy headers of `/api/`.
 
 ### Compression

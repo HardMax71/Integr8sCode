@@ -26,14 +26,14 @@ export default defineConfig(({ command }) => ({
         sveltekit({
             adapter: adapter({ fallback: '200.html' }),
             // --8<-- [start:csp]
-            // Prerendered shells can't carry a per-request nonce, so Kit hashes its inline scripts into a meta CSP;
-            // nginx adds frame-ancestors, which a meta CSP can't express
+            // Kit hashes its inline script into a meta CSP; nginx adds frame-ancestors, which a meta CSP can't express
             csp: {
                 mode: 'hash',
                 directives: {
                     'default-src': ['self'],
                     'script-src': ['self'],
-                    'style-src-elem': ['self', 'https://fonts.googleapis.com'],
+                    // nginx swaps in a per-response nonce, which CodeMirror puts on the <style> tag it injects
+                    'style-src-elem': ['self', 'nonce-**CSP_NONCE**', 'https://fonts.googleapis.com'],
                     'style-src-attr': ['unsafe-inline'],
                     'img-src': ['self', 'data:', 'blob:'],
                     'font-src': ['self', 'data:', 'https://fonts.gstatic.com'],

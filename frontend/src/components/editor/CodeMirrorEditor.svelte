@@ -36,6 +36,7 @@
 
     function getStaticExtensions() {
         return [
+            EditorView.cspNonce.of(document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ?? ''),
             lineNumbersCompartment.of(settings.show_line_numbers ? lineNumbers() : []),
             highlightActiveLineGutter(),
             highlightActiveLine(),

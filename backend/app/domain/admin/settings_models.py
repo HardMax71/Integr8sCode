@@ -28,6 +28,7 @@ class SystemSettings:
     memory_limit: str = "512Mi"
     cpu_limit: str = "2000m"
     max_concurrent_executions: int = 10
+    max_executions_per_user: int = 100
 
     password_min_length: int = 8
     session_timeout_minutes: int = 60

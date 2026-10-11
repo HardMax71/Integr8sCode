@@ -86,6 +86,7 @@ class DomainExecutionCreate:
 
     script: str
     user_id: str
+    execution_id: str = field(default_factory=lambda: str(uuid4()))
     lang: str = DEFAULT_LANG
     lang_version: str = DEFAULT_LANG_VERSION
     status: ExecutionStatus = ExecutionStatus.QUEUED

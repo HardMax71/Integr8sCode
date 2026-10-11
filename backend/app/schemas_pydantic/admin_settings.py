@@ -17,6 +17,7 @@ class SystemSettingsSchema(BaseModel):
     memory_limit: str = "512Mi"
     cpu_limit: str = "2000m"
     max_concurrent_executions: int = Field(default=10, ge=1, le=100)
+    max_executions_per_user: int = Field(default=100, ge=1, le=1000)
 
     password_min_length: int = Field(default=8, ge=8, le=32)
     session_timeout_minutes: int = Field(default=60, ge=5, le=1440)

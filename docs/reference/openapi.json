@@ -247,6 +247,26 @@
               }
             }
           },
+          "409": {
+            "description": "Idempotency-Key reused while in flight or after a failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited, or too many executions queued or running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Script execution failed",
             "content": {
@@ -478,6 +498,16 @@
           },
           "422": {
             "description": "The execution's language version is no longer offered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many executions queued or running",
             "content": {
               "application/json": {
                 "schema": {
@@ -12394,6 +12424,13 @@
             "title": "Max Concurrent Executions",
             "default": 10
           },
+          "max_executions_per_user": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Executions Per User",
+            "default": 100
+          },
           "password_min_length": {
             "type": "integer",
             "maximum": 32.0,
@@ -12476,6 +12513,13 @@
             "title": "Max Concurrent Executions",
             "default": 10
           },
+          "max_executions_per_user": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Executions Per User",
+            "default": 100
+          },
           "password_min_length": {
             "type": "integer",
             "maximum": 32.0,
@@ -12534,6 +12578,7 @@
           "memory_limit",
           "cpu_limit",
           "max_concurrent_executions",
+          "max_executions_per_user",
           "password_min_length",
           "session_timeout_minutes",
           "max_login_attempts",

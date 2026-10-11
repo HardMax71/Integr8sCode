@@ -7,11 +7,13 @@ import structlog
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.services.execution_queue import (
-    _ACTIVE_KEY,
     _PENDING_KEYS,
+    _RUNNING_KEY,
     PRIORITY_ORDER,
     ExecutionQueueService,
+    _owner_key,
     _pending_key,
+    _user_key,
 )
 from app.settings import Settings
 from tests.conftest import make_execution_requested_event
@@ -61,7 +63,7 @@ async def test_enqueue(queue_service: ExecutionQueueService, mock_redis: AsyncMo
 
 @pytest.mark.asyncio
 async def test_try_schedule_empty(queue_service: ExecutionQueueService) -> None:
-    result = await queue_service.try_schedule(5)
+    result = await queue_service.try_schedule(5, 600)
     assert result is None
 
 
@@ -76,7 +78,7 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
 
     queue_service._schedule_script = None
 
-    result = await queue_service.try_schedule(5)
+    result = await queue_service.try_schedule(5, 600)
     assert result is not None
     exec_id, returned_event = result
     assert exec_id == "e1"
@@ -84,22 +86,25 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
 
     script.assert_called_once()
     keys = script.call_args.kwargs["keys"]
-    assert keys[0] == _ACTIVE_KEY
+    assert keys[0] == _RUNNING_KEY
     assert len(keys) == 1 + len(PRIORITY_ORDER)
+    max_active, now, deadline = script.call_args.kwargs["args"]
+    assert max_active == 5
+    assert deadline - now == 600
 
 
 @pytest.mark.asyncio
 async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
-    """When the event JSON has expired from Redis, try_schedule cleans the active set and returns None."""
+    """When the event JSON has expired from Redis, try_schedule frees the running slot and returns None."""
     script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
     mock_redis.register_script = MagicMock(return_value=script)
     mock_redis.get = AsyncMock(return_value=None)
     queue_service._schedule_script = None
 
-    result = await queue_service.try_schedule(5)
+    result = await queue_service.try_schedule(5, 600)
 
     assert result is None
-    mock_redis.srem.assert_awaited_once_with(_ACTIVE_KEY, "e-gone")
+    mock_redis.zrem.assert_awaited_once_with(_RUNNING_KEY, "e-gone")
 
 
 @pytest.mark.asyncio
@@ -203,3 +208,43 @@ async def test_increment_retry_count(queue_service: ExecutionQueueService, mock_
     assert count == 1
     mock_redis.incr.assert_awaited_once_with("exec_queue:retries:e1")
     mock_redis.expire.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("script_result", "expected"), [(1, True), (0, False)])
+async def test_reserve_user_slot(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock, script_result: int, expected: bool
+) -> None:
+    script = AsyncMock(return_value=script_result)
+    mock_redis.register_script = MagicMock(return_value=script)
+
+    assert await queue_service.reserve_user_slot("u1", "e1", 3) is expected
+
+    assert script.call_args.kwargs["keys"] == [_user_key("u1"), _owner_key("e1")]
+    _, limit, ttl, exec_id, user_id = script.call_args.kwargs["args"]
+    assert (limit, exec_id, user_id) == (3, "e1", "u1")
+    assert ttl == 86400
+
+
+@pytest.mark.asyncio
+async def test_release_user_slot_removes_the_owners_entry(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock
+) -> None:
+    mock_redis.get = AsyncMock(return_value=b"u1")
+
+    await queue_service.release_user_slot("e1")
+
+    pipe = mock_redis.pipeline.return_value
+    pipe.zrem.assert_called_once_with(_user_key("u1"), "e1")
+    pipe.delete.assert_called_once_with(_owner_key("e1"))
+
+
+@pytest.mark.asyncio
+async def test_release_user_slot_without_an_owner_is_a_no_op(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock
+) -> None:
+    mock_redis.get = AsyncMock(return_value=None)
+
+    await queue_service.release_user_slot("e1")
+
+    mock_redis.pipeline.assert_not_called()

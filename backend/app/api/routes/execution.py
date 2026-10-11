@@ -43,7 +43,11 @@ async def get_execution_with_access(
 @router.post(
     "/execute",
     response_model=ExecutionResponse,
-    responses={500: {"model": ErrorResponse, "description": "Script execution failed"}},
+    responses={
+        409: {"model": ErrorResponse, "description": "Idempotency-Key reused while in flight or after a failure"},
+        429: {"model": ErrorResponse, "description": "Rate limited, or too many executions queued or running"},
+        500: {"model": ErrorResponse, "description": "Script execution failed"},
+    },
 )
 async def create_execution(
     request: Request,
@@ -123,6 +127,7 @@ async def cancel_execution(
         403: {"model": ErrorResponse, "description": "Not the owner of this execution"},
         404: {"model": ErrorResponse, "description": "Execution not found"},
         422: {"model": ErrorResponse, "description": "The execution's language version is no longer offered"},
+        429: {"model": ErrorResponse, "description": "Too many executions queued or running"},
     },
 )
 async def retry_execution(

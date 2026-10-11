@@ -569,6 +569,7 @@ class BusinessServicesProvider(Provider):
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
+        queue_service: ExecutionQueueService,
     ) -> ExecutionService:
         return ExecutionService(
             execution_repo=execution_repository,
@@ -578,6 +579,7 @@ class BusinessServicesProvider(Provider):
             execution_metrics=execution_metrics,
             idempotency_manager=idempotency_manager,
             runtime_settings=runtime_settings,
+            queue=queue_service,
         )
 
     @provide

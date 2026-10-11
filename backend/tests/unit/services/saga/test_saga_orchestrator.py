@@ -119,6 +119,8 @@ class _FakeQueue(ExecutionQueueService):
         self.enqueued: list[ExecutionRequestedEvent] = []
         self._pending: list[tuple[str, ExecutionRequestedEvent]] = []
         self.released: list[str] = []
+        self.released_user_slots: list[str] = []
+        self.slot_seconds: list[int] = []
         self._retry_counts: dict[str, int] = {}
 
     async def enqueue(self, event: ExecutionRequestedEvent) -> int:
@@ -126,13 +128,17 @@ class _FakeQueue(ExecutionQueueService):
         self._pending.append((event.execution_id, event))
         return len(self._pending) - 1
 
-    async def try_schedule(self, max_active: int) -> tuple[str, ExecutionRequestedEvent] | None:
+    async def try_schedule(self, max_active: int, slot_seconds: int) -> tuple[str, ExecutionRequestedEvent] | None:
+        self.slot_seconds.append(slot_seconds)
         if not self._pending:
             return None
         return self._pending.pop(0)
 
     async def release(self, execution_id: str) -> None:
         self.released.append(execution_id)
+
+    async def release_user_slot(self, execution_id: str) -> None:
+        self.released_user_slots.append(execution_id)
 
     async def remove(self, execution_id: str) -> bool:
         self._pending = [(eid, ev) for eid, ev in self._pending if eid != execution_id]
@@ -245,8 +251,9 @@ async def test_resolve_completion_releases_queue() -> None:
     )
     await orch.handle_execution_completed(completed_event)
 
-    # Execution should be released from queue
+    # Execution should be released from queue, and its user slot with it
     assert "e1" in fake_queue.released
+    assert "e1" in fake_queue.released_user_slots
 
 
 @pytest.mark.asyncio
@@ -396,9 +403,10 @@ async def test_retry_count_increments_across_failures() -> None:
     event = make_execution_requested_event(execution_id="e1")
     await orch.handle_execution_requested(event)
 
-    # First failure: retry count = 1, event re-enqueued
+    # First failure: retry count = 1, event re-enqueued, and the user's slot stays reserved
     assert fake_queue._retry_counts["e1"] == 1
     assert len(fake_queue.enqueued) == 2  # initial + re-enqueue
+    assert fake_queue.released_user_slots == []
 
     # Trigger second attempt (fake queue has the re-enqueued event)
     await orch.try_schedule_from_queue()
@@ -408,8 +416,20 @@ async def test_retry_count_increments_across_failures() -> None:
     # Trigger third attempt — should exceed max retries (3 >= 3)
     await orch.try_schedule_from_queue()
     assert fake_queue._retry_counts["e1"] == 3
-    # No more re-enqueues after max retries
+    # No more re-enqueues after max retries, and giving up frees the user's slot
     assert len(fake_queue.enqueued) == 3
+    assert fake_queue.released_user_slots == ["e1"]
+
+
+@pytest.mark.asyncio
+async def test_running_slot_outlives_the_longest_pod_deadline() -> None:
+    fake_queue = _FakeQueue()
+    orch = _orch(queue=fake_queue)
+
+    await orch.try_schedule_from_queue()
+
+    # admin timeout 30 s, Go's minimum 30 s, plus the grace period
+    assert fake_queue.slot_seconds == [330]
 
 
 @pytest.mark.asyncio

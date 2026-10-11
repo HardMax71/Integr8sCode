@@ -138,6 +138,21 @@
                                         max="100"
                                     />
                                 </div>
+                                <div>
+                                    <label
+                                        for="max-per-user"
+                                        class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                                        >Max Executions per User</label
+                                    >
+                                    <input
+                                        id="max-per-user"
+                                        type="number"
+                                        bind:value={settings.max_executions_per_user}
+                                        class="form-input-standard"
+                                        min="1"
+                                        max="1000"
+                                    />
+                                </div>
                             </div>
                         </div>
 

@@ -58,7 +58,7 @@ Then it wraps `receive` and counts bytes as they stream in, which catches chunke
 
 ## CSRF
 
-`CSRFMiddleware` enforces the double-submit check on state-changing `/api/` requests from logged-in browsers. It gets `SecurityService` from the Dishka container and answers 403 with `{"detail": "CSRF validation failed"}` on failure. The rules and exemptions are on the [Authentication](authentication.md#csrf) page.
+`CSRFMiddleware` enforces the double-submit check on state-changing `/api/` requests from logged-in browsers. It gets `SecurityService` from the Dishka container and answers 403 with `{"detail": "CSRF validation failed", "type": "CSRFValidationError"}` on failure. The rules and exemptions are on the [Authentication](authentication.md#csrf) page.
 
 ## Rate limit
 

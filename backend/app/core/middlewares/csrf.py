@@ -50,6 +50,6 @@ class CSRFMiddleware:
             )
             response = JSONResponse(
                 status_code=403,
-                content={"detail": "CSRF validation failed"},
+                content={"detail": "CSRF validation failed", "type": type(e).__name__},
             )
             await response(scope, receive, send)

@@ -227,4 +227,4 @@ class TestAuthLogout:
         response = await test_user.post("/api/v1/auth/logout")
 
         assert response.status_code == 403
-        assert response.json() == {"detail": "CSRF validation failed"}
+        assert response.json() == {"detail": "CSRF validation failed", "type": "CSRFValidationError"}

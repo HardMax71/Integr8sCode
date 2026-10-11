@@ -29,7 +29,8 @@ Fixes #
 
 - [ ] Backend unit tests pass (`cd backend && uv run pytest tests/unit`)
 - [ ] Frontend unit tests pass (`cd frontend && npm run test`)
-- [ ] E2E tests pass (`cd frontend && npm run test:e2e`)
+- [ ] Backend E2E tests pass (`docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e'`)
+- [ ] Frontend E2E tests pass (`cd frontend && npm run test:e2e`)
 - [ ] Manual testing performed
 
 **Manual test steps:**

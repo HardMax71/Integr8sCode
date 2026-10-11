@@ -75,7 +75,7 @@ The queue itself lives in Redis, so after a saga-orchestrator restart `queue_dep
 
 | Metric | Type | Labels | Recorded in |
 |--------|------|--------|-------------|
-| `events_published_total` | counter | event_type, event_category | `KafkaEventService.publish_event`: pod lifecycle events in pod-monitor, notification and user settings events in backend |
+| `events_published_total` | counter | event_type, event_category | `UnifiedProducer.produce`, after the event is stored and published, in every process that publishes |
 | `event_processing_duration_seconds` | histogram | event_type | the same call: persisting the event and publishing it |
 | `event_processing_errors_total` | counter | topic, event_type, consumer_group, error_type | `_track_consumed` in `app/events/handlers.py`, in every consumer: backend (notifications), k8s-worker, result-processor, saga-orchestrator |
 | `idempotency_cache_hits_total` | counter | event_type, operation | `IdempotencyManager.check_and_reserve` |
@@ -85,7 +85,7 @@ The queue itself lives in Redis, so after a saga-orchestrator restart `queue_dep
 | `idempotency_processing_duration_seconds` | histogram | event_type, status | `IdempotencyManager`: reserving the key to marking it completed or failed |
 | `idempotency_keys_active` | gauge, observed at export | none | `IdempotencyMetrics` scans `idempotency:*` in Redis |
 
-Other publishers call the producer directly, so `events_published_total` is a subset. Every Kafka publish shows up in `messaging_publish_messages_message_total`. `event_category` equals `event_type` for the current event names, and `topic` on the error counter holds the event type. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the k8s-worker, result-processor and saga-orchestrator consumers.
+Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. `event_category` equals `event_type` for the current event names, and `topic` on the error counter holds the event type. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the k8s-worker, result-processor and saga-orchestrator consumers.
 
 ### Server-sent events (backend)
 

@@ -38,7 +38,7 @@ def main() -> None:
         # Create DI container
         container = create_pod_monitor_container(settings)
 
-        # Get broker from DI (PodMonitor publishes events via KafkaEventService)
+        # Get broker from DI (PodMonitor publishes events through UnifiedProducer)
         broker: KafkaBroker = await container.get(KafkaBroker)
 
         # Set up DI integration (no subscribers for pod monitor - it only publishes)

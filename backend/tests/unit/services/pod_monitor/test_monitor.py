@@ -18,10 +18,8 @@ from app.domain.events import (
     ResourceUsageDomain,
 )
 from app.events.core import UnifiedProducer
-from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor import PodEventMapper, PodMonitor, PodMonitorConfig, WatchEventType
 from app.services.pod_monitor.monitor import PodEvent
-from app.settings import Settings
 from tests.unit.conftest import (
     MockWatchStream,
     make_mock_v1_api,
@@ -51,20 +49,6 @@ class FakeUnifiedProducer(UnifiedProducer):
         pass
 
 
-def create_test_kafka_event_service(event_metrics: EventMetrics) -> tuple[KafkaEventService, FakeUnifiedProducer]:
-    """Create real KafkaEventService with fake dependencies for testing."""
-    fake_producer = FakeUnifiedProducer()
-    settings = Settings(config_path="config.test.toml")
-
-    service = KafkaEventService(
-        kafka_producer=fake_producer,
-        settings=settings,
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-    return service, fake_producer
-
-
 def make_mock_api_client() -> MagicMock:
     """Create a mock ApiClient."""
     mock = MagicMock(spec=k8s_client.ApiClient)
@@ -76,7 +60,7 @@ def make_pod_monitor(
     event_metrics: EventMetrics,
     kubernetes_metrics: KubernetesMetrics,
     config: PodMonitorConfig | None = None,
-    kafka_service: KafkaEventService | None = None,
+    producer: UnifiedProducer | None = None,
     api_client: k8s_client.ApiClient | None = None,
     event_mapper: PodEventMapper | None = None,
     mock_v1: Any | None = None,
@@ -90,11 +74,10 @@ def make_pod_monitor(
     cfg = config or PodMonitorConfig()
     client = api_client or make_mock_api_client()
     mapper = event_mapper or PodEventMapper(logger=_test_logger, k8s_api=make_mock_v1_api())
-    service = kafka_service or create_test_kafka_event_service(event_metrics)[0]
 
     monitor = PodMonitor(
         config=cfg,
-        kafka_event_service=service,
+        producer=producer or FakeUnifiedProducer(),
         logger=_test_logger,
         api_client=client,
         event_mapper=mapper,
@@ -316,8 +299,8 @@ async def test_publish_event_full_flow(
     kubernetes_metrics: KubernetesMetrics,
 ) -> None:
     cfg = PodMonitorConfig()
-    service, fake_producer = create_test_kafka_event_service(event_metrics)
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, kafka_service=service)
+    fake_producer = FakeUnifiedProducer()
+    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, producer=fake_producer)
 
     event = ExecutionCompletedEvent(
         execution_id="exec1",
@@ -347,15 +330,7 @@ async def test_publish_event_exception_handling(
         ) -> None:
             raise RuntimeError("Publish failed")
 
-    failing_producer = FailingProducer()
-    failing_service = KafkaEventService(
-        kafka_producer=failing_producer,
-        settings=Settings(config_path="config.test.toml"),
-        logger=_test_logger,
-        event_metrics=event_metrics,
-    )
-
-    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, kafka_service=failing_service)
+    pm = make_pod_monitor(event_metrics, kubernetes_metrics, config=cfg, producer=FailingProducer())
 
     event = ExecutionCompletedEvent(
         execution_id="exec1",

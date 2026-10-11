@@ -12,7 +12,7 @@ Route handlers get these from Dishka. They hold the business logic, talk to Mong
 | `execution_service.py` | The facade behind `/execute`. Checks the runtime registry, stores the execution, publishes `ExecutionRequestedEvent`, and publishes `ExecutionCancelledEvent` on cancel or delete. Handles the `Idempotency-Key` header. |
 | `execution_queue.py` | `ExecutionQueueService`, the Redis priority queue the saga orchestrator schedules from. See [Execution Queue](execution-queue.md). |
 | `saga/` | `SagaOrchestrator`, `ExecutionSaga` and its steps, and `SagaService`, the read side behind the saga routes with ownership checks. |
-| `event_service.py`, `kafka_event_service.py` | Reading stored events, and `KafkaEventService.publish_event`, a thin wrapper over `UnifiedProducer` that adds a span and metrics. |
+| `event_service.py` | Reading stored events. Publishing goes through `UnifiedProducer` directly. |
 | `event_replay/` | `EventReplayService`, which re-publishes stored events for admins. |
 | `sse/` | `SSERedisBus` and `SSEService`. See [SSE](../components/sse/sse-architecture.md). |
 | `notification_service.py`, `notification_scheduler.py` | Notifications for finished executions, delivery, subscriptions, and the job that sends scheduled ones. |

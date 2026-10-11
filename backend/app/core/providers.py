@@ -53,7 +53,6 @@ from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.k8s_worker import KubernetesWorker
-from app.services.kafka_event_service import KafkaEventService
 from app.services.login_lockout import LoginLockoutService
 from app.services.notification_scheduler import NotificationScheduler
 from app.services.notification_service import NotificationService
@@ -184,8 +183,9 @@ class MessagingProvider(Provider):
         self,
         event_repository: EventRepository,
         transport: KafkaEventTransport,
+        event_metrics: EventMetrics,
     ) -> UnifiedProducer:
-        return UnifiedProducer(event_repository, transport)
+        return UnifiedProducer(event_repository, transport, event_metrics)
 
     @provide
     def get_idempotency_repository(self, redis_client: redis.Redis) -> RedisIdempotencyRepository:
@@ -401,28 +401,13 @@ class AuthProvider(Provider):
 
 
 class KafkaServicesProvider(Provider):
-    """Provides Kafka-related event services used by both main app and workers."""
+    """Provides the stored-event read service used by both main app and workers."""
 
     scope = Scope.APP
 
     @provide
     def get_event_service(self, event_repository: EventRepository) -> EventService:
         return EventService(event_repository)
-
-    @provide
-    def get_kafka_event_service(
-        self,
-        kafka_producer: UnifiedProducer,
-        settings: Settings,
-        logger: structlog.stdlib.BoundLogger,
-        event_metrics: EventMetrics,
-    ) -> KafkaEventService:
-        return KafkaEventService(
-            kafka_producer=kafka_producer,
-            settings=settings,
-            logger=logger,
-            event_metrics=event_metrics,
-        )
 
 
 class UserServicesProvider(Provider):
@@ -432,11 +417,11 @@ class UserServicesProvider(Provider):
     def get_user_settings_service(
         self,
         repository: UserSettingsRepository,
-        kafka_event_service: KafkaEventService,
+        producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
     ) -> UserSettingsService:
-        return UserSettingsService(repository, kafka_event_service, settings, logger)
+        return UserSettingsService(repository, producer, settings, logger)
 
 
 class RuntimeSettingsProvider(Provider):
@@ -486,7 +471,7 @@ class AdminServicesProvider(Provider):
     def get_notification_service(
         self,
         notification_repository: NotificationRepository,
-        kafka_event_service: KafkaEventService,
+        producer: UnifiedProducer,
         sse_redis_bus: SSERedisBus,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
@@ -494,7 +479,7 @@ class AdminServicesProvider(Provider):
     ) -> NotificationService:
         return NotificationService(
             notification_repository=notification_repository,
-            event_service=kafka_event_service,
+            producer=producer,
             sse_bus=sse_redis_bus,
             settings=settings,
             logger=logger,
@@ -668,7 +653,7 @@ class PodMonitorProvider(Provider):
     def get_pod_monitor(
         self,
         config: PodMonitorConfig,
-        kafka_event_service: KafkaEventService,
+        producer: UnifiedProducer,
         api_client: k8s_client.ApiClient,
         logger: structlog.stdlib.BoundLogger,
         event_mapper: PodEventMapper,
@@ -676,7 +661,7 @@ class PodMonitorProvider(Provider):
     ) -> PodMonitor:
         return PodMonitor(
             config=config,
-            kafka_event_service=kafka_event_service,
+            producer=producer,
             logger=logger,
             api_client=api_client,
             event_mapper=event_mapper,

@@ -32,7 +32,7 @@ graph LR
 
 Then `KafkaEventTransport.publish()` sends the event to the topic named after its `event_type`. If that fails, `mark_publish_failed()` sets `publish_failed` and `publish_failed_at` on the stored document and the exception goes back to the caller. Nothing re-publishes flagged events automatically, though a replay session with the Kafka target sends stored events again.
 
-Services call the producer directly or through `KafkaEventService.publish_event()`, which wraps the same call in a trace span and records publish metrics.
+Every service publishes through `UnifiedProducer.produce`, which also opens a trace span and records the publish metrics.
 
 ## Read path
 

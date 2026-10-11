@@ -646,6 +646,8 @@ Anything that comes from the backend comes from `#lib/api/index.ts`, never from 
 
 Timestamps arrive as `Date` objects (the `@hey-api/transformers` plugin), in responses and SSE events alike, and a `Date` sent in a body or query string goes out as ISO. The formatters in `#lib/formatters.ts` take `Date`, never strings, and test fixtures build timestamps with `new Date(...)`.
 
+Stock hey-api 0.99 doesn't transform discriminated unions such as the event union, so `frontend/patches/` holds a fix to the generator that `npm run generate:api` applies with patch-package first; `src/lib/__tests__/api-transformers.test.ts` fails without it. After a bump of `@hey-api/openapi-ts`, generation stops until the patch is redone, or deleted once hey-api ships the fix (hey-api/hey-api#2807).
+
 ```typescript
 import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportExportFormatGetData } from '#lib/api/index.ts';
 

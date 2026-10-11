@@ -22,7 +22,7 @@ Configuration comes only from these flags. There are no environment variables.
 | `--output`      | `tests/load/out`     | report directory, relative to the working directory             |
 | `--plots`       | off                  | also write PNG charts next to the report                        |
 
-In `both` mode the monkey run goes first and the user run starts after it, so the whole run takes twice `--duration`. Before either starts, the CLI checks `GET /api/v1/example-scripts` and prints the status, which catches a wrong URL or port early.
+In `both` mode the monkey run goes first and the user run starts after it, so the workload runs for about twice `--duration`. The preflight, requests still in flight at each deadline and the report add a little on top. Before either starts, the CLI checks `GET /api/v1/example-scripts` and prints the status, which catches a wrong URL or port early.
 
 ## What it calls
 
@@ -32,12 +32,12 @@ User clients register, log in, call `/auth/me`, then loop over weighted flows un
 
 | Flow                         | Weight | Calls                                                                    |
 |------------------------------|--------|--------------------------------------------------------------------------|
-| execute and get the result   | 5      | `POST /execute` with a valid or broken Python 3.11 script, then either the SSE stream `/events/executions/{id}` for up to 8 seconds or a few polls of `/executions/{id}/result` |
+| execute and get the result   | 5      | `POST /execute` with a valid or broken Python 3.11 script, then either the SSE stream `/events/executions/{id}` for about 8 seconds (up to 15 when idle, since the client checks the time per chunk and the server pings every 15) or a few polls of `/executions/{id}/result` |
 | events and history           | 2      | `/user/executions`, then `/executions/{id}/events` for one of them       |
 | saved scripts                | 2      | create, list, update and delete under `/scripts`                         |
 | settings and notifications   | 2      | `/user/settings/`, `PUT /user/settings/theme`, `/notifications`, sometimes `mark-all-read` |
 
-Every write sends `X-CSRF-Token` with the `csrf_token` from the login response, as the frontend does.
+Every write after login sends `X-CSRF-Token` with the `csrf_token` from the login response, as the frontend does. The register and login requests themselves go without it.
 
 ## Reports
 

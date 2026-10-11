@@ -470,7 +470,7 @@ settings: FromDishka[Settings]
 Config load order (each overrides the previous):
 1. `config.toml`: base settings (committed)
 2. `config.<worker>.toml`: per-worker overrides (optional)
-3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises. `MONGODB_URL` is built from the Mongo values
+3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises. Production must set all four: the deploy workflow stops when one of their GitHub secrets is empty, since compose would otherwise fall back to the public defaults. `MONGODB_URL` is built from the Mongo values
 
 ```python
 Settings()                                               # config.toml + secrets

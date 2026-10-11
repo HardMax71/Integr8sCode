@@ -2,10 +2,14 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
+from kubernetes_asyncio import client as k8s_client
+
 from app.domain.enums import QueuePriority
 from app.domain.events import CreatePodCommandEvent, EventMetadata
+from app.runtime_registry import LANGUAGE_SPECS, POD_RUNTIME_CONFIGS, RUNTIME_REGISTRY
 from app.services.k8s_worker import PodBuilder
-from kubernetes_asyncio import client as k8s_client
+
+pytestmark = pytest.mark.unit
 
 
 class TestPodBuilder:
@@ -45,18 +49,10 @@ class TestPodBuilder:
             cpu_limit="1000m",
             memory_limit="1Gi",
             priority=QueuePriority.NORMAL,
-            metadata=EventMetadata(
-                user_id=str(uuid4()),
-                service_name="test-service",
-                service_version="1.0.0"
-            )
+            metadata=EventMetadata(user_id=str(uuid4()), service_name="test-service", service_version="1.0.0"),
         )
 
-    def test_build_pod_manifest(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_pod_manifest(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test building pod manifest."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
 
@@ -77,11 +73,7 @@ class TestPodBuilder:
         assert pod.metadata.annotations["integr8s.io/execution-id"] == create_pod_command.execution_id
         assert pod.metadata.annotations["integr8s.io/saga-id"] == create_pod_command.saga_id
 
-    def test_build_pod_spec_security(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_pod_spec_security(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod security settings."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         spec = pod.spec
@@ -101,9 +93,7 @@ class TestPodBuilder:
         assert spec.host_ipc is False
 
     def test_container_security_context(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
+        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
     ) -> None:
         """Test container security context."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
@@ -122,11 +112,7 @@ class TestPodBuilder:
         assert container.stdin is False
         assert container.tty is False
 
-    def test_container_resources(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_resources(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container resource limits."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -137,11 +123,7 @@ class TestPodBuilder:
         assert container.resources.limits["cpu"] == "1000m"
         assert container.resources.limits["memory"] == "1Gi"
 
-    def test_container_resources_defaults(
-            self,
-            pod_builder: PodBuilder,
-            mock_settings: MagicMock
-    ) -> None:
+    def test_container_resources_defaults(self, pod_builder: PodBuilder, mock_settings: MagicMock) -> None:
         """Test container resource defaults."""
         command = CreatePodCommandEvent(
             execution_id=str(uuid4()),
@@ -163,7 +145,7 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=str(uuid4()),
-            )
+            ),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -175,11 +157,7 @@ class TestPodBuilder:
         assert container.resources.limits["cpu"] == mock_settings.K8S_POD_CPU_LIMIT
         assert container.resources.limits["memory"] == mock_settings.K8S_POD_MEMORY_LIMIT
 
-    def test_pod_volumes(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_pod_volumes(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod volume configuration."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         volumes = {v.name: v for v in pod.spec.volumes}
@@ -206,11 +184,7 @@ class TestPodBuilder:
         tmp_vol = volumes["tmp-volume"]
         assert tmp_vol.empty_dir.size_limit == "10Mi"
 
-    def test_container_volume_mounts(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_volume_mounts(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container volume mounts."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -229,20 +203,12 @@ class TestPodBuilder:
         assert mounts["tmp-volume"].mount_path == "/tmp"
         assert mounts["tmp-volume"].read_only is None  # Writable
 
-    def test_build_config_map(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_build_config_map(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test ConfigMap creation."""
         script_content = "print('hello world')"
         entrypoint_content = "#!/bin/sh\nexec $@"
 
-        config_map = pod_builder.build_config_map(
-            create_pod_command,
-            script_content,
-            entrypoint_content
-        )
+        config_map = pod_builder.build_config_map(create_pod_command, script_content, entrypoint_content)
 
         # Verify ConfigMap structure
         assert isinstance(config_map, k8s_client.V1ConfigMap)
@@ -260,9 +226,7 @@ class TestPodBuilder:
         assert config_map.data["entrypoint.sh"] == entrypoint_content
 
     def test_pod_timeout_configuration(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
+        self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent
     ) -> None:
         """Test pod timeout configuration."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
@@ -271,8 +235,8 @@ class TestPodBuilder:
         assert pod.spec.active_deadline_seconds == 300
 
     def test_pod_timeout_default(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test default pod timeout."""
         command = CreatePodCommandEvent(
@@ -291,7 +255,7 @@ class TestPodBuilder:
             cpu_limit="500m",
             memory_limit="512Mi",
             priority=QueuePriority.NORMAL,
-            metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+            metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -299,24 +263,16 @@ class TestPodBuilder:
         # Default timeout should be 300 seconds
         assert pod.spec.active_deadline_seconds == 300
 
-    def test_container_command(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_command(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container command construction."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
 
         # Verify command
-        expected_command = ['/bin/sh', '/entry/entrypoint.sh', 'python', '/scripts/script.py']
+        expected_command = ["/bin/sh", "/entry/entrypoint.sh", "python", "/scripts/script.py"]
         assert container.command == expected_command
 
-    def test_container_environment(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_container_environment(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test container environment variables."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
         container = pod.spec.containers[0]
@@ -327,8 +283,8 @@ class TestPodBuilder:
         assert env_vars["OUTPUT_PATH"] == "/output"
 
     def test_pod_labels_truncation(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test label value truncation for K8s limits."""
         long_id = "a" * 100  # Exceeds K8s 63 char limit
@@ -352,7 +308,7 @@ class TestPodBuilder:
                 service_name="svc",
                 service_version="1",
                 user_id=long_id,
-            )
+            ),
         )
 
         pod = pod_builder.build_pod_manifest(command)
@@ -364,11 +320,7 @@ class TestPodBuilder:
         # But annotations should have full values
         assert pod.metadata.annotations["integr8s.io/saga-id"] == long_id
 
-    def test_pod_restart_policy(
-            self,
-            pod_builder: PodBuilder,
-            create_pod_command: CreatePodCommandEvent
-    ) -> None:
+    def test_pod_restart_policy(self, pod_builder: PodBuilder, create_pod_command: CreatePodCommandEvent) -> None:
         """Test pod restart policy."""
         pod = pod_builder.build_pod_manifest(create_pod_command)
 
@@ -376,14 +328,14 @@ class TestPodBuilder:
         assert pod.spec.restart_policy == "Never"
 
     def test_different_languages(
-            self,
-            pod_builder: PodBuilder,
+        self,
+        pod_builder: PodBuilder,
     ) -> None:
         """Test pod creation for different languages."""
         languages = [
             ("python", "python:3.11-slim", "script.py", ["python", "/scripts/script.py"]),
             ("node", "node:18-slim", "script.js", ["node", "/scripts/script.js"]),
-            ("bash", "alpine:latest", "script.sh", ["sh", "/scripts/script.sh"])
+            ("bash", "alpine:latest", "script.sh", ["sh", "/scripts/script.sh"]),
         ]
 
         for language, image, filename, command in languages:
@@ -402,7 +354,7 @@ class TestPodBuilder:
                 cpu_limit="200m",
                 memory_limit="256Mi",
                 priority=QueuePriority.NORMAL,
-                metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1")
+                metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
             )
 
             pod = pod_builder.build_pod_manifest(cmd)
@@ -410,3 +362,128 @@ class TestPodBuilder:
             assert pod.metadata.labels["language"] == language
             assert pod.metadata.annotations["integr8s.io/language"] == language
             assert pod.spec.containers[0].image == image
+
+
+def _runtime_command(
+    language: str, *, cpu_limit: str, memory_limit: str, timeout_seconds: int
+) -> CreatePodCommandEvent:
+    version = LANGUAGE_SPECS[language]["versions"][0]
+    runtime = RUNTIME_REGISTRY[language][version]
+    return CreatePodCommandEvent(
+        execution_id=str(uuid4()),
+        saga_id=str(uuid4()),
+        script="x",
+        language=language,
+        language_version=version,
+        runtime_image=runtime.image,
+        runtime_filename=runtime.file_name,
+        runtime_command=runtime.command,
+        timeout_seconds=timeout_seconds,
+        cpu_request="200m",
+        memory_request="128Mi",
+        cpu_limit=cpu_limit,
+        memory_limit=memory_limit,
+        metadata=EventMetadata(user_id=str(uuid4()), service_name="t", service_version="1"),
+    )
+
+
+@pytest.fixture
+def builder() -> PodBuilder:
+    settings = MagicMock()
+    settings.K8S_NAMESPACE = "integr8scode"
+    settings.K8S_POD_RUNTIME_CLASS_NAME = None
+    return PodBuilder(settings=settings)
+
+
+@pytest.mark.parametrize("language", [lang for lang, spec in LANGUAGE_SPECS.items() if "pod" not in spec])
+def test_languages_without_pod_settings_keep_the_configured_pod(builder: PodBuilder, language: str) -> None:
+    command = _runtime_command(language, cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
+
+    pod = builder.build_pod_manifest(command)
+    container = pod.spec.containers[0]
+    volumes = {v.name: v for v in pod.spec.volumes}
+
+    assert container.command == ["/bin/sh", "/entry/entrypoint.sh", *command.runtime_command]
+    assert container.resources.limits == {"cpu": "100m", "memory": "64Mi"}
+    assert container.resources.requests == {"cpu": "200m", "memory": "128Mi"}
+    assert {e.name: e.value for e in container.env} == {
+        "EXECUTION_ID": command.execution_id,
+        "OUTPUT_PATH": "/output",
+    }
+    assert volumes["tmp-volume"].empty_dir.size_limit == "10Mi"
+    assert volumes["output-volume"].empty_dir.size_limit == "10Mi"
+    assert pod.spec.active_deadline_seconds == 5
+
+
+def test_go_pod_gets_its_cache_env_and_raised_minimums(builder: PodBuilder) -> None:
+    command = _runtime_command("go", cpu_limit="500m", memory_limit="128Mi", timeout_seconds=5)
+
+    pod = builder.build_pod_manifest(command)
+    container = pod.spec.containers[0]
+    volumes = {v.name: v for v in pod.spec.volumes}
+
+    assert container.command == [
+        "/bin/sh",
+        "/entry/entrypoint.sh",
+        "sh",
+        "-c",
+        'go build -o /tmp/main -ldflags="-s -w" -gcflags=all=-dwarf=false "$0" && exec /tmp/main',
+        "/scripts/main.go",
+    ]
+    assert {e.name: e.value for e in container.env} == {
+        "EXECUTION_ID": command.execution_id,
+        "OUTPUT_PATH": "/output",
+        "HOME": "/tmp",
+        "GOCACHE": "/tmp/go-cache",
+    }
+    assert container.resources.limits == {"cpu": "1000m", "memory": "320Mi"}
+    assert container.resources.requests == {"cpu": "200m", "memory": "128Mi"}
+    assert volumes["tmp-volume"].empty_dir.size_limit == "64Mi"
+    assert volumes["output-volume"].empty_dir.size_limit == "10Mi"
+    assert pod.spec.active_deadline_seconds == 30
+    assert container.security_context.read_only_root_filesystem is True
+
+
+def test_go_pod_keeps_configured_limits_above_the_minimums(builder: PodBuilder) -> None:
+    command = _runtime_command("go", cpu_limit="2", memory_limit="1Gi", timeout_seconds=120)
+
+    pod = builder.build_pod_manifest(command)
+
+    assert pod.spec.containers[0].resources.limits == {"cpu": "2", "memory": "1Gi"}
+    assert pod.spec.active_deadline_seconds == 120
+
+
+@pytest.mark.parametrize(
+    ("cpu_limit", "memory_limit", "expected"),
+    [
+        ("1", "320Mi", {"cpu": "1", "memory": "320Mi"}),
+        ("0.5", "300M", {"cpu": "1000m", "memory": "320Mi"}),
+        ("1500m", "400M", {"cpu": "1500m", "memory": "400M"}),
+        ("999m", "1Gi", {"cpu": "1000m", "memory": "1Gi"}),
+    ],
+)
+def test_minimums_compare_quantities_across_units(
+    builder: PodBuilder, cpu_limit: str, memory_limit: str, expected: dict[str, str]
+) -> None:
+    command = _runtime_command("go", cpu_limit=cpu_limit, memory_limit=memory_limit, timeout_seconds=60)
+
+    assert builder.build_pod_manifest(command).spec.containers[0].resources.limits == expected
+
+
+def test_unparseable_limit_is_rejected_when_a_minimum_applies(builder: PodBuilder) -> None:
+    command = _runtime_command("go", cpu_limit="lots", memory_limit="512Mi", timeout_seconds=60)
+
+    with pytest.raises(ValueError, match="Unsupported resource quantity: 'lots'"):
+        builder.build_pod_manifest(command)
+
+
+def test_unknown_language_falls_back_to_default_pod_settings(builder: PodBuilder) -> None:
+    command = _runtime_command("python", cpu_limit="100m", memory_limit="64Mi", timeout_seconds=5)
+    command = command.model_copy(update={"language": "cobol"})
+
+    pod = builder.build_pod_manifest(command)
+    volumes = {v.name: v for v in pod.spec.volumes}
+
+    assert "cobol" not in POD_RUNTIME_CONFIGS
+    assert volumes["tmp-volume"].empty_dir.size_limit == "10Mi"
+    assert pod.spec.containers[0].resources.limits == {"cpu": "100m", "memory": "64Mi"}

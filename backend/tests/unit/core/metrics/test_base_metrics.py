@@ -1,4 +1,5 @@
 import pytest
+
 from app.core.metrics import BaseMetrics
 from app.settings import Settings
 
@@ -25,4 +26,3 @@ def test_base_metrics_initializes_meter_and_instruments(test_settings: Settings)
 
     # close is no-op
     m.close()
-

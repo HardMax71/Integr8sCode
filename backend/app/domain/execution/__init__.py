@@ -1,6 +1,7 @@
 from .exceptions import (
-    EventPublishError,
+    ExecutionAccessDeniedError,
     ExecutionNotFoundError,
+    ExecutionNotRetryableError,
     ExecutionTerminalError,
     RuntimeNotSupportedError,
 )
@@ -11,6 +12,7 @@ from .models import (
     DomainExecutionUpdate,
     ExecutionResultDomain,
     LanguageInfoDomain,
+    LanguageLimitsDomain,
     ResourceLimitsDomain,
 )
 
@@ -22,8 +24,10 @@ __all__ = [
     "ExecutionResultDomain",
     "ExecutionTerminalError",
     "LanguageInfoDomain",
+    "LanguageLimitsDomain",
     "ResourceLimitsDomain",
     "RuntimeNotSupportedError",
-    "EventPublishError",
+    "ExecutionAccessDeniedError",
     "ExecutionNotFoundError",
+    "ExecutionNotRetryableError",
 ]

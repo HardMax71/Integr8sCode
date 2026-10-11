@@ -1,16 +1,17 @@
 import asyncio
 from typing import Any
 
-from app.core.container import create_result_processor_container
-from app.core.logging import setup_log_exporter, setup_logger
-from app.db.docs import ALL_DOCUMENTS
-from app.events.handlers import register_result_processor_subscriber
-from app.settings import Settings
 from beanie import init_beanie
 from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
+
+from app.core.container import create_result_processor_container
+from app.core.logging import setup_log_exporter, setup_logger
+from app.db.docs import ALL_DOCUMENTS
+from app.events.handlers import register_result_processor_subscriber
+from app.settings import Settings
 
 
 def main() -> None:
@@ -26,7 +27,7 @@ def main() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
         client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
         await init_beanie(
-            database=client.get_default_database(default=settings.DATABASE_NAME),
+            database=client.get_default_database(default=settings.MONGO_DB),
             document_models=ALL_DOCUMENTS,
         )
         logger.info("MongoDB initialized via Beanie")
@@ -41,7 +42,7 @@ def main() -> None:
         register_result_processor_subscriber(broker)
         setup_dishka(container, broker=broker, auto_inject=True)
 
-        app = FastStream(broker, on_shutdown=[container.close])
+        app = FastStream(broker, after_shutdown=[container.close])
         await app.run()
         logger.info("ResultProcessor shutdown complete")
 

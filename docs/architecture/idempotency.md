@@ -1,128 +1,100 @@
 # Idempotency
 
-The platform implements at-least-once event delivery with idempotency protection to prevent duplicate processing. When a
-Kafka message is delivered multiple times (due to retries, rebalances, or failures), the idempotency layer ensures the
-event handler executes only once. Results can be cached for fast duplicate responses.
+Kafka delivers at least once, so a consumer can see the same event twice. Handlers that must not run twice go through `IdempotencyManager`, which keeps one Redis key per event and lets only the first caller through. The API reuses the same manager for the `Idempotency-Key` header on `POST /api/v1/execute`.
 
-## Architecture
+## Who uses it
 
-```mermaid
-flowchart TB
-    subgraph Kafka Consumer
-        MSG[Incoming Event] --> CHECK[Check & Reserve Key]
-    end
+| Caller | Events | Key strategy | TTL |
+|--------|--------|--------------|-----|
+| Saga orchestrator | `execution_requested` | `EVENT_BASED` | 1 hour |
+| K8s worker | `create_pod_command`, `delete_pod_command` | `CONTENT_HASH` | 1 hour |
+| Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `CONTENT_HASH` | 2 hours |
+| API, `POST /api/v1/execute` with `Idempotency-Key` | none, see below | `CUSTOM` | 24 hours |
 
-    subgraph Idempotency Manager
-        CHECK --> REDIS[(Redis)]
-        REDIS --> FOUND{Key Exists?}
-        FOUND -->|Yes| STATUS{Status?}
-        STATUS -->|Processing| TIMEOUT{Timed Out?}
-        STATUS -->|Completed/Failed| DUP[Return Duplicate]
-        TIMEOUT -->|Yes| RETRY[Allow Retry]
-        TIMEOUT -->|No| WAIT[Block Duplicate]
-        FOUND -->|No| RESERVE[Reserve Key]
-    end
+The other subscribers (the saga orchestrator's completion handlers, `sse-bridge-pool`, `notification-service`) don't use it. The subscriptions live in `backend/app/events/handlers.py`.
 
-    subgraph Handler Execution
-        RESERVE --> HANDLER[Execute Handler]
-        RETRY --> HANDLER
-        HANDLER -->|Success| COMPLETE[Mark Completed]
-        HANDLER -->|Error| FAIL[Mark Failed]
-        COMPLETE --> CACHE[Cache Result]
-    end
-```
+## Keys
 
-## Key Strategies
-
-The idempotency manager supports three strategies for generating keys from events:
-
-**Event-based** uses the event's unique ID and type. This is the default and works for events where the ID is guaranteed
-unique (like UUIDs generated at publish time).
-
-**Content hash** generates a SHA-256 hash of the event's payload, excluding metadata like timestamps and event IDs. Use
-this when the same logical operation might produce different event IDs but identical content.
-
-**Custom** allows the caller to provide an arbitrary key. Useful when idempotency depends on business logic (e.g., "one
-execution per user per minute").
+The manager builds a key from the event in one of three ways:
 
 ```python
 --8<-- "backend/app/services/idempotency/idempotency_manager.py:generate_key"
 ```
 
-## Status Lifecycle
+`EVENT_BASED` is `{event_type}:{event_id}` and is the default when a caller passes no strategy. `CONTENT_HASH` is a SHA-256 of the event JSON with `event_id`, `timestamp` and `metadata` removed, so an event published twice under two different ids still counts as one. `CUSTOM` is `{event_type}:{custom_key}` with a key the caller picks. Every key gets the `idempotency:` prefix.
 
-Each idempotency record transitions through defined states:
+## How a check works
+
+```mermaid
+flowchart TB
+    IN[Event] --> GET{Key in Redis?}
+    GET -->|No| NX[SET NX EX: processing]
+    NX -->|Won| RUN[Run handler]
+    NX -->|Lost the race| GET
+    GET -->|completed or failed| DUP[Duplicate, skip]
+    GET -->|processing| AGE{Older than 300 s?}
+    AGE -->|No| DUP
+    AGE -->|Yes| RUN
+    RUN -->|OK| DONE[Mark completed]
+    RUN -->|Raises| FAIL[Mark failed, re-raise]
+```
+
+A record has one of three states:
 
 ```python
 --8<-- "backend/app/domain/idempotency/models.py:IdempotencyStatus"
 ```
 
-When an event arrives, the manager checks for an existing key. If none exists, it creates a record in `PROCESSING` state
-and returns control to the handler. On success, the record moves to `COMPLETED`; on error, to `FAILED`. Both terminal
-states block duplicate processing for the TTL duration.
-
-If a key is found in `PROCESSING` state but has exceeded the processing timeout (default 5 minutes), the manager assumes
-the previous processor crashed and allows a retry.
-
-## Handler Integration
-
-Event handlers use the `with_idempotency` helper in `events/handlers.py` to wrap handler execution
-with automatic duplicate detection. The helper checks and reserves the key, runs the handler, then
-marks the result as completed or failed:
-
-```python
---8<-- "backend/app/events/handlers.py:with_idempotency"
-```
-
-`IdempotencyManager` is injected via Dishka into each worker's handler registrations. The saga
-orchestrator skips idempotency since saga steps have their own deduplication logic.
-
-## Redis Storage
-
-Idempotency records are stored in Redis with automatic TTL expiration. The `SET NX EX` command provides atomic
-reservation—if two processes race to claim the same key, only one succeeds:
+`check_and_reserve` reads the key first. If it's missing, the manager writes a `processing` record with `SET NX EX`, so of two racing consumers only one wins. The loser reads the key again and gets treated as a duplicate.
 
 ```python
 --8<-- "backend/app/services/idempotency/redis_repository.py:insert_processing"
 ```
 
-## Configuration
+When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. Updates keep the key's remaining TTL, read with `TTL` in whole seconds. If that reads 0 because the key is about to expire, the rewrite sets no expiry at all and the key stays until something deletes it.
 
-| Parameter                    | Default       | Description                          |
-|------------------------------|---------------|--------------------------------------|
-| `key_prefix`                 | `idempotency` | Redis key namespace                  |
-| `default_ttl_seconds`        | `3600`        | How long completed keys are retained |
-| `processing_timeout_seconds` | `300`         | When to assume a processor crashed   |
-| `enable_result_caching`      | `true`        | Store handler results for duplicates |
-| `max_result_size_bytes`      | `1048576`     | Maximum cached result size (1MB)     |
+A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires.
+
+Kafka handlers wrap their work in `with_idempotency`:
+
+```python
+--8<-- "backend/app/events/handlers.py:with_idempotency"
+```
+
+A duplicate is logged and skipped, and the message is acked as usual. A handler that raises leaves a `failed` record, which blocks that event for the rest of the TTL, so this layer never retries a failure. Nothing else retries it either today: see [issue #288](https://github.com/HardMax71/Integr8sCode/issues/288).
+
+## HTTP Idempotency-Key
+
+`POST /api/v1/execute` takes an optional `Idempotency-Key` header. Without it the request runs as usual. With it, `ExecutionService.execute_script_idempotent` reserves the custom key `http:{user_id}:{key}` for 24 hours, so two users can reuse the same header value without clashing. The Redis key ends up as `idempotency:execution_requested:http:{user_id}:{key}`.
+
+On success the manager stores the new execution as JSON in the record. A repeat with the same key gets one of these:
+
+| Repeat request arrives | Response |
+|------------------------|----------|
+| After the first one succeeded | 200 with the cached execution, same `execution_id`, nothing new runs |
+| While the first one is still running | 409, "Duplicate request '<key>' is still being processed" |
+| After the first one failed | Runs again, since a failed request deletes its key |
+| After the cached result went missing | 409, "Cached result for '<key>' is no longer available" |
+
+A client that hits an error can retry with the same key.
+
+## Configuration
 
 ```python
 --8<-- "backend/app/services/idempotency/idempotency_manager.py:IdempotencyConfig"
 ```
 
-## Result Caching
-
-When `enable_result_caching` is true, the manager stores the handler's result JSON alongside the completion status.
-Subsequent duplicates can return the cached result without re-executing the handler. This is useful for idempotent
-queries where the response should be consistent.
-
-Results exceeding `max_result_size_bytes` are silently dropped from the cache but the idempotency protection still
-applies.
+The DI provider builds `IdempotencyConfig()` with these defaults; nothing in `config.toml` changes them. Every caller passes its own TTL, so `default_ttl_seconds` only applies to a caller that doesn't. Result caching is used by the HTTP path only. Event handlers mark keys completed without a result, and a result over `max_result_size_bytes` is logged and not stored.
 
 ## Metrics
 
-The idempotency system exposes several metrics for monitoring:
+`IdempotencyMetrics` in `backend/app/core/metrics/database.py` defines these. The second column is the series name in VictoriaMetrics after the collector's Prometheus conversion.
 
-- `idempotency_cache_hits` - Key lookups that found an existing record
-- `idempotency_cache_misses` - Key lookups that created new records
-- `idempotency_duplicates_blocked` - Events rejected as duplicates
-- `idempotency_keys_active` - Current number of active keys (updated periodically)
-
-## Key Files
-
-| File                                                                                                                                                         | Purpose                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
-| [`services/idempotency/idempotency_manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/idempotency_manager.py) | Core idempotency logic                    |
-| [`services/idempotency/redis_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/idempotency/redis_repository.py)       | Redis storage adapter                     |
-| [`events/handlers.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/handlers.py)                                                   | `with_idempotency` helper for event handlers |
-| [`domain/idempotency/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/domain/idempotency)                                                  | Domain models                             |
+| Instrument | Series | Meaning |
+|------------|--------|---------|
+| `idempotency.cache.hits.total` | `idempotency_cache_hits_total` | Lookups that found a record, by `event_type` and `operation` |
+| `idempotency.cache.misses.total` | `idempotency_cache_misses_total` | Lookups that found no record and went on to `SET NX`, whether or not they won it |
+| `idempotency.duplicates.blocked.total` | `idempotency_duplicates_blocked_total` | Calls rejected as duplicates, by `event_type` |
+| `idempotency.check.duration` | `idempotency_check_duration_seconds` | Histogram of `check_and_reserve` time |
+| `idempotency.processing.duration` | `idempotency_processing_duration_seconds` | Histogram of reserve to completed or failed, by `event_type` and `status` |
+| `idempotency.keys.active` | `idempotency_keys_active` | Observable gauge: `SCAN` count of `idempotency:*` keys in Redis at each export |

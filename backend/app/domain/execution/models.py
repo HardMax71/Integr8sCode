@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus, QueuePriority
 from app.domain.events import EventMetadata, ResourceUsageDomain
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 
 
 @dataclass
@@ -23,8 +24,8 @@ class DomainExecution:
     status: ExecutionStatus = ExecutionStatus.QUEUED
     stdout: str | None = None
     stderr: str | None = None
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resource_usage: ResourceUsageDomain | None = None
@@ -41,8 +42,8 @@ class ExecutionResultDomain:
     exit_code: int
     stdout: str
     stderr: str
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     resource_usage: ResourceUsageDomain | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: EventMetadata | None = None
@@ -58,6 +59,15 @@ class LanguageInfoDomain:
 
 
 @dataclass
+class LanguageLimitsDomain:
+    """Limits a pod for one language gets: the admin limits raised to the language minimums."""
+
+    cpu_limit: str
+    memory_limit: str
+    execution_timeout: int
+
+
+@dataclass
 class ResourceLimitsDomain:
     """K8s resource limits configuration."""
 
@@ -67,6 +77,7 @@ class ResourceLimitsDomain:
     memory_request: str
     execution_timeout: int
     supported_runtimes: dict[str, LanguageInfoDomain]
+    language_limits: dict[str, LanguageLimitsDomain]
 
 
 @dataclass
@@ -75,8 +86,8 @@ class DomainExecutionCreate:
 
     script: str
     user_id: str
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     status: ExecutionStatus = ExecutionStatus.QUEUED
     priority: QueuePriority = QueuePriority.NORMAL
 

@@ -17,10 +17,15 @@ flag_management:
     carryforward: true
 
   individual_flags:
-    - name: backend
-      carryforward: true
-    - name: frontend
-      carryforward: true
+    - name: backend-unit
+      paths:
+        - backend/app/
+    - name: backend-e2e
+      paths:
+        - backend/app/
+    - name: frontend-unit
+      paths:
+        - frontend/src/
 
 component_management:
   individual_components:

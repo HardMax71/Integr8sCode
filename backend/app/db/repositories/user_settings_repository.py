@@ -6,7 +6,7 @@ from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import GT, LTE, Eq, In
 
-from app.db.docs import EventDocument, UserSettingsDocument, UserSettingsSnapshotDocument
+from app.db.docs import EventDocument, UserSettingsDocument
 from app.domain.enums import EventType
 from app.domain.user import (
     DomainEditorSettings,
@@ -44,7 +44,7 @@ class UserSettingsRepository:
         if existing:
             doc.id = existing.id
         await doc.save()
-        self.logger.info(f"Created settings snapshot for user {settings.user_id}")
+        self.logger.info("Created settings snapshot", user_id=settings.user_id)
 
     async def get_settings_events(
         self,
@@ -53,7 +53,7 @@ class UserSettingsRepository:
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int | None = None,
-        sort_order: SortDirection = SortDirection.ASCENDING,
+        newest_first: bool = False,
     ) -> list[DomainUserSettingsChangedEvent]:
         aggregate_id = f"user_settings_{user_id}"
         conditions: list[BaseFindOperator] = [
@@ -65,6 +65,7 @@ class UserSettingsRepository:
         if until:
             conditions.append(LTE(EventDocument.timestamp, until))
 
+        sort_order = SortDirection.DESCENDING if newest_first else SortDirection.ASCENDING
         find_query = EventDocument.find(*conditions).sort([("timestamp", sort_order)])
         if limit:
             find_query = find_query.limit(limit)
@@ -82,10 +83,3 @@ class UserSettingsRepository:
             EventDocument.aggregate_id == aggregate_id,
             GT(EventDocument.timestamp, snapshot.updated_at),
         ).count()
-
-    async def delete_user_settings(self, user_id: str) -> None:
-        doc = await UserSettingsSnapshotDocument.find_one(UserSettingsSnapshotDocument.user_id == user_id)
-        if doc:
-            await doc.delete()
-        await EventDocument.find(EventDocument.aggregate_id == f"user_settings_{user_id}").delete()
-        self.logger.info(f"Deleted all settings data for user {user_id}")

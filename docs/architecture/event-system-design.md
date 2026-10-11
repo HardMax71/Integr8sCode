@@ -1,184 +1,117 @@
 # Event system design
 
-This document explains how events flow through the system and how domain events are both stored and serialized for Kafka transport.
-
-## The unified event model
-
-Events in Integr8sCode use a unified design where domain events are plain Pydantic models serialized as JSON:
+Each event is defined once, as a Pydantic model in `app/domain/events/typed.py`. The same model is dumped into an `EventDocument` in MongoDB, published to Kafka and handed to subscribers, so there is no separate Kafka schema and no per-event mapping to keep in sync.
 
 ```mermaid
 graph LR
-    subgraph "Source of Truth"
-        ET[EventType enum]
-    end
-
-    subgraph "Domain Layer"
-        DE[Domain Events<br/>typed.py<br/>extends BaseModel]
-    end
-
-    ET --> DE
-    DE --> Kafka[(Kafka Topics)]
-    DE --> MongoDB[(MongoDB)]
+    ET[EventType enum] --> DE["Event models<br/>typed.py"]
+    DE --> Kafka[(Kafka topics)]
+    DE --> MongoDB[(MongoDB events)]
 ```
 
-The `EventType` enum defines all possible event types as strings. Each `EventType` value IS the Kafka topic name (1:1 mapping). Domain events are Pydantic `BaseModel` subclasses, making them usable for both MongoDB storage and Kafka transport. FastStream handles JSON serialization natively when publishing and deserializing when consuming.
+`EventType` in `app/domain/enums/events.py` lists every event type as a string, 57 of them. Each value is also the Kafka topic name, with no prefix. FastStream serializes the model to JSON on publish and validates it back into the model on consume.
 
-This design eliminates duplication between "domain events" and "Kafka events" by making the domain event the single source of truth.
+## BaseEvent
 
-## Why a unified model?
+Every event extends `BaseEvent`:
 
-Earlier designs maintained separate domain and Kafka event classes, arguing that domain events shouldn't know about infrastructure concerns. In practice, this created:
+```python
+class BaseEvent(BaseModel):
+    """Base fields for all domain events."""
 
-- Duplicate class definitions for every event type
-- Transformation logic between layers
-- Risk of drift when fields changed
-- Extra maintenance burden
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={"required": ["event_id", "event_type", "event_version", "timestamp", "metadata"]},
+    )
 
-The unified approach addresses these issues:
+    event_id: str = Field(default_factory=lambda: str(uuid4()))
+    event_type: EventType
+    event_version: str = "1.0"
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    aggregate_id: str | None = None
+    metadata: EventMetadata
+```
 
-- **Single definition**: Each event is defined once in `domain/events/typed.py`
-- **JSON-native**: `BaseEvent` extends Pydantic `BaseModel`; FastStream serializes to JSON automatically
-- **Storage-ready**: Events include storage fields (`stored_at`, `ttl_expires_at`) that MongoDB uses
-- **1:1 topic mapping**: Topic name = `EventType` value — no mapping layer needed
+`EventMetadata` is a stdlib dataclass with `service_name`, `service_version`, `user_id` and `environment`. The `json_schema_extra` line marks the defaulted fields as required in the OpenAPI schema, so the generated TypeScript types don't make them optional. Storage fields such as `stored_at` and `ttl_expires_at` live on `EventDocument`, not on the event. See [Event Storage](event-storage.md).
 
-## How discriminated unions work
+## The DomainEvent union
 
-When events come back from MongoDB, we need to deserialize them into the correct Python class. A document with `event_type: "execution_completed"` should become an `ExecutionCompletedEvent` instance, not a generic dict.
-
-Pydantic's discriminated unions handle this. Each event class declares its event type using a `Literal` type:
+Each event class pins its type with a `Literal`:
 
 ```python
 class ExecutionCompletedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_COMPLETED] = EventType.EXECUTION_COMPLETED
     execution_id: str
     exit_code: int
-    # ...
+    resource_usage: ResourceUsageDomain | None = None
+    stdout: str = ""
+    stderr: str = ""
 ```
 
-The `DomainEvent` type is a union of all event classes with a discriminator on `event_type`:
-
-```python
-DomainEvent = Annotated[
-    ExecutionRequestedEvent
-    | ExecutionCompletedEvent
-    | ExecutionFailedEvent
-    | ...  # all 53 event types
-    Discriminator("event_type"),
-]
-```
-
-The `domain_event_adapter` TypeAdapter validates incoming data against this union. When it sees `{"event_type": "execution_completed", ...}`, it knows to instantiate an `ExecutionCompletedEvent`.
+`DomainEvent` is an `Annotated` union of all 57 classes with `Discriminator("event_type")`, and `DomainEventAdapter` is a `TypeAdapter` over it. Pydantic reads `event_type` first and validates against that one class, instead of trying every member until one fits.
 
 ```mermaid
 sequenceDiagram
     participant DB as MongoDB
-    participant Repo as EventStore
-    participant TA as TypeAdapter
+    participant Repo as EventRepository
+    participant TA as DomainEventAdapter
     participant Event as ExecutionCompletedEvent
 
     DB->>Repo: {event_type: "execution_completed", ...}
     Repo->>TA: validate_python(doc)
-    TA->>TA: Check discriminator field
-    TA->>Event: Instantiate correct class
-    Event->>Repo: Typed event instance
+    TA->>Event: picks the class by event_type
+    Event->>Repo: typed event
 ```
 
-This approach is more performant than trying each union member until one validates. The discriminator tells Pydantic exactly which class to use.
+`EventRepository` reads stored events this way. The SSE bridge does the same on the Kafka side: it subscribes to 17 topics with a single `body: DomainEvent` parameter and gets the right class for each message.
 
-## BaseEvent
+## Publishing
 
-The `BaseEvent` class provides common fields for all events:
+All publishing goes through `UnifiedProducer` in `app/events/core/producer.py`. It's a store-then-publish outbox: it writes the event to MongoDB, then hands it to `KafkaEventTransport`, which calls `broker.publish` with the event type as the topic.
 
 ```python
-class BaseEvent(BaseModel):
-    """Base fields for all domain events."""
-    model_config = ConfigDict(from_attributes=True)
-
-    event_id: str = Field(default_factory=lambda: str(uuid4()))
-    event_type: EventType
-    event_version: str = "1.0"
-    timestamp: datetime = Field(default_factory=...)
-    aggregate_id: str | None = None
-    metadata: EventMetadata
-    stored_at: datetime = Field(default_factory=...)
-    ttl_expires_at: datetime = Field(default_factory=...)
+async def produce(self, event_to_produce: DomainEvent, key: str) -> None:
+    await self._event_repository.store_event(event_to_produce)
+    try:
+        await self._transport.publish(event_to_produce, event_to_produce.event_type, key)
+    except Exception:
+        await self._event_repository.mark_publish_failed(event_to_produce.event_id)
+        raise
 ```
 
-Since `BaseEvent` is a plain Pydantic model, FastStream handles serialization and deserialization transparently — publishing calls `model.model_dump_json()` under the hood, and subscribers receive typed model instances from the incoming JSON.
-
-## Topic routing
-
-Each `EventType` maps 1:1 to a Kafka topic. The topic name is the `EventType` string value itself. Since `EventType` extends `StringEnum` (which extends `StrEnum` extends `str`), the event type IS the topic name:
-
-```python
-# Producer — topic derived directly from event type
-topic = f"{prefix}{event.event_type}"
-
-# Consumer — one subscriber per event type
-@broker.subscriber(f"{prefix}{EventType.EXECUTION_REQUESTED}", group_id="saga-orchestrator")
-async def on_execution_requested(body: ExecutionRequestedEvent): ...
-```
-
-No mapping layer, no routing table, no `EVENT_TYPE_TO_TOPIC` dict. Each handler subscribes to exactly the topic it cares about.
-
-## Keeping things in sync
-
-With the unified model, there's less risk of drift since each event is defined once. The `test_event_schema_coverage.py` test suite validates:
-
-1. Every `EventType` has a corresponding domain event class
-2. Every event class has a valid `event_type` default
-3. The `DomainEvent` union includes all event types
-4. No orphan classes exist without matching enum values
-
-When adding a new event type:
-
-1. Add the value to `EventType` enum
-2. Create the event class in `typed.py` with the correct `event_type` default
-3. Add it to the `DomainEvent` union
-
-The topic is automatically available since topic name = event type string.
-
-If you miss a step, the test tells you exactly what's missing.
-
-## Event flow
+`store_event` ignores a duplicate `event_id`, so storing the same event twice is a no-op. If Kafka fails, the stored event gets `publish_failed: true` and the exception goes back to the caller. Nothing re-sends those events automatically. A replay session with the Kafka target is the only way they go out again.
 
 ```mermaid
 graph TB
-    subgraph "Bounded Context: Backend"
-        API[API Handler] --> DS[Domain Service]
-        DS --> DomainEvent[Domain Event]
-        DomainEvent --> MongoDB[(MongoDB)]
-        DomainEvent --> Producer[UnifiedProducer]
+    subgraph Producers
+        API[API services]
+        Workers[Saga orchestrator, k8s worker,<br/>pod monitor, result processor]
     end
 
-    Producer --> Kafka[(Kafka)]
+    API --> Producer[UnifiedProducer]
+    Workers --> Producer
+    Producer --> MongoDB[(MongoDB events)]
+    Producer --> Transport[KafkaEventTransport] --> Kafka[(Kafka)]
 
-    subgraph "Consumers"
-        Kafka --> Worker1[Saga Orchestrator]
-        Kafka --> Worker2[Pod Monitor]
-        Kafka --> Worker3[Result Processor]
+    subgraph Consumers
+        Saga[Saga orchestrator]
+        K8s[K8s worker]
+        Result[Result processor]
+        APIc["API: sse-bridge-pool,<br/>notification-service"]
     end
+
+    Kafka --> Saga
+    Kafka --> K8s
+    Kafka --> Result
+    Kafka --> APIc
 ```
 
-When publishing events, the `UnifiedProducer`:
-1. Persists the event to MongoDB via `EventRepository`
-2. Derives the topic name from `event_type` directly
-3. Publishes the Pydantic model to Kafka through `broker.publish()` (FastStream handles JSON serialization)
+The pod monitor only publishes. The DLQ manager is the one place that skips the outbox: it calls `broker.publish` directly for retries and its `dlq_message_*` status events. See [Kafka Topics](kafka-topic-architecture.md) for the consumer groups.
 
-The producer handles both storage in MongoDB and publishing to Kafka in a single flow.
+## Adding an event type
 
-## Key files
+1. Add the value to `EventType`.
+2. Add the class to `typed.py` with the matching `Literal` default.
+3. Add it to the `DomainEvent` union.
 
-| File | Purpose |
-|------|---------|
-| [`domain/enums/events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/enums/events.py) | `EventType` enum with all event type values |
-| [`domain/events/typed.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/domain/events/typed.py) | All domain event classes and `DomainEvent` union |
-| [`infrastructure/kafka/topics.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/infrastructure/kafka/topics.py) | Event-type category sets (`EXECUTION_TYPES`, `POD_TYPES`, `COMMAND_TYPES`, etc.) for DLQ retry policy resolution and grouping |
-| [`events/core/producer.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/core/producer.py) | UnifiedProducer — persists to MongoDB then publishes to Kafka |
-| [`tests/unit/domain/events/test_event_schema_coverage.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/tests/unit/domain/events/test_event_schema_coverage.py) | Validates correspondence between enum and event classes |
-
-## Related docs
-
-- [Event Storage](event-storage.md) — how events are stored in MongoDB with the payload pattern
-- [Kafka Topics](kafka-topic-architecture.md) — topic naming conventions and partitioning strategy
-- [User Settings Events](user-settings-events.md) — event sourcing pattern with TypeAdapter merging
+The topic needs no setup, since Kafka creates it on first use. `tests/unit/domain/events/test_event_schema_coverage.py` fails if an `EventType` has no class in the union, if a `BaseEvent` subclass has no `EventType` default for `event_type`, or if `DomainEventAdapter` doesn't recognize a type.

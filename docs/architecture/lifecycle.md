@@ -1,91 +1,46 @@
 # Service lifecycle
 
-Services in this codebase are stateless by design. They receive their dependencies through Dishka constructors and expose plain async methods — no `start()`, no `stop()`, no context manager protocol. Lifecycle management sits outside the services themselves: the FastAPI lifespan handles the API process, and FastStream callbacks handle each worker process.
+Services don't manage their own lifecycle. They get their dependencies through Dishka constructors and expose plain async methods, with no `start()`, `stop()` or background task of their own. Whatever needs starting and stopping is owned by the process entry point: the FastAPI lifespan in `app/core/dishka_lifespan.py` for the API, and `backend/workers/run_*.py` for each worker.
 
-This keeps services simple and testable. A service doesn't know or care how it was created or when it will be destroyed. It just does its job when called.
+That leaves a short list of things with a lifecycle. The Kafka broker needs `start()` and `stop()`. APScheduler instances need `start()` and `shutdown()`. The Redis client and the Kubernetes `ApiClient` are async generator providers in `app/core/providers.py`, so `container.close()` runs their teardown (`aclose()` and `close()`). The one service that breaks the rule is `EventReplayService`, which creates an `AsyncIOScheduler` per replay session in `start_session` and shuts it down when the session finishes or is cancelled.
 
-## How it works
+`BrokerProvider` creates the `KafkaBroker` but never starts it. Subscribers and the Dishka integration have to be registered on an unstarted broker, so the entry point does that first and starts the broker afterwards.
 
-Two infrastructure components actually have lifecycle: the **Kafka broker** (needs `start`/`stop`) and **APScheduler** instances (need `start`/`shutdown`). Everything else — services, repositories, the producer — is stateless and disposable.
+## API process
 
-The FastAPI lifespan and worker entrypoints each manage these two concerns in their own way, but the principle is the same: start infrastructure, yield or block, then tear down in reverse.
+The container is built in `create_app()`. The lifespan then does the rest, in this order:
 
-## FastAPI lifespan
+1. Connect a tz-aware `AsyncMongoClient` and run `init_beanie` over `ALL_DOCUMENTS`.
+2. Resolve the `Tracer` and instrument FastAPI with OpenTelemetry, skipping health, metrics and docs URLs.
+3. Get the broker, register the `sse-bridge-pool` and `notification-service` subscribers, and call `setup_dishka_faststream`.
+4. Start the broker.
+5. Start an `AsyncIOScheduler` that runs `NotificationScheduler.process_due_notifications` every 15 seconds.
 
-The API process manages the broker and a notification scheduler:
+On shutdown it stops the scheduler, then the broker, then closes the container. `broker.stop()` waits up to `KAFKA_GRACEFUL_TIMEOUT` (15 seconds by default) for running handlers, and Redis is still open while it does.
 
-```python
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # ... init Beanie, register subscribers, set up Dishka ...
-    await broker.start()
+gunicorn runs the API with `WEB_CONCURRENCY` workers (2 by default), and each one runs its own lifespan. That means each has its own broker connection, its own notification scheduler and its own in-memory replay sessions.
 
-    notification_apscheduler = AsyncIOScheduler()
-    notification_apscheduler.add_job(scheduler.process_due_notifications, ...)
-    notification_apscheduler.start()
+## Workers
 
-    try:
-        yield
-    finally:
-        notification_apscheduler.shutdown(wait=False)
-        await broker.stop()
-        await container.close()
-```
+All six workers follow the same shape. Each loads `Settings(override_path="config.<worker>.toml")`, sets up logging, runs `init_beanie`, builds its own container with `create_<worker>_container`, registers its subscribers if it has any, calls `setup_dishka`, and then blocks on `FastStream(broker, on_startup=[...], after_shutdown=[container.close]).run()`.
 
-Explicit try/finally keeps teardown visible. The broker stops before the container closes, so any in-flight publishes complete before DI resources are released.
+FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_startup` hooks after. The same goes for shutdown: `on_shutdown` runs before `broker.stop()` and `after_shutdown` after it. Startup work happens before the broker connects. A worker with a scheduler stops it in `on_shutdown`, and every worker closes its container in `after_shutdown`, so Redis and the Kubernetes client stay open until the broker has drained its handlers.
 
-## Worker entrypoints
+| Worker | Subscribers | Startup work | Shutdown |
+|--------|-------------|--------------|----------|
+| k8s-worker | `create_pod_command`, `delete_pod_command` | `ensure_namespace_security()` and `ensure_image_pre_puller_daemonset()` | `container.close` |
+| pod-monitor | none | APScheduler runs the watch cycle every 5s | scheduler, then container |
+| result-processor | `execution_completed`, `execution_failed`, `execution_timeout` | none | `container.close` |
+| saga-orchestrator | `execution_requested`, plus completed, failed, timeout and cancelled | APScheduler runs `check_timeouts` every 30s and `try_schedule_from_queue` every 10s | scheduler, then container |
+| dlq-processor | none | APScheduler runs `process_monitoring_cycle` every 10s | scheduler, then container |
+| event-replay | none | APScheduler runs `cleanup_old_sessions(older_than_hours=48)` every 6 hours | scheduler, then container |
 
-Workers use FastStream's `on_startup` / `on_shutdown` callbacks instead of a context manager:
+The pod monitor's watch cycle calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error that ends the cycle is counted in the watch error and reconnect metrics. An error while handling one pod event is caught inside `PodMonitor` and counted as a watch error only, and the watch carries on.
 
-```python
-async def init_service() -> None:
-    worker = await container.get(SomeService)
-    # optional: set up APScheduler, pre-warm caches, etc.
+Replay sessions are created and driven through the API's replay routes, so they live in the API process. The event-replay worker never holds a session in memory, and its cleanup job only deletes terminal sessions older than 48 hours from MongoDB.
 
-async def shutdown() -> None:
-    scheduler.shutdown(wait=False)  # if APScheduler was used
-    await container.close()
+## Adding a service or worker
 
-app = FastStream(broker, on_startup=[init_service], on_shutdown=[shutdown])
-await app.run()
-```
+A new service is a plain class with constructor dependencies and async methods. If it needs periodic work, add an APScheduler job in the entry point that owns it and keep the service unaware of scheduling.
 
-FastStream calls `on_startup` after the broker connects and `on_shutdown` when the process receives a signal. The worker blocks on `app.run()` until termination.
-
-All six workers follow this pattern:
-
-| Worker | Startup hook | Has APScheduler |
-|--------|-------------|-----------------|
-| k8s-worker | Pre-pull daemonset | No |
-| pod-monitor | Start watch loop | Yes |
-| result-processor | — | No |
-| saga-orchestrator | Start saga scheduler | Yes |
-| dlq-processor | Start monitoring cycle | Yes |
-| event-replay | Start replay scheduler | Yes |
-
-Workers without startup work pass only `on_shutdown=[container.close]`.
-
-## Why stateless services
-
-Earlier iterations had services that started themselves in constructors, or DI providers that managed `start`/`stop`. That scattered lifecycle logic across multiple layers and made shutdown order fragile.
-
-The current approach pushes all lifecycle concerns to the edges (lifespan and worker entrypoints) and keeps services as pure handlers. Benefits:
-
-- **Testable**: instantiate a service, call a method, assert results. No setup/teardown ceremony.
-- **Predictable shutdown**: one place per process owns the teardown sequence.
-- **No hidden state**: services don't hold background tasks or connections. The broker and scheduler do, and they're managed explicitly.
-
-## Building new services
-
-Write a plain class that takes its dependencies in `__init__` via Dishka. Expose async methods. Don't start background work in the constructor — if the service needs a periodic job, let the worker entrypoint set up APScheduler and register the method as a job. The service itself stays unaware of scheduling.
-
-## Building new workers
-
-Follow the existing pattern in `backend/workers/`:
-
-1. Create a `Settings` with the worker's override TOML
-2. Init Beanie, create the worker's DI container, get the broker
-3. Register subscribers and set up Dishka on the broker
-4. Define `init_*` and `shutdown` callbacks
-5. Create `FastStream(broker, on_startup=[...], on_shutdown=[...])` and call `app.run()`
+A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a `register_*_subscriber` function in `app/events/handlers.py` if it consumes events. Register subscribers and call `setup_dishka` before `app.run()`. Stop schedulers in `on_shutdown` and close the container in `after_shutdown`, so nothing the handlers use closes before the broker stops.

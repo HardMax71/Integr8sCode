@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+from httpx2 import AsyncClient
+
 from app.domain.enums import UserRole
 from app.schemas_pydantic.user import (
     LoginResponse,
@@ -8,7 +10,6 @@ from app.schemas_pydantic.user import (
     UserCreate,
     UserResponse,
 )
-from httpx2 import AsyncClient
 
 pytestmark = [pytest.mark.e2e]
 
@@ -17,9 +18,7 @@ class TestAuthLogin:
     """Tests for POST /api/v1/auth/login."""
 
     @pytest.mark.asyncio
-    async def test_login_success(
-        self, client: AsyncClient, new_user_request: UserCreate
-    ) -> None:
+    async def test_login_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Login with valid credentials returns LoginResponse."""
         await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
 
@@ -39,9 +38,7 @@ class TestAuthLogin:
         assert "csrf_token" in response.cookies
 
     @pytest.mark.asyncio
-    async def test_login_invalid_password(
-        self, client: AsyncClient, new_user_request: UserCreate
-    ) -> None:
+    async def test_login_invalid_password(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Invalid password returns 401 with error detail."""
         await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
 
@@ -72,18 +69,35 @@ class TestAuthLogin:
 
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
+    async def test_login_deactivated_account(
+        self, client: AsyncClient, test_admin: AsyncClient, new_user_request: UserCreate
+    ) -> None:
+        """Deactivated account returns 403 even with the right password."""
+        created = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
+        user_id = created.json()["user_id"]
+        deactivated = await test_admin.put(f"/api/v1/admin/users/{user_id}", json={"is_active": False})
+        assert deactivated.status_code == 200
+
+        response = await client.post(
+            "/api/v1/auth/login",
+            data={"username": new_user_request.username, "password": new_user_request.password},
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {
+            "detail": f"Account '{new_user_request.username}' is deactivated",
+            "type": "AccountDeactivatedError",
+        }
+
 
 class TestAuthRegister:
     """Tests for POST /api/v1/auth/register."""
 
     @pytest.mark.asyncio
-    async def test_register_success(
-        self, client: AsyncClient, new_user_request: UserCreate
-    ) -> None:
+    async def test_register_success(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Register new user returns UserResponse with all fields."""
-        response = await client.post(
-            "/api/v1/auth/register", json=new_user_request.model_dump()
-        )
+        response = await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
 
         assert response.status_code == 200
         result = UserResponse.model_validate(response.json())
@@ -96,10 +110,8 @@ class TestAuthRegister:
         assert result.is_superuser is False
 
     @pytest.mark.asyncio
-    async def test_register_duplicate_username(
-        self, client: AsyncClient, new_user_request: UserCreate
-    ) -> None:
-        """Duplicate username returns 400."""
+    async def test_register_duplicate_username(self, client: AsyncClient, new_user_request: UserCreate) -> None:
+        """Duplicate username returns 409."""
         await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
 
         # Try same username with different email
@@ -109,17 +121,13 @@ class TestAuthRegister:
             password="Pass123!",
             role=UserRole.USER,
         )
-        response = await client.post(
-            "/api/v1/auth/register", json=second_request.model_dump()
-        )
+        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Username already registered"
 
     @pytest.mark.asyncio
-    async def test_register_duplicate_email(
-        self, client: AsyncClient, new_user_request: UserCreate
-    ) -> None:
+    async def test_register_duplicate_email(self, client: AsyncClient, new_user_request: UserCreate) -> None:
         """Duplicate email returns 409."""
         await client.post("/api/v1/auth/register", json=new_user_request.model_dump())
 
@@ -130,9 +138,7 @@ class TestAuthRegister:
             password="Pass123!",
             role=UserRole.USER,
         )
-        response = await client.post(
-            "/api/v1/auth/register", json=second_request.model_dump()
-        )
+        response = await client.post("/api/v1/auth/register", json=second_request.model_dump())
 
         assert response.status_code == 409
         assert response.json()["detail"] == "Email already registered"
@@ -153,6 +159,19 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_register_password_too_short(self, client: AsyncClient) -> None:
+        """Password under the schema minimum returns 422 with field errors."""
+        uid = uuid.uuid4().hex[:8]
+
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={"username": f"user_{uid}", "email": f"user_{uid}@test.com", "password": "short"},
+        )
+
+        assert response.status_code == 422
+        assert [error["loc"] for error in response.json()["detail"]] == [["body", "password"]]
 
 
 class TestAuthMe:
@@ -199,3 +218,13 @@ class TestAuthLogout:
 
         # Logout is typically idempotent - should succeed even without auth
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_logout_without_csrf_header(self, test_user: AsyncClient) -> None:
+        """Logged-in logout without the CSRF header returns 403."""
+        del test_user.headers["X-CSRF-Token"]
+
+        response = await test_user.post("/api/v1/auth/logout")
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "CSRF validation failed", "type": "CSRFValidationError"}

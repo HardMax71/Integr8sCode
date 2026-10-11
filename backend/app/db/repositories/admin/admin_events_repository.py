@@ -2,8 +2,9 @@ import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import structlog
 from beanie.odm.enums import SortDirection
-from beanie.operators import GTE, LTE, In, Text
+from beanie.operators import GTE, LTE, In, Set, Text
 from monggregate import Pipeline, S
 
 from app.db.docs import (
@@ -33,6 +34,9 @@ from app.domain.sse import DomainReplaySSEPayload
 
 
 class AdminEventsRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     def _event_filter_conditions(self, f: EventFilter) -> list[Any]:
         """Build Beanie query conditions from EventFilter for EventDocument."""
         conditions = [
@@ -213,12 +217,13 @@ class AdminEventsRepository:
         )
 
     async def archive_event(self, event: DomainEvent, deleted_by: str) -> bool:
-        archive_doc = EventArchiveDocument(
-            **event.model_dump(),
-            deleted_at=datetime.now(timezone.utc),
-            deleted_by=deleted_by,
+        deleted_at = datetime.now(timezone.utc)
+        archive_doc = EventArchiveDocument(**event.model_dump(), deleted_at=deleted_at, deleted_by=deleted_by)
+        deletion = {EventArchiveDocument.deleted_at: deleted_at, EventArchiveDocument.deleted_by: deleted_by}
+        await EventArchiveDocument.find_one(EventArchiveDocument.event_id == event.event_id).upsert(
+            Set(deletion),  # type: ignore[no-untyped-call]
+            on_insert=archive_doc,
         )
-        await archive_doc.insert()
         return True
 
     async def update_replay_session(self, session_id: str, updates: ReplaySessionUpdate) -> bool:

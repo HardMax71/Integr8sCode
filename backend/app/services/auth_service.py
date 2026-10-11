@@ -133,6 +133,7 @@ class AuthService:
         user_agent: str | None,
     ) -> LoginResult:
         if await self._lockout.check_locked(username):
+            self.security_metrics.record_brute_force_attempt()
             raise AccountLockedError("Account temporarily locked due to too many failed attempts")
 
         with self.security_metrics.track_authentication("login"):

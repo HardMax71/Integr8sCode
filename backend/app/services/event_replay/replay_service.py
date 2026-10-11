@@ -6,10 +6,12 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import aiofiles
-import backoff
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import ValidationError
+from pymongo.errors import PyMongoError
+from redis.exceptions import RedisError
+from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.metrics import ReplayMetrics
 from app.db import ReplayRepository
@@ -26,8 +28,10 @@ from app.domain.replay import (
     ReplaySessionState,
 )
 from app.domain.sse import DomainReplaySSEPayload
-from app.events import UnifiedProducer
+from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.services.sse.redis_bus import SSERedisBus
+
+_DISPATCH_ERRORS: tuple[type[Exception], ...] = (*PRODUCE_ERRORS, OSError, ValueError)
 
 
 class EventReplayService:
@@ -62,8 +66,8 @@ class EventReplayService:
                 status=ReplayStatus.CREATED,
                 message="Replay session created successfully",
             )
-        except Exception as e:
-            self.logger.error(f"Failed to create replay session: {e}")
+        except (PyMongoError, ValidationError) as e:
+            self.logger.error("Failed to create replay session", error=str(e))
             raise ReplayOperationError("", "create", str(e)) from e
 
     async def start_session(self, session_id: str) -> ReplayOperationResult:
@@ -80,6 +84,7 @@ class EventReplayService:
         if not await self._load_next_batch(session_id):
             session.status = ReplayStatus.COMPLETED
             session.completed_at = datetime.now(timezone.utc)
+            self._metrics.record_status_change(session_id, ReplayStatus.CREATED, ReplayStatus.COMPLETED)
             await self._update_session_in_db(session)
             return ReplayOperationResult(
                 session_id=session_id, status=ReplayStatus.COMPLETED, message="No events to replay"
@@ -173,6 +178,7 @@ class EventReplayService:
             session = self._sessions[session_id]
             if session.status.is_terminal and session.created_at < cutoff_time:
                 del self._sessions[session_id]
+                self._metrics.update_sessions_by_status(session.status, -1)
                 removed_memory += 1
 
         removed_db = await self._repository.delete_old_sessions(cutoff_time)
@@ -211,6 +217,7 @@ class EventReplayService:
             )
             if not session.config.skip_errors:
                 session.failed_events += 1
+                self._metrics.record_event_replayed(session.config.replay_type, event.event_type, False)
                 await self._finalize_session(session, ReplayStatus.FAILED)
                 return
         else:
@@ -221,9 +228,7 @@ class EventReplayService:
             session.replayed_events += 1
         else:
             session.failed_events += 1
-        self._metrics.record_event_replayed(
-            session.config.replay_type, event.event_type, "success" if success else "failed"
-        )
+        self._metrics.record_event_replayed(session.config.replay_type, event.event_type, success)
         session.last_event_at = event.timestamp
         await self._update_session_in_db(session)
 
@@ -288,7 +293,8 @@ class EventReplayService:
             total_events = session.replayed_events + session.failed_events
             self._metrics.record_replay_duration(duration, session.config.replay_type, total_events=total_events)
         self._metrics.record_status_change(session.session_id, previous_status, final_status)
-        self._metrics.decrement_active_replays()
+        if previous_status in (ReplayStatus.RUNNING, ReplayStatus.PAUSED):
+            self._metrics.decrement_active_replays()
         self._metrics.update_replay_queue_size(session.session_id, 0)
         await self._update_session_in_db(session)
         scheduler = self._schedulers.pop(session.session_id, None)
@@ -345,19 +351,22 @@ class EventReplayService:
 
         max_attempts = config.retry_attempts if config.retry_failed else 1
 
-        @backoff.on_exception(
-            backoff.expo,
-            Exception,
-            max_tries=max_attempts,
-            max_value=10,
-            jitter=None,
-            on_backoff=lambda details: self.logger.error(
+        def _log_retry(state: RetryCallState) -> None:
+            self.logger.error(
                 "Failed to replay event",
-                attempt=details["tries"],
+                attempt=state.attempt_number,
                 max_attempts=max_attempts,
-                error=str(details["exception"]),
-            ),
+                error=str(state.outcome.exception() if state.outcome else None),
+            )
+
+        retrying = AsyncRetrying(
+            retry=retry_if_exception_type(_DISPATCH_ERRORS),
+            stop=stop_after_attempt(max_attempts),
+            wait=wait_exponential(max=10),
+            before_sleep=_log_retry,
+            reraise=True,
         )
+
         async def _dispatch() -> None:
             match config.target:
                 case ReplayTarget.KAFKA:
@@ -371,13 +380,16 @@ class EventReplayService:
                 case _:
                     raise ValueError(f"Unknown replay target: {config.target}")
 
+        success = False
         try:
-            await _dispatch()
-            self._metrics.record_replay_by_target(config.target, success=True)
-            return True
-        except Exception:
-            self._metrics.record_replay_by_target(config.target, success=False)
+            await retrying(_dispatch)
+            success = True
+        except _DISPATCH_ERRORS:
             return False
+        finally:
+            # Unexpected errors still propagate to _dispatch_next, but count against the target first
+            self._metrics.record_replay_by_target(config.target, success=success)
+        return True
 
     async def _write_event_to_file(self, event: DomainEvent, file_path: str) -> None:
         if file_path not in self._file_locks:
@@ -398,8 +410,8 @@ class EventReplayService:
                 completed_at=session.completed_at,
             )
             await self._repository.update_replay_session(session_id=session.session_id, updates=session_update)
-        except Exception as e:
-            self.logger.error(f"Failed to update session in database: {e}")
+        except PyMongoError as e:
+            self.logger.error("Failed to update session in database", session_id=session.session_id, error=str(e))
         await self._publish_replay_status(session)
 
     async def _publish_replay_status(self, session: ReplaySessionState) -> None:
@@ -418,5 +430,5 @@ class EventReplayService:
                 errors=session.errors,
             )
             await self._sse_bus.publish_replay_status(session.session_id, payload)
-        except Exception as e:
+        except RedisError as e:
             self.logger.error("Failed to publish replay status to SSE", error=str(e))

@@ -1,497 +1,137 @@
-# CI/CD Pipeline
+# CI/CD pipeline
 
-The project uses GitHub Actions to automate code quality checks, security scanning, testing, image publishing, and
-documentation deployment. The pipeline is split across several workflow files that trigger independently based on path
-filters, so only relevant checks run for each change.
-
-## Pipeline overview
+CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. An automatic deploy only happens when the whole chain succeeds on `main`. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
-    subgraph "Code Quality (lightweight)"
-        Ruff["Ruff Linting"]
-        MyPy["MyPy Type Check"]
-        Grimp["Grimp Orphan Modules"]
-        ESLint["ESLint + Svelte Check"]
+    subgraph ST["Stack Tests"]
+        UB["backend unit + Grafana contract"] --> Build["build and push 4 images"]
+        UF["frontend unit"] --> Build
+        Build --> EB["backend E2E"]
+        Build --> EF["frontend E2E, 2 shards"]
     end
-
-    subgraph "Security"
-        Bandit["Bandit SAST"]
-        SBOM["SBOM & Grype"]
+    subgraph DSP["Docker Scan & Promote"]
+        Scan["Trivy, 4 images"] --> Promote["crane: sha tag to latest"]
     end
-
-    subgraph "Stack Tests"
-        UnitBE["Backend Unit"]
-        UnitFE["Frontend Unit"]
-        Build["Build & Push Images"]
-        E2E_BE["Backend E2E"]
-        E2E_FE["Frontend E2E"]
-        UnitBE --> Build
-        UnitFE --> Build
-        Build --> E2E_BE
-        Build --> E2E_FE
+    subgraph RD["Release & Deploy"]
+        Release["CalVer tag + GitHub release"] --> Deploy["SSH deploy"]
     end
-
-    subgraph "Docker Scan & Promote"
-        Scan["Trivy Scan (4 images)"]
-        Promote["Promote SHA → latest"]
-        Scan --> Promote
-    end
-
-    subgraph "Release & Deploy"
-        Release["CalVer Tag + GitHub Release"]
-        Deploy["SSH Deploy to Production"]
-        Release --> Deploy
-    end
-
-    subgraph "Documentation"
-        Docs["MkDocs Build"]
-        Pages["GitHub Pages"]
-    end
-
-    Push["Push / PR"] --> Ruff & MyPy & Grimp & ESLint & Bandit & SBOM & UnitBE & UnitFE & Docs
-    Build -->|main, all tests pass| Scan
-    Promote -->|main, scans pass| Release
-    Docs -->|main only| Pages
+    ST -->|"success on main"| DSP
+    DSP -->|"success on main"| RD
 ```
 
-The three heavyweight workflows are **Stack Tests** (builds images, runs all tests), **Docker Scan & Promote**
-(scans images with Trivy and promotes to `latest`), and **Release & Deploy** (creates CalVer releases and deploys to
-production). They're chained: Docker Scan & Promote triggers after Stack Tests succeeds on `main`, and Release & Deploy
-triggers after Docker Scan & Promote succeeds, forming a build-test-scan-promote-release-deploy pipeline where
-production only updates when everything passes.
+## Workflows
 
-## Workflow files
+| Workflow                       | File                   | Runs on                                                                 |
+|--------------------------------|------------------------|-------------------------------------------------------------------------|
+| Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh, stack-tests.yml or the composite actions change; manual |
+| Docker Scan & Promote          | docker.yml           | after Stack Tests completes; manual with an optional SHA                |
+| Release & Deploy               | release-deploy.yml   | after Docker Scan & Promote completes; manual on `main` with `skip_deploy` |
+| Ruff Linting                   | ruff.yml             | push and PRs to `main`; manual                                          |
+| MyPy Type Checking             | mypy.yml             | push and PRs to `main`; manual                                          |
+| Dead Code Detection            | grimp.yml            | push and PRs to `main`; manual                                          |
+| Security Scanning              | security.yml         | push and PRs to `main`; manual                                          |
+| SBOM & Supply Chain Security   | sbom-compliance.yml  | push and PRs to `main`; Sundays at midnight                             |
+| Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
+| docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
 
-| Workflow                | File                                         | Trigger                                       | Purpose                                    |
-|-------------------------|----------------------------------------------|-----------------------------------------------|--------------------------------------------|
-| Stack Tests             | `.github/workflows/stack-tests.yml`          | Push/PR to `main`, tags `v*`                   | Unit tests, image build, E2E tests         |
-| Docker Scan & Promote   | `.github/workflows/docker.yml`               | After Stack Tests completes on `main`          | Trivy scan + promote SHA tag to `latest`   |
-| Release & Deploy        | `.github/workflows/release-deploy.yml`       | After Docker Scan & Promote completes on `main`| CalVer release + SSH deploy to production  |
-| SBOM & Supply Chain     | `.github/workflows/sbom-compliance.yml`      | Push/PR to `main`, weekly schedule             | SPDX SBOM generation + Grype vulnerability scan |
-| Ruff Linting            | `.github/workflows/ruff.yml`                 | Push/PR to `main`                              | Python code style and import checks        |
-| MyPy Type Checking      | `.github/workflows/mypy.yml`                 | Push/PR to `main`                              | Python static type analysis                |
-| Frontend CI             | `.github/workflows/frontend-ci.yml`          | Push/PR to `main` (frontend changes)           | ESLint + Svelte type check                 |
-| Security Scanning       | `.github/workflows/security.yml`             | Push/PR to `main`                              | Bandit SAST                                |
-| Dead Code Detection     | `.github/workflows/grimp.yml`                | Push/PR to `main`                              | Grimp orphan module detection              |
-| Documentation           | `.github/workflows/docs.yml`                 | Push/PR (`docs/`, `mkdocs.yml`)                | MkDocs build and GitHub Pages deploy       |
+The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
-## Composite actions
+The docs workflow installs the backend dependencies, runs `./deploy.sh openapi`, builds with `mkdocs build --strict` and deploys to GitHub Pages on pushes to `main`.
 
-Shared steps are extracted into reusable composite actions under `.github/actions/`. This eliminates duplication between
-the backend and frontend E2E jobs, which both need k3s and the full docker compose stack but set it up differently.
+## Stack Tests
 
-| Action                  | File                                         | Purpose                                    |
-|-------------------------|----------------------------------------------|--------------------------------------------|
-| E2E Boot                | `.github/actions/e2e-boot/action.yml`        | GHCR login, background image pull + infra pre-warm, k3s install |
-| E2E Ready               | `.github/actions/e2e-ready/action.yml`       | Finalize k3s, start compose stack, health checks |
+The backend unit job installs with `uv sync --frozen --group test --no-dev --no-install-project --no-build` and runs `pytest tests/unit` with coverage. The pytest config adds `-n auto --dist=loadgroup`, so tests run in parallel with xdist and tests that share a group stay on one worker. The same job then runs the [Grafana contract tests](../testing/contract-testing.md) with `pytest tests/contract -m grafana_contract`. The frontend unit job runs `npm ci --ignore-scripts` and `npm run test:coverage`. Coverage goes to Codecov with the flags `backend-unit`, `frontend-unit` and later `backend-e2e`.
 
-The split is intentional. Frontend E2E needs to install Node.js and Playwright browsers _between_ boot and ready,
-overlapping that work with k3s installation to save wall-clock time. Backend E2E calls them back-to-back since it has
-no setup to overlap.
+Once both pass, one job builds the four images and pushes them to GHCR as `sha-<7 chars>`:
 
-## Stack Tests (the main workflow)
+| Image            | Dockerfile                  | Build                                                         |
+|------------------|-----------------------------|---------------------------------------------------------------|
+| `base`           | `backend/Dockerfile.base`   | cached as a zstd tarball keyed on `Dockerfile.base`, pyproject.toml and uv.lock; GHA layer cache on a miss |
+| `backend`        | `backend/Dockerfile`        | plain `docker build` on top of the local base image           |
+| `cert-generator` | `cert-generator/Dockerfile` | GHA layer cache                                               |
+| `frontend`       | `frontend/Dockerfile`       | GHA layer cache                                               |
 
-This is the core testing workflow. It builds all 4 container images, pushes them to GHCR with immutable SHA-based
-tags, then runs E2E tests on separate runners that pull images from the registry.
+The pushes run in parallel and each failure is reported on its own. Fork PRs can't push to GHCR, so for them the push and both E2E jobs are skipped. Workers reuse the backend image, so there are no worker images.
 
-```mermaid
-graph TD
-    subgraph "Phase 1: Fast feedback"
-        A["Backend Unit Tests"]
-        B["Frontend Unit Tests"]
-    end
+### E2E
 
-    subgraph "Phase 2: Build"
-        C["Build & Push 4 Images to GHCR"]
-    end
+Each E2E job gets its own runner with k3s and the full compose stack, pulling the images it just built. Two composite actions set that up, and the frontend job installs Node and Playwright between them so that work overlaps with k3s booting.
 
-    subgraph "Phase 3: E2E (parallel runners)"
-        D["Backend E2E<br/>(k3s + full stack)"]
-        E["Frontend E2E Shard 1/2<br/>(k3s + Playwright)"]
-        F["Frontend E2E Shard 2/2<br/>(k3s + Playwright)"]
-    end
+`e2e-boot` logs in to GHCR, starts `docker compose pull` and then `mongo redis shared-ca kafka` in the background, and installs k3s with its network policy controller off. That controller (kube-router) rewrites the whole iptables filter table on every sync and drops any rule Docker added in the meantime ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)), which once left every container on the runner unable to reach mongo. No E2E test checks policy enforcement, and the worker still creates the NetworkPolicy object. Also in the background, it downloads the Kueue manifest and pre-pulls `python:3.11-slim` and `python:3.14-slim` into k3s with crictl, so the first executor pods don't wait on an image pull.
 
-    A --> C
-    B --> C
-    C --> D & E & F
+`e2e-ready` writes `backend/kubeconfig.yaml` pointing at `host.docker.internal:6443` and creates the `integr8scode` namespace. Unless `install-kueue` is `false`, it applies the Kueue manifest, waits for the controller and creates the `ResourceFlavor`, `ClusterQueue` and `LocalQueue` (`kueue.x-k8s.io/v1beta2`), then waits for the image pre-pulls. It copies config.test.toml over config.toml, waits for the background infra start, runs `docker compose up -d --no-build` and polls `/api/v1/health/live` (and the frontend, when asked).
 
-    style A fill:#e8f5e9
-    style B fill:#e8f5e9
-    style C fill:#e1f5fe
-    style D fill:#fff3e0
-    style E fill:#fff3e0
-    style F fill:#fff3e0
-```
-
-### Phase 1: Unit tests
-
-Backend and frontend unit tests run in parallel. They need no infrastructure and complete quickly. If either fails,
-the image build is skipped entirely.
-
-### Phase 2: Build and push
-
-All 4 images are built on a single runner and pushed to GHCR with an immutable `sha-<7chars>` tag:
-
-| Image                | Source                                      |
-|----------------------|---------------------------------------------|
-| `base`               | `backend/Dockerfile.base`                   |
-| `backend`            | `backend/Dockerfile`                        |
-| `cert-generator`     | `cert-generator/Dockerfile`                 |
-| `frontend`           | `frontend/Dockerfile`                       |
-
-Workers reuse the `backend` image with different `command:` overrides in docker-compose, so no separate worker images
-are needed. All 4 images are scanned by Trivy and promoted to `latest` in the
-[Docker Scan & Promote](#docker-scan-promote) workflow.
-
-The base image is built with `docker/build-push-action@v7` (GHA cache `scope=backend-base`) and cached separately as a
-zstd-compressed tarball, since its dependencies rarely change. The backend image is a plain `docker build` on top of
-that cached base, so only the application layers rebuild. Utility and frontend images use GHA layer caching.
-
-All 4 images are pushed to GHCR in parallel, with each push tracked by PID so individual failures are reported:
-
-```yaml
-declare -A PIDS
-for name in base backend cert-generator frontend; do
-  docker push "$IMG/$name:$TAG" &
-  PIDS[$name]=$!
-done
-FAILED=0
-for name in "${!PIDS[@]}"; do
-  if ! wait "${PIDS[$name]}"; then
-    echo "::error::Failed to push $name"
-    FAILED=1
-  fi
-done
-[ "$FAILED" -eq 0 ] || exit 1
-```
-
-Fork PRs skip the GHCR push (no write access), so E2E tests only run for non-fork PRs.
-
-### Phase 3: E2E tests
-
-Backend and frontend E2E tests run on separate runners. Each runner provisions its own k3s cluster and docker compose
-stack, pulling pre-built images from GHCR.
-
-#### E2E Boot (`.github/actions/e2e-boot`)
-
-This action kicks off three slow tasks that can overlap:
-
-1. **GHCR login** using `docker/login-action@v4`
-2. **Background image pull + infra pre-warm** — pulls all compose images then starts infrastructure services
-   (mongo, redis, kafka) in a background `nohup` process. The exit status is persisted
-   to `/tmp/infra-pull.exit` so the next action can check for failures.
-3. **k3s install** — downloads and installs a pinned k3s version with SHA256 checksum verification (see
-   [supply-chain hardening](#supply-chain-hardening) below)
-
-#### E2E Ready (`.github/actions/e2e-ready`)
-
-This action finalizes the environment after boot tasks complete:
-
-1. **Finalize k3s** — copies kubeconfig, rewrites the API server address to `host.docker.internal` so containers
-   inside docker compose can reach the k3s API server, creates the `integr8scode` namespace
-2. **Start cert-generator** in the background
-3. **Copy test config** — uses `config.test.toml` (secrets come from env var defaults)
-4. **Wait for image pull and infra** — blocks until the background pull completes and checks the exit code from
-   `/tmp/infra-pull.exit`, failing fast if the background process had errors
-5. **Start compose stack** with `docker compose up -d --no-build`
-6. **Health checks** — waits for backend (`/api/v1/health/live`), and optionally frontend (`https://localhost:5001`)
-
-#### Frontend E2E sharding
-
-Frontend E2E tests use Playwright with 2 shards running in parallel on separate runners. Between `e2e-boot` and
-`e2e-ready`, each shard installs Node.js dependencies and Playwright browsers (with caching), overlapping that work
-with k3s booting in the background.
-
-```
-e2e-boot (GHCR login + pull + k3s install)
-    |
-    ├── npm ci + playwright install (overlapped with k3s)
-    |
-e2e-ready (finalize k3s + start stack + health check)
-    |
-    └── npm run test:e2e -- --shard=N/2
-```
-
-### Coverage reporting
-
-Each test suite reports coverage to [Codecov](https://codecov.io/) with separate flags:
-
-- `backend-unit` — backend unit tests
-- `backend-e2e` — backend E2E tests
-- `frontend-unit` — frontend unit tests (Vitest with `lcov` output)
-
-### Log collection on failure
-
-When E2E tests fail, logs are collected automatically and uploaded as artifacts:
-
-- All docker compose service logs with timestamps
-- Individual service logs for each worker
-- Kubernetes events sorted by timestamp (backend E2E only)
+The backend E2E job runs `pytest tests/e2e` inside the backend container after `uv sync --group test --no-dev --frozen --no-install-project --no-build`. The frontend E2E job runs as two shards. It caches Playwright browsers by package-lock.json, always runs `npm run test:e2e:deps`, runs `npm run test:e2e:browsers` on a cache miss, skips Kueue, and runs `npm run test:e2e -- --shard=N/2`. On failure both jobs upload compose logs; the backend one adds `kubectl get events`.
 
 ## Docker Scan & Promote
 
-This workflow implements the promotion model: the `latest` tag is never set during the build. Only this workflow
-sets it, and only after all tests pass.
-
-```mermaid
-graph LR
-    ST["Stack Tests<br/>(main, success)"] -->|workflow_run trigger| Scan
-    Scan["Trivy Scan<br/>(4 images in parallel)"] --> Promote["crane copy<br/>sha-xxx → latest"]
-    Promote --> Summary["Step Summary"]
-```
-
-### Trigger
-
-Runs automatically when `Stack Tests` completes successfully on `main`. Can also be triggered manually via
-`workflow_dispatch` with an optional SHA input to promote a specific commit.
-
-### Scan
-
-Uses [Trivy](https://trivy.dev/) (pinned at `v0.75.0`) to scan all 4 deployed images in parallel via matrix strategy.
-Scans for `CRITICAL` and `HIGH` severity vulnerabilities with unfixed issues ignored. Results are uploaded as SARIF
-files to GitHub's Security tab.
-
-### Promote
-
-Uses [crane](https://github.com/google/go-containerregistry/blob/main/cmd/crane/README.md) to copy manifests at the
-registry level (`crane copy sha-tag latest`), avoiding any rebuild or re-push. This is a fast, atomic operation that
-simply re-tags existing image manifests.
+The jobs run only when Stack Tests succeeded on `main`, or on a manual run. A matrix scans `base`, `backend`, `frontend` and `cert-generator` with Trivy v0.75.0 (`CRITICAL,HIGH`, unfixed ignored, `backend/.trivyignore`) and uploads SARIF to the Security tab. A finding fails the scan job, and `promote` needs every scan to pass, so an image with a fixable `CRITICAL` or `HIGH` vulnerability never becomes `latest`. `limit-severities-for-sarif` keeps the SARIF to those two levels; without it the action drops the severity filter for SARIF and the gate would trip on everything. The promote job then copies each `sha-` tag to `latest` with `crane copy`, a registry-side manifest copy with no rebuild.
 
 ## Release & Deploy
 
-This workflow creates a CalVer-tagged GitHub Release and deploys to production. It chains after Docker Scan & Promote,
-completing the full pipeline from code push to production deployment.
+The release job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies `latest` to that tag for all four images with crane, pushes an annotated git tag and creates a GitHub release with generated notes.
 
-```mermaid
-graph LR
-    DSP["Docker Scan & Promote<br/>(main, success)"] -->|workflow_run trigger| Release
-    Release["CalVer Tag<br/>+ GitHub Release"] --> Deploy["SSH Deploy<br/>to Production"]
-    Deploy --> Summary["Step Summary"]
-```
-
-### Trigger
-
-Runs automatically when `Docker Scan & Promote` completes successfully on `main`. Can also be triggered manually via
-`workflow_dispatch` with an optional `skip_deploy` flag to create a release without deploying.
-
-### CalVer tagging
-
-Releases use [Calendar Versioning](https://calver.org/) with the format `YYYY.M.PATCH`:
-
-- `YYYY` — full year (e.g., `2026`)
-- `M` — month without leading zero (e.g., `2` for February)
-- `PATCH` — auto-incrementing counter within the month, starting at `0`
-
-Examples: `2026.2.0`, `2026.2.1`, `2026.3.0`. The workflow counts existing tags matching the current `YYYY.M.*` pattern
-and increments the patch number. All 4 deployed GHCR images are tagged with the CalVer version using crane (same
-registry-level manifest copy as the promote step).
-
-### GitHub Release
-
-The workflow creates an annotated git tag and a GitHub Release using `softprops/action-gh-release@v3` with
-`generate_release_notes: true`, which auto-generates a changelog from merged PRs since the previous release. The release
-body includes the commit SHA and docker pull commands for the tagged images.
-
-### Production deployment
-
-The deploy job SSHs into the production server using `appleboy/ssh-action@v1` and runs:
-
-1. `git pull origin main` — update config files and compose definitions
-2. `docker login ghcr.io` — authenticate with a dedicated read-only PAT (passed via `envs`, not embedded in the script)
-3. `docker compose pull` — pull the latest images
-4. `docker compose up -d --remove-orphans` — recreate changed containers
-5. Health check — polls `/api/v1/health/live` with a 120-second timeout
-6. `docker image prune` — clean up images older than 72 hours
-
-The deploy job is skippable via the `skip_deploy` input on manual dispatch.
+The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`. What it runs on the server is in [Deployment](deployment.md#production).
 
 ### Required secrets
 
-| Secret                       | Purpose                                    |
-|------------------------------|--------------------------------------------|
-| `DEPLOY_HOST`                | Production server IP                       |
-| `DEPLOY_USER`                | SSH username                               |
-| `DEPLOY_SSH_KEY`             | Ed25519 private key for SSH                |
-| `DEPLOY_GHCR_TOKEN`         | GitHub PAT with `read:packages` scope      |
-| `MAILJET_API_KEY`            | Mailjet SMTP username (API key)            |
-| `MAILJET_SECRET_KEY`         | Mailjet SMTP password (secret key)         |
-| `MAILJET_FROM_ADDRESS`       | Verified sender email for alerts           |
-| `GRAFANA_ALERT_RECIPIENTS`   | Email(s) that receive alert notifications  |
+| Secret                                         | Used by                     | For                                         |
+|------------------------------------------------|-----------------------------|---------------------------------------------|
+| `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` | Release & Deploy            | SSH to the production server                |
+| `DEPLOY_GHCR_TOKEN`                            | Release & Deploy            | PAT with `read:packages` for `docker login` |
+| `JWT_SECRET_KEY`                               | Release & Deploy            | the backend's `SECRET_KEY`                  |
+| `MONGO_USER`, `MONGO_PASSWORD`                 | Release & Deploy            | MongoDB root credentials                    |
+| `MONGO_MONITOR_PASSWORD`                       | Release & Deploy            | password of the collector's MongoDB user    |
+| `REDIS_PASSWORD`                               | Release & Deploy            | Redis password                              |
+| `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | Release & Deploy            | Grafana admin login                         |
+| `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS` | Release & Deploy | Grafana alert mail over SMTP |
+| `GRAFANA_ALERT_RECIPIENTS`                     | Release & Deploy            | who gets alert mail                         |
+| `CODECOV_TOKEN`                                | Stack Tests                 | coverage upload                             |
+| `TEST_SECRET_KEY`                              | MyPy Type Checking          | exported as `SECRET_KEY` for the mypy step |
 
-See [Deployment — Production deployment](deployment.md#production-deployment) for setup instructions.
+Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials and the monitor password, so the deploy script stops before it touches the server when any of those secrets is empty.
 
-## SBOM & Supply Chain Security
+## Supply chain
 
-The `sbom-compliance.yml` workflow generates [SPDX](https://spdx.dev/) Software Bills of Materials for both backend
-(Python) and frontend (JavaScript) components. It runs on every push/PR to `main` and weekly on a schedule.
+Every action, the composite ones included, is pinned to a full commit SHA with the version in a comment, for example `actions/checkout@3d3c42e5... # v7.0.1`. The Trivy action is pinned to the commit of v0.36.0 because the older tags were deleted upstream.
 
-For each component:
+Tools are pinned exactly: mkdocs 1.6.1 with material 9.7.7, mermaid2 1.2.3 and swagger-ui-tag 0.8.1; bandit 1.9.4; Trivy v0.75.0. Python installs use `uv sync --frozen` with `--no-build`, so only wheels from the lockfile get installed, and `--no-install-project`. `uvx` calls also pass `--no-build`. npm installs use `npm ci --ignore-scripts`, in CI and in the frontend image.
 
-1. **Generate SBOM** using [anchore/sbom-action](https://github.com/anchore/sbom-action) — produces an SPDX JSON file
-   listing all direct and transitive dependencies
-2. **Scan SBOM** using [anchore/scan-action](https://github.com/anchore/scan-action) (Grype) — checks for known
-   vulnerabilities with a `high` severity cutoff
-3. **Upload** — SBOM artifacts are retained for 5 days; vulnerability results are uploaded as SARIF to GitHub's
-   Security tab
+k3s comes from the install script in the k3s repo at the pinned tag (`v1.37.1+k3s1`), not from get.k3s.io, and the script's SHA256 is checked before it runs. The Kueue manifest (`v0.20.1`) is checked the same way. All these downloads use `curl --proto =https --tlsv1.2`.
 
-## Supply-chain hardening
+`latest` is only ever set by the promote job, so after an automatic promote it points at images that passed the tests and the Trivy scan. A manual promote still needs the scan but can pick a SHA whose E2E jobs failed, since the build job pushes the `sha-` tags before E2E runs. Any build stays pullable by its `sha-` tag.
 
-### k3s version pinning and checksum verification
+## Dependabot
 
-The k3s installation in CI is hardened against supply-chain attacks:
+Dependabot checks weekly and opens one grouped PR per ecosystem: uv in `backend/`, npm in `frontend/`, the three Dockerfiles, the images in docker-compose.yaml, and GitHub Actions including the composite actions. It ignores TypeScript 7 and later, because typescript-eslint and svelte-check need the compiler API that 7 dropped, and Jaeger 2.21 and later, because Grafana can't search it yet.
 
-1. **Pinned version**: `K3S_VERSION` is set as a workflow-level env var (`v1.37.1+k3s1`), not fetched dynamically
-2. **Source pinning**: the install script is fetched from the k3s GitHub repository at the exact tagged version
-   (e.g., `https://raw.githubusercontent.com/k3s-io/k3s/v1.37.1%2Bk3s1/install.sh`), not from the `get.k3s.io` CDN
-3. **SHA256 verification**: the install script is verified against a known checksum before execution:
-
-```bash
-K3S_TAG=$(echo "$K3S_VERSION" | sed 's/+/%2B/g')
-curl -sfL "https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh" -o /tmp/k3s-install.sh
-echo "$K3S_INSTALL_SHA256  /tmp/k3s-install.sh" | sha256sum -c -
-chmod +x /tmp/k3s-install.sh
-INSTALL_K3S_VERSION="$K3S_VERSION" ... /tmp/k3s-install.sh
-```
-
-This prevents the common `curl | sh` anti-pattern where a compromised CDN or MITM could inject malicious code.
-
-### GHCR image tags
-
-Images are tagged with `sha-<7chars>` (immutable, tied to a specific commit) during build. The `latest` tag is only
-applied by the Docker Scan & Promote workflow after all tests and security scans pass. This means:
-
-- Every E2E test runs against exactly the images built from that commit
-- `latest` is never stale or untested
-- Any commit's images can be pulled by their SHA tag for debugging
-
-### Dependency pinning
-
-GitHub Actions are pinned to major versions (e.g., `actions/checkout@v7`, `docker/build-push-action@v7`). setup-uv no
-longer publishes major tags, so it's pinned to `v10.3.0`. The Trivy action is pinned to the commit of `v0.36.0`, since
-Aqua deleted its older version tags.
-
-## Linting and type checking
-
-Three lightweight workflows run independently since they catch obvious issues quickly.
-
-**Backend (Python):**
-
-- [Ruff](https://docs.astral.sh/ruff/) checks for style violations, import ordering, and common bugs
-- [mypy](https://mypy.readthedocs.io/) with strict settings catches type mismatches and missing return types
-- [Grimp](https://github.com/seddonym/grimp) detects orphan modules — modules that no other module in the package imports. Unlike symbol-level tools, it catches entire dead files (e.g. removed features) with zero false positives from framework patterns
-
-**Frontend (TypeScript/Svelte):**
-
-- ESLint checks for code quality issues
-- `svelte-check` verifies TypeScript types and Svelte component correctness
-
-Both use dependency caching ([uv](https://docs.astral.sh/uv/) for Python, npm for Node.js) to skip reinstallation
-when lockfiles haven't changed.
-
-## Security scanning
-
-The `security.yml` workflow uses [Bandit](https://bandit.readthedocs.io/) to perform static analysis on Python source
-files, flagging issues like hardcoded credentials, SQL injection patterns, and unsafe deserialization. It excludes the
-test directory and reports only medium-severity and above findings. Container-level vulnerability scanning with Trivy
-runs as part of the [Docker Scan & Promote](#docker-scan-promote) workflow.
-
-## Documentation
-
-The docs workflow builds this documentation site using [MkDocs](https://www.mkdocs.org/) with
-the [Material theme](https://squidfunk.github.io/mkdocs-material/). It triggers only when files under `docs/`,
-`mkdocs.yml`, or the workflow itself change.
-
-On pushes to main, the workflow deploys the built site to GitHub Pages.
-
-## Build optimizations
-
-### Docker layer caching
-
-All image builds use [docker/build-push-action](https://github.com/docker/build-push-action) with GitHub Actions
-cache. Each service has its own cache scope, preventing pollution between unrelated builds:
-
-```yaml
-- name: Build cert-generator image
-  uses: docker/build-push-action@v7
-  with:
-    context: ./cert-generator
-    file: ./cert-generator/Dockerfile
-    load: true
-    tags: integr8scode-cert-generator:latest
-    cache-from: type=gha,scope=cert-generator
-    cache-to: type=gha,mode=max,scope=cert-generator
-```
-
-### Base image caching
-
-The base image (Python + all pip dependencies) changes infrequently, so it's cached as a zstd-compressed tarball keyed
-on `Dockerfile.base`, `pyproject.toml`, and `uv.lock`. On cache hit the image is loaded directly with `docker load`,
-skipping the entire build.
-
-### Background infra pre-warm
-
-The `e2e-boot` action pulls all docker compose images and starts infrastructure services _in the background_ while k3s
-installs. This overlaps network-bound (image pull) and CPU-bound (k3s compilation) work, saving several minutes per
-E2E job.
-
-### Frontend Playwright caching
-
-Playwright browsers are cached by `package-lock.json` hash. On cache hit, only system dependencies are installed
-(`playwright install-deps chromium`), skipping the browser download.
-
-### Parallel image push
-
-All 4 images are pushed to GHCR concurrently using background processes with PID tracking. Each push failure is
-reported individually via `::error::` annotations.
-
-## Running locally
-
-You can run most checks locally before pushing.
+## Running checks locally
 
 ```bash
 cd backend
-
-# Linting
 uv run ruff check . --config pyproject.toml
-
-# Type checking
 uv run mypy --config-file pyproject.toml --strict .
-
-# Dead code detection (orphan modules)
 uv run python -m scripts.check_orphan_modules
-
-# Security scan
-uv tool run bandit -r . -x tests/ -ll
-
-# Unit tests only (fast, no infrastructure needed)
-uv run pytest tests/unit -v
+uvx --no-build --python 3.14 bandit==1.9.4 -r . -x tests/,.venv -ll
+uv run pytest tests/unit
+uv run pytest tests/contract -m grafana_contract
 ```
 
 ```bash
 cd frontend
-
-# Linting
 npm run lint
-
-# Type checking
+npm run stylelint
+npm run format:check
 npm run check
-
-# Unit tests
 npm run test
 ```
 
-For E2E tests, use the deployment script to bring up the full stack:
+For E2E, do what CI does: copy `backend/config.test.toml` over `backend/config.toml`, start the stack with `./deploy.sh dev --wait`, then run the suites.
 
 ```bash
-# Start full stack with k8s configured locally
-./deploy.sh dev --wait
-
-# Run backend E2E tests inside the running container
-docker compose exec -T backend uv run pytest tests/e2e -v
-
-# Run frontend E2E tests
+docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project --no-build && pytest tests/e2e'
 cd frontend && npm run test:e2e
 ```
 
-Or use `./deploy.sh test` which handles stack setup, testing, and teardown automatically.
+`./deploy.sh test` and `./deploy.sh check` don't work right now ([#292](https://github.com/HardMax71/Integr8sCode/issues/292)).

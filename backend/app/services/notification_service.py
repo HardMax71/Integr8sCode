@@ -1,13 +1,13 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
-import backoff
 import httpx2
 import structlog
 from opentelemetry import trace
+from tenacity import AsyncRetrying, RetryCallState, stop_after_attempt, wait_exponential
 
 from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
@@ -32,6 +32,7 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.domain.sse import DomainNotificationSSEPayload
+from app.events import PRODUCE_ERRORS
 from app.services.kafka_event_service import KafkaEventService
 from app.services.sse import SSERedisBus
 from app.settings import Settings
@@ -146,7 +147,7 @@ class NotificationService:
             if scheduled_for > max_schedule:
                 raise NotificationValidationError(f"scheduled_for cannot exceed {max_days} days from now")
         self.logger.info(
-            f"Creating notification for user {user_id}",
+            "Creating notification",
             user_id=user_id,
             channel=channel,
             severity=str(severity),
@@ -161,12 +162,12 @@ class NotificationService:
             window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
             max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
         ):
-            error_msg = (
-                f"Notification rate limit exceeded for user {user_id}. "
-                f"Max {self.settings.NOTIF_THROTTLE_MAX_PER_HOUR} "
-                f"per {self.settings.NOTIF_THROTTLE_WINDOW_HOURS} hour(s)"
+            self.logger.warning(
+                "Notification rate limit exceeded",
+                user_id=user_id,
+                max_per_window=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
+                window_hours=self.settings.NOTIF_THROTTLE_WINDOW_HOURS,
             )
-            self.logger.warning(error_msg)
             self.metrics.record_notification_throttled("general")
             raise NotificationThrottledError(
                 user_id,
@@ -217,8 +218,12 @@ class NotificationService:
                 ),
             )
             await self.event_service.publish_event(event, key=notification.user_id)
-        except Exception as e:
-            self.logger.error(f"Failed to publish notification created event: {e}")
+        except PRODUCE_ERRORS as e:
+            self.logger.error(
+                "Failed to publish notification created event",
+                notification_id=notification.notification_id,
+                error=str(e),
+            )
 
     async def create_system_notification(
         self,
@@ -297,6 +302,7 @@ class NotificationService:
                     max_per_hour=self.settings.NOTIF_THROTTLE_MAX_PER_HOUR,
                 )
                 if throttled:
+                    self.metrics.record_notification_throttled("system")
                     return "throttled"
 
             await self.create_notification(
@@ -616,7 +622,7 @@ class NotificationService:
             return False
 
         self.logger.info(
-            f"Delivering notification {notification.notification_id}",
+            "Delivering notification",
             notification_id=str(notification.notification_id),
             user_id=notification.user_id,
             channel=notification.channel,
@@ -628,7 +634,11 @@ class NotificationService:
 
         skip_reason = await self._should_skip_notification(notification, subscription)
         if skip_reason:
-            self.logger.info(skip_reason)
+            self.logger.info(
+                "Skipping notification delivery",
+                notification_id=str(notification.notification_id),
+                reason=skip_reason,
+            )
             await self.repository.update_notification(
                 notification.notification_id,
                 notification.user_id,
@@ -650,23 +660,27 @@ class NotificationService:
             return False
 
         start_time = asyncio.get_running_loop().time()
+        notification_type = notification.tags[0] if notification.tags else "unknown"
 
-        @backoff.on_exception(
-            backoff.expo,
-            Exception,
-            max_tries=notification.max_retries,
-            max_value=30,
-            jitter=None,
-            on_backoff=lambda details: self.logger.warning(
-                f"Delivery attempt {details['tries']}/{notification.max_retries} failed "
-                f"for {notification.notification_id}: {details['exception']}",
-            ),
+        def _on_retry(state: RetryCallState) -> None:
+            self.logger.warning(
+                "Delivery attempt failed",
+                notification_id=str(notification.notification_id),
+                attempt=state.attempt_number,
+                max_attempts=notification.max_retries,
+                error=str(state.outcome.exception() if state.outcome else None),
+            )
+            self.metrics.record_notification_retry(notification_type, notification.channel)
+
+        retrying = AsyncRetrying(
+            stop=stop_after_attempt(notification.max_retries),
+            wait=wait_exponential(max=30),
+            before_sleep=_on_retry,
+            reraise=True,
         )
-        async def _attempt() -> None:
-            await handler(notification, subscription)
 
         try:
-            await _attempt()
+            await retrying(handler, notification, subscription)
             delivery_time = asyncio.get_running_loop().time() - start_time
             await self.repository.update_notification(
                 notification.notification_id,
@@ -674,12 +688,11 @@ class NotificationService:
                 DomainNotificationUpdate(status=NotificationStatus.DELIVERED, delivered_at=datetime.now(UTC)),
             )
             self.logger.info(
-                f"Delivered notification {notification.notification_id}",
+                "Delivered notification",
                 notification_id=str(notification.notification_id),
                 channel=notification.channel,
                 delivery_time_ms=int(delivery_time * 1000),
             )
-            notification_type = notification.tags[0] if notification.tags else "unknown"
             self.metrics.record_notification_sent(
                 notification_type, channel=notification.channel, severity=notification.severity
             )
@@ -698,10 +711,12 @@ class NotificationService:
                     retry_count=notification.max_retries,
                 ),
             )
-            notification_type = notification.tags[0] if notification.tags else "unknown"
-            self.metrics.record_notification_failed(notification_type, str(last_error), channel=notification.channel)
+            self.metrics.record_notification_failed(
+                notification_type, type(last_error).__name__, channel=notification.channel
+            )
             self.logger.error(
-                f"All delivery attempts exhausted for {notification.notification_id}: {last_error}",
+                "All delivery attempts exhausted",
+                notification_id=str(notification.notification_id),
                 exc_info=last_error,
             )
             return False

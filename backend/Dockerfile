@@ -11,9 +11,6 @@ COPY openssl.cnf /app/openssl.cnf
 # Ensure the certs directory exists
 RUN mkdir -p /app/certs
 
-# Expose metrics port
-EXPOSE 9090
-
 # Create entrypoint script inline (BuildKit heredoc)
 # Note: cert wait is handled by docker-compose depends_on (cert-generator: service_completed_successfully)
 COPY <<'EOF' /entrypoint.sh

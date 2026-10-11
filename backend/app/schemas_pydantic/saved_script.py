@@ -2,12 +2,14 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
+
 
 class SavedScriptBase(BaseModel):
     name: str
     script: str
-    lang: str = "python"
-    lang_version: str = "3.11"
+    lang: str = DEFAULT_LANG
+    lang_version: str = DEFAULT_LANG_VERSION
     description: str | None = None
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)

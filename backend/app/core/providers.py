@@ -136,7 +136,7 @@ class RedisProvider(Provider):
         )
         # Test connection
         await client.ping()
-        logger.info(f"Redis connected: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
+        logger.info("Redis connected", host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
         try:
             yield client
         finally:
@@ -234,7 +234,7 @@ class KubernetesProvider(Provider):
         """Provide Kubernetes ApiClient with config loading and cleanup."""
         await k8s_config.load_kube_config(config_file=settings.KUBERNETES_CONFIG_PATH)
         api_client = k8s_client.ApiClient()
-        logger.info(f"Kubernetes API host: {api_client.configuration.host}")
+        logger.info("Kubernetes API client ready", host=api_client.configuration.host)
         try:
             yield api_client
         finally:
@@ -305,16 +305,16 @@ class RepositoryProvider(Provider):
         return ExecutionRepository(logger)
 
     @provide
-    def get_saga_repository(self) -> SagaRepository:
-        return SagaRepository()
+    def get_saga_repository(self, logger: structlog.stdlib.BoundLogger) -> SagaRepository:
+        return SagaRepository(logger)
 
     @provide
-    def get_resource_allocation_repository(self) -> ResourceAllocationRepository:
-        return ResourceAllocationRepository()
+    def get_resource_allocation_repository(self, logger: structlog.stdlib.BoundLogger) -> ResourceAllocationRepository:
+        return ResourceAllocationRepository(logger)
 
     @provide
-    def get_saved_script_repository(self) -> SavedScriptRepository:
-        return SavedScriptRepository()
+    def get_saved_script_repository(self, logger: structlog.stdlib.BoundLogger) -> SavedScriptRepository:
+        return SavedScriptRepository(logger)
 
     @provide
     def get_dlq_repository(self, logger: structlog.stdlib.BoundLogger) -> DLQRepository:
@@ -333,8 +333,8 @@ class RepositoryProvider(Provider):
         return UserSettingsRepository(logger)
 
     @provide
-    def get_admin_events_repository(self) -> AdminEventsRepository:
-        return AdminEventsRepository()
+    def get_admin_events_repository(self, logger: structlog.stdlib.BoundLogger) -> AdminEventsRepository:
+        return AdminEventsRepository(logger)
 
     @provide
     def get_admin_settings_repository(self, logger: structlog.stdlib.BoundLogger) -> AdminSettingsRepository:
@@ -345,8 +345,8 @@ class RepositoryProvider(Provider):
         return NotificationRepository(logger)
 
     @provide
-    def get_user_repository(self) -> UserRepository:
-        return UserRepository()
+    def get_user_repository(self, logger: structlog.stdlib.BoundLogger) -> UserRepository:
+        return UserRepository(logger)
 
 
 class SSEProvider(Provider):
@@ -633,12 +633,14 @@ class K8sWorkerProvider(Provider):
         kafka_producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
+        kubernetes_metrics: KubernetesMetrics,
     ) -> KubernetesWorker:
         return KubernetesWorker(
             api_client=api_client,
             producer=kafka_producer,
             settings=settings,
             logger=logger,
+            kubernetes_metrics=kubernetes_metrics,
         )
 
 
@@ -712,14 +714,14 @@ class ResultProcessorProvider(Provider):
         self,
         execution_repo: ExecutionRepository,
         kafka_producer: UnifiedProducer,
-        settings: Settings,
+        runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
     ) -> ResultProcessor:
         return ResultProcessor(
             execution_repo=execution_repo,
             producer=kafka_producer,
-            settings=settings,
+            runtime_settings=runtime_settings,
             logger=logger,
             execution_metrics=execution_metrics,
         )

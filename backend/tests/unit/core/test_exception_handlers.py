@@ -1,4 +1,5 @@
 import pytest
+
 from app.core.exceptions.handlers import _map_to_status_code
 from app.domain.exceptions import (
     ConflictError,
@@ -41,8 +42,6 @@ class TestExceptionMapping:
             "generic_domain_500",
         ],
     )
-    def test_exception_maps_to_correct_status(
-        self, exception: DomainError, expected_status: int
-    ) -> None:
+    def test_exception_maps_to_correct_status(self, exception: DomainError, expected_status: int) -> None:
         """Domain exception maps to correct HTTP status code."""
         assert _map_to_status_code(exception) == expected_status

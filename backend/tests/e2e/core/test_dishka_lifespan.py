@@ -2,11 +2,12 @@ from importlib import import_module
 
 import pytest
 import redis.asyncio as aioredis
+from dishka import AsyncContainer
+from fastapi import FastAPI
+
 from app.db.docs import UserDocument
 from app.services.sse import SSERedisBus
 from app.settings import Settings
-from dishka import AsyncContainer
-from fastapi import FastAPI
 
 pytestmark = pytest.mark.e2e
 
@@ -28,9 +29,7 @@ class TestLifespanContainerSetup:
 class TestCreateAppAttachesContainer:
     """Tests for create_app container attachment."""
 
-    def test_create_app_attaches_container(
-        self, test_settings: Settings
-    ) -> None:
+    def test_create_app_attaches_container(self, test_settings: Settings) -> None:
         """create_app attaches DI container to app.state."""
         create_app = import_module("app.main").create_app
         app = create_app(settings=test_settings)
@@ -39,9 +38,7 @@ class TestCreateAppAttachesContainer:
         assert hasattr(app.state, "dishka_container")
         assert app.state.dishka_container is not None
 
-    def test_create_app_uses_provided_settings(
-        self, test_settings: Settings
-    ) -> None:
+    def test_create_app_uses_provided_settings(self, test_settings: Settings) -> None:
         """create_app uses provided settings in container context."""
         create_app = import_module("app.main").create_app
         app = create_app(settings=test_settings)
@@ -74,4 +71,3 @@ class TestLifespanInitialization:
         """SSE Redis bus is available after lifespan."""
         bus = await scope.get(SSERedisBus)
         assert bus is not None
-

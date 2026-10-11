@@ -4,22 +4,6 @@ from typing import NoReturn
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from app.core.metrics import (
-    ConnectionMetrics,
-    IdempotencyMetrics,
-    DLQMetrics,
-    EventMetrics,
-    ExecutionMetrics,
-    KubernetesMetrics,
-    NotificationMetrics,
-    QueueMetrics,
-    RateLimitMetrics,
-    ReplayMetrics,
-    SecurityMetrics,
-)
-from app.domain.enums import ExecutionStatus, QueuePriority
-from app.domain.execution import DomainExecution
-from app.settings import Settings
 from kubernetes_asyncio.client import (
     V1ContainerState,
     V1ContainerStateTerminated,
@@ -32,7 +16,22 @@ from kubernetes_asyncio.client import (
     V1PodStatus,
 )
 
-# ===== Domain execution factory =====
+from app.core.metrics import (
+    ConnectionMetrics,
+    DLQMetrics,
+    EventMetrics,
+    ExecutionMetrics,
+    IdempotencyMetrics,
+    KubernetesMetrics,
+    NotificationMetrics,
+    QueueMetrics,
+    RateLimitMetrics,
+    ReplayMetrics,
+    SecurityMetrics,
+)
+from app.domain.enums import ExecutionStatus, QueuePriority
+from app.domain.execution import DomainExecution
+from app.settings import Settings
 
 
 def make_domain_execution(
@@ -57,9 +56,6 @@ def make_domain_execution(
         user_id=user_id,
         **kwargs,  # type: ignore[arg-type]
     )
-
-
-# ===== Kubernetes test factories =====
 
 
 def make_container_status(
@@ -141,9 +137,6 @@ def make_pod(
     )
 
 
-# ===== K8s Watch stream helpers =====
-
-
 class MockWatchStream:
     """Mock watch stream that yields events from a list."""
 
@@ -163,9 +156,7 @@ class MockWatchStream:
         return event
 
 
-def make_mock_watch(
-    events: list[dict[str, V1Pod | str]], resource_version: str = "rv2"
-) -> MagicMock:
+def make_mock_watch(events: list[dict[str, V1Pod | str]], resource_version: str = "rv2") -> MagicMock:
     """Create a mock Watch that returns the given events."""
     stream = MockWatchStream(events, resource_version)
     mock = MagicMock()
@@ -176,8 +167,17 @@ def make_mock_watch(
     return mock
 
 
+def make_pod_log_response(logs: bytes) -> MagicMock:
+    """Raw pod log response, as read_namespaced_pod_log returns it with _preload_content=False."""
+    response = MagicMock()
+    response.read = AsyncMock(return_value=logs)
+    return response
+
+
 def make_mock_v1_api(
-    logs: str = "{}", pods: list[V1Pod] | None = None, list_resource_version: str = "list-rv1",
+    logs: bytes = b"{}",
+    pods: list[V1Pod] | None = None,
+    list_resource_version: str = "list-rv1",
 ) -> MagicMock:
     """Create a mock CoreV1Api with configurable responses."""
 
@@ -187,13 +187,10 @@ def make_mock_v1_api(
             self.metadata = V1ObjectMeta(resource_version=resource_version)
 
     mock = MagicMock()
-    mock.read_namespaced_pod_log = AsyncMock(return_value=logs)
+    mock.read_namespaced_pod_log = AsyncMock(return_value=make_pod_log_response(logs))
     mock.get_api_resources = AsyncMock(return_value=None)
     mock.list_namespaced_pod = AsyncMock(return_value=PodList(list(pods or []), list_resource_version))
     return mock
-
-
-# ===== K8s fixtures =====
 
 
 @pytest.fixture
@@ -212,9 +209,6 @@ def mock_v1_api() -> MagicMock:
 def mock_watch() -> MagicMock:
     """Mock Watch for tests."""
     return make_mock_watch([])
-
-
-# ===== Metrics fixtures =====
 
 
 @pytest.fixture
@@ -272,24 +266,21 @@ def security_metrics(test_settings: Settings) -> SecurityMetrics:
     return SecurityMetrics(test_settings)
 
 
-# ===== Guard fixtures =====
-
-
 @pytest.fixture
 def db() -> NoReturn:
-    raise RuntimeError("Unit tests should not access DB - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not access DB; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def redis_client() -> NoReturn:
-    raise RuntimeError("Unit tests should not access Redis - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not access Redis; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def client() -> NoReturn:
-    raise RuntimeError("Unit tests should not use HTTP client - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not use HTTP client; use mocks, or move the test to tests/e2e")
 
 
 @pytest.fixture
 def app() -> NoReturn:
-    raise RuntimeError("Unit tests should not use full app - use mocks or move to integration/")
+    raise RuntimeError("Unit tests should not use full app; use mocks, or move the test to tests/e2e")

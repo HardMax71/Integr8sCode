@@ -1,127 +1,152 @@
-# Integr8sCode — Agent Instructions
+# Integr8sCode: Agent Instructions
 
-Platform for running Python scripts online in isolated Kubernetes pods.
-Users submit code through a Svelte 5 frontend → FastAPI backend → K8s pods.
-
----
+Platform for running scripts online in isolated Kubernetes pods. Users write Python, Node.js, Ruby, Bash or Go in a Svelte 5 frontend, the FastAPI backend publishes the request to Kafka, and workers run it in its own pod.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), TypeScript strict, Rollup, TailwindCSS 4 |
-| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14, async throughout |
+| Frontend | Svelte 5 (runes), TypeScript 6 strict, Rollup, TailwindCSS 4, Node 26 |
+| Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
-| Infra | MongoDB 9, Redis 8, optional Grafana / Jaeger / Victoria Metrics |
-
----
+| Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector (`--observability`) and Kafdrop (`--debug`) |
+| Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
 ## Key Directory Map
 
 ```text
-backend/app/
-├── api/routes/         # FastAPI route handlers (DishkaRoute)
-├── domain/             # Domain models (stdlib dataclasses), events, enums, exceptions
-├── services/           # Business services — constructor-injected via Dishka
-├── core/               # DI providers, middleware, utilities, container factories
-├── events/             # Kafka handlers and consumers
-└── db/                 # Beanie documents (db/docs/) and repositories (db/repositories/)
+backend/
+├── app/
+│   ├── api/routes/          # FastAPI route handlers (DishkaRoute), admin/ for admin routers
+│   ├── core/                # providers.py (all Dishka providers), container.py, middlewares/, metrics/,
+│   │                        # tracing/, exceptions/, security.py, logging.py, utils.py (StringEnum)
+│   ├── db/                  # Beanie documents (db/docs/) and repositories (db/repositories/)
+│   ├── dlq/                 # DLQ manager and models
+│   ├── domain/              # Domain models (stdlib dataclasses), events, enums, exceptions
+│   ├── events/              # handlers.py (Kafka subscribers), core/ (producer, transport)
+│   ├── infrastructure/      # kafka/topics.py: event type groupings
+│   ├── schemas_pydantic/    # API request and response schemas
+│   ├── services/            # Business services, constructor-injected via Dishka
+│   ├── scripts/             # entrypoint.sh mounted into executor pods
+│   ├── main.py              # create_app()
+│   ├── runtime_registry.py  # Languages, versions, images, per-language pod settings
+│   └── settings.py          # Settings: TOML plus secrets from env
+├── workers/                 # run_<worker>.py entry points, one per worker
+├── scripts/                 # check_orphan_modules.py, seed_users.py
+└── tests/                   # unit/, e2e/, contract/, load/
 
-frontend/src/
-├── routes/             # Page components
-├── components/         # Reusable UI (admin/, editor/, ui/)
-├── lib/api/            # Generated API client — DO NOT EDIT (run npm run generate:api)
-├── lib/admin/          # Admin utilities: rate-limits/, sagas/, events/
-├── stores/             # Auth, theme, notifications, user settings (.svelte.ts files)
-└── styles/             # Global CSS
+frontend/
+├── e2e/                     # Playwright specs and fixtures.ts
+└── src/
+    ├── routes/              # Page components (admin/ pages included)
+    ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
+    ├── lib/api/             # Generated API client, DO NOT EDIT (see Frontend: API Client)
+    ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
+    ├── lib/editor/          # Execution state, languages, runtime helpers (newestVersion)
+    ├── lib/notifications/   # Notification SSE stream
+    ├── stores/              # auth, errorStore, notificationStore, theme, userSettings (.svelte.ts)
+    ├── utils/               # meta.ts (page meta tags)
+    └── styles/              # Global CSS
 ```
-
----
 
 ## Development Commands
 
 ```bash
 # Backend (from backend/)
-uv run pytest                                   # all tests
-uv run pytest tests/unit/                       # unit only
-uv run pytest -k "test_name" -x                 # single test, stop on failure
-uv run ruff check . --config pyproject.toml     # lint (must pass)
+uv sync                                              # install deps (dev group: test, lint, load)
+uv run pytest tests/unit                             # unit tests, no infra needed
+uv run pytest tests/unit -k "test_name" -x           # single test, stop on first failure
+uv run ruff check . --config pyproject.toml          # lint, tests included (must pass)
 uv run mypy --config-file pyproject.toml --strict .  # types (must pass)
-uv run python -m scripts.check_orphan_modules   # dead code (must pass)
+uv run python -m scripts.check_orphan_modules        # dead code (must pass)
 
 # Frontend (from frontend/)
-npm run dev             # dev server with hot reload
-npm run build           # production build
-npm run check           # svelte-check — 0 errors, 0 warnings required
-npm run lint            # ESLint
-npm run test            # Vitest unit tests
-npm run test:e2e        # Playwright E2E
-npm run generate:api    # Regenerate API client after backend OpenAPI changes
+npm ci                    # install deps
+npm run dev               # watch build + HTTPS server on :5001 (see note below)
+npm run build             # production build
+npm run check             # svelte-check, 0 errors and 0 warnings required
+npm run lint              # ESLint
+npm run stylelint         # Stylelint
+npm run format:check      # Prettier
+npm run test              # Vitest unit tests
+npm run test:e2e:deps     # once: Playwright system deps for Chromium
+npm run test:e2e:browsers # once: Playwright Chromium
+npm run test:e2e          # Playwright E2E, needs the running stack
 
 # Full stack (from project root)
+./deploy.sh dev                  # start
 ./deploy.sh dev --build          # rebuild and start
-./deploy.sh dev --observability  # + Grafana, Jaeger, Victoria Metrics
 ./deploy.sh dev --wait           # start and wait for healthy
+./deploy.sh dev --observability  # plus Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector
+./deploy.sh dev --debug          # observability plus Kafdrop
+./deploy.sh down                 # stop
+./deploy.sh openapi              # regenerate docs/reference/openapi.json
+./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
 ```
 
----
+`npm run dev` proxies /api to `backend:443` and needs the CA at /shared_ca/ca.pem, both of which exist only inside the compose network, so on the host it exits. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
+
+Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
+
+```bash
+docker compose exec -T backend sh -c 'uv sync --group test --no-dev --frozen --no-install-project && pytest tests/e2e'
+```
 
 ## Critical Architecture Rules
 
-These layer boundaries are enforced throughout the codebase:
+These layer boundaries hold throughout the codebase:
 
 | Layer | Technology | Rule |
 |-------|-----------|------|
-| **Domain models** | stdlib `@dataclass` in `domain/` | Business logic — services use ONLY these |
-| **Schema models** | Pydantic `BaseModel` in `schemas_pydantic/` | API boundary only (request/response) |
-| **ODM models** | Beanie `Document` in `db/docs/` | Database layer only |
+| Domain models | stdlib `@dataclass` in `domain/` | Business logic. Services use ONLY these |
+| Schema models | Pydantic `BaseModel` in `schemas_pydantic/` | API boundary only (request/response) |
+| ODM models | Beanie `Document` in `db/docs/` | Database layer only |
 
 - Services never use schema models directly
-- Routes convert: `SchemaResponse.model_validate(domain_result)` — `from_attributes=True` goes on the schema's `model_config`, never as a kwarg to `model_validate()`
-- Repositories convert domain→document: `UserDocument(**dataclasses.asdict(create_data))`
-- Repositories convert document→domain: `User(**doc.model_dump(include=_user_fields))`
+- Routes convert with `SchemaResponse.model_validate(domain_result)`; `from_attributes=True` goes on the schema's `model_config`, never as a kwarg to `model_validate()`
+- Repositories convert domain to document: `UserDocument(**dataclasses.asdict(create_data))`
+- Repositories convert document to domain: `User(**doc.model_dump(include=_user_fields))`
 - Nested dataclass fields must be converted explicitly in repositories (no automatic Pydantic coercion)
-
----
 
 ## Python Conventions
 
 ### Runtime & Tools
-- Python **3.14**, use modern syntax everywhere
+- Python **3.14** (backend/.python-version, `requires-python = ">=3.14"`); use modern syntax everywhere
 - Always `uv run python`, never bare `python` or `python3`
-- Max line length: **120 characters** (pyproject.toml)
+- Max line length: 120 characters (pyproject.toml)
+- HTTP client is `httpx2` (Pydantic's fork of httpx) in app code and tests. Never add `httpx` back
 
 ### Type Hints (CRITICAL)
 
 ```python
-# WRONG — never import these from typing
-from typing import Optional, List, Dict, Union, Tuple, Set
+# WRONG: never import these from typing
+from typing import Optional, List, Dict, Union, Tuple, Set, TypeAlias
 
-# CORRECT — PEP 604 union syntax + PEP 585 built-in generics
+# CORRECT: PEP 604 unions, PEP 585 built-in generics, PEP 695 aliases and generics
 def foo(x: str | None) -> list[dict[str, Any]]: ...
 def bar(items: list[str], mapping: dict[str, int]) -> tuple[str, ...]: ...
 
-# Allowed typing imports
-from typing import TypeVar, Generic, Protocol, Callable, Any, TypeAlias, Literal, Annotated, TYPE_CHECKING
-from collections.abc import Mapping, Sequence, Iterable, Iterator, Awaitable, Coroutine
+type UserId = str
+type EventFilter = list[EventType] | None
 
-# TypeAlias for complex types
-UserId: TypeAlias = str
-EventFilter: TypeAlias = list[EventType] | None
+def first[T](items: Sequence[T]) -> T | None: ...
+
+# Allowed imports
+from typing import Any, Annotated, Literal, NoReturn, NamedTuple, TypedDict, NotRequired, Protocol, TYPE_CHECKING
+from collections.abc import Callable, Mapping, Sequence, Iterable, Iterator, Awaitable, AsyncIterator, AsyncGenerator
 ```
 
-`StringEnum` subclasses are already `str` — no `.value` cast needed anywhere.
-Use `NoReturn` return type for functions that always raise.
+`StringEnum` subclasses are already `str`, so no `.value` cast is needed anywhere. Use `NoReturn` as the return type for functions that always raise.
 
 ### Async/Await
-- All I/O **must** be async — never `time.sleep()`, use `asyncio.sleep()`
+- All I/O must be async: never `time.sleep()`, use `asyncio.sleep()`
 - `async with` for context managers, `async for` for iteration
 
 ### Imports
 - Absolute from package root: `from app.services.auth_service import AuthService`
-- Relative imports only within same module directory
-- Order: stdlib → third-party → local (blank line between each group)
+- Relative imports only within the same module directory
+- Order: stdlib, third-party, local, with a blank line between groups (ruff `I` enforces it)
 
 ### Code Style
 - f-strings for all string formatting
@@ -145,12 +170,12 @@ import logging
 logger = logging.getLogger(__name__)
 logger.info("Event %s processed", event_id)
 
-# CORRECT — inject structlog via DI, use keyword args
+# CORRECT: structlog injected via DI, keyword args
 self.logger.info("Execution created", execution_id=exec_id, user_id=user_id)
 self.logger.warning("Login failed", username=username, client_ip=ip, reason=reason)
 ```
 
-Use `structlog.stdlib.BoundLogger` injected via Dishka constructor. Never call `logging.getLogger()` directly. Never interpolate user-controlled data into log messages — always pass as keyword args.
+Use `structlog.stdlib.BoundLogger` injected via the Dishka constructor. Never call `logging.getLogger()` directly. Never interpolate user-controlled data into log messages; always pass it as keyword args.
 
 ### Dataclasses vs Pydantic
 
@@ -160,8 +185,6 @@ Use `structlog.stdlib.BoundLogger` injected via Dishka constructor. Never call `
 | Internal DTOs | Kafka event payloads (FastStream) |
 | Simple data containers without validation | ODM embedded sub-documents |
 
----
-
 ## Backend: Error Handling
 
 ### Exception Hierarchy (`app/domain/exceptions.py`)
@@ -170,41 +193,43 @@ Use `structlog.stdlib.BoundLogger` injected via Dishka constructor. Never call `
 class DomainError(Exception):
     message: str  # base for all domain errors
 
-class NotFoundError(DomainError):     # → HTTP 404; args: entity, identifier
-class ValidationError(DomainError):   # → HTTP 422; business rule violations
-class ConflictError(DomainError):     # → HTTP 409; duplicate, already exists
-class ThrottledError(DomainError):    # → HTTP 429; rate limit exceeded
-class UnauthorizedError(DomainError): # → HTTP 401; authentication required
-class ForbiddenError(DomainError):    # → HTTP 403; authenticated but not permitted
-class InvalidStateError(DomainError): # → HTTP 400; invalid state for operation
-class AccountLockedError(DomainError):# → HTTP 423; too many failed login attempts
-class InfrastructureError(DomainError):# → HTTP 500; DB, Kafka, K8s failures
+class NotFoundError(DomainError):      # HTTP 404; args: entity, identifier
+class ValidationError(DomainError):    # HTTP 422; business rule violations
+class ConflictError(DomainError):      # HTTP 409; duplicate, already exists
+class ThrottledError(DomainError):     # HTTP 429; rate limit exceeded
+class UnauthorizedError(DomainError):  # HTTP 401; authentication required
+class ForbiddenError(DomainError):     # HTTP 403; authenticated but not permitted
+class InvalidStateError(DomainError):  # HTTP 400; invalid state for operation
+class AccountLockedError(DomainError): # HTTP 423; too many failed login attempts
+class InfrastructureError(DomainError):# HTTP 500; DB, Kafka, K8s failures
 ```
 
-Global exception handler in `app/core/exceptions/handlers.py` automatically maps all `DomainError` subclasses to HTTP status codes and returns `{"detail": exc.message, "type": "ClassName"}`.
+The global handler in `app/core/exceptions/handlers.py` maps every `DomainError` subclass to its HTTP status and returns `{"detail": exc.message, "type": "ClassName"}`.
 
-**Rules:**
-- Repositories return `T | None` for reads — **never raise `NotFoundError`**; raise only for write-constraint violations (e.g. `ConflictError` for a duplicate key)
-- Services check `None` from the repo, log, and raise a domain-specific `NotFoundError` subclass — services never return `None` to route handlers
-- Route handlers call the service and return the schema — they **never** raise `HTTPException` for domain-not-found cases; the global handler converts the exception to HTTP 404 automatically
+Rules:
+- Repositories return `T | None` for reads and **never raise `NotFoundError`**; they raise only for write-constraint violations (e.g. `ConflictError` for a duplicate key)
+- Services check `None` from the repo, log, and raise a domain-specific `NotFoundError` subclass; services never return `None` to route handlers
+- Route handlers call the service and return the schema. They **never** raise `HTTPException` for domain-not-found cases; the global handler turns the exception into a 404
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
-- Never catch `Exception` broadly; catch specific exception types
+- Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
+
+A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `_track_consumed` and `with_idempotency` in `app/events/handlers.py` record a metric or mark the idempotency key failed, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 
 ```python
-# Repository — returns None for reads; raises only on write constraints
+# Repository: returns None for reads; raises only on write constraints
 async def get_user(self, username: str) -> User | None:
     doc = await UserDocument.find_one(UserDocument.username == username)
     return User(**doc.model_dump(include=_user_fields)) if doc else None
 
-async def create_user(self, data: UserCreate) -> User:
-    doc = UserDocument(**dataclasses.asdict(data))
+async def create_user(self, create_data: DomainUserCreate) -> User:
+    doc = UserDocument(**dataclasses.asdict(create_data))
     try:
         await doc.insert()
     except DuplicateKeyError as e:
         raise ConflictError("User already exists") from e
     return User(**doc.model_dump(include=_user_fields))
 
-# Service — checks None and raises domain exception (global handler → HTTP 404)
+# Service: checks None and raises a domain exception (global handler returns 404)
 async def get_user(self, user_id: str) -> User:
     user = await self.user_repo.get_user_by_id(user_id)
     if not user:
@@ -212,7 +237,7 @@ async def get_user(self, user_id: str) -> User:
         raise UserNotFoundError(user_id)
     return user
 
-# Route — no None check, no HTTPException; service already raises if missing
+# Route: no None check, no HTTPException; the service already raises if missing
 @router.get("/{user_id}", response_model=UserResponse,
             responses={404: {"model": ErrorResponse}})
 async def get_user(user_id: str, service: FromDishka[AdminUserService]) -> UserResponse:
@@ -221,8 +246,6 @@ async def get_user(user_id: str, service: FromDishka[AdminUserService]) -> UserR
 ```
 
 The API error response schema is `ErrorResponse(detail: str, type: str | None)` from `app/schemas_pydantic/common.py`.
-
----
 
 ## Backend: FastAPI Routes
 
@@ -258,15 +281,13 @@ async def create_execution(
     return ExecutionResponse.model_validate(result)
 ```
 
-**Rules:**
-- All routes in `app/api/routes/`, prefix `/api/v1/` via `settings.API_V1_STR`
-- **Path ordering**: literal paths (`/defaults`) before parameterised (`/{user_id}`) in the same router
+Rules:
+- All routes live in `app/api/routes/`, prefixed with `/api/v1` via `settings.API_V1_STR`
+- Path ordering: literal paths (`/defaults`) before parameterised ones (`/{user_id}`) in the same router
 - Return Pydantic schema models, **never** raw dicts
 - Use `responses={}` to document non-200 outcomes
-- Auth: JWT via httpOnly cookie + CSRF double-submit (X-CSRF-Token header required for POST/PUT/DELETE)
-- OpenAPI/docs disabled in production
-
----
+- Auth: JWT in an httpOnly cookie plus CSRF double-submit (`X-CSRF-Token` header required for POST, PUT, PATCH and DELETE)
+- OpenAPI and docs pages are served only when `DEVELOPMENT_MODE` is true
 
 ## Backend: Dependency Injection (Dishka)
 
@@ -287,14 +308,12 @@ class MyProvider(Provider):
         return MyService(repo, producer, logger, settings)
 ```
 
-- Providers in `app/core/providers/` modules
-- `FromDishka[ServiceType]` in route handlers for injection
-- `@inject` decorator when needed outside routes
-- Container factories in `app/core/container.py` — one per worker type (`create_app_container`, `create_saga_container`, etc.)
-- `setup_dishka(container, broker=broker, auto_inject=True)` called **after** subscriber registration, **before** broker start (workers only)
-- Never instantiate services directly — always use DI
-
----
+- All providers live in one file, `app/core/providers.py`
+- Container factories live in `app/core/container.py`, one per process: `create_app_container`, `create_k8s_worker_container`, `create_pod_monitor_container`, `create_result_processor_container`, `create_saga_orchestrator_container`, `create_event_replay_container`, `create_dlq_processor_container`
+- `FromDishka[ServiceType]` injects into route handlers (`dishka.integrations.fastapi`) and Kafka subscribers (`dishka_faststream`)
+- `@inject` decorator when needed outside routes (e.g. the `admin_user` dependency)
+- `setup_dishka(container, broker=broker, auto_inject=True)` from `dishka_faststream` runs **after** subscriber registration and **before** the broker starts, in workers and in the API lifespan
+- Never instantiate services directly; always use DI
 
 ## Backend: Domain Models (Stdlib Dataclasses)
 
@@ -313,13 +332,11 @@ class DomainExecution:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 ```
 
-- Pure Python — no Pydantic validation at construction
-- `event_id` / UUID fields always use `default_factory` — never add None checks
+- Pure Python, no Pydantic validation at construction
+- `event_id` and other UUID fields always use `default_factory`; never add None checks
 - Nested dataclass fields: `context_data: SagaContextData = field(default_factory=SagaContextData)`
 - Convert to dict: `dataclasses.asdict(domain_obj)` (for passing to ODM)
 - Field set helper: `_user_fields = set(User.__dataclass_fields__)` for `model_dump(include=...)`
-
----
 
 ## Backend: Pydantic Schemas
 
@@ -337,12 +354,10 @@ class UserResponse(BaseModel):
 ```
 
 - Location: `app/schemas_pydantic/`
-- `from_attributes=True` on model_config — never as kwarg to `model_validate()`
+- `from_attributes=True` on model_config, never as a kwarg to `model_validate()`
 - `json_schema_serialization_defaults_required=True` for OpenAPI correctness
 - Separate schemas: Create / Update / Response
-- `ErrorResponse(detail: str, type: str | None)` — standard error shape
-
----
+- `ErrorResponse(detail: str, type: str | None)` is the standard error shape
 
 ## Backend: Beanie ODM (MongoDB)
 
@@ -364,15 +379,13 @@ class UserDocument(Document):
         use_state_management = True
 ```
 
-- Documents in `app/db/docs/` — only top-level collection models extend `Document`
+- Documents in `app/db/docs/`; only top-level collection models extend `Document`
 - Embedded sub-documents use plain `BaseModel` (no `EmbeddedDocument`)
 - `Indexed(type, ...)` requires `# type: ignore[valid-type]` for mypy
 - `arbitrary_types_allowed=True` required on Document models
 - Compound indexes via `Settings.indexes = [IndexModel([...])]`
 - Update pattern: `await doc.set({"field": value, "updated_at": now})`
 - Atomic updates: `find_one().update(Set({...}), response_type=UpdateResponse.NEW_DOCUMENT)`
-
----
 
 ## Backend: Repository Pattern
 
@@ -387,8 +400,8 @@ class UserRepository:
         doc = await UserDocument.find_one(UserDocument.username == username)
         return User(**doc.model_dump(include=_user_fields)) if doc else None
 
-    async def create_user(self, data: UserCreate) -> User:
-        doc = UserDocument(**dataclasses.asdict(data))
+    async def create_user(self, create_data: DomainUserCreate) -> User:
+        doc = UserDocument(**dataclasses.asdict(create_data))
         try:
             await doc.insert()
         except DuplicateKeyError as e:
@@ -398,12 +411,10 @@ class UserRepository:
 
 - Location: `app/db/repositories/`
 - Always return domain models, never ODM documents
-- `doc.model_dump(include=_user_fields)` — filter to domain model fields only
-- `dataclasses.asdict(domain)` — convert domain→document on write
+- `doc.model_dump(include=_user_fields)` filters to domain model fields
+- `dataclasses.asdict(domain)` converts domain to document on write
 - Inject `structlog.stdlib.BoundLogger` via constructor
-- Raise domain exceptions for write-constraint violations only (e.g. `ConflictError` for a duplicate key) — **not** for missing entities; return `None` instead
-
----
+- Raise domain exceptions for write-constraint violations only (e.g. `ConflictError` for a duplicate key), **not** for missing entities; return `None` instead
 
 ## Backend: Services
 
@@ -417,6 +428,7 @@ class ExecutionService:
         logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
+        runtime_settings: RuntimeSettingsLoader,
     ) -> None:
         self.execution_repo = execution_repo
         self.producer = producer
@@ -424,41 +436,49 @@ class ExecutionService:
         self.logger = logger
         self.metrics = execution_metrics
         self.idempotency_manager = idempotency_manager
+        self._runtime_settings = runtime_settings
 ```
 
 - Location: `app/services/`
 - Constructor injection: repo, producer, logger, metrics, settings
-- Record all significant operations: `self.metrics.record_*(…)`
-- Publish events via `UnifiedProducer`: `await self.producer.produce(event, key=execution_id)`
-- Services orchestrate domain logic — no direct DB or HTTP calls
-- Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`) — never return `None` to a route
+- Record all significant operations: `self.metrics.record_*(...)`
+- Publish events via `UnifiedProducer`: `await self.producer.produce(event_to_produce=event, key=execution_id)`
+- Services orchestrate domain logic; no direct DB or HTTP calls
+- Always check `None` from repos and raise a domain-specific `NotFoundError` subclass (e.g. `ExecutionNotFoundError`, `SagaNotFoundError`); never return `None` to a route
 
----
+## Backend: Runtime Registry
 
-## Backend: Settings (TOML — No Env Vars)
+`app/runtime_registry.py` is the one place that defines languages and versions.
+
+- `LANGUAGE_SPECS` lists each language's versions newest first, plus image template, file extension and interpreter. A unit test enforces the order
+- `DEFAULT_LANG` ("python") and `DEFAULT_LANG_VERSION` (the first python version, currently 3.14) are the only defaults. Every `lang` and `lang_version` default in schemas, domain models, documents and `ExecutionService` reads them, and a test pins that. Never hardcode a version
+- `Settings.SUPPORTED_RUNTIMES` and `ExecutionRequest` validation both derive from `LANGUAGE_SPECS`. Removing a version makes new executions, retries and saved-script writes on it fail with 422; stored scripts still load
+- Per-language pod settings go in the spec's optional `pod` key as a `PodRuntimeConfig` (env, tmp_size, min_cpu, min_memory, min_timeout_seconds). `POD_RUNTIME_CONFIGS` exposes them and the pod builder raises limits to those minimums. Only Go sets one today
+- Scripts mount at `/scripts/main.<ext>`. Every language needs an `EXAMPLE_SCRIPTS` entry, and the Python example must parse on every offered version
+- The frontend picks the newest version with `newestVersion()` from `$lib/editor/runtimes`, so it doesn't rely on API ordering
+
+## Backend: Settings (TOML, secrets from env)
 
 ```python
-# WRONG — never read config directly from env vars in application code
+# WRONG: never read config directly from env vars in application code
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# CORRECT — inject via DI (Settings reads env vars for secrets internally)
+# CORRECT: inject via DI (Settings reads the secret env vars itself)
 settings: FromDishka[Settings]
 ```
 
-Config load order (each overrides previous):
-1. `config.toml` — base settings (committed)
-2. `config.<worker>.toml` — per-worker overrides (optional)
-3. Environment variables for secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`
+Config load order (each overrides the previous):
+1. `config.toml`: base settings (committed)
+2. `config.<worker>.toml`: per-worker overrides (optional)
+3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises. Production must set all four: the deploy workflow stops when one of their GitHub secrets is empty, since compose would otherwise fall back to the public defaults. `MONGODB_URL` is built from the Mongo values
 
 ```python
-Settings()                                           # config.toml + env vars
-Settings(config_path="config.test.toml")             # tests + env vars
-Settings(override_path="config.saga-orchestrator.toml")  # worker + env vars
+Settings()                                               # config.toml + secrets
+Settings(config_path="config.test.toml")                 # tests + secrets
+Settings(override_path="config.saga-orchestrator.toml")  # worker + secrets
 ```
 
-`Settings` uses `model_config = ConfigDict(extra="forbid")` — unknown keys are errors.
-
----
+`Settings` uses `model_config = ConfigDict(extra="forbid")`, so unknown keys are errors.
 
 ## Backend: Event System / Kafka
 
@@ -472,47 +492,57 @@ class ExecutionRequestedEvent(BaseEvent):
 ```
 
 - All events extend `BaseEvent` (`app/domain/events/typed.py`)
-- Discriminated union: `Annotated[..., Discriminator("event_type")]`
-- `event_id` always has UUID from `default_factory` — never add None checks
-- No `correlation_id` — use OpenTelemetry `trace_id`/`span_id` exclusively
-- Events are immutable
+- Discriminated union: `DomainEvent = Annotated[..., Discriminator("event_type")]`
+- `event_id` always has a UUID from `default_factory`; never add None checks
+- No `correlation_id`; use OpenTelemetry `trace_id`/`span_id` exclusively
+- Treat events as immutable: build a new event instead of mutating one. `BaseEvent` is not frozen, so nothing enforces this
 
 ### Kafka Topics
-**1-topic-per-event-type** — topic name = `f"{prefix}{event_type}"` where `EventType IS a str` (no `.value` needed):
+One topic per event type, and the topic name is the event type value itself, with no prefix (`execution_requested`, `create_pod_command`). `EventType` is a `str`, so no `.value` is needed.
+
 ```python
-# Producer (app/events/core/producer.py)
-topic = f"{self._topic_prefix}{event_to_produce.event_type}"
+# Producer (app/events/core/producer.py): stores the event in MongoDB, then publishes
 await self.producer.produce(event_to_produce=event, key=execution_id)
+# KafkaEventTransport publishes with topic=event_to_produce.event_type
 ```
 
 ### Consumers
+Subscribers live in `app/events/handlers.py`, grouped in `register_<worker>_subscriber(broker)` functions.
+
 ```python
-# One subscriber per handler — no shared topics, no filtering
-@broker.subscriber("execution.requested", group_id="saga-orchestrator")
-async def handle_execution_requested(event: ExecutionRequestedEvent) -> None:
+@broker.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator", ack_policy=AckPolicy.ACK)
+async def on_execution_requested(
+    body: ExecutionRequestedEvent,
+    orchestrator: FromDishka[SagaOrchestrator],
+) -> None:
     ...
 ```
 
+- Pass the `EventType` member as the topic, never a string literal
 - String literal `group_id` per consumer group
-- One `@broker.subscriber(topic)` per handler — no multiplexing, no catch-alls
+- One topic per subscriber, no filtering inside handlers. The one exception is the API's `sse-bridge-pool` subscriber, which takes the 17 execution, result and pod event types in one handler and forwards them to Redis for SSE
+- Handlers that must not run twice go through `with_idempotency(...)`
 
 ### Worker Pattern
-```text
-create container → init_beanie() → register handlers → start broker → run loop
-```
+Each `backend/workers/run_<worker>.py` follows the same order:
 
-Workers in `backend/workers/run_*.py`. Each uses a dedicated Dishka container.
+1. `Settings(override_path="config.<worker>.toml")`
+2. `init_beanie()` on a tz-aware `AsyncMongoClient`, before the container exists
+3. `create_<worker>_container(settings)`
+4. Get `KafkaBroker` from the container and call `register_<worker>_subscriber(broker)` if the worker consumes
+5. `setup_dishka(container, broker=broker, auto_inject=True)`
+6. `FastStream(broker, on_startup=[...], on_shutdown=[...]).run()`; APScheduler jobs start in `on_startup`
 
 | Worker | Purpose |
 |--------|---------|
-| k8s_worker | Creates/manages pods |
-| pod_monitor | Watches pod lifecycle |
-| result_processor | Stores execution results |
-| saga_orchestrator | Distributed transactions + queue scheduling |
-| dlq_processor | APScheduler-only (no Kafka consumer), retries failed messages |
-| event_replay | Replays historical events |
+| k8s_worker | Consumes create/delete pod commands, creates executor pods and ConfigMaps, applies the executor NetworkPolicy |
+| pod_monitor | Watches executor pods (watch cycle every 5s) and publishes pod and execution events; no subscribers |
+| result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed |
+| saga_orchestrator | Runs execution sagas, schedules the queue every 10s, checks saga timeouts every 30s |
+| dlq_processor | APScheduler only (no Kafka consumer), runs the DLQ retry cycle every 10s |
+| event_replay | APScheduler only, cleans up replay sessions older than 48h every 6h; replays themselves run in the API |
 
----
+The API process consumes too: `sse-bridge-pool` and `notification-service` are registered in `app/core/dishka_lifespan.py`.
 
 ## Frontend: Svelte 5 Runes (CRITICAL)
 
@@ -520,7 +550,7 @@ Workers in `backend/workers/run_*.py`. Each uses a dedicated Dishka container.
 
 ```svelte
 <script lang="ts">
-    // Props — replaces `export let`
+    // Props: replaces `export let`
     interface Props {
         user: UserResponse;
         config: Config | null;
@@ -529,7 +559,7 @@ Workers in `backend/workers/run_*.py`. Each uses a dedicated Dishka container.
     }
     let { user, config = $bindable(null), onSave, children }: Props = $props();
 
-    // Local reactive state — replaces `let` reactivity
+    // Local reactive state: replaces `let` reactivity
     let count = $state(0);
     let rawArray = $state.raw<Item[]>([]);   // non-deep reactive (better perf for lists)
 
@@ -560,42 +590,40 @@ class AuthStore {
     username = $state<string | null>(null);
     csrfToken = $state<string | null>(null);
 
-    async login(username: string, password: string): Promise<void> { ... }
+    async login(username: string, password: string): Promise<boolean> { ... }
     async logout(): Promise<void> { ... }
 }
 export const authStore = new AuthStore();
 ```
 
----
-
 ## Frontend: TypeScript
 
-Strict mode + extra strictness enabled in `tsconfig.json`:
+Strict mode plus extra strictness in `tsconfig.json`:
 - `"strict": true`
-- `"noUncheckedIndexedAccess": true` — array/object access returns `T | undefined`
+- `"noUncheckedIndexedAccess": true`: array/object access returns `T | undefined`
 - `"noImplicitReturns": true`
-- `"verbatimModuleSyntax": true` — use `import type` for type-only imports
+- `"verbatimModuleSyntax": true`: use `import type` for type-only imports
 
-Path aliases (use always, never relative `../../lib/`):
-```typescript
-$lib        → src/lib
-$components → src/components
-$stores     → src/stores
-$routes     → src/routes
-$utils      → src/utils
+Path aliases (always use them, never relative `../../lib/`):
+```text
+$lib        = src/lib
+$components = src/components
+$stores     = src/stores
+$routes     = src/routes
+$utils      = src/utils
+$styles     = src/styles
+$test       = src/__tests__
 ```
 
 Use `interface` for object shapes, `type` for unions/intersections/aliases. Define prop interfaces explicitly before `$props()`.
 
----
-
 ## Frontend: API Client
 
-Generated from OpenAPI spec — **do not edit `src/lib/api/`**. Regenerate after backend changes:
+Generated from the OpenAPI spec, so **do not edit `src/lib/api/`**. `npm run generate:api` reads `../docs/reference/openapi.json`, and `./deploy.sh types` regenerates the spec only when that file is missing. After any backend API change, regenerate the spec first:
 ```bash
 # From project root
-./deploy.sh openapi   # writes docs/reference/openapi.json; fails loudly on error
-./deploy.sh types     # regenerates frontend/src/lib/api/ from the spec
+./deploy.sh openapi   # writes docs/reference/openapi.json from create_app()
+./deploy.sh types     # runs npm run generate:api into frontend/src/lib/api/
 ```
 
 Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimitsUserIdGet`.
@@ -604,65 +632,60 @@ Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimit
 import { someApiEndpoint } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
 
-// unwrap — throws on error, use in event handlers (errors shown via interceptor toast)
+// unwrap: throws on error, use in event handlers (the interceptor shows the toast)
 const data = unwrap(await someApiEndpoint({ body: payload }));
 
-// unwrapOr — returns fallback on error, use for optional/background loads
+// unwrapOr: returns the fallback on error, use for optional/background loads
 const data = unwrapOr(await someApiEndpoint({}), null);
 ```
 
----
-
 ## Frontend: Error Handling & API Interceptors
 
-Global interceptor in `src/lib/api-interceptors.ts` handles:
+The global interceptor in `src/lib/api-interceptors.ts` handles:
 
 | Status | Action |
 |--------|--------|
-| 401 | Clear auth, show "Session expired", redirect to `/login` |
+| 401 | Clears auth. If the user was signed in: warning toast "Session expired. Please log in again.", saves the path to `redirectAfterLogin`, goes to `/login` |
 | 403 | Toast error "Access denied." |
-| 422 | Format validation errors, show as toast |
+| 422 | Toast error "Validation error: ..." with the formatted field errors |
 | 423 | Toast warning (account locked) |
 | 429 | Toast warning "Too many requests. Please slow down." |
 | 500+ | Toast error "Server error. Please try again later." |
+| Other 4xx | Toast error with the response `detail` |
 | Network | Toast error "Network error. Check your connection." |
 
-Auth endpoints (login/register) bypass error toasts. CSRF token (`X-CSRF-Token`) auto-injected on non-GET requests from `authStore.csrfToken`.
+For the login and register endpoints the interceptor skips only the 401, network and other-4xx toasts; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
 
-**Do not add try/catch around API calls** — interceptor handles display. Use `unwrap` / `unwrapOr` only.
-
----
+**Do not add try/catch around API calls**; the interceptor handles display. Use `unwrap` / `unwrapOr` only. The one exception is `Login.svelte` and `Register.svelte`: since the interceptor stays quiet for their 401, network and other-4xx errors, they keep their own try/catch and show `getErrorMessage(err, ...)` inline.
 
 ## Frontend: Auth Store
 
-- Auth state in `$stores/auth.svelte.ts` — session persisted to `sessionStorage`
-- `verifyAuth()` — 30-second cache; returns cached state on network error (offline-first)
-- `authStore.waitForInit()` — awaits one-time initialization before checking auth
-- CSRF token attached to all non-GET requests automatically by interceptor
-- `sessionStorage` key stores: `isAuthenticated`, `username`, `userId`, `userRole`, `csrfToken`
-
----
+- Auth state lives in `$stores/auth.svelte.ts` and persists to `sessionStorage` under one key, `authState`, as a JSON blob (`isAuthenticated`, `username`, `userId`, `userRole`, `userEmail`, `csrfToken`, `timestamp`)
+- `login(username, password): Promise<boolean>` throws the API error on failure and returns `false` if the follow-up profile check fails
+- `verifyAuth()` has a 30-second cache; on a network error it returns the cached result (offline-first)
+- `authStore.waitForInit()` awaits one-time initialization before checking auth
 
 ## Frontend: Routing
 
-Uses `@mateothegreat/svelte5-router`. Routes defined in `App.svelte`:
+Uses `@mateothegreat/svelte5-router`. Routes are defined in `App.svelte`:
 ```typescript
 const requireAuth = async () => {
     await authStore.waitForInit();
     if (!authStore.isAuthenticated) {
-        sessionStorage.setItem('redirectAfterLogin', window.location.pathname);
+        const currentPath = window.location.pathname + window.location.search;
+        if (currentPath !== '/login' && currentPath !== '/register') {
+            sessionStorage.setItem('redirectAfterLogin', currentPath);
+        }
         goto('/login');
         return false;
     }
     return true;
 };
 
-{ path: "/editor", component: Editor, hooks: { pre: requireAuth } }
+{ path: '/editor', component: Editor, hooks: { pre: requireAuth } }
 ```
 
-Navigation: `goto('/path')` programmatic, `route` directive on links.
-
----
+Navigation: `goto('/path')` programmatically, the `use:route` directive on links.
 
 ## Testing
 
@@ -670,35 +693,41 @@ Navigation: `goto('/path')` programmatic, `route` directive on links.
 
 ```text
 backend/tests/
-├── unit/        # No infra — fast
-├── integration/ # Requires MongoDB, Redis, Kafka
-└── e2e/         # Full stack — requires K8s (k3s in CI)
+├── unit/      # No infra, fast; the db, redis_client, client and app fixtures raise here
+├── e2e/       # Full stack plus K8s (k3s in CI); run inside the backend container
+├── contract/  # Grafana dashboard metric contract (grafana_contract marker), no infra
+└── load/      # Load test CLI, not collected by pytest
 ```
 
-Markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.e2e`, `@pytest.mark.kafka`, `@pytest.mark.k8s`
+Markers registered in pyproject.toml: `unit`, `e2e`, `slow`, `kafka`, `mongodb`, `redis`, `k8s`, `performance`, `admin`, `grafana_contract`. pytest-xdist adds `xdist_group`.
 
-All test functions are `async def`. Key fixtures: `test_settings`, `app`, `client`, `test_user`, `test_admin`.
+`asyncio_mode = "auto"`, so a test is `async def` when it awaits and a plain `def` otherwise; about a quarter of the suite is sync. Key fixtures: `test_settings`, `app`, `client`, `scope`, `redis_client`, `test_user`, `test_admin`, `another_user` (the last three are logged-in `httpx2.AsyncClient`s with the CSRF header set).
 
-**Test quality rules:**
-- Test API responses precisely — status code **and** response body contents
+Test quality rules:
+- Test API responses precisely: status code **and** response body contents
 - Use `@pytest.mark.parametrize` over duplicate test bodies
 - Mock at service boundaries using `unittest.mock.AsyncMock`
 - Prefer DI over `monkeypatch`/patching
 
 ```python
-@pytest.mark.parametrize("client_fixture,expected_status,expected_detail", [
-    ("test_user", 403, "Forbidden"),
-    ("test_admin", 200, None),
-])
-async def test_admin_endpoint(request, client_fixture, expected_status, expected_detail):
-    client = request.getfixturevalue(client_fixture)
-    response = await client.get("/api/v1/admin/users/")
-    assert response.status_code == expected_status
-    if expected_detail:
-        assert response.json()["detail"] == expected_detail
+@pytest.mark.parametrize("path", ["/api/v1/admin/users/", "/api/v1/admin/settings/"])
+async def test_admin_routes_reject_regular_users(test_user: AsyncClient, path: str) -> None:
+    response = await test_user.get(path)
+    assert response.status_code == 403
+    assert response.json()["type"] == "AdminAccessRequiredError"
 ```
 
-Isolation: `PYTEST_XDIST_WORKER` env var → separate Redis DB and MongoDB collections per parallel worker.
+SSE routes need a streaming transport, because `httpx2.ASGITransport` waits for the whole body. Use `streaming_client(app, user)` from `tests/e2e/conftest.py` (built on its `StreamingASGITransport`) and read events with httpx2's `client.sse()`:
+
+```python
+async with (
+    streaming_client(app, test_user) as client,
+    client.sse("/api/v1/events/notifications/stream") as source,
+):
+    assert source.response.status_code == 200
+```
+
+Isolation: only Redis is split per worker; `test_settings` sets `REDIS_DB` to the xdist worker number mod 16. MongoDB is one shared database, so tests isolate by unique ids (uuid usernames, fresh executions). Tests that touch shared global state (system settings, Kafka consumer groups, the DLQ, execution concurrency) carry `@pytest.mark.xdist_group("name")`; `addopts` runs `-n auto --dist=loadgroup`, so each group stays on one worker.
 
 ### Frontend (Vitest)
 
@@ -708,49 +737,52 @@ const mocks = vi.hoisted(() => ({
     someApiFunction: vi.fn(),
 }));
 
-vi.mock('../../../lib/api', () => ({
+vi.mock('$lib/api', () => ({
     someApiFunction: (...args: unknown[]) => mocks.someApiFunction(...args),
 }));
 ```
 
-- Test colocated with source in `__tests__/` directories
-- `cleanup()` in `afterEach`, `vi.clearAllMocks()` in `beforeEach`
+- Tests sit next to the source in `__tests__/` directories
+- `vitest.setup.ts` already mocks `$lib/api`, `$lib/api-interceptors`, `svelte-sonner` and the router, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock` when a test needs specific behavior
+- `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
-- Generated API client (`src/lib/api/`) excluded from coverage
+- Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded
 
 ### E2E (Playwright)
-- Browser: Chromium only, base URL `https://localhost:5001`
-- `ignoreHTTPSErrors: true` (self-signed certs), `timeout: 10000`, `expect.timeout: 3000`
-- Seed test data: `docker compose exec -T backend uv run python scripts/seed_users.py`
-- Test user: `user@test.com` / `user123`, Admin: `admin@test.com` / `admin123`
-
----
+- Chromium only, base URL `https://localhost:5001`, `ignoreHTTPSErrors: true` (self-signed certs), `timeout: 10000`, `expect.timeout: 3000`
+- Run through npm scripts: `npm run test:e2e:deps` and `npm run test:e2e:browsers` once, then `npm run test:e2e`. Outside CI the config starts `npm run dev` unless a server is already up
+- Users are seeded by the `user-seed` compose service (`scripts/seed_users.py`) on every `./deploy.sh dev`; rerun it with `docker compose run --rm user-seed`
+- Log in by username: `user` / `user123` and `admin` / `admin123` (`frontend/e2e/fixtures.ts`). The seeded emails are user@integr8scode.com and admin@integr8scode.com
 
 ## CI Gates (All Must Pass)
 
 ```bash
-# Backend
-uv run ruff check . --config pyproject.toml        # rules: E, F, B, I, W; ignore W293
-uv run mypy --config-file pyproject.toml --strict . # 318 source files
-uv run python -m scripts.check_orphan_modules       # orphan module detection
+# Backend (from backend/)
+uv run ruff check . --config pyproject.toml           # rules E, F, B, I, W; W293 ignored; tests included
+uv run mypy --config-file pyproject.toml --strict .
+uv run python -m scripts.check_orphan_modules         # grimp orphan module detection
+uv run pytest tests/unit
+uv run pytest tests/contract -m grafana_contract
 
-# Frontend
-npm run check   # svelte-check: 0 errors, 0 warnings
-npm run test    # Vitest tests must pass
+# Frontend (from frontend/)
+npm run lint
+npm run stylelint
+npm run format:check
+npm run check           # svelte-check, 0 errors and 0 warnings
+npm run build
+npm run test:coverage   # Vitest with coverage thresholds
 ```
 
-Grimp orphan module check (`backend/scripts/check_orphan_modules.py`) detects modules never imported by any other module in the package.
-
----
+CI also runs the backend E2E suite and Playwright against a k3s stack, plus bandit and image scans. The grimp check (`backend/scripts/check_orphan_modules.py`) fails on any module in `app` that no other module imports. It skips `app.main`, the only whitelisted entry point, and `__init__.py` files that hold nothing but a docstring.
 
 ## Security Constraints
 
-- K8s executor pods: non-root user, read-only filesystem, all capabilities dropped, `seccomp: RuntimeDefault`, `automountServiceAccountToken: false`
-- NetworkPolicy: deny all ingress/egress for executor pods
-- Passwords: bcrypt via passlib
-- Login lockout after N failed attempts (configurable)
-- Request size limit enforced via ASGI middleware (streams body, rejects before full payload enters memory; default 10MB)
-- Rate limiting: per-user Redis-backed sliding window / token bucket; default groups: execution 10/60s, auth 20/60s, admin 100/60s
-- CSRF: double-submit cookie pattern — `access_token` (httpOnly) + `csrf_token` (readable) + `X-CSRF-Token` header required for POST/PUT/DELETE
-- Sensitive data (API keys, tokens, passwords) sanitized before logging
-- Never log user-controlled data via string interpolation — always use structured keyword args
+- K8s executor pods: non-root (uid 1000), read-only root filesystem, all capabilities dropped, no privilege escalation, `seccomp: RuntimeDefault`, `automountServiceAccountToken: false`
+- NetworkPolicy: the k8s worker applies `executor-deny-all`, which denies all ingress and egress for executor pods
+- Passwords: bcrypt via pwdlib (`PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))`)
+- Login lockout after `max_login_attempts` failures (default 5, for 15 minutes), configurable in admin system settings
+- Request size limit enforced by ASGI middleware (streams the body and rejects before the full payload is in memory; default 10MB)
+- Rate limiting: Redis-backed, keyed by client IP (the middleware runs before auth). Default rules per 60s: execution 10, auth 20, admin 100, sse 5, websocket 5, api 60. Login, register, logout and `/api/v1/health/` skip the middleware
+- CSRF: double-submit cookie pattern. `access_token` (httpOnly) plus `csrf_token` (readable) cookies, and the `X-CSRF-Token` header is required for POST, PUT, PATCH and DELETE. Login, register and unauthenticated requests are exempt
+- Sensitive data (API keys, tokens, passwords, connection-string credentials) is redacted before logging
+- Never log user-controlled data via string interpolation; always use structured keyword args

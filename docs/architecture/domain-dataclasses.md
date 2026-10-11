@@ -1,119 +1,69 @@
 # Domain dataclasses
 
-This document explains how domain models use stdlib `dataclasses.dataclass` and how conversion between layers works.
+Domain models are stdlib dataclasses, and they're what services work with. They live under `app/domain/` (plus `app/dlq/models.py`) and import nothing from Pydantic or Beanie. Pydantic stays at the edges: request and response schemas in `app/schemas_pydantic/`, Beanie documents in `app/db/docs/`, and the Kafka events in `app/domain/events/typed.py`, the one domain module that uses it.
 
-## Why stdlib dataclasses
+## What dataclasses don't do
 
-Domain models represent business entities like `DomainUserSettings`, `DomainExecution`, and `Saga`. They are pure Python
-with no framework dependencies — just `from dataclasses import dataclass, field`.
+A dataclass doesn't validate types and doesn't convert nested dicts. `DomainUserSettings(user_id="u1", notifications={"execution_failed": False})` builds fine and leaves a dict where a `DomainNotificationSettings` should be. `dataclasses.asdict()` recurses into nested dataclasses on the way out, but nothing reverses it on the way in. So whoever builds a dataclass from a dict converts the nested fields first. In practice that's the repositories, and [Model Conversion](model-conversion.md) shows how.
 
-This keeps the domain layer decoupled from Pydantic, Beanie, and other infrastructure. Services work with dataclasses
-directly; conversion to/from Pydantic models and Beanie documents happens at layer boundaries (repositories, routes).
+The opposite holds inside Pydantic models. When a dataclass is a field type of a `BaseModel`, Pydantic validates it and converts dicts. Events rely on that for `EventMetadata` and `ResourceUsageDomain`. Some Beanie documents use domain dataclasses as field types too: `EventDocument.metadata` is an `EventMetadata`, and `ReplaySessionDocument` keeps a `ReplayFilter` in its embedded config and a list of `ReplayError`. Those documents register `dataclasses.asdict` in `bson_encoders` so the values can be written to MongoDB.
 
-## What stdlib dataclasses provide
+## Where they live
 
-| Feature                | stdlib dataclass | Pydantic BaseModel |
-|------------------------|------------------|--------------------|
-| `asdict()`             | Yes              | No (`model_dump()`) |
-| `is_dataclass()`       | Yes              | No                 |
-| `__dataclass_fields__` | Yes              | No                 |
-| `field()`              | Yes              | `Field()`          |
-| `__post_init__`        | Yes              | `model_post_init`  |
-| `replace()`            | Yes              | `model_copy()`     |
-| frozen/eq/hash         | Yes              | Yes                |
-| Inheritance            | Yes              | Yes                |
-| Nested dict conversion | No               | Yes                |
-| Type validation        | No               | Yes                |
+| File | Main models |
+|---|---|
+| `app/domain/user/user_models.py` | `User`, `DomainUserCreate`, `DomainUserUpdate` |
+| `app/domain/user/settings_models.py` | `DomainUserSettings`, `DomainNotificationSettings`, `DomainEditorSettings`, `DomainUserSettingsUpdate` |
+| `app/domain/execution/models.py` | `DomainExecution`, `DomainExecutionCreate`, `ExecutionResultDomain` |
+| `app/domain/saga/models.py` | `Saga`, `SagaContextData`, `SagaFilter`, `DomainResourceAllocation` |
+| `app/domain/replay/models.py` | `ReplayFilter`, `ReplayConfig`, `ReplaySessionState` |
+| `app/domain/events/event_models.py` | `EventFilter`, `EventListResult`, `EventStatistics` |
+| `app/domain/events/typed.py` | `EventMetadata`, `ResourceUsageDomain` (next to the Pydantic events) |
+| `app/domain/notification/models.py` | `DomainNotification`, `DomainNotificationSubscription` |
+| `app/domain/saved_script/models.py` | `DomainSavedScript`, `DomainSavedScriptCreate`, `DomainSavedScriptUpdate` |
+| `app/domain/rate_limit/rate_limit_models.py` | `RateLimitConfig`, `RateLimitRule`, `UserRateLimit` |
+| `app/domain/admin/settings_models.py` | `SystemSettings` |
+| `app/domain/admin/overview_models.py` | `AdminUserOverviewDomain`, `DerivedCountsDomain`, `RateLimitSummaryDomain` |
+| `app/domain/admin/replay_models.py` | `ReplaySessionData`, `ReplaySessionStatusDetail`, `ReplaySessionStatusInfo`, `ExecutionResultSummary` |
+| `app/domain/admin/replay_updates.py` | `ReplaySessionUpdate` |
+| `app/domain/idempotency/models.py` | `IdempotencyRecord` |
+| `app/domain/sse/models.py` | `SSEExecutionEventData` |
+| `app/dlq/models.py` | `DLQMessage`, `RetryPolicy` |
 
-Stdlib dataclasses do **not** validate types or auto-convert nested dicts. Repositories handle nested conversion
-explicitly when loading from MongoDB. See [Model Conversion Patterns](model-conversion.md) for the conversion patterns.
+## Writing one
 
-## Domain model locations
-
-All domain models live in `app/domain/` and use stdlib dataclasses:
-
-| Module       | File                                  | Key models                                                                 |
-|--------------|---------------------------------------|----------------------------------------------------------------------------|
-| User         | `app/domain/user/settings_models.py`  | `DomainUserSettings`, `DomainNotificationSettings`, `DomainEditorSettings` |
-| User         | `app/domain/user/user_models.py`      | `User`, `DomainUserCreate`, `DomainUserUpdate`                             |
-| Execution    | `app/domain/execution/models.py`      | `DomainExecution`, `ExecutionResultDomain`                                 |
-| Events       | `app/domain/events/event_models.py`   | `EventSummary`, `EventFilter`, `EventListResult`, `EventBrowseResult`      |
-| Events       | `app/domain/events/typed.py`          | `EventMetadata`                                                            |
-| Saga         | `app/domain/saga/models.py`           | `Saga`, `SagaContextData`                                                  |
-| Replay       | `app/domain/replay/models.py`         | `ReplaySessionState`                                                       |
-| Notification | `app/domain/notification/models.py`   | `DomainNotification`, `DomainNotificationSubscription`                     |
-| Admin        | `app/domain/admin/settings_models.py` | `SystemSettings`, `ExecutionLimits`                                        |
-
-## Using domain models in repositories
-
-Repositories load from MongoDB and convert Beanie documents to domain models. Since stdlib dataclasses don't
-auto-convert nested dicts, repositories handle nested objects explicitly:
+`Saga` in `app/domain/saga/models.py` shows the conventions:
 
 ```python
-from dataclasses import asdict
-
-class SagaRepository:
-    def _to_domain(self, doc: SagaDocument) -> Saga:
-        data = doc.model_dump(exclude={"id", "revision_id"})
-        # Explicitly convert nested dataclass
-        if ctx := data.get("context_data"):
-            data["context_data"] = SagaContextData(**ctx)
-        return Saga(**data)
-```
-
-For simpler models without nested dataclasses, constructor unpacking works directly:
-
-```python
-class UserSettingsRepository:
-    async def get_snapshot(self, user_id: str) -> DomainUserSettings | None:
-        doc = await UserSettingsDocument.find_one({"user_id": user_id})
-        if not doc:
-            return None
-        return DomainUserSettings(**doc.model_dump(exclude={"id", "revision_id"}))
-```
-
-## What stays as Pydantic BaseModel
-
-Some classes still use `pydantic.BaseModel` instead of dataclasses:
-
-- Beanie documents (require BaseModel for ODM features)
-- Request/response schemas in `app/schemas_pydantic/` (FastAPI integration)
-- Kafka event payloads in `app/domain/events/typed.py` (FastStream serialization)
-- Configuration models with complex validation
-
-The rule: use stdlib dataclasses for domain models that represent business entities. Use BaseModel for infrastructure
-concerns like documents, schemas, events, and configs.
-
-## Adding new domain models
-
-When creating a new domain model:
-
-1. Import from stdlib: `from dataclasses import dataclass, field`
-2. Define the class with `@dataclass` decorator
-3. Use type annotations for documentation (no runtime validation)
-4. Put nested dataclasses before the parent class that uses them
-
-```python
-from dataclasses import dataclass, field
-from datetime import datetime
-
 @dataclass
-class NestedModel:
-    value: int
-    label: str = "default"
+class Saga:
+    """Domain model for saga."""
 
-@dataclass
-class ParentModel:
-    id: str
-    nested: NestedModel
-    items: list[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    saga_id: str
+    saga_name: str
+    execution_id: str
+    state: SagaState
+    current_step: str | None = None
+    completed_steps: list[str] = field(default_factory=list)
+    compensated_steps: list[str] = field(default_factory=list)
+    context_data: SagaContextData = field(default_factory=SagaContextData)
+    error_message: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    completed_at: datetime | None = None
+    retry_count: int = 0
 ```
 
-Remember: stdlib dataclasses don't validate input. If you pass a dict where `NestedModel` is expected, it stays as a
-dict. Repositories must handle nested conversion explicitly.
+Mutable defaults and nested dataclasses use `field(default_factory=...)`. Timestamps are timezone-aware, from `datetime.now(timezone.utc)`. Generated ids use `default_factory=lambda: str(uuid4())`, so code never checks them for None. Enums are `StringEnum` subclasses. The nested class (`SagaContextData`) is defined above the class that uses it.
 
-## Related docs
+Its repository rebuilds the nested field when loading:
 
-- [User Settings Events](user-settings-events.md) — practical example of TypeAdapter usage for event sourcing
-- [Model Conversion Patterns](model-conversion.md) — general patterns for converting between model types
+```python
+@staticmethod
+def _to_domain(doc: SagaDocument) -> Saga:
+    return Saga(
+        **(d := doc.model_dump(include=_saga_fields)) | {"context_data": SagaContextData(**d["context_data"])}
+    )
+```
+
+A new model with a nested dataclass needs the same treatment in its repository. Without it, the service gets a dict and fails later, far from the cause.

@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.services.execution_queue import (
@@ -13,7 +14,6 @@ from app.services.execution_queue import (
     _pending_key,
 )
 from app.settings import Settings
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit
@@ -144,6 +144,28 @@ async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis
     mock_redis.pipeline.return_value = pipe
     result = await queue_service.remove("e1")
     assert result is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "results", "released"),
+    [
+        ("release", [1, 1], True),
+        ("release", [0, 1], False),  # a duplicate completion, or a pending execution that remove() already took
+        ("remove", [0, 0, 0, 0, 0, 1, 0, 1], True),  # cancelled while running
+        ("remove", [0, 0, 1, 0, 0, 1, 0, 0], False),  # cancelled while still pending
+    ],
+)
+async def test_active_count_drops_only_when_an_execution_leaves_the_active_set(
+    mock_redis: AsyncMock, method: str, results: list[int], released: bool
+) -> None:
+    metrics = MagicMock(spec=QueueMetrics)
+    service = ExecutionQueueService(mock_redis, structlog.get_logger("test"), metrics)
+    mock_redis.pipeline.return_value.execute = AsyncMock(return_value=results)
+
+    await getattr(service, method)("e1")
+
+    assert metrics.record_release.called is released
 
 
 @pytest.mark.asyncio

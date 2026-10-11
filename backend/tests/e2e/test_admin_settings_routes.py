@@ -1,11 +1,12 @@
 """E2E tests for admin settings routes."""
 
 import pytest
-from app.domain.admin import SystemSettings
-from app.settings import Settings
 from httpx2 import AsyncClient
 
-pytestmark = [pytest.mark.e2e, pytest.mark.admin]
+from app.domain.admin import SystemSettings
+from app.settings import Settings
+
+pytestmark = [pytest.mark.e2e, pytest.mark.admin, pytest.mark.xdist_group("system_settings")]
 
 
 class TestGetSystemSettings:
@@ -30,17 +31,13 @@ class TestGetSystemSettings:
         assert 0.0 <= settings.sampling_rate <= 1.0
 
     @pytest.mark.asyncio
-    async def test_get_system_settings_forbidden_for_regular_user(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_system_settings_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot get system settings."""
         response = await test_user.get("/api/v1/admin/settings/")
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_get_system_settings_unauthenticated(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_get_system_settings_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/admin/settings/")
         assert response.status_code == 401
@@ -50,9 +47,7 @@ class TestUpdateSystemSettings:
     """Tests for PUT /api/v1/admin/settings/."""
 
     @pytest.mark.asyncio
-    async def test_update_system_settings_full(
-        self, test_admin: AsyncClient
-    ) -> None:
+    async def test_update_system_settings_full(self, test_admin: AsyncClient) -> None:
         """Admin can update all system settings."""
         request_body = {
             "max_timeout_seconds": 600,
@@ -84,9 +79,7 @@ class TestUpdateSystemSettings:
         assert settings.sampling_rate == 0.2
 
     @pytest.mark.asyncio
-    async def test_update_partial_fields(
-        self, test_admin: AsyncClient
-    ) -> None:
+    async def test_update_partial_fields(self, test_admin: AsyncClient) -> None:
         """Admin can update a subset of fields (others keep defaults)."""
         request_body = {
             "max_timeout_seconds": 120,
@@ -100,9 +93,7 @@ class TestUpdateSystemSettings:
         assert settings.max_concurrent_executions == 15
 
     @pytest.mark.asyncio
-    async def test_update_system_settings_invalid_values(
-        self, test_admin: AsyncClient
-    ) -> None:
+    async def test_update_system_settings_invalid_values(self, test_admin: AsyncClient) -> None:
         """Invalid setting values are rejected."""
         response = await test_admin.put(
             "/api/v1/admin/settings/",
@@ -111,9 +102,7 @@ class TestUpdateSystemSettings:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_update_system_settings_invalid_log_level(
-        self, test_admin: AsyncClient
-    ) -> None:
+    async def test_update_system_settings_invalid_log_level(self, test_admin: AsyncClient) -> None:
         """Invalid log level is rejected."""
         response = await test_admin.put(
             "/api/v1/admin/settings/",
@@ -122,9 +111,7 @@ class TestUpdateSystemSettings:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_update_system_settings_forbidden_for_regular_user(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_system_settings_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot update system settings."""
         response = await test_user.put(
             "/api/v1/admin/settings/",
@@ -137,9 +124,7 @@ class TestResetSystemSettings:
     """Tests for POST /api/v1/admin/settings/reset."""
 
     @pytest.mark.asyncio
-    async def test_reset_system_settings(
-        self, test_admin: AsyncClient, test_settings: Settings
-    ) -> None:
+    async def test_reset_system_settings(self, test_admin: AsyncClient, test_settings: Settings) -> None:
         """Admin can reset system settings to defaults."""
         # First modify settings
         await test_admin.put(
@@ -177,17 +162,13 @@ class TestResetSystemSettings:
         assert settings == expected
 
     @pytest.mark.asyncio
-    async def test_reset_system_settings_forbidden_for_regular_user(
-        self, test_user: AsyncClient
-    ) -> None:
+    async def test_reset_system_settings_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot reset system settings."""
         response = await test_user.post("/api/v1/admin/settings/reset")
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_reset_system_settings_unauthenticated(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_reset_system_settings_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.post("/api/v1/admin/settings/reset")
         assert response.status_code == 401

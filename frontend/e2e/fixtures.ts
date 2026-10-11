@@ -275,8 +275,14 @@ export function describeAuthRequired(testFn: typeof base, path: string): void {
 export function describeAdminAccessControl(testFn: typeof base, path: AdminPath): void {
   testFn.describe('Access Control', () => {
     testFn('redirects non-admin users to home', async ({ userPage }) => {
+      const adminCalls: string[] = [];
+      userPage.on('request', (req) => {
+        if (req.url().includes('/api/v1/admin/')) adminCalls.push(req.url());
+      });
       await userPage.goto(path);
       await expectRedirectToHome(userPage);
+      await expect(userPage.getByText('Admin access required')).toBeVisible();
+      expect(adminCalls).toEqual([]);
     });
 
     testFn('redirects unauthenticated users to login', async ({ page }) => {

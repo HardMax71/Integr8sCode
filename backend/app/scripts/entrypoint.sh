@@ -5,6 +5,9 @@
 # usage, then writes metrics to /dev/termination-log and
 # length-prefixed stdout/stderr to container stdout.
 
+# Both streams travel in one Kafka message (1 MiB by default), and /tmp is 10Mi for most runtimes.
+MAX_STREAM_BYTES=262144
+
 # ---------- argument check --------------------------------------------------
 
 if [ "$#" -eq 0 ]; then
@@ -17,16 +20,45 @@ fi
 # ---------- temp files & timing --------------------------------------------
 
 set -e
-OUT="$(mktemp -t out.XXXXXX)"   || exit 1
-ERR="$(mktemp -t err.XXXXXX)"   || exit 1
-trap 'rm -f "$OUT" "$ERR"' EXIT
+WORK="$(mktemp -d -t run.XXXXXX)" || exit 1
+trap 'rm -rf "$WORK"' EXIT
+OUT="$WORK/out"
+ERR="$WORK/err"
+mkfifo "$WORK/out.pipe" "$WORK/err.pipe"
 set +e
 
-START_TIME="$(date +%s.%N)"
+# Keeps the first bytes of a stream and drains the rest, so the script never blocks or fills /tmp.
+# dd writes each read straight to the file: a buffering head would lose it while a background child holds the pipe.
+capture() {
+    SIZE=0
+    while [ "$SIZE" -le "$MAX_STREAM_BYTES" ]; do
+        dd bs=65536 count=1 >> "$1" 2> /dev/null
+        NEW_SIZE=$(($(wc -c < "$1")))
+        [ "$NEW_SIZE" -eq "$SIZE" ] && break
+        SIZE=$NEW_SIZE
+    done
+    cat > /dev/null
+}
+
+capture "$OUT" < "$WORK/out.pipe" &
+OUT_READER=$!
+capture "$ERR" < "$WORK/err.pipe" &
+ERR_READER=$!
+
+# busybox date (the alpine images) prints nothing for %N, so fall back to /proc/uptime there (10 ms steps)
+now() {
+    T="$(date +%s.%N)"
+    case "$T" in
+        *.) cut -d' ' -f1 /proc/uptime ;;
+        *) printf '%s\n' "$T" ;;
+    esac
+}
+
+START_TIME="$(now)"
 
 # ---------- run user command in the background -----------------------------
 
-( "$@" >"$OUT" 2>"$ERR" ) &
+"$@" > "$WORK/out.pipe" 2> "$WORK/err.pipe" &
 PID=$!
 
 CLK_TCK="$(getconf CLK_TCK 2>/dev/null || printf '100')"
@@ -58,8 +90,15 @@ done
 wait "$PID"
 EXIT_CODE=$?
 
-END_TIME="$(date +%s.%N)"
+END_TIME="$(now)"
 ELAPSED_S=$(printf '%s\n' "$END_TIME $START_TIME" | awk '{printf "%.6f",$1-$2}')
+
+# A background child of the script can hold the pipes open, so wait for the readers about a second at most.
+TRIES=0
+while [ "$TRIES" -lt 200 ] && { kill -0 "$OUT_READER" || kill -0 "$ERR_READER"; } 2>/dev/null; do
+    sleep 0.005
+    TRIES=$((TRIES + 1))
+done
 
 # ---------- write resource metrics to termination log ----------------------
 
@@ -69,11 +108,20 @@ printf 'exit_code=%d\ncpu_jiffies=%d\nclk_tck=%d\npeak_memory_kb=%d\nwall_second
 
 # ---------- write length-prefixed stdout/stderr ----------------------------
 
-STDOUT_BYTES=$(wc -c < "$OUT")
-STDERR_BYTES=$(wc -c < "$ERR")
-printf 'STDOUT %d\n' "$STDOUT_BYTES"
-cat "$OUT"
-printf 'STDERR %d\n' "$STDERR_BYTES"
-cat "$ERR"
+emit() {
+    SIZE=$(($(wc -c < "$3")))
+    if [ "$SIZE" -le "$MAX_STREAM_BYTES" ]; then
+        printf '%s %d\n' "$1" "$SIZE"
+        head -c "$SIZE" "$3"
+        return
+    fi
+    NOTICE="[$2 truncated: showing the first $MAX_STREAM_BYTES bytes]"
+    printf '%s %d\n' "$1" "$((MAX_STREAM_BYTES + ${#NOTICE} + 2))"
+    head -c "$MAX_STREAM_BYTES" "$3"
+    printf '\n%s\n' "$NOTICE"
+}
+
+emit STDOUT stdout "$OUT"
+emit STDERR stderr "$ERR"
 
 exit 0

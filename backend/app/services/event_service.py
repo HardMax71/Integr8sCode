@@ -2,7 +2,7 @@ from datetime import datetime
 
 from app.db import EventRepository
 from app.domain.enums import EventType, UserRole
-from app.domain.events import ArchivedEvent, DomainEvent, EventListResult, EventReplayInfo, EventStatistics
+from app.domain.events import DomainEvent, EventListResult, EventReplayInfo, EventStatistics
 
 
 class EventService:
@@ -93,18 +93,6 @@ class EventService:
         if event_user_id != user_id and user_role != UserRole.ADMIN:
             return None
         return event
-
-    async def delete_event_with_archival(
-        self,
-        event_id: str,
-        deleted_by: str,
-        deletion_reason: str = "Admin deletion via API",
-    ) -> ArchivedEvent | None:
-        return await self.repository.delete_event_with_archival(
-            event_id=event_id,
-            deleted_by=deleted_by,
-            deletion_reason=deletion_reason,
-        )
 
     async def get_aggregate_replay_info(self, aggregate_id: str) -> EventReplayInfo | None:
         return await self.repository.get_aggregate_replay_info(aggregate_id)

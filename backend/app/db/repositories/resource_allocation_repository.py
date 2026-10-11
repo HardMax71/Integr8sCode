@@ -2,6 +2,8 @@ import dataclasses
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import structlog
+
 from app.db.docs import ResourceAllocationDocument
 from app.domain.saga import DomainResourceAllocation, DomainResourceAllocationCreate
 
@@ -9,6 +11,9 @@ _alloc_fields = set(DomainResourceAllocation.__dataclass_fields__)
 
 
 class ResourceAllocationRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     async def count_active(self, language: str) -> int:
         return await ResourceAllocationDocument.find(
             ResourceAllocationDocument.status == "active",

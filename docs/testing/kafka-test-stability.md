@@ -1,81 +1,28 @@
 # Kafka test stability
 
-## Producer lifecycle
+Most of what used to make Kafka tests flaky is gone. What's left is how long consumers take to shut down, and which settings actually control that.
 
-The project uses aiokafka (`aiokafka==0.12.0`) via FastStream as the Kafka backend. `UnifiedProducer` is a thin wrapper that delegates to `await self._broker.publish()` — it has no internal Kafka client and no `start()`/`stop()` methods of its own. The broker lifecycle is managed externally (by FastStream in the API process, or by each worker's startup code), so the confluent-kafka `librdkafka` race conditions that plague many Python Kafka test suites do not apply here.
+## No producer to manage
 
-In test fixtures, construct the producer and yield it directly:
+`UnifiedProducer` is a store-then-publish outbox. It writes the event to MongoDB, then publishes through `KafkaEventTransport`, which calls `broker.publish()`. If the publish fails, it marks the stored event as failed to publish and re-raises. It has no Kafka client of its own and nothing to start or stop. The one `KafkaBroker` per process (aiokafka 0.14 under FastStream 0.7.7) is started by `dishka_lifespan` in the API and by FastStream's app runner in the workers.
 
-```python
-@pytest.fixture(scope="function")
-async def producer():
-    p = UnifiedProducer(broker, event_repository, logger, settings, event_metrics)
-    yield p
-```
+Unit tests don't touch Kafka. The E2E suite runs inside the backend container, and its session-scoped `app` fixture enters the real lifespan. So each xdist worker starts one broker with the SSE and notification subscribers, and stops it when the session ends.
 
-No explicit cleanup is needed — the broker is started and stopped separately.
+## Shutdown time
 
-## Consumer teardown delays
+When a consumer stops, aiokafka sends a `LeaveGroupRequest` and waits for it up to `request_timeout_ms`. With the default 40 seconds, a slow coordinator stalls teardown for that long ([aiokafka#773](https://github.com/aio-libs/aiokafka/issues/773)). FastStream adds its own `graceful_timeout` for in-flight messages on stop.
 
-### The problem
+`BrokerProvider` passes only two Kafka settings to the broker, and FastStream hands `request_timeout_ms` to both the producer and the consumers:
 
-Test teardown taking 40+ seconds with errors like:
+| Setting                    | config.toml | config.test.toml | Broker argument      |
+|----------------------------|---------------|--------------------|----------------------|
+| `KAFKA_REQUEST_TIMEOUT_MS` | 40000         | 5000               | `request_timeout_ms` |
+| `KAFKA_GRACEFUL_TIMEOUT`   | 15.0 (default) | 5.0               | `graceful_timeout`   |
 
-```text
-ERROR aiokafka.consumer.group_coordinator: Error sending LeaveGroupRequest to node 1 [[Error 7] RequestTimedOutError]
-```
+config.test.toml also lowers `KAFKA_SESSION_TIMEOUT_MS` to 6000 and `KAFKA_HEARTBEAT_INTERVAL_MS` to 2000, but nothing reads either setting, so they have no effect ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Per-subscriber options such as `ack_policy`, `auto_offset_reset` and `max_poll_records` are set in `app/events/handlers.py`, not in config.
 
-This happens when `consumer.stop()` sends a `LeaveGroupRequest` to the Kafka coordinator, but the request times out.
+`SSE_CONSUMER_POOL_SIZE` is 1 in tests (10 in config.toml). It sets `max_workers` on the SSE subscriber.
 
-### Root cause
+## Shared consumer groups
 
-The `request_timeout_ms` parameter in aiokafka defaults to **40000ms** (40 seconds). When the Kafka coordinator is slow
-or
-unresponsive during test teardown, the consumer waits the full timeout before giving up.
-
-See [aiokafka#773](https://github.com/aio-libs/aiokafka/issues/773) for details on consumer stop delays.
-
-### The fix
-
-Configure shorter timeouts in `.env.test`:
-
-```bash
-# Reduce consumer pool and timeouts for faster test startup/teardown
-# https://github.com/aio-libs/aiokafka/issues/773
-SSE_CONSUMER_POOL_SIZE=1
-KAFKA_SESSION_TIMEOUT_MS=6000
-KAFKA_HEARTBEAT_INTERVAL_MS=2000
-KAFKA_REQUEST_TIMEOUT_MS=5000
-```
-
-All consumers must pass these settings to `AIOKafkaConsumer`:
-
-```python
-consumer = AIOKafkaConsumer(
-    *topics,
-    bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-    session_timeout_ms=settings.KAFKA_SESSION_TIMEOUT_MS,
-    heartbeat_interval_ms=settings.KAFKA_HEARTBEAT_INTERVAL_MS,
-    request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
-)
-```
-
-### Results
-
-| Metric          | Before | After  |
-|-----------------|--------|--------|
-| Teardown time   | 40s    | <1s    |
-| Total test time | 70s    | 20-35s |
-
-### Key timeouts explained
-
-| Setting                       | Default | Test Value | Purpose                                            |
-|-------------------------------|---------|------------|----------------------------------------------------|
-| `KAFKA_SESSION_TIMEOUT_MS`    | 45000   | 6000       | Time before broker considers consumer dead         |
-| `KAFKA_HEARTBEAT_INTERVAL_MS` | 10000   | 2000       | Frequency of heartbeats to coordinator             |
-| `KAFKA_REQUEST_TIMEOUT_MS`    | 40000   | 5000       | Timeout for broker requests (including LeaveGroup) |
-| `SSE_CONSUMER_POOL_SIZE`      | 10      | 1          | Number of SSE consumers (fewer = faster startup)   |
-
-!!! note "Timeout constraints"
-    `request_timeout_ms` must be less than `session_timeout_ms`. The test values (5000 < 6000) and
-    production defaults (40000 < 45000) satisfy this constraint.
+Group ids are literals in handlers.py, so every xdist worker joins the same groups. Tests that depend on a group's messages, such as the DLQ tests, carry an `xdist_group` marker. With `--dist=loadgroup` from pyproject.toml, all tests in one group run on one worker, one after another.

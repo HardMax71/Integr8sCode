@@ -1,17 +1,18 @@
 import asyncio
 from typing import Any
 
-from app.core.container import create_event_replay_container
-from app.core.logging import setup_log_exporter, setup_logger
-from app.db.docs import ALL_DOCUMENTS
-from app.services.event_replay import EventReplayService
-from app.settings import Settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from beanie import init_beanie
 from dishka_faststream import setup_dishka
 from faststream import FastStream
 from faststream.kafka import KafkaBroker
 from pymongo import AsyncMongoClient
+
+from app.core.container import create_event_replay_container
+from app.core.logging import setup_log_exporter, setup_logger
+from app.db.docs import ALL_DOCUMENTS
+from app.services.event_replay import EventReplayService
+from app.settings import Settings
 
 
 def main() -> None:
@@ -27,7 +28,7 @@ def main() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
         client: AsyncMongoClient[dict[str, Any]] = AsyncMongoClient(settings.MONGODB_URL, tz_aware=True)
         await init_beanie(
-            database=client.get_default_database(default=settings.DATABASE_NAME),
+            database=client.get_default_database(default=settings.MONGO_DB),
             document_models=ALL_DOCUMENTS,
         )
         logger.info("MongoDB initialized via Beanie")
@@ -52,11 +53,15 @@ def main() -> None:
             scheduler.start()
             logger.info("Event replay service initialized (APScheduler interval=6h)")
 
-        async def shutdown() -> None:
+        async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
-            await container.close()
 
-        app = FastStream(broker, on_startup=[init_replay], on_shutdown=[shutdown])
+        app = FastStream(
+            broker,
+            on_startup=[init_replay],
+            on_shutdown=[stop_scheduler],
+            after_shutdown=[container.close],
+        )
         await app.run()
         logger.info("EventReplayService shutdown complete")
 

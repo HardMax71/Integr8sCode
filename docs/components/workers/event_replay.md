@@ -1,52 +1,35 @@
-# Event Replay
+# Event replay
 
-The event replay worker re-emits stored events for debugging or rebuilding projections. It reads from the MongoDB
-event store and republishes events to Kafka, optionally filtering by time range, event types, or aggregates.
+Replays don't run in this worker. They run inside the API process, in `EventReplayService`, and the event replay worker only cleans up after them: every 6 hours it calls `cleanup_old_sessions(older_than_hours=48)`, which deletes finished replay sessions older than 48 hours from the `replay_sessions` collection.
 
 ```mermaid
 graph LR
-    Mongo[(MongoDB)] --> Replay[Event Replay]
-    Replay --> Kafka[(Kafka)]
+    Admin[Admin] -->|/api/v1/admin/events/replay<br/>/api/v1/replay| API[API: EventReplayService]
+    API -->|read| Mongo[(events)]
+    API -->|re-produce| Kafka[(Kafka)]
+    API -->|progress| Redis["sse:replay:{session_id}"]
+    Worker[event-replay worker] -->|every 6h| Sessions[(replay_sessions)]
 ```
 
-## How it works
+## Starting a replay
 
-Event replay is typically triggered via the admin API. You specify a replay configuration with filters:
+There are two admin-only ways in.
 
-- Time range (start/end timestamps)
-- Event types to include
-- Specific aggregate IDs (like execution IDs)
+`POST /api/v1/admin/events/replay` takes a filter (`event_ids`, `aggregate_id`, `start_time`, `end_time`), an optional `target_service` and `dry_run`, which defaults to true. A dry run only counts the matching events and returns a preview of up to 100. A real run refuses more than 1000 events, creates a session and starts it with FastAPI `BackgroundTasks` after the response is sent. Without `target_service` the session uses the `test` target, which reads and counts the events but publishes nothing. Progress streams over SSE from `GET /api/v1/admin/events/replay/{session_id}/status`.
 
-The worker reads matching events from the event store in chronological order and republishes them to their original
-topics. Each replayed event includes a provenance marker so consumers can distinguish replays from live events.
+`/api/v1/replay` exposes the full session API: create a session from a `ReplayRequest` (target `kafka`, `file` or `test`, filter, speed multiplier, batch size, max events, error handling), then start, pause, resume, cancel, list and clean up sessions.
 
-## Use cases
+## What a replay does
 
-**Debugging** — Replay events for a specific execution to understand what happened step by step.
+The service reads matching events from the MongoDB `events` collection in batches and dispatches them one at a time. With a speed multiplier below 100 it keeps the original spacing between events, divided by the multiplier. The `kafka` target re-produces each stored event with the same `event_id` and the same payload, and no marker says it's a replay. Its timestamp is set to now unless `preserve_timestamps` is on. The gap to the next event is measured after that reset, so without `preserve_timestamps` the spacing is lost and the events go out back to back. Handlers behind an idempotency key skip a replayed event as a duplicate while that key lives (one hour for `execution_requested` in the saga orchestrator and for the k8s worker, two hours for the result processor). The `file` target appends each event as a JSON line to `target_file_path` on the API host.
 
-**Rebuilding projections** — If a read model gets corrupted or a new projection is added, replay historical events
-to rebuild state.
-
-**Testing** — Replay production events in a test environment to verify behavior.
-
-## Dry-run mode
-
-The worker supports dry-run mode where events are loaded and validated but not actually published. This helps verify
-filter criteria before running a real replay.
+Session state lives in a dict in the API process and is mirrored to `replay_sessions`. A session started in one gunicorn worker can't be paused or read through `/api/v1/replay` from another, and an API restart drops the in-memory sessions. The admin status stream works from any worker, since it reads MongoDB and then Redis.
 
 ## Key files
 
-| File                                                                                                           | Purpose                   |
-|----------------------------------------------------------------------------------------------------------------|---------------------------|
-| [`run_event_replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_event_replay.py) | Entry point               |
-| [`replay_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_replay/replay_service.py) | Replay session management |
-
-## Deployment
-
-```yaml
-event-replay:
-  image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-  command: ["python", "workers/run_event_replay.py"]
-```
-
-Typically runs on-demand. Scale up when replay is needed, scale back down when complete.
+| File | Purpose |
+|------|---------|
+| [`run_event_replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_event_replay.py) | Worker: the cleanup job |
+| [`replay_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_replay/replay_service.py) | Sessions, dispatch, targets |
+| [`replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/replay.py) | `/api/v1/replay` routes |
+| [`events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/events.py) | `/api/v1/admin/events/replay` routes |

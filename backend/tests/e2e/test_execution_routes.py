@@ -2,8 +2,12 @@ import asyncio
 
 import pytest
 import redis.asyncio as redis
-from app.domain.enums import EXECUTION_TERMINAL, EventType, ExecutionStatus
+from httpx2 import AsyncClient
+from pydantic import TypeAdapter
+
+from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
+from app.runtime_registry import at_least
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -13,11 +17,9 @@ from app.schemas_pydantic.execution import (
     ExecutionRequest,
     ExecutionResponse,
     ExecutionResult,
+    LanguageLimits,
     ResourceLimits,
 )
-from httpx2 import AsyncClient
-from pydantic import TypeAdapter
-
 from tests.e2e.conftest import wait_for_pod_created, wait_for_result
 
 pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
@@ -206,9 +208,7 @@ class TestExecutionCancel:
         assert cancel_result.message
 
     @pytest.mark.asyncio
-    async def test_cancel_completed_execution_fails(
-        self, test_user: AsyncClient, redis_client: redis.Redis
-    ) -> None:
+    async def test_cancel_completed_execution_fails(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
         """Cannot cancel already completed execution."""
         request = ExecutionRequest(script="print('quick')", lang="python", lang_version="3.11")
         exec_response, _ = await submit_and_wait(test_user, redis_client, request)
@@ -227,9 +227,7 @@ class TestExecutionRetry:
     """Tests for execution retry."""
 
     @pytest.mark.asyncio
-    async def test_retry_completed_execution(
-        self, test_user: AsyncClient, redis_client: redis.Redis
-    ) -> None:
+    async def test_retry_completed_execution(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
         """Completed execution can be retried."""
         request = ExecutionRequest(script="print('original')", lang="python", lang_version="3.11")
         original, _ = await submit_and_wait(test_user, redis_client, request)
@@ -266,7 +264,9 @@ class TestExecutionRetry:
         )
 
         assert retry_response.status_code == 400
-        assert "detail" in retry_response.json()
+        body = retry_response.json()
+        assert body["type"] == "ExecutionNotRetryableError"
+        assert body["detail"].startswith("Cannot retry execution in ")
 
     @pytest.mark.asyncio
     async def test_retry_other_users_execution_forbidden(
@@ -281,6 +281,10 @@ class TestExecutionRetry:
         )
 
         assert retry_response.status_code == 403
+        assert retry_response.json() == {
+            "detail": f"Access denied to execution '{original.execution_id}'",
+            "type": "ExecutionAccessDeniedError",
+        }
 
 
 class TestExecutionEvents:
@@ -328,6 +332,10 @@ class TestExecutionEvents:
 
         events_response = await another_user.get(f"/api/v1/executions/{exec_response.execution_id}/events")
         assert events_response.status_code == 403
+        assert events_response.json() == {
+            "detail": f"Access denied to execution '{exec_response.execution_id}'",
+            "type": "ExecutionAccessDeniedError",
+        }
 
 
 class TestExecutionDelete:
@@ -522,3 +530,12 @@ class TestPublicEndpoints:
         assert result.execution_timeout > 0
         assert "python" in result.supported_runtimes
         assert len(result.supported_runtimes["python"].versions) >= 1
+        assert result.language_limits.keys() == result.supported_runtimes.keys()
+        assert result.language_limits["python"] == LanguageLimits(
+            cpu_limit=result.cpu_limit, memory_limit=result.memory_limit, execution_timeout=result.execution_timeout
+        )
+        assert result.language_limits["go"] == LanguageLimits(
+            cpu_limit=at_least(result.cpu_limit, "1000m"),
+            memory_limit=at_least(result.memory_limit, "320Mi"),
+            execution_timeout=max(result.execution_timeout, 30),
+        )

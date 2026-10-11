@@ -1,98 +1,49 @@
 # CPU time measurement
 
-The platform measures CPU time for executed scripts using Linux's jiffy-based accounting system. This document explains the limitations and characteristics of CPU time measurement, particularly for short-running processes.
+Every executor pod runs the user's command under [entrypoint.sh](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/scripts/entrypoint.sh), a POSIX sh wrapper started as `/bin/sh /entry/entrypoint.sh <runtime command>`. It measures wall time, CPU time and peak memory, and hands the results back through two channels: the container's termination message and its stdout.
 
-## How it works
+## What the wrapper does
 
-The [`entrypoint.sh`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/scripts/entrypoint.sh) script wraps all pod executions and captures resource metrics. Wall clock time is measured using `date +%s.%N` with nanosecond precision. CPU time is sampled from `/proc/$PID/stat` fields 14 (user) and 15 (system) in jiffies. Memory usage comes from peak RSS in the `/proc/$PID/status` VmHWM field.
+It starts the command in the background with stdout and stderr going into two named pipes. A reader on each pipe keeps the first 256 KiB in `/tmp` and throws the rest away, so a chatty script can't fill the 10Mi `/tmp` or stall on a full pipe. The cap also keeps both streams inside one Kafka message, which is 1 MiB by default. Meanwhile the wrapper polls `/proc/$PID` every 5 ms while the process is alive. Each sample reads `VmHWM` from `/proc/$PID/status` for peak RSS and fields 14 and 15 of `/proc/$PID/stat` (user plus system time, in jiffies) for CPU. Wall time is the difference of two `date +%s.%N` readings. BusyBox `date` prints nothing for `%N`, so in the Alpine-based images (Node, Ruby, Bash and Go) the wrapper reads `/proc/uptime` instead, which moves in 10 ms steps. `CLK_TCK` comes from `getconf`, falling back to 100.
 
-Main sampling loop looks like so:
+When the command exits, the wrapper writes `key=value` lines to `/dev/termination-log`:
 
-```bash
-while kill -0 "$PID" 2>/dev/null; do
-    # Read CPU jiffies from /proc/$PID/stat
-    CPU_JIFFIES=$(awk '{print $14+$15}' "/proc/$PID/stat" 2>/dev/null)
-    # Sample every 5ms
-    sleep 0.005
-done
+```text
+exit_code=0
+cpu_jiffies=3
+clk_tck=100
+peak_memory_kb=9216
+wall_seconds=0.052341
 ```
 
-## The zero jiffies problem
+Then it prints the captured output to stdout, each stream framed by a header with its length in bytes:
 
-Linux tracks CPU time in "jiffies" — discrete time units typically representing 10ms each (CLK_TCK=100Hz). Any script using less than 10ms of CPU time reports as 0 jiffies, 10-19ms reports as 1 jiffy, and so on. This granularity means many simple scripts show `cpu_time_jiffies: 0` despite measurable wall time:
-
-| Script Type           | Wall Time | Actual CPU | Reported Jiffies |
-|-----------------------|-----------|------------|------------------|
-| `echo "Hello"`        | ~5ms      | <1ms       | 0                |
-| `print("Hello")`      | ~20ms     | ~3ms       | 0                |
-| `time.sleep(0.05)`    | ~50ms     | <1ms       | 0                |
-| Simple math operation | ~10ms     | ~2ms       | 0                |
-
-Wall time is total elapsed real-world time including waiting, I/O, and sleep. CPU time is actual processor cycles consumed by the process. A script can run for 100ms wall time but use only 1ms of CPU if it's waiting for I/O, sleeping, or blocked on system calls.
-
-Beyond jiffy granularity, there are additional factors. For processes that complete in under 5ms, the sampling loop might never execute at all — the process exits before the first sample, leaving jiffies at the initial value of 0. When a process exits, the kernel performs final CPU accounting but `/proc/$PID/stat` is immediately removed, so any final CPU time accumulation is lost. Short scripts also spend proportionally more time in interpreter initialization (Python, Node.js), library loading, and process creation — overhead that often doesn't register as CPU time.
-
-## Impact on metrics
-
-When `cpu_time_jiffies` is 0, the CPU utilization calculation becomes `(0 / 100) / wall_time = 0%`. This appears as if the script used no CPU, which is technically accurate from the kernel's perspective but can be confusing. It's not a bug — the measurement is accurate within Linux's accounting granularity. Short, simple scripts legitimately use less than one jiffy of CPU time, and the system simply cannot measure CPU usage for processes consuming under 10ms.
-
-## Technical details
-
-Jiffy calculation: 
-
-```bash
-CLK_TCK=$(getconf CLK_TCK)  # Usually 100 Hz
-cpu_seconds = cpu_time_jiffies / CLK_TCK
+```text
+STDOUT <bytes>
+<stdout>STDERR <bytes>
+<stderr>
 ```
 
-Resource usage structure (output of Shell script):
-```json
-{
-  "resource_usage": {
-    "execution_time_wall_seconds": 0.052341,
-    "cpu_time_jiffies": 0,
-    "clk_tck_hertz": 100,
-    "peak_memory_kb": 2048
-  }
-}
-```
+A stream that went over the cap ends with a line such as `[stdout truncated: showing the first 262144 bytes]`, counted inside its frame.
 
-### Event flow
+After running a command, the wrapper itself exits 0, so the real exit code travels in the termination message. If it's called with no command, it writes `exit_code=127` and an error message in the same format and exits 127.
 
-```mermaid
-sequenceDiagram
-    participant Pod
-    participant Entrypoint as entrypoint.sh
-    participant Proc as /proc/$PID
-    participant Logs as Pod Logs
-    participant Mapper as PodEventMapper
-    participant Event as ExecutionCompletedEvent
-    participant Result as Result Processor
+## How the backend reads it
 
-    Pod->>Entrypoint: execute script
-    loop every 5ms
-        Entrypoint->>Proc: sample CPU jiffies
-    end
-    Entrypoint->>Logs: write JSON output
-    Logs->>Mapper: capture logs
-    Mapper->>Mapper: _try_parse_json()
-    Mapper->>Event: attach resource_usage
-    Event->>Result: record metrics
-```
+The pod monitor's `PodEventMapper` picks this up once the container has terminated. `_parse_termination_message` splits the termination message into a dict, and `_parse_framed_output` cuts stdout and stderr out of the pod log by the length headers. The log is read raw from its start (at most 2 MiB) and cut by bytes, since the headers count bytes, and each stream is decoded as UTF-8 with invalid bytes replaced. If the framing can't be parsed, both streams come back empty. The values end up in `ResourceUsageDomain` (`execution_time_wall_seconds`, `cpu_time_jiffies`, `clk_tck_hertz`, `peak_memory_kb`) on the completion event, and the result processor stores them with the execution.
 
-The pod executes with the entrypoint.sh wrapper, which samples `/proc` during execution. When the script finishes, JSON output is captured from pod logs. The PodEventMapper parses this JSON via `_try_parse_json()` and attaches the resource usage to an ExecutionCompletedEvent. Finally, the result processor records the metrics.
+The editor's output panel converts jiffies to milliseconds with `clk_tck_hertz`.
 
-## Security considerations
+## Why short scripts show zero CPU
 
-The `clk_tck_hertz` value is included in resource usage metrics because it's required to convert jiffies to seconds (`cpu_seconds = cpu_time_jiffies / clk_tck_hertz`) and allows proper CPU utilization calculation.
+Linux reports CPU time in jiffies, which are 10 ms at the usual `CLK_TCK` of 100, and rounds user and system time down separately. A script that uses less than 10 ms of CPU reports 0, and one that uses 10 to 19 ms reports 0 or 1. A `print("hello")` usually lands at 0 even though its wall time is tens of milliseconds. The output panel shows that case as `< 10 m` instead of zero.
 
-This is **low risk** — CLK_TCK is obtainable by any user via `getconf CLK_TCK`, requires no special permissions, and uses standard values (usually 100 Hz, occasionally 250/300/1000 Hz). Users executing code in the environment could obtain it themselves anyway.
+Two more effects push short runs toward 0. A process that finishes before the first 5 ms sample is never read at all. And `/proc/$PID/stat` disappears the moment the process exits, so CPU time used after the last sample is lost.
 
-There are minimal concerns around system fingerprinting (helps identify kernel configuration) and theoretical timing attack calibration, but since users already execute arbitrary code in the environment, this disclosure adds negligible risk.
+Wall time and CPU time measure different things anyway. Wall time includes sleeping, I/O and waiting; CPU time only counts cycles the process actually used. A script that sleeps for a second has a wall time of about a second and almost no CPU.
 
-## References
+## Exposing CLK_TCK
 
-- [proc(5)](https://man7.org/linux/man-pages/man5/proc.5.html) — `/proc/[pid]/stat` documentation
-- [time(7)](https://man7.org/linux/man-pages/man7/time.7.html) — time accounting overview
-- [getrusage(2)](https://man7.org/linux/man-pages/man2/getrusage.2.html) — system call documentation
-- [sysconf(3)](https://man7.org/linux/man-pages/man3/sysconf.3.html) — system configuration variables
+`clk_tck_hertz` is part of the result because jiffies mean nothing without it. It's not a secret: any process can read it with `getconf CLK_TCK`, and users already run arbitrary code in the same environment.
+
+See [proc(5)](https://man7.org/linux/man-pages/man5/proc.5.html) for the `/proc/[pid]/stat` fields and [time(7)](https://man7.org/linux/man-pages/man7/time.7.html) for how the kernel accounts time.

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { Router, goto } from '@mateothegreat/svelte5-router';
-    import { Toaster } from 'svelte-sonner';
+    import { Toaster, toast } from 'svelte-sonner';
     import Header from '$components/Header.svelte';
     import Footer from '$components/Footer.svelte';
     import Spinner from '$components/Spinner.svelte';
@@ -14,8 +14,7 @@
     const log = logger.withTag('App');
 
     // Page components (lazy-loaded for code splitting)
-    // NOTE: must be async functions (not plain arrows) — svelte5-router checks
-    // constructor.name === "AsyncFunction" to detect lazy components.
+    // Must be async functions, not plain arrows: svelte5-router checks constructor.name === "AsyncFunction"
     const Home = async () => import('$routes/Home.svelte');
     const Login = async () => import('$routes/Login.svelte');
     const Register = async () => import('$routes/Register.svelte');
@@ -59,6 +58,19 @@
     };
     // --8<-- [end:require_auth]
 
+    // --8<-- [start:require_admin]
+    // Runs before the page mounts, so a non-admin never fires the page's admin API calls
+    const requireAdmin = async () => {
+        if (!(await requireAuth())) return false;
+        if (authStore.userRole !== 'admin') {
+            toast.error('Admin access required');
+            goto('/');
+            return false;
+        }
+        return true;
+    };
+    // --8<-- [end:require_admin]
+
     // --8<-- [start:routes]
     // Routes configuration
     const routes = [
@@ -71,12 +83,12 @@
         { path: '/editor', component: Editor, hooks: { pre: requireAuth } },
         { path: '/settings', component: Settings, hooks: { pre: requireAuth } },
         { path: '/notifications', component: Notifications, hooks: { pre: requireAuth } },
-        { path: '/admin/events', component: AdminEvents, hooks: { pre: requireAuth } },
-        { path: '/admin/executions', component: AdminExecutions, hooks: { pre: requireAuth } },
-        { path: '/admin/sagas', component: AdminSagas, hooks: { pre: requireAuth } },
-        { path: '/admin/users', component: AdminUsers, hooks: { pre: requireAuth } },
-        { path: '/admin/settings', component: AdminSettings, hooks: { pre: requireAuth } },
-        { path: '^/admin$', component: AdminEvents, hooks: { pre: requireAuth } },
+        { path: '/admin/events', component: AdminEvents, hooks: { pre: requireAdmin } },
+        { path: '/admin/executions', component: AdminExecutions, hooks: { pre: requireAdmin } },
+        { path: '/admin/sagas', component: AdminSagas, hooks: { pre: requireAdmin } },
+        { path: '/admin/users', component: AdminUsers, hooks: { pre: requireAdmin } },
+        { path: '/admin/settings', component: AdminSettings, hooks: { pre: requireAdmin } },
+        { path: '^/admin$', component: AdminEvents, hooks: { pre: requireAdmin } },
     ];
     // --8<-- [end:routes]
 </script>

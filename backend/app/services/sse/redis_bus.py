@@ -54,7 +54,9 @@ class SSERedisBus:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._exec_channel(execution_id))
                 async for message in pubsub.listen():
-                    yield _sse_event_adapter.validate_json(message["data"])
+                    event = _sse_event_adapter.validate_json(message["data"])
+                    self._metrics.record_sse_message_sent("executions", event.event_type)
+                    yield event
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
             self._metrics.record_sse_connection_duration(duration, "executions")
@@ -69,7 +71,9 @@ class SSERedisBus:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._notif_channel(user_id))
                 async for message in pubsub.listen():
-                    yield _notif_payload_adapter.validate_json(message["data"])
+                    notification = _notif_payload_adapter.validate_json(message["data"])
+                    self._metrics.record_sse_message_sent("notifications", "notification")
+                    yield notification
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
             self._metrics.record_sse_connection_duration(duration, "notifications")
@@ -90,7 +94,9 @@ class SSERedisBus:
             async with self._redis.pubsub(ignore_subscribe_messages=True) as pubsub:
                 await pubsub.subscribe(self._replay_channel(session_id))
                 async for message in pubsub.listen():
-                    yield _replay_adapter.validate_json(message["data"])
+                    status = _replay_adapter.validate_json(message["data"])
+                    self._metrics.record_sse_message_sent("replay", "replay_status")
+                    yield status
         finally:
             duration = (datetime.now(timezone.utc) - start).total_seconds()
             self._metrics.record_sse_connection_duration(duration, "replay")

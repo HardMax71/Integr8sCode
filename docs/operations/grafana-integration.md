@@ -1,134 +1,56 @@
-# Grafana Integration
+# Grafana integration
 
-Grafana connects to Victoria Metrics to visualize platform metrics, to Jaeger for trace exploration, and to Loki for
-log aggregation. Alerting uses Grafana's built-in unified alerting engine with provisioned contact points and alert
-rules — no custom backend endpoints involved.
+Grafana runs under the `observability` compose profile. Everything it shows is provisioned from [`backend/grafana/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana): three datasources, twelve dashboards, two alert rules and an email contact point. Locally it's at `http://localhost:3000`; in production nginx serves it on `grafana.integr8scode.cc` (see [Nginx configuration](nginx-configuration.md#grafana-server)). Anonymous access is off. The admin login comes from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` (default `admin` / `admin123`), and the entrypoint resets the password to that value on every start.
+
+## Datasources
+
+| Name             | Type       | UID                | Notes                                              |
+|------------------|------------|--------------------|----------------------------------------------------|
+| Victoria Metrics | prometheus | `victoria-metrics` | default; exemplar `trace_id` links to Jaeger       |
+| Jaeger           | jaeger     | `jaeger`           | needs Jaeger below 2.21, see [Tracing](tracing.md#jaeger) |
+| Loki             | loki       | `loki`             | `trace_id` derived field, broken today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)) |
+
+Grafana 13 downloads the prometheus and jaeger plugins on first start. `preinstall_sync` in grafana.ini makes it install them before provisioning runs, so the first start on a fresh volume needs to reach grafana.com.
 
 ## Dashboards
 
-Grafana is available at `http://localhost:3000` when the stack is running. Login is required — anonymous access is
-disabled. Admin credentials are set via `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` environment variables in
-`docker-compose.yaml` (defaults: `admin` / `admin123`).
-Victoria Metrics serves as the Prometheus-compatible data source. See [Metrics Reference](metrics-reference.md) for the
-full metric catalog and example PromQL queries.
+All dashboards land in one folder, `Integr8sCode`, with the fixed UID `integr8scode`. The file provider reloads them every 10 seconds and doesn't allow saving edits from the UI. The metrics behind them are listed in the [metrics reference](metrics-reference.md).
 
-## Alerting Architecture
+| File                           | Title                      |
+|--------------------------------|----------------------------|
+| integr8scode.json            | System Overview            |
+| coordinator-execution.json   | Queue & Execution          |
+| dlq-monitoring.json          | Dead Letter Queue          |
+| event-replay.json            | Event Replay               |
+| event-stream-monitoring.json | Event Stream               |
+| http-middleware.json         | HTTP & Middleware          |
+| kafka-events-monitoring.json | Kafka Events               |
+| kubernetes-pods.json         | Kubernetes & Pods          |
+| mongodb-monitoring.json      | MongoDB Monitoring         |
+| notifications.json           | Notifications              |
+| rate-limiting-dashboard.json | Rate Limiting              |
+| security-auth.json           | Security & Authentication  |
 
-```mermaid
-flowchart LR
-    VM["Victoria Metrics"] --> Grafana
-    Grafana -->|"evaluate rules"| Grafana
-    Grafana -->|"notify"| Slack["Slack"]
-    Grafana -->|"notify"| Email["Email"]
-    Grafana -->|"notify"| PagerDuty["PagerDuty / etc."]
-```
+## Alerting
 
-Grafana's unified alerting engine evaluates rules on a schedule, queries Victoria Metrics, and sends notifications
-directly to configured contact points (Slack, email, PagerDuty, OpsGenie, webhooks, etc.). This is the standard
-Grafana approach — no intermediate backend service is needed.
-
-## Provisioning
-
-Alert configuration is managed via YAML files in `backend/grafana/provisioning/alerting/`. Grafana loads these on
-startup, so alert rules, contact points, and notification policies are version-controlled and reproducible.
-
-The provisioning file (`alerting.yml`) includes active infrastructure alert rules under `groups` and ships with empty `contactPoints: []` and `policies: []` — populate these keys to route alerts to Slack, email, or other channels (see examples below):
-
-### Built-in Alert Rules
-
-Two host-memory alert rules are provisioned out of the box. They query `system_memory_utilization_ratio`, which the OTel Collector's `host_metrics` memory scraper emits once `system.memory.utilization` is enabled in its config:
-
-| Rule | Threshold | `for` | Severity |
-|------|-----------|-------|----------|
-| Host Memory > 85 % | 85 % | 5 m | warning |
-| Host Memory > 95 % | 95 % | 2 m | critical |
-
-These rules fire into Grafana's built-in alerting UI. To route them to Slack, email, or PagerDuty, add a contact point and notification policy (see below).
-
-### Contact Points
-
-Contact points define where notifications go. Configure in `alerting.yml`:
+[`provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/alerting/alerting.yml) holds the rules, the contact point and the policy:
 
 ```yaml
-contactPoints:
-  - orgId: 1
-    name: slack-notifications
-    receivers:
-      - uid: slack-receiver
-        type: slack
-        settings:
-          url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-          recipient: "#alerts"
+--8<-- "backend/grafana/provisioning/alerting/alerting.yml"
 ```
 
-Grafana supports 20+ contact point types out of the box: Slack, email, PagerDuty, OpsGenie, Microsoft Teams, generic
-webhooks, and more. See the
-[Grafana contact points documentation](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/)
-for the full list.
+Both rules are instant queries on `avg_over_time(system_memory_utilization_ratio{state="used"}[5m]) * 100`, evaluated every minute. One warns above 85% for 5 minutes, the other goes critical above 95% for 2 minutes. The metric comes from the collector's `host_metrics` memory scraper, which emits `system.memory.utilization` only because the collector config turns it on; it's off by default.
 
-### Notification Policies
+Alerts go to the `email-alerts` contact point, which sends one email addressed to everyone in `GRAFANA_ALERT_RECIPIENTS` (`singleEmail: true`). SMTP is configured in grafana.ini from env vars that compose fills in: `GF_SMTP_HOST`, `MAILJET_API_KEY` as the user, `MAILJET_SECRET_KEY` as the password and `MAILJET_FROM_ADDRESS` as the sender. Locally `GF_SMTP_HOST` is empty, so alerts fire but no mail goes out. Production sets it from the `MAILJET_HOST` secret.
 
-Policies route alerts to the right contact point based on labels:
+The rule group names its folder by title, `Integr8sCode`. If the rules load before the dashboard provider creates that folder, Grafana makes a second `Integr8sCode` folder with a random UID and puts the rules there. The compose entrypoint avoids that: it starts Grafana without the alerting files, waits for `/api/folders/integr8scode`, then copies them in and calls `/api/admin/provisioning/alerting/reload`.
 
-```yaml
-policies:
-  - orgId: 1
-    receiver: slack-notifications
-    group_by: ["alertname", "namespace"]
-    group_wait: 30s
-    group_interval: 5m
-    repeat_interval: 4h
-```
+A Grafana volume from before that fix may still have the stray folder holding the rules. Delete it once in the UI (it's the `Integr8sCode` folder whose URL isn't `/dashboards/f/integr8scode/`), then `docker compose restart grafana` so the entrypoint loads the rules into the right one.
 
-### Alert Rules
-
-Rules query Victoria Metrics and fire when thresholds are breached. Example for HTTP 5xx error rate:
-
-```yaml
-groups:
-  - orgId: 1
-    name: backend-alerts
-    folder: Integr8sCode
-    interval: 1m
-    rules:
-      - uid: high-error-rate
-        title: High HTTP 5xx Error Rate
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: victoria-metrics
-            model:
-              expr: >
-                sum(rate(http_requests_total{status=~"5.."}[5m]))
-                / sum(rate(http_requests_total[5m])) * 100
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "HTTP 5xx error rate is above 5%"
-```
-
-## Configuration
-
-The full Grafana server configuration lives in `backend/grafana/grafana.ini`:
+## grafana.ini
 
 ```ini
 --8<-- "backend/grafana/grafana.ini:grafana_ini"
 ```
 
-Anonymous access is disabled and basic auth is enabled. Admin credentials are injected via `GF_SECURITY_ADMIN_USER`
-and `GF_SECURITY_ADMIN_PASSWORD` environment variables in `docker-compose.yaml`.
-
-The `[alerting]` section controls the legacy alerting engine (Grafana < 9) and stays disabled. `[unified_alerting]`
-is the modern engine used for all provisioned rules.
-
-## Key Files
-
-| File                                                                                                                                                           | Purpose                           |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|
-| [`grafana/grafana.ini`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/grafana.ini)                                                       | Grafana server configuration      |
-| [`grafana/provisioning/alerting/alerting.yml`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/grafana/provisioning/alerting/alerting.yml)           | Alert rules and contact points    |
-| [`grafana/provisioning/datasources/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/grafana/provisioning/datasources)                             | Victoria Metrics, Jaeger, and Loki data sources |
+`[alerting]` is the legacy engine and stays off. `[unified_alerting]` runs the provisioned rules. There's no `root_url` here; compose sets `GF_SERVER_ROOT_URL` from `GRAFANA_ROOT_URL`.

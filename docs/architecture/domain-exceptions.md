@@ -1,90 +1,70 @@
 # Domain exceptions
 
-This document explains how the backend handles errors using domain exceptions. It covers the exception hierarchy, how
-services use them, and how the middleware maps them to HTTP responses.
+Services raise domain exceptions, and one handler turns them into HTTP responses. No route raises `HTTPException`. A service says `ExecutionNotFoundError(execution_id)` and never thinks about status codes, so the same code works from a route, a Kafka handler or a test.
 
-## Why domain exceptions
+## Base classes
 
-Services used to throw `HTTPException` directly with status codes like 404 or 422. That worked but created tight
-coupling between business logic and HTTP semantics. A service that throws `HTTPException(status_code=404)` knows it's
-running behind an HTTP API, which breaks when you want to reuse that service from a CLI tool, a message consumer, or a
-test harness.
+Everything inherits from `DomainError` in `app/domain/exceptions.py`, which stores the text in `message`. The base class decides the status:
 
-Domain exceptions fix this by letting services speak in business terms. A service raises
-`ExecutionNotFoundError(execution_id)` instead of `HTTPException(404, "Execution not found")`. The exception handler
-middleware maps domain exceptions to HTTP responses in one place. Services stay transport-agnostic, tests assert on
-meaningful exception types, and the mapping logic lives where it belongs.
+| Base class | Status | Meaning |
+|------------|--------|---------|
+| `NotFoundError` | 404 | entity doesn't exist; takes `entity` and `identifier` |
+| `ValidationError` | 422 | business rule violated |
+| `ThrottledError` | 429 | limit exceeded |
+| `ConflictError` | 409 | duplicate or concurrent change |
+| `UnauthorizedError` | 401 | not authenticated |
+| `ForbiddenError` | 403 | authenticated but not allowed |
+| `InvalidStateError` | 400 | operation not valid in the current state |
+| `AccountLockedError` | 423 | too many failed logins |
+| `InfrastructureError` | 500 | database, Kafka or Kubernetes failure |
 
-## Exception hierarchy
+A plain `DomainError` also maps to 500.
 
-All domain exceptions inherit from `DomainError`, which lives in `app/domain/exceptions.py`. The base classes map to
-HTTP status codes:
+## Hierarchy
 
-| Base class            | HTTP status | Use case                             |
-|-----------------------|-------------|--------------------------------------|
-| `NotFoundError`       | 404         | Entity doesn't exist                 |
-| `ValidationError`     | 422         | Invalid input or state               |
-| `ThrottledError`      | 429         | Rate limit exceeded                  |
-| `ConflictError`       | 409         | Concurrent modification or duplicate |
-| `UnauthorizedError`   | 401         | Missing or invalid credentials       |
-| `ForbiddenError`      | 403         | Authenticated but not allowed        |
-| `InvalidStateError`   | 400         | Operation invalid for current state  |
-| `InfrastructureError` | 500         | External system failure              |
-| `AccountLockedError`  | 423         | Account temporarily locked           |
+Each domain package defines its own subclasses in an `exceptions.py` and exports them from its `__init__.py`:
 
-Each domain module defines specific exceptions that inherit from these bases. The hierarchy looks like this:
-
-```
+```text
 DomainError
 ├── NotFoundError
-│   ├── ExecutionNotFoundError
-│   ├── SagaNotFoundError
-│   ├── NotificationNotFoundError
-│   ├── SavedScriptNotFoundError
-│   ├── ReplaySessionNotFoundError
-│   └── UserNotFoundError
+│   ├── ExecutionNotFoundError        execution
+│   ├── SagaNotFoundError             saga
+│   ├── NotificationNotFoundError     notification
+│   ├── SavedScriptNotFoundError      saved_script
+│   ├── ReplaySessionNotFoundError    replay
+│   ├── EventNotFoundError            events
+│   └── UserNotFoundError             user
 ├── ValidationError
-│   ├── RuntimeNotSupportedError
-│   └── NotificationValidationError
+│   ├── RuntimeNotSupportedError      execution
+│   └── NotificationValidationError   notification
 ├── ThrottledError
-│   └── NotificationThrottledError
+│   └── NotificationThrottledError    notification
 ├── ConflictError
-│   └── SagaConcurrencyError
+│   └── SagaConcurrencyError          saga
 ├── UnauthorizedError
-│   ├── AuthenticationRequiredError
-│   ├── InvalidCredentialsError
-│   └── TokenExpiredError
+│   ├── AuthenticationRequiredError   user
+│   └── InvalidCredentialsError       user
 ├── ForbiddenError
-│   ├── SagaAccessDeniedError
-│   ├── AdminAccessRequiredError
-│   └── CSRFValidationError
+│   ├── ExecutionAccessDeniedError    execution
+│   ├── SagaAccessDeniedError         saga
+│   ├── AdminAccessRequiredError      user
+│   ├── AccountDeactivatedError       user
+│   └── CSRFValidationError           user
 ├── InvalidStateError
-│   └── SagaInvalidStateError
+│   ├── ExecutionNotRetryableError    execution
+│   ├── ExecutionTerminalError        execution
+│   ├── SagaInvalidStateError         saga
+│   └── SelfDeletionError             user
 ├── InfrastructureError
-│   ├── EventPublishError
-│   ├── SagaTimeoutError
-│   └── ReplayOperationError
+│   └── ReplayOperationError          replay
 └── AccountLockedError
 ```
 
-## Exception locations
+The right column is the package under `app/domain/`, so `EventNotFoundError` lives in `app/domain/events/exceptions.py`. A few of these have a status worth knowing. `RuntimeNotSupportedError` (422) rejects a language version that isn't offered, on execute, retry and saved scripts. `ExecutionNotRetryableError` (400) refuses to retry a queued or running execution, and `ExecutionTerminalError` (400) refuses to cancel a finished one. `SelfDeletionError` (400) stops an admin from deleting their own account.
 
-Domain exceptions live in their respective domain modules:
+`CSRFValidationError` never reaches the global handler: `CSRFMiddleware` catches it and answers 403 itself.
 
-| Module       | File                                    | Exceptions                                                                                                                                            |
-|--------------|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Base         | `app/domain/exceptions.py`              | `DomainError`, `NotFoundError`, `ValidationError`, `AccountLockedError`, etc.                                                                         |
-| Execution    | `app/domain/execution/exceptions.py`    | `ExecutionNotFoundError`, `RuntimeNotSupportedError`, `EventPublishError`                                                                             |
-| Saga         | `app/domain/saga/exceptions.py`         | `SagaNotFoundError`, `SagaAccessDeniedError`, `SagaInvalidStateError`, `SagaTimeoutError`, `SagaConcurrencyError`                                     |
-| Notification | `app/domain/notification/exceptions.py` | `NotificationNotFoundError`, `NotificationThrottledError`, `NotificationValidationError`                                                              |
-| Saved Script | `app/domain/saved_script/exceptions.py` | `SavedScriptNotFoundError`                                                                                                                            |
-| Replay       | `app/domain/replay/exceptions.py`       | `ReplaySessionNotFoundError`, `ReplayOperationError`                                                                                                  |
-| User/Auth    | `app/domain/user/exceptions.py`         | `AuthenticationRequiredError`, `InvalidCredentialsError`, `TokenExpiredError`, `CSRFValidationError`, `AdminAccessRequiredError`, `UserNotFoundError` |
-
-## Rich constructors
-
-Specific exceptions have constructors that capture context for logging and debugging. Instead of just a message string,
-they take structured arguments:
+Subclasses that carry context take it in the constructor and keep it as attributes, so logs and tests can read `exc.saga_id` or `exc.limit` without parsing the message:
 
 ```python
 --8<-- "backend/app/domain/saga/exceptions.py:SagaAccessDeniedError"
@@ -94,86 +74,52 @@ they take structured arguments:
 --8<-- "backend/app/domain/notification/exceptions.py:NotificationThrottledError"
 ```
 
-This means you can log `exc.saga_id` or `exc.limit` without parsing the message, and tests can assert on specific
-fields.
+## Handler
 
-## Exception handler
-
-The middleware in `app/core/exceptions/handlers.py` catches all `DomainError` subclasses and maps them to JSON
-responses:
+`configure_exception_handlers` in `app/core/exceptions/handlers.py` registers one handler for `DomainError`:
 
 ```python
 --8<-- "backend/app/core/exceptions/handlers.py:configure_exception_handlers"
 ```
 
-The response includes the exception type name, so clients can distinguish between `ExecutionNotFoundError` and
-`SagaNotFoundError` even though both return 404.
+The body matches `ErrorResponse(detail, type)` from `app/schemas_pydantic/common.py`. `type` is the class name, so a client can tell `ExecutionNotFoundError` from `SagaNotFoundError` even though both are 404. Routes list the errors their services raise in `responses={...}` so they show up in the OpenAPI spec. The 401 and 403 from the `current_user` and `admin_user` dependencies mostly aren't listed, so the spec leaves them out.
 
-## Using exceptions in services
+## Where exceptions are raised
 
-Services import exceptions from their domain module and raise them instead of `HTTPException`:
+Repositories return `None` for a missing entity. They raise only when a write breaks a constraint: `UserRepository.create_user` raises `ConflictError` on a duplicate key, and `SagaRepository` raises `SagaConcurrencyError` on a revision mismatch and `SagaInvalidStateError` when cancelling a saga that is no longer active.
+
+Services check for `None`, log, and raise the specific error. Trimmed from `SavedScriptService.get_saved_script`:
 
 ```python
-# Before (coupled to HTTP)
-from fastapi import HTTPException
-
-async def get_execution(self, execution_id: str) -> DomainExecution:
-    execution = await self.repo.get_execution(execution_id)
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
-    return execution
-
-# After (transport-agnostic)
-from app.domain.execution import ExecutionNotFoundError
-
-async def get_execution(self, execution_id: str) -> DomainExecution:
-    execution = await self.repo.get_execution(execution_id)
-    if not execution:
-        raise ExecutionNotFoundError(execution_id)
-    return execution
+script = await self.saved_script_repo.get_saved_script(script_id, user_id)
+if not script:
+    self.logger.warning("Script not found for user", user_id=user_id, script_id=script_id)
+    raise SavedScriptNotFoundError(script_id)
+return script
 ```
 
-The service no longer knows about HTTP. It raises a domain exception that describes what went wrong in business terms.
-The middleware handles the translation to HTTP.
+The route just calls the service and returns the schema. It has no `None` check and no `HTTPException`.
 
-## Testing with domain exceptions
+Kafka handlers in the workers raise the same exceptions, for example `ExecutionNotFoundError` in the result processor. No HTTP mapping applies there: the error goes to the handler wrapper, which records `event.processing.errors.total` and re-raises.
 
-Tests can assert on specific exception types and their fields:
+## Testing
+
+Tests assert on the type and its fields instead of status codes. This one follows `tests/e2e/services/saga/test_saga_service.py`, which gets the service from the Dishka `scope` fixture and builds the caller with `make_test_user`:
 
 ```python
-import pytest
-from app.domain.saga import SagaNotFoundError, SagaAccessDeniedError
-
-async def test_saga_not_found():
+async def test_get_saga_not_found(scope: AsyncContainer) -> None:
+    svc: SagaService = await scope.get(SagaService)
     with pytest.raises(SagaNotFoundError) as exc_info:
-        await service.get_saga("nonexistent-id")
-    assert exc_info.value.identifier == "nonexistent-id"
-
-async def test_saga_access_denied():
-    with pytest.raises(SagaAccessDeniedError) as exc_info:
-        await service.get_saga_with_access_check(saga_id, unauthorized_user)
-    assert exc_info.value.saga_id == saga_id
-    assert exc_info.value.user_id == unauthorized_user.user_id
+        await svc.get_saga_with_access_check("nonexistent-saga-id", make_test_user())
+    assert exc_info.value.identifier == "nonexistent-saga-id"
 ```
 
-This is more precise than asserting on HTTP status codes and parsing error messages.
+## Adding one
 
-## Adding new exceptions
-
-When adding a new exception:
-
-1. Choose the right base class based on the HTTP status it should map to
-2. Put it in the appropriate domain module's `exceptions.py`
-3. Export it from the module's `__init__.py`
-4. Use a rich constructor if the exception needs to carry context
-5. Raise it from the service layer, not the API layer
-
-Example for a new "quota exceeded" exception:
+Pick the base class for the status you want, put the class in the domain package's `exceptions.py`, export it from `__init__.py`, and raise it from the service. Give it a constructor if callers need the context. The handler maps it with no extra code:
 
 ```python
 # app/domain/execution/exceptions.py
-from app.domain.exceptions import ThrottledError
-
 class ExecutionQuotaExceededError(ThrottledError):
     def __init__(self, user_id: str, current: int, limit: int) -> None:
         self.user_id = user_id
@@ -182,15 +128,4 @@ class ExecutionQuotaExceededError(ThrottledError):
         super().__init__(f"Execution quota exceeded for user '{user_id}': {current}/{limit}")
 ```
 
-The handler automatically maps it to 429 because it inherits from `ThrottledError`.
-
-## What stays as HTTPException
-
-API routes can still use `HTTPException` for route-level concerns that don't belong in the service layer:
-
-- Request validation that FastAPI doesn't catch (rare)
-- Authentication checks in route dependencies
-- Route-specific access control before calling services
-
-The general rule: if it's about the business domain, use domain exceptions. If it's about HTTP mechanics at the route
-level, `HTTPException` is fine.
+This class is an example and doesn't exist in the code. Because it extends `ThrottledError`, it would come back as 429.

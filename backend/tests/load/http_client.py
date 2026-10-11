@@ -5,7 +5,7 @@ import re
 import string
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import httpx2
 
@@ -16,7 +16,7 @@ UUID_RE = re.compile(r"[0-9a-fA-F-]{36}")
 
 
 def _rand_str(n: int = 8) -> str:
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+    return "".join(random.choices(string.ascii_letters + string.digits, k=n))
 
 
 @dataclass
@@ -53,7 +53,6 @@ class APIClient:
             self.stats.record_exception(e)
             raise
 
-    # ---------- Auth helpers ----------
     async def register(self, user: APIUser) -> bool:
         url = self.cfg.api("/auth/register")
         payload = {"username": user.username, "email": user.email, "password": user.password}
@@ -65,43 +64,41 @@ class APIClient:
         data = {"username": username, "password": password}
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         r = await self._request("POST", url, data=httpx2.QueryParams(data), headers=headers)
-        if r.status_code == 200:
-            # Extract csrf cookie (not httpOnly) for subsequent writes
-            for cookie in self.client.cookies.jar:
-                if cookie.name == "csrf_token":
-                    self.csrf_token = cookie.value
-                    break
-        return r.status_code == 200
+        if r.status_code != 200:
+            return False
+        self.csrf_token = r.json().get("csrf_token")
+        return True
 
-    def _with_csrf(self, headers: Dict[str, str] | None = None) -> Dict[str, str]:
+    def _with_csrf(self, headers: dict[str, str] | None = None) -> dict[str, str]:
         h = dict(headers or {})
         if self.csrf_token:
             h.setdefault("X-CSRF-Token", self.csrf_token)
         return h
 
-    # ---------- User endpoints ----------
     async def me(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/auth/me"))
 
-    # ---------- Execution flows ----------
-    async def execute(self, script: str, lang: str = "python", ver: str = "3.11") -> Tuple[int, Dict[str, Any]]:
+    async def execute(self, script: str, lang: str = "python", ver: str = "3.11") -> tuple[int, dict[str, Any]]:
         url = self.cfg.api("/execute")
         payload = {"script": script, "lang": lang, "lang_version": ver}
         r = await self._request("POST", url, json=payload, headers=self._with_csrf())
-        body = {}
+        body: dict[str, Any] = {}
         try:
             body = r.json()
-        except Exception:
-            body = {}
+        except ValueError:
+            pass
         return r.status_code, body
 
     async def result(self, execution_id: str) -> httpx2.Response:
-        return await self._request("GET", self.cfg.api(f"/result/{execution_id}"))
+        return await self._request("GET", self.cfg.api(f"/executions/{execution_id}/result"))
 
     async def execution_events(self, execution_id: str, limit: int = 50) -> httpx2.Response:
         return await self._request("GET", self.cfg.api(f"/executions/{execution_id}/events?limit={limit}"))
 
-    async def sse_execution(self, execution_id: str, max_seconds: float = 10.0) -> Tuple[int, int]:
+    async def user_executions(self, limit: int = 10) -> httpx2.Response:
+        return await self._request("GET", self.cfg.api(f"/user/executions?limit={limit}"))
+
+    async def sse_execution(self, execution_id: str, max_seconds: float = 10.0) -> tuple[int, int]:
         """Stream SSE for an execution; returns (http_status, bytes_rx)."""
         url = self.cfg.api(f"/events/executions/{execution_id}")
         # Use a separate streaming client to avoid interfering with normal client timeouts
@@ -126,34 +123,31 @@ class APIClient:
                 self.stats.record_exception(e)
                 return 599, 0
 
-    # ---------- Saved scripts ----------
-    async def create_script(self, name: str, content: str) -> httpx2.Response:
+    async def create_script(self, name: str, script: str) -> httpx2.Response:
         url = self.cfg.api("/scripts")
-        payload = {"name": name, "content": content}
+        payload = {"name": name, "script": script}
         return await self._request("POST", url, json=payload, headers=self._with_csrf())
 
     async def list_scripts(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/scripts"))
 
-    async def update_script(self, script_id: str, name: str, content: str) -> httpx2.Response:
+    async def update_script(self, script_id: str, name: str, script: str) -> httpx2.Response:
         url = self.cfg.api(f"/scripts/{script_id}")
-        payload = {"name": name, "content": content}
+        payload = {"name": name, "script": script}
         return await self._request("PUT", url, json=payload, headers=self._with_csrf())
 
     async def delete_script(self, script_id: str) -> httpx2.Response:
         url = self.cfg.api(f"/scripts/{script_id}")
         return await self._request("DELETE", url, headers=self._with_csrf())
 
-    # ---------- User settings ----------
     async def get_settings(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/user/settings/"))
 
     async def update_theme(self) -> httpx2.Response:
         url = self.cfg.api("/user/settings/theme")
-        theme = random.choice(["light", "dark"])  # schema expects enum name depending on model; send string
+        theme = random.choice(["light", "dark", "auto"])
         return await self._request("PUT", url, json={"theme": theme}, headers=self._with_csrf())
 
-    # ---------- Notifications ----------
     async def list_notifications(self) -> httpx2.Response:
         return await self._request("GET", self.cfg.api("/notifications"))
 
@@ -161,7 +155,6 @@ class APIClient:
         url = self.cfg.api("/notifications/mark-all-read")
         return await self._request("POST", url, headers=self._with_csrf())
 
-    # ---------- Utility ----------
     @staticmethod
     def extract_id(text: str) -> str | None:
         m = UUID_RE.search(text)

@@ -1,72 +1,37 @@
 # Dead letter queue
 
-## Why it exists
+Nothing feeds the dead letter queue today, so a Kafka event whose handler fails is lost. [#288](https://github.com/HardMax71/Integr8sCode/issues/288) tracks the fix. This page describes what the code does now.
 
-Picture this: your Kafka consumer is happily processing events when suddenly it hits a poison pill - maybe a malformed event, a database outage, or just a bug in your code. Without a Dead Letter Queue (DLQ), that event would either block your entire consumer (if you keep retrying forever) or get lost forever (if you skip it). Neither option is great for an event-sourced system where events are your source of truth.
+## What happens to a failed event
 
-The DLQ acts as a safety net. When an event fails processing after a reasonable number of retries, instead of losing it, we persist it to MongoDB where it can be examined, fixed, and potentially replayed later.
+Every subscriber in `app/events/handlers.py` except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in the `event.processing.errors.total` metric. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs, and its failures aren't counted in that metric.
 
-## How it works
+`DLQManager.handle_message` in `app/dlq/manager.py` is the code that would take a failed message in: drop it if it's older than 7 days or its event id starts with `test-` (outside the test environment), save it to MongoDB, publish `dlq_message_received`, and schedule a retry. It has had no caller since the switch to one topic per event type in commit 95389b4.
 
-The DLQ implementation in Integr8sCode persists failed messages directly to MongoDB (no DLQ Kafka topic). The DLQ manager handles persistence and the DLQ processor worker retries messages on a schedule.
+## What's still there
 
-### Failure handling
+Messages would live in the `dlq_messages` collection, never in a Kafka topic. The collection has a unique index on `event.event_id` and a TTL index that deletes rows 7 days after `created_at`.
 
-When event handling fails in consumers, the DLQ manager (`app/dlq/manager.py`) packages the failed event with all its context — the original topic, error message, retry count, and metadata about when and where it failed — and persists it directly to MongoDB.
+The [DLQ processor](workers/dlq_processor.md) worker runs every 10 seconds, picks up rows with status `scheduled` whose `next_retry_at` has passed, republishes each event to its original topic and marks the row `retried`. Both `retried` and `discarded` are terminal, so a row is retried at most once and then stays `retried`, even if the retried event fails again. With nothing writing rows, every cycle finds nothing.
 
-### DLQ processor
+Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
 
-The `run_dlq_processor` is a separate APScheduler-based worker that periodically checks MongoDB for retryable DLQ messages. When it finds eligible messages, it republishes them to their original Kafka topics via a manually started broker.
+| Event types | Strategy | Max retries | Base delay | Max delay |
+|-------------|----------|-------------|------------|-----------|
+| Execution events and commands | Exponential, x2 | 5 | 30 s | 300 s |
+| Pod events | Exponential, x3 | 3 | 60 s | 600 s |
+| `result_stored`, `result_failed` | Immediate | 3 | | |
+| Everything else | Exponential, x2.5 | 4 | 60 s | 1800 s |
 
-Different topics have different retry strategies configured:
+Exponential delays get 10% jitter. At intake, a message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded` and `dlq_message_discarded` is published.
 
-- **Execution requests** get aggressive retries with exponential backoff - these are critical user operations
-- **Pod events** get fewer retries with longer delays - these are less critical monitoring events
-- **Resource allocation** events get immediate retries - these need quick resolution
-
-The processor also implements safety features like:
-- Maximum age checks (messages older than 7 days are discarded)
-- Permanent failure handling (after max retries, messages are archived)
-- Test event filtering in production
-
-## Message flow
-
-```mermaid
-graph TD
-    Consumer[Consumer] -->|event fails| Handler[Error Handler]
-    Handler -->|retries < limit| Kafka[(Kafka redeliver)]
-    Handler -->|retries >= limit| DLQManager[DLQ Manager]
-    DLQManager -->|persist| MongoDB[(MongoDB)]
-    Processor[DLQ Processor<br/>APScheduler] -->|poll| MongoDB
-    Processor -->|retry via broker| Original[(Original Topic)]
-    Original -->|reprocess| Consumer
-```
-
-When a consumer fails to process an event, it invokes the registered error callback. The DLQ handler tracks how many times this specific event has failed. If the count is under the retry limit, the handler simply logs and returns, letting Kafka redeliver the message on its next poll. Once the retry limit is exceeded, the DLQ manager persists the message with full failure context (original topic, error message, retry count, timestamps) directly to MongoDB.
-
-The DLQ processor worker runs on an APScheduler schedule, querying MongoDB for retryable messages. Depending on the retry policy, it either republishes the message to its original Kafka topic via a manually started broker, or archives it if maximum attempts have been exhausted.
-
-## Configuration
-
-The DLQ system is configured through settings:
-
-- `DLQ_MAX_RETRY_ATTEMPTS`: Global maximum retries (default: 5)
-- `DLQ_RETRY_DELAY_HOURS`: Base delay between retries (default: 1 hour)
-- `DLQ_MAX_AGE_DAYS`: How long to keep trying (default: 7 days)
-- `DLQ_BATCH_SIZE`: How many DLQ messages to process at once (default: 100)
-
-Each topic can override these with custom retry policies in the DLQ processor configuration. The key is finding the balance between giving transient failures time to resolve and not keeping dead messages around forever.
-
-## Failure modes
-
-If the DLQ processor itself fails, messages stay safely in MongoDB. When the processor restarts, it picks up where it left off.
-
-The system is designed to be resilient but not perfect. In catastrophic scenarios, you still have Kafka's built-in durability and the ability to replay topics from the beginning if needed.
+The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are loaded and validated by `Settings`, but no code uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ either: the `/api/v1/dlq` routes were removed in the same commit.
 
 ## Key files
 
-| File                                                                                                                     | Purpose                |
-|--------------------------------------------------------------------------------------------------------------------------|------------------------|
-| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py)       | DLQ processor worker   |
-| [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py)                           | DLQ management logic   |
-| [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/dlq.py)                            | Admin API routes       |
+| File | Purpose |
+|------|---------|
+| [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py) | Intake, retry, discard |
+| [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses and retry policies |
+| [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/dlq.py) | `dlq_messages` document and indexes |
+| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py) | Worker entry point |

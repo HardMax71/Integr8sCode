@@ -2,6 +2,7 @@ import dataclasses
 import re
 from datetime import datetime, timezone
 
+import structlog
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.operators import Eq, Or, RegEx
 from pymongo.errors import DuplicateKeyError
@@ -24,13 +25,15 @@ from app.domain.user import (
     User,
     UserDeleteResult,
     UserListResult,
-    UserNotFoundError,
 )
 
 _user_fields = set(User.__dataclass_fields__)
 
 
 class UserRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     async def get_user(self, username: str) -> User | None:
         doc = await UserDocument.find_one(UserDocument.username == username)
         return User(**doc.model_dump(include=_user_fields)) if doc else None
@@ -86,13 +89,17 @@ class UserRepository:
         update_dict = {k: v for k, v in dataclasses.asdict(update_data).items() if v is not None}
         if update_dict:
             update_dict["updated_at"] = datetime.now(timezone.utc)
-            await doc.set(update_dict)
+            try:
+                await doc.set(update_dict)
+            except DuplicateKeyError as e:
+                field = next(iter((e.details or {}).get("keyPattern", {})), "username or email")
+                raise ConflictError(f"{field.capitalize()} already exists") from e
         return User(**doc.model_dump(include=_user_fields))
 
-    async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult:
+    async def delete_user(self, user_id: str, cascade: bool = False) -> UserDeleteResult | None:
         doc = await UserDocument.find_one(UserDocument.user_id == user_id)
         if not doc:
-            raise UserNotFoundError(user_id)
+            return None
 
         await doc.delete()
 

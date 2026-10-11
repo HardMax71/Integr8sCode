@@ -1,9 +1,10 @@
 import pytest
+from starlette.requests import Request
+
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
 from app.settings import Settings
-from starlette.requests import Request
 
 
 def make_request(
@@ -50,7 +51,9 @@ class TestCSRFTokenGeneration:
         assert len(tokens) == 100
 
     def test_different_sessions_produce_different_tokens(
-        self, test_settings: Settings, security_metrics: SecurityMetrics,
+        self,
+        test_settings: Settings,
+        security_metrics: SecurityMetrics,
     ) -> None:
         """Tokens for different sessions differ even with same nonce derivation."""
         security = SecurityService(test_settings, security_metrics)
@@ -94,8 +97,11 @@ class TestCSRFTokenValidation:
         ids=["empty_header", "empty_cookie", "both_empty"],
     )
     def test_rejects_empty_tokens(
-        self, test_settings: Settings, security_metrics: SecurityMetrics,
-        header_token: str, cookie_token: str,
+        self,
+        test_settings: Settings,
+        security_metrics: SecurityMetrics,
+        header_token: str,
+        cookie_token: str,
     ) -> None:
         """Empty CSRF tokens fail validation."""
         security = SecurityService(test_settings, security_metrics)
@@ -143,7 +149,9 @@ class TestCSRFExemptPaths:
     """Tests for CSRF exempt path configuration."""
 
     def test_exempt_paths_includes_login_and_register(
-        self, test_settings: Settings, security_metrics: SecurityMetrics,
+        self,
+        test_settings: Settings,
+        security_metrics: SecurityMetrics,
     ) -> None:
         """CSRF exempt paths include login and register."""
         security = SecurityService(test_settings, security_metrics)
@@ -175,7 +183,9 @@ class TestCSRFRequestValidation:
         assert security.validate_csrf_from_request(req) == "skip"
 
     def test_missing_header_raises_when_authenticated(
-        self, test_settings: Settings, security_metrics: SecurityMetrics,
+        self,
+        test_settings: Settings,
+        security_metrics: SecurityMetrics,
     ) -> None:
         """Missing CSRF header raises error for authenticated POST."""
         security = SecurityService(test_settings, security_metrics)

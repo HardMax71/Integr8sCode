@@ -66,7 +66,7 @@ async def with_idempotency(
         ttl_seconds=ttl_seconds,
     )
     if result.is_duplicate:
-        logger.info(f"Duplicate event: {event.event_type} ({event.event_id})")
+        logger.info("Duplicate event", event_type=event.event_type, event_id=event.event_id)
         return
     try:
         await handler(event)

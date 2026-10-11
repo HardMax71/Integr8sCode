@@ -1,5 +1,7 @@
 import dataclasses
 
+import structlog
+
 from app.db.docs import SavedScriptDocument
 from app.domain.saved_script import DomainSavedScript, DomainSavedScriptCreate, DomainSavedScriptUpdate
 
@@ -7,6 +9,9 @@ _script_fields = set(DomainSavedScript.__dataclass_fields__)
 
 
 class SavedScriptRepository:
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        self.logger = logger
+
     async def create_saved_script(self, create_data: DomainSavedScriptCreate, user_id: str) -> DomainSavedScript:
         doc = SavedScriptDocument(**dataclasses.asdict(create_data), user_id=user_id)
         await doc.insert()

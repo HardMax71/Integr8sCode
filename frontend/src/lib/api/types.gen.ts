@@ -1822,6 +1822,26 @@ export type LanguageInfo = {
 };
 
 /**
+ * LanguageLimits
+ *
+ * Limits a pod for one language gets: the admin limits raised to the language minimums.
+ */
+export type LanguageLimits = {
+    /**
+     * Cpu Limit
+     */
+    cpu_limit: string;
+    /**
+     * Memory Limit
+     */
+    memory_limit: string;
+    /**
+     * Execution Timeout
+     */
+    execution_timeout: number;
+};
+
+/**
  * LivenessResponse
  *
  * Response model for liveness probe.
@@ -3430,6 +3450,12 @@ export type ResourceLimits = {
      */
     supported_runtimes: {
         [key: string]: LanguageInfo;
+    };
+    /**
+     * Language Limits
+     */
+    language_limits: {
+        [key: string]: LanguageLimits;
     };
 };
 
@@ -5420,6 +5446,10 @@ export type LoginApiV1AuthLoginPostErrors = {
      */
     401: ErrorResponse;
     /**
+     * Account deactivated
+     */
+    403: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -5449,17 +5479,13 @@ export type RegisterApiV1AuthRegisterPostData = {
 
 export type RegisterApiV1AuthRegisterPostErrors = {
     /**
-     * Password too short
-     */
-    400: ErrorResponse;
-    /**
-     * User already exists
+     * Username or email already registered
      */
     409: ErrorResponse;
     /**
-     * Validation Error
+     * Password below the configured minimum length, or invalid request body
      */
-    422: HttpValidationError;
+    422: ErrorResponse | HttpValidationError;
 };
 
 export type RegisterApiV1AuthRegisterPostError = RegisterApiV1AuthRegisterPostErrors[keyof RegisterApiV1AuthRegisterPostErrors];
@@ -5480,6 +5506,15 @@ export type GetCurrentUserProfileApiV1AuthMeGetData = {
     url: '/api/v1/auth/me';
 };
 
+export type GetCurrentUserProfileApiV1AuthMeGetErrors = {
+    /**
+     * Not authenticated or session invalid
+     */
+    401: ErrorResponse;
+};
+
+export type GetCurrentUserProfileApiV1AuthMeGetError = GetCurrentUserProfileApiV1AuthMeGetErrors[keyof GetCurrentUserProfileApiV1AuthMeGetErrors];
+
 export type GetCurrentUserProfileApiV1AuthMeGetResponses = {
     /**
      * Successful Response
@@ -5495,6 +5530,15 @@ export type LogoutApiV1AuthLogoutPostData = {
     query?: never;
     url: '/api/v1/auth/logout';
 };
+
+export type LogoutApiV1AuthLogoutPostErrors = {
+    /**
+     * CSRF token missing or invalid
+     */
+    403: ErrorResponse;
+};
+
+export type LogoutApiV1AuthLogoutPostError = LogoutApiV1AuthLogoutPostErrors[keyof LogoutApiV1AuthLogoutPostErrors];
 
 export type LogoutApiV1AuthLogoutPostResponses = {
     /**
@@ -5558,6 +5602,10 @@ export type GetResultApiV1ExecutionsExecutionIdResultGetErrors = {
      */
     403: ErrorResponse;
     /**
+     * Execution not found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -5595,6 +5643,10 @@ export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors = {
      * Not the owner of this execution
      */
     403: ErrorResponse;
+    /**
+     * Execution not found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -5634,9 +5686,13 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
      */
     403: ErrorResponse;
     /**
-     * Validation Error
+     * Execution not found
      */
-    422: HttpValidationError;
+    404: ErrorResponse;
+    /**
+     * The execution's language version is no longer offered
+     */
+    422: ErrorResponse;
 };
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostError = RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors[keyof RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors];
@@ -5678,6 +5734,10 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors = {
      * Not the owner of this execution
      */
     403: ErrorResponse;
+    /**
+     * Execution not found
+     */
+    404: ErrorResponse;
     /**
      * Validation Error
      */
@@ -5842,9 +5902,9 @@ export type CreateSavedScriptApiV1ScriptsPostData = {
 
 export type CreateSavedScriptApiV1ScriptsPostErrors = {
     /**
-     * Validation Error
+     * Language version is not offered, or invalid request body
      */
-    422: HttpValidationError;
+    422: ErrorResponse | HttpValidationError;
 };
 
 export type CreateSavedScriptApiV1ScriptsPostError = CreateSavedScriptApiV1ScriptsPostErrors[keyof CreateSavedScriptApiV1ScriptsPostErrors];
@@ -5944,9 +6004,9 @@ export type UpdateSavedScriptApiV1ScriptsScriptIdPutErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Language version is not offered, or invalid request body
      */
-    422: HttpValidationError;
+    422: ErrorResponse | HttpValidationError;
 };
 
 export type UpdateSavedScriptApiV1ScriptsScriptIdPutError = UpdateSavedScriptApiV1ScriptsScriptIdPutErrors[keyof UpdateSavedScriptApiV1ScriptsScriptIdPutErrors];
@@ -6925,6 +6985,10 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteErrors = {
      */
     400: ErrorResponse;
     /**
+     * User not found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -6993,6 +7057,10 @@ export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
      */
     404: ErrorResponse;
     /**
+     * Username or email already exists
+     */
+    409: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -7057,13 +7125,13 @@ export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData = {
 
 export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors = {
     /**
+     * User not found
+     */
+    404: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
-    /**
-     * Failed to reset password
-     */
-    500: ErrorResponse;
 };
 
 export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostError = ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors[keyof ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors];

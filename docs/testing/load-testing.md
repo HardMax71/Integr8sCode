@@ -1,61 +1,44 @@
 # Load testing
 
-The load testing suite provides two complementary stress tools. Monkey tests fuzz endpoints with random methods, bodies,
-and parameters to test durability under garbage requests. User load tests authenticate as normal users and exercise the
-API with realistic flows.
+[`backend/tests/load/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/tests/load) is a small load generator, not a pytest suite. It has two modes. Monkey mode throws random and half-broken requests at a fixed list of endpoints. User mode registers real users and runs realistic flows.
 
-## Quick start
+## Running
 
-With the backend running at `https://localhost:443`:
+From `backend/`, with the stack up:
 
 ```bash
-python -m tests.load.cli --mode both --clients 30 --concurrency 10 --duration 180
+uv run python -m tests.load.cli --mode both --clients 30 --concurrency 10 --duration 180 --plots
 ```
 
-Options: `--base-url` (target URL), `--mode` (monkey/user/both), `--clients` (virtual clients), `--concurrency`
-(parallel tasks), `--duration` (seconds), `--output` (report directory).
+Configuration comes only from these flags. There are no environment variables.
 
-Reports save as JSON under `backend/tests/load/out/report_<mode>_<timestamp>.json`.
+| Flag            | Default              | Meaning                                                         |
+|-----------------|----------------------|-----------------------------------------------------------------|
+| `--base-url`    | `https://[::1]:443`  | backend URL; TLS isn't verified                                 |
+| `--mode`        | `both`               | `monkey`, `user` or `both`                                      |
+| `--clients`     | 25                   | virtual clients; `both` gives half to each mode                 |
+| `--concurrency` | 10                   | how many clients run at the same time                           |
+| `--duration`    | 180                  | seconds per mode                                                |
+| `--output`      | `tests/load/out`     | report directory, relative to the working directory             |
+| `--plots`       | off                  | also write PNG charts next to the report                        |
 
-## Property-based fuzz tests
+In `both` mode the monkey run goes first and the user run starts after it, so the workload runs for about twice `--duration`. The preflight, requests still in flight at each deadline and the report add a little on top. Before either starts, the CLI checks `GET /api/v1/example-scripts` and prints the status, which catches a wrong URL or port early.
 
-Run Hypothesis-powered property tests that shrink failing inputs to minimal counterexamples:
+## What it calls
 
-```bash
-pytest -q backend/tests/load/test_property_monkey.py
-```
+Monkey clients register and log in half of the time, then pick from `GET /auth/me`, `POST /auth/login`, `POST /auth/register`, `POST /execute`, `GET /k8s-limits`, `GET /example-scripts`, `GET /notifications`, `POST /notifications/mark-all-read`, `GET /user/settings/`, `PUT /user/settings/theme`, and two paths that don't exist. Bodies come from a Hypothesis JSON strategy, sometimes sent with the wrong content type, and the CSRF header is only sometimes included.
 
-Tests included:
+User clients register, log in, call `/auth/me`, then loop over weighted flows until the time is up:
 
-- `test_register_never_500` — random valid user payloads must not yield 5xx
-- `test_grafana_webhook_never_500` — random Grafana-like payloads must not yield 5xx
+| Flow                         | Weight | Calls                                                                    |
+|------------------------------|--------|--------------------------------------------------------------------------|
+| execute and get the result   | 5      | `POST /execute` with a valid or broken Python 3.11 script, then either the SSE stream `/events/executions/{id}` for about 8 seconds (up to 15 when idle, since the client checks the time per chunk and the server pings every 15) or a few polls of `/executions/{id}/result` |
+| events and history           | 2      | `/user/executions`, then `/executions/{id}/events` for one of them       |
+| saved scripts                | 2      | create, list, update and delete under `/scripts`                         |
+| settings and notifications   | 2      | `/user/settings/`, `PUT /user/settings/theme`, `/notifications`, sometimes `mark-all-read` |
 
-## Environment variables
+Every write after login sends `X-CSRF-Token` with the `csrf_token` from the login response, as the frontend does. The register and login requests themselves go without it.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOAD_BASE_URL` | `https://localhost:443` | Target URL |
-| `LOAD_API_PREFIX` | `/api/v1` | API prefix |
-| `LOAD_VERIFY_TLS` | `false` | Verify TLS certificates |
-| `LOAD_MODE` | `both` | Test mode |
-| `LOAD_CLIENTS` | `25` | Virtual clients |
-| `LOAD_CONCURRENCY` | `10` | Parallel tasks |
-| `LOAD_DURATION` | `180` | Duration in seconds |
-| `LOAD_AUTO_REGISTER` | `true` | Auto-register users |
-| `LOAD_USER_PREFIX` | `loaduser` | Username prefix |
-| `LOAD_USER_DOMAIN` | `example.com` | Email domain |
-| `LOAD_USER_PASSWORD` | `testpass123!` | User password |
+## Reports
 
-## What it tests
-
-The suite covers authentication (register/login with cookies and CSRF tokens), executions (submit scripts, stream SSE
-or poll results, fetch events), saved scripts (CRUD operations), user settings (get/update), and notifications
-(list/mark-all-read).
-
-Each endpoint reports count, error count, status code distribution, latency percentiles (p50/p90/p99), and bytes
-received. Global metrics include total requests, total errors, exception types, and runtime.
-
-For write endpoints, the client sends `X-CSRF-Token` from the `csrf_token` cookie (double-submit pattern). SSE streams
-are sampled with a short read window (~8-10s) to avoid lingering connections.
-
-See [`tests/load/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/tests/load) for implementation.
+Each run writes `report_<mode>_<timestamp>.json`. Per endpoint it has the request count, errors, status code counts, latency (min, p50, p90, p99, max) overall and split by success and error, and bytes received. At the top level it has totals, exception types, runtime and a per-second timeline of requests and errors. `--plots` turns that into a timeline chart and per-endpoint latency and throughput charts, using matplotlib from the `load` dependency group.

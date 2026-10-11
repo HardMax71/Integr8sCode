@@ -1,14 +1,27 @@
+import json
+import logging
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 import structlog
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from pymongo.logger import LogMessage
+
 from app.core.logging import (
     SENSITIVE_PATTERNS,
     add_otel_context,
     sanitize_sensitive_data,
+    setup_log_exporter,
     setup_logger,
 )
+from app.settings import Settings
+
+_EMAIL = "john.doe@example.com"
+_PASSWORD = "hunter2-secret"
+_BEARER = "abc123xyz"
 
 
 class TestSanitizeSensitiveData:
@@ -56,9 +69,7 @@ class TestSanitizeSensitiveData:
             "https_credentials",
         ],
     )
-    def test_sanitizes_sensitive_data(
-        self, input_data: str, forbidden_text: str, expected_marker: str
-    ) -> None:
+    def test_sanitizes_sensitive_data(self, input_data: str, forbidden_text: str, expected_marker: str) -> None:
         result = self._run_processor(input_data)
         assert forbidden_text not in result
         assert expected_marker in result
@@ -102,6 +113,30 @@ class TestSanitizeSensitiveData:
         assert "s3cret" not in result["url"]
         assert "URL_CREDS_REDACTED" in result["url"]
         assert result["count"] == 5
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "password",
+            "new_password",
+            "hashed_password",
+            "api_key",
+            "csrf_token",
+            "SECRET",
+            "Authorization",
+            "x-api-key",
+        ],
+    )
+    def test_redacts_values_under_sensitive_keys(self, key: str) -> None:
+        event_dict: dict[str, Any] = {"event": "login", key: "hunter2"}
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert result[key] == "***REDACTED***"
+
+    @pytest.mark.parametrize("key", ["key", "idempotency_key", "token_type", "token_expires_in_minutes", "keyword"])
+    def test_keeps_values_under_ordinary_keys(self, key: str) -> None:
+        event_dict: dict[str, Any] = {"event": "x", key: "plain-value"}
+        result = sanitize_sensitive_data(None, "info", event_dict)
+        assert result[key] == "plain-value"
 
     def test_has_expected_pattern_count(self) -> None:
         assert len(SENSITIVE_PATTERNS) == 5
@@ -183,3 +218,124 @@ class TestSetupLogger:
         assert len(cap_logs) >= 1
         assert cap_logs[0]["event"] == "test message"
         assert cap_logs[0]["key"] == "value"
+
+
+@pytest.fixture
+def restore_logging() -> Iterator[None]:
+    """Put the root handlers and logger levels back after a test reconfigures logging."""
+    root = logging.getLogger()
+    handlers = list(root.handlers)
+    levels = {name: logging.getLogger(name).level for name in ("", "pymongo", "aiokafka")}
+    yield
+    for handler in [h for h in root.handlers if h not in handlers]:
+        root.removeHandler(handler)
+    for name, level in levels.items():
+        logging.getLogger(name).setLevel(level)
+
+
+_SENSITIVE_RECORDS = [
+    pytest.param(
+        "some.library",
+        "user %s sent Bearer %s, password: %s",
+        (_EMAIL, _BEARER, _PASSWORD),
+        id="plain_record",
+    ),
+    pytest.param(
+        "pymongo.command",
+        LogMessage(
+            message="Command failed",
+            commandName="insert",
+            command={
+                "insert": "users",
+                "documents": [{"email": _EMAIL, "hashed_password": _PASSWORD, "auth": f"Bearer {_BEARER}"}],
+            },
+        ),
+        (),
+        id="pymongo_record",
+    ),
+]
+
+
+def _assert_redacted(text: str) -> None:
+    assert _EMAIL not in text
+    assert _PASSWORD not in text
+    assert _BEARER not in text
+    assert "joh***@example.com" in text
+    assert "API_KEY_OR_TOKEN_REDACTED" in text
+    assert "BEARER_TOKEN_REDACTED" in text
+
+
+class TestStdlibRecordRedaction:
+    """Records from third-party stdlib loggers get the same redaction as structlog events."""
+
+    @pytest.mark.parametrize(("name", "msg", "args"), _SENSITIVE_RECORDS)
+    def test_stream_handler_redacts(
+        self,
+        name: str,
+        msg: object,
+        args: tuple[object, ...],
+        capsys: pytest.CaptureFixture[str],
+        restore_logging: None,
+    ) -> None:
+        setup_logger("DEBUG")
+        logging.getLogger(name).warning(msg, *args)
+
+        lines = capsys.readouterr().err.splitlines()
+        assert len(lines) == 1
+        _assert_redacted(lines[0])
+
+    @pytest.mark.parametrize(("name", "msg", "args"), _SENSITIVE_RECORDS)
+    def test_otel_handler_redacts(
+        self,
+        name: str,
+        msg: object,
+        args: tuple[object, ...],
+        test_settings: Settings,
+        monkeypatch: pytest.MonkeyPatch,
+        restore_logging: None,
+    ) -> None:
+        monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+        settings = test_settings.model_copy(update={"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317"})
+        exporter = InMemoryLogRecordExporter()  # type: ignore[no-untyped-call]
+        root = logging.getLogger()
+        before = list(root.handlers)
+        with (
+            patch("app.core.logging.OTLPLogExporter", return_value=exporter),
+            patch("app.core.logging.BatchLogRecordProcessor", SimpleLogRecordProcessor),
+        ):
+            setup_log_exporter(settings, MagicMock())
+        (otel_handler,) = [h for h in root.handlers if h not in before and isinstance(h, LoggingHandler)]
+
+        otel_handler.handle(logging.getLogger(name).makeRecord(name, logging.WARNING, __file__, 0, msg, args, None))
+
+        bodies = [str(log.log_record.body) for log in exporter.get_finished_logs()]
+        assert len(bodies) == 1
+        _assert_redacted(bodies[0])
+
+    def test_structlog_json_passes_through_unchanged(
+        self, capsys: pytest.CaptureFixture[str], restore_logging: None
+    ) -> None:
+        setup_logger("INFO").warning("Produced event", key=5, topic="execution.requested")
+
+        line = next(line for line in capsys.readouterr().err.splitlines() if "Produced event" in line)
+        payload = json.loads(line)
+        assert payload["key"] == 5
+        assert payload["topic"] == "execution.requested"
+
+    @pytest.mark.parametrize(
+        ("root_level", "expected_level"),
+        [("DEBUG", logging.WARNING), ("INFO", logging.WARNING), ("ERROR", logging.ERROR)],
+    )
+    def test_third_party_loggers_stay_quiet(
+        self,
+        root_level: str,
+        expected_level: int,
+        capsys: pytest.CaptureFixture[str],
+        restore_logging: None,
+    ) -> None:
+        setup_logger(root_level)
+        logging.getLogger("pymongo.command").info("find users {'hashed_password': 'x'}")
+
+        assert logging.getLogger("pymongo.command").getEffectiveLevel() == expected_level
+        assert logging.getLogger("aiokafka.conn").getEffectiveLevel() == expected_level
+        assert "find users" not in capsys.readouterr().err

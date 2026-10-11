@@ -12,11 +12,11 @@ from app.domain.events.event_models import (
     ServiceEventCount,
     UserEventCount,
 )
+from app.domain.events.exceptions import EventNotFoundError
 from app.domain.events.typed import (
     # Saga Command Events
     AllocateResourcesCommandEvent,
     # Base types
-    ArchivedEvent,
     # Security Events
     AuthFailedEvent,
     BaseEvent,
@@ -108,8 +108,8 @@ __all__ = [
     "EventStatistics",
     "EventReplayInfo",
     "EventExportRow",
+    "EventNotFoundError",
     # Base types
-    "ArchivedEvent",
     "BaseEvent",
     "ContainerStatusInfo",
     "DomainEvent",

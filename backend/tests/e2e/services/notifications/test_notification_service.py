@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.repositories import NotificationRepository
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.domain.notification import (
@@ -10,7 +12,6 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.services.notification_service import NotificationService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
 
@@ -51,9 +52,7 @@ class TestCreateNotification:
         assert "basic" in notification.tags
 
     @pytest.mark.asyncio
-    async def test_create_notification_with_metadata(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_notification_with_metadata(self, scope: AsyncContainer) -> None:
         """Create notification with metadata."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -72,9 +71,7 @@ class TestCreateNotification:
         assert notification.metadata.get("duration") == 45.5
 
     @pytest.mark.asyncio
-    async def test_create_notification_with_action_url(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_notification_with_action_url(self, scope: AsyncContainer) -> None:
         """Create notification with action URL."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -90,9 +87,7 @@ class TestCreateNotification:
         assert notification.action_url == "/api/v1/executions/exec-123/result"
 
     @pytest.mark.asyncio
-    async def test_create_notification_all_severities(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_notification_all_severities(self, scope: AsyncContainer) -> None:
         """Create notifications with all severity levels."""
         svc: NotificationService = await scope.get(NotificationService)
 
@@ -116,9 +111,7 @@ class TestCreateNotification:
             assert notification.severity == severity
 
     @pytest.mark.asyncio
-    async def test_create_notification_empty_tags_raises(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_notification_empty_tags_raises(self, scope: AsyncContainer) -> None:
         """Create notification with empty tags raises validation error."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -160,9 +153,7 @@ class TestMarkAsRead:
         assert notification.notification_id in read_ids
 
     @pytest.mark.asyncio
-    async def test_mark_as_read_nonexistent_raises(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_mark_as_read_nonexistent_raises(self, scope: AsyncContainer) -> None:
         """Mark nonexistent notification as read raises error."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -254,9 +245,7 @@ class TestListNotifications:
         assert result.total >= 5
 
     @pytest.mark.asyncio
-    async def test_list_notifications_with_tag_filter(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_list_notifications_with_tag_filter(self, scope: AsyncContainer) -> None:
         """List notifications filtered by tags."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -278,18 +267,14 @@ class TestListNotifications:
         )
 
         # Filter by tag
-        result = await svc.list_notifications(
-            user_id, include_tags=["filter-a"]
-        )
+        result = await svc.list_notifications(user_id, include_tags=["filter-a"])
 
         assert isinstance(result, DomainNotificationListResult)
         for notif in result.notifications:
             assert "filter-a" in notif.tags
 
     @pytest.mark.asyncio
-    async def test_list_notifications_exclude_tags(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_list_notifications_exclude_tags(self, scope: AsyncContainer) -> None:
         """List notifications excluding specific tags."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -311,9 +296,7 @@ class TestListNotifications:
         )
 
         # List excluding 'exclude' tag
-        result = await svc.list_notifications(
-            user_id, exclude_tags=["exclude"]
-        )
+        result = await svc.list_notifications(user_id, exclude_tags=["exclude"])
 
         assert isinstance(result, DomainNotificationListResult)
         for notif in result.notifications:
@@ -347,9 +330,7 @@ class TestDeleteNotification:
         assert notification.notification_id not in remaining_ids
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_notification_raises(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_delete_nonexistent_notification_raises(self, scope: AsyncContainer) -> None:
         """Delete nonexistent notification raises error."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -406,9 +387,7 @@ class TestSubscriptions:
         assert subscription.enabled is False
 
     @pytest.mark.asyncio
-    async def test_update_subscription_with_severities(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_update_subscription_with_severities(self, scope: AsyncContainer) -> None:
         """Update subscription with severity filter."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()
@@ -479,9 +458,7 @@ class TestSystemNotification:
     """Tests for create_system_notification method."""
 
     @pytest.mark.asyncio
-    async def test_create_system_notification_to_users(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_system_notification_to_users(self, scope: AsyncContainer) -> None:
         """Create system notification targeting specific users."""
         svc: NotificationService = await scope.get(NotificationService)
         target_users = [_unique_user_id(), _unique_user_id()]
@@ -501,9 +478,7 @@ class TestSystemNotification:
         assert "throttled" in stats
 
     @pytest.mark.asyncio
-    async def test_create_system_notification_empty_targets(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_create_system_notification_empty_targets(self, scope: AsyncContainer) -> None:
         """System notification with no targets returns zero stats."""
         svc: NotificationService = await scope.get(NotificationService)
 
@@ -552,9 +527,7 @@ class TestNotificationIntegration:
         assert notification.notification_id not in remaining_ids
 
     @pytest.mark.asyncio
-    async def test_notification_with_subscription_filter(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_notification_with_subscription_filter(self, scope: AsyncContainer) -> None:
         """Notification delivery respects subscription filters."""
         svc: NotificationService = await scope.get(NotificationService)
         user_id = _unique_user_id()

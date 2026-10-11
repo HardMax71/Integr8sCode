@@ -19,9 +19,7 @@ json_value = st.recursive(
     json_scalar,
     lambda children: st.one_of(
         st.lists(children, min_size=0, max_size=8),
-        st.dictionaries(
-            keys=st.text(min_size=0, max_size=32), values=children, min_size=0, max_size=8
-        ),
+        st.dictionaries(keys=st.text(min_size=0, max_size=32), values=children, min_size=0, max_size=8),
     ),
     max_leaves=32,
 )

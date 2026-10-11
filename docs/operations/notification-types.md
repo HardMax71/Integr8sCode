@@ -1,92 +1,67 @@
 # Notifications
 
-Notifications are producer-driven with minimal core fields. The notification system supports multiple channels (in-app,
-webhook, Slack) with throttling, retries, and user subscription preferences.
-
-## Architecture
+`NotificationService` creates notifications from execution results and delivers them in-app over SSE, or to a user's webhook or Slack. It lives in the backend API process, not in a worker.
 
 ```mermaid
 flowchart LR
     Kafka[(Kafka)] --> NS[NotificationService]
     NS --> DB[(MongoDB)]
-    NS --> SSE[SSE Bus]
-    NS --> Webhook[Webhook]
-    NS --> Slack[Slack]
-    SSE --> Browser
+    NS --> SSE[SSE bus] --> Browser
+    NS --> Webhook
+    NS --> Slack
+    Sched[APScheduler, every 15s] -->|scheduled ones| NS
 ```
 
-The NotificationService implements `LifecycleEnabled` and starts its Kafka consumer during application startup.
-It subscribes to execution result events (`EXECUTION_COMPLETED`, `EXECUTION_FAILED`, `EXECUTION_TIMEOUT`) and
-automatically creates notifications for users when their executions complete.
+## Where they come from
 
-## Core fields
+`dishka_lifespan` calls `register_notification_subscriber`, which subscribes to `execution_completed`, `execution_failed` and `execution_timeout` in the consumer group `notification-service`, starting from the latest offset. Each handler turns the event into a notification for the execution's owner.
 
-| Field      | Description                                                               |
-|------------|---------------------------------------------------------------------------|
-| `subject`  | Short title                                                               |
-| `body`     | Text content                                                              |
-| `channel`  | `in_app`, `webhook`, or `slack`                                           |
-| `severity` | `low`, `medium`, `high`, or `urgent`                                      |
-| `tags`     | List of strings for filtering, e.g. `["execution", "failed"]`             |
-| `status`   | `pending`, `sending`, `delivered`, `failed`, `skipped`, `read`, `clicked` |
+| Event                 | Subject                         | Severity | Tags                                                           |
+|-----------------------|---------------------------------|----------|----------------------------------------------------------------|
+| `execution_completed` | `Execution Completed: <id>`     | medium   | `execution`, `completed`, `entity:execution`, `exec:<id>`      |
+| `execution_failed`    | `Execution Failed: <id>`        | high     | `execution`, `failed`, `entity:execution`, `exec:<id>`         |
+| `execution_timeout`   | `Execution Timeout: <id>`       | high     | `execution`, `timeout`, `entity:execution`, `exec:<id>`        |
 
-## Tag conventions
+The tag pattern is the convention for any producer: a category, an outcome, an `entity:` tag and a reference such as `exec:<id>`. The UI filters and links on them.
 
-Producers include structured tags for filtering, UI actions, and correlation.
+## Fields and statuses
 
-| Tag type  | Purpose                        | Examples                         |
-|-----------|--------------------------------|----------------------------------|
-| Category  | What the notification is about | `execution`                      |
-| Entity    | Entity type                    | `entity:execution`               |
-| Reference | Link to specific resource      | `exec:<execution_id>`            |
-| Outcome   | What happened                  | `completed`, `failed`, `timeout` |
+| Field      | Values                                                                 |
+|------------|------------------------------------------------------------------------|
+| `channel`  | `in_app`, `webhook`, `slack`                                           |
+| `severity` | `low`, `medium`, `high`, `urgent`                                      |
+| `status`   | `pending`, `queued`, `sending`, `delivered`, `failed`, `skipped`, `read`, `clicked` |
 
-## Examples
+Besides those, a notification has `subject`, `body`, `action_url`, `tags`, an optional `scheduled_for` and a `metadata` dict.
 
-Execution completed:
+A new notification is `pending`. Delivery claims it atomically by moving it to `sending`, then it ends as `delivered`, `failed` or `skipped`. Marking it read sets `read`. `queued` and `clicked` exist in the enum, but no code sets them today.
 
-```json
-["execution", "completed", "entity:execution", "exec:2c1b...e8"]
-```
+## Delivery
 
-Execution failed:
+A notification without `scheduled_for` is delivered right away. A scheduled one stays `pending` until the backend's APScheduler job picks it up. The job runs every 15 seconds and delivers at most 50 due notifications per run. `scheduled_for` must be in the future and at most `NOTIF_MAX_SCHEDULE_DAYS` (25) days ahead.
 
-```json
-["execution", "failed", "entity:execution", "exec:2c1b...e8"]
-```
-
-## Throttling
-
-The service throttles notifications per user per severity window:
-
-```python
---8<-- "backend/app/services/notification_service.py:ThrottleCache"
-```
-
-## Channel handlers
-
-Notifications route to handlers based on channel:
-
-```python
---8<-- "backend/app/services/notification_service.py:channel_handlers"
-```
-
-In-app notifications publish to the SSE bus for realtime delivery. Webhook and Slack channels use HTTP POST with retry
-logic.
-
-## Subscription filtering
-
-Users configure subscriptions per channel with severity and tag filters. The `_should_skip_notification` method checks
-these before delivery:
+Before delivery the service loads the user's subscription for that channel. A user without one gets an enabled default. The subscription can switch the channel off or filter by severity and tags:
 
 ```python
 --8<-- "backend/app/services/notification_service.py:should_skip_notification"
 ```
 
-## Key files
+Then the channel handler runs:
 
-| File                                                                                                                                                       | Purpose                         |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| [`services/notification_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/notification_service.py)                     | Notification delivery and logic |
-| [`db/docs/notification.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/notification.py)                                       | MongoDB document models         |
-| [`db/repositories/notification_repository.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/repositories/notification_repository.py) | Database operations             |
+```python
+--8<-- "backend/app/services/notification_service.py:channel_handlers"
+```
+
+In-app delivery publishes to the SSE bus. Webhook and Slack send an HTTP POST with httpx2. Every handler is retried with exponential backoff, up to `max_retries` (3) attempts and at most 30 seconds apart, before the notification is marked `failed`.
+
+## Throttling
+
+Creation is throttled per user and severity, `NOTIF_THROTTLE_MAX_PER_HOUR` (5) per `NOTIF_THROTTLE_WINDOW_HOURS` (1). Past the limit `create_notification` raises `NotificationThrottledError`. That check is off when `ENVIRONMENT` is `test`.
+
+`create_system_notification` checks the same cache once more before it calls `create_notification`, unless the severity is `high` or `urgent`. That extra check runs in `test` too, and outside `test` a `low` or `medium` system notification counts twice against the limit.
+
+```python
+--8<-- "backend/app/services/notification_service.py:ThrottleCache"
+```
+
+The cache lives in memory, so each gunicorn worker counts on its own and a restart resets it.

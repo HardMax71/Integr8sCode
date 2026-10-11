@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.admin.settings_models import LogLevel
 
-_MEMORY_PATTERN = re.compile(r"^\d+(Mi|Gi|Ki)$")
-_CPU_PATTERN = re.compile(r"^\d+m$")
+_MEMORY_PATTERN = re.compile(r"^[1-9]\d*(Mi|Gi|Ki)$")
+_CPU_PATTERN = re.compile(r"^[1-9]\d*m$")
 
 
 class SystemSettingsSchema(BaseModel):

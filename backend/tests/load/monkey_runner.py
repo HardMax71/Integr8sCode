@@ -16,7 +16,7 @@ from .strategies import json_value
 
 def _rand(n: int = 8) -> str:
     alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(n))
+    return "".join(secrets.choice(alphabet) for _ in range(n))
 
 
 def _random_body() -> Any:
@@ -27,7 +27,7 @@ def _random_body() -> Any:
         _rand(64),
         123,
         None,
-        {"nested": {"a": _rand(), "b": [1, 2, _rand()]}}
+        {"nested": {"a": _rand(), "b": [1, 2, _rand()]}},
     ]
     return random.choice(options)
 
@@ -72,11 +72,7 @@ async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int)
             # Half of clients attempt to login/register first
             if random.random() < 0.5:
                 uname = f"monkey_{_rand(6)}"
-                user = APIUser(
-                    username=uname,
-                    email=f"{uname}@{cfg.user_domain}",
-                    password=cfg.user_password
-                )
+                user = APIUser(username=uname, email=f"{uname}@{cfg.user_domain}", password=cfg.user_password)
                 await c.register(user)
                 await c.login(uname, cfg.user_password)
 
@@ -110,10 +106,12 @@ async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int)
     tasks = []
     for i in range(clients):
         await sem.acquire()
+
         async def _spawn(idx: int) -> None:
             try:
                 await one_client(idx)
             finally:
                 sem.release()
+
         tasks.append(asyncio.create_task(_spawn(i)))
     await asyncio.gather(*tasks, return_exceptions=True)

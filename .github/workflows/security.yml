@@ -21,4 +21,4 @@ jobs:
           cache-dependency-glob: "backend/uv.lock"
 
       - name: Run bandit
-        run: uvx --no-build bandit==1.9.4 -r backend/ -x backend/tests/ -ll
+        run: uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll

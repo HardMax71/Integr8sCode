@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import DishkaRoute
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -97,10 +97,6 @@ async def export_events(
 async def get_event_detail(event_id: str, service: FromDishka[AdminEventsService]) -> EventDetailResponse:
     """Get detailed information about a single event, including related events and timeline."""
     result = await service.get_event_detail(event_id)
-
-    if not result:
-        raise HTTPException(status_code=404, detail="Event not found")
-
     return EventDetailResponse.model_validate(result)
 
 
@@ -149,10 +145,6 @@ async def stream_replay_status(
 ) -> EventSourceResponse:
     """Stream the status and progress of a replay session via SSE."""
     status = await service.get_replay_sse_status(session_id)
-
-    if not status:
-        raise HTTPException(status_code=404, detail="Replay session not found")
-
     stream = await sse_service.create_replay_stream(status)
     return EventSourceResponse(stream, ping=15)
 
@@ -162,8 +154,5 @@ async def delete_event(
     event_id: str, admin: Annotated[User, Depends(admin_user)], service: FromDishka[AdminEventsService]
 ) -> EventDeleteResponse:
     """Delete and archive an event by ID."""
-    deleted = await service.delete_event(event_id=event_id, deleted_by=admin.email)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Event not found")
-
+    await service.delete_event(event_id=event_id, deleted_by=admin.email)
     return EventDeleteResponse(message="Event deleted and archived", event_id=event_id)

@@ -58,9 +58,6 @@ class BaseEvent(BaseModel):
     metadata: EventMetadata
 
 
-# --- Execution Events ---
-
-
 class ExecutionRequestedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_REQUESTED] = EventType.EXECUTION_REQUESTED
     execution_id: str
@@ -143,9 +140,6 @@ class ExecutionCancelledEvent(BaseEvent):
     force_terminated: bool = False
 
 
-# --- Pod Events ---
-
-
 class PodCreatedEvent(BaseEvent):
     event_type: Literal[EventType.POD_CREATED] = EventType.POD_CREATED
     execution_id: str
@@ -213,9 +207,6 @@ class PodDeletedEvent(BaseEvent):
     reason: str | None = None
 
 
-# --- Result Events ---
-
-
 class ResultStoredEvent(BaseEvent):
     event_type: Literal[EventType.RESULT_STORED] = EventType.RESULT_STORED
     execution_id: str
@@ -228,9 +219,6 @@ class ResultFailedEvent(BaseEvent):
     event_type: Literal[EventType.RESULT_FAILED] = EventType.RESULT_FAILED
     execution_id: str
     storage_type: StorageType | None = None
-
-
-# --- User Events ---
 
 
 # --8<-- [start:UserSettingsUpdatedEvent]
@@ -287,9 +275,6 @@ class UserDeletedEvent(BaseEvent):
     user_id: str
     deleted_by: str | None = None
     reason: str | None = None
-
-
-# --- Notification Events ---
 
 
 class NotificationCreatedEvent(BaseEvent):
@@ -356,9 +341,6 @@ class NotificationPreferencesUpdatedEvent(BaseEvent):
     changed_fields: list[str] = Field(default_factory=list)
 
 
-# --- Saga Events ---
-
-
 class SagaStartedEvent(BaseEvent):
     event_type: Literal[EventType.SAGA_STARTED] = EventType.SAGA_STARTED
     saga_id: str
@@ -412,9 +394,6 @@ class SagaCompensatedEvent(BaseEvent):
     compensated_steps: list[str] = Field(default_factory=list)
 
 
-# --- Saga Command Events ---
-
-
 class CreatePodCommandEvent(BaseEvent):
     event_type: Literal[EventType.CREATE_POD_COMMAND] = EventType.CREATE_POD_COMMAND
     saga_id: str
@@ -456,9 +435,6 @@ class ReleaseResourcesCommandEvent(BaseEvent):
     memory_request: str
 
 
-# --- Script Events ---
-
-
 class ScriptSavedEvent(BaseEvent):
     event_type: Literal[EventType.SCRIPT_SAVED] = EventType.SCRIPT_SAVED
     script_id: str
@@ -480,9 +456,6 @@ class ScriptSharedEvent(BaseEvent):
     shared_by: str
     shared_with: list[str] = Field(default_factory=list)
     permissions: str
-
-
-# --- Security Events ---
 
 
 class SecurityViolationEvent(BaseEvent):
@@ -508,9 +481,6 @@ class AuthFailedEvent(BaseEvent):
     ip_address: str | None = None
 
 
-# --- Resource Events ---
-
-
 class ResourceLimitExceededEvent(BaseEvent):
     event_type: Literal[EventType.RESOURCE_LIMIT_EXCEEDED] = EventType.RESOURCE_LIMIT_EXCEEDED
     resource_type: str
@@ -525,9 +495,6 @@ class QuotaExceededEvent(BaseEvent):
     limit: int
     current_usage: int
     user_id: str
-
-
-# --- System Events ---
 
 
 class SystemErrorEvent(BaseEvent):
@@ -550,9 +517,6 @@ class ServiceRecoveredEvent(BaseEvent):
     service_name: str
     health_check: str
     downtime_seconds: int
-
-
-# --- DLQ Events ---
 
 
 class DLQMessageReceivedEvent(BaseEvent):
@@ -589,30 +553,6 @@ class DLQMessageDiscardedEvent(BaseEvent):
     reason: str
     retry_count: int  # Final retry count when discarded
 
-
-# --- Archived Event (for deleted events) ---
-
-
-class ArchivedEvent(BaseModel):
-    """Archived event with deletion metadata. Wraps the original event data."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    event_id: str
-    event_type: EventType
-    event_version: str = "1.0"
-    timestamp: datetime
-    aggregate_id: str | None = None
-    metadata: EventMetadata
-    stored_at: datetime | None = None
-    ttl_expires_at: datetime | None = None
-    # Archive-specific fields
-    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    deleted_by: str | None = None
-    deletion_reason: str | None = None
-
-
-# --- Discriminated Union: TYPE SYSTEM handles dispatch ---
 
 DomainEvent = Annotated[
     # Execution Events

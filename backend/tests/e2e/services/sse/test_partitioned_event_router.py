@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 import redis.asyncio as redis
 import structlog
+
 from app.core.metrics import ConnectionMetrics
 from app.domain.enums import EventType
 from app.domain.sse import SSEExecutionEventData

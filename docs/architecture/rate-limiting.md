@@ -1,171 +1,108 @@
-# Rate Limiting
+# Rate limiting
 
-The platform uses Redis-backed rate limiting with per-user and per-endpoint controls. Two algorithms are
-available—sliding window for precise time-based limits and token bucket for bursty workloads. Authenticated users are
-tracked by user ID; anonymous requests fall back to IP-based limiting.
-
-## Architecture
+Rate limiting is a Redis-backed check in `RateLimitMiddleware`, and today it keys every request by client IP. The middleware runs before authentication, so it never knows the user. That has a side effect: the per-user overrides admins can set never match anything ([#290](https://github.com/HardMax71/Integr8sCode/issues/290)).
 
 ```mermaid
-flowchart TB
-    subgraph Request Flow
-        REQ[Incoming Request] --> MW[RateLimitMiddleware]
-        MW --> AUTH{Authenticated?}
-        AUTH -->|Yes| UID[User ID]
-        AUTH -->|No| IP[IP Address]
-        UID --> CHECK[Check Rate Limit]
-        IP --> CHECK
-    end
-
-    subgraph Rate Limit Service
-        CHECK --> CONFIG[Load Config from Redis]
-        CONFIG --> MATCH[Match Endpoint Rule]
-        MATCH --> ALGO{Algorithm}
-        ALGO -->|Sliding Window| SW[ZSET Counter]
-        ALGO -->|Token Bucket| TB[Token State]
-        SW --> RESULT[RateLimitStatus]
-        TB --> RESULT
-    end
-
-    subgraph Response
-        RESULT --> ALLOWED{Allowed?}
-        ALLOWED -->|Yes| HEADERS[Add Rate Limit Headers]
-        ALLOWED -->|No| REJECT[429 Too Many Requests]
-        HEADERS --> APP[Application]
-    end
+flowchart LR
+    REQ[Request] --> EX{Excluded path?}
+    EX -->|yes| APP[Route]
+    EX -->|no| KEY[Key by client IP]
+    KEY --> CFG[Load config from Redis]
+    CFG --> RULE{First matching rule}
+    RULE -->|none| APP
+    RULE -->|found| SW[Sliding window in a sorted set]
+    SW -->|allowed| HDR[Add X-RateLimit headers] --> APP
+    SW -->|over limit| REJ[429]
 ```
 
-## Algorithms
+## Which requests are checked
 
-The rate limiter supports two algorithms, selectable per rule.
-
-**Sliding window** tracks requests in a Redis sorted set, with timestamps as scores. Each request adds an entry; stale
-entries outside the window are pruned. This provides precise limiting but uses more memory for high-traffic endpoints.
-
-**Token bucket** maintains a bucket of tokens that refill at a constant rate. Each request consumes one token. When
-empty, requests are rejected until tokens refill. The `burst_multiplier` controls how many extra tokens can accumulate
-beyond the base limit, allowing controlled bursts.
+Every HTTP request goes through the middleware except these:
 
 ```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:EndpointGroup"
+--8<-- "backend/app/core/middlewares/rate_limit.py:excluded_paths"
 ```
 
-## Default Rules
+Login, register and logout are skipped by exact path, and the health prefix covers `/api/v1/health/live`. Setting `RATE_LIMIT_ENABLED = false` turns the whole check off, which `config.test.toml` does.
 
-The platform ships with default rate limits organized by endpoint group. Higher priority rules match first:
-
-| Pattern              | Group     | Limit   | Window | Priority |
-|----------------------|-----------|---------|--------|----------|
-| `^/api/v1/execute`   | execution | 10 req  | 60s    | 10       |
-| `^/api/v1/auth/.*`   | auth      | 20 req  | 60s    | 7        |
-| `^/api/v1/admin/.*`  | admin     | 100 req | 60s    | 5        |
-| `^/api/v1/events/.*` | sse       | 5 req   | 60s    | 3        |
-| `^/api/v1/ws`        | websocket | 5 req   | 60s    | 3        |
-| `^/api/v1/.*`        | api       | 60 req  | 60s    | 1        |
-
-Execution endpoints have the strictest limits since they spawn Kubernetes pods. The catch-all API rule (priority 1)
-applies to any endpoint not matching a more specific pattern.
-
-!!! note "WebSocket rule"
-    The `/api/v1/ws` pattern is reserved for future WebSocket support. The platform currently uses Server-Sent Events
-    (SSE) for real-time updates via `/api/v1/events/*`.
-
-## Middleware Integration
-
-The `RateLimitMiddleware` intercepts every HTTP request except a set of excluded paths (health checks, auth endpoints,
-static assets):
-
-```python
---8<-- "backend/app/core/middlewares/rate_limit.py:RateLimitMiddleware"
-```
-
-For authenticated requests, the middleware uses the user ID from the request state. Anonymous requests are identified by
-client IP address:
+The bucket key comes from the client IP:
 
 ```python
 --8<-- "backend/app/core/middlewares/rate_limit.py:extract_user_id"
 ```
 
-## Response Headers
+`get_client_ip` uses the socket peer address. It reads `X-Forwarded-For` (first entry) or `X-Real-IP` only when the peer is a loopback or private address, which is the case behind the frontend nginx.
 
-Every response includes rate limit headers so clients can implement backoff logic:
+## Rules
 
-| Header                  | Description                                          |
-|-------------------------|------------------------------------------------------|
-| `X-RateLimit-Limit`     | Maximum requests allowed in the window               |
-| `X-RateLimit-Remaining` | Requests remaining in current window                 |
-| `X-RateLimit-Reset`     | Unix timestamp when the window resets                |
-| `Retry-After`           | Seconds to wait before retrying (429 responses only) |
+`RateLimitService` loads a `RateLimitConfig` from the Redis key `rate_limit:config`. If the key is missing, it writes `RateLimitConfig.get_default_config()` there with a 300 second TTL. Rules are sorted by priority, highest first, and the first pattern that matches the path wins:
 
-When a request is rejected, the middleware returns a 429 response with these headers plus a JSON body:
+| Pattern | Group | Limit | Priority |
+|---------|-------|-------|----------|
+| `^/api/v1/execute` | execution | 10 per 60s | 10 |
+| `^/api/v1/auth/.*` | auth | 20 per 60s | 7 |
+| `^/api/v1/admin/.*` | admin | 100 per 60s | 5 |
+| `^/api/v1/events/.*` | sse | 5 per 60s | 3 |
+| `^/api/v1/ws` | websocket | 5 per 60s | 3 |
+| `^/api/v1/.*` | api | 60 per 60s | 1 |
 
-```json
-{
-  "detail": "Rate limit exceeded",
-  "retry_after": 45,
-  "reset_at": "2024-01-15T10:30:00+00:00"
-}
-```
+All six use the sliding window. The middleware matches the raw path before routing, so a rule also counts requests to URLs that don't exist. Since login, register and logout are excluded, `/api/v1/auth/me` is the only real route the auth rule covers. No route lives under `/api/v1/ws`, so the websocket rule only counts requests that end in 404.
 
-## Usage Statistics
+The counter key is `rate_limit:sw:ip:<addr>:<path>` with the raw request path. A limit therefore applies to each URL separately, not to the group: two different execution IDs under `/api/v1/events/executions/` get two separate budgets of 5.
 
-Administrators can query current rate limit usage for any user via the admin API. The response follows the
-[IETF RateLimit headers draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/) convention,
-using a single `remaining` field that represents available capacity regardless of the underlying algorithm:
+## Algorithms
 
-```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:EndpointUsageStats"
-```
-
-For sliding window, `remaining` is calculated as `limit - requests_in_window`. For token bucket, it's the current token
-count. This unified representation lets clients implement backoff logic without caring which algorithm is in use.
-
-## Per-User Overrides
-
-Administrators can customize limits for specific users through the admin API. User overrides support:
-
-- **Bypass**: Completely disable rate limiting for the user
-- **Global multiplier**: Scale all limits up or down (e.g., 2.0 doubles the limit)
-- **Custom rules**: Add user-specific rules that take priority over defaults
-
-```python
---8<-- "backend/app/domain/rate_limit/rate_limit_models.py:UserRateLimit"
-```
-
-## Redis Storage
-
-Rate limit state is stored in Redis with automatic TTL expiration. The sliding window algorithm uses sorted sets:
+The sliding window keeps one sorted-set entry per request, with the timestamp as both member and score. Two requests with the exact same timestamp therefore share one entry and count once. Each check drops entries older than the window, adds the current one, counts, and refreshes the TTL to twice the window:
 
 ```python
 --8<-- "backend/app/services/rate_limit_service.py:check_sliding_window"
 ```
 
-Token bucket state is stored as JSON with the current token count and last refill time:
+If the count is over the limit, the request is rejected and `retry_after` is computed from the oldest entry still in the window.
+
+The token bucket runs as a Lua script that refills `limit / window` tokens per second up to `limit * burst_multiplier` and stores the state as JSON:
 
 ```python
 --8<-- "backend/app/services/rate_limit_service.py:check_token_bucket"
 ```
 
-Configuration is cached in Redis for 5 minutes to reduce database load while allowing dynamic updates.
+No default rule uses it. The only way to add a token bucket rule is a per-user override, so today nothing reaches this path.
 
-## Configuration
+## Responses
 
-Rate limiting is controlled by TOML settings:
+Allowed requests that go through the check get three headers. Requests where no rule matched get them too, with a limit of 999999. Excluded paths skip the check and get none, and so does every request while `RATE_LIMIT_ENABLED` is off.
 
-| Variable                  | Default          | Description                                          |
-|---------------------------|------------------|------------------------------------------------------|
-| `RATE_LIMIT_REDIS_PREFIX` | `rate_limit:`    | Redis key prefix for isolation                       |
-| `RATE_LIMIT_ALGORITHM`    | `sliding_window` | Algorithm to use (`sliding_window` or `token_bucket`)|
-| `RATE_LIMIT_DEFAULT_REQUESTS` | `100`        | Default request limit                                |
-| `RATE_LIMIT_DEFAULT_WINDOW`   | `60`         | Default window in seconds                            |
-| `RATE_LIMIT_BURST_MULTIPLIER` | `1.5`        | Burst multiplier for token bucket                    |
+| Header | Value |
+|--------|-------|
+| `X-RateLimit-Limit` | limit of the matched rule |
+| `X-RateLimit-Remaining` | requests left in the window |
+| `X-RateLimit-Reset` | Unix timestamp of the window end |
+| `Retry-After` | seconds to wait, on 429 only (60 if unknown) |
 
-The system gracefully degrades when Redis is unavailable—requests are allowed through rather than failing closed.
+A rejected request gets 429 with this body:
 
-## Key Files
+```json
+{"detail": "Rate limit exceeded", "retry_after": 45, "reset_at": "2026-01-15T10:30:00+00:00"}
+```
 
-| File                                                                                                                               | Purpose                                    |
-|------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
-| [`services/rate_limit_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/rate_limit_service.py) | Rate limit algorithms and Redis operations |
-| [`core/middlewares/rate_limit.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/middlewares/rate_limit.py) | ASGI middleware for request interception   |
-| [`domain/rate_limit/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/app/domain/rate_limit)                          | Domain models and default configuration    |
+The service also counts `rate_limit.requests.total`, `rate_limit.allowed.total`, `rate_limit.rejected.total` and `rate_limit.bypass.total`, labelled with the path after IDs are replaced by `*`.
+
+## Per-user overrides
+
+The admin API (`/api/v1/admin/rate-limits/{user_id}`) stores a `UserRateLimit` in `RateLimitConfig.user_overrides`, keyed by the real user ID:
+
+```python
+--8<-- "backend/app/domain/rate_limit/rate_limit_models.py:UserRateLimit"
+```
+
+The check looks overrides up by the `ip:<addr>` key, so bypass, multiplier and custom rules never apply. The usage stats in the same admin view read counters indexed under `rate_limit:index:{user_id}`, which the middleware never writes, so they come back empty. Both are tracked in [#290](https://github.com/HardMax71/Integr8sCode/issues/290).
+
+Overrides are also short-lived. `update_config` writes the whole config back with the same 300 second TTL, so five minutes later the key expires and the defaults are written again without the override.
+
+## Failure mode
+
+Nothing catches Redis errors in the middleware or the service. When Redis is down, every checked request fails with 500 instead of passing through ([#290](https://github.com/HardMax71/Integr8sCode/issues/290)).
+
+## Settings
+
+Only two settings are read. `RATE_LIMIT_ENABLED` switches the middleware on or off, and `RATE_LIMIT_REDIS_PREFIX` (default `rate_limit:`) prefixes every key. `RATE_LIMITS`, `RATE_LIMIT_ALGORITHM`, `RATE_LIMIT_DEFAULT_REQUESTS`, `RATE_LIMIT_DEFAULT_WINDOW` and `RATE_LIMIT_BURST_MULTIPLIER` exist in `Settings` but nothing uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). The limits come from `get_default_config()`.

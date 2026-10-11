@@ -132,15 +132,22 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           MONGO_USER: ${{ secrets.MONGO_USER }}
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          MONGO_MONITOR_PASSWORD: ${{ secrets.MONGO_MONITOR_PASSWORD }}
           SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,SECRET_KEY
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,MONGO_MONITOR_PASSWORD,SECRET_KEY
           command_timeout: 10m
           script: |
             set -e
+            # compose falls back to public defaults for these, so a missing secret must stop the deploy
+            : "${SECRET_KEY:?the JWT_SECRET_KEY secret is empty}"
+            : "${MONGO_USER:?the MONGO_USER secret is empty}"
+            : "${MONGO_PASSWORD:?the MONGO_PASSWORD secret is empty}"
+            : "${MONGO_MONITOR_PASSWORD:?the MONGO_MONITOR_PASSWORD secret is empty}"
+            : "${REDIS_PASSWORD:?the REDIS_PASSWORD secret is empty}"
             cd /opt/Integr8sCode
 
             git pull origin main
@@ -152,6 +159,7 @@ jobs:
             export SECRET_KEY="$SECRET_KEY"
             export MONGO_USER="$MONGO_USER"
             export MONGO_PASSWORD="$MONGO_PASSWORD"
+            export MONGO_MONITOR_PASSWORD="$MONGO_MONITOR_PASSWORD"
             export REDIS_PASSWORD="$REDIS_PASSWORD"
             export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
             export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"

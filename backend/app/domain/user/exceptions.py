@@ -1,4 +1,4 @@
-from app.domain.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
+from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, UnauthorizedError
 
 
 class AuthenticationRequiredError(UnauthorizedError):
@@ -13,13 +13,6 @@ class InvalidCredentialsError(UnauthorizedError):
 
     def __init__(self, message: str = "Invalid credentials") -> None:
         super().__init__(message)
-
-
-class TokenExpiredError(UnauthorizedError):
-    """Raised when a token has expired."""
-
-    def __init__(self) -> None:
-        super().__init__("Token has expired")
 
 
 class CSRFValidationError(ForbiddenError):
@@ -51,3 +44,10 @@ class UserNotFoundError(NotFoundError):
 
     def __init__(self, identifier: str) -> None:
         super().__init__("User", identifier)
+
+
+class SelfDeletionError(InvalidStateError):
+    """Raised when an admin tries to delete their own account."""
+
+    def __init__(self) -> None:
+        super().__init__("Cannot delete your own account")

@@ -66,7 +66,7 @@ services:
         soft: 65536
         hard: 65536
     healthcheck:
-      test: mongosh --quiet --host 127.0.0.1 --port 27017 -u ${MONGO_USER:-root} -p ${MONGO_PASSWORD:-rootpassword} --authenticationDatabase admin --eval 'db.adminCommand("ping")'
+      test: mongosh --quiet --host 127.0.0.1 --port 27017 -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval 'db.adminCommand("ping")'
       interval: 3s
       timeout: 5s
       retries: 15
@@ -123,7 +123,6 @@ services:
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
       - "443:443"
-      - "127.0.0.1:9090:9090"  # Metrics port (host:container)
     networks:
       - app-network
     container_name: backend
@@ -164,6 +163,7 @@ services:
     environment:
       - BACKEND_URL=https://backend:443
       - GRAFANA_URL=${GRAFANA_URL:-http://grafana:3000}
+      - GRAFANA_PUBLIC_URL=${GRAFANA_ROOT_URL:-http://localhost:3000/}
     mem_limit: 128m
     restart: unless-stopped
     healthcheck:
@@ -179,12 +179,26 @@ services:
     profiles: ["observability"]
     image: grafana/grafana:13.2.3
     user: "472"
+    # Alert rules load after dashboards create the integr8scode folder; loaded first, they'd make one with a random UID
     entrypoint:
       - sh
       - -c
       - |
         grafana-cli --homepath /usr/share/grafana admin reset-admin-password "$$GF_SECURITY_ADMIN_PASSWORD" > /dev/null 2>&1 || true
-        exec /run.sh
+        rm -rf /tmp/provisioning && cp -r /etc/grafana/provisioning /tmp/provisioning
+        rm -f /tmp/provisioning/alerting/*
+        GF_PATHS_PROVISIONING=/tmp/provisioning /run.sh &
+        pid=$$!
+        trap 'kill -TERM $$pid' TERM INT
+        auth="$$GF_SECURITY_ADMIN_USER:$$GF_SECURITY_ADMIN_PASSWORD"
+        until curl -sf -u "$$auth" localhost:3000/api/folders/integr8scode > /dev/null; do
+          kill -0 $$pid 2> /dev/null || exit 1
+          sleep 2
+        done
+        cp /etc/grafana/provisioning/alerting/* /tmp/provisioning/alerting/
+        curl -sf -X POST -u "$$auth" localhost:3000/api/admin/provisioning/alerting/reload > /dev/null || exit 1
+        wait $$pid
+        wait $$pid
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -219,7 +233,7 @@ services:
       retries: 10
       start_period: 30s
 
-  # Kafka (KRaft mode — no ZooKeeper)
+  # Kafka in KRaft mode, no ZooKeeper
   kafka:
     image: confluentinc/cp-kafka:8.3.2
     container_name: kafka
@@ -326,6 +340,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_k8s_worker.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       mongo:
@@ -350,6 +366,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_pod_monitor.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
     environment:
@@ -372,6 +390,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_result_processor.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       mongo:
@@ -396,6 +416,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_saga_orchestrator.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       mongo:
@@ -429,6 +451,7 @@ services:
       - "127.0.0.1:9411:9411"       # Zipkin
     networks:
       - app-network
+    restart: unless-stopped
 
   loki:
     container_name: loki
@@ -453,6 +476,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_event_replay.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       mongo:
@@ -475,6 +500,8 @@ services:
     mem_limit: 160m
     command: ["python", "workers/run_dlq_processor.py"]
     depends_on:
+      user-seed:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       mongo:
@@ -528,8 +555,8 @@ services:
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
     environment:
-      - MONGO_USER=${MONGO_USER:-root}
-      - MONGO_PASSWORD=${MONGO_PASSWORD:-rootpassword}
+      - MONGO_MONITOR_USER=${MONGO_MONITOR_USER:-otel-monitor}
+      - MONGO_MONITOR_PASSWORD=${MONGO_MONITOR_PASSWORD:-monitorpassword}
     ports:
       - "127.0.0.1:4317:4317"   # OTLP gRPC
       - "127.0.0.1:4318:4318"   # OTLP HTTP
@@ -545,9 +572,47 @@ services:
         condition: service_started
       kafka:
         condition: service_healthy
+      mongo-monitor-user:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Least-privilege MongoDB user for the collector's mongodb receiver (root fails $indexStats on admin.system.*)
+  mongo-monitor-user:
+    image: mongo:9.0.2
+    container_name: mongo-monitor-user
+    profiles: ["observability"]
+    depends_on:
       mongo:
         condition: service_healthy
-    restart: unless-stopped
+    environment:
+      MONGO_USER: ${MONGO_USER:-root}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-rootpassword}
+      MONGO_MONITOR_USER: ${MONGO_MONITOR_USER:-otel-monitor}
+      MONGO_MONITOR_PASSWORD: ${MONGO_MONITOR_PASSWORD:-monitorpassword}
+    entrypoint:
+      - mongosh
+      - --quiet
+      - --nodb
+      - --eval
+      - |
+        const admin = connect("mongodb://mongo:27017/admin");
+        admin.auth(process.env.MONGO_USER, process.env.MONGO_PASSWORD);
+        const role = {
+          privileges: [
+            { resource: { cluster: true }, actions: ["serverStatus", "top"] },
+            { resource: { db: "integr8scode", collection: "" }, actions: ["dbStats", "indexStats", "listCollections"] },
+          ],
+          roles: [],
+        };
+        if (admin.getRole("otelMonitor")) admin.updateRole("otelMonitor", role);
+        else admin.createRole({ role: "otelMonitor", ...role });
+        const user = process.env.MONGO_MONITOR_USER;
+        const spec = { pwd: process.env.MONGO_MONITOR_PASSWORD, roles: ["otelMonitor"] };
+        if (admin.getUser(user)) admin.updateUser(user, spec);
+        else admin.createUser({ user, ...spec });
+    networks:
+      - app-network
+    restart: "no"
 
 # --8<-- [start:dev_volumes]
 volumes:

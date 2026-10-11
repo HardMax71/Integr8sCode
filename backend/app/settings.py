@@ -1,4 +1,5 @@
 import os
+import socket
 import tomllib
 from typing import Literal
 from urllib.parse import quote
@@ -7,7 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.execution import LanguageInfoDomain
 from app.runtime_registry import EXAMPLE_SCRIPTS as EXEC_EXAMPLE_SCRIPTS
-from app.runtime_registry import SUPPORTED_RUNTIMES as RUNTIME_MATRIX
+from app.runtime_registry import LANGUAGE_SPECS
+
+
+def _supported_runtimes() -> dict[str, LanguageInfoDomain]:
+    return {
+        lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])
+        for lang, spec in LANGUAGE_SPECS.items()
+    }
 
 
 class Settings(BaseModel):
@@ -55,7 +63,6 @@ class Settings(BaseModel):
         super().__init__(**data)
 
     PROJECT_NAME: str = "integr8scode"
-    DATABASE_NAME: str = "integr8scode_db"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = Field(
         ...,
@@ -93,7 +100,7 @@ class Settings(BaseModel):
     K8S_POD_PRIORITY_CLASS_NAME: str | None = None
     K8S_POD_RUNTIME_CLASS_NAME: str | None = None  # e.g. "gvisor" for sandboxed execution
 
-    SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=lambda: RUNTIME_MATRIX)
+    SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = Field(default_factory=_supported_runtimes)
 
     EXAMPLE_SCRIPTS: dict[str, str] = Field(default_factory=lambda: EXEC_EXAMPLE_SCRIPTS)
 
@@ -164,7 +171,7 @@ class Settings(BaseModel):
     SERVICE_NAME: str = "integr8scode-backend"
     SERVICE_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"  # deployment environment (production, staging, development)
-    HOSTNAME: str = "unknown"  # container hostname, set via TOML or override
+    HOSTNAME: str = Field(default_factory=socket.gethostname)
 
     # OpenTelemetry metrics export endpoint
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None

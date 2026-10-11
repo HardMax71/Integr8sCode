@@ -1,11 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+
+const mocks = vi.hoisted(() => ({
+    mockAuthStore: { userRole: null as string | null },
+}));
+
+vi.mock('$stores/auth.svelte', () => ({
+    get authStore() {
+        return mocks.mockAuthStore;
+    },
+}));
+
 import Footer from '$components/Footer.svelte';
 
 describe('Footer', () => {
     let originalDate: DateConstructor;
 
     beforeEach(() => {
+        mocks.mockAuthStore.userRole = null;
         originalDate = globalThis.Date;
         const mockDate = class extends Date {
             constructor() {
@@ -67,13 +79,21 @@ describe('Footer', () => {
             expect(screen.getByRole('heading', { name: /Tools & Info/i })).toBeInTheDocument();
         });
 
-        it('has Grafana link with external attributes', () => {
+        it('shows admins a Grafana link to the nginx redirect', () => {
+            mocks.mockAuthStore.userRole = 'admin';
             render(Footer);
 
             const grafanaLink = screen.getByRole('link', { name: /Grafana/i });
-            expect(grafanaLink).toBeInTheDocument();
+            expect(grafanaLink.getAttribute('href')).toBe('/grafana');
             expect(grafanaLink.getAttribute('target')).toBe('_blank');
             expect(grafanaLink.getAttribute('rel')).toContain('noopener');
+        });
+
+        it.each([null, 'user'])('hides the Grafana link for role %s', (role) => {
+            mocks.mockAuthStore.userRole = role;
+            render(Footer);
+
+            expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();
         });
 
         it('has Privacy Policy link', () => {

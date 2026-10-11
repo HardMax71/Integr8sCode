@@ -1,6 +1,7 @@
-from typing import NamedTuple, TypedDict
-
-from app.domain.execution import LanguageInfoDomain
+import re
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import NamedTuple, NotRequired, TypedDict
 
 
 # --8<-- [start:RuntimeConfig]
@@ -13,12 +14,56 @@ class RuntimeConfig(NamedTuple):
 # --8<-- [end:RuntimeConfig]
 
 
+@dataclass(frozen=True)
+class PodRuntimeConfig:
+    env: dict[str, str] = field(default_factory=dict)
+    tmp_size: str = "10Mi"
+    min_cpu: str | None = None
+    min_memory: str | None = None
+    min_timeout_seconds: int | None = None
+
+
+_QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
+_QUANTITY_SCALE = {
+    None: Decimal(1),
+    "m": Decimal("0.001"),
+    "k": Decimal(10**3),
+    "M": Decimal(10**6),
+    "G": Decimal(10**9),
+    "T": Decimal(10**12),
+    "Ki": Decimal(2**10),
+    "Mi": Decimal(2**20),
+    "Gi": Decimal(2**30),
+    "Ti": Decimal(2**40),
+}
+
+
+def parse_quantity(value: str) -> Decimal:
+    """Parse a Kubernetes resource quantity such as ``500m`` or ``320Mi`` into base units.
+
+    Raises:
+        ValueError: If the quantity uses a format this parser does not support.
+    """
+    match = _QUANTITY.fullmatch(value)
+    if not match:
+        raise ValueError(f"Unsupported resource quantity: {value!r}")
+    return Decimal(match[1]) * _QUANTITY_SCALE[match[2]]
+
+
+def at_least(configured: str, minimum: str | None) -> str:
+    """Return the larger of a configured quantity and an optional minimum."""
+    if minimum is None or parse_quantity(configured) >= parse_quantity(minimum):
+        return configured
+    return minimum
+
+
 # --8<-- [start:LanguageSpec]
 class LanguageSpec(TypedDict):
     versions: list[str]
     image_tpl: str
     file_ext: str
     interpreter: list[str]
+    pod: NotRequired[PodRuntimeConfig]
 
 
 # --8<-- [end:LanguageSpec]
@@ -27,112 +72,130 @@ class LanguageSpec(TypedDict):
 # --8<-- [start:LANGUAGE_SPECS]
 LANGUAGE_SPECS: dict[str, LanguageSpec] = {
     "python": {
-        "versions": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
+        "versions": ["3.14", "3.13", "3.12", "3.11"],
         "image_tpl": "python:{version}-slim",
         "file_ext": "py",
         "interpreter": ["python"],
     },
     "node": {
-        "versions": ["18", "20", "22"],
+        "versions": ["26", "24", "22"],
         "image_tpl": "node:{version}-alpine",
         "file_ext": "js",
         "interpreter": ["node"],
     },
     "ruby": {
-        "versions": ["3.1", "3.2", "3.3"],
+        "versions": ["4.0", "3.4", "3.3"],
         "image_tpl": "ruby:{version}-alpine",
         "file_ext": "rb",
         "interpreter": ["ruby"],
     },
     "bash": {
-        "versions": ["5.1", "5.2", "5.3"],
+        "versions": ["5.3"],
         "image_tpl": "bash:{version}",
         "file_ext": "sh",
         "interpreter": ["bash"],
     },
     "go": {
-        "versions": ["1.20", "1.21", "1.22"],
+        "versions": ["1.27", "1.26"],
         "image_tpl": "golang:{version}-alpine",
         "file_ext": "go",
-        "interpreter": ["go", "run"],
+        # exec keeps the PID, so the entrypoint measures the program instead of the go tool that built it
+        "interpreter": [
+            "sh",
+            "-c",
+            'go build -o /tmp/main -ldflags="-s -w" -gcflags=all=-dwarf=false "$0" && exec /tmp/main',
+        ],
+        # A cold build compiles the runtime and std into GOCACHE: about 50Mi of /tmp, 230Mi RSS, 10s of CPU.
+        "pod": PodRuntimeConfig(
+            env={"HOME": "/tmp", "GOCACHE": "/tmp/go-cache"},  # NOSONAR  # nosec B108
+            tmp_size="64Mi",
+            min_cpu="1000m",
+            min_memory="320Mi",
+            min_timeout_seconds=30,
+        ),
     },
 }
 # --8<-- [end:LANGUAGE_SPECS]
 
+DEFAULT_LANG = "python"
+DEFAULT_LANG_VERSION = LANGUAGE_SPECS[DEFAULT_LANG]["versions"][0]
+
 # --8<-- [start:EXAMPLE_SCRIPTS]
 EXAMPLE_SCRIPTS: dict[str, str] = {
     "python": """
-# This f-string formatting works on all supported Python versions (3.7+)
-py_version = "3.x"
-print(f"Hello from a Python {py_version} script!")
+import itertools
+import platform
 
-# The following block uses Structural Pattern Matching,
-# which was introduced in Python 3.10.
-# THIS WILL CAUSE A SYNTAX ERROR ON VERSIONS < 3.10.
+print(f"Hello from a Python {platform.python_version()} script!")
 
-lang_code = 1
-match lang_code:
-    case 1:
-        print("Structural Pattern Matching is available on this version (Python 3.10+).")
-    case _:
-        print("Default case.")
 
-# Union types using | operator (Python 3.10+)
+# Structural pattern matching and X | Y unions work on every offered version (3.11+).
 def process_data(value: int | str | None) -> str:
-    if value is None:
-        return "No value"
-    return f"Got: {value}"
+    match value:
+        case None:
+            return "No value"
+        case int() if value > 10:
+            return f"Big number: {value}"
+        case _:
+            return f"Got: {value}"
+
 
 print(process_data(42))
 print(process_data("hello"))
 print(process_data(None))
+
+# itertools.batched() arrived in Python 3.12, so check for it first.
+if hasattr(itertools, "batched"):
+    print(f"itertools.batched() is available (Python 3.12+): {list(itertools.batched('abcdef', 2))}")
+else:
+    print("itertools.batched() is not available on this version (needs Python 3.12+).")
 """,
     "node": """
-// This works on all supported Node versions (18+)
 console.log(`Hello from Node.js ${process.version}!`);
 
-// The Promise.withResolvers() static method was introduced in Node.js 22.
-// This will throw a TypeError on versions < 22.
-if (typeof Promise.withResolvers === 'function') {
-  const { promise, resolve } = Promise.withResolvers();
-  console.log("Promise.withResolvers() is supported (Node.js 22+).");
-  resolve('Success');
-  promise.then(msg => console.log(`Resolved with: ${msg}`));
+// Promise.withResolvers() (Node.js 22+) works on every offered version.
+const { promise, resolve } = Promise.withResolvers();
+promise.then((msg) => console.log(`Promise.withResolvers() resolved with: ${msg}`));
+resolve('Success');
+
+// RegExp.escape() arrived in Node.js 24, so check for it first.
+if (typeof RegExp.escape === 'function') {
+  console.log(`RegExp.escape() is available (Node.js 24+): ${RegExp.escape('(1+1)?')}`);
 } else {
-  console.log("Promise.withResolvers() is not supported on this version.");
+  console.log('RegExp.escape() is not available on this version (needs Node.js 24+).');
 }
 """,
     "ruby": """
-# This works on all supported Ruby versions (3.1+)
 puts "Hello from Ruby #{RUBY_VERSION}!"
 
-# The Data class for immutable value objects was introduced in Ruby 3.2.
-# This will cause an error on Ruby 3.1.
-begin
-  # This line will fail on Ruby < 3.2
-  Point = Data.define(:x, :y)
-  p = Point.new(1, 2)
-  puts "Data objects are supported (Ruby 3.2+). Created point: #{p.inspect}"
-rescue NameError
-  puts "Data objects are not supported on this version."
+# Data objects (Ruby 3.2+) work on every offered version.
+Point = Data.define(:x, :y)
+point = Point.new(x: 1, y: 2)
+puts "Data objects are supported. Created point: #{point.inspect}"
+
+# Array#fetch_values arrived in Ruby 3.4, so check for it first.
+if [].respond_to?(:fetch_values)
+  puts "Array#fetch_values is available (Ruby 3.4+): #{%w[a b c].fetch_values(0, 2).inspect}"
+else
+  puts "Array#fetch_values is not available on this version (needs Ruby 3.4+)."
 end
 """,
     "bash": """
-# This works on any modern Bash version
 echo "Hello from Bash version $BASH_VERSION"
-
-# BASH_VERSINFO is an array holding version details.
-# We can check the major and minor version numbers.
 echo "Bash major version: ${BASH_VERSINFO[0]}"
 echo "Bash minor version: ${BASH_VERSINFO[1]}"
 
-# The ${var@U} expansion for uppercasing was added in Bash 5.2
-if [[ "${BASH_VERSINFO[0]}" -ge 5 && "${BASH_VERSINFO[1]}" -ge 2 ]]; then
-    my_var="hello"
-    echo "Testing variable expansion (Bash 5.2+ feature)..."
-    echo "Original: $my_var, Uppercased: ${my_var@U}"
+# The ${var@U} uppercase expansion (Bash 5.1+) works on every offered version.
+my_var="hello"
+echo "Original: $my_var, Uppercased: ${my_var@U}"
+
+# ${ command; } runs a command substitution without a subshell (Bash 5.3+), so check the version first.
+if (( BASH_VERSINFO[0] > 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] >= 3) )); then
+    counter=1
+    result=${ counter=2; echo "no subshell"; }
+    echo "Command substitution ran with $result, counter is now $counter (Bash 5.3+)"
 else
-    echo "The '${var@U}' expansion is not available in this Bash version."
+    echo "The \\${ command; } substitution is not available in this Bash version (needs Bash 5.3+)."
 fi
 """,
     "go": """
@@ -143,8 +206,7 @@ import (
     "runtime"
 )
 
-// This function uses generics, available since Go 1.18,
-// so it will work on all supported versions (1.20+).
+// Generics (Go 1.18+) work on every offered version.
 func Print[T any](s T) {
     fmt.Println(s)
 }
@@ -152,24 +214,25 @@ func Print[T any](s T) {
 func main() {
     Print(fmt.Sprintf("Hello from Go version %s!", runtime.Version()))
 
-    // The built-in 'clear' function for maps and slices
-    // was introduced in Go 1.21.
-    // THIS WILL FAIL TO COMPILE on Go 1.20.
-    myMap := make(map[string]int)
-    myMap["a"] = 1
+    // The clear() builtin (Go 1.21+) empties maps and slices.
+    myMap := map[string]int{"a": 1}
     Print(fmt.Sprintf("Map before clear: %v", myMap))
-    clear(myMap) // This line will fail on Go < 1.21
-    Print(fmt.Sprintf("Map after 'clear' (Go 1.21+ feature): length is %d", len(myMap)))
+    clear(myMap)
+    Print(fmt.Sprintf("Map after clear: length is %d", len(myMap)))
+
+    // new() accepts an expression since Go 1.26.
+    answer := new(len(myMap) + 42)
+    Print(fmt.Sprintf("new(expr) (Go 1.26+) points to %d", *answer))
 }
 """,
 }
 # --8<-- [end:EXAMPLE_SCRIPTS]
 
 
-def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
+def _make_runtime_configs(specs: dict[str, LanguageSpec]) -> dict[str, dict[str, RuntimeConfig]]:
     registry: dict[str, dict[str, RuntimeConfig]] = {}
 
-    for lang, spec in LANGUAGE_SPECS.items():
+    for lang, spec in specs.items():
         versions = spec["versions"]
         image_tpl: str = spec["image_tpl"]
         file_ext: str = spec["file_ext"]
@@ -182,7 +245,7 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
             v: RuntimeConfig(
                 image=image_tpl.format(version=v),
                 file_name=file_name,
-                command=(interpreter_cmd if "{file}" in " ".join(interpreter_cmd) else interpreter_cmd + [full_path]),
+                command=[*interpreter_cmd, full_path],
             )
             for v in versions
         }
@@ -190,9 +253,8 @@ def _make_runtime_configs() -> dict[str, dict[str, RuntimeConfig]]:
     return registry
 
 
-RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs()
+RUNTIME_REGISTRY: dict[str, dict[str, RuntimeConfig]] = _make_runtime_configs(LANGUAGE_SPECS)
 
-SUPPORTED_RUNTIMES: dict[str, LanguageInfoDomain] = {
-    lang: LanguageInfoDomain(versions=spec["versions"], file_ext=spec["file_ext"])
-    for lang, spec in LANGUAGE_SPECS.items()
+POD_RUNTIME_CONFIGS: dict[str, PodRuntimeConfig] = {
+    lang: spec.get("pod", PodRuntimeConfig()) for lang, spec in LANGUAGE_SPECS.items()
 }

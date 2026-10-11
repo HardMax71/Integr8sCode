@@ -1,5 +1,7 @@
 import pytest
 import redis.asyncio as redis
+from httpx2 import AsyncClient
+
 from app.domain.enums import NotificationChannel, NotificationSeverity, NotificationStatus
 from app.schemas_pydantic.execution import ExecutionRequest
 from app.schemas_pydantic.notification import (
@@ -9,8 +11,6 @@ from app.schemas_pydantic.notification import (
     SubscriptionsResponse,
     UnreadCountResponse,
 )
-from httpx2 import AsyncClient
-
 from tests.e2e.conftest import create_execution_with_notification
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka]
@@ -32,9 +32,7 @@ class TestGetNotifications:
         assert isinstance(result.notifications, list)
 
     @pytest.mark.asyncio
-    async def test_get_notifications_pagination(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_notifications_pagination(self, test_user: AsyncClient) -> None:
         """Pagination parameters work correctly."""
         response = await test_user.get(
             "/api/v1/notifications",
@@ -46,9 +44,7 @@ class TestGetNotifications:
         assert isinstance(result.notifications, list)
 
     @pytest.mark.asyncio
-    async def test_get_notifications_with_status_filter(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_notifications_with_status_filter(self, test_user: AsyncClient) -> None:
         """Filter notifications by status."""
         response = await test_user.get(
             "/api/v1/notifications",
@@ -62,9 +58,7 @@ class TestGetNotifications:
             assert n.status == NotificationStatus.DELIVERED
 
     @pytest.mark.asyncio
-    async def test_get_notifications_with_tag_filters(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_get_notifications_with_tag_filters(self, test_user: AsyncClient) -> None:
         """Filter notifications by tags."""
         response = await test_user.get(
             "/api/v1/notifications",
@@ -81,9 +75,7 @@ class TestGetNotifications:
             assert any(t.startswith("exec") for t in n.tags)
 
     @pytest.mark.asyncio
-    async def test_get_notifications_unauthenticated(
-            self, client: AsyncClient
-    ) -> None:
+    async def test_get_notifications_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/notifications")
         assert response.status_code == 401
@@ -93,28 +85,22 @@ class TestMarkNotificationRead:
     """Tests for PUT /api/v1/notifications/{notification_id}/read."""
 
     @pytest.mark.asyncio
-    async def test_mark_nonexistent_notification_read(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_mark_nonexistent_notification_read(self, test_user: AsyncClient) -> None:
         """Marking nonexistent notification returns 404."""
-        response = await test_user.put(
-            "/api/v1/notifications/00000000-0000-0000-0000-000000000000/read"
-        )
+        response = await test_user.put("/api/v1/notifications/00000000-0000-0000-0000-000000000000/read")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_mark_notification_read(
-            self,
-            test_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Mark existing notification as read."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
-        response = await test_user.put(
-            f"/api/v1/notifications/{notification.notification_id}/read"
-        )
+        response = await test_user.put(f"/api/v1/notifications/{notification.notification_id}/read")
 
         assert response.status_code == 204
 
@@ -132,10 +118,10 @@ class TestMarkAllRead:
 
     @pytest.mark.asyncio
     async def test_mark_all_read(
-            self,
-            test_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Mark all notifications as read returns 204."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
@@ -155,9 +141,7 @@ class TestMarkAllRead:
         assert target[0].read_at is not None
 
     @pytest.mark.asyncio
-    async def test_mark_all_read_idempotent(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_mark_all_read_idempotent(self, test_user: AsyncClient) -> None:
         """Mark all read is idempotent."""
         response1 = await test_user.post("/api/v1/notifications/mark-all-read")
         response2 = await test_user.post("/api/v1/notifications/mark-all-read")
@@ -201,9 +185,7 @@ class TestSubscriptions:
         assert set(result.severities) == expected_severities
 
     @pytest.mark.asyncio
-    async def test_update_subscription_disable(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_subscription_disable(self, test_user: AsyncClient) -> None:
         """Disable a subscription channel."""
         response = await test_user.put(
             f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
@@ -215,9 +197,7 @@ class TestSubscriptions:
         assert result.enabled is False
 
     @pytest.mark.asyncio
-    async def test_update_subscription_with_tags(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_update_subscription_with_tags(self, test_user: AsyncClient) -> None:
         """Update subscription with tag filters."""
         response = await test_user.put(
             f"/api/v1/notifications/subscriptions/{NotificationChannel.IN_APP}",
@@ -285,10 +265,10 @@ class TestUnreadCount:
 
     @pytest.mark.asyncio
     async def test_get_unread_count(
-            self,
-            test_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Get unread notification count."""
         await create_execution_with_notification(test_user, redis_client, exec_request)
@@ -305,29 +285,23 @@ class TestDeleteNotification:
     """Tests for DELETE /api/v1/notifications/{notification_id}."""
 
     @pytest.mark.asyncio
-    async def test_delete_nonexistent_notification(
-            self, test_user: AsyncClient
-    ) -> None:
+    async def test_delete_nonexistent_notification(self, test_user: AsyncClient) -> None:
         """Deleting nonexistent notification returns 404."""
-        response = await test_user.delete(
-            "/api/v1/notifications/00000000-0000-0000-0000-000000000000"
-        )
+        response = await test_user.delete("/api/v1/notifications/00000000-0000-0000-0000-000000000000")
 
         assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_delete_notification(
-            self,
-            test_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Delete existing notification returns success."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
-        response = await test_user.delete(
-            f"/api/v1/notifications/{notification.notification_id}"
-        )
+        response = await test_user.delete(f"/api/v1/notifications/{notification.notification_id}")
 
         assert response.status_code == 200
         result = DeleteNotificationResponse.model_validate(response.json())
@@ -346,11 +320,11 @@ class TestNotificationIsolation:
 
     @pytest.mark.asyncio
     async def test_user_cannot_see_other_users_notifications(
-            self,
-            test_user: AsyncClient,
-            another_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        another_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """User's notification list does not include other users' notifications."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
@@ -365,46 +339,38 @@ class TestNotificationIsolation:
 
     @pytest.mark.asyncio
     async def test_cannot_mark_other_users_notification_read(
-            self,
-            test_user: AsyncClient,
-            another_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        another_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Cannot mark another user's notification as read."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
-        response = await another_user.put(
-            f"/api/v1/notifications/{notification.notification_id}/read"
-        )
+        response = await another_user.put(f"/api/v1/notifications/{notification.notification_id}/read")
 
         assert response.status_code == 404
 
         # Verify owner CAN mark it
-        owner_resp = await test_user.put(
-            f"/api/v1/notifications/{notification.notification_id}/read"
-        )
+        owner_resp = await test_user.put(f"/api/v1/notifications/{notification.notification_id}/read")
         assert owner_resp.status_code == 204
 
     @pytest.mark.asyncio
     async def test_cannot_delete_other_users_notification(
-            self,
-            test_user: AsyncClient,
-            another_user: AsyncClient,
-            redis_client: redis.Redis,
-            exec_request: ExecutionRequest,
+        self,
+        test_user: AsyncClient,
+        another_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
     ) -> None:
         """Cannot delete another user's notification."""
         _, notification = await create_execution_with_notification(test_user, redis_client, exec_request)
 
-        response = await another_user.delete(
-            f"/api/v1/notifications/{notification.notification_id}"
-        )
+        response = await another_user.delete(f"/api/v1/notifications/{notification.notification_id}")
 
         assert response.status_code == 404
 
         # Verify owner CAN delete it
-        owner_resp = await test_user.delete(
-            f"/api/v1/notifications/{notification.notification_id}"
-        )
+        owner_resp = await test_user.delete(f"/api/v1/notifications/{notification.notification_id}")
         assert owner_resp.status_code == 200

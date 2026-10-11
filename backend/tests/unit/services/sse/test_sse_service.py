@@ -1,13 +1,20 @@
 import asyncio
 import json
-import structlog
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
 import pytest
+import structlog
 
-from app.domain.enums import EventType, ExecutionStatus, NotificationSeverity, NotificationStatus, ReplayStatus, SSEControlEvent, UserRole
+from app.domain.enums import (
+    EventType,
+    ExecutionStatus,
+    NotificationSeverity,
+    NotificationStatus,
+    ReplayStatus,
+    UserRole,
+)
 from app.domain.execution.models import DomainExecution, ExecutionResultDomain
 from app.domain.sse import DomainNotificationSSEPayload, DomainReplaySSEPayload, SSEExecutionEventData
 from app.services.sse import SSEService
@@ -93,10 +100,10 @@ def _decode(evt: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo = _FakeExecRepo()) -> SSEService:
+def _make_service(bus: _FakeBus, exec_repo: _FakeExecRepo | None = None) -> SSEService:
     return SSEService(
         bus=bus,  # type: ignore[arg-type]
-        execution_repository=exec_repo,  # type: ignore[arg-type]
+        execution_repository=exec_repo or _FakeExecRepo(),  # type: ignore[arg-type]
         logger=_test_logger,
     )
 
@@ -125,7 +132,9 @@ async def test_execution_stream_prepends_status_from_db() -> None:
 @pytest.mark.asyncio
 async def test_execution_stream_closes_on_terminal_event() -> None:
     bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING)))
+    svc = _make_service(
+        bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-1", status=ExecutionStatus.RUNNING))
+    )
 
     agen = await svc.create_execution_stream("exec-1", user_id="u1", user_role=UserRole.USER)
 
@@ -133,10 +142,12 @@ async def test_execution_stream_closes_on_terminal_event() -> None:
     stat = await agen.__anext__()
     assert _decode(stat)["event_type"] == "status"
 
-    await bus.push_exec(SSEExecutionEventData(
-        event_type=EventType.EXECUTION_FAILED,
-        execution_id="exec-1",
-    ))
+    await bus.push_exec(
+        SSEExecutionEventData(
+            event_type=EventType.EXECUTION_FAILED,
+            execution_id="exec-1",
+        )
+    )
     failed = await agen.__anext__()
     assert _decode(failed)["event_type"] == EventType.EXECUTION_FAILED
 
@@ -154,17 +165,22 @@ async def test_execution_stream_enriches_result_stored() -> None:
         stderr="",
     )
     bus = _FakeBus()
-    svc = _make_service(bus, _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result))
+    svc = _make_service(
+        bus,
+        _FakeExecRepo(execution=DomainExecution(execution_id="exec-2", status=ExecutionStatus.RUNNING), result=result),
+    )
 
     agen = await svc.create_execution_stream("exec-2", user_id="u1", user_role=UserRole.USER)
 
     # Consume DB status prepend
     await agen.__anext__()
 
-    await bus.push_exec(SSEExecutionEventData(
-        event_type=EventType.RESULT_STORED,
-        execution_id="exec-2",
-    ))
+    await bus.push_exec(
+        SSEExecutionEventData(
+            event_type=EventType.RESULT_STORED,
+            execution_id="exec-2",
+        )
+    )
     evt = await agen.__anext__()
     data = _decode(evt)
     assert data["event_type"] == EventType.RESULT_STORED
@@ -183,16 +199,18 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
 
     agen = svc.create_notification_stream(user_id="u1")
 
-    await bus.push_notif(DomainNotificationSSEPayload(
-        notification_id="n1",
-        severity=NotificationSeverity.LOW,
-        status=NotificationStatus.PENDING,
-        tags=[],
-        subject="s",
-        body="b",
-        action_url="",
-        created_at=_NOW,
-    ))
+    await bus.push_notif(
+        DomainNotificationSSEPayload(
+            notification_id="n1",
+            severity=NotificationSeverity.LOW,
+            status=NotificationStatus.PENDING,
+            tags=[],
+            subject="s",
+            body="b",
+            action_url="",
+            created_at=_NOW,
+        )
+    )
 
     notif = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     assert notif["event"] == "notification"
@@ -200,7 +218,6 @@ async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     assert data["notification_id"] == "n1"
     assert data["subject"] == "s"
     assert data["channel"] == "in_app"
-
 
 
 @pytest.mark.asyncio
@@ -230,32 +247,36 @@ async def test_replay_stream_yields_initial_then_live() -> None:
     assert data["replayed_events"] == 0
 
     # Push a live update
-    await bus.push_replay(DomainReplaySSEPayload(
-        session_id="sess-1",
-        status=ReplayStatus.RUNNING,
-        total_events=5,
-        replayed_events=3,
-        failed_events=0,
-        skipped_events=0,
-        replay_id="replay-1",
-        created_at=_NOW,
-    ))
+    await bus.push_replay(
+        DomainReplaySSEPayload(
+            session_id="sess-1",
+            status=ReplayStatus.RUNNING,
+            total_events=5,
+            replayed_events=3,
+            failed_events=0,
+            skipped_events=0,
+            replay_id="replay-1",
+            created_at=_NOW,
+        )
+    )
 
     second = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data2 = _decode(second)
     assert data2["replayed_events"] == 3
 
     # Push terminal status
-    await bus.push_replay(DomainReplaySSEPayload(
-        session_id="sess-1",
-        status=ReplayStatus.COMPLETED,
-        total_events=5,
-        replayed_events=5,
-        failed_events=0,
-        skipped_events=0,
-        replay_id="replay-1",
-        created_at=_NOW,
-    ))
+    await bus.push_replay(
+        DomainReplaySSEPayload(
+            session_id="sess-1",
+            status=ReplayStatus.COMPLETED,
+            total_events=5,
+            replayed_events=5,
+            failed_events=0,
+            skipped_events=0,
+            replay_id="replay-1",
+            created_at=_NOW,
+        )
+    )
 
     third = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
     data3 = _decode(third)

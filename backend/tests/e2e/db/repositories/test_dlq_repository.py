@@ -1,7 +1,9 @@
-import structlog
+import uuid
 from datetime import datetime, timezone
 
 import pytest
+from dishka import AsyncContainer
+
 from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq import DLQMessageStatus
@@ -9,22 +11,21 @@ from app.domain.enums import EventType
 
 pytestmark = pytest.mark.e2e
 
-_test_logger = structlog.get_logger("test.db.repositories.dlq_repository")
-
 
 @pytest.fixture()
-def repo() -> DLQRepository:
-    return DLQRepository(_test_logger)
+async def repo(scope: AsyncContainer) -> DLQRepository:
+    return await scope.get(DLQRepository)
 
 
-async def insert_test_dlq_docs() -> None:
-    """Insert test DLQ documents using Beanie."""
+async def insert_test_dlq_docs() -> list[str]:
+    """Insert test DLQ documents using Beanie and return their event ids."""
     now = datetime.now(timezone.utc)
+    event_ids = [f"dlq-{uuid.uuid4().hex}" for _ in range(3)]
 
     docs = [
         DLQMessageDocument(
             event={
-                "event_id": "id1",
+                "event_id": event_ids[0],
                 "event_type": EventType.USER_LOGGED_IN,
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -39,7 +40,7 @@ async def insert_test_dlq_docs() -> None:
         ),
         DLQMessageDocument(
             event={
-                "event_id": "id2",
+                "event_id": event_ids[1],
                 "event_type": EventType.USER_LOGGED_IN,
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "user_id": "u1",
@@ -54,7 +55,7 @@ async def insert_test_dlq_docs() -> None:
         ),
         DLQMessageDocument(
             event={
-                "event_id": "id3",
+                "event_id": event_ids[2],
                 "event_type": EventType.EXECUTION_STARTED,
                 "metadata": {"service_name": "svc", "service_version": "1"},
                 "execution_id": "x1",
@@ -71,15 +72,16 @@ async def insert_test_dlq_docs() -> None:
 
     for doc in docs:
         await doc.insert()
+    return event_ids
 
 
 @pytest.mark.asyncio
 async def test_list_get_and_updates(repo: DLQRepository) -> None:
-    await insert_test_dlq_docs()
+    event_ids = await insert_test_dlq_docs()
 
     res = await repo.get_messages(limit=2)
     assert res.total >= 3 and len(res.messages) <= 2
-    msg = await repo.get_message_by_id("id1")
-    assert msg and msg.event.event_id == "id1"
+    msg = await repo.get_message_by_id(event_ids[0])
+    assert msg and msg.event.event_id == event_ids[0]
     topics = await repo.get_topics_summary()
     assert any(t.topic == "t1" for t in topics)

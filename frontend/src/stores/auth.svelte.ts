@@ -208,11 +208,16 @@ class AuthStore {
 
         this.#verifyPromise = (async () => {
             try {
-                const { data, error } = await getCurrentUserProfileApiV1AuthMeGet({});
-                if (error || !data) {
+                const { data, error, response } = await getCurrentUserProfileApiV1AuthMeGet({});
+                if (response?.status === 401) {
                     this.clearAuth();
                     this.#authCache = { valid: false, timestamp: Date.now() };
                     return false;
+                }
+                if (error) {
+                    // Network failure or a server error: keep the cached state (offline-first)
+                    log.warn('Auth verification failed, keeping cached state:', response?.status ?? error);
+                    return this.#authCache.valid ?? false;
                 }
                 this.isAuthenticated = true;
                 this.username = data.username;
@@ -230,13 +235,6 @@ class AuthStore {
                 });
                 this.#authCache = { valid: true, timestamp: Date.now() };
                 return true;
-            } catch (err) {
-                // Network error - use cached state if available (offline-first)
-                // See function docstring for security trade-off explanation
-                log.warn('Auth verification failed (network error):', err);
-                if (this.#authCache.valid !== null) return this.#authCache.valid;
-                this.clearAuth();
-                return false;
             } finally {
                 this.#verifyPromise = null;
             }

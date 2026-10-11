@@ -1,4 +1,5 @@
 from app.core.metrics.base import BaseMetrics
+from app.domain.enums import ReplayStatus
 
 
 class ReplayMetrics(BaseMetrics):
@@ -20,10 +21,6 @@ class ReplayMetrics(BaseMetrics):
 
         self.replay_events_failed = self._meter.create_counter(
             name="replay.events.failed.total", description="Total number of failed replay events", unit="1"
-        )
-
-        self.replay_events_skipped = self._meter.create_counter(
-            name="replay.events.skipped.total", description="Total number of skipped replay events", unit="1"
         )
 
         # Performance metrics
@@ -79,14 +76,7 @@ class ReplayMetrics(BaseMetrics):
 
     def record_session_created(self, replay_type: str, target: str) -> None:
         self.replay_sessions_created.add(1, attributes={"replay_type": replay_type, "target": target})
-
-    def update_active_replays(self, count: int) -> None:
-        key = "_active_replays"
-        current_val = getattr(self, key, 0)
-        delta = count - current_val
-        if delta != 0:
-            self.replay_sessions_active.add(delta)
-        setattr(self, key, count)
+        self.update_sessions_by_status(ReplayStatus.CREATED, 1)
 
     def increment_active_replays(self) -> None:
         self.replay_sessions_active.add(1)
@@ -94,16 +84,9 @@ class ReplayMetrics(BaseMetrics):
     def decrement_active_replays(self) -> None:
         self.replay_sessions_active.add(-1)
 
-    def record_events_replayed(self, replay_type: str, event_type: str, status: str, count: int = 1) -> None:
-        if status == "success":
-            self.replay_events_processed.add(count, attributes={"replay_type": replay_type, "event_type": event_type})
-        elif status == "failed":
-            self.replay_events_failed.add(count, attributes={"replay_type": replay_type, "event_type": event_type})
-        elif status == "skipped":
-            self.replay_events_skipped.add(count, attributes={"replay_type": replay_type, "event_type": event_type})
-
-    def record_event_replayed(self, replay_type: str, event_type: str, status: str) -> None:
-        self.record_events_replayed(replay_type, event_type, status, 1)
+    def record_event_replayed(self, replay_type: str, event_type: str, success: bool) -> None:
+        counter = self.replay_events_processed if success else self.replay_events_failed
+        counter.add(1, attributes={"replay_type": replay_type, "event_type": event_type})
 
     def record_replay_duration(self, duration_seconds: float, replay_type: str, total_events: int = 0) -> None:
         self.replay_duration.record(duration_seconds, attributes={"replay_type": replay_type})
@@ -114,9 +97,6 @@ class ReplayMetrics(BaseMetrics):
 
     def record_event_processing_time(self, duration_seconds: float, event_type: str) -> None:
         self.replay_event_processing_time.record(duration_seconds, attributes={"event_type": event_type})
-
-    def record_replay_error(self, error_type: str, replay_type: str = "unknown") -> None:
-        self.replay_events_failed.add(1, attributes={"error_type": error_type, "replay_type": replay_type})
 
     def record_status_change(self, session_id: str, from_status: str, to_status: str) -> None:
         self.replay_status_changes.add(1, attributes={"from_status": from_status, "to_status": to_status})

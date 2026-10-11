@@ -34,18 +34,19 @@ class NotificationScheduler:
         if not due:
             return 0
 
-        self.logger.info(f"Found {len(due)} due scheduled notifications")
+        self.logger.info("Found due scheduled notifications", count=len(due))
 
         delivered = 0
         for notification in due:
             try:
                 if await self.service._deliver_notification(notification):
                     delivered += 1
-            except Exception as e:
+            except Exception:
                 self.logger.error(
-                    f"Failed to deliver scheduled notification {notification.notification_id}: {e}",
+                    "Failed to deliver scheduled notification",
+                    notification_id=notification.notification_id,
                     exc_info=True,
                 )
 
-        self.logger.info(f"Delivered {delivered}/{len(due)} scheduled notifications")
+        self.logger.info("Delivered scheduled notifications", delivered=delivered, due=len(due))
         return delivered

@@ -3,12 +3,18 @@
     import { MessageSquare, ChevronUp, ChevronDown, Cpu, MemoryStick, Clock } from '@lucide/svelte';
     import type { ResourceLimits as ResourceLimitsType } from '$lib/api';
 
-    let { limits }: { limits: ResourceLimitsType | null } = $props();
+    interface Props {
+        limits: ResourceLimitsType | null;
+        lang: string;
+    }
+    let { limits, lang }: Props = $props();
 
     let show = $state(false);
+    // A response cached before the upgrade has no language_limits.
+    let effective = $derived(limits ? (limits.language_limits?.[lang] ?? limits) : null);
 </script>
 
-{#if limits}
+{#if effective}
     <div class="relative shrink-0">
         <button
             type="button"
@@ -31,7 +37,7 @@
                             <span class="mr-2"><Cpu class="w-4 h-4" /></span>CPU Limit
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                            >{limits.cpu_limit}</span
+                            >{effective.cpu_limit}</span
                         >
                     </div>
                     <div class="flex items-center justify-between text-sm">
@@ -39,7 +45,7 @@
                             <span class="mr-2"><MemoryStick class="w-4 h-4" /></span>Memory Limit
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                            >{limits.memory_limit}</span
+                            >{effective.memory_limit}</span
                         >
                     </div>
                     <div class="flex items-center justify-between text-sm">
@@ -47,7 +53,7 @@
                             <span class="mr-2"><Clock class="w-4 h-4" /></span>Timeout
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
-                            >{limits.execution_timeout}s</span
+                            >{effective.execution_timeout}s</span
                         >
                     </div>
                 </div>

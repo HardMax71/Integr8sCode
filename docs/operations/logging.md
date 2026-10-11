@@ -1,105 +1,73 @@
 # Logging
 
-This backend uses structured JSON logging with OpenTelemetry trace context injection and sensitive data
-sanitization. The goal is logs that are both secure against injection attacks and easy to query in aggregation systems
-like Elasticsearch or Loki.
-
-## Architecture
+Every process logs to stderr. Our own events go through structlog as one JSON object per line; third-party library records are plain message text. Secrets and emails are redacted before anything is written, for our own events and for third-party library records alike. With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the same records also go to the OTel Collector and on to [Loki](loki.md).
 
 ```mermaid
 flowchart LR
-    Code[Application Code] --> Logger
-    Logger --> TF[TracingFilter]
-    TF --> JF[JSONFormatter]
-    JF --> Output[JSON stdout]
+    App["structlog event"] --> P["processors: add_otel_context, sanitize_sensitive_data, render_json"]
+    Lib["third-party stdlib record"] --> Root
+    P --> Root["root logger"]
+    Root --> RF1["RedactingFilter"] --> Stderr["stderr handler"]
+    Root --> RF2["RedactingFilter"] --> OTel["OTel LoggingHandler"]
 ```
 
-## How it's wired
+## Setup
 
-The logger is created once during application startup via dependency injection. The
-[`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) function configures a
-JSON formatter and attaches a filter for OpenTelemetry trace context:
+[`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) configures structlog and the root logger. The backend calls it in `create_app`, the DI container calls it for the logger it injects, and each worker calls it at the top of `main()`.
 
 ```python
 --8<-- "backend/app/core/logging.py:setup_logger"
 ```
 
-The JSON formatter does two things beyond basic formatting. First, it injects context that would be tedious to pass
-manually—the trace and span IDs from OpenTelemetry, and request metadata like method and path. Second, it sanitizes
-sensitive data by pattern-matching things like API keys, JWT tokens, and database URLs:
+The processor chain:
 
 ```python
 --8<-- "backend/app/core/logging.py:log_processors"
 ```
 
-## Structured logging
+`add_otel_context` adds `trace_id` and `span_id` when there's a recording span. `sanitize_sensitive_data` replaces the value of any sensitive-looking key whole and redacts every other top-level string value. Strings nested inside a dict or list pass through unredacted. `render_json` renders the event and marks the result as already redacted, so the filter further down passes it through untouched.
 
-All log calls pass structured data as keyword arguments rather than interpolating values into the message string. The message itself is a static string that describes what happened; the details go in keyword args where they become separate top-level JSON fields.
+A line looks like this:
 
-```python
-# This is how logging looks throughout the codebase
-self.logger.info(
-    "Event deleted by admin",
-    event_id=event_id,
-    admin_email=admin.email,
-    event_type=result.event_type,
-)
+```json
+{"username": "alice", "email": "ali***@example.com", "event": "User logged in", "logger": "integr8scode", "level": "info", "timestamp": "2026-10-10T21:53:14.065299Z"}
 ```
 
-The reason for this pattern is partly about queryability - log aggregators can index the `event_id` field separately and let you filter on it - but mostly about security. When you interpolate user-controlled data into a log message, you open the door to log injection attacks.
+There is no request context processor. Method, path and client address are never added to log lines.
 
-## Log injection
+## Redaction
 
-Log injection is what happens when an attacker crafts input that corrupts your log output. The classic attack looks like this: a user submits an event ID containing a newline and a fake log entry.
+The same rules apply in two places. `sanitize_sensitive_data` runs them on structlog events, field by field. `RedactingFilter` sits on the stderr handler and on the OTel handler and runs them on every other stdlib record: it renders the message, traceback and stack info to text, redacts that, and replaces the record's message, so no handler after it sees the raw text.
+
+| Matches                                                   | Becomes                                   |
+|-----------------------------------------------------------|-------------------------------------------|
+| `key`, `token`, `secret`, `password`, `pwd` and friends followed by `:` or `=` | `***API_KEY_OR_TOKEN_REDACTED***` |
+| `Bearer <token>`                                          | `Bearer ***BEARER_TOKEN_REDACTED***`      |
+| JWTs (`eyJ...`)                                           | `***JWT_REDACTED***`                      |
+| `mongodb://user:pass@`                                    | `mongodb://user:***MONGODB_REDACTED***@`  |
+| `http(s)://user:pass@`                                    | `http(s)://user:***URL_CREDS_REDACTED***@` |
+| email addresses                                           | first 3 characters of the local part, then `***@domain` |
+
+For structlog events, field names count too. A key named `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `credential(s)`, `authorization` or `cookie`, or ending in `_` plus one of those such as `csrf_token`, has its whole value replaced with `***REDACTED***`. So `logger.info("x", password="hunter2")` writes `"password": "***REDACTED***"`. Stdlib records have no fields, so only the patterns apply to them.
+
+## Third-party loggers
+
+Libraries that are chatty below WARNING, or that dump whole payloads (Mongo command documents, Kubernetes API responses, SSE chunks), are pinned in `_QUIET_LOGGERS`: aiohttp, aiokafka, apscheduler, asyncio, grpc, httpcore2, httpx2, kubernetes_asyncio, pymongo, python_multipart, redis, sse_starlette and urllib3. Each one is set to WARNING or the root level, whichever is higher. Their warnings and errors still go through `RedactingFilter`.
+
+## Log level
+
+`LOG_LEVEL` is `INFO` in config.toml and `WARNING` in config.test.toml. It used to be `DEBUG`, which logged every Mongo command without redaction. With the quiet list in place, `DEBUG` now only affects our own loggers and libraries outside that list.
+
+## Structured arguments
+
+Messages are static strings. Everything variable goes in keyword arguments, which become top-level JSON fields:
 
 ```python
-# Attacker submits this as event_id
-event_id = "abc123\n[CRITICAL] System compromised - contact security@evil.com"
-
-# If you log it directly in the message...
-logger.warning(f"Processing event {event_id}")
-
-# Your log output now contains a forged critical alert
+self.logger.info("Execution created", execution_id=exec_id, user_id=user_id)
 ```
 
-The fix is to keep user data out of the message string entirely. When you pass it as a keyword argument, the JSON renderer escapes special characters, and the malicious content becomes a harmless string value rather than a log line injection.
+That keeps fields queryable, and it stops log injection. If user input goes into the message itself, a value like `abc\n[CRITICAL] System compromised` forges a second log line. As a keyword argument the JSON renderer escapes it into a harmless string. Treat path and query parameters, request bodies, Kafka payloads, anything read back from user data, and exception messages as user-controlled.
 
-The codebase treats these as user-controlled and passes them as keyword args: path parameters like execution_id or saga_id,
-query parameters, request body fields, Kafka message content, database results derived from user input, and exception
-messages (which often contain user data).
+## OTLP export
 
-## What gets logged
-
-Trace IDs are injected automatically by the OTel filter:
-
-| Field            | Source                          | Purpose                           |
-|------------------|---------------------------------|-----------------------------------|
-| `trace_id`       | OpenTelemetry                   | Link to distributed traces        |
-| `span_id`        | OpenTelemetry                   | Link to specific span             |
-| `request_method` | HTTP request                    | GET, POST, etc.                   |
-| `request_path`   | HTTP request                    | API endpoint path                 |
-| `client_host`    | HTTP request                    | Client IP address                 |
-
-For domain-specific context, developers add keyword arguments based on what operation they're logging. The pattern is
-consistent: the message says what happened, the keyword args say to what and by whom.
-
-## Practical use
-
-When something goes wrong, start by filtering logs by `trace_id` to see everything that happened during that
-request. Use the `trace_id` to view the full distributed trace in your tracing backend (e.g. Tempo, or any
-OTLP-compatible collector configured via `OTLP_TRACES_ENDPOINT` in settings).
-
-| Log Level | Use case                                                    |
-|-----------|-------------------------------------------------------------|
-| DEBUG     | Detailed diagnostics (noisy, local debugging only)          |
-| INFO      | Normal operations (started, completed, processed)           |
-| WARNING   | Recoverable issues                                          |
-| ERROR     | Failures requiring attention                                |
-
-The log level is controlled by the `LOG_LEVEL` setting in `config.toml`.
-
-## Key files
-
-| File                                                                                                       | Purpose                              |
-|------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| [`core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py)       | Logger setup, filters, JSON formatter|
+`setup_log_exporter` adds an OTel `LoggingHandler` to the root logger, with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter` pointed at `OTEL_EXPORTER_OTLP_ENDPOINT`. It's a no-op when that setting is empty. The backend calls it in `create_app` and each worker right after `setup_logger`. See [Loki](loki.md) for the rest of the path.

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import structlog
 from pydantic import BaseModel
 from pymongo.errors import DuplicateKeyError
+from redis import RedisError
 
 from app.core.metrics import IdempotencyMetrics
 from app.domain.enums import EventType
@@ -90,12 +91,12 @@ class IdempotencyManager:
         if existing:
             self.metrics.record_idempotency_cache_hit(event.event_type, "check_and_reserve")
             result = await self._handle_existing_key(existing, full_key, event.event_type)
-            self.metrics.record_idempotency_processing_duration(time.monotonic() - start, "check_and_reserve")
+            self.metrics.record_idempotency_check_duration(time.monotonic() - start, "check_and_reserve")
             return result
 
         self.metrics.record_idempotency_cache_miss(event.event_type, "check_and_reserve")
         result = await self._create_new_key(full_key, event, ttl)
-        self.metrics.record_idempotency_processing_duration(time.monotonic() - start, "check_and_reserve")
+        self.metrics.record_idempotency_check_duration(time.monotonic() - start, "check_and_reserve")
         return result
 
     async def _handle_existing_key(
@@ -131,7 +132,7 @@ class IdempotencyManager:
         now = datetime.now(timezone.utc)
 
         if now - created_at > timedelta(seconds=self.config.processing_timeout_seconds):
-            self.logger.warning(f"Idempotency key {full_key} processing timeout, allowing retry")
+            self.logger.warning("Idempotency key processing timed out, allowing retry", key=full_key)
             existing.created_at = now
             existing.status = IdempotencyStatus.PROCESSING
             await self._repo.update_record(existing)
@@ -160,16 +161,13 @@ class IdempotencyManager:
                 ttl_seconds=ttl,
             )
             await self._repo.insert_processing(record)
-            self.metrics.increment_idempotency_keys(self.config.key_prefix)
             return IdempotencyResult(
                 is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
             )
         except DuplicateKeyError:
-            # Race: someone inserted the same key concurrently — treat as existing
             existing = await self._repo.find_by_key(full_key)
             if existing:
                 return await self._handle_existing_key(existing, full_key, event.event_type)
-            # If for some reason it's still not found, allow processing
             return IdempotencyResult(
                 is_duplicate=False, status=IdempotencyStatus.PROCESSING, created_at=created_at, key=full_key
             )
@@ -184,7 +182,8 @@ class IdempotencyManager:
     ) -> bool:
         created_at = existing.created_at
         completed_at = datetime.now(timezone.utc)
-        duration_ms = int((completed_at - created_at).total_seconds() * 1000)
+        duration_seconds = (completed_at - created_at).total_seconds()
+        duration_ms = int(duration_seconds * 1000)
         existing.status = status
         existing.completed_at = completed_at
         existing.processing_duration_ms = duration_ms
@@ -194,7 +193,8 @@ class IdempotencyManager:
             if len(cached_json.encode()) <= self.config.max_result_size_bytes:
                 existing.result_json = cached_json
             else:
-                self.logger.warning(f"Result too large to cache for key {full_key}")
+                self.logger.warning("Result too large to cache", key=full_key)
+        self.metrics.record_idempotent_processing_duration(duration_seconds, existing.event_type, status)
         return (await self._repo.update_record(existing)) > 0
 
     async def mark_completed(
@@ -207,11 +207,11 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         try:
             existing = await self._repo.find_by_key(full_key)
-        except Exception as e:  # Narrow DB op
-            self.logger.error(f"Failed to load idempotency key for completion: {e}")
+        except RedisError as e:
+            self.logger.error("Failed to load idempotency key for completion", key=full_key, error=str(e))
             return False
         if not existing:
-            self.logger.warning(f"Idempotency key {full_key} not found when marking completed")
+            self.logger.warning("Idempotency key not found when marking completed", key=full_key)
             return False
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=None)
 
@@ -226,11 +226,22 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         if not existing:
-            self.logger.warning(f"Idempotency key {full_key} not found when marking failed")
+            self.logger.warning("Idempotency key not found when marking failed", key=full_key)
             return False
         return await self._update_key_status(
             full_key, existing, IdempotencyStatus.FAILED, cached_json=None, error=error
         )
+
+    async def release(
+        self,
+        event: BaseEvent,
+        key_strategy: KeyStrategy = KeyStrategy.EVENT_BASED,
+        custom_key: str | None = None,
+        fields: set[str] | None = None,
+    ) -> bool:
+        """Drop a reserved key so the next caller with the same key runs again."""
+        full_key = self._generate_key(event, key_strategy, custom_key, fields)
+        return (await self._repo.delete_key(full_key)) > 0
 
     async def mark_completed_with_json(
         self,
@@ -243,7 +254,7 @@ class IdempotencyManager:
         full_key = self._generate_key(event, key_strategy, custom_key, fields)
         existing = await self._repo.find_by_key(full_key)
         if not existing:
-            self.logger.warning(f"Idempotency key {full_key} not found when marking completed with cache")
+            self.logger.warning("Idempotency key not found when marking completed with cache", key=full_key)
             return False
         return await self._update_key_status(full_key, existing, IdempotencyStatus.COMPLETED, cached_json=cached_json)
 

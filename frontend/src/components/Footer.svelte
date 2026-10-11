@@ -1,5 +1,6 @@
 <script>
     import { Icon, Send } from '@lucide/svelte';
+    import { authStore } from '$stores/auth.svelte';
 
     // Lucide 1.0 dropped its brand icons, so this is the GitHub mark it used to ship, drawn by its Icon.
     const github = {
@@ -59,15 +60,17 @@
                         Tools & Info
                     </h3>
                     <ul class="space-y-3 text-sm">
-                        <li>
-                            <a
-                                href={process.env.VITE_GRAFANA_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
-                                >Grafana</a
-                            >
-                        </li>
+                        {#if authStore.userRole === 'admin'}
+                            <li>
+                                <a
+                                    href="/grafana"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-fg-default dark:text-dark-fg-default hover:text-primary dark:hover:text-primary-light transition-colors duration-150"
+                                    >Grafana</a
+                                >
+                            </li>
+                        {/if}
                         <li>
                             <a
                                 href="/privacy"

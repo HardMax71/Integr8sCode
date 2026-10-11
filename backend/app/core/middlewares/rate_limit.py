@@ -23,20 +23,15 @@ class RateLimitMiddleware:
     - Graceful degradation on errors
     """
 
-    # Paths exempt from rate limiting
     # --8<-- [start:excluded_paths]
     EXCLUDED_PATHS = frozenset(
         {
-            "/health",
-            "/metrics",
-            "/docs",
-            "/openapi.json",
-            "/favicon.ico",
             "/api/v1/auth/login",  # Auth endpoints handle their own limits
             "/api/v1/auth/register",
             "/api/v1/auth/logout",
         }
     )
+    EXCLUDED_PREFIXES = ("/api/v1/health/",)
     # --8<-- [end:excluded_paths]
     # --8<-- [end:RateLimitMiddleware]
 
@@ -57,7 +52,7 @@ class RateLimitMiddleware:
 
         path = scope["path"]
 
-        if path in self.EXCLUDED_PATHS:
+        if path in self.EXCLUDED_PATHS or path.startswith(self.EXCLUDED_PREFIXES):
             await self.app(scope, receive, send)
             return
 

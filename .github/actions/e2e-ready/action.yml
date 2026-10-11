@@ -85,10 +85,6 @@ runs:
         cat /tmp/crictl-python.log 2>/dev/null || true
         [ "$(cat /tmp/crictl-python.exit)" = "0" ]
 
-        timeout 120 tail --pid="$(cat /tmp/crictl-busybox.pid)" -f /dev/null 2>/dev/null || true
-        cat /tmp/crictl-busybox.log 2>/dev/null || true
-        [ "$(cat /tmp/crictl-busybox.exit)" = "0" ]
-
     - name: Prepare config, wait for infra
       shell: bash
       run: |

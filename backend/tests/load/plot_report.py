@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, TypedDict
+from typing import TypedDict
 
 import matplotlib.pyplot as plt
 
@@ -21,14 +21,14 @@ class EndpointData(TypedDict, total=False):
 
 
 class TimelineData(TypedDict, total=False):
-    seconds: List[int]
-    rps: List[int]
-    eps: List[int]
+    seconds: list[int]
+    rps: list[int]
+    eps: list[int]
 
 
 class ReportDict(TypedDict, total=False):
     timeline: TimelineData
-    endpoints: Dict[str, EndpointData]
+    endpoints: dict[str, EndpointData]
 
 
 def _load_report(path: str | Path) -> ReportDict:
@@ -45,9 +45,9 @@ def _ensure_out_dir(path: str | Path) -> Path:
 
 def plot_timeline(report: ReportDict, out_dir: Path) -> Path:
     tl: TimelineData = report.get("timeline", {})
-    seconds: List[int] = tl.get("seconds", [])
-    rps: List[int] = tl.get("rps", [])
-    eps: List[int] = tl.get("eps", [])
+    seconds: list[int] = tl.get("seconds", [])
+    rps: list[int] = tl.get("rps", [])
+    eps: list[int] = tl.get("eps", [])
 
     if not seconds:
         # Nothing to plot
@@ -68,8 +68,8 @@ def plot_timeline(report: ReportDict, out_dir: Path) -> Path:
     return out_path
 
 
-def _top_endpoints(report: ReportDict, top_n: int = 10) -> List[Tuple[str, EndpointData]]:
-    eps: Dict[str, EndpointData] = report.get("endpoints", {})
+def _top_endpoints(report: ReportDict, top_n: int = 10) -> list[tuple[str, EndpointData]]:
+    eps: dict[str, EndpointData] = report.get("endpoints", {})
     items = list(eps.items())
     items.sort(key=lambda kv: kv[1].get("count", 0), reverse=True)
     return items[:top_n]
@@ -114,7 +114,7 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
     labels = [k for k, _ in data]
     total = [v.get("count", 0) for _, v in data]
     errors = [v.get("errors", 0) for _, v in data]
-    successes = [t - e for t, e in zip(total, errors)]
+    successes = [t - e for t, e in zip(total, errors, strict=True)]
 
     x = range(len(labels))
     width = 0.45
@@ -135,7 +135,7 @@ def plot_endpoint_throughput(report: ReportDict, out_dir: Path, top_n: int = 10)
     return out_path
 
 
-def generate_plots(report_path: str | Path, output_dir: str | Path | None = None) -> List[Path]:
+def generate_plots(report_path: str | Path, output_dir: str | Path | None = None) -> list[Path]:
     report = _load_report(report_path)
     out_dir = _ensure_out_dir(output_dir or Path(report_path).parent)
     paths = [
@@ -146,7 +146,7 @@ def generate_plots(report_path: str | Path, output_dir: str | Path | None = None
     return paths
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Generate plots from a load report JSON")
     p.add_argument("report", help="Path to JSON report")
     p.add_argument("--out", default=None, help="Output directory for PNGs (default: report dir)")

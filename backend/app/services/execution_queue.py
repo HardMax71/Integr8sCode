@@ -136,7 +136,7 @@ class ExecutionQueueService:
         event_json = await self._redis.get(_event_key(execution_id))
         if event_json is None:
             self._logger.error(
-                "Event data expired/missing for scheduled execution — execution lost",
+                "Event data expired or missing for scheduled execution, execution lost",
                 execution_id=execution_id,
             )
             await self._redis.srem(_ACTIVE_KEY, execution_id)
@@ -165,8 +165,9 @@ class ExecutionQueueService:
         pipe = self._redis.pipeline(transaction=True)
         pipe.srem(_ACTIVE_KEY, execution_id)
         pipe.delete(_event_key(execution_id))
-        await pipe.execute()
-        self._metrics.record_release()
+        was_active, _ = await pipe.execute()
+        if was_active:
+            self._metrics.record_release()
         self._logger.debug("Released execution from active set", execution_id=execution_id)
 
     async def update_priority(self, execution_id: str, new_priority: QueuePriority) -> bool:
@@ -192,6 +193,8 @@ class ExecutionQueueService:
         pipe.delete(_retry_key(execution_id))
         pipe.srem(_ACTIVE_KEY, execution_id)
         results = await pipe.execute()
+        if results[-1]:
+            self._metrics.record_release()
         removed = any(results[: len(_PENDING_KEYS)]) or bool(results[-1])
         if removed:
             self._logger.info("Removed execution from queue", execution_id=execution_id)

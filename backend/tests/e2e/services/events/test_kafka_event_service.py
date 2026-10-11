@@ -1,9 +1,10 @@
 import pytest
+from dishka import AsyncContainer
+
 from app.db.repositories import EventRepository
 from app.domain.events import EventMetadata, UserRegisteredEvent
 from app.services.kafka_event_service import KafkaEventService
 from app.settings import Settings
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.kafka, pytest.mark.mongodb]
 

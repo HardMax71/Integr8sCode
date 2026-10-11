@@ -180,7 +180,7 @@ metadata:
   namespace: integr8scode
 rules:
 - apiGroups: ["", "metrics.k8s.io"]
-  resources: ["configmaps", "pods", "pods/log", "pods/exec", "nodes", "services"]
+  resources: ["configmaps", "pods", "pods/log", "services"]
   verbs: ["create", "get", "list", "watch", "delete", "patch", "update"]
 - apiGroups: ["apps"]
   resources: ["daemonsets"]
@@ -207,39 +207,22 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 EOF
 
-# NetworkPolicy
-kubectl apply -f - <<'EOF'
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: executor-deny-all
-  namespace: integr8scode
-spec:
-  podSelector:
-    matchLabels:
-      app: integr8s
-      component: executor
-  policyTypes:
-  - Ingress
-  - Egress
-EOF
-
 # Resolve current context/cluster and extract server + CA (no insecure fallback)
 CTX=$(kubectl config current-context)
 echo "Context: ${CTX}"
-CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name=="'$CTX'")].context.cluster}')
+CLUSTER_NAME=$(kubectl config view -o jsonpath='{.contexts[?(@.name=="'"$CTX"'")].context.cluster}')
 echo "Resolved cluster: ${CLUSTER_NAME}"
-K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.server}')
+K8S_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.server}')
 echo "Server (host kubeconfig): ${K8S_SERVER}"
 SERVER_HOST=$(echo "$K8S_SERVER" | sed -E 's#https?://([^/:]+).*#\1#')
 K8S_PORT=$(echo "$K8S_SERVER" | sed -nE 's#.*:([0-9]+).*#\1#p')
 K8S_PORT=${K8S_PORT:-6443}
 echo "Parsed server host: ${SERVER_HOST}"
 echo "Parsed API port: ${K8S_PORT}"
-CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.certificate-authority-data}')
+CA_CERT=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.certificate-authority-data}')
 CA_SOURCE="embedded"
 if [ -z "$CA_CERT" ]; then
-  CA_FILE=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'$CLUSTER_NAME'")].cluster.certificate-authority}')
+  CA_FILE=$(kubectl config view --raw -o jsonpath='{.clusters[?(@.name=="'"$CLUSTER_NAME"'")].cluster.certificate-authority}')
   if [ -n "$CA_FILE" ] && [ -f "$CA_FILE" ]; then
     CA_CERT=$(base64 < "$CA_FILE" | tr -d '\n')
     CA_SOURCE="file: ${CA_FILE}"
@@ -250,8 +233,23 @@ if [ -z "$CA_CERT" ]; then
 fi
 echo "CA source: ${CA_SOURCE}"
 
-# Generate token
-TOKEN=$(kubectl create token integr8scode-sa -n default --duration=24h)
+# Non-expiring token: the backend containers load the kubeconfig once and never refresh it
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: integr8scode-sa-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: integr8scode-sa
+type: kubernetes.io/service-account-token
+EOF
+if ! kubectl wait --for=jsonpath='{.data.token}' secret/integr8scode-sa-token -n default --timeout=60s >/dev/null; then
+    echo "ERROR: the token controller did not fill secret integr8scode-sa-token"
+    exit 1
+fi
+TOKEN_B64=$(kubectl get secret integr8scode-sa-token -n default -o jsonpath='{.data.token}')
+TOKEN=$(printf %s "$TOKEN_B64" | base64 -d)
 TOKEN_LEN=$(printf %s "$TOKEN" | wc -c | awk '{print $1}')
 TOKEN_HEAD=$(printf %s "$TOKEN" | cut -c1-10)
 echo "ServiceAccount token acquired (len=${TOKEN_LEN}, head=${TOKEN_HEAD}...)"

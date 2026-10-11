@@ -5,7 +5,8 @@ FROM alpine:3.24
 ARG KUBECTL_VERSION=v1.37.1
 
 # Install required packages and tools for all architectures
-RUN apk add --no-cache ca-certificates curl dos2unix iproute2 netcat-openbsd openssl && \
+RUN apk upgrade --no-cache && \
+    apk add --no-cache ca-certificates curl dos2unix iproute2 netcat-openbsd openssl && \
     update-ca-certificates && \
     # Detect architecture and install appropriate binaries
     ARCH=$(uname -m); \
@@ -26,10 +27,6 @@ RUN mkdir -p /shared_ca
 COPY setup-k8s.sh /setup-k8s.sh
 COPY setup-certs.sh /setup-certs.sh
 RUN dos2unix /setup-k8s.sh /setup-certs.sh && chmod +x /setup-k8s.sh /setup-certs.sh
-
-# Add a health check script for CI debugging
-RUN echo '#!/bin/sh\necho "Cert Generator Health Check: OK"\n' > /health.sh && \
-    chmod +x /health.sh
 
 # Run both setup scripts (k8s setup failure must not block cert generation)
 ENTRYPOINT ["/bin/sh", "-c", "/setup-k8s.sh; /setup-certs.sh"]

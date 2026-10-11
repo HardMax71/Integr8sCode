@@ -1,87 +1,58 @@
-# Error handling
+# Frontend error handling
 
-The frontend uses a centralized error handling pattern built around two helpers: `unwrap` and `unwrapOr`. These work with the `{ data, error }` result structure returned by the generated API client.
+API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. Most call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. That works for `unwrapOr`. For `unwrap` inside an async event handler it currently goes wrong, see [below](#known-problem-unwrap-in-event-handlers). A few callers check `error` themselves instead: Settings.svelte, AdminSettings.svelte, the editor's script save and the rate limit modal in AdminUsers.svelte.
 
-## Why this exists
+## The interceptor
 
-The API client returns results in a discriminated union format where every call gives you `{ data, error }`. The naive approach leads to repetitive boilerplate scattered across every component:
+`initializeApiInterceptors()` runs once in main.ts. Its error interceptor logs every failed call and picks a toast by status:
 
 ```typescript
-const { data, error } = await someApiCall({});
-if (error) return;
-doSomething(data);
+--8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-This `if (error) return` pattern appeared 17+ times across admin panels and the editor. It's noisy, easy to forget, and obscures the actual logic. The helpers eliminate it while keeping the code readable.
+| Status             | What the user sees                                                       |
+|--------------------|--------------------------------------------------------------------------|
+| no response        | "Network error. Check your connection."                                  |
+| 401                | if logged in: "Session expired. Please log in again.", auth cleared, current path saved, redirect to `/login`; otherwise auth is cleared silently |
+| 403                | "Access denied."                                                         |
+| 422                | "Validation error: " plus the field errors                               |
+| 423                | a warning that the account is locked after too many failed logins        |
+| 429                | "Too many requests. Please slow down."                                   |
+| 500 and up         | "Server error. Please try again later."                                  |
+| anything else      | the `detail` from the response, or "An error occurred"                   |
 
-## How it works
+Calls to `/api/v1/auth/login` and `/api/v1/auth/register` get no toast for network errors or unmapped statuses, and a 401 from them leaves auth alone, because those pages show their own messages. 403, 422, 423, 429 and 5xx still toast there. A request that fails before it's sent gets no toast at all, and the error goes straight back to the caller.
 
-Both helpers live in `lib/api-interceptors.ts` alongside the centralized error interceptor that shows toast notifications for API failures.
+The request interceptor adds `X-CSRF-Token` from `authStore.csrfToken` to every non-GET request.
 
-`unwrap` extracts the data or throws if there's an error:
+## unwrap and unwrapOr
 
 ```typescript
+// throws the error, so nothing after it runs
 const data = unwrap(await listUsersApiV1AdminUsersGet({}));
-// data is guaranteed to exist here - if there was an error, we threw
-users = data;
+
+// returns the fallback instead
+const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({ body: filters }), null);
 ```
 
-When the API call fails, the interceptor has already shown a toast to the user. The throw stops the function execution - any code after `unwrap` only runs on success. The thrown error bubbles up as an unhandled rejection, gets logged to console, and that's it.
-
-`unwrapOr` returns a fallback value instead of throwing:
+`unwrapOr` suits loads where an empty state is fine. `unwrap` is for actions where the code after it assumes success. Reset loading flags before calling `unwrap`, since it may not return:
 
 ```typescript
-const data = unwrapOr(await listUsersApiV1AdminUsersGet({}), null);
-users = data ? data : [];
+savingUser = false;
+unwrap(result);
+showUserModal = false;   // only on success
 ```
 
-This is useful when you want to continue execution with a default value rather than bail out entirely. Common for load functions where an empty array is a reasonable fallback.
+`getErrorMessage(err, fallback)` turns an error into text: a string `detail`, formatted validation errors, or an `Error`'s message.
 
-## Choosing between them
+## Known problem: unwrap in event handlers
 
-Use `unwrap` when the function should stop on error. Delete operations, save operations, anything where subsequent code assumes success:
+An error from `unwrap` inside an async click handler is never caught. It becomes an unhandled rejection, and the global handler in main.ts passes it to `appError.setError()`. App.svelte renders `ErrorDisplay` ("Unexpected Error", with Reload and Go to Home buttons) instead of the whole app whenever `appError.current` is set. So a failed delete in the admin users page shows the toast and then replaces the page with the error screen. It's tracked in [#291](https://github.com/HardMax71/Integr8sCode/issues/291).
 
-```typescript
-async function deleteUser(): Promise<void> {
-    deletingUser = true;
-    const result = await deleteUserApiV1AdminUsersUserIdDelete({ path: { user_id } });
-    deletingUser = false;
-    unwrap(result);
-    // only runs if delete succeeded
-    await loadUsers();
-    showModal = false;
-}
-```
+`window.onerror` does the same for uncaught synchronous errors. If `App` fails to mount at all, main.ts mounts `ErrorDisplay` directly with the title "Failed to Load Application". `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
 
-Use `unwrapOr` when you can gracefully handle failure with a default. Load operations where showing an empty state is acceptable:
+In unit tests, vitest.setup.ts swallows unhandled rejections, so tests don't see this.
 
-```typescript
-async function loadEvents() {
-    loading = true;
-    const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({ body: filters }), null);
-    loading = false;
-    events = data?.events || [];
-}
-```
+## Login and register
 
-## Cleanup before unwrap
-
-If you need cleanup to run regardless of success or failure (like resetting a loading flag), do it before calling `unwrap`:
-
-```typescript
-async function saveRateLimits(): Promise<void> {
-    savingRateLimits = true;
-    const result = await updateRateLimitsApi({ body: config });
-    savingRateLimits = false;  // runs whether or not there's an error
-    unwrap(result);            // throws if error, stopping execution
-    showModal = false;         // only runs on success
-}
-```
-
-The pattern is: await the call, do cleanup, then unwrap. This keeps the loading state correct even when errors occur.
-
-## What happens on error
-
-The error interceptor in `api-interceptors.ts` handles user feedback. When an API call fails, it shows an appropriate toast based on the status code (401 redirects to login, 403 shows access denied, 422 formats validation errors, 423 warns about account lockout, 429 warns about rate limits, 5xx shows server error). By the time your component code sees the error, the user has already been notified.
-
-The `unwrap` throw becomes an unhandled promise rejection. The global handler in `main.ts` logs it to console and suppresses the default browser error. No error page, no duplicate notifications - just a clean exit from the function.
+Login.svelte and Register.svelte wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.

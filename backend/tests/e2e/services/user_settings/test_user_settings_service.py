@@ -2,16 +2,17 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from dishka import AsyncContainer
+
 from app.domain.enums import Theme
 from app.domain.user import (
     DomainEditorSettings,
     DomainNotificationSettings,
+    DomainSettingsHistoryEntry,
     DomainUserSettings,
     DomainUserSettingsUpdate,
 )
-from app.domain.user import DomainSettingsHistoryEntry
 from app.services.user_settings_service import UserSettingsService
-from dishka import AsyncContainer
 
 pytestmark = [pytest.mark.e2e, pytest.mark.mongodb, pytest.mark.kafka]
 
@@ -53,9 +54,7 @@ class TestGetUserSettings:
         assert settings1.theme == settings2.theme
 
     @pytest.mark.asyncio
-    async def test_get_user_settings_fresh_bypasses_cache(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_user_settings_fresh_bypasses_cache(self, scope: AsyncContainer) -> None:
         """get_user_settings_fresh bypasses cache."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -254,9 +253,7 @@ class TestUpdateEditorSettings:
         assert result.editor.tab_size == 4
 
     @pytest.mark.asyncio
-    async def test_update_editor_multiple_options(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_update_editor_multiple_options(self, scope: AsyncContainer) -> None:
         """Update multiple editor settings."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -310,9 +307,7 @@ class TestUpdateCustomSetting:
         assert result.custom_settings.get("beta_features") is True
 
     @pytest.mark.asyncio
-    async def test_update_multiple_custom_settings(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_update_multiple_custom_settings(self, scope: AsyncContainer) -> None:
         """Update multiple custom settings sequentially."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -340,9 +335,7 @@ class TestGetSettingsHistory:
         assert isinstance(history, list)
 
     @pytest.mark.asyncio
-    async def test_get_settings_history_after_updates(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_settings_history_after_updates(self, scope: AsyncContainer) -> None:
         """History contains entries after updates."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -360,9 +353,7 @@ class TestGetSettingsHistory:
             assert entry.timestamp is not None
 
     @pytest.mark.asyncio
-    async def test_get_settings_history_with_limit(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_get_settings_history_with_limit(self, scope: AsyncContainer) -> None:
         """History respects limit parameter and returns most recent entries."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -377,9 +368,9 @@ class TestGetSettingsHistory:
         assert isinstance(history, list)
         assert len(history) == 3, f"Expected 3 history entries, got {len(history)}"
 
-        # History returns oldest entries first (ascending order)
-        # The reason field contains the key info (e.g., "Custom setting 'key_0' updated")
-        expected_keys = ["key_0", "key_1", "key_2"]
+        # History returns the newest entries first
+        # The reason field contains the key info (e.g., "Custom setting 'key_4' updated")
+        expected_keys = ["key_4", "key_3", "key_2"]
         for i, entry in enumerate(history):
             assert isinstance(entry, DomainSettingsHistoryEntry)
             assert entry.reason is not None, f"Entry {i} should have a reason"
@@ -392,9 +383,7 @@ class TestRestoreSettingsToPoint:
     """Tests for restore_settings_to_point method."""
 
     @pytest.mark.asyncio
-    async def test_restore_settings_to_current_time(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_restore_settings_to_current_time(self, scope: AsyncContainer) -> None:
         """Restore to current time is effectively a no-op."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
@@ -439,26 +428,9 @@ class TestRestoreSettingsToPoint:
         assert restored.timezone == initial.timezone, (
             f"Restored timezone should match initial ({initial.timezone}), got {restored.timezone}"
         )
+        rebuilt = await svc.get_user_settings_fresh(user_id)
+        assert rebuilt.theme == initial.theme
 
-
-class TestCacheManagement:
-    """Tests for cache management methods."""
-
-    @pytest.mark.asyncio
-    async def test_invalidate_cache(self, scope: AsyncContainer) -> None:
-        """Invalidate cache for user."""
-        svc: UserSettingsService = await scope.get(UserSettingsService)
-        user_id = _unique_user_id()
-
-        # Cache settings
-        await svc.get_user_settings(user_id)
-
-        # Invalidate
-        await svc.invalidate_cache(user_id)
-
-        # Should still work (cache miss)
-        settings = await svc.get_user_settings(user_id)
-        assert settings.user_id == user_id
 
 class TestSettingsIntegration:
     """Integration tests for settings workflow."""
@@ -477,14 +449,10 @@ class TestSettingsIntegration:
         await svc.update_theme(user_id, Theme.DARK)
 
         # 3. Update editor settings
-        await svc.update_editor_settings(
-            user_id, DomainEditorSettings(tab_size=4, show_line_numbers=True)
-        )
+        await svc.update_editor_settings(user_id, DomainEditorSettings(tab_size=4, show_line_numbers=True))
 
         # 4. Update notification settings
-        await svc.update_notification_settings(
-            user_id, DomainNotificationSettings(execution_completed=True)
-        )
+        await svc.update_notification_settings(user_id, DomainNotificationSettings(execution_completed=True))
 
         # 5. Add custom setting
         await svc.update_custom_setting(user_id, "language", "en")
@@ -501,9 +469,7 @@ class TestSettingsIntegration:
         assert isinstance(history, list)
 
     @pytest.mark.asyncio
-    async def test_settings_isolation_between_users(
-        self, scope: AsyncContainer
-    ) -> None:
+    async def test_settings_isolation_between_users(self, scope: AsyncContainer) -> None:
         """Settings are isolated between users."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user1 = _unique_user_id()

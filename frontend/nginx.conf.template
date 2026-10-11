@@ -72,15 +72,12 @@ server {
             proxy_cache off;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
-
-            # Disable buffering for SSE
-            proxy_set_header X-Accel-Buffering no;
         }
         # --8<-- [end:sse_proxy]
     }
 
     # --8<-- [start:static_caching]
-    # Cache static assets (no add_header here — server-level security headers inherit)
+    # Cache static assets; no add_header here, so the server-level security headers still apply
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
     }
@@ -90,6 +87,10 @@ server {
         expires -1;
     }
     # --8<-- [end:static_caching]
+
+    location = /grafana {
+        return 302 ${GRAFANA_PUBLIC_URL};
+    }
 
     location / {
         try_files $uri $uri/ /index.html;

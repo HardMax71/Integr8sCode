@@ -1,85 +1,72 @@
 # Services overview
 
-This document explains what lives under `backend/app/services/`, what each service does, and how the separately deployed workers work end-to-end. It's written for engineers joining the project who want a fast mental model before reading code.
+This page maps `backend/app/services/` and the workers that run outside the API. Read it for a mental model before you open the code.
 
-## High-level architecture
+## The API's services
 
-The API (FastAPI) receives user requests for auth, execute, events, scripts, and settings. The Saga Orchestrator drives stateful execution via events, manages a Redis-backed execution queue with priority scheduling, and publishes commands to the K8s Worker. The K8s Worker builds and creates per-execution pods and supporting ConfigMaps with network isolation enforced at cluster level via Cilium policy. Pod Monitor watches K8s and translates pod phases and logs into domain events. Result Processor consumes completion/failure/timeout events, updates DB, and cleans resources. SSE Router fans execution events out to connected clients. DLQ Processor and Event Replay support reliability and investigations.
+Route handlers get these from Dishka. They hold the business logic, talk to MongoDB through repositories and publish events through `UnifiedProducer`.
 
-## Event streams
+| Module | What it does |
+|--------|--------------|
+| `auth_service.py`, `login_lockout.py` | Login, registration, the current user from the JWT cookie, lockout after repeated failed logins. See [Authentication](authentication.md). |
+| `execution_service.py` | The facade behind `/execute`. Checks the runtime registry, stores the execution, publishes `ExecutionRequestedEvent`, and publishes `ExecutionCancelledEvent` on cancel or delete. Handles the `Idempotency-Key` header. |
+| `execution_queue.py` | `ExecutionQueueService`, the Redis priority queue the saga orchestrator schedules from. See [Execution Queue](execution-queue.md). |
+| `saga/` | `SagaOrchestrator`, `ExecutionSaga` and its steps, and `SagaService`, the read side behind the saga routes with ownership checks. |
+| `event_service.py`, `kafka_event_service.py` | Reading stored events, and `KafkaEventService.publish_event`, a thin wrapper over `UnifiedProducer` that adds a span and metrics. |
+| `event_replay/` | `EventReplayService`, which re-publishes stored events for admins. |
+| `sse/` | `SSERedisBus` and `SSEService`. See [SSE](../components/sse/sse-architecture.md). |
+| `notification_service.py`, `notification_scheduler.py` | Notifications for finished executions, delivery, subscriptions, and the job that sends scheduled ones. |
+| `user_settings_service.py` | Settings stored as events with snapshots and a 5-minute in-process cache. See [User Settings Events](user-settings-events.md). |
+| `saved_script_service.py` | CRUD for saved scripts, scoped to the owner. |
+| `rate_limit_service.py` | Redis sliding window and token bucket limits per endpoint group. See [Rate Limiting](rate-limiting.md). |
+| `idempotency/` | `IdempotencyManager` and its Redis repository. See [Idempotency](idempotency.md). |
+| `runtime_settings.py` | `RuntimeSettingsLoader`, which reads the admin-set system settings from MongoDB, falls back to the TOML values and caches the result for 60 seconds. |
+| `admin/` | Admin services for users, executions, events and system settings. |
+| `k8s_worker/`, `pod_monitor/`, `result_processor/` | The services behind the workers of the same name. |
 
-EXECUTION_EVENTS carries lifecycle updates like queued, started, running, and cancelled. EXECUTION_COMPLETED, EXECUTION_FAILED, and EXECUTION_TIMEOUT are terminal states with outputs. SAGA_COMMANDS carries saga-to-worker commands for creating and deleting pods. DLQ holds dead-lettered messages for later processing. For more on topic design and event schemas, see [Kafka Topics](kafka-topic-architecture.md).
+The API process is a Kafka consumer too. Its lifespan registers two subscriber groups: `sse-bridge-pool` copies 17 execution, pod and result event types into Redis for SSE, and `notification-service` turns `execution_completed`, `execution_failed` and `execution_timeout` into notifications.
 
-## Execution pipeline services
+## Workers
 
-The saga/ module has ExecutionSaga which encodes the multi-step execution flow from receiving a request through creating a pod command, observing pod outcomes, and committing the result. The Saga Orchestrator subscribes to EXECUTION events, manages the Redis-backed execution queue via `ExecutionQueueService` for priority scheduling and per-user limits, reconstructs sagas, and issues SAGA_COMMANDS to the worker with goals of idempotency across restarts, clean compensation on failure, and avoiding duplicate side-effects.
+Each worker runs in its own container from the same backend image as the API, with a different command, for example `python workers/run_k8s_worker.py`. The entry points live in `backend/workers/`. Every subscriber is registered in `app/events/handlers.py`.
 
-The k8s_worker/ module runs worker.py, a long-running service that consumes SAGA_COMMANDS and creates per-execution resources including ConfigMaps for script and entrypoint, and Pod manifests with hardened security context. It no longer creates per-execution NetworkPolicies since network isolation is managed by a static Cilium policy in the target namespace, and it refuses to run in the default namespace to avoid policy gaps. The pod_builder.py produces ConfigMaps and V1Pod specs with non-root user, read-only root FS, all capabilities dropped, seccomp RuntimeDefault, DNS disabled, and no service links or tokens.
+| Worker | Consumes | Publishes |
+|--------|----------|-----------|
+| Saga orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` | `create_pod_command`, `delete_pod_command`, `saga_started`, `saga_cancelled` |
+| K8s worker | `create_pod_command`, `delete_pod_command` | `pod_created`, or `execution_failed` when pod creation fails |
+| Pod monitor | nothing, it watches the Kubernetes API | `pod_scheduled`, `pod_running`, `pod_terminated`, `execution_completed`, `execution_failed`, `execution_timeout` |
+| Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `result_stored`, or `result_failed` when storing fails |
+| Event replay | nothing | nothing, it only cleans up old sessions |
+| DLQ processor | nothing | retried events and `dlq_message_retried` |
 
-The pod_monitor/ module has monitor.py and event_mapper.py which watch K8s Pod/Container status, map them into domain events with helpful metadata like exit codes, failure reasons, and stdout/stderr slices, then publish into EXECUTION_EVENTS. This decouples what the cluster did from what the system emits so clients always see consistent event shapes. See [Pod Monitor](../components/workers/pod_monitor.md) for details.
+The saga orchestrator puts each request into the execution queue and runs the saga once a slot is free. The saga steps are `validate_execution`, `allocate_resources` and `create_pod`; the last one publishes the pod command. If a step fails, the compensations of the steps that already ran go in reverse order: `delete_pod` publishes `delete_pod_command` and `release_resources` frees the allocation. Terminal execution events mark the saga done and release the queue slot. `execution_cancelled` takes a queued request out of the queue and marks the saga cancelled, but it doesn't delete a pod that is already running. Two APScheduler jobs run next to the consumers: `check_timeouts` every 30 seconds and `try_schedule_from_queue` every 10 seconds.
 
-The result_processor/ module runs processor.py which consumes terminal events, persists results, normalizes error types, and always records metrics by error type. See [Result Processor](../components/workers/result_processor.md) for details.
+The k8s worker creates a ConfigMap holding the script and the entrypoint, then the pod, then sets the pod as the ConfigMap's owner so Kubernetes deletes both together. The pod runs as user 1000 with a read-only root filesystem, all capabilities dropped, seccomp `RuntimeDefault`, no service account token, no service links and no host namespaces. The worker refuses to start if `K8S_NAMESPACE` is `default`.
 
-## Event and streaming services
+The pod monitor lists and then watches pods labelled `app=integr8s,component=executor`. Each watch window lasts up to 30 seconds, and an APScheduler job checks every 5 seconds and opens the next one once the last has ended. It maps pod phases to events, reads the exit code, resource usage and output from the termination message and logs, and deletes the pod once it has published a terminal execution event. Deleting the pod frees the Kueue quota for the next one.
 
-The sse/ module contains sse_service.py and redis_bus.py which manage SSE connections and Redis pub/sub for streaming events to browser clients. The SSE service subscribes to Redis channels keyed by execution ID and streams events to connected browsers. See [SSE Architecture](../components/sse/sse-architecture.md) for details.
+The result processor writes the final status, output and resource usage to MongoDB and records execution metrics. It doesn't touch Kubernetes.
 
-The execution_service.py is the facade used by API routes. It validates script/lang/version, consults the runtime registry, constructs idempotent requests, and emits initial queued/requested events.
+The event-replay container only runs `cleanup_old_sessions` every 6 hours. Replay sessions themselves run inside the API process, which owns the `EventReplayService` the admin routes use.
 
-The event_service.py and kafka_event_service.py handle read/write of events in a uniform way with mappers. kafka_event_service centralizes production including headers and error handling.
+The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic. Nothing writes to that collection today, so it has nothing to retry ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). See [Dead Letter Queue](../components/dead-letter-queue.md).
 
-The replay_service.py and event_replay/ provide tools and workers for replaying historical events into the system to debug, recompute state, or backfill projections.
+## Idempotent consumers
 
-## User-facing services
+Three consumers wrap their handler in `with_idempotency` from `app/events/handlers.py`, which reserves a key in Redis, runs the handler and marks the key completed or failed. A duplicate delivery finds the key and is skipped.
 
-The notification_service.py sends and stores notifications, exposes subscription management, and integrates with metrics and optional channels like webhook and Slack with delivery measurements and retries. See [Notification Types](../operations/notification-types.md) for the notification model.
+| Consumer | Key strategy | TTL |
+|----------|--------------|-----|
+| Saga orchestrator, `execution_requested` | `EVENT_BASED` | 1 hour |
+| K8s worker, both commands | `CONTENT_HASH` | 1 hour |
+| Result processor, all three events | `CONTENT_HASH` | 2 hours |
 
-The user_settings_service.py provides CRUD plus event-sourced history for user settings with a small in-proc cache and TypeAdapter-based merging. See [User Settings Events](user-settings-events.md) for the event sourcing pattern.
+`EVENT_BASED` keys on event type and ID, so it catches a redelivered message. `CONTENT_HASH` hashes the event without its ID, timestamp and metadata, so it also catches the same command published twice. When a caller doesn't pass a strategy, `IdempotencyManager.check_and_reserve` uses `EVENT_BASED`.
 
-The saved_script_service.py handles CRUD for saved scripts with ownership checks and validations, integrating with the API for run-saved-script flows.
+## Network isolation
 
-## Infrastructure services
+The k8s worker owns the executor network policy and is the only thing that sets it. At startup `ensure_namespace_security` applies a NetworkPolicy named `executor-deny-all` that selects pods labelled `component=executor` and allows no ingress and no egress. The same call labels the namespace with the Pod Security Admission `restricted` profile for enforce, warn and audit. Then `ensure_image_pre_puller_daemonset` applies the `runtime-image-pre-puller` DaemonSet, which pulls every runtime image onto each node. The worker doesn't wait for those pulls, so an execution that arrives first can still hit a cold image pull.
 
-The rate_limit_service.py is a Redis-backed sliding window / token bucket implementation with dynamic configuration per endpoint group, user overrides, and IP fallback. It has a safe failure mode (fail open) with explicit metrics when Redis is unavailable.
+A NetworkPolicy does nothing unless the cluster's network plugin enforces it, so check that before you rely on it. See [Security Policies](../security/policies.md).
 
-The idempotency/ module provides `IdempotentEventDispatcher`, a subclass of `EventDispatcher` that wraps every registered handler with duplicate detection via content-hash or event-based keys. DI providers create this dispatcher for services consuming Kafka events (saga orchestrator, k8s worker, result processor).
-
-The saga_service.py provides read-model access for saga state and guardrails like enforcing access control on saga inspection routes.
-
-## Deployed workers
-
-These services run outside the API container for isolation and horizontal scaling. Each has a small run_*.py entry and a dedicated Dockerfile in backend/workers/.
-
-The Saga Orchestrator is a stateful choreographer for execution lifecycle. It subscribes to EXECUTION_EVENTS and internal saga topics, manages the Redis-backed execution queue via `ExecutionQueueService` for priority scheduling and per-user limits, publishes SAGA_COMMANDS (CreatePodCommandEvent, DeletePodCommandEvent), rebuilds saga state from events, and issues commands only when transitions are valid and not yet executed. On failures, timeouts, or cancellations it publishes compensating commands and finalizes the saga.
-
-The K8s Worker materializes saga commands into K8s resources. It consumes SAGA_COMMANDS and creates ConfigMap (script, entrypoint) and Pod (hardened), relying on CiliumNetworkPolicy deny-all applied to the namespace rather than per-exec policies. Pod spec disables DNS, drops caps, runs non-root, no SA token. It publishes PodCreated and ExecutionStarted events, or errors when creation fails.
-
-The Result Processor persists terminal execution outcomes and updates metrics. It consumes EXECUTION_COMPLETED, EXECUTION_FAILED, EXECUTION_TIMEOUT, writes DB records for status, outputs, errors, and usage, and records metrics for errors by type and durations. Kubernetes resource cleanup (pods and ConfigMaps) is handled automatically via ownerReference — the ConfigMap is owned by the pod, so K8s garbage-collects both when the pod is deleted (by saga compensation or manual cleanup).
-
-The Pod Monitor observes K8s pod state and translates to domain events. It watches CoreV1 Pod events and publishes EXECUTION_EVENTS for running, container started, logs tail, etc., adding useful metadata and best-effort failure analysis.
-
-The Event Replay worker re-emits stored events to debug or rebuild projections, taking DB/event store and filters as inputs and outputting replayed events on regular topics with provenance markers.
-
-The DLQ Processor retries dead-lettered messages with backoff and visibility. Failed messages are persisted directly to MongoDB (no DLQ Kafka topic). The processor is APScheduler-based, periodically checking for retryable messages and republishing them via a manually started broker. See [Dead Letter Queue](../components/dead-letter-queue.md) for more on DLQ handling.
-
-## Operational notes
-
-The worker refuses to run in the default namespace. Use the setup script to apply the Cilium policy in a dedicated namespace and run the worker there. Apply `backend/k8s/policies/executor-deny-all-cnp.yaml` or use `scripts/setup_k8s.sh <namespace>`. All executor pods are labeled `app=integr8s, component=executor` and are covered by the static deny-all policy. See [Security Policies](../security/policies.md) for details on network isolation.
-
-Sagas and consumers use content-hash keys by default to avoid duplicates on restarts. The saga orchestrator centralizes queue depth metrics via `ExecutionQueueService`, Result Processor normalizes error types, and Rate Limit service emits rich diagnostics even when disabled.
-
-## Common flows
-
-The main execution flow goes: User → API → Saga Orchestrator → K8s Worker → Pod → Pod Monitor → Result Processor. See [Lifecycle](lifecycle.md) for the full execution state machine.
-
-For executing a script, a POST to `/api/v1/execute` triggers validation and publishes EXECUTION_REQUESTED. The Saga Orchestrator enqueues it in the Redis-backed priority queue and issues CreatePodCommandEvent, the Worker creates ConfigMap and Pod, Pod Monitor emits running/progress events, and Result Processor persists the outcome and triggers cleanup on completion, failure, or timeout.
-
-For SSE streams, the client opens a connection and the SSE service subscribes to a Redis pub/sub channel keyed by execution ID, forwarding published events to the browser as SSE frames.
-
-## Troubleshooting
-
-If you still see TCP egress, ensure Cilium is installed and the CNP is applied in the same namespace. The code no longer creates per-execution NetworkPolicies and expects cluster-level enforcement.
-
-If you see 422/405 in load tests, that's the monkey test fuzzing invalid or wrong endpoints. Use `--mode user` for clean runs.
-
-If you get 599 in load tests, those are client timeouts due to saturation. Scale with Gunicorn workers (WEB_CONCURRENCY) and avoid TLS during load if acceptable.
+For how each process starts and stops, see [Service Lifecycle](lifecycle.md).

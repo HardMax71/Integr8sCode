@@ -13,8 +13,8 @@ RUN npm run build
 # Production stage
 FROM nginx:1.31-alpine
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+# Upgrade the base image's packages to pick up fixes newer than the image, and add curl for the healthcheck
+RUN apk upgrade --no-cache && apk add --no-cache curl
 
 # Copy built static files
 COPY --from=builder /app/public /usr/share/nginx/html
@@ -23,6 +23,7 @@ COPY --from=builder /app/public /usr/share/nginx/html
 # The nginx image automatically processes /etc/nginx/templates/*.template
 # and outputs to /etc/nginx/conf.d/ with the .template suffix removed
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV GRAFANA_PUBLIC_URL=http://localhost:3000/
 
 # Create writable directories for nginx (required for read-only root filesystem)
 # and certs directory for TLS certificates mounted at runtime

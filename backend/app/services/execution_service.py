@@ -8,7 +8,7 @@ from pydantic import TypeAdapter
 
 from app.core.metrics import ExecutionMetrics
 from app.db import ExecutionRepository
-from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority
+from app.domain.enums import CancelStatus, EventType, ExecutionStatus, QueuePriority, UserRole
 from app.domain.events import (
     BaseEvent,
     EventMetadata,
@@ -20,14 +20,18 @@ from app.domain.execution import (
     CancelResult,
     DomainExecution,
     DomainExecutionCreate,
+    ExecutionAccessDeniedError,
     ExecutionNotFoundError,
+    ExecutionNotRetryableError,
     ExecutionResultDomain,
     ExecutionTerminalError,
     ResourceLimitsDomain,
+    RuntimeNotSupportedError,
 )
 from app.domain.idempotency import IdempotencyStatus, KeyStrategy
+from app.domain.user import User
 from app.events import UnifiedProducer
-from app.runtime_registry import RUNTIME_REGISTRY
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
 from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
@@ -64,13 +68,15 @@ class ExecutionService:
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
+        runtimes = self.settings.SUPPORTED_RUNTIMES
         return ResourceLimitsDomain(
             cpu_limit=effective.cpu_limit,
             memory_limit=effective.memory_limit,
             cpu_request=self.settings.K8S_POD_CPU_REQUEST,
             memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
             execution_timeout=effective.max_timeout_seconds,
-            supported_runtimes=self.settings.SUPPORTED_RUNTIMES,
+            supported_runtimes=runtimes,
+            language_limits={lang: await self._runtime_settings.get_language_limits(lang) for lang in runtimes},
         )
 
     async def get_example_scripts(self) -> dict[str, str]:
@@ -89,8 +95,8 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        lang: str = "python",
-        lang_version: str = "3.11",
+        lang: str = DEFAULT_LANG,
+        lang_version: str = DEFAULT_LANG_VERSION,
         priority: QueuePriority = QueuePriority.NORMAL,
     ) -> DomainExecution:
         """
@@ -107,7 +113,8 @@ class ExecutionService:
             DomainExecution record with queued status.
 
         Raises:
-            InfrastructureError: If validation fails or event publishing fails.
+            RuntimeNotSupportedError: If the language version is not offered.
+            InfrastructureError: If event publishing fails.
         """
         lang_and_version = f"{lang}-{lang_version}"
         start_time = time()
@@ -121,75 +128,74 @@ class ExecutionService:
             priority=priority,
         )
 
-        runtime_cfg = RUNTIME_REGISTRY[lang][lang_version]
+        runtime_cfg = RUNTIME_REGISTRY.get(lang, {}).get(lang_version)
+        if runtime_cfg is None:
+            self.logger.warning("Runtime not supported", lang=lang, lang_version=lang_version)
+            raise RuntimeNotSupportedError(lang, lang_version)
 
-        self.metrics.increment_active_executions()
-        try:
-            # Create execution record
-            created_execution = await self.execution_repo.create_execution(
-                DomainExecutionCreate(
-                    script=script,
-                    lang=lang,
-                    lang_version=lang_version,
-                    user_id=user_id,
-                )
-            )
-
-            self.logger.info(
-                "Created execution record",
-                execution_id=created_execution.execution_id,
+        # Create execution record
+        created_execution = await self.execution_repo.create_execution(
+            DomainExecutionCreate(
+                script=script,
                 lang=lang,
                 lang_version=lang_version,
                 user_id=user_id,
-                script_length=len(script),
             )
+        )
 
-            # Metadata and event — use admin-configurable limits
-            metadata = self._create_event_metadata(user_id=user_id)
-            effective = await self._runtime_settings.get_effective_settings()
-            event = ExecutionRequestedEvent(
-                execution_id=created_execution.execution_id,
-                aggregate_id=created_execution.execution_id,
-                script=script,
-                language=lang,
-                language_version=lang_version,
-                runtime_image=runtime_cfg.image,
-                runtime_command=runtime_cfg.command,
-                runtime_filename=runtime_cfg.file_name,
-                timeout_seconds=effective.max_timeout_seconds,
-                cpu_limit=effective.cpu_limit,
-                memory_limit=effective.memory_limit,
-                cpu_request=self.settings.K8S_POD_CPU_REQUEST,
-                memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
-                priority=priority,
-                metadata=metadata,
+        self.logger.info(
+            "Created execution record",
+            execution_id=created_execution.execution_id,
+            lang=lang,
+            lang_version=lang_version,
+            user_id=user_id,
+            script_length=len(script),
+        )
+
+        # Metadata and event, with admin-configurable limits
+        metadata = self._create_event_metadata(user_id=user_id)
+        effective = await self._runtime_settings.get_effective_settings()
+        event = ExecutionRequestedEvent(
+            execution_id=created_execution.execution_id,
+            aggregate_id=created_execution.execution_id,
+            script=script,
+            language=lang,
+            language_version=lang_version,
+            runtime_image=runtime_cfg.image,
+            runtime_command=runtime_cfg.command,
+            runtime_filename=runtime_cfg.file_name,
+            timeout_seconds=effective.max_timeout_seconds,
+            cpu_limit=effective.cpu_limit,
+            memory_limit=effective.memory_limit,
+            cpu_request=self.settings.K8S_POD_CPU_REQUEST,
+            memory_request=self.settings.K8S_POD_MEMORY_REQUEST,
+            priority=priority,
+            metadata=metadata,
+        )
+
+        # Publish to Kafka; on failure, mark error and raise
+        try:
+            await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
+        except Exception as e:  # pragma: no cover - mapped behavior
+            self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
+            self.metrics.record_error(type(e).__name__)
+            await self._update_execution_error(
+                created_execution.execution_id,
+                f"Failed to submit execution: {e}",
             )
+            raise InfrastructureError("Failed to submit execution request") from e
 
-            # Publish to Kafka; on failure, mark error and raise
-            try:
-                await self.producer.produce(event_to_produce=event, key=created_execution.execution_id)
-            except Exception as e:  # pragma: no cover - mapped behavior
-                self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
-                self.metrics.record_error(type(e).__name__)
-                await self._update_execution_error(
-                    created_execution.execution_id,
-                    f"Failed to submit execution: {e}",
-                )
-                raise InfrastructureError("Failed to submit execution request") from e
-
-            # Success metrics and return
-            duration = time() - start_time
-            self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
-            self.metrics.record_queue_wait_time(duration, lang_and_version)
-            self.logger.info(
-                "Script execution submitted successfully",
-                execution_id=created_execution.execution_id,
-                status=created_execution.status,
-                duration_seconds=duration,
-            )
-            return created_execution
-        finally:
-            self.metrics.decrement_active_executions()
+        # Success metrics and return
+        duration = time() - start_time
+        self.metrics.record_script_execution(ExecutionStatus.QUEUED, lang_and_version)
+        self.metrics.record_submission_duration(duration, lang_and_version)
+        self.logger.info(
+            "Script execution submitted successfully",
+            execution_id=created_execution.execution_id,
+            status=created_execution.status,
+            duration_seconds=duration,
+        )
+        return created_execution
 
     async def cancel_execution(
         self,
@@ -252,8 +258,8 @@ class ExecutionService:
         script: str,
         user_id: str,
         *,
-        lang: str = "python",
-        lang_version: str = "3.11",
+        lang: str = DEFAULT_LANG,
+        lang_version: str = DEFAULT_LANG_VERSION,
         idempotency_key: str | None = None,
     ) -> DomainExecution:
         """
@@ -319,24 +325,21 @@ class ExecutionService:
                 lang_version=lang_version,
                 user_id=user_id,
             )
-
-            await self.idempotency_manager.mark_completed_with_json(
+        except Exception:
+            await self.idempotency_manager.release(
                 event=pseudo_event,
-                cached_json=_exec_adapter.dump_json(exec_result).decode(),
-                key_strategy=KeyStrategy.CUSTOM,
-                custom_key=custom_key,
-            )
-
-            return exec_result
-
-        except Exception as e:
-            await self.idempotency_manager.mark_failed(
-                event=pseudo_event,
-                error=str(e),
                 key_strategy=KeyStrategy.CUSTOM,
                 custom_key=custom_key,
             )
             raise
+
+        await self.idempotency_manager.mark_completed_with_json(
+            event=pseudo_event,
+            cached_json=_exec_adapter.dump_json(exec_result).decode(),
+            key_strategy=KeyStrategy.CUSTOM,
+            custom_key=custom_key,
+        )
+        return exec_result
 
     async def _update_execution_error(self, execution_id: str, error_message: str) -> None:
         result = ExecutionResultDomain(
@@ -385,6 +388,54 @@ class ExecutionService:
 
         return execution
 
+    async def get_execution_for_user(self, execution_id: str, user: User) -> DomainExecution:
+        """
+        Get an execution the user is allowed to see: their own, or any if they are an admin.
+
+        Args:
+            execution_id: UUID of the execution.
+            user: User requesting access.
+
+        Returns:
+            Current execution state.
+
+        Raises:
+            ExecutionNotFoundError: If execution not found.
+            ExecutionAccessDeniedError: If the execution belongs to another user.
+        """
+        execution = await self.get_execution_result(execution_id)
+        if execution.user_id != user.user_id and user.role != UserRole.ADMIN:
+            self.logger.warning("Execution access denied", execution_id=execution_id, user_id=user.user_id)
+            raise ExecutionAccessDeniedError(execution_id)
+        return execution
+
+    async def retry_execution(self, execution_id: str, user: User) -> DomainExecution:
+        """
+        Re-run an execution's script as a new execution owned by the requesting user.
+
+        Args:
+            execution_id: UUID of the execution to retry.
+            user: User requesting the retry.
+
+        Returns:
+            The new execution record with queued status.
+
+        Raises:
+            ExecutionNotFoundError: If execution not found.
+            ExecutionAccessDeniedError: If the execution belongs to another user.
+            ExecutionNotRetryableError: If the execution hasn't finished yet.
+            RuntimeNotSupportedError: If the execution's language version is no longer offered.
+        """
+        original = await self.get_execution_for_user(execution_id, user)
+        if not original.status.is_terminal:
+            raise ExecutionNotRetryableError(execution_id, original.status)
+        return await self.execute_script(
+            script=original.script,
+            lang=original.lang,
+            lang_version=original.lang_version,
+            user_id=user.user_id,
+        )
+
     async def get_user_executions(
         self,
         user_id: str,
@@ -417,7 +468,8 @@ class ExecutionService:
         )
 
         self.logger.debug(
-            f"Retrieved {len(executions)} executions for user",
+            "Retrieved executions for user",
+            count=len(executions),
             user_id=user_id,
             filters={k: v for k, v in query.items() if k != "user_id"},
             limit=limit,
@@ -517,7 +569,7 @@ class ExecutionService:
         """Publish cancellation event for a deleted execution.
 
         Uses ExecutionCancelledEvent because no dedicated deletion event type
-        exists yet — the saga orchestrator treats both the same way.
+        exists yet. The saga orchestrator treats both the same way.
         """
         metadata = self._create_event_metadata(user_id=user_id)
 

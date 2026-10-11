@@ -26,7 +26,7 @@ def _parse_iso_datetime(v: str | None) -> datetime | None:
         return None
     try:
         return datetime.fromisoformat(v.replace("Z", "+00:00"))
-    except Exception:
+    except ValueError:
         return None
 
 
@@ -87,7 +87,7 @@ class RedisIdempotencyRepository:
             return None
         try:
             doc: dict[str, Any] = json.loads(raw)
-        except Exception:
+        except json.JSONDecodeError:
             return None
         return self._doc_to_record(doc)
 
@@ -120,3 +120,6 @@ class RedisIdempotencyRepository:
         else:
             await self._r.set(k, payload)
         return 1
+
+    async def delete_key(self, key: str) -> int:
+        return int(await self._r.delete(self._full_key(key)))

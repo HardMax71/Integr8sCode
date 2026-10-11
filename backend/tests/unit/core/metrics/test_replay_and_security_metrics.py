@@ -1,4 +1,7 @@
+from unittest.mock import MagicMock
+
 import pytest
+
 from app.core.metrics import ReplayMetrics, SecurityMetrics
 from app.settings import Settings
 
@@ -9,14 +12,12 @@ def test_replay_metrics_methods(test_settings: Settings) -> None:
     """Test ReplayMetrics methods with no-op metrics."""
     m = ReplayMetrics(test_settings)
     m.record_session_created("by_id", "kafka")
-    m.update_active_replays(2)
     m.increment_active_replays()
     m.decrement_active_replays()
-    m.record_events_replayed("by_id", "etype", "success", 3)
-    m.record_event_replayed("by_id", "etype", "failed")
+    m.record_event_replayed("by_id", "etype", True)
+    m.record_event_replayed("by_id", "etype", False)
     m.record_replay_duration(2.0, "by_id", total_events=4)
     m.record_event_processing_time(0.1, "etype")
-    m.record_replay_error("timeout", "by_id")
     m.record_status_change("s1", "running", "completed")
     m.update_sessions_by_status("running", -1)
     m.record_replay_by_target("kafka", True)
@@ -31,18 +32,26 @@ def test_replay_metrics_methods(test_settings: Settings) -> None:
 def test_security_metrics_methods(test_settings: Settings) -> None:
     """Test SecurityMetrics methods with no-op metrics."""
     m = SecurityMetrics(test_settings)
-    m.record_authentication_attempt("password", False, 0.2)
     with m.track_authentication("password"):
         pass
-    m.increment_active_sessions()
-    m.decrement_active_sessions()
-    m.record_token_generated("access", 3600)
-    m.record_token_revoked("access", "logout")
-    m.record_token_validation_failure("access", "expired")
+    m.record_token_validation_failure("expired")
     m.record_authorization_check("/admin", "GET", False, user_role="user")
-    m.record_csrf_token_generated()
     m.record_csrf_validation_failure("missing")
     m.record_password_reset_request(method="admin")
     m.record_weak_password_attempt("common_password")
-    m.record_brute_force_attempt("1.2.3.4", target_user="u1", action_taken="blocked")
-    m.record_account_locked("brute_force", duration_seconds=600)
+    m.record_brute_force_attempt()
+    m.record_account_locked("brute_force")
+
+
+def test_track_authentication_counts_a_raised_login_as_failure(test_settings: Settings) -> None:
+    m = SecurityMetrics(test_settings)
+    m.authentication_attempts = MagicMock()
+    m.authentication_failures = MagicMock()
+    m.authentication_duration = MagicMock()
+
+    with pytest.raises(ValueError), m.track_authentication("login"):
+        raise ValueError("bad password")
+
+    m.authentication_attempts.add.assert_called_once_with(1, attributes={"method": "login", "success": "False"})
+    m.authentication_failures.add.assert_called_once_with(1, attributes={"method": "login"})
+    m.authentication_duration.record.assert_called_once()

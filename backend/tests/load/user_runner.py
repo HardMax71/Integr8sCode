@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from .config import LoadConfig
 from .http_client import APIClient, APIUser
@@ -37,7 +36,7 @@ async def _flow_execute_and_get_result(c: APIClient) -> None:
             r = await c.result(exec_id)
             if r.status_code == 200 and r.headers.get("content-type", "").startswith("application/json"):
                 try:
-                    if r.json().get("status") in ("completed", "failed", "timeout", "cancelled"):
+                    if r.json().get("status") in ("completed", "failed", "timeout", "cancelled", "error"):
                         break
                 except Exception:
                     pass
@@ -45,20 +44,12 @@ async def _flow_execute_and_get_result(c: APIClient) -> None:
 
 
 async def _flow_events_and_history(c: APIClient) -> None:
-    # Fetch a random execution id from events (if any)
-    r = await c._request("GET", c.cfg.api("/events/user?limit=10"))
-    exec_id = None
-    try:
-        data = r.json()
-        for ev in data.get("events", []):
-            agg = ev.get("aggregate_id")
-            if agg:
-                exec_id = agg
-                break
-    except Exception:
-        pass
-    if exec_id:
-        await c.execution_events(exec_id)
+    r = await c.user_executions(limit=10)
+    if r.status_code != 200:
+        return
+    executions = r.json().get("executions", [])
+    if executions:
+        await c.execution_events(random.choice(executions)["execution_id"])
 
 
 async def _flow_saved_scripts(c: APIClient) -> None:

@@ -114,7 +114,7 @@
       "id": 3,
       "targets": [
         {
-          "expr": "http_requests_active_requests or vector(0)",
+          "expr": "sum(http_requests_active) or vector(0)",
           "refId": "A",
           "datasource": "Victoria Metrics"
         }
@@ -184,12 +184,18 @@
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(idempotency_processing_duration_seconds_bucket[5m])) by (le)) or vector(0)",
-          "legendFormat": "p95",
+          "legendFormat": "Reserve to completion",
           "refId": "A",
+          "datasource": "Victoria Metrics"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(idempotency_check_duration_seconds_bucket[5m])) by (le)) or vector(0)",
+          "legendFormat": "Key check",
+          "refId": "B",
           "datasource": "Victoria Metrics"
         }
       ],
-      "title": "Idempotency Processing Duration",
+      "title": "Idempotency Duration (p95)",
       "type": "timeseries"
     },
     {
@@ -260,7 +266,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 36
       },
@@ -279,13 +285,37 @@
       "datasource": "Victoria Metrics",
       "fieldConfig": {
         "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      },
+      "id": 104,
+      "targets": [
+        {
+          "expr": "max(system_memory_bytes{type=\"used\"}) or vector(0)",
+          "refId": "A",
+          "datasource": "Victoria Metrics"
+        }
+      ],
+      "title": "Host Memory Used",
+      "type": "stat"
+    },
+    {
+      "datasource": "Victoria Metrics",
+      "fieldConfig": {
+        "defaults": {
           "unit": "short"
         }
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 36
       },
       "id": 12,

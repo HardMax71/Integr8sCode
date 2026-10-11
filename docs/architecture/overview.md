@@ -1,28 +1,28 @@
 # Architecture overview
 
-Integr8sCode lets users submit code in multiple languages (Python, JavaScript, TypeScript, Ruby, Go) through a Svelte SPA. The FastAPI backend validates requests, publishes events to Kafka, and streams results back via SSE. Kafka workers coordinate isolated Kubernetes pods that run the code, collect results into MongoDB, and push them through Redis pub/sub so any API instance can deliver them over SSE.
+Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its own short-lived Kubernetes pod. A Svelte SPA submits the script to a FastAPI backend. The backend stores the execution, publishes an event to Kafka and returns right away. Workers pick the event up, run the pod and store the result, and the browser follows progress over SSE.
 
 <div class="grid cards" markdown>
 
 -   :material-layers-outline:{ .lg .middle } **[Middleware](middleware.md)**
 
-    Request processing pipeline — CORS, metrics, rate limiting, CSRF, size limits
+    The seven layers every request passes through before it reaches a route
 
 -   :material-cog-outline:{ .lg .middle } **[Services](services-overview.md)**
 
-    Business logic — execution, notifications, SSE, idempotency, saved scripts
+    What lives in `backend/app/services/` and what each worker consumes and publishes
 
 -   :material-transit-connection-variant:{ .lg .middle } **[Kafka Topics](kafka-topic-architecture.md)**
 
-    Event-driven backbone — topic layout, producers, consumers, event store
+    One topic per event type, consumer groups, replay and the DLQ
 
 -   :material-broadcast:{ .lg .middle } **[SSE](../components/sse/sse-architecture.md)**
 
-    Real-time streaming — Redis pub/sub fan-out, partitioned routing
+    How Kafka events reach the browser through Redis pub/sub
 
 -   :material-robot-industrial-outline:{ .lg .middle } **[Workers](../components/workers/index.md)**
 
-    Background processes — K8s, pod monitor, result processor, saga, DLQ, event replay
+    The six background processes that run next to the API
 
 </div>
 
@@ -30,15 +30,11 @@ Integr8sCode lets users submit code in multiple languages (Python, JavaScript, T
 
 ![System diagram](/assets/images/system_diagram.svg)
 
-The SPA hits the frontend, which proxies to the API over HTTPS; the API
-serves both REST and SSE. Kafka carries events as JSON (serialized by FastStream) using KRaft for metadata consensus; kafka-
-init seeds topics. All workers are separate containers subscribed to Kafka; the k8s-worker talks to the
-Kubernetes API to run code, the pod-monitor watches pods, the result-processor writes results to Mongo
-and nudges Redis for SSE fanout, and the saga-orchestrator coordinates long flows with Mongo and Redis.
-Traces and metrics from every service go to the OpenTelemetry Collector, which exports traces to Jaeger
-and metrics to VictoriaMetrics; Grafana reads from VictoriaMetrics, and Kafdrop gives you a quick Kafka
-UI. The cert generator and shared CA provide TLS for frontend and backend and help bootstrap kube access.
+The browser loads the SPA from the frontend container, an nginx on port 5001 that also proxies `/api` to the backend over HTTPS. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
 
+Every worker is a separate container built from the same backend image with a different command. The k8s-worker creates pods through the Kubernetes API, the pod-monitor watches them, the result-processor writes results to MongoDB, and the saga-orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. The dlq-processor and event-replay containers round it out.
+
+The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. The cert-generator creates TLS certificates for the frontend and backend from a shared CA, and it also prepares the cluster: it creates the `integr8scode` namespace, installs Kueue, sets up a service account with RBAC and writes the kubeconfig the backend containers use.
 
 ## Backend wiring
 
@@ -71,14 +67,15 @@ graph TD
 ```
 
 ??? note "Legend"
-    - **Middlewares**: CORS, Metrics, RateLimit, CSRF, RequestSizeLimit, CacheControl
-    - **Routes + DI**: REST and SSE endpoints wired by Dishka
-    - **Services**: Execution, Events, SSE, Idempotency, Notifications, User Settings, Rate Limit, Saved Scripts, Replay, Saga API
-    - **Kafka Layer**: UnifiedProducer, FastStream subscribers, EventRepository
-    - **Observability**: OTel Collector → VictoriaMetrics (metrics) + Jaeger (traces)
+    - Middlewares, outermost first: CORS, CacheControl, SecurityHeaders, RequestSizeLimit, CSRF, RateLimit, Metrics
+    - Routes + DI: REST and SSE endpoints, with services injected by Dishka
+    - Services: auth, execution, events, SSE, idempotency, notifications, user settings, rate limits, saved scripts, replay, sagas, admin
+    - Kafka layer: `UnifiedProducer` on the way out, FastStream subscribers on the way in
+    - Observability: the OTel Collector, which forwards to VictoriaMetrics, Jaeger and Loki
 
-FastAPI under Uvicorn exposes REST and SSE routes. Requests pass through six middleware layers before reaching Dishka-wired route handlers that call services. Services use Mongo-backed repositories for state and a unified Kafka layer to publish and consume events. Redis handles rate limiting and SSE fanout. Workers are separate processes shown in the system diagram above.
+A request passes through seven middlewares before it reaches a route handler. Handlers get their services from Dishka, services read and write MongoDB through repositories, and the event-driven flows (executions, auth, user settings, notifications) publish events through `UnifiedProducer`, which stores the event in MongoDB first and then sends it to Kafka. Saved scripts and admin changes to users and system settings write to MongoDB without an event. Redis holds rate limit counters, idempotency keys, the execution queue and the SSE pub/sub channels.
 
+The API process also consumes Kafka. On startup it registers two subscriber groups: `sse-bridge-pool`, which copies execution events into Redis for SSE, and `notification-service`, which turns finished executions into notifications.
 
 ## Execution lifecycle
 
@@ -88,86 +85,86 @@ sequenceDiagram
     actor Client
     participant API
     participant Kafka
+    participant Saga as Saga Orchestrator
     participant K8s as K8s Worker
+    participant Monitor as Pod Monitor
     participant Result as Result Processor
 
-    Client->>API: POST /execute
-    API->>Kafka: execution.requested
-    API-->>Client: 200 {execution_id}
-    Client->>API: GET /events/{id} (SSE)
-    Kafka->>K8s: consume event
-    K8s->>K8s: create pod & run script
-    K8s-->>Result: completed / failed
-    Result-->>API: result (via Redis pub/sub)
-    API-->>Client: SSE: result
+    Client->>API: POST /api/v1/execute
+    API->>Kafka: execution_requested
+    API-->>Client: 200 {execution_id, status}
+    Client->>API: GET /api/v1/events/executions/{id} (SSE)
+    Kafka->>Saga: execution_requested
+    Saga->>Kafka: create_pod_command
+    Kafka->>K8s: create_pod_command
+    K8s->>Kafka: pod_created
+    Monitor->>Kafka: pod_scheduled, pod_running, execution_completed
+    Kafka->>Result: execution_completed
+    Result->>Kafka: result_stored
+    Kafka->>API: events for this execution (sse-bridge-pool)
+    API-->>Client: SSE frames, closes after result_stored
 
+    link Saga: Docs @ ../../components/workers/saga_orchestrator/
     link K8s: Docs @ ../../components/workers/k8s_worker/
+    link Monitor: Docs @ ../../components/workers/pod_monitor/
     link Result: Docs @ ../../components/workers/result_processor/
 ```
 
-When a client submits a script, the API validates the request, checks [rate limits](rate-limiting.md) and [idempotency](idempotency.md), then persists the execution record to MongoDB and publishes an `execution.requested` event to Kafka. The client immediately gets back an execution ID and opens an SSE connection to receive updates.
+The rate limit middleware has already run by the time the route sees the request. If the client sent an `Idempotency-Key` header it used before, the [idempotency](idempotency.md) layer returns the earlier execution instead of creating a new one, or 409 while that first request is still in flight. Otherwise the execution service checks the language and version against the [runtime registry](runtime-registry.md) and rejects an unknown pair with 422. Then it stores the execution in MongoDB, publishes `execution_requested` and answers with the execution ID and its status.
 
-The K8s Worker consumes the event, spins up an isolated pod, and runs the script. [Pod Monitor](../components/workers/pod_monitor.md) watches for completion, timeout, or failure, then publishes the outcome back to Kafka. Result Processor writes the final state to MongoDB and pushes a notification through Redis pub/sub. The SSE connection, subscribed to that execution's Redis channel, forwards the result to the client. The whole flow is async and event-driven — the API never blocks waiting for execution.
+The saga orchestrator puts the request into the [execution queue](execution-queue.md) and, once a slot is free, runs the saga steps, the last of which publishes `create_pod_command`. The k8s worker creates a ConfigMap with the script and a hardened pod, then publishes `pod_created`, or `execution_failed` if the Kubernetes API refused. The pod monitor watches the pod and publishes `pod_scheduled`, `pod_running` and finally one of `execution_completed`, `execution_failed` or `execution_timeout`. Then it deletes the pod, which frees the Kueue quota, and Kubernetes garbage-collects the ConfigMap through its owner reference.
 
+The result processor writes the final state and output to MongoDB and publishes `result_stored`, or `result_failed` if it couldn't. The saga orchestrator also listens for the terminal events: it marks the saga done, releases the queue slot and schedules the next execution.
 
-## SSE architecture
+## SSE
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Client
-    participant Router as SSE Route
+    participant Router as SSE route
     participant SSE as SSEService
-    participant Bus as Redis Pub/Sub
+    participant Bus as Redis pub/sub
+    participant Bridge as sse-bridge-pool
 
-    Client->>Router: GET /events/... (SSE)
-    Router->>SSE: create stream (execution_id / user)
-    SSE->>Bus: SUBSCRIBE channel:{...}
-    Router-->>Client: 200 OK + SSE headers
+    Client->>Router: GET /api/v1/events/executions/{id}
+    Router->>SSE: create_execution_stream (404 or 403 if not allowed)
+    SSE-->>Client: current status from MongoDB
+    SSE->>Bus: SUBSCRIBE sse:exec:{id}
 
-    loop until closed
-        Bus-->>SSE: message (JSON)
+    loop until a terminal event
+        Bridge->>Bus: PUBLISH sse:exec:{id}
+        Bus-->>SSE: message
         SSE-->>Client: SSE frame
     end
 
-    alt terminal event / timeout / shutdown
-        SSE->>Bus: UNSUBSCRIBE
-        SSE-->>Client: event: end/close
-    else client disconnect
-        SSE->>Bus: UNSUBSCRIBE
-    end
-
-    link Router: Docs @ ../../components/sse/sse-partitioned-architecture/
     link SSE: Docs @ ../../components/sse/sse-architecture/
 ```
 
-The SSE layer uses Redis pub/sub as a broadcast bus so that any API instance can deliver events to any connected client, regardless of which instance originally handled the request. When a client opens an SSE connection, the SSE route passes the execution ID or user ID to SSEService, which subscribes to the corresponding Redis channel. Events flow through Redis from producers like the Result Processor or NotificationService. Each SSEService instance listens on its subscribed channels and forwards incoming messages as SSE frames to the client. This design means you can scale API instances horizontally without sticky sessions since Redis handles the fan-out.
+SSE goes through Redis so that any API process can serve any client. All API processes share the `sse-bridge-pool` consumer group, so Kafka hands each event to exactly one of them. That process publishes the event to the Redis channel `sse:exec:{execution_id}`, and Redis delivers it to whichever process holds the client's connection. The bridge forwards 17 event types: the execution, pod and result events.
 
-Streams terminate in a few ways. For execution streams, the result_stored event signals completion and the connection closes gracefully. For notification streams, the client stays connected until they disconnect or the server shuts down. In both cases, the service unsubscribes from Redis to clean up resources. Timeouts and heartbeats keep connections alive and detect stale clients.
+The stream opens with the execution's current status read from MongoDB, since events published before the subscription aren't replayed. When `result_stored` arrives, the service loads the stored result and attaches it to that frame. The stream ends after `result_stored`, `result_failed`, `execution_failed` or `execution_timeout`, or when the client disconnects. Leaving the generator closes the Redis subscription.
 
+Notifications use the same bus on `sse:notif:{user_id}` through `GET /api/v1/events/notifications/stream`. That stream stays open until the client goes away and sends a ping every 30 seconds.
 
-## Kafka, sagas, and event replay
+## Kafka, sagas and replay
 
-The system uses Kafka as the backbone for all async communication. [Sagas](../components/workers/saga_orchestrator.md) coordinate multi-step workflows with compensation logic, the [replay system](../components/workers/event_replay.md) lets admins re-emit historical events, and the [dead letter queue](../components/dead-letter-queue.md) catches failed messages for manual inspection.
-
+Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/workers/event_replay.md) lets admins re-publish stored events. A [dead letter queue](../components/dead-letter-queue.md) exists, but nothing writes to it today, so a failed handler loses its event ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)).
 
 ## Notifications
 
 ```mermaid
 graph TD
-    Kafka["Kafka"] -->|"result events"| NotificationSvc["NotificationService"]
-    NotificationSvc -->|"publish to Redis"| SSE["Redis / SSE"]
-    NotificationSvc -->|"HTTP POST"| Webhook["Webhook"]:::ext
-    NotificationSvc -->|"HTTP POST"| Slack["Slack"]:::ext
+    Kafka["Kafka"] -->|"execution_completed / failed / timeout"| NotificationSvc["NotificationService (API)"]
+    NotificationSvc -->|"store"| Mongo[(MongoDB)]
+    NotificationSvc -->|"publish sse:notif:{user_id}"| Redis["Redis"]
+    Redis --> Stream["/api/v1/events/notifications/stream"]
 
-    click NotificationSvc "../../operations/notification-types/" "Notification routing service"
-
-    classDef ext fill:#f6f6f6,stroke:#aaa,color:#333;
+    click NotificationSvc "../../operations/notification-types/" "Notification types"
 ```
 
-NotificationService consumes execution result events from Kafka and routes them to the appropriate channel. In-app notifications go through Redis pub/sub to SSE connections, while external integrations (webhooks, Slack) receive HTTP POSTs directly.
-
+`NotificationService` runs inside the API under the `notification-service` consumer group. For each completed, failed or timed-out execution it stores a notification in MongoDB and pushes it to the user's SSE channel. It also has webhook and Slack handlers, and users can set up subscriptions for them, but every notification the code creates today uses the in-app channel, so those handlers never fire.
 
 ## API surface
 
-The public surface is REST and SSE endpoints under `/api/v1/`. Everything else (MongoDB, Redis, Kafka, Kubernetes API, background workers) stays internal. The Svelte frontend talks to the backend via fetch and EventSource with [cookie-based auth](authentication.md). [Admin routes](../operations/admin-api.md) under `/api/v1/admin/` are protected by role checks; see the [API Reference](../reference/api-reference.md) for the full endpoint list.
+The public surface is the REST and SSE endpoints under `/api/v1/`. MongoDB, Redis, Kafka, the Kubernetes API and the workers stay internal. The frontend talks to the backend with fetch and EventSource and [cookie-based auth](authentication.md). The [admin routes](../operations/admin-api.md) under `/api/v1/admin/` and the replay routes under `/api/v1/replay/` require the admin role. The OpenAPI schema and the Swagger UI are served only when `DEVELOPMENT_MODE` is on. See the [API Reference](../reference/api-reference.md) for the full list.

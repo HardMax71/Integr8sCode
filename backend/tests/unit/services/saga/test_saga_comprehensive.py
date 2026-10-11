@@ -6,11 +6,11 @@ by integration tests under tests/integration/saga/.
 """
 
 import pytest
+
 from app.domain.enums import SagaState
 from app.domain.events import DomainEvent, ExecutionRequestedEvent
 from app.domain.saga import Saga
 from app.services.saga import CompensationStep, SagaContext, SagaStep
-
 from tests.conftest import make_execution_requested_event
 
 pytestmark = pytest.mark.unit

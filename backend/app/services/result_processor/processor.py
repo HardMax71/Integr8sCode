@@ -13,8 +13,9 @@ from app.domain.events import (
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
-from app.events import UnifiedProducer
-from app.settings import Settings
+from app.events import PRODUCE_ERRORS, UnifiedProducer
+from app.runtime_registry import parse_quantity
+from app.services.runtime_settings import RuntimeSettingsLoader
 
 
 class ResultProcessor:
@@ -24,13 +25,13 @@ class ResultProcessor:
         self,
         execution_repo: ExecutionRepository,
         producer: UnifiedProducer,
-        settings: Settings,
+        runtime_settings: RuntimeSettingsLoader,
         logger: structlog.stdlib.BoundLogger,
         execution_metrics: ExecutionMetrics,
     ) -> None:
         self._execution_repo = execution_repo
         self._producer = producer
-        self._settings = settings
+        self._runtime_settings = runtime_settings
         self._metrics = execution_metrics
         self.logger = logger
 
@@ -56,8 +57,8 @@ class ResultProcessor:
         memory_mib = event.resource_usage.peak_memory_kb / 1024
         self._metrics.record_memory_usage(memory_mib, lang_and_version)
 
-        settings_limit = self._settings.K8S_POD_MEMORY_LIMIT
-        memory_limit_mib = int(settings_limit.rstrip("Mi"))  # TODO: Less brittle acquisition of limit
+        limits = await self._runtime_settings.get_language_limits(exec_obj.lang)
+        memory_limit_mib = float(parse_quantity(limits.memory_limit)) / 2**20
         memory_percent = (memory_mib / memory_limit_mib) * 100
         self._metrics.memory_utilization_percent.record(
             memory_percent, attributes={"lang_and_version": lang_and_version}
@@ -77,8 +78,10 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionCompletedEvent: {e}", exc_info=True)
+        except PRODUCE_ERRORS as e:
+            self.logger.error(
+                "Failed to handle ExecutionCompletedEvent", execution_id=event.execution_id, exc_info=True
+            )
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_failed(self, event: DomainEvent) -> None:
@@ -109,8 +112,8 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionFailedEvent: {e}", exc_info=True)
+        except PRODUCE_ERRORS as e:
+            self.logger.error("Failed to handle ExecutionFailedEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def handle_execution_timeout(self, event: DomainEvent) -> None:
@@ -142,8 +145,8 @@ class ResultProcessor:
         try:
             await self._execution_repo.write_terminal_result(result)
             await self._publish_result_stored(result, meta.user_id, event.aggregate_id)
-        except Exception as e:
-            self.logger.error(f"Failed to handle ExecutionTimeoutEvent: {e}", exc_info=True)
+        except PRODUCE_ERRORS as e:
+            self.logger.error("Failed to handle ExecutionTimeoutEvent", execution_id=event.execution_id, exc_info=True)
             await self._publish_result_failed(event.execution_id, str(e), meta.user_id, event.aggregate_id)
 
     async def _publish_result_stored(

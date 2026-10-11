@@ -1,10 +1,11 @@
 import pytest
+
 from app.core.metrics import (
     ConnectionMetrics,
-    IdempotencyMetrics,
     DLQMetrics,
     EventMetrics,
     ExecutionMetrics,
+    IdempotencyMetrics,
     KubernetesMetrics,
     NotificationMetrics,
     QueueMetrics,
@@ -25,7 +26,6 @@ def test_connection_metrics_smoke(test_settings: Settings) -> None:
     m.decrement_sse_connections("exec")
     m.record_sse_message_sent("exec", "evt")
     m.record_sse_connection_duration(0.1, "exec")
-    m.update_sse_draining_connections(1)
 
 
 def test_event_metrics_smoke(test_settings: Settings) -> None:
@@ -46,4 +46,4 @@ def test_other_metrics_classes_smoke(test_settings: Settings) -> None:
     NotificationMetrics(test_settings).record_notification_sent("welcome", channel="email")
     RateLimitMetrics(test_settings).record_request("/api/test", True, "sliding_window")
     ReplayMetrics(test_settings).record_session_created("by_id", "kafka")
-    SecurityMetrics(test_settings).record_authentication_attempt("password", True, 0.1)
+    SecurityMetrics(test_settings).record_csrf_validation_failure("missing_header")

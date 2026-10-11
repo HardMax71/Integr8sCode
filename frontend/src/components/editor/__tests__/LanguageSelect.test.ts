@@ -1,16 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { user } from '$test/test-utils';
+import { toast } from 'svelte-sonner';
 
 import LanguageSelect from '$components/editor/LanguageSelect.svelte';
+import type { LanguageInfo } from '$lib/api';
 
-const RUNTIMES = {
-    python: { versions: ['3.11', '3.10', '3.9'], file_ext: 'py' },
-    node: { versions: ['20', '18'], file_ext: 'js' },
-    go: { versions: ['1.21'], file_ext: 'go' },
+const RUNTIMES: Record<string, LanguageInfo> = {
+    python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' },
+    node: { versions: ['26', '24', '22'], file_ext: 'js' },
+    go: { versions: ['1.27'], file_ext: 'go' },
 };
 
-const defaultProps = { runtimes: RUNTIMES, lang: 'python', version: '3.11', onselect: vi.fn() };
+const defaultProps = { runtimes: RUNTIMES, lang: 'python', version: '3.14', onselect: vi.fn() };
 
 function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
     const props = { ...defaultProps, onselect: vi.fn(), ...overrides };
@@ -18,6 +21,10 @@ function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
 }
 
 describe('LanguageSelect', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     async function openMenu() {
         const result = renderSelect();
         await user.click(screen.getByRole('button', { name: /Select language/i }));
@@ -33,10 +40,32 @@ describe('LanguageSelect', () => {
         });
 
         it('shows "Unavailable" and is disabled when no runtimes', () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            renderSelect({ runtimes: {} as any });
+            renderSelect({ runtimes: {} });
             expect(screen.getByText('Unavailable')).toBeInTheDocument();
             expect(screen.getByRole('button')).toBeDisabled();
+        });
+    });
+
+    describe('dropped versions', () => {
+        it('switches to the newest offered version when the current one is no longer offered', async () => {
+            const runtimes = { ...RUNTIMES, python: { versions: ['3.12', '3.14', '3.13'], file_ext: 'py' } };
+            const { onselect } = renderSelect({ runtimes, version: '3.7' });
+            await waitFor(() => {
+                expect(onselect).toHaveBeenCalledWith('python', '3.14');
+            });
+            expect(onselect).toHaveBeenCalledTimes(1);
+            expect(toast.info).toHaveBeenCalledWith('Version 3.7 of python is no longer available, switched to 3.14.');
+        });
+
+        it.each([
+            { desc: 'the version is offered', props: { version: '3.13' } },
+            { desc: 'the language is unknown', props: { lang: 'cobol', version: '85' } },
+            { desc: 'runtimes have not loaded', props: { runtimes: {}, version: '3.7' } },
+        ])('leaves the selection alone when $desc', async ({ props }) => {
+            const { onselect } = renderSelect(props);
+            await tick();
+            expect(onselect).not.toHaveBeenCalled();
+            expect(toast.info).not.toHaveBeenCalled();
         });
     });
 
@@ -65,11 +94,11 @@ describe('LanguageSelect', () => {
             const versionMenu = screen.getByRole('menu', { name: /python versions/i });
             const versions = within(versionMenu).getAllByRole('menuitemradio');
             expect(versions).toHaveLength(3);
-            expect(within(versionMenu).getByRole('menuitemradio', { name: '3.11' })).toHaveAttribute(
+            expect(within(versionMenu).getByRole('menuitemradio', { name: '3.14' })).toHaveAttribute(
                 'aria-checked',
                 'true',
             );
-            expect(within(versionMenu).getByRole('menuitemradio', { name: '3.10' })).toHaveAttribute(
+            expect(within(versionMenu).getByRole('menuitemradio', { name: '3.13' })).toHaveAttribute(
                 'aria-checked',
                 'false',
             );
@@ -79,8 +108,8 @@ describe('LanguageSelect', () => {
             const { onselect } = await openMenu();
             await user.hover(screen.getByRole('menuitem', { name: /node/i }));
             const nodeMenu = screen.getByRole('menu', { name: /node versions/i });
-            await user.click(within(nodeMenu).getByRole('menuitemradio', { name: '20' }));
-            expect(onselect).toHaveBeenCalledWith('node', '20');
+            await user.click(within(nodeMenu).getByRole('menuitemradio', { name: '24' }));
+            expect(onselect).toHaveBeenCalledWith('node', '24');
             await waitFor(() => {
                 expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
             });
@@ -191,9 +220,9 @@ describe('LanguageSelect', () => {
         ])('$label in submenu selects version and closes menu', async ({ key }) => {
             const { onselect, menu } = await openMenuAndGetMenu();
             await fireEvent.keyDown(menu, { key: 'ArrowRight' }); // open python submenu
-            await fireEvent.keyDown(menu, { key: 'ArrowDown' }); // move to version index 1 (3.10)
+            await fireEvent.keyDown(menu, { key: 'ArrowDown' }); // move to version index 1 (3.13)
             await fireEvent.keyDown(menu, { key });
-            expect(onselect).toHaveBeenCalledWith('python', '3.10');
+            expect(onselect).toHaveBeenCalledWith('python', '3.13');
             await waitFor(() => {
                 expect(screen.queryByRole('menu', { name: 'Select language and version' })).not.toBeInTheDocument();
             });

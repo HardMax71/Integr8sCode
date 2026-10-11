@@ -273,13 +273,23 @@ cmd_openapi() {
     cd backend
     print_info "Extracting schema from FastAPI app..."
 
-    uv run python -c "
+    local tmp
+    tmp=$(mktemp)
+    if ! uv run --no-sync --no-build python -c "
 import json
 from app.main import create_app
-app = create_app()
+from app.settings import Settings
+app = create_app(settings=Settings().model_copy(update={'OTEL_EXPORTER_OTLP_ENDPOINT': None}))
 schema = app.openapi()
 print(json.dumps(schema, indent=2))
-" > "../$OUTPUT"
+" > "$tmp"; then
+        rm -f "$tmp"
+        cd ..
+        print_error "OpenAPI generation failed, $OUTPUT left unchanged"
+        exit 1
+    fi
+    chmod 644 "$tmp"
+    mv "$tmp" "../$OUTPUT"
 
     cd ..
     print_success "OpenAPI spec written to $OUTPUT"

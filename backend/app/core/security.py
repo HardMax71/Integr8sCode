@@ -55,12 +55,20 @@ class SecurityService:
                 algorithms=[self.settings.ALGORITHM],
                 options={"verify_exp": not allow_expired},
             )
-            username: str | None = payload.get("sub")
-            if username is None:
-                raise InvalidCredentialsError()
-            return username
-        except jwt.PyJWTError:
+        except jwt.ExpiredSignatureError:
+            self._security_metrics.record_token_validation_failure("expired")
             raise InvalidCredentialsError() from None
+        except jwt.InvalidSignatureError:
+            self._security_metrics.record_token_validation_failure("invalid_signature")
+            raise InvalidCredentialsError() from None
+        except jwt.PyJWTError:
+            self._security_metrics.record_token_validation_failure("invalid")
+            raise InvalidCredentialsError() from None
+        username: str | None = payload.get("sub")
+        if username is None:
+            self._security_metrics.record_token_validation_failure("missing_subject")
+            raise InvalidCredentialsError()
+        return username
 
     def generate_csrf_token(self, session_id: str) -> str:
         """Generate a signed CSRF token bound to the given session (access_token).

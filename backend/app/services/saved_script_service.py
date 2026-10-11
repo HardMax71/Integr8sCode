@@ -1,6 +1,7 @@
 import structlog
 
 from app.db import SavedScriptRepository
+from app.domain.execution import RuntimeNotSupportedError
 from app.domain.saved_script import (
     DomainSavedScript,
     DomainSavedScriptCreate,
@@ -8,6 +9,7 @@ from app.domain.saved_script import (
     DomainSavedScriptUpdate,
     SavedScriptNotFoundError,
 )
+from app.runtime_registry import RUNTIME_REGISTRY
 
 
 class SavedScriptService:
@@ -25,6 +27,7 @@ class SavedScriptService:
             script_name=saved_script_create.name,
             script_length=len(saved_script_create.script),
         )
+        self._ensure_runtime_offered(saved_script_create.lang, saved_script_create.lang_version)
 
         created_script = await self.saved_script_repo.create_saved_script(saved_script_create, user_id)
 
@@ -71,6 +74,7 @@ class SavedScriptService:
             script_name=update_data.name,
             script_length=len(update_data.script) if update_data.script else None,
         )
+        await self._ensure_updated_runtime_offered(script_id, user_id, update_data)
 
         await self.saved_script_repo.update_saved_script(script_id, user_id, update_data)
         updated_script = await self.saved_script_repo.get_saved_script(script_id, user_id)
@@ -120,3 +124,23 @@ class SavedScriptService:
             script_count=len(scripts),
         )
         return DomainSavedScriptListResult(scripts=scripts)
+
+    async def _ensure_updated_runtime_offered(
+        self, script_id: str, user_id: str, update_data: DomainSavedScriptUpdate
+    ) -> None:
+        lang, lang_version = update_data.lang, update_data.lang_version
+        if lang is None and lang_version is None:
+            return
+        if lang is None or lang_version is None:
+            stored = await self.saved_script_repo.get_saved_script(script_id, user_id)
+            if not stored:
+                raise SavedScriptNotFoundError(script_id)
+            lang = stored.lang if lang is None else lang
+            lang_version = stored.lang_version if lang_version is None else lang_version
+        self._ensure_runtime_offered(lang, lang_version)
+
+    def _ensure_runtime_offered(self, lang: str, lang_version: str) -> None:
+        if lang_version in RUNTIME_REGISTRY.get(lang, {}):
+            return
+        self.logger.warning("Saved script runtime not supported", lang=lang, lang_version=lang_version)
+        raise RuntimeNotSupportedError(lang, lang_version)

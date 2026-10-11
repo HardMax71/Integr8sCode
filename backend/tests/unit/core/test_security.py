@@ -1,15 +1,17 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import jwt
 import pytest
+from jwt.exceptions import InvalidTokenError
+
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.domain.enums import UserRole
 from app.domain.user import InvalidCredentialsError
 from app.settings import Settings
-from jwt.exceptions import InvalidTokenError
 
 
 class TestPasswordHashing:
@@ -77,10 +79,7 @@ class TestSecurityService:
         """Create SecurityService instance using test settings."""
         return SecurityService(test_settings, security_metrics)
 
-    def test_create_access_token_basic(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_create_access_token_basic(self, security_service: SecurityService) -> None:
         """Test basic access token creation."""
         data = {"sub": "testuser", "user_id": str(uuid4())}
 
@@ -94,18 +93,13 @@ class TestSecurityService:
 
         # Decode and verify token
         decoded = jwt.decode(
-            token,
-            security_service.settings.SECRET_KEY,
-            algorithms=[security_service.settings.ALGORITHM]
+            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
         )
         assert decoded["sub"] == "testuser"
         assert "user_id" in decoded
         assert "exp" in decoded
 
-    def test_create_access_token_with_expiry(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_create_access_token_with_expiry(self, security_service: SecurityService) -> None:
         """Test access token creation with custom expiry."""
         data = {"sub": "testuser"}
         expires_delta = timedelta(minutes=15)
@@ -113,9 +107,7 @@ class TestSecurityService:
         token = security_service.create_access_token(data, expires_delta)
 
         decoded = jwt.decode(
-            token,
-            security_service.settings.SECRET_KEY,
-            algorithms=[security_service.settings.ALGORITHM]
+            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
         )
 
         # Check expiry is approximately correct (within 1 second)
@@ -123,25 +115,16 @@ class TestSecurityService:
         actual_exp = datetime.fromtimestamp(decoded["exp"], tz=timezone.utc)
         assert abs((expected_exp - actual_exp).total_seconds()) < 1
 
-    def test_create_access_token_with_roles(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_create_access_token_with_roles(self, security_service: SecurityService) -> None:
         """Test access token creation with user roles."""
         user_id = str(uuid4())
-        data = {
-            "sub": "admin_user",
-            "user_id": user_id,
-            "role": UserRole.ADMIN
-        }
+        data = {"sub": "admin_user", "user_id": user_id, "role": UserRole.ADMIN}
 
         expires_delta = timedelta(minutes=security_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         token = security_service.create_access_token(data, expires_delta=expires_delta)
 
         decoded = jwt.decode(
-            token,
-            security_service.settings.SECRET_KEY,
-            algorithms=[security_service.settings.ALGORITHM]
+            token, security_service.settings.SECRET_KEY, algorithms=[security_service.settings.ALGORITHM]
         )
 
         assert decoded["role"] == UserRole.ADMIN
@@ -159,10 +142,7 @@ class TestSecurityService:
         assert decoded["user_id"] == data["user_id"]
         assert decoded["role"] == UserRole.USER
 
-    def test_decode_token_expired(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_decode_token_expired(self, security_service: SecurityService) -> None:
         """Test decoding an expired token."""
         data = {"sub": "testuser"}
         expires_delta = timedelta(seconds=-1)  # Already expired
@@ -177,10 +157,7 @@ class TestSecurityService:
                 algorithms=[security_service.settings.ALGORITHM],
             )
 
-    def test_decode_token_invalid_signature(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_decode_token_invalid_signature(self, security_service: SecurityService) -> None:
         """Test decoding token with invalid signature."""
         data = {"sub": "testuser"}
 
@@ -196,10 +173,7 @@ class TestSecurityService:
                 algorithms=[security_service.settings.ALGORITHM],
             )
 
-    def test_decode_token_malformed(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_decode_token_malformed(self, security_service: SecurityService) -> None:
         """Test decoding malformed token."""
         malformed_tokens = [
             "not.a.token",
@@ -217,10 +191,7 @@ class TestSecurityService:
                     algorithms=[security_service.settings.ALGORITHM],
                 )
 
-    def test_decode_token_missing_username(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_decode_token_missing_username(self, security_service: SecurityService) -> None:
         """Test decoding token without username."""
         # Create token without 'sub' field
         data: dict[str, str | datetime] = {"user_id": str(uuid4())}
@@ -242,10 +213,7 @@ class TestSecurityService:
         assert "sub" not in decoded
         assert decoded["user_id"] == data["user_id"]
 
-    async def test_concurrent_token_creation(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    async def test_concurrent_token_creation(self, security_service: SecurityService) -> None:
         """Test concurrent token creation for thread safety."""
         users = [f"user_{i}" for i in range(100)]
 
@@ -291,10 +259,7 @@ class TestSecurityService:
         hashed = svc.get_password_hash(password)
         assert svc.verify_password(password, hashed)
 
-    def test_token_algorithm_consistency(
-            self,
-            security_service: SecurityService
-    ) -> None:
+    def test_token_algorithm_consistency(self, security_service: SecurityService) -> None:
         """Test that token algorithm is consistent."""
         data = {"sub": "testuser"}
 
@@ -316,26 +281,20 @@ class TestDecodeToken:
         return SecurityService(test_settings, security_metrics)
 
     def test_valid_token_returns_username(self, security_service: SecurityService) -> None:
-        token = security_service.create_access_token(
-            {"sub": "testuser"}, expires_delta=timedelta(minutes=15)
-        )
+        token = security_service.create_access_token({"sub": "testuser"}, expires_delta=timedelta(minutes=15))
 
         result = security_service.decode_token(token)
 
         assert result == "testuser"
 
     def test_expired_token_raises(self, security_service: SecurityService) -> None:
-        token = security_service.create_access_token(
-            {"sub": "testuser"}, expires_delta=timedelta(seconds=-1)
-        )
+        token = security_service.create_access_token({"sub": "testuser"}, expires_delta=timedelta(seconds=-1))
 
         with pytest.raises(InvalidCredentialsError):
             security_service.decode_token(token)
 
     def test_missing_sub_raises(self, security_service: SecurityService) -> None:
-        token = security_service.create_access_token(
-            {"user_id": str(uuid4())}, expires_delta=timedelta(minutes=15)
-        )
+        token = security_service.create_access_token({"user_id": str(uuid4())}, expires_delta=timedelta(minutes=15))
 
         with pytest.raises(InvalidCredentialsError):
             security_service.decode_token(token)
@@ -343,7 +302,7 @@ class TestDecodeToken:
     def test_invalid_signature_raises(self, security_service: SecurityService) -> None:
         token = jwt.encode(
             {"sub": "testuser", "exp": datetime.now(timezone.utc) + timedelta(minutes=15)},
-            "wrong-secret-key",
+            "wrong-secret-key-padded-to-32-bytes",
             algorithm=security_service.settings.ALGORITHM,
         )
 
@@ -354,3 +313,40 @@ class TestDecodeToken:
     def test_malformed_token_raises(self, security_service: SecurityService, bad_token: str) -> None:
         with pytest.raises(InvalidCredentialsError):
             security_service.decode_token(bad_token)
+
+    @pytest.mark.parametrize(
+        "claims,key,reason",
+        [
+            ({"sub": "u", "exp": datetime.now(timezone.utc) - timedelta(seconds=5)}, None, "expired"),
+            (
+                {"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+                "wrong-secret-key-padded-to-32-bytes",
+                "invalid_signature",
+            ),
+            ({"user_id": "x", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, None, "missing_subject"),
+            (None, None, "invalid"),
+        ],
+    )
+    def test_rejected_token_records_reason(
+        self, test_settings: Settings, claims: dict[str, object] | None, key: str | None, reason: str
+    ) -> None:
+        metrics = MagicMock(spec=SecurityMetrics)
+        svc = SecurityService(test_settings, metrics)
+        token = (
+            "not.a.token"
+            if claims is None
+            else jwt.encode(claims, key or test_settings.SECRET_KEY, algorithm=test_settings.ALGORITHM)
+        )
+
+        with pytest.raises(InvalidCredentialsError):
+            svc.decode_token(token)
+
+        metrics.record_token_validation_failure.assert_called_once_with(reason)
+
+    def test_valid_token_records_no_failure(self, test_settings: Settings) -> None:
+        metrics = MagicMock(spec=SecurityMetrics)
+        svc = SecurityService(test_settings, metrics)
+
+        svc.decode_token(svc.create_access_token({"sub": "u"}, expires_delta=timedelta(minutes=5)))
+
+        metrics.record_token_validation_failure.assert_not_called()

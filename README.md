@@ -48,14 +48,10 @@
   </a>
 </p>
 
-Welcome to **Integr8sCode**! This is a platform where you can run Python scripts online with ease. Just paste your
-script, and the platform run it in an isolated environment within its own Kubernetes pod, complete with resource limits
-to keep
-things safe and efficient. You'll get the results back in no time.
-
+**Integr8sCode** runs your scripts online. Paste a Python, Node.js, Ruby, Bash or Go script, pick a version, and the platform runs it in its own Kubernetes pod with resource limits to keep things safe. You get the output back as soon as the pod finishes.
 
 > [!NOTE]
-> A deployed and working version of Integr8sCode is available at https://app.integr8scode.cc/ .
+> A deployed and working version of Integr8sCode is available at https://app.integr8scode.cc/.
 
 <details>
 <summary>How to deploy</summary>
@@ -73,7 +69,7 @@ cd Integr8sCode
 ./deploy.sh dev
 ```
 
-Secrets (MongoDB, Redis, JWT) come from environment variables with dev defaults — zero config needed for local development. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD` as env vars.
+Secrets (MongoDB, Redis, JWT) fall back to dev defaults, so local development needs no config. For production, set `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD` and `REDIS_PASSWORD` as env vars, plus `MONGO_MONITOR_PASSWORD` with `--observability`.
 
 ### Verify
 
@@ -83,23 +79,28 @@ curl -k https://localhost/api/v1/health/live
 
 ### Access
 
-| Service            | URL                                                    |
-|--------------------|--------------------------------------------------------|
-| Frontend           | [https://localhost:5001](https://localhost:5001)       |
-| Backend API        | [https://localhost:443](https://localhost:443)         |
-| Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)         |
-| Grafana            | [http://localhost:3000](http://localhost:3000)         |
-| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686)       |
+| Service            | URL                                              | Notes                                         |
+|--------------------|--------------------------------------------------|-----------------------------------------------|
+| Frontend           | [https://localhost:5001](https://localhost:5001) | `user` / `user123` or `admin` / `admin123`    |
+| Backend API        | [https://localhost:443](https://localhost:443)   |                                               |
+| Grafana            | [http://localhost:3000](http://localhost:3000)   | needs `--observability`; `admin` / `admin123` |
+| Jaeger (Tracing)   | [http://localhost:16686](http://localhost:16686) | needs `--observability`                       |
+| Kafdrop (Kafka UI) | [http://localhost:9000](http://localhost:9000)   | needs `--debug`                               |
 
-Default credentials: `user` / `user123` (regular), `admin` / `admin123` (admin).
+`./deploy.sh dev --observability` adds Grafana, Jaeger, Victoria Metrics, Loki and the OTel Collector. `--debug` adds all of those plus Kafdrop.
 
-Self-signed TLS certs are generated automatically — accept the browser warning.
+Self-signed TLS certs are generated automatically, so accept the browser warning.
 
 ### Run tests
 
+Unit tests need no running stack:
+
 ```bash
-./deploy.sh test
+cd backend && uv run pytest tests/unit
+cd ../frontend && npm ci && npm run test
 ```
+
+The E2E suites need the full stack; [CONTRIBUTING.md](CONTRIBUTING.md) has the commands.
 
 ### Stop
 
@@ -114,51 +115,49 @@ See the [full deployment guide](https://hardmax71.github.io/Integr8sCode/operati
 <details>
 <summary>Sample test</summary>
 
-You can check correctness of start by running a sample test script:
-1. Open website at `https://127.0.0.1:5001/`, go to Editor
-2. In code window, paste following code:
+This script uses the `type` statement, which arrived in Python 3.12. Running it on two versions shows that each run gets a pod with the version you picked.
+
+1. Open `https://localhost:5001/` and log in as `user` / `user123`. You land in the editor.
+2. Paste this script:
+
 ```python
-from typing import TypeGuard
+import platform
 
-def is_string(value: object) -> TypeGuard[str]:
-    return isinstance(value, str)
+type Pair[T] = tuple[T, T]  # the type statement needs Python 3.12+
 
-def example_function(data: object):
-    match data:  # Match statement introduced in Python 3.10
-        case int() if data > 10:
-            print("An integer greater than 10")
-        case str() if is_string(data):
-            print(f"A string: {data}")
-        case _:
-            print("Something else")
 
-example_function(15)
-example_function("hello")
-example_function([1, 2, 3])
+def swap[T](pair: Pair[T]) -> Pair[T]:
+    first, second = pair
+    return second, first
+
+
+print(f"Hello from Python {platform.python_version()}")
+print(swap((1, 2)))
+print(swap(("left", "right")))
 ```
 
-First, select `>= Python 3.10` and run script, will output:
+3. Keep Python 3.14 (the default) and click Run Script. The output panel shows:
+
 ```
 Status: completed
-Execution ID: <some hex number>
 Output:
-  An integer greater than 10
-  A string: hello
-  Something else
+  Hello from Python 3.14.8
+  (2, 1)
+  ('right', 'left')
 ```
 
-Then, select `< Python 3.10` and do the same:
+4. Switch to Python 3.11 and run it again. 3.11 can't parse the `type` line:
+
 ```
 Status: completed
-Execution ID: <some other hex number>
-Output:
-  File "/scripts/script.py", line 7
-    match data:  # Match statement introduced in Python 3.10
-          ^
+Errors:
+  File "/scripts/main.py", line 3
+    type Pair[T] = tuple[T, T]  # the type statement needs Python 3.12+
+         ^^^^
 SyntaxError: invalid syntax
 ```
-This shows that pods with specified python versions are creating and working as expected. Btw, the latter throws error
-cause `match-case` was introduced first in `Python 3.10`.
+
+The status stays completed because the pod itself ran fine. The script's own failure shows up as stderr and a non-zero exit code.
 
 </details>
 
@@ -170,12 +169,8 @@ cause `match-case` was introduced first in `Python 3.10`.
 
 <img src="./docs/assets/images/system_diagram.svg" alt="system diagram">
 
-The platform is built on three main pillars:
-
-- Frontend: Svelte app that users interact with.
-- Backend: Powered by FastAPI, Python, and MongoDB to handle all the heavy lifting.
-- Kubernetes Cluster: Each script runs in its own pod, ensuring isolation and resource control.
+A Svelte 5 frontend talks to a FastAPI backend, which keeps its state in MongoDB and Redis and publishes every execution request to Kafka. Workers take it from there: the saga orchestrator schedules the run, the k8s worker starts a locked-down pod, the pod monitor watches it, and the result processor stores the output. The frontend follows each run live over SSE.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

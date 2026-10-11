@@ -1,187 +1,77 @@
-# Execution Queue
+# Execution queue
 
-This document explains how the Redis-backed execution queue works, how the saga orchestrator drives scheduling, and how admins can manage priority. It's written for engineers who need to understand the scheduling pipeline or debug queue-related issues.
-
-## Overview
-
-When a user submits code, the backend publishes an `ExecutionRequested` event to Kafka. The saga orchestrator consumes it, pushes the execution into a Redis sorted set ranked by priority, and immediately attempts to schedule it. If the concurrency limit allows, the orchestrator pops the highest-priority item, starts a saga, and the saga steps publish a `CreatePodCommandEvent` to the K8s worker. When executions finish, the orchestrator releases the slot and schedules the next pending item.
-
-The queue replaced an earlier in-memory `heapq` inside a dedicated coordinator worker. Moving to Redis gives persistence across restarts, atomic operations safe for horizontal scaling, and a single scheduling owner (the saga orchestrator) that validates before creating pods.
-
-## Architecture
+The saga orchestrator owns scheduling. It keeps pending executions in Redis, one sorted set per priority, and starts a saga only while fewer than `max_concurrent_executions` are running. The queue itself is `ExecutionQueueService` in `backend/app/services/execution_queue.py`; the [saga orchestrator](../components/workers/saga_orchestrator.md) decides when to call it.
 
 ```mermaid
 flowchart LR
-    API[Backend API] -->|ExecutionRequested| Kafka[(Kafka)]
-    Kafka --> SAGA[Saga Orchestrator]
-    SAGA -->|enqueue| PENDING[(Redis Sorted Set<br/>exec_queue:pending)]
-    SAGA -->|try_schedule| PENDING
-    PENDING -->|ZPOPMIN| SAGA
-    SAGA -->|SADD| ACTIVE[(Redis Set<br/>exec_queue:active)]
-    SAGA -->|start saga| STEPS[Saga Steps]
-    STEPS -->|CreatePodCommand| Kafka
-    Kafka -->|Completed / Failed / Timeout| SAGA
-    SAGA -->|release| ACTIVE
+    API[API] -->|execution_requested| Kafka[(Kafka)]
+    Kafka --> SAGA[Saga orchestrator]
+    SAGA -->|ZADD| PENDING[(exec_queue:pending:priority<br/>5 sorted sets)]
+    SAGA -->|Lua: SCARD, ZPOPMIN, SADD| ACTIVE[(exec_queue:active)]
+    SAGA -->|start saga| CMD[create_pod_command]
+    CMD --> Kafka
+    Kafka -->|completed, failed, timeout, cancelled| SAGA
+    SAGA -->|SREM| ACTIVE
 ```
 
-## Redis Data Model
+## Redis keys
 
-The queue uses three Redis key patterns:
+| Key | Type | Holds | TTL |
+|-----|------|-------|-----|
+| `exec_queue:pending:{priority}` | Sorted set | Pending ids for one priority, scored by enqueue time (epoch seconds) | none |
+| `exec_queue:active` | Set | Ids that hold a running slot | none |
+| `exec_queue:event:{execution_id}` | String | The `ExecutionRequestedEvent` as JSON | 24 hours |
+| `exec_queue:retries:{execution_id}` | Counter | Failed saga starts for that execution | 24 hours, refreshed on each increment |
 
-| Key | Type | Purpose | TTL |
-|-----|------|---------|-----|
-| `exec_queue:pending` | Sorted set | Pending executions ranked by priority score | None |
-| `exec_queue:active` | Set | Execution IDs currently running (concurrency tracking) | None |
-| `exec_queue:event:{execution_id}` | String | Serialized `ExecutionRequestedEvent` JSON | 24 hours |
+There are five pending sets: `critical`, `high`, `normal`, `low` and `background`. A higher priority always goes first, and within one priority the oldest entry goes first.
 
-### Priority Score Encoding
+Every execution submitted through `POST /api/v1/execute` starts as `normal`. Only an admin can change that, after the fact.
 
-Each execution is stored in the sorted set with a composite score that encodes both priority level and enqueue time:
+## Scheduling
 
-```
-score = PRIORITY_BAND * 10^12 + unix_timestamp_ms
-```
+`try_schedule` is one Lua script that gets the active set and the five pending sets as keys. If `SCARD` on the active set is already at the cap, it returns nothing. Otherwise it walks the pending sets from `critical` to `background`, pops the first entry it finds with `ZPOPMIN`, adds the id to the active set, and returns the id, its score and the priority index. The count check and the pop happen in one round trip, so two callers can't both squeeze past the cap.
 
-Priority bands:
+The service then loads the stored event. If that key already expired, the execution is lost: the id leaves the active set, `queue.event_data_lost` goes up and nothing is scheduled.
 
-| Priority | Band | Score range |
-|----------|------|-------------|
-| `CRITICAL` | 0 | `0` .. `999_999_999_999` |
-| `HIGH` | 1 | `1_000_000_000_000` .. `1_999_999_999_999` |
-| `NORMAL` | 2 | `2_000_000_000_000` .. `2_999_999_999_999` |
-| `LOW` | 3 | `3_000_000_000_000` .. `3_999_999_999_999` |
-| `BACKGROUND` | 4 | `4_000_000_000_000` .. `4_999_999_999_999` |
+`try_schedule_from_queue` reads `max_concurrent_executions` from the admin system settings (default 10, admins can set 1 to 100, cached for 60 seconds by `RuntimeSettingsLoader`). It calls `try_schedule` in a loop and starts a saga for each id it gets, until the queue is empty, the cap is reached or it pops an id whose event expired. That last case ends the pass even with entries still pending, and the next pass picks them up.
 
-`ZPOPMIN` always returns the lowest score first, so `CRITICAL` items are scheduled before `NORMAL`, and within the same priority band, earlier submissions are scheduled first (FIFO).
+If starting a saga raises, the orchestrator bumps `exec_queue:retries:{id}`, releases the slot and puts the event back at the end of its priority. On the third failure it gives up: the saga is marked failed if one was created, no event goes out, and the execution stays `queued` in MongoDB. Either way that scheduling pass stops.
 
-### Atomic Scheduling with Lua
+These events trigger a pass:
 
-The `try_schedule` operation must atomically check the active count, pop from the pending set, and add to the active set. A server-side Lua script ensures this happens in a single Redis round-trip with no race conditions:
+| Event | Queue action before scheduling |
+|-------|--------------------------------|
+| `execution_requested` | `enqueue` (guarded by [idempotency](idempotency.md)) |
+| `execution_completed`, `execution_failed`, `execution_timeout` | mark the saga terminal, `release` |
+| `execution_cancelled` | `remove` from every queue key, mark the saga cancelled, `release` |
 
-```lua
-local active_key  = KEYS[1]
-local pending_key = KEYS[2]
-local max_active  = tonumber(ARGV[1])
+`release` is an `SREM` plus deleting the event key, so it's safe on an id that holds no slot. On top of the events, the worker runs `try_schedule_from_queue` every 10 seconds through APScheduler (`run_saga_orchestrator.py`), which catches up after a restart or a lost event.
 
-local current = redis.call('SCARD', active_key)
-if current >= max_active then
-    return nil
-end
+## Admin endpoints
 
-local result = redis.call('ZPOPMIN', pending_key, 1)
-if #result == 0 then
-    return nil
-end
+All three need an admin user.
 
-local exec_id = result[1]
-redis.call('SADD', active_key, exec_id)
-return exec_id
-```
+| Endpoint | What it does |
+|----------|--------------|
+| `GET /api/v1/admin/executions/` | Lists executions, filtered by status, priority or user |
+| `PUT /api/v1/admin/executions/{execution_id}/priority` | Sets a new priority |
+| `GET /api/v1/admin/executions/queue` | Returns `queue_depth`, `active_count`, `max_concurrent` and `by_priority` |
 
-This eliminates the TOCTOU race where two concurrent callers could both see `current < max_active` and schedule beyond the limit.
+A priority change updates MongoDB first, then runs a second Lua script that finds the id in whichever pending set holds it and moves it to the new set with the same score. The entry keeps its age, so it lands among the new priority's entries by enqueue time. An execution that already left the queue only gets the MongoDB update.
 
-## Scheduling Triggers
-
-Scheduling is **reactive** — the orchestrator calls `try_schedule_from_queue()` in response to events, plus a **periodic fallback** for crash recovery.
-
-### Event-driven triggers
-
-| Event | Queue action | Then |
-|-------|-------------|------|
-| `ExecutionRequested` | `enqueue(event)` | `try_schedule_from_queue()` |
-| `ExecutionCompleted` | `release(execution_id)` | `try_schedule_from_queue()` |
-| `ExecutionFailed` | `release(execution_id)` | `try_schedule_from_queue()` |
-| `ExecutionTimeout` | `release(execution_id)` | `try_schedule_from_queue()` |
-| `ExecutionCancelled` | `remove(execution_id)` | `try_schedule_from_queue()` |
-
-The `try_schedule_from_queue` method loops, calling `try_schedule(max_concurrent)` until it returns `None` (either the concurrency cap is reached or the pending set is empty). Each successful pop starts a new saga.
-
-### Periodic fallback
-
-The saga orchestrator worker runs an APScheduler job every **10 seconds** that calls `try_schedule_from_queue()`. This handles the case where the worker restarted and missed events while down, or where a `release` was lost.
-
-```python
-scheduler.add_job(
-    orchestrator.try_schedule_from_queue,
-    trigger="interval",
-    seconds=10,
-    id="saga_try_schedule",
-    max_instances=1,
-    misfire_grace_time=30,
-)
-```
-
-## Concurrency Control
-
-The maximum number of concurrent executions is controlled by `max_concurrent_executions` in `SystemSettings`, loaded at scheduling time via `RuntimeSettingsLoader`. The default is **10**.
-
-The Lua script enforces this by checking `SCARD(exec_queue:active)` before popping. An execution stays in the active set from the moment it is scheduled until the saga reaches a terminal state (`COMPLETED`, `FAILED`, `TIMEOUT`, or `CANCELLED`), at which point `release()` removes it.
-
-## Queue Service API
-
-`ExecutionQueueService` exposes these methods, all called by the saga orchestrator or admin service:
-
-| Method | What it does |
-|--------|-------------|
-| `enqueue(event)` | `ZADD` to pending set + store event JSON. Returns queue position. |
-| `try_schedule(max_active)` | Lua script: if active < max, `ZPOPMIN` + `SADD`. Returns `(execution_id, event)` or `None`. |
-| `release(execution_id)` | `SREM` from active set + `DEL` event key. |
-| `update_priority(execution_id, new_priority)` | Re-scores the pending sorted set entry. Returns `False` if not pending. |
-| `remove(execution_id)` | Cleans up from pending set, active set, and event key. |
-| `get_queue_status()` | Returns `{queue_depth, active_count}` via `ZCARD` + `SCARD`. |
-| `get_pending_by_priority()` | Counts per priority band via `ZCOUNT` on score ranges. |
-
-## Admin Priority Management
-
-Admins can view and reprioritize queued executions through the admin API. All endpoints require admin authentication.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/executions/` | `GET` | List executions with status, priority, and user filters |
-| `/api/v1/admin/executions/{id}/priority` | `PUT` | Change priority (updates both MongoDB and Redis queue) |
-| `/api/v1/admin/executions/queue` | `GET` | Queue status: depth, active count, max concurrent, breakdown by priority |
-
-When an admin changes priority, `AdminExecutionService` updates MongoDB (for persistence) and calls `queue_service.update_priority()` to re-score the Redis sorted set entry. The change takes effect on the next scheduling attempt.
+The queue status reads Redis directly: `queue_depth` is the sum of `ZCARD` over the five pending sets, `active_count` is `SCARD` on the active set, and `by_priority` has the `ZCARD` of each non-empty set.
 
 ## Metrics
 
-`QueueMetrics` emits OpenTelemetry instruments for observability:
+`QueueMetrics` in `backend/app/core/metrics/queue.py` defines these. The second column is the series name in VictoriaMetrics.
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `queue.depth` | UpDownCounter | Pending executions (incremented on enqueue, decremented on schedule) |
-| `queue.active` | UpDownCounter | Active executions (incremented on schedule, decremented on release) |
-| `queue.enqueue.total` | Counter | Total executions enqueued |
-| `queue.schedule.total` | Counter | Total executions scheduled from queue |
-| `queue.wait_time` | Histogram | Time from enqueue to schedule, bucketed by priority |
+| Instrument | Series | Meaning |
+|------------|--------|---------|
+| `queue.depth` | `queue_depth` | Up-down counter: up on enqueue, down on schedule |
+| `queue.active` | `queue_active` | Up-down counter: up on schedule, down when `release` or `remove` takes an id out of the active set |
+| `queue.enqueue.total` | `queue_enqueue_total` | Enqueues, including re-enqueues after a failed saga start |
+| `queue.schedule.total` | `queue_schedule_total` | Executions popped from the queue |
+| `queue.wait_time` | `queue_wait_time_seconds` | Histogram of enqueue to schedule, by `priority` |
+| `queue.event_data_lost` | `queue_event_data_lost_total` | Scheduled ids whose stored event had expired |
 
-Example PromQL queries:
-
-```promql
-# Current queue depth
-queue_depth
-
-# Scheduling throughput (per second, 5m window)
-rate(queue_schedule_total[5m])
-
-# P95 wait time by priority
-histogram_quantile(0.95, rate(queue_wait_time_bucket[5m]))
-```
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| [`execution_queue.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/execution_queue.py) | `ExecutionQueueService` — Redis queue operations |
-| [`saga_orchestrator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saga/saga_orchestrator.py) | Saga orchestrator — scheduling triggers and saga lifecycle |
-| [`run_saga_orchestrator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_saga_orchestrator.py) | Worker entry point with APScheduler jobs |
-| [`queue.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/metrics/queue.py) | `QueueMetrics` OpenTelemetry instruments |
-| [`admin_execution_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/admin/admin_execution_service.py) | Admin service for listing executions and updating priority |
-| [`executions.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/executions.py) | Admin API routes |
-
-## Related docs
-
-- [Kafka Topic Architecture](kafka-topic-architecture.md) — topic layout and consumer groups
-- [Services Overview](services-overview.md) — how all services fit together
-- [Saga Orchestrator](../components/workers/saga_orchestrator.md) — saga lifecycle and compensation
-- [Metrics Reference](../operations/metrics-reference.md) — full metrics catalog
+`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `queue_depth` also drifts: an id popped with an expired event, or removed by a cancel, leaves the pending set without decrementing it. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.

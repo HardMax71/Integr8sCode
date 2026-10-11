@@ -7,6 +7,11 @@ from typing import Any
 import httpx2
 import pytest
 import redis.asyncio as redis
+from fastapi import FastAPI
+from httpx2 import AsyncClient
+from pydantic import TypeAdapter
+from starlette.types import ASGIApp, Message
+
 from app.db.docs.saga import SagaDocument
 from app.domain.enums import EventType, UserRole
 from app.domain.sse import SSEExecutionEventData
@@ -16,10 +21,6 @@ from app.schemas_pydantic.notification import NotificationListResponse, Notifica
 from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
-from fastapi import FastAPI
-from httpx2 import AsyncClient
-from pydantic import TypeAdapter
-from starlette.types import ASGIApp, Message
 
 _sse_adapter = TypeAdapter(SSEExecutionEventData)
 
@@ -148,7 +149,8 @@ async def wait_for_result(
 ) -> SSEExecutionEventData:
     """Wait for RESULT_STORED or RESULT_FAILED."""
     return await wait_for_sse_event(
-        redis_client, execution_id,
+        redis_client,
+        execution_id,
         lambda e: e.event_type in RESULT_TYPES,
         timeout=timeout,
     )
@@ -162,7 +164,8 @@ async def wait_for_pod_created(
 ) -> SSEExecutionEventData:
     """Wait for POD_CREATED — implies saga started + command dispatched."""
     return await wait_for_sse_event(
-        redis_client, execution_id,
+        redis_client,
+        execution_id,
         lambda e: e.event_type == EventType.POD_CREATED,
         timeout=timeout,
     )
@@ -275,9 +278,7 @@ async def create_execution_with_saga(
     await wait_for_pod_created(redis_client, execution.execution_id)
 
     doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
-    assert doc is not None, (
-        f"No saga document for {execution.execution_id} despite POD_CREATED received"
-    )
+    assert doc is not None, f"No saga document for {execution.execution_id} despite POD_CREATED received"
 
     saga = SagaStatusResponse.model_validate(doc, from_attributes=True)
     return execution, saga

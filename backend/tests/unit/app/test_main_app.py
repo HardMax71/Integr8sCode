@@ -1,11 +1,13 @@
 from importlib import import_module
 from typing import Any
+from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
+
 from app.domain.exceptions import DomainError
 from app.main import create_app
 from app.settings import Settings
-from fastapi import FastAPI
 
 pytestmark = pytest.mark.unit
 
@@ -110,8 +112,12 @@ class TestMiddlewareStack:
 
     def test_middleware_count(self, app: FastAPI) -> None:
         expected = {
-            "CORSMiddleware", "RequestSizeLimitMiddleware", "CacheControlMiddleware",
-            "MetricsMiddleware", "RateLimitMiddleware", "CSRFMiddleware",
+            "CORSMiddleware",
+            "RequestSizeLimitMiddleware",
+            "CacheControlMiddleware",
+            "MetricsMiddleware",
+            "RateLimitMiddleware",
+            "CSRFMiddleware",
         }
         assert expected.issubset(self._get_middleware_class_names(app))
 
@@ -173,4 +179,6 @@ class TestCreateAppFunction:
 
     def test_create_app_without_settings_uses_defaults(self) -> None:
         create_app_fn = import_module("app.main").create_app
-        assert isinstance(create_app_fn(), FastAPI)
+        # config.toml sets an OTLP endpoint, and the real setup would install process-wide OTel providers
+        with patch("app.main.setup_metrics"), patch("app.main.setup_log_exporter"):
+            assert isinstance(create_app_fn(), FastAPI)

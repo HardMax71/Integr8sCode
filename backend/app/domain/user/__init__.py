@@ -6,7 +6,7 @@ from .exceptions import (
     AuthenticationRequiredError,
     CSRFValidationError,
     InvalidCredentialsError,
-    TokenExpiredError,
+    SelfDeletionError,
     UserNotFoundError,
 )
 from .settings_models import (
@@ -48,7 +48,7 @@ __all__ = [
     "InvalidCredentialsError",
     "LoginResult",
     "PasswordReset",
-    "TokenExpiredError",
+    "SelfDeletionError",
     "User",
     "UserDeleteResult",
     "UserFields",

@@ -22,6 +22,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"], route_class=DishkaRo
     response_model=LoginResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid username or password"},
+        403: {"model": ErrorResponse, "description": "Account deactivated"},
         423: {"model": ErrorResponse, "description": "Account temporarily locked"},
     },
 )
@@ -85,8 +86,20 @@ async def login(
     "/register",
     response_model=UserResponse,
     responses={
-        400: {"model": ErrorResponse, "description": "Password too short"},
-        409: {"model": ErrorResponse, "description": "User already exists"},
+        409: {"model": ErrorResponse, "description": "Username or email already registered"},
+        422: {
+            "description": "Password below the configured minimum length, or invalid request body",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "anyOf": [
+                            {"$ref": "#/components/schemas/ErrorResponse"},
+                            {"$ref": "#/components/schemas/HTTPValidationError"},
+                        ]
+                    }
+                }
+            },
+        },
     },
 )
 async def register(
@@ -115,7 +128,11 @@ async def register(
     return UserResponse.model_validate(created_user)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    responses={401: {"model": ErrorResponse, "description": "Not authenticated or session invalid"}},
+)
 async def get_current_user_profile(
     request: Request,
     response: Response,
@@ -139,7 +156,11 @@ async def get_current_user_profile(
     return UserResponse.model_validate(current_user)
 
 
-@router.post("/logout", response_model=MessageResponse)
+@router.post(
+    "/logout",
+    response_model=MessageResponse,
+    responses={403: {"model": ErrorResponse, "description": "CSRF token missing or invalid"}},
+)
 async def logout(
     request: Request,
     response: Response,

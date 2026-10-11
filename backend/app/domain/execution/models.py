@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.domain.enums import CancelStatus, ExecutionErrorType, ExecutionStatus, QueuePriority
-from app.domain.events import EventMetadata, ResourceUsageDomain
+from app.domain.events import ResourceUsageDomain
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 
 
@@ -46,7 +46,6 @@ class ExecutionResultDomain:
     lang_version: str = DEFAULT_LANG_VERSION
     resource_usage: ResourceUsageDomain | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: EventMetadata | None = None
     error_type: ExecutionErrorType | None = None
 
 

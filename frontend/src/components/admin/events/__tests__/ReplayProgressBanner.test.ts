@@ -150,7 +150,7 @@ describe('ReplayProgressBanner', () => {
                     execution_results: [
                         {
                             execution_id: 'exec-x',
-                            status: status as import('$lib/api').ExecutionStatus | null,
+                            status: status as import('$lib/api').ExecutionStatus,
                             stdout: null,
                             stderr: null,
                             lang: 'python',

@@ -109,7 +109,7 @@ class ExecutionCompletedEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_COMPLETED] = EventType.EXECUTION_COMPLETED
     execution_id: str
     exit_code: int
-    resource_usage: ResourceUsageDomain | None = None
+    resource_usage: ResourceUsageDomain
     stdout: str = ""
     stderr: str = ""
 
@@ -128,7 +128,7 @@ class ExecutionTimeoutEvent(BaseEvent):
     event_type: Literal[EventType.EXECUTION_TIMEOUT] = EventType.EXECUTION_TIMEOUT
     execution_id: str
     timeout_seconds: int
-    resource_usage: ResourceUsageDomain | None = None
+    resource_usage: ResourceUsageDomain
     stdout: str = ""
     stderr: str = ""
 

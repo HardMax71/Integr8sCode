@@ -357,7 +357,6 @@ class ExecutionService:
             stdout="",
             stderr=error_message,
             resource_usage=None,
-            metadata=None,
         )
         await self.execution_repo.write_terminal_result(result)
 

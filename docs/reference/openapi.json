@@ -7024,14 +7024,7 @@
             "title": "Exit Code"
           },
           "resource_usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResourceUsageDomain"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ResourceUsageDomain"
           },
           "stdout": {
             "type": "string",
@@ -7411,14 +7404,7 @@
             "title": "Execution Id"
           },
           "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ExecutionStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ExecutionStatus"
           },
           "stdout": {
             "anyOf": [
@@ -7705,14 +7691,7 @@
             "title": "Timeout Seconds"
           },
           "resource_usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResourceUsageDomain"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ResourceUsageDomain"
           },
           "stdout": {
             "type": "string",

@@ -79,7 +79,7 @@ class ExecutionResult(BaseModel):
     """Model for execution result."""
 
     execution_id: str
-    status: ExecutionStatus | None = None
+    status: ExecutionStatus
     stdout: str | None = None
     stderr: str | None = None
     lang: str

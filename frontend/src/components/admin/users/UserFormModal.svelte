@@ -1,33 +1,19 @@
 <script lang="ts">
-    import type { UserResponse } from '$lib/api';
+    import { UserRole, type UserCreate, type UserResponse } from '$lib/api';
+    import { formatEnumLabel } from '$lib/formatters';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
-
-    interface UserForm {
-        username: string;
-        email: string;
-        password: string;
-        role: string;
-        is_active: boolean;
-    }
 
     interface Props {
         open: boolean;
         editingUser: UserResponse | null;
-        form: UserForm;
+        form: Required<UserCreate>;
         saving: boolean;
         onClose: () => void;
         onSave: () => void;
     }
 
-    let {
-        open,
-        editingUser,
-        form = $bindable({ username: '', email: '', password: '', role: 'user', is_active: true }),
-        saving,
-        onClose,
-        onSave,
-    }: Props = $props();
+    let { open, editingUser, form = $bindable(), saving, onClose, onSave }: Props = $props();
 
     function handleSubmit(e: Event): void {
         e.preventDefault();
@@ -105,8 +91,9 @@
                         class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Role</label
                     >
                     <select id="user-form-role" bind:value={form.role} class="form-select-standard" disabled={saving}>
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        {#each Object.values(UserRole) as role (role)}
+                            <option value={role}>{formatEnumLabel(role)}</option>
+                        {/each}
                     </select>
                 </div>
                 <div>

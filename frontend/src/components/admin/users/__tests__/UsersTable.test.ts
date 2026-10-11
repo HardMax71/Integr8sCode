@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/svelte';
 import { user, createMockUser, createMockUsers } from '$test/test-utils';
 import UsersTable from '$components/admin/users/UsersTable.svelte';
 
-vi.mock('$lib/formatters', () => ({
+vi.mock('$lib/formatters', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/formatters')>()),
     formatTimestamp: vi.fn((ts: string) => `formatted:${ts}`),
 }));
 

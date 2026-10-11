@@ -111,7 +111,7 @@ describe('initializeApiInterceptors', () => {
         mockGoto = vi.fn();
         mockAuthStore = { isAuthenticated: true, csrfToken: 'csrf-123', clearAuth: vi.fn() };
 
-        vi.doMock('$lib/api/client.gen', () => ({
+        vi.doMock('$lib/api', () => ({
             client: {
                 setConfig: mockSetConfig,
                 interceptors: {

@@ -2,7 +2,8 @@
     import { goto, route } from '@mateothegreat/svelte5-router';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
-    import { registerApiV1AuthRegisterPost } from '$lib/api';
+    import { registerApiV1AuthRegisterPost, zUserCreate } from '$lib/api';
+    import { firstIssue } from '$lib/validation';
     import { getErrorMessage } from '$lib/api-interceptors';
     import { onMount } from 'svelte';
     import { updateMetaTags, pageMeta } from '$utils/meta';
@@ -25,9 +26,9 @@
             toast.error(error);
             return;
         }
-        if (password.length < 8) {
-            // Backend requires min 8 characters
-            error = 'Password must be at least 8 characters long.';
+        const parsed = zUserCreate.safeParse({ username, email, password });
+        if (!parsed.success) {
+            error = firstIssue(parsed.error);
             toast.warning(error);
             return;
         }

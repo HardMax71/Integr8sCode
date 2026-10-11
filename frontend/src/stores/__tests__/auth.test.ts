@@ -5,7 +5,8 @@ const mockLoginApi = vi.fn();
 const mockLogoutApi = vi.fn();
 const mockGetProfileApi = vi.fn();
 
-vi.mock('$lib/api', () => ({
+vi.mock('$lib/api', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/api')>()),
     loginApiV1AuthLoginPost: (...args: unknown[]) => mockLoginApi(...args),
     logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),

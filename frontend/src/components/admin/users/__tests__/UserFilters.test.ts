@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
 import { user } from '$test/test-utils';
 import UserFilters from '$components/admin/users/UserFilters.svelte';
+import { UserRole } from '$lib/api';
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
     const onReset = vi.fn();
@@ -73,7 +74,7 @@ describe('UserFilters', () => {
     });
 
     it.each([
-        ['Role', ['all', 'user', 'moderator', 'admin']],
+        ['Role', ['all', ...Object.values(UserRole)]],
         ['Status', ['all', 'active', 'disabled']],
     ] as const)('%s filter has correct options', (label, expected) => {
         renderFilters();

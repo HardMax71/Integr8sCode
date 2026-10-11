@@ -31,7 +31,7 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 [vitest.setup.ts](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts) runs before every test file and sets up global mocks, so most tests don't mock these themselves:
 
 - fake timers with `shouldAdvanceTime: true`
-- `$lib/api` automocked, so every generated API function is a `vi.fn()`
+- `$lib/api` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas and the client stay real; a test that overrides `$lib/api` spreads `importOriginal()` into its factory so those stay available
 - `$lib/api-interceptors` with simple `unwrap` and `unwrapOr` that throw or fall back the way the real ones do
 - `svelte-sonner`'s `toast` and the router's `goto` and `route`
 - `localStorage`, `sessionStorage`, `matchMedia`, `ResizeObserver` and `IntersectionObserver`

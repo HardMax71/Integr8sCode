@@ -1,11 +1,10 @@
+import { Theme } from '$lib/api';
 import { logger } from '$lib/logger';
 
 const log = logger.withTag('Theme');
 
-export type ThemeValue = 'light' | 'dark' | 'auto';
-
 const browser = typeof window !== 'undefined' && typeof document !== 'undefined';
-const defaultTheme: ThemeValue = 'auto';
+const defaultTheme: Theme = Theme.AUTO;
 const storageKey = 'app-theme';
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -13,22 +12,22 @@ function getSystemTheme(): 'light' | 'dark' {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function getInitialTheme(): ThemeValue {
+function getInitialTheme(): Theme {
     if (!browser) return defaultTheme;
     const stored = localStorage.getItem(storageKey);
-    if (stored && ['light', 'dark', 'auto'].includes(stored)) {
-        return stored as ThemeValue;
+    if (stored && (Object.values(Theme) as string[]).includes(stored)) {
+        return stored as Theme;
     }
     return defaultTheme;
 }
 
-function applyTheme(newTheme: ThemeValue): void {
+function applyTheme(newTheme: Theme): void {
     if (!browser) return;
-    const effectiveTheme = newTheme === 'auto' ? getSystemTheme() : newTheme;
+    const effectiveTheme = newTheme === Theme.AUTO ? getSystemTheme() : newTheme;
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
 }
 
-let saveUserSettingsFn: ((partial: { theme?: ThemeValue }) => Promise<boolean>) | null = null;
+let saveUserSettingsFn: ((partial: { theme?: Theme }) => Promise<boolean>) | null = null;
 let authStoreRef: { isAuthenticated: boolean | null } | null = null;
 
 if (browser) {
@@ -39,19 +38,19 @@ if (browser) {
 }
 
 class ThemeStore {
-    value = $state<ThemeValue>(getInitialTheme());
+    value = $state<Theme>(getInitialTheme());
 
     constructor() {
         // Apply initial theme
         if (browser) {
             applyTheme(this.value);
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-                if (this.value === 'auto') applyTheme('auto');
+                if (this.value === Theme.AUTO) applyTheme(Theme.AUTO);
             });
         }
     }
 
-    setTheme(v: ThemeValue): void {
+    setTheme(v: Theme): void {
         this.value = v;
         if (browser) {
             localStorage.setItem(storageKey, v);
@@ -60,7 +59,8 @@ class ThemeStore {
     }
 
     toggleTheme(): void {
-        const next: ThemeValue = this.value === 'light' ? 'dark' : this.value === 'dark' ? 'auto' : 'light';
+        const next: Theme =
+            this.value === Theme.LIGHT ? Theme.DARK : this.value === Theme.DARK ? Theme.AUTO : Theme.LIGHT;
         this.setTheme(next);
         if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
             void saveUserSettingsFn({ theme: next }).catch((err: unknown) => {
@@ -71,7 +71,7 @@ class ThemeStore {
 }
 
 export const themeStore = new ThemeStore();
-export const setTheme = (v: ThemeValue) => {
+export const setTheme = (v: Theme) => {
     themeStore.setTheme(v);
 };
 export const toggleTheme = () => {

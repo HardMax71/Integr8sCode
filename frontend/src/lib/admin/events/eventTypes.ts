@@ -1,25 +1,13 @@
 /**
  * Event type configurations and utilities
  */
-import type { EventFilter, EventType } from '$lib/api';
+import { EventType, type EventFilter } from '$lib/api';
 
 // Re-export EventType from generated types
 export type { EventType } from '$lib/api';
 
-// Common event types for filtering UI (manually curated subset of all EventType values).
-// Keep in sync with EventType in types.gen.ts when adding new event types to the backend.
-export const EVENT_TYPES: EventType[] = [
-    'execution_requested',
-    'execution_started',
-    'execution_completed',
-    'execution_failed',
-    'execution_timeout',
-    'pod_created',
-    'pod_running',
-    'pod_succeeded',
-    'pod_failed',
-    'pod_terminated',
-];
+// Every event type, for the filter UI
+export const EVENT_TYPES: EventType[] = Object.values(EventType);
 
 // Event type color mapping
 export function getEventTypeColor(eventType: EventType): string {

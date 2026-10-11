@@ -1,6 +1,7 @@
 <script lang="ts">
     import { ChevronDown } from '@lucide/svelte';
-    import type { UserRole } from '$lib/api';
+    import { UserRole } from '$lib/api';
+    import { formatEnumLabel } from '$lib/formatters';
 
     // Filter types - 'all' means no filter applied
     type RoleFilter = 'all' | UserRole;
@@ -64,9 +65,9 @@
                 >
                 <select id="role-filter" bind:value={roleFilter} class="form-select-standard w-full">
                     <option value="all">All Roles</option>
-                    <option value="user">User</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Admin</option>
+                    {#each Object.values(UserRole) as role (role)}
+                        <option value={role}>{formatEnumLabel(role)}</option>
+                    {/each}
                 </select>
             </div>
             <div class="w-full sm:w-auto sm:min-w-[140px]">

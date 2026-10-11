@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 const mockGetUserSettings = vi.fn();
 const mockUpdateUserSettings = vi.fn();
 
-vi.mock('$lib/api', () => ({
+vi.mock('$lib/api', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/api')>()),
     getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) =>
         (mockGetUserSettings as (...a: unknown[]) => unknown)(...args),
     updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) =>

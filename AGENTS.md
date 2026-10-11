@@ -6,7 +6,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TypeScript 6 strict, TailwindCSS 4, Node 26 |
+| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, bits-ui 2, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
@@ -723,6 +723,10 @@ export const load: LayoutLoad = async ({ url }) => {
 
 Navigation: plain `<a href>` for links (SvelteKit handles them), `goto('/path')` from `$app/navigation` in code, and `page` from `$app/state` for the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
 
+## Frontend: Overlays
+
+Dialogs, menus, popovers and selects come from bits-ui, imported from npm and styled with our own Tailwind classes; don't copy component source into the repo and don't hand-roll click-outside or arrow-key handling. Dialogs go through `#components/Modal.svelte`, which wraps `Dialog` and keeps the `open`, `title`, `onClose`, `size`, `children` and `footer` props. Menu, popover and select content renders in a `Portal` with `class="floating-panel"`, and each item gets `class="floating-item"` (both in `styles/components.css`). A menu item that navigates renders an `<a href>` through its `child` snippet.
+
 ## Testing
 
 ### Backend (pytest)
@@ -781,6 +785,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 
 - Tests sit next to the source in `__tests__/` directories
 - `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
 - Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state

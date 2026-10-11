@@ -104,22 +104,20 @@ describe('Settings', () => {
     });
 
     describe('Theme dropdown', () => {
-        it('selects "Dark" and calls setTheme with "dark"', async () => {
+        it('picks "Dark" from the theme list, previews it and shows it as the choice', async () => {
             mockApi(getUserSettingsApiV1UserSettingsGet).ok({ ...createMockSettings(), theme: 'light' });
             await renderSettings();
             await waitFor(() => {
                 expect(screen.getByText('General Settings')).toBeInTheDocument();
             });
 
-            const themeButton = document.getElementById('theme-select') as HTMLButtonElement;
-            expect(themeButton).toBeTruthy();
-            await user.click(themeButton);
+            const themeSelect = screen.getByLabelText('Theme');
+            expect(themeSelect).toHaveTextContent('Light');
+            await user.click(themeSelect);
+            await user.click(await screen.findByRole('option', { name: 'Dark' }));
 
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: 'Dark' })).toBeInTheDocument();
-            });
-            await user.click(screen.getByRole('button', { name: 'Dark' }));
             expect(mocks.mockSetTheme).toHaveBeenCalledWith('dark');
+            await waitFor(() => expect(themeSelect).toHaveTextContent('Dark'));
         });
     });
 
@@ -211,8 +209,10 @@ describe('Settings', () => {
                 expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledTimes(1);
             });
 
-            await user.click(screen.getByRole('button', { name: 'Close' }));
+            await user.keyboard('{Escape}');
+            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
             await user.click(screen.getByRole('button', { name: /view history/i }));
+            await screen.findByRole('dialog', { name: 'Settings History' });
             expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledTimes(1);
         });
     });
@@ -258,7 +258,7 @@ describe('Settings', () => {
             expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toMatchObject({
                 theme: 'light',
             });
-            expect(screen.queryByRole('heading', { name: 'Settings History' })).not.toBeInTheDocument();
+            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         });
 
         it('does not call API when confirm is cancelled', async () => {

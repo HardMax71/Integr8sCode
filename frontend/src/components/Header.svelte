@@ -10,6 +10,7 @@
     import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
     import { fade } from 'svelte/transition';
     import NotificationCenter from '#components/NotificationCenter.svelte';
+    import { DropdownMenu } from 'bits-ui';
     import {
         Sun,
         Moon,
@@ -27,7 +28,6 @@
     let isMenuActive = $state(false);
     let innerWidth = $state(0);
     let isMobile = $derived(innerWidth < 1024);
-    let showUserDropdown = $state(false);
     let logoImgClass = 'h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110';
 
     function toggleMenu() {
@@ -36,7 +36,6 @@
 
     function closeMenu() {
         isMenuActive = false;
-        showUserDropdown = false;
     }
 
     const queryClient = useQueryClient();
@@ -66,12 +65,6 @@
         logout.mutate({});
     }
 
-    function handleClickOutside(event: MouseEvent) {
-        if (showUserDropdown && !(event.target as Element)?.closest('.user-dropdown-container')) {
-            showUserDropdown = false;
-        }
-    }
-
     $effect(() => {
         if (!isMobile && isMenuActive) {
             isMenuActive = false;
@@ -95,7 +88,6 @@
 </script>
 
 <svelte:window bind:innerWidth />
-<svelte:document onclick={handleClickOutside} />
 
 <header
     class="fixed top-0 left-0 right-0 bg-bg-alt/80 dark:bg-dark-bg-alt/80 backdrop-blur-md border-b border-border-default dark:border-dark-border-default shadow-xs z-50 transition-colors duration-300 h-16"
@@ -137,97 +129,67 @@
                 <div class="hidden lg:flex items-center space-x-3">
                     {#if authStore.isAuthenticated}
                         <NotificationCenter />
-                        <!-- User dropdown for all authenticated users -->
-                        <div class="relative user-dropdown-container">
-                            <button
-                                type="button"
-                                onclick={(e) => {
-                                    e.stopPropagation();
-                                    showUserDropdown = !showUserDropdown;
-                                }}
+                        <DropdownMenu.Root>
+                            <DropdownMenu.Trigger
                                 aria-label="User menu"
-                                aria-expanded={showUserDropdown}
-                                aria-haspopup="true"
-                                class="flex items-center space-x-2 btn btn-ghost btn-sm"
+                                class="flex items-center space-x-2 btn btn-ghost btn-sm group"
                             >
-                                <div class="flex items-center space-x-2">
-                                    <User class="w-5 h-5" />
-                                    <span class="hidden xl:inline font-medium">{authStore.username}</span>
-                                    <span class="transition-transform duration-200" class:rotate-180={showUserDropdown}>
-                                        <ChevronDown class="w-4 h-4" />
-                                    </span>
-                                </div>
-                            </button>
-
-                            {#if showUserDropdown}
-                                <div
-                                    class="absolute right-0 mt-2 w-[min(92vw,360px)] min-w-[260px] bg-bg-default dark:bg-dark-bg-default rounded-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-50"
-                                    in:fade={{ duration: 150 }}
-                                    out:fade={{ duration: 100 }}
-                                >
-                                    <div class="p-3">
-                                        <div class="flex items-center gap-3">
-                                            <div
-                                                class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0"
+                                <User class="w-5 h-5" />
+                                <span class="hidden xl:inline font-medium">{authStore.username}</span>
+                                <ChevronDown
+                                    class="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180"
+                                />
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Portal>
+                                <DropdownMenu.Content align="end" sideOffset={8} class="floating-panel w-64">
+                                    <div class="flex items-center gap-3 px-2 py-1.5">
+                                        <span
+                                            class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0 text-xs font-semibold text-primary dark:text-primary-light"
+                                        >
+                                            {authStore.username?.charAt(0).toUpperCase() ?? '?'}
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="block text-sm font-medium truncate">
+                                                {authStore.username}
+                                                {#if authStore.userRole === 'admin'}
+                                                    <span
+                                                        class="text-xs text-primary dark:text-primary-light font-medium ml-1"
+                                                        >(Admin)</span
+                                                    >
+                                                {/if}
+                                            </span>
+                                            <span class="block text-xs text-fg-muted dark:text-dark-fg-muted truncate"
+                                                >{authStore.userEmail || 'No email set'}</span
                                             >
-                                                <span
-                                                    class="text-xs font-semibold text-primary dark:text-primary-light"
-                                                >
-                                                    {authStore.username?.charAt(0).toUpperCase() ?? '?'}
-                                                </span>
-                                            </div>
-                                            <div class="min-w-0">
-                                                <p
-                                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default truncate"
-                                                >
-                                                    {authStore.username}
-                                                    {#if authStore.userRole === 'admin'}
-                                                        <span
-                                                            class="text-xs text-primary dark:text-primary-light font-medium ml-1"
-                                                            >(Admin)</span
-                                                        >
-                                                    {/if}
-                                                </p>
-                                                <p class="text-xs text-fg-muted dark:text-dark-fg-muted truncate">
-                                                    {authStore.userEmail || 'No email set'}
-                                                </p>
-                                            </div>
-                                            <div
-                                                class="mx-1 sm:mx-2 h-6 w-px bg-border-default dark:bg-dark-border-default"
-                                            ></div>
-                                        </div>
-                                        <div class="mt-3 flex flex-col sm:flex-row gap-2">
-                                            {#if authStore.userRole === 'admin'}
-                                                <button
-                                                    type="button"
-                                                    onclick={() => {
-                                                        showUserDropdown = false;
-                                                        goto('/admin/events');
-                                                    }}
-                                                    class="btn btn-secondary-outline btn-sm flex-1"
-                                                >
-                                                    Admin
-                                                </button>
-                                            {/if}
-                                            <a
-                                                href="/settings"
-                                                onclick={() => (showUserDropdown = false)}
-                                                class="btn btn-secondary-outline btn-sm flex-1 text-center"
-                                            >
-                                                Settings
-                                            </a>
-                                            <button
-                                                type="button"
-                                                onclick={handleLogout}
-                                                class="btn btn-danger-outline btn-sm flex-1"
-                                            >
-                                                Logout
-                                            </button>
-                                        </div>
+                                        </span>
                                     </div>
-                                </div>
-                            {/if}
-                        </div>
+                                    <DropdownMenu.Separator
+                                        class="my-1 h-px bg-border-default dark:bg-dark-border-default"
+                                    />
+                                    {#if authStore.userRole === 'admin'}
+                                        <DropdownMenu.Item class="floating-item">
+                                            {#snippet child({ props })}
+                                                <a href="/admin/events" {...props}><Settings class="w-4 h-4" />Admin</a>
+                                            {/snippet}
+                                        </DropdownMenu.Item>
+                                    {/if}
+                                    <DropdownMenu.Item class="floating-item">
+                                        {#snippet child({ props })}
+                                            <a href="/settings" {...props}><User class="w-4 h-4" />Settings</a>
+                                        {/snippet}
+                                    </DropdownMenu.Item>
+                                    <DropdownMenu.Separator
+                                        class="my-1 h-px bg-border-default dark:bg-dark-border-default"
+                                    />
+                                    <DropdownMenu.Item
+                                        class="floating-item text-red-600 dark:text-red-400"
+                                        onSelect={handleLogout}
+                                    >
+                                        <LogOut class="w-4 h-4" />Logout
+                                    </DropdownMenu.Item>
+                                </DropdownMenu.Content>
+                            </DropdownMenu.Portal>
+                        </DropdownMenu.Root>
                     {:else}
                         <a href="/login" onclick={closeMenu} class="btn btn-secondary-outline btn-sm"> Login </a>
                         <a href="/register" onclick={closeMenu} class="btn btn-primary btn-sm hover:text-white">

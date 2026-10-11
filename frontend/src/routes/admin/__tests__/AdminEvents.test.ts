@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import {
     mockWindowGlobals,
@@ -375,9 +375,9 @@ describe('AdminEvents', () => {
 
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-            // Verify close buttons exist (Modal X button and footer Close button)
-            expect(screen.getByRole('button', { name: /Close modal/i })).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: /^Close$/i })).toBeInTheDocument();
+            const dialog = screen.getByRole('dialog');
+            expect(within(dialog).getByRole('button', { name: 'Close dialog' })).toBeInTheDocument();
+            expect(within(dialog).getByRole('button', { name: 'Close' })).toBeInTheDocument();
         });
     });
 

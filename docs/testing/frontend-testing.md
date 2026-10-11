@@ -20,6 +20,8 @@ Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-ut
 
 A component that runs queries needs the query client from context, so render it with `renderWithQueryClient(Component, props)` instead of `render`. The admin stores and the editor's execution state build their queries when they're created, so their tests create them with `createInQueryContext(createSagasStore)`, which runs the factory inside a component under the provider and returns `{ value, unmount }`. Query results arrive asynchronously, so assert on them with `vi.waitFor` or `waitFor`. The generated functions pass extra options such as `signal` and `throwOnError`, so check SDK calls with `expect.objectContaining`. To test a branch on a status, such as the editor's 404 fallback, reject with an `ApiError`, since `.err()` rejects with the plain body.
 
+Dialogs, menus, popovers and selects come from bits-ui and render their content in a portal at the end of `document.body`, outside the container `render` returns. Query them through `screen`, which searches the whole body. bits-ui decides whether a click landed outside by comparing its coordinates with the content's box, and happy-dom lays nothing out, so a click outside can't be simulated; the Playwright suite covers it. Escape, focus and keyboard navigation work in happy-dom.
+
 E2E specs live in `frontend/e2e/`, not under `src/`.
 
 ## Configuration
@@ -36,7 +38,7 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 - `#lib/api/sdk.gen.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas, the client and the TanStack options stay real; mocking sdk.gen rather than the index means the generated query options, which import it directly, call the mocks too. A test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so the rest stays available
 - `#lib/api-interceptors.ts` with a no-op `initializeApiInterceptors`, so no test gets the toast handler unless it sets one; `getErrorMessage` and `showApiError` stay real
 - `svelte-sonner`'s `toast` and `goto` from `$app/navigation`; a test that needs `page` from `$app/state` mocks it in its own file
-- `localStorage`, `sessionStorage`, `matchMedia`, `ResizeObserver` and `IntersectionObserver`
+- `localStorage`, `sessionStorage` and `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
 - `Element.prototype.animate`, which Svelte transitions call
 - a `:checked` polyfill for `<select>`, since happy-dom lacks it and `bind:value` depends on it
 - storage cleared, `cleanup()` run and the query cache cleared before each test

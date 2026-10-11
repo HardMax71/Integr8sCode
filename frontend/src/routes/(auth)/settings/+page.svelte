@@ -17,18 +17,16 @@
     import { authStore } from '#stores/auth.svelte.ts';
     import { setTheme } from '#stores/theme.svelte.ts';
     import { toast } from 'svelte-sonner';
-    import { fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
-    import { ChevronDown } from '@lucide/svelte';
+    import Modal from '#components/Modal.svelte';
+    import { Select } from 'bits-ui';
+    import { Check, ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '#lib/formatters.ts';
 
     type SettingsForm = Pick<UserSettings, 'theme' | 'notifications' | 'editor'>;
 
     let activeTab = $state('general');
     let showHistory = $state(false);
-
-    // Dropdown states
-    let showThemeDropdown = $state(false);
 
     const tabs = [
         { id: 'general', label: 'General' },
@@ -131,14 +129,6 @@
     />
 </svelte:head>
 
-<svelte:document
-    onclick={(e) => {
-        if (!(e.target as Element)?.closest('.dropdown-container')) {
-            showThemeDropdown = false;
-        }
-    }}
-/>
-
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
         {#if settingsQuery.isPending && authStore.isAuthenticated}
@@ -190,44 +180,47 @@
                             <label for="theme-select" class="block mb-2">
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Theme</span>
                             </label>
-                            <div class="relative dropdown-container">
-                                <button
-                                    type="button"
+                            <Select.Root
+                                type="single"
+                                value={formData.theme}
+                                onValueChange={(value) => {
+                                    const picked = themes.find((t) => t.value === value)?.value;
+                                    if (!picked) return;
+                                    formData.theme = picked;
+                                    setTheme(picked);
+                                }}
+                            >
+                                <Select.Trigger
                                     id="theme-select"
-                                    onclick={() => (showThemeDropdown = !showThemeDropdown)}
-                                    class="form-dropdown-button"
-                                    aria-expanded={showThemeDropdown}
+                                    class="form-control-base flex items-center justify-between text-left group"
                                 >
-                                    <span class="truncate"
-                                        >{themes.find((t) => t.value === formData.theme)?.label || 'Select theme'}</span
+                                    <span class="truncate">{themeLabels[formData.theme]}</span>
+                                    <ChevronDown
+                                        class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
+                                    />
+                                </Select.Trigger>
+                                <Select.Portal>
+                                    <Select.Content
+                                        sideOffset={4}
+                                        class="floating-panel w-(--bits-select-anchor-width)"
                                     >
-                                    <ChevronDown class="w-5 h-5" />
-                                </button>
-
-                                {#if showThemeDropdown}
-                                    <div transition:fly={{ y: 5, duration: 150 }} class="form-dropdown-menu">
-                                        <ul class="py-1">
-                                            {#each themes as theme}
-                                                <li>
-                                                    <button
-                                                        type="button"
-                                                        onclick={() => {
-                                                            formData.theme = theme.value;
-                                                            showThemeDropdown = false;
-                                                            if (theme.value) {
-                                                                setTheme(theme.value);
-                                                            }
-                                                        }}
-                                                        class:selected={formData.theme === theme.value}
-                                                    >
+                                        <Select.Viewport>
+                                            {#each themes as theme (theme.value)}
+                                                <Select.Item
+                                                    value={theme.value}
+                                                    label={theme.label}
+                                                    class="floating-item justify-between"
+                                                >
+                                                    {#snippet children({ selected })}
                                                         {theme.label}
-                                                    </button>
-                                                </li>
+                                                        {#if selected}<Check class="w-4 h-4 text-primary" />{/if}
+                                                    {/snippet}
+                                                </Select.Item>
                                             {/each}
-                                        </ul>
-                                    </div>
-                                {/if}
-                            </div>
+                                        </Select.Viewport>
+                                    </Select.Content>
+                                </Select.Portal>
+                            </Select.Root>
                         </div>
                     {:else if activeTab === 'editor'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
@@ -391,114 +384,85 @@
     </div>
 </div>
 
-{#if showHistory}
-    <div
-        class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0"
-    >
-        <button
-            type="button"
-            class="fixed inset-0 bg-black/50 cursor-default"
-            onclick={() => (showHistory = false)}
-            aria-label="Close modal"
-        ></button>
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="history-modal-title"
-            class="relative inline-block align-bottom bg-bg-alt dark:bg-dark-bg-alt rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
-        >
-            <div class="p-6">
-                <h3
-                    id="history-modal-title"
-                    class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4"
-                >
-                    Settings History
-                </h3>
-
-                <div class="overflow-y-auto max-h-96">
-                    <table class="w-full">
-                        <thead class="bg-neutral-50 dark:bg-neutral-900 sticky top-0">
-                            <tr>
-                                <th
-                                    class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-36"
-                                    >Date</th
+<Modal open={showHistory} title="Settings History" onClose={() => (showHistory = false)} size="lg">
+    {#snippet children()}
+        <div class="overflow-y-auto max-h-96">
+            <table class="w-full">
+                <thead class="bg-neutral-50 dark:bg-neutral-900 sticky top-0">
+                    <tr>
+                        <th
+                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-36"
+                            >Date</th
+                        >
+                        <th
+                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-32"
+                            >Field</th
+                        >
+                        <th
+                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider"
+                            >Change</th
+                        >
+                        <th
+                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-20"
+                        ></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if historyQuery.isPending}
+                        <tr>
+                            <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
+                                <Spinner size="large" className="mx-auto" />
+                            </td>
+                        </tr>
+                    {:else if history.length === 0}
+                        <tr>
+                            <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
+                                No settings changes recorded yet. Make some changes to your settings to see history.
+                            </td>
+                        </tr>
+                    {:else}
+                        {#each history as item}
+                            <tr
+                                class="border-b border-border-default dark:border-dark-border-default hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                            >
+                                <td
+                                    class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default whitespace-nowrap"
+                                    >{formatTimestamp(item.timestamp)}</td
                                 >
-                                <th
-                                    class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-32"
-                                    >Field</th
+                                <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{item.field}</td
                                 >
-                                <th
-                                    class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider"
-                                    >Change</th
-                                >
-                                <th
-                                    class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-20"
-                                ></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#if historyQuery.isPending}
-                                <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
-                                        <Spinner size="large" className="mx-auto" />
-                                    </td>
-                                </tr>
-                            {:else if history.length === 0}
-                                <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
-                                        No settings changes recorded yet. Make some changes to your settings to see
-                                        history.
-                                    </td>
-                                </tr>
-                            {:else}
-                                {#each history as item}
-                                    <tr
-                                        class="border-b border-border-default dark:border-dark-border-default hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                                <td class="px-4 py-2 text-sm font-mono text-fg-muted dark:text-dark-fg-muted">
+                                    <div class="flex flex-wrap items-center gap-1">
+                                        <span class="text-red-600 dark:text-red-400 break-all"
+                                            >{typeof item.old_value === 'object'
+                                                ? JSON.stringify(item.old_value)
+                                                : item.old_value}</span
+                                        >
+                                        <span class="mx-1">→</span>
+                                        <span class="text-green-600 dark:text-green-400 break-all"
+                                            >{typeof item.new_value === 'object'
+                                                ? JSON.stringify(item.new_value)
+                                                : item.new_value}</span
+                                        >
+                                    </div>
+                                </td>
+                                <td class="px-4 py-2">
+                                    <button
+                                        type="button"
+                                        onclick={() => restoreSettings(item.timestamp)}
+                                        class="btn btn-ghost btn-xs"
                                     >
-                                        <td
-                                            class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default whitespace-nowrap"
-                                            >{formatTimestamp(item.timestamp)}</td
-                                        >
-                                        <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default"
-                                            >{item.field}</td
-                                        >
-                                        <td class="px-4 py-2 text-sm font-mono text-fg-muted dark:text-dark-fg-muted">
-                                            <div class="flex flex-wrap items-center gap-1">
-                                                <span class="text-red-600 dark:text-red-400 break-all"
-                                                    >{typeof item.old_value === 'object'
-                                                        ? JSON.stringify(item.old_value)
-                                                        : item.old_value}</span
-                                                >
-                                                <span class="mx-1">→</span>
-                                                <span class="text-green-600 dark:text-green-400 break-all"
-                                                    >{typeof item.new_value === 'object'
-                                                        ? JSON.stringify(item.new_value)
-                                                        : item.new_value}</span
-                                                >
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-2">
-                                            <button
-                                                type="button"
-                                                onclick={() => restoreSettings(item.timestamp)}
-                                                class="btn btn-ghost btn-xs"
-                                            >
-                                                Restore
-                                            </button>
-                                        </td>
-                                    </tr>
-                                {/each}
-                            {/if}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="mt-5 sm:mt-6 flex justify-end">
-                    <button type="button" onclick={() => (showHistory = false)} class="btn btn-secondary-outline">
-                        Close
-                    </button>
-                </div>
-            </div>
+                                        Restore
+                                    </button>
+                                </td>
+                            </tr>
+                        {/each}
+                    {/if}
+                </tbody>
+            </table>
         </div>
-    </div>
-{/if}
+    {/snippet}
+    {#snippet footer()}
+        <button type="button" onclick={() => (showHistory = false)} class="btn btn-secondary-outline">Close</button>
+    {/snippet}
+</Modal>

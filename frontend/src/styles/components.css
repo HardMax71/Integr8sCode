@@ -1,4 +1,18 @@
 @layer components {
+  /* The surface and the items of the bits-ui menus, popovers and selects */
+  .floating-panel {
+    @apply z-50 rounded-lg border border-border-default bg-surface-overlay p-1 text-fg-default shadow-lg
+           dark:border-dark-border-default dark:bg-dark-surface-overlay dark:text-dark-fg-default
+           data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95
+           data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95;
+  }
+
+  .floating-item {
+    @apply flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none
+           data-[highlighted]:bg-interactive-hover dark:data-[highlighted]:bg-dark-interactive-hover
+           data-[disabled]:pointer-events-none data-[disabled]:opacity-50;
+  }
+
   /* Toast Container */
   .toast-container {
     position: fixed;
@@ -151,35 +165,6 @@
            hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer;
   }
 
-  /* Modal/Dialog Styles */
-  .modal-backdrop {
-    @apply fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-2 sm:p-4;
-  }
-
-  .modal-container {
-    @apply bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col;
-  }
-
-  .modal-header {
-    @apply p-4 sm:p-6 border-b border-border-default dark:border-dark-border-default flex justify-between items-center shrink-0;
-  }
-
-  .modal-title {
-    @apply text-lg sm:text-xl font-semibold text-fg-default dark:text-dark-fg-default;
-  }
-
-  .modal-close {
-    @apply text-fg-muted hover:text-fg-default dark:text-dark-fg-muted dark:hover:text-dark-fg-default text-2xl leading-none;
-  }
-
-  .modal-body {
-    @apply p-4 sm:p-6 overflow-y-auto flex-1 min-h-0;
-  }
-
-  .modal-footer {
-    @apply p-4 sm:p-6 border-t border-border-default dark:border-dark-border-default flex gap-3 justify-end shrink-0;
-  }
-
   /* Badge/Pill Styles */
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
@@ -220,23 +205,6 @@
 
   .alert-danger {
     @apply bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100;
-  }
-
-  /* Dropdown Menu (Generic) */
-  .dropdown-menu {
-    @apply absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-border-default dark:border-dark-border-default z-50;
-  }
-
-  .dropdown-item {
-    @apply w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 transition-colors;
-  }
-
-  .dropdown-item:first-child {
-    @apply rounded-t-lg;
-  }
-
-  .dropdown-item:last-child {
-    @apply rounded-b-lg;
   }
 
   /* Tooltip */

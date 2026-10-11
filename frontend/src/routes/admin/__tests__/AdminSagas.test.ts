@@ -268,7 +268,7 @@ describe('AdminSagas', () => {
             await user.click(viewBtn!);
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
-            await user.click(screen.getByLabelText(/close modal/i));
+            await user.click(screen.getByRole('button', { name: 'Close dialog' }));
 
             await waitFor(() => {
                 expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

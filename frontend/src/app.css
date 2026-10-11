@@ -4,6 +4,7 @@
 /* Import component and page styles (after tailwindcss, before other directives) */
 @import './styles/components.css';
 @import './styles/pages.css';
+@import 'tw-animate-css';
 
 /* Forms plugin */
 @plugin "@tailwindcss/forms" {
@@ -285,10 +286,6 @@
      @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
   }
 
-  .btn-danger-outline {
-      @apply text-red-600 border border-red-300 hover:bg-red-50 focus:ring-red-500 dark:text-red-400 dark:border-red-500 dark:hover:bg-red-900/30;
-  }
-
   /* Container Style */
   .app-container {
     @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
@@ -381,40 +378,6 @@
   /* Select/Dropdown Styles */
   .form-select-standard {
     @apply form-control-base pr-10 cursor-pointer;
-  }
-
-  /* Custom Dropdown Button */
-  .form-dropdown-button {
-    @apply form-control-base flex items-center justify-between text-left cursor-pointer;
-  }
-
-  .form-dropdown-button svg {
-    @apply w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transform transition-transform;
-  }
-
-  .form-dropdown-button[aria-expanded="true"] svg {
-    @apply -rotate-180;
-  }
-
-  /* Dropdown Menu */
-  .form-dropdown-menu {
-    @apply absolute top-full mt-1 w-full bg-bg-alt dark:bg-dark-bg-alt
-           rounded-lg shadow-xl ring-1 ring-black/5
-           dark:ring-white/10 z-30;
-  }
-
-  .form-dropdown-menu ul {
-    @apply py-1;
-  }
-
-  .form-dropdown-menu li button {
-    @apply w-full text-left px-3 py-2 text-sm hover:bg-neutral-100
-           dark:hover:bg-neutral-700/60 transition-colors duration-100
-           text-fg-default dark:text-dark-fg-default;
-  }
-
-  .form-dropdown-menu li button.selected {
-    @apply text-primary dark:text-primary-light font-semibold;
   }
 
   /* Checkbox and Radio Styles */

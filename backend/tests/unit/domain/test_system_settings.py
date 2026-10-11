@@ -30,7 +30,7 @@ class TestK8sPatternValidation:
         s = SystemSettingsSchema(memory_limit=value)
         assert s.memory_limit == value
 
-    @pytest.mark.parametrize("value", ["512mb", "1G", "abc", "512", "Mi512"])
+    @pytest.mark.parametrize("value", ["512mb", "1G", "abc", "512", "Mi512", "0Mi"])
     def test_invalid_memory_limit(self, value: str) -> None:
         with pytest.raises(ValidationError, match="memory_limit"):
             SystemSettingsSchema(memory_limit=value)
@@ -40,7 +40,7 @@ class TestK8sPatternValidation:
         s = SystemSettingsSchema(cpu_limit=value)
         assert s.cpu_limit == value
 
-    @pytest.mark.parametrize("value", ["1000", "2 cores", "500mc", "m500"])
+    @pytest.mark.parametrize("value", ["1000", "2 cores", "500mc", "m500", "0m"])
     def test_invalid_cpu_limit(self, value: str) -> None:
         with pytest.raises(ValidationError, match="cpu_limit"):
             SystemSettingsSchema(cpu_limit=value)

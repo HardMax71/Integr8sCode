@@ -39,34 +39,17 @@ class TestGetUserSettings:
         assert settings.notifications is not None
 
     @pytest.mark.asyncio
-    async def test_get_user_settings_cache_hit(self, scope: AsyncContainer) -> None:
-        """Second get_user_settings should hit cache."""
+    async def test_get_user_settings_reads_the_latest_update(self, scope: AsyncContainer) -> None:
+        """A read right after an update returns it, with no cache to go stale."""
         svc: UserSettingsService = await scope.get(UserSettingsService)
         user_id = _unique_user_id()
 
-        # First call - cache miss
-        settings1 = await svc.get_user_settings(user_id)
-
-        # Second call - cache hit
-        settings2 = await svc.get_user_settings(user_id)
-
-        assert settings1.user_id == settings2.user_id
-        assert settings1.theme == settings2.theme
-
-    @pytest.mark.asyncio
-    async def test_get_user_settings_fresh_bypasses_cache(self, scope: AsyncContainer) -> None:
-        """get_user_settings_fresh bypasses cache."""
-        svc: UserSettingsService = await scope.get(UserSettingsService)
-        user_id = _unique_user_id()
-
-        # Get and cache
         await svc.get_user_settings(user_id)
+        await svc.update_theme(user_id, Theme.DARK)
 
-        # Fresh should still work
-        fresh = await svc.get_user_settings_fresh(user_id)
-
-        assert isinstance(fresh, DomainUserSettings)
-        assert fresh.user_id == user_id
+        settings = await svc.get_user_settings(user_id)
+        assert settings.user_id == user_id
+        assert settings.theme == Theme.DARK
 
 
 class TestUpdateUserSettings:
@@ -428,7 +411,7 @@ class TestRestoreSettingsToPoint:
         assert restored.timezone == initial.timezone, (
             f"Restored timezone should match initial ({initial.timezone}), got {restored.timezone}"
         )
-        rebuilt = await svc.get_user_settings_fresh(user_id)
+        rebuilt = await svc.get_user_settings(user_id)
         assert rebuilt.theme == initial.theme
 
 

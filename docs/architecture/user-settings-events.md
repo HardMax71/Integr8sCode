@@ -33,38 +33,29 @@ def _build_settings(data: dict[str, Any]) -> DomainUserSettings:
 
 `_settings_fields` is the field set of `DomainUserSettings`, so keys like `changed_fields` or `event_id` drop out. The two nested objects are rebuilt explicitly because stdlib dataclasses don't convert nested dicts (see [Domain Dataclasses](domain-dataclasses.md)).
 
-After publishing, the service caches the new settings. Once there are 10 or more events since the last snapshot, it writes a snapshot to the `user_settings` collection.
+Once there are 10 or more events since the last snapshot, the service writes a snapshot to the `user_settings` collection.
 
 ## Rebuilding
 
 ```python
---8<-- "backend/app/services/user_settings_service.py:get_user_settings_fresh"
+--8<-- "backend/app/services/user_settings_service.py:get_user_settings"
 ```
 
 ```mermaid
 graph TB
-    A[get_user_settings] --> B{In cache?}
-    B -->|Yes| C[Return cached]
-    B -->|No| D[Load snapshot or defaults]
+    A[get_user_settings] --> D[Load snapshot or defaults]
     D --> E[Load user_settings_updated events after it]
     E --> F[_apply_event for each]
-    F --> G[Cache result]
-    G --> C
+    F --> G[Return the result]
 ```
+
+Every read rebuilds, which costs two MongoDB queries and at most ten events, since a snapshot follows every ten. There's no cache. The API runs several worker processes, and a per-process cache served the old settings for up to 5 minutes whenever an update had gone through another worker.
 
 `UserSettingsRepository.get_settings_events()` reads events by aggregate id and builds `DomainUserSettingsChangedEvent` dataclasses with `model_dump(include=_event_fields)`. Nested values are still dicts at that point. `_apply_event()` drops the None fields and merges the rest, and `_build_settings()` converts them:
 
 ```python
 --8<-- "backend/app/services/user_settings_service.py:apply_event"
 ```
-
-## Cache
-
-```python
---8<-- "backend/app/services/user_settings_service.py:cache_init"
-```
-
-It's a `cachetools.TTLCache` with up to 1000 entries. The TTL is a hardcoded 5 minutes (`self._cache_ttl = timedelta(minutes=5)`). The service is app-scoped, so each API process has its own cache, and only the process that handled an update refreshes it. Other processes keep serving their cached copy until it expires.
 
 ## History and restore
 
@@ -74,6 +65,6 @@ It's a `cachetools.TTLCache` with up to 1000 entries. The TTL is a hardcoded 5 m
 
 `GET /api/v1/user/settings/history` returns one entry per changed field. `new_value` is read off the event, and `old_value` is always None. It reads the newest `limit` events (default 50) and returns them newest first.
 
-`POST /api/v1/user/settings/restore` replays events up to the given timestamp onto defaults, saves the result as a snapshot, caches it, and publishes a `UserSettingsUpdatedEvent` with empty `changed_fields` and the restore as its `reason`. The snapshot's `updated_at` is the restore event's timestamp, so a later rebuild from that snapshot (a cache miss, or another process) skips everything up to the restore and applies only changes made after it.
+`POST /api/v1/user/settings/restore` replays events up to the given timestamp onto defaults, saves the result as a snapshot, and publishes a `UserSettingsUpdatedEvent` with empty `changed_fields` and the restore as its `reason`. The snapshot's `updated_at` is the restore event's timestamp, so a later rebuild from that snapshot skips everything up to the restore and applies only changes made after it.
 
 The replay only sees events that still exist, and events expire 30 days after they're stored ([Event Storage](event-storage.md)). A field whose last change before the restore point has already expired comes back as its default, and nothing reports it.

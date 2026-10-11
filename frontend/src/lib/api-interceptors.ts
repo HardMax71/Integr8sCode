@@ -29,7 +29,7 @@ function formatValidationErrors(errors: ValidationError[]): string {
     return errors
         .map((e) => {
             if (!e.loc.length) return e.msg;
-            const field = e.loc[e.loc.length - 1];
+            const field = e.loc.at(-1);
             return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
         })
         .join(', ');

@@ -142,6 +142,6 @@ export function truncate(str: string | null | undefined, maxLength = 50): string
  * @returns Human-readable label
  */
 export function formatEnumLabel(value: string): string {
-    const words = value.replace(/_/g, ' ').toLowerCase();
+    const words = value.replaceAll('_', ' ').toLowerCase();
     return words.charAt(0).toUpperCase() + words.slice(1);
 }

@@ -10,7 +10,7 @@ import { formatEnumLabel } from '#lib/formatters.ts';
 export function firstIssue(error: core.$ZodError): string {
     const issue = error.issues[0];
     if (!issue) return 'Invalid input';
-    const last = issue.path[issue.path.length - 1];
+    const last = issue.path.at(-1);
     const field = typeof last === 'string' ? formatEnumLabel(last) : 'Value';
     switch (issue.code) {
         case 'too_small':

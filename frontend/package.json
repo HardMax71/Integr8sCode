@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
-    "generate:api": "openapi-ts",
+    "generate:api": "svelte-kit sync && openapi-ts",
     "lint": "svelte-kit sync && eslint src --ext .ts,.svelte",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "test": "vitest run",

@@ -1,49 +1,56 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { createMockNotification, createMockNotifications, user } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import {
+    createMockNotification,
+    createMockNotifications,
+    mockApi,
+    renderWithQueryClient,
+    user,
+} from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
+import {
+    deleteNotificationApiV1NotificationsNotificationIdDelete,
+    getNotificationsApiV1NotificationsGet,
+    markAllReadApiV1NotificationsMarkAllReadPost,
+    markNotificationReadApiV1NotificationsNotificationIdReadPut,
+} from '#lib/api/index.ts';
 import Notifications from '#routes/(auth)/notifications/+page.svelte';
 
-const mocks = vi.hoisted(() => ({
-    mockNotificationStore: {
-        notifications: [] as ReturnType<typeof createMockNotification>[],
-        unreadCount: 0,
-        loading: false,
-        error: null,
-        load: vi.fn(),
-        markAsRead: vi.fn(),
-        markAllAsRead: vi.fn(),
-        delete: vi.fn(),
-    },
-}));
+const getNotifications = vi.mocked(getNotificationsApiV1NotificationsGet);
+const markRead = vi.mocked(markNotificationReadApiV1NotificationsNotificationIdReadPut);
+const markAllRead = vi.mocked(markAllReadApiV1NotificationsMarkAllReadPost);
+const deleteNotification = vi.mocked(deleteNotificationApiV1NotificationsNotificationIdDelete);
 
-vi.mock('#stores/notificationStore.svelte.ts', () => ({ notificationStore: mocks.mockNotificationStore }));
+function setNotifications(notifications: ReturnType<typeof createMockNotification>[], unreadCount = 0) {
+    mockApi(getNotificationsApiV1NotificationsGet).ok({
+        notifications,
+        total: notifications.length,
+        unread_count: unreadCount,
+    });
+}
 
 describe('Notifications', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockNotificationStore.notifications = [];
-        mocks.mockNotificationStore.unreadCount = 0;
-        mocks.mockNotificationStore.loading = false;
-        mocks.mockNotificationStore.load.mockResolvedValue([]);
-        mocks.mockNotificationStore.markAsRead.mockResolvedValue(true);
-        mocks.mockNotificationStore.markAllAsRead.mockResolvedValue(true);
-        mocks.mockNotificationStore.delete.mockResolvedValue(true);
+        setNotifications([]);
+        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok({});
+        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok({});
+        mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).ok({});
     });
 
     function renderNotifications() {
-        return render(Notifications);
+        return renderWithQueryClient(Notifications);
     }
 
-    it('calls store.load(100) on mount', async () => {
-        await renderNotifications();
+    it('loads the latest 100 notifications on mount', async () => {
+        renderNotifications();
         await waitFor(() => {
-            expect(mocks.mockNotificationStore.load).toHaveBeenCalledWith(100);
+            expect(getNotifications).toHaveBeenCalledWith(expect.objectContaining({ query: { limit: 100 } }));
         });
     });
 
     it('shows empty state when no notifications', async () => {
-        await renderNotifications();
+        renderNotifications();
         await waitFor(() => {
             expect(screen.getByText('No notifications yet')).toBeInTheDocument();
         });
@@ -52,18 +59,21 @@ describe('Notifications', () => {
 
     describe('Notification rendering', () => {
         it('renders notification subject, body, channel, severity, and tags', async () => {
-            const notif = createMockNotification({
-                subject: 'Execution Complete',
-                body: 'Your script finished running',
-                channel: 'webhook',
-                severity: 'high',
-                tags: ['completed', 'exec:abc123'],
-                status: 'delivered',
-            });
-            mocks.mockNotificationStore.notifications = [notif as never];
-            mocks.mockNotificationStore.unreadCount = 1;
+            setNotifications(
+                [
+                    createMockNotification({
+                        subject: 'Execution Complete',
+                        body: 'Your script finished running',
+                        channel: 'webhook',
+                        severity: 'high',
+                        tags: ['completed', 'exec:abc123'],
+                        status: 'delivered',
+                    }),
+                ],
+                1,
+            );
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 expect(screen.getByText('Execution Complete')).toBeInTheDocument();
             });
@@ -74,10 +84,9 @@ describe('Notifications', () => {
         });
 
         it('shows "Read" label for read notifications', async () => {
-            mocks.mockNotificationStore.notifications = [createMockNotification({ status: 'read' })] as never[];
-            mocks.mockNotificationStore.unreadCount = 0;
+            setNotifications([createMockNotification({ status: 'read' })]);
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 expect(screen.getByText('Read')).toBeInTheDocument();
             });
@@ -85,9 +94,9 @@ describe('Notifications', () => {
 
         it('shows up to 6 tag chips', async () => {
             const tags = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7', 'tag8'];
-            mocks.mockNotificationStore.notifications = [createMockNotification({ tags })] as never[];
+            setNotifications([createMockNotification({ tags })]);
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 expect(screen.getByText('tag1')).toBeInTheDocument();
             });
@@ -103,12 +112,9 @@ describe('Notifications', () => {
             [5 * 60 * 60 * 1000, '5h ago'],
             [2 * 24 * 60 * 60 * 1000, '2d ago'],
         ])('formats %dms ago as "%s"', async (msAgo, expected) => {
-            const date = new Date(Date.now() - msAgo);
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ created_at: date.toISOString() }),
-            ] as never[];
+            setNotifications([createMockNotification({ created_at: new Date(Date.now() - msAgo).toISOString() })]);
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 expect(screen.getByText(expected)).toBeInTheDocument();
             });
@@ -116,140 +122,126 @@ describe('Notifications', () => {
     });
 
     describe('Mark as read', () => {
-        it('calls markAsRead with exact id when clicking unread notification', async () => {
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ notification_id: 'n-42', status: 'delivered' }),
-            ] as never[];
-            mocks.mockNotificationStore.unreadCount = 1;
+        it('marks the clicked unread notification as read and refetches', async () => {
+            setNotifications([createMockNotification({ notification_id: 'n-42', status: 'delivered' })], 1);
 
-            await renderNotifications();
-            const card = await waitFor(() => screen.getByRole('button', { name: /mark notification as read/i }));
+            renderNotifications();
+            const card = await screen.findByRole('button', { name: /mark notification as read/i });
             await user.click(card);
-            expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('n-42');
+            await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
+            expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'n-42' } }));
         });
 
-        it('does not call markAsRead for already read notifications', async () => {
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ notification_id: 'n-read', status: 'read' }),
-            ] as never[];
+        it('does not mark already read notifications', async () => {
+            setNotifications([createMockNotification({ notification_id: 'n-read', status: 'read' })]);
 
-            await renderNotifications();
-            const card = await waitFor(() => screen.getByRole('button', { name: /mark notification as read/i }));
+            renderNotifications();
+            const card = await screen.findByRole('button', { name: /mark notification as read/i });
             await user.click(card);
-            expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
+            expect(markRead).not.toHaveBeenCalled();
         });
     });
 
     describe('Mark all as read', () => {
         it('button only visible when unreadCount > 0 and notifications exist', async () => {
-            await renderNotifications();
+            renderNotifications();
+            await screen.findByText('No notifications yet');
             expect(screen.queryByRole('button', { name: /mark all as read/i })).not.toBeInTheDocument();
         });
 
-        it('calls markAllAsRead and shows success toast', async () => {
-            mocks.mockNotificationStore.notifications = createMockNotifications(3) as never[];
-            mocks.mockNotificationStore.unreadCount = 2;
+        it('marks all as read and shows success toast', async () => {
+            setNotifications(createMockNotifications(3), 2);
 
-            await renderNotifications();
-            const btn = await waitFor(() => screen.getByRole('button', { name: /mark all as read/i }));
-            await user.click(btn);
-            expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
+            renderNotifications();
+            await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('All notifications marked as read');
             });
+            expect(markAllRead).toHaveBeenCalled();
         });
 
-        it('shows error toast on failure', async () => {
-            mocks.mockNotificationStore.markAllAsRead.mockResolvedValue(false);
-            mocks.mockNotificationStore.notifications = createMockNotifications(2) as never[];
-            mocks.mockNotificationStore.unreadCount = 1;
+        it('shows no success toast when the call fails', async () => {
+            mockApi(markAllReadApiV1NotificationsMarkAllReadPost).err({ detail: 'boom' });
+            setNotifications(createMockNotifications(2), 1);
 
-            await renderNotifications();
-            const btn = await waitFor(() => screen.getByRole('button', { name: /mark all as read/i }));
-            await user.click(btn);
-            await waitFor(() => {
-                expect(toast.error).toHaveBeenCalledWith('Failed to mark all as read');
-            });
+            renderNotifications();
+            await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
+            await waitFor(() => expect(markAllRead).toHaveBeenCalled());
+            expect(toast.success).not.toHaveBeenCalled();
         });
     });
 
     describe('Delete', () => {
-        it('calls delete with exact id and shows success toast', async () => {
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ notification_id: 'del-1' }),
-            ] as never[];
+        it('deletes by id, shows success toast and refetches', async () => {
+            setNotifications([createMockNotification({ notification_id: 'del-1' })]);
 
-            await renderNotifications();
-            const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
-            await user.click(deleteBtn);
+            renderNotifications();
+            await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
             await waitFor(() => {
-                expect(mocks.mockNotificationStore.delete).toHaveBeenCalledWith('del-1');
                 expect(toast.success).toHaveBeenCalledWith('Notification deleted');
             });
+            expect(deleteNotification).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { notification_id: 'del-1' } }),
+            );
+            expect(getNotifications).toHaveBeenCalledTimes(2);
         });
 
-        it('shows error toast on delete failure', async () => {
-            mocks.mockNotificationStore.delete.mockResolvedValue(false);
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ notification_id: 'del-fail' }),
-            ] as never[];
+        it('shows no success toast when the delete fails', async () => {
+            mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).err({ detail: 'boom' });
+            setNotifications([createMockNotification({ notification_id: 'del-fail' })]);
 
-            await renderNotifications();
-            const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
-            await user.click(deleteBtn);
-            await waitFor(() => {
-                expect(toast.error).toHaveBeenCalledWith('Failed to delete notification');
-            });
+            renderNotifications();
+            await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
+            await waitFor(() => expect(deleteNotification).toHaveBeenCalled());
+            expect(toast.success).not.toHaveBeenCalled();
         });
 
         it('prevents double-click deletion', async () => {
-            let resolveDelete: (v: boolean) => void;
-            mocks.mockNotificationStore.delete.mockImplementation(
-                () =>
-                    new Promise<boolean>((r) => {
-                        resolveDelete = r;
-                    }),
+            mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).mock.mockImplementation(
+                () => new Promise(() => {}),
             );
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ notification_id: 'dbl-1' }),
-            ] as never[];
+            setNotifications([createMockNotification({ notification_id: 'dbl-1' })]);
 
-            await renderNotifications();
+            renderNotifications();
             const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
             await user.click(deleteBtn);
+            await waitFor(() => expect(deleteBtn).toBeDisabled());
             await user.click(deleteBtn);
-            expect(mocks.mockNotificationStore.delete).toHaveBeenCalledTimes(1);
-            resolveDelete!(true);
+            expect(deleteNotification).toHaveBeenCalledTimes(1);
         });
     });
 
     describe('Filter', () => {
         it('applies tag filters on button click', async () => {
-            await renderNotifications();
-            await waitFor(() => {
-                expect(screen.getByText('Notifications')).toBeInTheDocument();
-            });
+            renderNotifications();
+            await screen.findByText('No notifications yet');
 
             await user.type(screen.getByLabelText('Include tags'), 'exec,completed');
             await user.type(screen.getByLabelText('Exclude tags'), 'alert');
             await user.type(screen.getByLabelText('Tag prefix'), 'exec:');
+            expect(getNotifications).toHaveBeenCalledTimes(1);
             await user.click(screen.getByRole('button', { name: 'Filter' }));
 
             await waitFor(() => {
-                expect(mocks.mockNotificationStore.load).toHaveBeenCalledWith(100, {
-                    include_tags: ['exec', 'completed'],
-                    exclude_tags: ['alert'],
-                    tag_prefix: 'exec:',
-                });
+                expect(getNotifications).toHaveBeenLastCalledWith(
+                    expect.objectContaining({
+                        query: {
+                            limit: 100,
+                            include_tags: ['exec', 'completed'],
+                            exclude_tags: ['alert'],
+                            tag_prefix: 'exec:',
+                        },
+                    }),
+                );
             });
         });
     });
 
     describe('View result link', () => {
         it('shows "View result" link for notifications with exec: tag', async () => {
-            mocks.mockNotificationStore.notifications = [createMockNotification({ tags: ['exec:abc123'] })] as never[];
+            setNotifications([createMockNotification({ tags: ['exec:abc123'] })]);
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 const link = screen.getByRole('link', { name: /view result/i });
                 expect(link).toHaveAttribute('href', '/editor?execution=abc123');
@@ -257,11 +249,9 @@ describe('Notifications', () => {
         });
 
         it('does not show "View result" for notifications without exec tag', async () => {
-            mocks.mockNotificationStore.notifications = [
-                createMockNotification({ tags: ['system', 'info'] }),
-            ] as never[];
+            setNotifications([createMockNotification({ tags: ['system', 'info'] })]);
 
-            await renderNotifications();
+            renderNotifications();
             await waitFor(() => {
                 expect(screen.getByText('Test Notification')).toBeInTheDocument();
             });

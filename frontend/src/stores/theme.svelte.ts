@@ -1,7 +1,4 @@
 import { Theme } from '#lib/api/index.ts';
-import { logger } from '#lib/logger.ts';
-
-const log = logger.withTag('Theme');
 
 const browser = typeof window !== 'undefined' && typeof document !== 'undefined';
 const defaultTheme: Theme = Theme.AUTO;
@@ -27,18 +24,6 @@ function applyTheme(newTheme: Theme): void {
     document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
 }
 
-let saveUserSettingsFn: ((partial: { theme?: Theme }) => Promise<boolean>) | null = null;
-let authStoreRef: { isAuthenticated: boolean | null } | null = null;
-
-if (browser) {
-    void Promise.all([import('#lib/user-settings.ts'), import('#stores/auth.svelte.ts')]).then(
-        ([userSettings, auth]) => {
-            saveUserSettingsFn = userSettings.saveUserSettings;
-            authStoreRef = auth.authStore;
-        },
-    );
-}
-
 class ThemeStore {
     value = $state<Theme>(getInitialTheme());
 
@@ -61,14 +46,7 @@ class ThemeStore {
     }
 
     toggleTheme(): void {
-        const next: Theme =
-            this.value === Theme.LIGHT ? Theme.DARK : this.value === Theme.DARK ? Theme.AUTO : Theme.LIGHT;
-        this.setTheme(next);
-        if (saveUserSettingsFn && authStoreRef && authStoreRef.isAuthenticated) {
-            void saveUserSettingsFn({ theme: next }).catch((err: unknown) => {
-                log.warn('Failed to persist theme setting', err);
-            });
-        }
+        this.setTheme(this.value === Theme.LIGHT ? Theme.DARK : this.value === Theme.DARK ? Theme.AUTO : Theme.LIGHT);
     }
 }
 

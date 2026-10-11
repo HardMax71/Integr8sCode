@@ -1,29 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { suppressConsoleError, suppressConsoleWarn } from '#test/test-utils.ts';
+import { suppressConsoleWarn } from '#test/test-utils.ts';
 
-const mockLoginApi = vi.fn();
-const mockLogoutApi = vi.fn();
 const mockGetProfileApi = vi.fn();
 
-vi.mock('#lib/api/index.ts', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
-    loginApiV1AuthLoginPost: (...args: unknown[]) => mockLoginApi(...args),
-    logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
+// The generated query options import the SDK from sdk.gen, so the mock goes there
+vi.mock('#lib/api/sdk.gen.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api/sdk.gen.ts')>()),
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
-}));
-
-// Mock clearUserSettings (static import in auth.svelte.ts)
-const mockClearUserSettings = vi.fn();
-vi.mock('#stores/userSettings.svelte.ts', () => ({
-    clearUserSettings: () => mockClearUserSettings(),
-    setUserSettings: vi.fn(),
-    userSettingsStore: { settings: null, editorSettings: {} },
-}));
-
-// Mock loadUserSettings (dynamic import in auth.svelte.ts)
-const mockLoadUserSettings = vi.fn();
-vi.mock('#lib/user-settings.ts', () => ({
-    loadUserSettings: () => mockLoadUserSettings(),
 }));
 
 const PROFILE_RESPONSE = {
@@ -37,15 +20,27 @@ const PROFILE_RESPONSE = {
     updated_at: '2024-01-01T00:00:00Z',
 };
 
-// The generated client resolves with { error, response } instead of throwing
-const UNAUTHORIZED = { data: undefined, error: { detail: 'Not authenticated' }, response: { status: 401 } };
-const SERVER_ERROR = { data: undefined, error: { detail: 'Internal Server Error' }, response: { status: 500 } };
-const NETWORK_ERROR = { data: undefined, error: new TypeError('Failed to fetch'), response: undefined };
+const LOGIN_RESPONSE = { message: 'ok', username: 'testuser', role: 'user' as const, csrf_token: 'new-csrf-token' };
+
+type Failure = 'unauthorized' | 'server' | 'network';
+
+function persistedState(overrides: Record<string, unknown> = {}) {
+    return JSON.stringify({
+        isAuthenticated: true,
+        username: 'testuser',
+        userId: 'user-123',
+        userRole: 'user',
+        userEmail: 'test@example.com',
+        csrfToken: 'csrf-token',
+        timestamp: Date.now(),
+        ...overrides,
+    });
+}
 
 describe('auth store', () => {
     let sessionStorageData: Record<string, string> = {};
 
-    beforeEach(async () => {
+    beforeEach(() => {
         sessionStorageData = {};
         vi.mocked(sessionStorage.getItem).mockImplementation((key: string) => sessionStorageData[key] ?? null);
         vi.mocked(sessionStorage.setItem).mockImplementation((key: string, value: string) => {
@@ -55,12 +50,7 @@ describe('auth store', () => {
             delete sessionStorageData[key];
         });
 
-        mockLoginApi.mockReset();
-        mockLogoutApi.mockReset();
         mockGetProfileApi.mockReset();
-        mockClearUserSettings.mockReset();
-        mockLoadUserSettings.mockReset().mockResolvedValue({});
-
         vi.resetModules();
     });
 
@@ -68,35 +58,36 @@ describe('auth store', () => {
         vi.clearAllMocks();
     });
 
+    // A fresh store per test, with the ApiError class and query client from the same module graph
+    async function load() {
+        const [{ authStore }, { ApiError }, { queryClient }] = await Promise.all([
+            import('#stores/auth.svelte.ts'),
+            import('#lib/api-error.ts'),
+            import('#lib/query-client.ts'),
+        ]);
+        const fail = (failure: Failure) =>
+            failure === 'network'
+                ? new ApiError(undefined, new TypeError('Failed to fetch'))
+                : new ApiError(failure === 'unauthorized' ? 401 : 500, { detail: failure });
+        return { authStore, queryClient, fail };
+    }
+
+    function profileOk(profile: Record<string, unknown> = PROFILE_RESPONSE) {
+        mockGetProfileApi.mockResolvedValue({ data: profile });
+    }
+
     describe('initial state', () => {
-        it('has null authentication state initially', async () => {
-            const { authStore } = await import('#stores/auth.svelte.ts');
+        it('starts signed out with nothing persisted', async () => {
+            const { authStore } = await load();
             expect(authStore.isAuthenticated).toBe(null);
-        });
-
-        it('has null username initially', async () => {
-            const { authStore } = await import('#stores/auth.svelte.ts');
             expect(authStore.username).toBe(null);
-        });
-
-        it('has null userRole initially', async () => {
-            const { authStore } = await import('#stores/auth.svelte.ts');
             expect(authStore.userRole).toBe(null);
         });
 
         it('restores auth state from sessionStorage', async () => {
-            const authState = {
-                isAuthenticated: true,
-                username: 'testuser',
-                userRole: 'user',
-                csrfToken: 'test-token',
-                userId: 'user-123',
-                userEmail: 'test@example.com',
-                timestamp: Date.now(),
-            };
-            sessionStorageData['authState'] = JSON.stringify(authState);
+            sessionStorageData['authState'] = persistedState({ csrfToken: 'test-token' });
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
+            const { authStore } = await load();
 
             expect(authStore.isAuthenticated).toBe(true);
             expect(authStore.username).toBe('testuser');
@@ -105,244 +96,132 @@ describe('auth store', () => {
         });
     });
 
-    describe('login', () => {
-        it('sets auth state on successful login', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: {
-                    username: 'testuser',
-                    role: 'user',
-                    csrf_token: 'new-csrf-token',
-                },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue({
-                data: PROFILE_RESPONSE,
-                error: null,
-            });
+    describe('startSession', () => {
+        it('takes the login response, persists it and loads the full profile', async () => {
+            profileOk();
+            const { authStore } = await load();
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
+            await authStore.startSession(LOGIN_RESPONSE);
 
-            const result = await authStore.login('testuser', 'password123');
-
-            expect(result).toBe(true);
+            expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
             expect(authStore.isAuthenticated).toBe(true);
             expect(authStore.username).toBe('testuser');
-            expect(authStore.userRole).toBe('user');
+            expect(authStore.userId).toBe('user-123');
+            expect(authStore.userEmail).toBe('test@example.com');
+            expect(JSON.parse(sessionStorageData['authState']!)).toMatchObject({
+                isAuthenticated: true,
+                username: 'testuser',
+                userId: 'user-123',
+            });
         });
 
-        it('persists auth state to sessionStorage on login', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: {
-                    username: 'testuser',
-                    role: 'user',
-                    csrf_token: 'csrf-token',
-                },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue({
-                data: PROFILE_RESPONSE,
-                error: null,
-            });
+        it('ends the session when the profile check gets a 401', async () => {
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            await authStore.login('testuser', 'password123');
+            await authStore.startSession(LOGIN_RESPONSE);
 
-            expect(sessionStorage.setItem).toHaveBeenCalledWith('authState', expect.stringContaining('testuser'));
-        });
-
-        it('throws error on failed login', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: null,
-                error: { detail: 'Invalid credentials' },
-            });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-
-            await expect(authStore.login('baduser', 'badpass')).rejects.toBeDefined();
-        });
-
-        it('returns false when post-login verification fails', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
-
-            const restoreConsole = suppressConsoleWarn();
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.login('testuser', 'password123');
-
-            expect(result).toBe(false);
             expect(authStore.isAuthenticated).toBe(false);
-            restoreConsole();
+            expect(sessionStorageData['authState']).toBeUndefined();
         });
 
-        it('returns true when post-login verification hits a network error', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
-
+        it('keeps the session from the login response when the profile check hits a network error', async () => {
             const restoreConsole = suppressConsoleWarn();
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.login('testuser', 'password123');
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('network'));
 
-            expect(result).toBe(true);
+            await authStore.startSession(LOGIN_RESPONSE);
+
             expect(authStore.isAuthenticated).toBe(true);
+            expect(authStore.csrfToken).toBe('new-csrf-token');
             restoreConsole();
-        });
-
-        it('calls API with correct parameters', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue({
-                data: PROFILE_RESPONSE,
-                error: null,
-            });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            await authStore.login('testuser', 'mypassword');
-
-            expect(mockLoginApi).toHaveBeenCalledWith({
-                body: { username: 'testuser', password: 'mypassword', scope: '' },
-            });
         });
     });
 
-    describe('logout', () => {
-        it('clears auth state on logout', async () => {
-            mockLoginApi.mockResolvedValue({
-                data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue({
-                data: PROFILE_RESPONSE,
-                error: null,
-            });
-            mockLogoutApi.mockResolvedValue({ data: {}, error: null });
+    describe('clearAuth', () => {
+        it('clears the state, the persisted copy and every cached query', async () => {
+            profileOk();
+            const { authStore, queryClient } = await load();
+            await authStore.verifyAuth(true);
+            queryClient.setQueryData(['anything'], 1);
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-
-            await authStore.login('testuser', 'password');
-            expect(authStore.isAuthenticated).toBe(true);
-
-            await authStore.logout();
+            authStore.clearAuth();
 
             expect(authStore.isAuthenticated).toBe(false);
             expect(authStore.username).toBe(null);
-        });
-
-        it('clears sessionStorage on logout', async () => {
-            mockLogoutApi.mockResolvedValue({ data: {}, error: null });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            await authStore.logout();
-
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
-        });
-
-        it('still clears state even if API call fails', async () => {
-            const restoreConsole = suppressConsoleError();
-
-            mockLoginApi.mockResolvedValue({
-                data: { username: 'testuser', role: 'user', csrf_token: 'token' },
-                error: null,
-            });
-            mockGetProfileApi.mockResolvedValue({
-                data: PROFILE_RESPONSE,
-                error: null,
-            });
-            mockLogoutApi.mockRejectedValue(new Error('Network error'));
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-
-            await authStore.login('testuser', 'password');
-            await authStore.logout();
-
-            expect(authStore.isAuthenticated).toBe(false);
-            restoreConsole();
+            expect(queryClient.getQueryCache().getAll()).toEqual([]);
         });
     });
 
     describe('verifyAuth', () => {
-        it('returns true when verification succeeds', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
+        it('returns true and stores the profile when verification succeeds', async () => {
+            profileOk();
+            const { authStore } = await load();
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.verifyAuth(true);
-
-            expect(result).toBe(true);
+            expect(await authStore.verifyAuth(true)).toBe(true);
+            expect(authStore.userId).toBe('user-123');
         });
 
         it('returns false and clears state on a 401', async () => {
-            mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.verifyAuth(true);
-
-            expect(result).toBe(false);
+            expect(await authStore.verifyAuth(true)).toBe(false);
             expect(authStore.isAuthenticated).toBe(false);
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
         });
 
-        it('uses cache when not force refreshing', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
+        it('answers from the cache for 30 seconds unless forced', async () => {
+            profileOk();
+            const { authStore } = await load();
 
             await authStore.verifyAuth(true);
+            await authStore.verifyAuth();
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
 
-            await authStore.verifyAuth(false);
-            expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
-        });
-
-        it('bypasses cache when force refreshing', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-
             await authStore.verifyAuth(true);
-            await authStore.verifyAuth(true);
-
             expect(mockGetProfileApi).toHaveBeenCalledTimes(2);
+
+            await vi.advanceTimersByTimeAsync(30_001);
+            await authStore.verifyAuth();
+            expect(mockGetProfileApi).toHaveBeenCalledTimes(3);
         });
 
-        it.each([
-            ['a network error', NETWORK_ERROR],
-            ['a server error', SERVER_ERROR],
-        ])('keeps the cached state on %s (offline-first)', async (_label, failure) => {
-            const restoreConsole = suppressConsoleWarn();
+        it('shares one request between checks made at the same time', async () => {
+            profileOk();
+            const { authStore } = await load();
 
-            mockGetProfileApi.mockResolvedValueOnce({ data: PROFILE_RESPONSE, error: null });
+            const results = await Promise.all([authStore.verifyAuth(true), authStore.verifyAuth(true)]);
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-
-            const firstResult = await authStore.verifyAuth(true);
-            expect(firstResult).toBe(true);
-
-            mockGetProfileApi.mockResolvedValueOnce(failure);
-
-            const secondResult = await authStore.verifyAuth(true);
-            expect(secondResult).toBe(true);
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.username).toBe('testuser');
-            expect(sessionStorage.removeItem).not.toHaveBeenCalled();
-
-            restoreConsole();
+            expect(results).toEqual([true, true]);
+            expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
         });
+
+        it.each(['network', 'server'] as const)(
+            'keeps the cached state on a %s error (offline-first)',
+            async (failure) => {
+                const restoreConsole = suppressConsoleWarn();
+                profileOk();
+                const { authStore, fail } = await load();
+                expect(await authStore.verifyAuth(true)).toBe(true);
+
+                mockGetProfileApi.mockRejectedValue(fail(failure));
+
+                expect(await authStore.verifyAuth(true)).toBe(true);
+                expect(authStore.isAuthenticated).toBe(true);
+                expect(authStore.username).toBe('testuser');
+                expect(sessionStorage.removeItem).not.toHaveBeenCalled();
+                restoreConsole();
+            },
+        );
 
         it('returns false without clearing state on a network error with nothing cached', async () => {
             const restoreConsole = suppressConsoleWarn();
-            mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('network'));
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.verifyAuth(true);
-
-            expect(result).toBe(false);
+            expect(await authStore.verifyAuth(true)).toBe(false);
             expect(authStore.isAuthenticated).toBe(null);
             expect(sessionStorage.removeItem).not.toHaveBeenCalled();
             restoreConsole();
@@ -351,187 +230,83 @@ describe('auth store', () => {
 
     describe('initialize', () => {
         it('returns false when no persisted auth and verification fails', async () => {
-            mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(false);
+            expect(await authStore.initialize()).toBe(false);
         });
 
         it('returns true when no persisted auth but verification succeeds', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
+            profileOk();
+            const { authStore } = await load();
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(true);
-            expect(mockLoadUserSettings).toHaveBeenCalled();
+            expect(await authStore.initialize()).toBe(true);
+            expect(authStore.isAuthenticated).toBe(true);
         });
 
-        it('only initializes once', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
+        it('only initializes once, even when called concurrently', async () => {
+            profileOk();
+            const { authStore } = await load();
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            await authStore.initialize();
-            await authStore.initialize();
-            await authStore.initialize();
-
-            expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
-        });
-
-        it('handles concurrent initialization calls', async () => {
-            mockGetProfileApi.mockImplementation(
-                () =>
-                    new Promise((resolve) =>
-                        setTimeout(
-                            () =>
-                                resolve({
-                                    data: PROFILE_RESPONSE,
-                                    error: null,
-                                }),
-                            50,
-                        ),
-                    ),
-            );
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
             const results = await Promise.all([authStore.initialize(), authStore.initialize(), authStore.initialize()]);
+            await authStore.initialize();
 
             expect(results).toEqual([true, true, true]);
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
         });
 
         it('restores from persisted auth and verifies', async () => {
-            const authState = {
-                isAuthenticated: true,
-                username: 'testuser',
-                userId: 'user-123',
-                userRole: 'admin',
-                userEmail: 'test@example.com',
-                csrfToken: 'csrf-token',
-                timestamp: Date.now(),
-            };
-            sessionStorageData['authState'] = JSON.stringify(authState);
+            sessionStorageData['authState'] = persistedState({ userRole: 'admin' });
+            profileOk({ ...PROFILE_RESPONSE, role: 'admin' });
+            const { authStore } = await load();
 
-            mockGetProfileApi.mockResolvedValue({
-                data: { ...PROFILE_RESPONSE, role: 'admin' },
-                error: null,
-            });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(true);
+            expect(await authStore.initialize()).toBe(true);
             expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.username).toBe('testuser');
+            expect(authStore.userRole).toBe('admin');
         });
 
-        it('clears auth when persisted auth verification fails', async () => {
-            const authState = {
-                isAuthenticated: true,
-                username: 'testuser',
-                userId: 'user-123',
-                userRole: 'user',
-                userEmail: 'test@example.com',
-                csrfToken: 'token',
-                timestamp: Date.now(),
-            };
-            sessionStorageData['authState'] = JSON.stringify(authState);
+        it('clears auth when persisted auth verification gets a 401', async () => {
+            sessionStorageData['authState'] = persistedState();
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
-            mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(false);
+            expect(await authStore.initialize()).toBe(false);
             expect(authStore.isAuthenticated).toBe(false);
-            expect(mockClearUserSettings).toHaveBeenCalled();
+            expect(sessionStorageData['authState']).toBeUndefined();
         });
 
-        it('keeps recent auth on network error (<5 min)', async () => {
+        it.each([
+            ['keeps recent auth', 2, true],
+            ['clears stale auth', 10, false],
+        ])('%s on a network error (%i minutes old)', async (_label, minutes, kept) => {
             const restoreConsole = suppressConsoleWarn();
+            sessionStorageData['authState'] = persistedState({ timestamp: Date.now() - minutes * 60 * 1000 });
+            const { authStore, fail } = await load();
+            mockGetProfileApi.mockRejectedValue(fail('network'));
 
-            const authState = {
-                isAuthenticated: true,
-                username: 'testuser',
-                userId: 'user-123',
-                userRole: 'user',
-                userEmail: 'test@example.com',
-                csrfToken: 'token',
-                timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
-            };
-            sessionStorageData['authState'] = JSON.stringify(authState);
-
-            mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(true);
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.username).toBe('testuser');
-            expect(sessionStorageData['authState']).toBeDefined();
-            restoreConsole();
-        });
-
-        it('clears stale auth on network error (>5 min)', async () => {
-            const restoreConsole = suppressConsoleWarn();
-
-            const authState = {
-                isAuthenticated: true,
-                username: 'testuser',
-                userId: 'user-123',
-                userRole: 'user',
-                userEmail: 'test@example.com',
-                csrfToken: 'token',
-                timestamp: Date.now() - 10 * 60 * 1000, // 10 minutes ago
-            };
-            sessionStorageData['authState'] = JSON.stringify(authState);
-
-            mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.initialize();
-
-            expect(result).toBe(false);
-            expect(authStore.isAuthenticated).toBe(false);
-            expect(mockClearUserSettings).toHaveBeenCalled();
+            expect(await authStore.initialize()).toBe(kept);
+            expect(authStore.isAuthenticated).toBe(kept);
+            expect(sessionStorageData['authState'] !== undefined).toBe(kept);
             restoreConsole();
         });
     });
 
     describe('waitForInit', () => {
         it('returns immediately if already initialized', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
+            profileOk();
+            const { authStore } = await load();
             await authStore.initialize();
 
-            const result = await authStore.waitForInit();
-            expect(result).toBe(true);
+            expect(await authStore.waitForInit()).toBe(true);
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
         });
 
         it('initializes if not started', async () => {
-            mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
+            profileOk();
+            const { authStore } = await load();
 
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            const result = await authStore.waitForInit();
-
-            expect(result).toBe(true);
+            expect(await authStore.waitForInit()).toBe(true);
             expect(mockGetProfileApi).toHaveBeenCalled();
-        });
-    });
-
-    describe('logout clears user settings', () => {
-        it('calls clearUserSettings on logout', async () => {
-            mockLogoutApi.mockResolvedValue({ data: {}, error: null });
-
-            const { authStore } = await import('#stores/auth.svelte.ts');
-            await authStore.logout();
-
-            expect(mockClearUserSettings).toHaveBeenCalled();
         });
     });
 });

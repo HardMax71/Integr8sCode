@@ -1,5 +1,11 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import { createMutation, useQueryClient } from '@tanstack/svelte-query';
+    import {
+        getUserSettingsApiV1UserSettingsGetQueryKey,
+        logoutApiV1AuthLogoutPostMutation,
+        updateUserSettingsApiV1UserSettingsPutMutation,
+    } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
     import { fade } from 'svelte/transition';
@@ -33,10 +39,31 @@
         showUserDropdown = false;
     }
 
-    async function handleLogout() {
-        await authStore.logout();
-        closeMenu();
-        goto('/login');
+    const queryClient = useQueryClient();
+
+    const logout = createMutation(() => ({
+        ...logoutApiV1AuthLogoutPostMutation(),
+        onSettled: () => {
+            authStore.clearAuth();
+            closeMenu();
+            void goto('/login');
+        },
+    }));
+
+    const saveTheme = createMutation(() => ({
+        ...updateUserSettingsApiV1UserSettingsPutMutation(),
+        onSuccess: (data) => {
+            queryClient.setQueryData(getUserSettingsApiV1UserSettingsGetQueryKey(), data);
+        },
+    }));
+
+    function handleToggleTheme() {
+        toggleTheme();
+        if (authStore.isAuthenticated) saveTheme.mutate({ body: { theme: themeStore.value } });
+    }
+
+    function handleLogout() {
+        logout.mutate({});
     }
 
     function handleClickOutside(event: MouseEvent) {
@@ -93,7 +120,7 @@
             <div class="flex items-center space-x-3">
                 <button
                     type="button"
-                    onclick={toggleTheme}
+                    onclick={handleToggleTheme}
                     title="Toggle theme"
                     aria-label="Toggle theme"
                     class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default"

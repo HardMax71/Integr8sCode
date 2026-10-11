@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 import Settings from '#routes/(auth)/settings/+page.svelte';
 
@@ -35,11 +36,11 @@ import {
     updateUserSettingsApiV1UserSettingsPut,
     restoreSettingsApiV1UserSettingsRestorePost,
     getSettingsHistoryApiV1UserSettingsHistoryGet,
+    getUserSettingsApiV1UserSettingsGetQueryKey,
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
     mockSetTheme: vi.fn(),
-    mockSetUserSettings: vi.fn(),
     mockConfirm: vi.fn(),
     mockAuthStore: {
         isAuthenticated: true,
@@ -51,10 +52,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 vi.mock('#stores/theme.svelte.ts', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
-vi.mock('#stores/userSettings.svelte.ts', () => ({
-    setUserSettings: (...args: unknown[]) => mocks.mockSetUserSettings(...args),
-    userSettingsStore: { settings: null, editorSettings: {} },
-}));
 
 describe('Settings', () => {
     beforeEach(() => {
@@ -68,7 +65,7 @@ describe('Settings', () => {
     afterEach(() => vi.unstubAllGlobals());
 
     function renderSettings() {
-        return render(Settings);
+        return renderWithQueryClient(Settings);
     }
 
     describe('Loading', () => {
@@ -167,7 +164,7 @@ describe('Settings', () => {
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
             });
-            expect(mocks.mockSetUserSettings).toHaveBeenCalled();
+            expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toEqual(updatedSettings);
         });
     });
 
@@ -196,9 +193,9 @@ describe('Settings', () => {
             await waitFor(() => {
                 expect(screen.getByRole('heading', { name: 'Settings History' })).toBeInTheDocument();
             });
-            expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledWith({
-                query: { limit: 10 },
-            });
+            expect(vi.mocked(getSettingsHistoryApiV1UserSettingsHistoryGet)).toHaveBeenCalledWith(
+                expect.objectContaining({ query: { limit: 10 } }),
+            );
         });
 
         it('uses cache on second open within 30s', async () => {
@@ -251,12 +248,17 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: 'Restore' }));
             await waitFor(() => {
-                expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).toHaveBeenCalledWith({
-                    body: { timestamp: '2025-01-15T10:00:00Z', reason: 'User requested restore' },
-                });
+                expect(toast.success).toHaveBeenCalledWith('Settings restored successfully');
             });
-            expect(mocks.mockSetTheme).toHaveBeenCalledWith('light');
-            expect(toast.success).toHaveBeenCalledWith('Settings restored successfully');
+            expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: { timestamp: '2025-01-15T10:00:00Z', reason: 'User requested restore' },
+                }),
+            );
+            expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toMatchObject({
+                theme: 'light',
+            });
+            expect(screen.queryByRole('heading', { name: 'Settings History' })).not.toBeInTheDocument();
         });
 
         it('does not call API when confirm is cancelled', async () => {

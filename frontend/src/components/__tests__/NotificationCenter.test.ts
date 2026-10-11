@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, type UserEventInstance } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
+import {
+    getNotificationsApiV1NotificationsGet,
+    markAllReadApiV1NotificationsMarkAllReadPost,
+    markNotificationReadApiV1NotificationsNotificationIdReadPut,
+} from '#lib/api/index.ts';
 
 interface MockNotification {
     notification_id: string;
@@ -22,19 +27,6 @@ const mocks = vi.hoisted(() => ({
         userEmail: null as string | null,
         csrfToken: null as string | null,
     },
-    mockNotificationStore: {
-        notifications: [] as MockNotification[],
-        loading: false,
-        error: null as string | null,
-        unreadCount: 0,
-        load: vi.fn().mockResolvedValue([]),
-        add: vi.fn(),
-        markAsRead: vi.fn().mockResolvedValue(true),
-        markAllAsRead: vi.fn().mockResolvedValue(true),
-        delete: vi.fn().mockResolvedValue(true),
-        clear: vi.fn(),
-        refresh: vi.fn(),
-    },
     mockGoto: vi.fn(),
     mockStreamConnect: vi.fn(),
     mockStreamDisconnect: vi.fn(),
@@ -44,11 +36,6 @@ vi.mock('$app/navigation', () => ({ goto: mocks.mockGoto }));
 vi.mock('#stores/auth.svelte.ts', () => ({
     get authStore() {
         return mocks.mockAuthStore;
-    },
-}));
-vi.mock('#stores/notificationStore.svelte.ts', () => ({
-    get notificationStore() {
-        return mocks.mockNotificationStore;
     },
 }));
 vi.mock('#lib/notifications/stream.svelte.ts', () => ({
@@ -81,11 +68,14 @@ const createNotification = (overrides: Partial<MockNotification> = {}): MockNoti
 });
 
 const setNotifications = (notifications: MockNotification[]) => {
-    mocks.mockNotificationStore.notifications = notifications;
-    mocks.mockNotificationStore.loading = false;
-    mocks.mockNotificationStore.error = null;
-    mocks.mockNotificationStore.unreadCount = notifications.filter((n) => n.status !== 'read').length;
+    mockApi(getNotificationsApiV1NotificationsGet).ok({
+        notifications,
+        total: notifications.length,
+        unread_count: notifications.filter((n) => n.status !== 'read').length,
+    });
 };
+
+const markRead = vi.mocked(markNotificationReadApiV1NotificationsNotificationIdReadPut);
 
 /** Mocks window.location.href for external URL testing */
 const withMockedLocation = async (testFn: (mockHref: ReturnType<typeof vi.fn>) => Promise<void>) => {
@@ -153,12 +143,12 @@ const interactionTestCases = [
 
 describe('NotificationCenter', () => {
     const openDropdown = async () => {
-        render(NotificationCenter);
+        renderWithQueryClient(NotificationCenter);
         await user.click(screen.getByRole('button', { name: /Notifications/i }));
     };
 
     const openDropdownWithContainer = async () => {
-        const { container } = render(NotificationCenter);
+        const { container } = renderWithQueryClient(NotificationCenter);
         await user.click(screen.getByRole('button', { name: /Notifications/i }));
         return { container };
     };
@@ -169,11 +159,10 @@ describe('NotificationCenter', () => {
         mocks.mockAuthStore.userId = 'user-123';
         setNotifications([]);
         mocks.mockGoto.mockReset();
-        mocks.mockNotificationStore.load.mockReset().mockResolvedValue([]);
-        mocks.mockNotificationStore.markAsRead.mockReset().mockResolvedValue(true);
-        mocks.mockNotificationStore.markAllAsRead.mockReset().mockResolvedValue(true);
-        mocks.mockNotificationStore.clear.mockReset();
-        mocks.mockNotificationStore.add.mockReset();
+        vi.mocked(getNotificationsApiV1NotificationsGet).mockClear();
+        markRead.mockClear();
+        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok({});
+        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok({});
         mocks.mockStreamConnect.mockReset();
         mocks.mockStreamDisconnect.mockReset();
         mockNotificationPermission = 'default';
@@ -189,14 +178,14 @@ describe('NotificationCenter', () => {
 
     describe('bell icon and badge', () => {
         it('renders notification button with bell icon', () => {
-            render(NotificationCenter);
+            renderWithQueryClient(NotificationCenter);
             const button = screen.getByRole('button', { name: /Notifications/i });
             expect(button).toBeInTheDocument();
             expect(button.querySelector('svg')).toBeInTheDocument();
         });
 
         it('shows no badge when no unread notifications', () => {
-            const { container } = render(NotificationCenter);
+            const { container } = renderWithQueryClient(NotificationCenter);
             expect(container.querySelector('.bg-red-500')).not.toBeInTheDocument();
         });
 
@@ -204,7 +193,7 @@ describe('NotificationCenter', () => {
             setNotifications(
                 Array.from({ length: count }, (_, i) => createNotification({ notification_id: String(i) })),
             );
-            const { container } = render(NotificationCenter);
+            const { container } = renderWithQueryClient(NotificationCenter);
             await waitFor(() => {
                 expect(container.querySelector('.bg-red-500')?.textContent).toBe(expected);
             });
@@ -260,18 +249,20 @@ describe('NotificationCenter', () => {
             });
         });
 
-        it('calls markAllAsRead when button clicked', async () => {
+        it('marks all as read, closes the dropdown and refetches', async () => {
             setNotifications([createNotification()]);
             await openDropdown();
             await user.click(await screen.findByText('Mark all as read'));
-            expect(mocks.mockNotificationStore.markAllAsRead).toHaveBeenCalled();
+            await waitFor(() => expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument());
+            expect(vi.mocked(markAllReadApiV1NotificationsMarkAllReadPost)).toHaveBeenCalled();
+            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2);
         });
 
         it('skips markAsRead for already-read notifications', async () => {
             setNotifications([createNotification({ subject: 'Read', status: 'read' })]);
             await openDropdown();
             await user.click(await screen.findByRole('button', { name: /View notification: Read/i }));
-            expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
+            expect(markRead).not.toHaveBeenCalled();
         });
     });
 
@@ -326,17 +317,19 @@ describe('NotificationCenter', () => {
             });
             await interactWithButton(user, button, method);
 
-            expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalledWith('1');
+            await waitFor(() =>
+                expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: '1' } })),
+            );
             hasUrl ? expect(mocks.mockGoto).toHaveBeenCalledWith(url) : expect(mocks.mockGoto).not.toHaveBeenCalled();
         });
 
         it('ignores non-Enter keydown', async () => {
             setNotifications([createNotification({ subject: 'Test', action_url: '/test' })]);
-            render(NotificationCenter);
+            renderWithQueryClient(NotificationCenter);
             await user.click(screen.getByRole('button', { name: /Notifications/i }));
             screen.getByRole('button', { name: /View notification: Test/i }).focus();
             await user.keyboard('{Tab}');
-            expect(mocks.mockNotificationStore.markAsRead).not.toHaveBeenCalled();
+            expect(markRead).not.toHaveBeenCalled();
         });
     });
 
@@ -358,7 +351,7 @@ describe('NotificationCenter', () => {
     describe('accessibility', () => {
         it('button has aria-label and items are focusable', async () => {
             setNotifications([createNotification({ subject: 'Test' })]);
-            render(NotificationCenter);
+            renderWithQueryClient(NotificationCenter);
             expect(screen.getByRole('button', { name: /Notifications/i })).toHaveAttribute(
                 'aria-label',
                 'Notifications',
@@ -379,20 +372,35 @@ describe('NotificationCenter', () => {
                 createNotification({ notification_id: '1' }),
                 createNotification({ notification_id: '2' }),
             ]);
-            render(NotificationCenter);
+            renderWithQueryClient(NotificationCenter);
             await user.click(screen.getByRole('button', { name: /Notifications/i }));
+            await waitFor(() => expect(screen.getAllByText('Test')).toHaveLength(2));
             await vi.advanceTimersByTimeAsync(2500);
-            expect(mocks.mockNotificationStore.markAsRead).toHaveBeenCalled();
+            await waitFor(() => expect(markRead).toHaveBeenCalledTimes(2));
         });
     });
 
     describe('stream connection', () => {
-        it('connects when authenticated', async () => {
-            mocks.mockAuthStore.isAuthenticated = true;
-            render(NotificationCenter);
-            await waitFor(() => {
-                expect(mocks.mockNotificationStore.load).toHaveBeenCalled();
-            });
+        it('loads and connects when authenticated, and refetches on every pushed notification', async () => {
+            renderWithQueryClient(NotificationCenter);
+            await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(1));
+            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledWith(
+                expect.objectContaining({ query: { limit: 20 } }),
+            );
+            expect(mocks.mockStreamConnect).toHaveBeenCalledTimes(1);
+
+            const onNotification = mocks.mockStreamConnect.mock.calls[0]![0] as (n: MockNotification) => void;
+            onNotification(createNotification({ notification_id: 'pushed' }));
+
+            await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2));
+        });
+
+        it('neither loads nor connects when signed out', async () => {
+            mocks.mockAuthStore.isAuthenticated = false;
+            renderWithQueryClient(NotificationCenter);
+            await vi.advanceTimersByTimeAsync(100);
+            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).not.toHaveBeenCalled();
+            expect(mocks.mockStreamConnect).not.toHaveBeenCalled();
         });
     });
 

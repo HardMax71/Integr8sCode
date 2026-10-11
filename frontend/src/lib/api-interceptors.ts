@@ -2,12 +2,13 @@ import { client, type ValidationError } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { authStore } from '#stores/auth.svelte.ts';
+import { ApiError } from '#lib/api-error.ts';
+import { setQueryErrorHandler } from '#lib/query-client.ts';
 import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('API');
 
 let isHandling401 = false;
-const AUTH_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register'];
 
 const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warning' }> = {
     403: { message: 'Access denied.', type: 'error' },
@@ -37,6 +38,7 @@ function formatValidationErrors(errors: ValidationError[]): string {
 
 export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
     if (!err) return fallback;
+    if (err instanceof ApiError) return getErrorMessage(err.body, fallback);
     if (typeof err === 'string') return err;
 
     if (typeof err === 'object' && 'detail' in err) {
@@ -50,9 +52,7 @@ export function getErrorMessage(err: unknown, fallback = 'An error occurred'): s
     return fallback;
 }
 
-function handle401(isAuthEndpoint: boolean): void {
-    if (isAuthEndpoint) return;
-
+function handle401(): void {
     const wasAuthenticated = authStore.isAuthenticated;
     if (wasAuthenticated && !isHandling401) {
         isHandling401 = true;
@@ -72,34 +72,34 @@ function handle401(isAuthEndpoint: boolean): void {
 }
 
 // --8<-- [start:error_handling]
-function handleErrorStatus(status: number | undefined, error: unknown, isAuthEndpoint: boolean): boolean {
-    if (!status) {
-        if (!isAuthEndpoint) toast.error('Network error. Check your connection.');
-        return true;
-    }
+/**
+ * Shows a failed query or mutation; the query client calls it once a query has used up its retries.
+ * @param error - What the request threw; anything but an ApiError failed before it was sent and is only logged
+ * @param inlineErrors - The form shows 401s, network errors and other 4xx itself
+ */
+export function showApiError(error: unknown, inlineErrors: boolean): void {
+    if (!(error instanceof ApiError)) return;
+    const { status } = error;
 
+    if (status === undefined) {
+        if (!inlineErrors) toast.error('Network error. Check your connection.');
+        return;
+    }
     if (status === 401) {
-        handle401(isAuthEndpoint);
-        return true;
+        if (!inlineErrors) handle401();
+        return;
     }
 
     const mapped = STATUS_MESSAGES[status];
     if (mapped) {
         toast[mapped.type](mapped.message);
-        return true;
-    }
-
-    if (status === 422) {
+    } else if (status === 422) {
         toast.error(`Validation error: ${getErrorMessage(error)}`);
-        return true;
-    }
-
-    if (status >= 500) {
+    } else if (status >= 500) {
         toast.error('Server error. Please try again later.');
-        return true;
+    } else if (!inlineErrors) {
+        toast.error(getErrorMessage(error));
     }
-
-    return false;
 }
 // --8<-- [end:error_handling]
 
@@ -109,22 +109,12 @@ export function initializeApiInterceptors(): void {
         credentials: 'include',
     });
 
+    setQueryErrorHandler(showApiError);
+
     client.interceptors.error.use((error, response: Response | undefined, request, opts) => {
-        const status = response?.status;
-        const url = request?.url ?? opts.url;
-
-        log.error('API Error', { status, url, error });
-
-        // No request means it failed before sending, so let unwrap rethrow without a network toast
-        if (!request) return error;
-
-        const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => url.includes(ep));
-        const handled = handleErrorStatus(status, error, isAuthEndpoint);
-        if (!handled && !isAuthEndpoint) {
-            toast.error(getErrorMessage(error, 'An error occurred'));
-        }
-
-        return error;
+        log.error('API Error', { status: response?.status, url: request?.url ?? opts.url, error });
+        // No request means it failed before it was sent, so there's no status to report
+        return request ? new ApiError(response?.status, error) : error;
     });
 
     // --8<-- [start:csrf_injection]
@@ -138,19 +128,4 @@ export function initializeApiInterceptors(): void {
         return request;
     });
     // --8<-- [end:csrf_injection]
-}
-
-export function unwrap<T>(result: { data?: T; error?: unknown }): T {
-    if (result.error) throw result.error;
-    if (result.data === undefined) {
-        throw new Error('Unexpected empty response');
-    }
-    return result.data;
-}
-
-export function unwrapOr<T>(result: { data?: T; error?: unknown }, fallback: T): T {
-    if (result.error || result.data === undefined) {
-        return fallback;
-    }
-    return result.data;
 }

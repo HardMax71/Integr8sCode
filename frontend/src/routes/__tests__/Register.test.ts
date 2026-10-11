@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import Register from '#routes/register/+page.svelte';
 
 import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
-import { getErrorMessage } from '#lib/api-interceptors.ts';
+import { queryClient } from '#lib/query-client.ts';
 
 describe('Register', () => {
     beforeEach(() => {
@@ -15,7 +15,7 @@ describe('Register', () => {
     });
 
     function renderRegister() {
-        return render(Register);
+        return renderWithQueryClient(Register);
     }
 
     it('renders form with 4 inputs, submit button, and login link', async () => {
@@ -71,17 +71,18 @@ describe('Register', () => {
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
         await waitFor(() => {
-            expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith({
-                body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
-            });
+            expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
+                }),
+            );
         });
         expect(toast.success).toHaveBeenCalledWith('Registration successful! Please log in.');
         expect(navigation.goto).toHaveBeenCalledWith('/login');
     });
 
-    it('shows error in DOM on API error (no duplicate toast)', async () => {
+    it('shows the API error inline and opts out of the global toasts', async () => {
         mockApi(registerApiV1AuthRegisterPost).err({ detail: 'Username taken' });
-        vi.mocked(getErrorMessage).mockReturnValue('Registration failed. Please try again.');
 
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'taken');
@@ -91,9 +92,11 @@ describe('Register', () => {
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
         await waitFor(() => {
-            expect(screen.getByText('Registration failed. Please try again.')).toBeInTheDocument();
+            expect(screen.getByTestId('error-message')).toHaveTextContent('Username taken');
         });
+        expect(queryClient.getMutationCache().getAll()[0]?.meta).toEqual({ inlineErrors: true });
         expect(toast.error).not.toHaveBeenCalled();
+        expect(navigation.goto).not.toHaveBeenCalled();
     });
 
     it('disables button and shows "Registering..." during loading', async () => {
@@ -117,7 +120,7 @@ describe('Register', () => {
         });
         expect(screen.getByRole('button', { name: /registering/i })).toBeDisabled();
 
-        resolveRegister!({ data: {}, error: undefined });
+        resolveRegister!({ data: { user_id: 'u1' }, error: undefined });
         await waitFor(() => {
             expect(screen.queryByText('Registering...')).not.toBeInTheDocument();
         });

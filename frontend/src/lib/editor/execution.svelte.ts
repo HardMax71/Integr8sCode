@@ -1,6 +1,8 @@
+import { createMutation } from '@tanstack/svelte-query';
 import {
-    createExecutionApiV1ExecutePost,
+    createExecutionApiV1ExecutePostMutation,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
+    type ExecutionResponse,
     type ExecutionResult,
     type ExecutionStatus,
     type EventType,
@@ -19,44 +21,53 @@ function isTerminalFailure(e: EventType | SseControlEvent): boolean {
 }
 
 class ExecutionState {
-    phase = $state<ExecutionPhase>('idle');
+    #phase = $state<Exclude<ExecutionPhase, 'starting'>>('idle');
     result = $state<ExecutionResult | null>(null);
-    error = $state<string | null>(null);
+    #streamError = $state<string | null>(null);
     #controller: AbortController | null = null;
+    #start = createMutation(() => createExecutionApiV1ExecutePostMutation());
+
+    get phase(): ExecutionPhase {
+        return this.#start.isPending ? 'starting' : this.#phase;
+    }
+
+    get error(): string | null {
+        if (this.#streamError) return this.#streamError;
+        return this.#start.error ? getErrorMessage(this.#start.error, 'Failed to start execution.') : null;
+    }
 
     get isExecuting() {
         return this.phase !== 'idle';
     }
 
     reset() {
-        this.phase = 'idle';
+        this.#phase = 'idle';
         this.result = null;
-        this.error = null;
+        this.#streamError = null;
+        this.#start.reset();
     }
 
     abort() {
         this.#controller?.abort();
         this.#controller = null;
-        this.phase = 'idle';
+        this.#phase = 'idle';
     }
 
     async execute(script: string, lang: string, langVersion: string): Promise<void> {
         this.abort();
         this.reset();
-        this.phase = 'starting';
 
-        const { data, error } = await createExecutionApiV1ExecutePost({
-            body: { script, lang, lang_version: langVersion },
-        });
-        if (error) {
-            this.error = getErrorMessage(error, 'Failed to start execution.');
-            this.phase = 'idle';
-            return;
-        }
+        // A failed start shows through this.error, and the query client has already toasted it
+        const started = await this.#start
+            .mutateAsync({ body: { script, lang, lang_version: langVersion } })
+            .catch(() => null);
+        if (started) await this.#follow(started);
+    }
 
+    async #follow(data: ExecutionResponse): Promise<void> {
         const controller = new AbortController();
         this.#controller = controller;
-        this.phase = isActivePhase(data.status) ? data.status : 'queued';
+        this.#phase = isActivePhase(data.status) ? data.status : 'queued';
 
         const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
             path: { execution_id: data.execution_id },
@@ -67,7 +78,7 @@ class ExecutionState {
         let terminalReceived = false;
         for await (const ev of stream) {
             if (ev.status && isActivePhase(ev.status)) {
-                this.phase = ev.status;
+                this.#phase = ev.status;
             }
 
             if (ev.event_type === 'result_stored') {
@@ -78,7 +89,7 @@ class ExecutionState {
 
             if (isTerminalFailure(ev.event_type)) {
                 this.result = ev.result;
-                this.error =
+                this.#streamError =
                     ev.event_type === 'execution_timeout'
                         ? 'Execution timed out.'
                         : ev.event_type === 'result_failed'
@@ -90,10 +101,10 @@ class ExecutionState {
         }
 
         if (!terminalReceived && !controller.signal.aborted) {
-            this.error = 'Connection to server lost.';
+            this.#streamError = 'Connection to server lost.';
         }
         this.#controller = null;
-        this.phase = 'idle';
+        this.#phase = 'idle';
     }
 }
 

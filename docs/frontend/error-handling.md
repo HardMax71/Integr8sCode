@@ -1,10 +1,12 @@
 # Frontend error handling
 
-API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. The admin pages go through TanStack Query, whose queries and mutations land in an error state after the interceptor has toasted ([Server state](server-state.md)). The rest call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. A few callers check `error` themselves instead: the settings page, the notification store and the editor's execution start.
+API errors are shown in one place, and components don't catch them. Every request goes through TanStack Query ([Server state](server-state.md)), so a failure ends up in a query's or mutation's error state, and the query client's cache handlers show it. The three SSE streams are the exception: they report a dropped stream themselves.
 
-## The interceptor
+## From response to toast
 
-`initializeApiInterceptors()` runs once, from the `init` hook in `src/hooks.client.ts`. Its error interceptor logs every failed call and picks a toast by status:
+The generated client's error interceptor in `src/lib/api-interceptors.ts` runs first. It logs the failure and wraps it in an `ApiError` (`src/lib/api-error.ts`) that keeps the HTTP status next to the parsed body. That matters because the generated query and mutation options call the SDK with `throwOnError`, which throws only the body. A request that got no response has an `ApiError` without a status. A request that failed before it was sent, such as a bad URL, passes through unwrapped.
+
+The query client in `src/lib/query-client.ts` retries a query twice when the error is a network failure or a 5xx, waiting 1 second and then 2. Mutations never retry, since a write may not be safe to repeat. Once a query has used up its retries, or a mutation fails, the cache's `onError` calls `showApiError`, which picks the toast by status. The client gets that handler from `initializeApiInterceptors()`, which runs from the `init` hook in `src/hooks.client.ts`. It's handed over at startup instead of imported, because the auth store imports the query client and `api-interceptors.ts` imports the auth store.
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
@@ -21,36 +23,18 @@ API errors are shown in one place, the error interceptor in `src/lib/api-interce
 | 500 and up         | "Server error. Please try again later."                                  |
 | anything else      | the `detail` from the response, or "An error occurred"                   |
 
-Calls to `/api/v1/auth/login` and `/api/v1/auth/register` get no toast for network errors or unmapped statuses, and a 401 from them leaves auth alone, because those pages show their own messages. 403, 422, 423, 429 and 5xx still toast there. A request that fails before it's sent gets no toast at all, and the error goes straight back to the caller.
+Clearing auth also empties the query cache, so nothing the previous user loaded shows to the next one.
 
 The request interceptor adds `X-CSRF-Token` from `authStore.csrfToken` to every non-GET request.
 
-## unwrap and unwrapOr
+## Forms that show their own errors
 
-```typescript
-// throws the error, so nothing after it runs
-const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
+The login and register pages show the error under the form, so their mutations carry `meta: { inlineErrors: true }`. For those, `showApiError` skips the network toast, the 401 handling and the `detail` toast for other 4xx, and the page renders `getErrorMessage(mutation.error, fallback)` instead. 403, 422, 423, 429 and 5xx still toast, since their messages are the same everywhere.
 
-// returns the fallback instead
-const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-```
+`getErrorMessage(err, fallback)` turns any error into text: a string `detail`, formatted validation errors, an `ApiError`'s body, or an `Error`'s message.
 
-`unwrapOr` suits loads where an empty state is fine. `unwrap` is for actions where the code after it assumes success. Reset loading flags before calling `unwrap`, since it may not return:
-
-```typescript
-saving = false;
-unwrap(result);
-showModal = false;   // only on success
-```
-
-`getErrorMessage(err, fallback)` turns an error into text: a string `detail`, formatted validation errors, or an `Error`'s message.
+A component that needs to react to one specific failure passes `onError` to `mutate`. The editor does this when saving a script that was deleted elsewhere: a 404 from the update means it creates the script instead. The toast still comes from the cache handler.
 
 ## Errors outside API calls
 
-An error from `unwrap` inside an async click handler isn't caught by anything. The interceptor has already shown its toast, so the rejection only reaches the browser console and the page stays usable.
-
 Errors while navigating, loading or rendering a page go to `handleError` in `src/hooks.client.ts`, which logs them, and SvelteKit renders `src/routes/+error.svelte` in place of the page. It shows `ErrorDisplay` titled "Page not found" for a 404 and "Something went wrong" otherwise, with Reload and Go to Home buttons. `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
-
-## Login and register
-
-The login and register pages wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.

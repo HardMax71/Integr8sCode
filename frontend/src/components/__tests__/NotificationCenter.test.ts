@@ -147,10 +147,11 @@ describe('NotificationCenter', () => {
         await user.click(screen.getByRole('button', { name: /Notifications/i }));
     };
 
+    // The popover renders in a portal on document.body, outside the component's container
     const openDropdownWithContainer = async () => {
-        const { container } = renderWithQueryClient(NotificationCenter);
+        renderWithQueryClient(NotificationCenter);
         await user.click(screen.getByRole('button', { name: /Notifications/i }));
-        return { container };
+        return { container: document.body };
     };
 
     beforeEach(() => {
@@ -349,7 +350,7 @@ describe('NotificationCenter', () => {
     });
 
     describe('accessibility', () => {
-        it('button has aria-label and items are focusable', async () => {
+        it('button has aria-label and items are real buttons', async () => {
             setNotifications([createNotification({ subject: 'Test' })]);
             renderWithQueryClient(NotificationCenter);
             expect(screen.getByRole('button', { name: /Notifications/i })).toHaveAttribute(
@@ -357,12 +358,8 @@ describe('NotificationCenter', () => {
                 'Notifications',
             );
             await user.click(screen.getByRole('button', { name: /Notifications/i }));
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: /View notification: Test/i })).toHaveAttribute(
-                    'tabindex',
-                    '0',
-                );
-            });
+            const item = await screen.findByRole('button', { name: /View notification: Test/i });
+            expect(item.tagName).toBe('BUTTON');
         });
     });
 

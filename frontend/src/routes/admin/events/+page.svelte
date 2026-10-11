@@ -13,13 +13,13 @@
     import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '#lib/admin/events/index.ts';
     import { Funnel, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
     import Pagination from '#components/Pagination.svelte';
+    import { DropdownMenu } from 'bits-ui';
     import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
 
     const store = createEventsStore();
 
     // UI-only state
     let showFilters = $state(false);
-    let showExportMenu = $state(false);
 
     // Show replay preview modal when store populates replayPreview
     let showReplayPreview = $derived(store.replayPreview !== null);
@@ -31,14 +31,6 @@
 
     onDestroy(() => store.cleanup());
 </script>
-
-<svelte:document
-    onclick={(e) => {
-        if (showExportMenu && !(e.target as Element)?.closest('.export-dropdown')) {
-            showExportMenu = false;
-        }
-    }}
-/>
 
 <div class="container mx-auto px-4 pb-8">
     <!-- Header -->
@@ -72,47 +64,25 @@
                 {/if}
             </button>
 
-            <!-- Export dropdown -->
-            <div class="relative export-dropdown">
-                <button
-                    type="button"
-                    onclick={() => (showExportMenu = !showExportMenu)}
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger
                     class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
                 >
                     <Download size={16} />
                     <span class="hidden sm:inline">Export</span>
                     <ChevronRight size={12} class="ml-1 rotate-90" />
-                </button>
-
-                {#if showExportMenu}
-                    <div
-                        class="absolute right-0 mt-2 w-48 bg-surface-overlay dark:bg-dark-surface-overlay rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-700 z-50"
-                    >
-                        <button
-                            type="button"
-                            onclick={() => {
-                                store.exportEvents('csv');
-                                showExportMenu = false;
-                            }}
-                            class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-t-lg transition-colors"
-                        >
-                            <FileText size={16} class="text-green-600 dark:text-green-400" />
-                            <span>Export as CSV</span>
-                        </button>
-                        <button
-                            type="button"
-                            onclick={() => {
-                                store.exportEvents('json');
-                                showExportMenu = false;
-                            }}
-                            class="w-full px-4 py-2 text-left hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover flex items-center gap-2 rounded-b-lg transition-colors"
-                        >
-                            <Code size={16} class="text-blue-600 dark:text-blue-400" />
-                            <span>Export as JSON</span>
-                        </button>
-                    </div>
-                {/if}
-            </div>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                    <DropdownMenu.Content align="end" sideOffset={8} class="floating-panel w-48">
+                        <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents('csv')}>
+                            <FileText size={16} class="text-green-600 dark:text-green-400" />Export as CSV
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents('json')}>
+                            <Code size={16} class="text-blue-600 dark:text-blue-400" />Export as JSON
+                        </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+            </DropdownMenu.Root>
 
             <button
                 type="button"

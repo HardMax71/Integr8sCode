@@ -23,9 +23,9 @@ test.describe('Settings Page', () => {
   test('can open theme dropdown and see options', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.locator('#theme-select').click();
-    await expect(userPage.getByRole('button', { name: 'Light', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: 'Dark', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: 'Auto (System)', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'Light', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'Dark', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'Auto (System)', exact: true })).toBeVisible();
   });
 
   test('can change theme to dark', async ({ userPage }) => {

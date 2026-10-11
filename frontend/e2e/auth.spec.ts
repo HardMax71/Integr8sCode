@@ -88,7 +88,7 @@ test.describe('Logout', () => {
     const userMenuButton = page.getByRole('button', { name: 'User menu' });
     await expect(userMenuButton).toBeVisible();
     await userMenuButton.click();
-    const logoutButton = page.getByRole('button', { name: 'Logout' });
+    const logoutButton = page.getByRole('menuitem', { name: 'Logout' });
     await expect(logoutButton).toBeVisible();
     await logoutButton.click();
     await expect(page).toHaveURL(/\/login/);

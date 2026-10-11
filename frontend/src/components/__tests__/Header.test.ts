@@ -170,8 +170,8 @@ describe('Header', () => {
                 expect(screen.getAllByText(/testuser/i).length).toBeGreaterThan(0);
                 expect(screen.getByText('test@example.com')).toBeInTheDocument();
                 expect(screen.getByText('T')).toBeInTheDocument(); // initial
-                expect(screen.getByRole('link', { name: /Settings/i })).toHaveAttribute('href', '/settings');
-                expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument();
+                expect(screen.getByRole('menuitem', { name: /Settings/i })).toHaveAttribute('href', '/settings');
+                expect(screen.getByRole('menuitem', { name: /Logout/i })).toBeInTheDocument();
             });
         });
 
@@ -189,10 +189,7 @@ describe('Header', () => {
         ])('logout ends the session and goes to /login when the call %s', async (_label, arrange) => {
             arrange();
             await openUserDropdown();
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument();
-            });
-            await user.click(screen.getByRole('button', { name: /Logout/i }));
+            await user.click(await screen.findByRole('menuitem', { name: /Logout/i }));
             await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
             expect(vi.mocked(logoutApiV1AuthLogoutPost)).toHaveBeenCalled();
             expect(mocks.mockAuthStore.clearAuth).toHaveBeenCalled();
@@ -204,23 +201,12 @@ describe('Header', () => {
             setAuth(true, 'admin', 'admin', 'admin@example.com');
         });
 
-        it('shows Admin indicator and button in dropdown', async () => {
+        it('shows the Admin indicator and an Admin entry linking to the admin panel', async () => {
             await openUserDropdown();
             await waitFor(() => {
                 expect(screen.getByText('(Admin)')).toBeInTheDocument();
-                expect(screen.getByRole('button', { name: /^Admin$/ })).toBeInTheDocument();
             });
-        });
-
-        it('Admin button navigates to admin panel', async () => {
-            await openUserDropdown();
-            await waitFor(() => {
-                expect(screen.getByRole('button', { name: /^Admin$/ })).toBeInTheDocument();
-            });
-            await user.click(screen.getByRole('button', { name: /^Admin$/ }));
-            await waitFor(() => {
-                expect(navigation.goto).toHaveBeenCalledWith('/admin/events');
-            });
+            expect(screen.getByRole('menuitem', { name: /^Admin$/ })).toHaveAttribute('href', '/admin/events');
         });
     });
 
@@ -272,27 +258,22 @@ describe('Header', () => {
             const restoreConsole = suppressConsoleError();
             setAuth(true, 'testuser', 'user');
             await openUserDropdown();
+            await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
-                expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
-            });
-            await user.click(screen.getByRole('link', { name: /Settings/i }));
-            await waitFor(() => {
-                expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument();
+                expect(screen.queryByRole('menuitem', { name: /Settings/i })).not.toBeInTheDocument();
             });
             restoreConsole();
         });
 
-        it('closes dropdown when clicking outside', async () => {
+        it('closes the dropdown on Escape', async () => {
             setAuth(true, 'testuser', 'user');
             await openUserDropdown();
-            await waitFor(() => {
-                expect(screen.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
-            });
+            await screen.findByRole('menuitem', { name: /Settings/i });
 
-            document.body.click();
+            await user.keyboard('{Escape}');
 
             await waitFor(() => {
-                expect(screen.queryByRole('link', { name: /Settings/i })).not.toBeInTheDocument();
+                expect(screen.queryByRole('menuitem', { name: /Settings/i })).not.toBeInTheDocument();
             });
         });
     });

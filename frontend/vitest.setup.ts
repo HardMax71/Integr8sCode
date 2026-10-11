@@ -83,22 +83,23 @@ vi.stubGlobal(
     })),
 );
 
+// Classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
 vi.stubGlobal(
     'ResizeObserver',
-    vi.fn().mockImplementation(() => ({
-        observe: vi.fn(),
-        unobserve: vi.fn(),
-        disconnect: vi.fn(),
-    })),
+    class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+    },
 );
 
 vi.stubGlobal(
     'IntersectionObserver',
-    vi.fn().mockImplementation(() => ({
-        observe: vi.fn(),
-        unobserve: vi.fn(),
-        disconnect: vi.fn(),
-    })),
+    class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+    },
 );
 
 // Polyfill :checked for <option> elements (happy-dom doesn't support it).

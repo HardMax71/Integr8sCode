@@ -196,7 +196,7 @@ services:
           sleep 2
         done
         cp /etc/grafana/provisioning/alerting/* /tmp/provisioning/alerting/
-        curl -sf -X POST -u "$$auth" localhost:3000/api/admin/provisioning/alerting/reload > /dev/null
+        curl -sf -X POST -u "$$auth" localhost:3000/api/admin/provisioning/alerting/reload > /dev/null || exit 1
         wait $$pid
         wait $$pid
     ports:

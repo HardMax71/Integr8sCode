@@ -24,6 +24,12 @@ server {
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
     # --8<-- [end:security_headers]
 
+    # --8<-- [start:nonce_injection]
+    # A fresh nonce per response for the CSP and the csp-nonce meta tag in 200.html
+    sub_filter_once off;
+    sub_filter '**CSP_NONCE**' '$request_id';
+    # --8<-- [end:nonce_injection]
+
     # --8<-- [start:compression]
     # Enable gzip compression
     gzip on;

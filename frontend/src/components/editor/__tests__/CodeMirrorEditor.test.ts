@@ -130,6 +130,18 @@ describe('CodeMirrorEditor', () => {
         });
     });
 
+    it('gives CodeMirror the nonce from the csp-nonce meta tag for its <style> tag', async () => {
+        const meta = Object.assign(document.createElement('meta'), { name: 'csp-nonce', content: 'abc123' });
+        document.head.append(meta);
+        try {
+            renderEditor();
+            await waitFor(() => expect(mocks.editorStateCreate).toHaveBeenCalled());
+            expect(mocks.editorStateCreate.mock.calls[0]![0].extensions).toContainEqual({ cspNonce: 'abc123' });
+        } finally {
+            meta.remove();
+        }
+    });
+
     it('destroys EditorView on unmount', async () => {
         const { unmount } = renderEditor();
         await waitFor(() => expect(mocks.editorViewConstructor).toHaveBeenCalled());

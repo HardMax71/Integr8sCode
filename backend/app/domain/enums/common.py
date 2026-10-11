@@ -14,7 +14,7 @@ class Theme(StringEnum):
 
     LIGHT = "light"
     DARK = "dark"
-    AUTO = "auto"
+    SYSTEM = "system"
 
 
 class ExportFormat(StringEnum):

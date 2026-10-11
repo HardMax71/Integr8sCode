@@ -58,7 +58,7 @@ class UserSettingsDocument(Document):
     """
 
     user_id: Indexed(str, unique=True)  # type: ignore[valid-type]
-    theme: Theme = Theme.AUTO
+    theme: Theme = Theme.SYSTEM
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"
     time_format: str = "24h"

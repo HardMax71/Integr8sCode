@@ -14,11 +14,11 @@
         type NotificationResponse,
     } from '#lib/api/index.ts';
     import { Bell, Trash, Clock, CircleCheck, CircleAlert, Info } from '@lucide/svelte';
-    import { formatRelativeTime } from '#lib/formatters.ts';
+    import { fieldTitle, formatRelativeTime } from '#lib/formatters.ts';
 
     let includeTagsInput = $state('');
     let excludeTagsInput = $state('');
-    let prefixInput = $state('');
+    let tagPrefixInput = $state('');
 
     function parseTags(input: string): string[] {
         return input
@@ -78,7 +78,7 @@
         filters = {
             include_tags: parseTags(includeTagsInput),
             exclude_tags: parseTags(excludeTagsInput),
-            tag_prefix: prefixInput.trim() || undefined,
+            tag_prefix: tagPrefixInput.trim() || undefined,
         };
     }
 
@@ -110,7 +110,7 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
                     <label for="include-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
-                        >Include tags</label
+                        >{fieldTitle('include_tags')}</label
                     >
                     <input
                         id="include-tags"
@@ -121,7 +121,7 @@
                 </div>
                 <div>
                     <label for="exclude-tags" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
-                        >Exclude tags</label
+                        >{fieldTitle('exclude_tags')}</label
                     >
                     <input
                         id="exclude-tags"
@@ -132,13 +132,13 @@
                 </div>
                 <div>
                     <label for="tag-prefix" class="block text-sm text-fg-muted dark:text-dark-fg-muted mb-1"
-                        >Tag prefix</label
+                        >{fieldTitle('tag_prefix')}</label
                     >
                     <input
                         id="tag-prefix"
                         class="input input-bordered w-full"
                         placeholder="e.g. exec:"
-                        bind:value={prefixInput}
+                        bind:value={tagPrefixInput}
                     />
                 </div>
                 <div class="flex items-end">
@@ -270,7 +270,9 @@
                                         {/if}
 
                                         {#if notification.status === 'read'}
-                                            <span class="text-xs text-green-600 dark:text-green-400"> Read </span>
+                                            <span class="text-xs text-green-600 dark:text-green-400"
+                                                >{notification.status}</span
+                                            >
                                         {/if}
                                     </div>
                                 </div>

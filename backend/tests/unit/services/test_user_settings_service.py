@@ -95,7 +95,7 @@ async def test_a_read_sees_an_update_made_by_another_api_process(
 ) -> None:
     # A second service over the same storage stands in for a second API worker process
     other = UserSettingsService(repo, AsyncMock(spec=UnifiedProducer), test_settings, structlog.get_logger("test"))
-    assert (await other.get_user_settings("u1")).theme == Theme.AUTO
+    assert (await other.get_user_settings("u1")).theme == Theme.SYSTEM
 
     await service.update_theme("u1", Theme.DARK)
 

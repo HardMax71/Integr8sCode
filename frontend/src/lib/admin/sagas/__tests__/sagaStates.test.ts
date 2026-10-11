@@ -14,25 +14,16 @@ describe('sagaStates', () => {
 
         it('each state has required properties', () => {
             Object.values(SAGA_STATES).forEach((state) => {
-                expect(state).toHaveProperty('label');
                 expect(state).toHaveProperty('color');
                 expect(state).toHaveProperty('bgColor');
                 expect(state).toHaveProperty('icon');
             });
-        });
-
-        it('has correct labels', () => {
-            expect(SAGA_STATES.created.label).toBe('Created');
-            expect(SAGA_STATES.running.label).toBe('Running');
-            expect(SAGA_STATES.completed.label).toBe('Completed');
-            expect(SAGA_STATES.failed.label).toBe('Failed');
         });
     });
 
     describe('getSagaStateInfo', () => {
         it('returns correct info for known states', () => {
             const running = getSagaStateInfo('running');
-            expect(running.label).toBe('Running');
             expect(running.color).toBe('badge-info');
         });
 
@@ -48,7 +39,6 @@ describe('sagaStates', () => {
             ] as const;
             for (const state of states) {
                 const info = getSagaStateInfo(state);
-                expect(info.label).toBeTruthy();
                 expect(info.color).toBeTruthy();
             }
         });

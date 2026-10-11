@@ -145,7 +145,7 @@ class APIClient:
 
     async def update_theme(self) -> httpx2.Response:
         url = self.cfg.api("/user/settings/theme")
-        theme = random.choice(["light", "dark", "auto"])
+        theme = random.choice(["light", "dark", "system"])
         return await self._request("PUT", url, json={"theme": theme}, headers=self._with_csrf())
 
     async def list_notifications(self) -> httpx2.Response:

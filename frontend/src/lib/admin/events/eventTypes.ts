@@ -2,6 +2,7 @@
  * Event type configurations and utilities
  */
 import { EventType, type EventFilter } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
 // Re-export EventType from generated types
 export type { EventType } from '#lib/api/index.ts';
@@ -32,50 +33,31 @@ export function getEventTypeColor(eventType: EventType): string {
     return 'text-neutral-600 dark:text-neutral-400';
 }
 
-// Get display label for event type
-export function getEventTypeLabel(eventType: EventType): string {
-    // For execution_requested, show icon only (with tooltip)
-    if (eventType === 'execution_requested') {
-        return '';
-    }
+const FILTER_KEYS = [
+    'event_types',
+    'search_text',
+    'aggregate_id',
+    'user_id',
+    'service_name',
+    'start_time',
+    'end_time',
+] as const satisfies readonly (keyof EventFilter)[];
 
-    // Return the event type as-is (already readable with underscores)
-    return eventType;
+function activeFilterKeys(filters: EventFilter): (typeof FILTER_KEYS)[number][] {
+    return FILTER_KEYS.filter((key) => {
+        const value = filters[key];
+        return Array.isArray(value) ? value.length > 0 : !!value;
+    });
 }
 
 export function hasActiveFilters(filters: EventFilter): boolean {
-    return (
-        (filters.event_types?.length ?? 0) > 0 ||
-        !!filters.search_text ||
-        !!filters.aggregate_id ||
-        !!filters.user_id ||
-        !!filters.service_name ||
-        !!filters.start_time ||
-        !!filters.end_time
-    );
+    return activeFilterKeys(filters).length > 0;
 }
 
 export function getActiveFilterCount(filters: EventFilter): number {
-    let count = 0;
-    if (filters.event_types?.length) count++;
-    if (filters.search_text) count++;
-    if (filters.aggregate_id) count++;
-    if (filters.user_id) count++;
-    if (filters.service_name) count++;
-    if (filters.start_time) count++;
-    if (filters.end_time) count++;
-    return count;
+    return activeFilterKeys(filters).length;
 }
 
 export function getActiveFilterSummary(filters: EventFilter): string[] {
-    const items: string[] = [];
-    if (filters.event_types?.length) {
-        items.push(`${filters.event_types.length} event type${filters.event_types.length > 1 ? 's' : ''}`);
-    }
-    if (filters.search_text) items.push('search');
-    if (filters.aggregate_id) items.push('aggregate');
-    if (filters.user_id) items.push('user');
-    if (filters.service_name) items.push('service');
-    if (filters.start_time || filters.end_time) items.push('time range');
-    return items;
+    return activeFilterKeys(filters).map(fieldTitle);
 }

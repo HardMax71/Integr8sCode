@@ -119,7 +119,7 @@ describe('AdminUsers', () => {
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
-            const searchInput = screen.getByPlaceholderText(/Search by username/i);
+            const searchInput = screen.getByLabelText('Search');
             await user.type(searchInput, 'alice');
             await waitFor(() => {
                 expect(screen.getAllByText('alice')).toHaveLength(2);
@@ -150,7 +150,7 @@ describe('AdminUsers', () => {
 
         it('asks the server for disabled users', async () => {
             await renderWithUsers();
-            selectOption(screen.getByRole('combobox', { name: /Status/i }), 'disabled');
+            selectOption(screen.getByRole('combobox', { name: 'Is Active' }), 'false');
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: false }));
         });
 
@@ -166,7 +166,7 @@ describe('AdminUsers', () => {
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
-            const searchInput = screen.getByPlaceholderText(/Search by username/i);
+            const searchInput = screen.getByLabelText('Search');
             await user.type(searchInput, 'nonexistent');
             await waitFor(() => expect(screen.getByText(/No users found/i)).toBeInTheDocument());
             const resetBtn = screen.getByRole('button', { name: /^Reset$/i });
@@ -184,11 +184,11 @@ describe('AdminUsers', () => {
         });
 
         it.each([
-            [/Bypass Rate Limit/i, 'yes', { bypass_rate_limit: true }],
-            [/Bypass Rate Limit/i, 'no', { bypass_rate_limit: false }],
-            [/Custom Limits/i, 'yes', { has_custom_limits: true }],
-            [/Global Multiplier/i, 'custom', { custom_multiplier: true }],
-            [/Global Multiplier/i, 'default', { custom_multiplier: false }],
+            ['Bypass Rate Limit', 'true', { bypass_rate_limit: true }],
+            ['Bypass Rate Limit', 'false', { bypass_rate_limit: false }],
+            ['Has Custom Limits', 'true', { has_custom_limits: true }],
+            ['Custom Multiplier', 'true', { custom_multiplier: true }],
+            ['Custom Multiplier', 'false', { custom_multiplier: false }],
         ])('asks the server with the %s filter set to %s', async (name, option, query) => {
             await renderWithUsers();
             await user.click(screen.getByRole('button', { name: /Advanced/i }));
@@ -568,7 +568,7 @@ describe('AdminUsers', () => {
             await user.click(screen.getByRole('button', { name: /Add Rule/i }));
 
             await waitFor(() => {
-                expect(screen.getByText(/User-Specific Overrides/i)).toBeInTheDocument();
+                expect(screen.getByRole('heading', { name: 'Rules' })).toBeInTheDocument();
             });
         });
 
@@ -621,7 +621,7 @@ describe('AdminUsers', () => {
             await user.click(await screen.findByRole('button', { name: 'Next page' }));
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ offset: 10 }));
 
-            selectOption(screen.getByRole('combobox', { name: /Status/i }), 'active');
+            selectOption(screen.getByRole('combobox', { name: 'Is Active' }), 'true');
 
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: true, offset: 0 }));
         });

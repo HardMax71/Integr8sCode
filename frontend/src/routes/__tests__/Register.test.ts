@@ -22,8 +22,8 @@ describe('Register', () => {
         await renderRegister();
         expect(screen.getByRole('heading', { name: /create a new account/i })).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Email address')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Password (min. 8 characters)')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Confirm Password')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /sign in to your existing account/i })).toHaveAttribute(
@@ -44,14 +44,14 @@ describe('Register', () => {
             name: 'a short password',
             password: 'short',
             confirmPassword: 'short',
-            field: 'Password (min. 8 characters)',
+            field: 'Password',
             expectedError: 'Must be at least 8 characters',
         },
     ])('shows $name under the field and sends nothing', async ({ password, confirmPassword, field, expectedError }) => {
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'testuser');
-        await user.type(screen.getByPlaceholderText('Email address'), 'test@email.com');
-        await user.type(screen.getByPlaceholderText('Password (min. 8 characters)'), password);
+        await user.type(screen.getByPlaceholderText('Email'), 'test@email.com');
+        await user.type(screen.getByPlaceholderText('Password'), password);
         await user.type(screen.getByPlaceholderText('Confirm Password'), confirmPassword);
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -65,18 +65,18 @@ describe('Register', () => {
 
     it('marks an invalid email with the reason', async () => {
         await renderRegister();
-        await user.type(screen.getByPlaceholderText('Email address'), 'not-an-email');
+        await user.type(screen.getByPlaceholderText('Email'), 'not-an-email');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
-        const input = screen.getByPlaceholderText('Email address');
+        const input = screen.getByPlaceholderText('Email');
         await waitFor(() => expect(input).toHaveAccessibleDescription('Must be a valid email'));
     });
 
     it('calls API with correct payload, shows toast, and redirects on success', async () => {
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'newuser');
-        await user.type(screen.getByPlaceholderText('Email address'), 'new@email.com');
-        await user.type(screen.getByPlaceholderText('Password (min. 8 characters)'), 'securepass');
+        await user.type(screen.getByPlaceholderText('Email'), 'new@email.com');
+        await user.type(screen.getByPlaceholderText('Password'), 'securepass');
         await user.type(screen.getByPlaceholderText('Confirm Password'), 'securepass');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -96,8 +96,8 @@ describe('Register', () => {
 
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'taken');
-        await user.type(screen.getByPlaceholderText('Email address'), 'e@m.com');
-        await user.type(screen.getByPlaceholderText('Password (min. 8 characters)'), 'password123');
+        await user.type(screen.getByPlaceholderText('Email'), 'e@m.com');
+        await user.type(screen.getByPlaceholderText('Password'), 'password123');
         await user.type(screen.getByPlaceholderText('Confirm Password'), 'password123');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -120,8 +120,8 @@ describe('Register', () => {
 
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'user');
-        await user.type(screen.getByPlaceholderText('Email address'), 'e@m.com');
-        await user.type(screen.getByPlaceholderText('Password (min. 8 characters)'), 'password123');
+        await user.type(screen.getByPlaceholderText('Email'), 'e@m.com');
+        await user.type(screen.getByPlaceholderText('Password'), 'password123');
         await user.type(screen.getByPlaceholderText('Confirm Password'), 'password123');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 

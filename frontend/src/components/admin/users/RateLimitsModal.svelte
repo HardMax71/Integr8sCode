@@ -10,7 +10,7 @@
         type EndpointUsageStats,
     } from '#lib/api/index.ts';
     import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '#lib/admin/rate-limits/index.ts';
-    import { formatEnumLabel } from '#lib/formatters.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
 
@@ -72,7 +72,7 @@
                         <label class="flex items-center gap-2">
                             <input type="checkbox" bind:checked={config.bypass_rate_limit} class="rounded" />
                             <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                >Bypass all rate limits</span
+                                >{fieldTitle('bypass_rate_limit')}</span
                             >
                         </label>
                     </div>
@@ -82,7 +82,7 @@
                                 for="global-multiplier"
                                 class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
                             >
-                                Global Multiplier
+                                {fieldTitle('global_multiplier')}
                             </label>
                             <input
                                 id="global-multiplier"
@@ -99,17 +99,13 @@
                         </div>
                         <div>
                             <label
-                                for="admin-notes"
+                                for="notes"
                                 class="block text-sm font-medium mb-1 text-fg-default dark:text-dark-fg-default"
                             >
-                                Admin Notes
+                                {fieldTitle('notes')}
                             </label>
-                            <textarea
-                                id="admin-notes"
-                                bind:value={config.notes}
-                                rows="2"
-                                class="input w-full text-sm"
-                                placeholder="Notes about this user's rate limits..."></textarea>
+                            <textarea id="notes" bind:value={config.notes} rows="2" class="input w-full text-sm"
+                            ></textarea>
                         </div>
                     </div>
                 </div>
@@ -138,15 +134,19 @@
                                 <div
                                     class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
                                 >
-                                    <div class="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 items-center">
+                                    <div class="flex-1 grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-4 items-center">
                                         <div>
-                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Endpoint</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                                >{fieldTitle('endpoint_pattern')}</span
+                                            >
                                             <p class="text-sm font-mono text-fg-default dark:text-dark-fg-default">
                                                 {rule.endpoint_pattern}
                                             </p>
                                         </div>
                                         <div>
-                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Limit</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                                >{fieldTitle('requests')}</span
+                                            >
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">
                                                 {#if config.global_multiplier !== 1.0}
                                                     <span class="line-through text-neutral-400">{rule.requests}</span>
@@ -156,11 +156,20 @@
                                                 {:else}
                                                     {rule.requests}
                                                 {/if}
-                                                req / {rule.window_seconds}s
                                             </p>
                                         </div>
                                         <div>
-                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Group</span>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                                >{fieldTitle('window_seconds')}</span
+                                            >
+                                            <p class="text-sm text-fg-default dark:text-dark-fg-default">
+                                                {rule.window_seconds}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                                >{fieldTitle('group')}</span
+                                            >
                                             <span
                                                 class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(
                                                     rule.group,
@@ -168,7 +177,8 @@
                                             >
                                         </div>
                                         <div>
-                                            <span class="text-xs text-neutral-500 dark:text-neutral-400">Algorithm</span
+                                            <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                                >{fieldTitle('algorithm')}</span
                                             >
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">
                                                 {rule.algorithm}
@@ -184,7 +194,7 @@
                     {#if config.rules && config.rules.length > 0}
                         <div>
                             <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
-                                User-Specific Overrides
+                                {fieldTitle('rules')}
                             </h5>
                             <div class="space-y-2">
                                 {#each config.rules as rule, index}
@@ -197,7 +207,7 @@
                                                     type="text"
                                                     bind:value={rule.endpoint_pattern}
                                                     oninput={() => handleEndpointChange(rule)}
-                                                    placeholder="Endpoint pattern"
+                                                    aria-label={fieldTitle('endpoint_pattern')}
                                                     class="input input-sm w-full"
                                                     disabled={config.bypass_rate_limit}
                                                 />
@@ -207,6 +217,7 @@
                                                     type="number"
                                                     bind:value={rule.requests}
                                                     min="1"
+                                                    aria-label={fieldTitle('requests')}
                                                     class="input input-sm w-16"
                                                     disabled={config.bypass_rate_limit}
                                                 />
@@ -215,6 +226,7 @@
                                                     type="number"
                                                     bind:value={rule.window_seconds}
                                                     min="1"
+                                                    aria-label={fieldTitle('window_seconds')}
                                                     class="input input-sm w-16"
                                                     disabled={config.bypass_rate_limit}
                                                 />
@@ -234,11 +246,12 @@
                                             >
                                             <select
                                                 bind:value={rule.algorithm}
+                                                aria-label={fieldTitle('algorithm')}
                                                 class="input input-sm"
                                                 disabled={config.bypass_rate_limit}
                                             >
                                                 {#each Object.values(RateLimitAlgorithm) as algorithm (algorithm)}
-                                                    <option value={algorithm}>{formatEnumLabel(algorithm)}</option>
+                                                    <option value={algorithm}>{algorithm}</option>
                                                 {/each}
                                             </select>
                                             <label class="flex items-center gap-2 cursor-pointer">
@@ -248,9 +261,7 @@
                                                     class="rounded text-blue-600"
                                                     disabled={config.bypass_rate_limit}
                                                 />
-                                                <span class="text-xs font-medium"
-                                                    >{rule.enabled ? 'Enabled' : 'Disabled'}</span
-                                                >
+                                                <span class="text-xs font-medium">{fieldTitle('enabled')}</span>
                                             </label>
                                             <button
                                                 type="button"
@@ -273,7 +284,9 @@
                 {#if usage && Object.keys(usage).length > 0}
                     <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
                         <div class="flex justify-between items-center mb-3">
-                            <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">Current Usage</h4>
+                            <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">
+                                {fieldTitle('current_usage')}
+                            </h4>
                             <button type="button" onclick={onReset} class="btn btn-sm btn-secondary"
                                 >Reset All Counters</button
                             >
@@ -290,8 +303,11 @@
                                         <span class="text-xs text-neutral-500 dark:text-neutral-400"
                                             >{usageData.algorithm}</span
                                         >
+                                        <span class="text-xs text-neutral-500 dark:text-neutral-400"
+                                            >{fieldTitle('remaining')}</span
+                                        >
                                         <span class="text-sm font-semibold text-fg-default dark:text-dark-fg-default">
-                                            {usageData.remaining} remaining
+                                            {usageData.remaining}
                                         </span>
                                     </div>
                                 </div>

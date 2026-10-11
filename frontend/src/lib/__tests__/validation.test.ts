@@ -22,12 +22,12 @@ describe('firstIssue', () => {
         [
             'a number above its maximum',
             zSystemSettingsSchemaInput.safeParse({ max_timeout_seconds: 99999 }),
-            'Max timeout seconds must be at most 3600',
+            'Max Timeout Seconds must be at most 3600',
         ],
         [
             'a number below its minimum',
             zSystemSettingsSchemaInput.safeParse({ max_login_attempts: 1 }),
-            'Max login attempts must be at least 3',
+            'Max Login Attempts must be at least 3',
         ],
         [
             'a missing required field',

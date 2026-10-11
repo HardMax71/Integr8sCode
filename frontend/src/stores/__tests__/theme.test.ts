@@ -3,26 +3,22 @@ import { systemPrefersMode, userPrefersMode } from 'mode-watcher';
 import { setTheme, themeStore, toggleTheme } from '#stores/theme.svelte.ts';
 
 describe('theme', () => {
-    beforeEach(() => setTheme('auto'));
+    beforeEach(() => setTheme('system'));
 
-    it.each([
-        ['light', 'light'],
-        ['dark', 'dark'],
-        ['auto', 'system'],
-    ] as const)('stores %s as the mode-watcher mode %s', (theme, mode) => {
+    it.each(['light', 'dark', 'system'] as const)('stores %s as the mode-watcher mode', (theme) => {
         setTheme(theme);
         expect(themeStore.value).toBe(theme);
-        expect(userPrefersMode.current).toBe(mode);
+        expect(userPrefersMode.current).toBe(theme);
     });
 
-    it('cycles light, dark, auto and back', () => {
+    it('cycles light, dark, system and back', () => {
         setTheme('light');
         const seen = [themeStore.value];
         for (let i = 0; i < 3; i++) {
             toggleTheme();
             seen.push(themeStore.value);
         }
-        expect(seen).toEqual(['light', 'dark', 'auto', 'light']);
+        expect(seen).toEqual(['light', 'dark', 'system', 'light']);
     });
 
     it.each([
@@ -33,8 +29,8 @@ describe('theme', () => {
         expect(themeStore.dark).toBe(dark);
     });
 
-    it('resolves auto to whatever the system prefers', () => {
-        setTheme('auto');
+    it('resolves system to whatever the system prefers', () => {
+        setTheme('system');
         expect(themeStore.dark).toBe(systemPrefersMode.current === 'dark');
     });
 });

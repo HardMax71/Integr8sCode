@@ -9,13 +9,13 @@ test.describe('Settings Page', () => {
     await expect(userPage.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible();
     await expect(userPage.getByRole('button', { name: 'General' })).toBeVisible();
     await expect(userPage.getByRole('button', { name: 'Editor' })).toBeVisible();
-    await expect(userPage.locator('main').getByText('Notifications')).toBeVisible();
+    await expect(userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
     await expect(userPage.getByRole('button', { name: 'View History' })).toBeVisible();
   });
 
   test('general tab shows theme selection', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await expect(userPage.getByRole('heading', { name: 'General Settings' })).toBeVisible();
+    await expect(userPage.getByRole('heading', { name: 'General', exact: true })).toBeVisible();
     await expect(userPage.getByText('Theme')).toBeVisible();
     await expect(userPage.locator('#theme-select')).toBeVisible();
   });
@@ -23,15 +23,15 @@ test.describe('Settings Page', () => {
   test('can open theme dropdown and see options', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.locator('#theme-select').click();
-    await expect(userPage.getByRole('option', { name: 'Light', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('option', { name: 'Dark', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('option', { name: 'Auto (System)', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'light', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'dark', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('option', { name: 'system', exact: true })).toBeVisible();
   });
 
   test('can change theme to dark', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.locator('#theme-select').click();
-    await userPage.getByText('Dark').click();
+    await userPage.getByRole('option', { name: 'dark', exact: true }).click();
     const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(hasDarkClass).toBe(true);
   });
@@ -39,7 +39,7 @@ test.describe('Settings Page', () => {
   test('can change theme to light', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.locator('#theme-select').click();
-    await userPage.getByText('Light').click();
+    await userPage.getByRole('option', { name: 'light', exact: true }).click();
     const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(hasDarkClass).toBe(false);
   });
@@ -49,7 +49,7 @@ test.describe('Settings Editor Tab', () => {
   test('shows editor settings section', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    await expect(userPage.getByRole('heading', { name: 'Editor Settings' })).toBeVisible();
+    await expect(userPage.getByRole('heading', { name: 'Editor', exact: true })).toBeVisible();
     await expect(userPage.getByText('Font Size')).toBeVisible();
     await expect(userPage.getByText('Tab Size')).toBeVisible();
   });
@@ -86,14 +86,14 @@ test.describe('Settings Editor Tab', () => {
 test.describe('Settings Notifications Tab', () => {
   test('shows notification settings section', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('main').getByText('Notifications').click();
-    await expect(userPage.getByRole('heading', { name: 'Notification Settings' })).toBeVisible();
+    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
+    await expect(userPage.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible();
     await expect(userPage.getByText('Notification Types')).toBeVisible();
   });
 
   test('shows all notification type toggles', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('main').getByText('Notifications').click();
+    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
     await expect(userPage.getByText('Execution Completed')).toBeVisible();
     await expect(userPage.getByText('Execution Failed')).toBeVisible();
     await expect(userPage.getByText('System Updates')).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('Settings Notifications Tab', () => {
 
   test('can toggle notification preferences', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('main').getByText('Notifications').click();
+    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
     const label = userPage.locator('label').filter({ hasText: 'Execution Completed' });
     const checkbox = label.locator('input[type="checkbox"]');
     const initialState = await checkbox.isChecked();

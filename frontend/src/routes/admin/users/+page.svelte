@@ -12,7 +12,6 @@
         resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation,
         type UserResponse,
         type UserRateLimitConfigResponse,
-        type UserRole,
     } from '#lib/api/index.ts';
     import Spinner from '#components/Spinner.svelte';
     import { Plus, RefreshCw } from '@lucide/svelte';
@@ -23,18 +22,7 @@
         DeleteUserModal,
         RateLimitsModal,
     } from '#components/admin/users/index.ts';
-
-    // Filter types - 'all' means no filter applied
-    type RoleFilter = 'all' | UserRole;
-    type StatusFilter = 'all' | 'active' | 'disabled';
-    type BooleanFilter = 'all' | 'yes' | 'no';
-    type MultiplierFilter = 'all' | 'custom' | 'default';
-
-    interface AdvancedFilters {
-        bypassRateLimit: BooleanFilter;
-        hasCustomLimits: BooleanFilter;
-        globalMultiplier: MultiplierFilter;
-    }
+    import type { UserListFilters } from '#components/admin/users/UserFilters.svelte';
 
     // Modal states
     let showDeleteModal = $state(false);
@@ -44,40 +32,33 @@
     let rateLimitUser = $state<UserResponse | null>(null);
     let editingUser = $state<UserResponse | null>(null);
 
-    let cascadeDelete = $state(false);
+    let cascade = $state(false);
 
-    // Filters
-    let searchQuery = $state('');
-    let roleFilter = $state<RoleFilter>('all');
-    let statusFilter = $state<StatusFilter>('all');
-    let showAdvancedFilters = $state(false);
-    let advancedFilters = $state<AdvancedFilters>({
-        bypassRateLimit: 'all',
-        hasCustomLimits: 'all',
-        globalMultiplier: 'all',
+    const noFilters = (): UserListFilters => ({
+        search: null,
+        role: null,
+        is_active: null,
+        bypass_rate_limit: null,
+        has_custom_limits: null,
+        custom_multiplier: null,
     });
+    let filters = $state(noFilters());
+    let showAdvancedFilters = $state(false);
 
     // Pagination; a new filter goes back to the first page, since the old one may not exist under it
     let pageSize = $state(10);
     let pageIndex = $derived.by(() => {
-        void [searchQuery, roleFilter, statusFilter, { ...advancedFilters }];
+        void { ...filters };
         return 0;
     });
 
     const queryClient = useQueryClient();
 
-    const yesNo = (filter: BooleanFilter): boolean | null => (filter === 'all' ? null : filter === 'yes');
-
     const usersQuery = createQuery(() => ({
         ...listUsersApiV1AdminUsersGetOptions({
             query: {
-                search: searchQuery || null,
-                role: roleFilter !== 'all' ? roleFilter : null,
-                is_active: statusFilter === 'all' ? null : statusFilter === 'active',
-                bypass_rate_limit: yesNo(advancedFilters.bypassRateLimit),
-                has_custom_limits: yesNo(advancedFilters.hasCustomLimits),
-                custom_multiplier:
-                    advancedFilters.globalMultiplier === 'all' ? null : advancedFilters.globalMultiplier === 'custom',
+                ...filters,
+                search: filters.search || null,
                 limit: pageSize,
                 offset: pageIndex * pageSize,
             },
@@ -155,14 +136,7 @@
             }),
     }));
 
-    let hasFiltersActive = $derived(
-        searchQuery !== '' ||
-            roleFilter !== 'all' ||
-            statusFilter !== 'all' ||
-            advancedFilters.bypassRateLimit !== 'all' ||
-            advancedFilters.hasCustomLimits !== 'all' ||
-            advancedFilters.globalMultiplier !== 'all',
-    );
+    let hasFiltersActive = $derived(Object.values(filters).some((value) => value !== null && value !== ''));
 
     // User CRUD
     function openUserModal(user: UserResponse | null): void {
@@ -172,7 +146,7 @@
 
     function deleteUser(): void {
         if (!userToDelete) return;
-        removeUser.mutate({ path: { user_id: userToDelete.user_id }, query: { cascade: cascadeDelete } });
+        removeUser.mutate({ path: { user_id: userToDelete.user_id }, query: { cascade } });
     }
 
     // Rate limits
@@ -195,10 +169,7 @@
     }
 
     function resetFilters(): void {
-        searchQuery = '';
-        roleFilter = 'all';
-        statusFilter = 'all';
-        advancedFilters = { bypassRateLimit: 'all', hasCustomLimits: 'all', globalMultiplier: 'all' };
+        filters = noFilters();
     }
 
     function handleDelete(user: UserResponse): void {
@@ -229,15 +200,7 @@
         </div>
     </div>
 
-    <UserFilters
-        bind:searchQuery
-        bind:roleFilter
-        bind:statusFilter
-        bind:advancedFilters
-        bind:showAdvancedFilters
-        {hasFiltersActive}
-        onReset={resetFilters}
-    />
+    <UserFilters bind:filters bind:showAdvancedFilters {hasFiltersActive} onReset={resetFilters} />
 
     <div class="card">
         <div class="p-3 sm:p-6">
@@ -268,7 +231,7 @@
     <DeleteUserModal
         open={showDeleteModal}
         user={userToDelete}
-        bind:cascadeDelete
+        bind:cascade
         deleting={removeUser.isPending}
         onClose={() => {
             showDeleteModal = false;

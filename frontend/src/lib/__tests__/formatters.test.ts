@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     formatTimestamp,
@@ -7,7 +8,8 @@ import {
     formatDurationBetween,
     formatRelativeTime,
     truncate,
-    formatEnumLabel,
+    fieldTitle,
+    formatBoolean,
 } from '#lib/formatters.ts';
 
 const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
@@ -145,13 +147,37 @@ describe('truncate', () => {
     });
 });
 
-describe('formatEnumLabel', () => {
+describe('fieldTitle', () => {
+    const spec = JSON.parse(readFileSync('../docs/reference/openapi.json', 'utf8')) as {
+        components: { schemas: Record<string, { properties?: Record<string, { title?: string }> }> };
+    };
+    // FastAPI's own validation error model titles its fields ("msg" is "Message")
+    const framework = new Set(['ValidationError', 'HTTPValidationError']);
+    const titled = Object.entries(spec.components.schemas)
+        .filter(([name]) => !framework.has(name))
+        .flatMap(([, schema]) => Object.entries(schema.properties ?? {}))
+        .flatMap(([key, prop]) => (prop.title ? [{ key, title: prop.title }] : []));
+
+    it('titles every key the way the spec does', () => {
+        expect(titled.length).toBeGreaterThan(100);
+        for (const { key, title } of titled) expect(fieldTitle(key)).toBe(title);
+    });
+
     it.each([
-        ['sliding_window', 'Sliding window'],
-        ['user', 'User'],
-        ['WARNING', 'Warning'],
-        ['in_app', 'In app'],
+        ['created_at', 'Created At'],
+        ['is_active', 'Is Active'],
+        ['clk_tck_hertz', 'Clk Tck Hertz'],
+        ['peak_memory_kb', 'Peak Memory Kb'],
+    ])('%s -> %s', (key, expected) => {
+        expect(fieldTitle(key)).toBe(expected);
+    });
+});
+
+describe('formatBoolean', () => {
+    it.each([
+        [true, 'Yes'],
+        [false, 'No'],
     ])('%s -> %s', (value, expected) => {
-        expect(formatEnumLabel(value)).toBe(expected);
+        expect(formatBoolean(value)).toBe(expected);
     });
 });

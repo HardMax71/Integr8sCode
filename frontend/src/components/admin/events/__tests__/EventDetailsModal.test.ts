@@ -41,19 +41,18 @@ describe('EventDetailsModal', () => {
     });
 
     it.each([
-        { label: 'Event ID', value: 'evt-1' },
-        { label: 'Event Type', value: 'execution_completed' },
-        { label: 'Aggregate ID', value: 'exec-456' },
-    ])('displays $label with value "$value"', ({ label, value }) => {
+        { term: 'Event Id', value: 'evt-1' },
+        { term: 'Event Type', value: 'execution_completed' },
+        { term: 'Aggregate Id', value: 'exec-456' },
+    ])('displays $term with value "$value"', ({ term, value }) => {
         renderModal();
-        expect(screen.getByText(label)).toBeInTheDocument();
-        expect(screen.getByText(value)).toBeInTheDocument();
+        expect(screen.getByText(term, { selector: 'dt' }).nextElementSibling).toHaveTextContent(value);
     });
 
     it('shows full event JSON in pre block', () => {
         const detail = createMockEventDetail();
         renderModal({ event: detail });
-        expect(screen.getByText('Full Event Data')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Event' })).toBeInTheDocument();
         const pre = document.querySelector('pre');
         expect(pre?.textContent).toContain('"event_id"');
         expect(pre?.textContent).toContain('"evt-1"');

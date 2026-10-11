@@ -24,6 +24,10 @@ function renderModal(
     return { ...result, onClose };
 }
 
+function detail(term: string): Element | null {
+    return screen.getByText(term, { selector: 'dt' }).nextElementSibling;
+}
+
 describe('UserOverviewModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -36,8 +40,8 @@ describe('UserOverviewModal', () => {
 
     it('shows loading state and hides overview data when loading', () => {
         renderModal({ loading: true, overview: null });
-        expect(screen.queryByText('Profile')).not.toBeInTheDocument();
-        expect(screen.queryByText('Execution Stats (last 24h)')).not.toBeInTheDocument();
+        expect(screen.queryByText('User')).not.toBeInTheDocument();
+        expect(screen.queryByText('Derived Counts')).not.toBeInTheDocument();
     });
 
     it('shows "No data available" when overview is null and not loading', () => {
@@ -46,31 +50,29 @@ describe('UserOverviewModal', () => {
     });
 
     describe('profile section', () => {
-        it.each([
-            { label: 'User ID:', value: 'user-1' },
-            { label: 'Username:', value: 'testuser' },
-            { label: 'Email:', value: 'test@example.com' },
-            { label: 'Role:', value: 'user' },
-        ])('shows $label $value', ({ label, value }) => {
+        it('heads the section with the user field', () => {
             renderModal();
-            expect(screen.getByText(label)).toBeInTheDocument();
-            expect(screen.getByText(value)).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'User' })).toBeInTheDocument();
         });
 
-        it('shows Active: Yes and Superuser: No', () => {
+        it.each([
+            { term: 'User Id', value: 'user-1' },
+            { term: 'Username', value: 'testuser' },
+            { term: 'Email', value: 'test@example.com' },
+            { term: 'Role', value: 'user' },
+            { term: 'Is Active', value: 'Yes' },
+            { term: 'Is Superuser', value: 'No' },
+        ])('shows $term as $value', ({ term, value }) => {
             renderModal();
-            expect(screen.getByText('Active:')).toBeInTheDocument();
-            expect(screen.getByText('Superuser:')).toBeInTheDocument();
-            // 'No' appears for Superuser, Bypass, and Custom Rules — use getAllByText
-            const noElements = screen.getAllByText('No');
-            expect(noElements.length).toBeGreaterThanOrEqual(1);
+            expect(detail(term)).toHaveTextContent(value);
         });
     });
 
     describe('execution stats', () => {
         it('shows all stat card labels', () => {
             renderModal();
-            expect(screen.getByText('Execution Stats (last 24h)')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Derived Counts' })).toBeInTheDocument();
+            expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
             expect(screen.getByText('Succeeded')).toBeInTheDocument();
             expect(screen.getByText('80')).toBeInTheDocument();
             expect(screen.getByText('Failed')).toBeInTheDocument();
@@ -81,42 +83,39 @@ describe('UserOverviewModal', () => {
 
         it('shows terminal total and total events labels', () => {
             renderModal();
-            expect(screen.getByText(/Terminal Total:/)).toBeInTheDocument();
-            expect(screen.getByText(/Total Events:/)).toBeInTheDocument();
-            // Both terminal_total and stats.total_events are 100 — verify at least one renders
-            const hundreds = screen.getAllByText('100');
-            expect(hundreds).toHaveLength(2);
+            expect(detail('Terminal Total')).toHaveTextContent('100');
+            expect(detail('Total Events')).toHaveTextContent('100');
         });
     });
 
     describe('rate limits', () => {
         it('shows rate limit section with values', () => {
             renderModal();
-            expect(screen.getByText('Rate Limits')).toBeInTheDocument();
-            expect(screen.getByText('Bypass:')).toBeInTheDocument();
-            expect(screen.getByText('Global Multiplier:')).toBeInTheDocument();
-            expect(screen.getByText('Custom Rules:')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Rate Limit Summary' })).toBeInTheDocument();
+            expect(detail('Bypass Rate Limit')).toHaveTextContent('No');
+            expect(detail('Global Multiplier')).toHaveTextContent('1');
+            expect(detail('Has Custom Limits')).toHaveTextContent('No');
         });
 
         it('hides rate limit section when rate_limit_summary is null', () => {
             const overview = createMockUserOverview();
             (overview as Record<string, unknown>).rate_limit_summary = null;
             renderModal({ overview });
-            expect(screen.queryByText('Rate Limits')).not.toBeInTheDocument();
+            expect(screen.queryByText('Rate Limit Summary')).not.toBeInTheDocument();
         });
     });
 
     describe('recent events', () => {
         it('shows recent events list when present', () => {
             renderModal();
-            expect(screen.getByText('Recent Execution Events')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Recent Events' })).toBeInTheDocument();
         });
 
         it('hides recent events section when empty', () => {
             const overview = createMockUserOverview();
             overview.recent_events = [];
             renderModal({ overview });
-            expect(screen.queryByText('Recent Execution Events')).not.toBeInTheDocument();
+            expect(screen.queryByText('Recent Events')).not.toBeInTheDocument();
         });
     });
 

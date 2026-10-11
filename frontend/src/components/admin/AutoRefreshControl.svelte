@@ -35,21 +35,25 @@
 
 <div class="card">
     <div class="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-        <label class="flex items-center gap-2 cursor-pointer">
+        <div class="flex items-center gap-2">
             <input
                 type="checkbox"
                 bind:checked={enabled}
                 onchange={() => onEnabledChange?.(enabled)}
+                aria-label="Auto-refresh"
                 class="w-4 h-4 rounded border-border-default text-primary focus:ring-primary"
             />
-            <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Auto-refresh</span>
-        </label>
+            <span aria-hidden="true" class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                >Auto-refresh</span
+            >
+        </div>
 
         {#if enabled}
             <div class="flex items-center gap-2 flex-1 sm:flex-initial">
-                <label for="refresh-rate" class="text-xs sm:text-sm text-fg-muted">Every:</label>
+                <span aria-hidden="true" class="text-xs sm:text-sm text-fg-muted">Every:</span>
                 <select
                     id="refresh-rate"
+                    aria-label="Refresh every"
                     bind:value={rate}
                     onchange={() => onRateChange?.(rate)}
                     class="form-select-standard"

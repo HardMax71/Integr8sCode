@@ -46,7 +46,7 @@ describe('UsersTable', () => {
         expect(screen.queryByText('No users found matching filters')).not.toBeInTheDocument();
     });
 
-    it.each(['Username', 'Email', 'Role', 'Created', 'Status', 'Actions'])('renders the %s header', (header) => {
+    it.each(['Username', 'Email', 'Role', 'Created At', 'Is Active', 'Actions'])('renders the %s header', (header) => {
         renderTable({ users: [createMockUser()] });
         expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });
@@ -78,9 +78,9 @@ describe('UsersTable', () => {
     });
 
     it.each([
-        [true, 'Active'],
-        [false, 'Inactive'],
-    ] as const)('displays %s status for is_active=%s', (isActive, label) => {
+        [true, 'Yes'],
+        [false, 'No'],
+    ] as const)('displays is_active=%s as %s', (isActive, label) => {
         renderTable({ users: [createMockUser({ is_active: isActive })] });
         const texts = screen.getAllByText(label);
         expect(texts.length).toBeGreaterThanOrEqual(1);

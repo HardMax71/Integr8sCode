@@ -67,15 +67,15 @@ describe('AdminSettings', () => {
 
     describe('Form population', () => {
         it.each([
-            ['Max Timeout (seconds)', '60'],
-            ['Memory Limit (e.g. 512Mi)', '512Mi'],
-            ['CPU Limit (e.g. 2000m)', '2000m'],
+            ['Max Timeout Seconds', '60'],
+            ['Memory Limit', '512Mi'],
+            ['Cpu Limit', '2000m'],
             ['Max Concurrent Executions', '10'],
-            ['Max Executions per User', '100'],
-            ['Min Password Length', '8'],
-            ['Session Timeout (minutes)', '30'],
+            ['Max Executions Per User', '100'],
+            ['Password Min Length', '8'],
+            ['Session Timeout Minutes', '30'],
             ['Max Login Attempts', '5'],
-            ['Lockout Duration (minutes)', '15'],
+            ['Lockout Duration Minutes', '15'],
             ['Metrics Retention Days', '30'],
             ['Sampling Rate', '0.5'],
         ])('field "%s" is populated with "%s"', async (label, expectedValue) => {
@@ -158,7 +158,7 @@ describe('AdminSettings', () => {
             });
             expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
             await waitFor(() => {
-                expect((screen.getByLabelText('Max Executions per User') as HTMLInputElement).value).toBe('50');
+                expect((screen.getByLabelText('Max Executions Per User') as HTMLInputElement).value).toBe('50');
             });
 
             await waitFor(() => {

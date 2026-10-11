@@ -208,7 +208,7 @@ class EventsStore {
             },
         });
         window.open(url, '_blank');
-        toast.info(`Starting ${format.toUpperCase()} export...`);
+        toast.info(`Starting ${format} export...`);
     }
 
     applyFilters(): void {

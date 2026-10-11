@@ -47,10 +47,12 @@ describe('UserFormModal', () => {
         renderModal({ editingUser: editingUser === 'mock' ? createMockUser() : null });
         expect(screen.getByRole('dialog', { name: title })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: buttonText })).toBeInTheDocument();
-        expect(screen.queryByText('(leave empty to keep current)') !== null).toBe(showsHint);
+        if (showsHint)
+            expect(field(/Password/)).toHaveAccessibleDescription('Leave empty to keep the current password');
+        else expect(screen.queryByText('Leave empty to keep the current password')).not.toBeInTheDocument();
     });
 
-    it.each([/Username/, /^Email/, /Password/, 'Role', 'Active User'])('renders the %s field', (label) => {
+    it.each([/Username/, /^Email/, /Password/, 'Role', 'Is Active'])('renders the %s field', (label) => {
         renderModal();
         expect(field(label)).toBeInTheDocument();
     });
@@ -58,7 +60,7 @@ describe('UserFormModal', () => {
     it('starts a new user from the API defaults', () => {
         renderModal();
         expect(field('Role')).toHaveValue('user');
-        expect(field('Active User')).toBeChecked();
+        expect(field('Is Active')).toBeChecked();
     });
 
     it('creates a user with what was typed', async () => {
@@ -142,7 +144,11 @@ describe('UserFormModal', () => {
         await fill({ password: 'short' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
-        await waitFor(() => expect(field(/Password/)).toHaveAccessibleDescription('Must be at least 8 characters'));
+        await waitFor(() =>
+            expect(field(/Password/)).toHaveAccessibleDescription(
+                'Leave empty to keep the current password Must be at least 8 characters',
+            ),
+        );
         expect(onEdit).not.toHaveBeenCalled();
     });
 

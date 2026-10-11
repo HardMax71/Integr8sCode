@@ -36,18 +36,16 @@
 
     const column = columnHelper<BrowsedEvent>();
     const columns = [
-        column.display({ id: 'time', header: 'Time', cell: ({ row }) => renderSnippet(timeCell, row.original) }),
-        column.display({ id: 'type', header: 'Type', cell: ({ row }) => renderSnippet(typeCell, row.original) }),
-        column.display({ id: 'user', header: 'User', cell: ({ row }) => renderSnippet(userCell, row.original) }),
+        column.display({ id: 'timestamp', cell: ({ row }) => renderSnippet(timeCell, row.original) }),
+        column.display({ id: 'event_type', cell: ({ row }) => renderSnippet(typeCell, row.original) }),
+        column.display({ id: 'user_id', cell: ({ row }) => renderSnippet(userCell, row.original) }),
         column.display({
-            id: 'service',
-            header: 'Service',
+            id: 'service_name',
             meta: { class: 'hidden xl:table-cell' },
             cell: ({ row }) => renderSnippet(serviceCell, row.original),
         }),
         column.display({
             id: 'actions',
-            header: 'Actions',
             meta: { class: 'text-center' },
             cell: ({ row }) => renderSnippet(actionsCell, row.original),
         }),

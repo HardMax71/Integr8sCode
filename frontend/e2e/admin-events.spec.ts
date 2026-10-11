@@ -25,8 +25,8 @@ test.describe('Admin Events', () => {
     test('can open export dropdown', async ({ adminPage }) => {
       await adminPage.goto(PATH);
       await adminPage.getByRole('button', { name: /Export/i }).click();
-      await expect(adminPage.getByText('CSV')).toBeVisible();
-      await expect(adminPage.getByText('JSON')).toBeVisible();
+      await expect(adminPage.getByRole('menuitem', { name: 'Export as csv' })).toBeVisible();
+      await expect(adminPage.getByRole('menuitem', { name: 'Export as json' })).toBeVisible();
     });
   });
 
@@ -36,9 +36,9 @@ test.describe('Admin Events', () => {
       await expectTableOrEmptyState(adminPage, EMPTY_PATTERN);
     });
 
-    test('shows Time column when data exists', async ({ adminPage }) => {
+    test('shows Timestamp column when data exists', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expectTableColumn(adminPage, 'Time', EMPTY_PATTERN);
+      await expectTableColumn(adminPage, 'Timestamp', EMPTY_PATTERN);
     });
 
     test('opens the details of an event with its timestamp', async ({ adminPage }) => {
@@ -46,7 +46,7 @@ test.describe('Admin Events', () => {
       await adminPage.getByRole('button', { name: /View details for event/ }).first().click();
       const dialog = adminPage.getByRole('dialog', { name: 'Event Details' });
       await expect(dialog).toBeVisible();
-      await expect(dialog.getByRole('row', { name: /Timestamp/ })).toContainText(/\d{4}/);
+      await expect(dialog.locator('dt:text-is("Timestamp") + dd')).toContainText(/\d{4}/);
     });
   });
 

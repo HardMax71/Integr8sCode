@@ -11,7 +11,6 @@ import {
 } from '#test/test-utils.ts';
 import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '#lib/api/index.ts';
 
-import { SAGA_STATES } from '#lib/admin/sagas/index.ts';
 import AdminSagas from '#routes/admin/sagas/+page.svelte';
 
 async function renderWithSagas(sagas = createMockSagas(5)) {
@@ -68,16 +67,16 @@ describe('AdminSagas', () => {
                 createMockSaga({ saga_id: 's3', state: 'running' }),
             ];
             await renderWithSagas(sagas);
-            // State labels appear in both table rows and stats cards
-            expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
-            expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
-            expect(screen.getAllByText('Running').length).toBeGreaterThan(0);
+            // States appear in both table rows and stats cards
+            expect(screen.getAllByText('completed').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('failed').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('running').length).toBeGreaterThan(0);
         });
 
         it('shows retry count when > 0', async () => {
             const sagas = [createMockSaga({ retry_count: 3 })];
             await renderWithSagas(sagas);
-            expect(screen.getAllByText('(Retry: 3)').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('(Retry Count 3)').length).toBeGreaterThan(0);
         });
     });
 
@@ -90,7 +89,7 @@ describe('AdminSagas', () => {
             ];
             await renderWithSagas(sagas);
             const completedCard = screen
-                .getAllByText(SAGA_STATES.completed.label)
+                .getAllByText('completed')
                 .map((el) => el.closest('.card'))
                 .find((card): card is HTMLElement => card instanceof HTMLElement);
             expect(within(completedCard!).getByText('2')).toBeInTheDocument();

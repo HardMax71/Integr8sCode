@@ -18,12 +18,12 @@ function renderToolbar(overrides: Partial<typeof defaultProps> = {}) {
 describe('EditorToolbar', () => {
     it('renders input with current name value', () => {
         renderToolbar({ name: 'hello.py' });
-        expect(screen.getByRole('textbox', { name: /Script Name/i })).toHaveValue('hello.py');
+        expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('hello.py');
     });
 
     it('input has accessible label', () => {
         renderToolbar();
-        const input = screen.getByLabelText('Script Name');
+        const input = screen.getByLabelText('Name');
         expect(input).toBeInTheDocument();
     });
 
@@ -34,7 +34,7 @@ describe('EditorToolbar', () => {
 
     it('calls onchange when input value changes', async () => {
         const { props } = renderToolbar({ name: '' });
-        const input = screen.getByRole('textbox', { name: /Script Name/i });
+        const input = screen.getByRole('textbox', { name: 'Name' });
         await fireEvent.input(input, { target: { value: 'new_name.py' } });
         expect(props.onchange).toHaveBeenCalledWith('new_name.py');
     });

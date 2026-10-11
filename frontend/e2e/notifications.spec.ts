@@ -20,25 +20,25 @@ test.describe('Notifications Page', () => {
 
   test('shows filter controls', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await expect(userPage.getByLabel('Include tags')).toBeVisible();
-    await expect(userPage.getByLabel('Exclude tags')).toBeVisible();
-    await expect(userPage.getByLabel('Tag prefix')).toBeVisible();
+    await expect(userPage.getByLabel('Include Tags')).toBeVisible();
+    await expect(userPage.getByLabel('Exclude Tags')).toBeVisible();
+    await expect(userPage.getByLabel('Tag Prefix')).toBeVisible();
     await expect(userPage.getByRole('button', { name: 'Filter' })).toBeVisible();
   });
 
   test('can enter filter values', async ({ userPage }) => {
     await userPage.goto(PATH);
-    const includeTagsInput = userPage.getByLabel('Include tags');
+    const includeTagsInput = userPage.getByLabel('Include Tags');
     await includeTagsInput.fill('execution,completed');
     await expect(includeTagsInput).toHaveValue('execution,completed');
-    const excludeTagsInput = userPage.getByLabel('Exclude tags');
+    const excludeTagsInput = userPage.getByLabel('Exclude Tags');
     await excludeTagsInput.fill('external_alert');
     await expect(excludeTagsInput).toHaveValue('external_alert');
   });
 
   test('can apply filters', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.getByLabel('Include tags').fill('test');
+    await userPage.getByLabel('Include Tags').fill('test');
     await userPage.getByRole('button', { name: 'Filter' }).click();
     await expect(userPage.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible();
   });
@@ -83,7 +83,7 @@ test.describe('Notification Actions', () => {
     const hasBlue = await notificationCard.evaluate(el => el.classList.toString().includes('bg-blue'));
     if (hasBlue) {
       await notificationCard.getByTitle('Mark as read').click();
-      await expect(notificationCard.getByText('Read')).toBeVisible({ timeout: 3000 });
+      await expect(notificationCard.getByText('read', { exact: true })).toBeVisible({ timeout: 3000 });
     }
   });
 

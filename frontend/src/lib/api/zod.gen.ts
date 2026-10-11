@@ -2102,7 +2102,7 @@ export const zSystemSettingsSchemaOutput = z.object({
 export const zTheme = z.enum([
     'light',
     'dark',
-    'auto'
+    'system'
 ]);
 
 /**
@@ -2359,7 +2359,7 @@ export const zUserListResponse = z.object({
  */
 export const zUserSettings = z.object({
     user_id: z.string(),
-    theme: z._default(zTheme, 'auto'),
+    theme: z._default(zTheme, 'system'),
     timezone: z._default(z.string(), 'UTC'),
     date_format: z._default(z.string(), 'YYYY-MM-DD'),
     time_format: z._default(z.string(), '24h'),

@@ -1,35 +1,36 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user } from '#test/test-utils.ts';
-import UserFilters from '#components/admin/users/UserFilters.svelte';
+import { user, selectOption } from '#test/test-utils.ts';
+import UserFilters, { type UserListFilters } from '#components/admin/users/UserFilters.svelte';
 import { UserRole } from '#lib/api/index.ts';
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
     const onReset = vi.fn();
+    const filters = proxy<UserListFilters>({
+        search: null,
+        role: null,
+        is_active: null,
+        bypass_rate_limit: null,
+        has_custom_limits: null,
+        custom_multiplier: null,
+    });
     const result = render(UserFilters, {
         props: {
-            searchQuery: '',
-            roleFilter: 'all',
-            statusFilter: 'all',
-            advancedFilters: proxy({
-                bypassRateLimit: 'all' as const,
-                hasCustomLimits: 'all' as const,
-                globalMultiplier: 'all' as const,
-            }),
+            filters,
             showAdvancedFilters: false,
             hasFiltersActive: false,
             onReset,
             ...overrides,
         },
     });
-    return { ...result, onReset };
+    return { ...result, onReset, filters };
 }
 
 describe('UserFilters', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it.each(['Search', 'Role', 'Status'])('renders %s filter input', (label) => {
+    it.each(['Search', 'Role', 'Is Active'])('renders the %s filter', (label) => {
         renderFilters();
         expect(screen.getByLabelText(label)).toBeInTheDocument();
     });
@@ -69,17 +70,34 @@ describe('UserFilters', () => {
         renderFilters({ showAdvancedFilters: true });
         expect(screen.getByText('Rate Limit Filters')).toBeInTheDocument();
         expect(screen.getByLabelText('Bypass Rate Limit')).toBeInTheDocument();
-        expect(screen.getByLabelText('Custom Limits')).toBeInTheDocument();
-        expect(screen.getByLabelText('Global Multiplier')).toBeInTheDocument();
+        expect(screen.getByLabelText('Has Custom Limits')).toBeInTheDocument();
+        expect(screen.getByLabelText('Custom Multiplier')).toBeInTheDocument();
     });
 
-    it.each([
-        ['Role', ['all', ...Object.values(UserRole)]],
-        ['Status', ['all', 'active', 'disabled']],
-    ] as const)('%s filter has correct options', (label, expected) => {
+    it('offers All and every role value as is', () => {
         renderFilters();
-        const select = screen.getByLabelText(label) as HTMLSelectElement;
-        const options = Array.from(select.options).map((o) => o.value);
-        expect(options).toEqual(expected);
+        const select = screen.getByLabelText('Role') as HTMLSelectElement;
+        expect(Array.from(select.options).map((o) => o.text)).toEqual(['All', ...Object.values(UserRole)]);
+    });
+
+    it.each(['Is Active', 'Bypass Rate Limit', 'Has Custom Limits', 'Custom Multiplier'])(
+        'offers All, Yes and No for %s',
+        (label) => {
+            renderFilters({ showAdvancedFilters: true });
+            const select = screen.getByLabelText(label) as HTMLSelectElement;
+            expect(Array.from(select.options).map((o) => o.text)).toEqual(['All', 'Yes', 'No']);
+        },
+    );
+
+    it.each([
+        ['Is Active', 'is_active', 'false', false],
+        ['Bypass Rate Limit', 'bypass_rate_limit', 'true', true],
+        ['Has Custom Limits', 'has_custom_limits', 'true', true],
+        ['Custom Multiplier', 'custom_multiplier', 'false', false],
+        ['Role', 'role', 'admin', 'admin'],
+    ] as const)('writes the %s choice to filters.%s', (label, key, option, value) => {
+        const { filters } = renderFilters({ showAdvancedFilters: true });
+        selectOption(screen.getByLabelText(label), option);
+        expect(filters[key]).toBe(value);
     });
 });

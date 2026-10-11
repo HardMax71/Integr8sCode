@@ -2,6 +2,7 @@
     import { format, parseISO } from 'date-fns';
     import { EVENT_TYPES } from '#lib/admin/events/index.ts';
     import type { EventFilter, EventType } from '#lib/api/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
         filters: EventFilter;
@@ -44,7 +45,7 @@
                         for="event-types-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        Event Types
+                        {fieldTitle('event_types')}
                     </label>
                     <select
                         id="event-types-filter"
@@ -71,7 +72,7 @@
                         for="search-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        Search
+                        {fieldTitle('search_text')}
                     </label>
                     <input
                         id="search-filter"
@@ -80,7 +81,6 @@
                         oninput={(e) => {
                             filters.search_text = (e.currentTarget as HTMLInputElement).value || null;
                         }}
-                        placeholder="Search events..."
                         class="form-input-standard text-sm"
                     />
                 </div>
@@ -90,7 +90,7 @@
                         for="aggregate-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        Aggregate ID
+                        {fieldTitle('aggregate_id')}
                     </label>
                     <input
                         id="aggregate-filter"
@@ -109,7 +109,7 @@
                         for="user-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        User ID
+                        {fieldTitle('user_id')}
                     </label>
                     <input
                         id="user-filter"
@@ -131,7 +131,7 @@
                         for="service-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        Service
+                        {fieldTitle('service_name')}
                     </label>
                     <input
                         id="service-filter"
@@ -150,7 +150,7 @@
                         for="start-time-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        Start Time
+                        {fieldTitle('start_time')}
                     </label>
                     <input
                         id="start-time-filter"
@@ -168,7 +168,7 @@
                         for="end-time-filter"
                         class="block text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
                     >
-                        End Time
+                        {fieldTitle('end_time')}
                     </label>
                     <input
                         id="end-time-filter"

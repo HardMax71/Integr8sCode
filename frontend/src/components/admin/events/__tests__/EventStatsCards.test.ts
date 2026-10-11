@@ -16,10 +16,11 @@ describe('EventStatsCards', () => {
 
     it('shows all four stat cards when stats provided', () => {
         renderCards(createMockStats());
-        expect(screen.getByText('Events (Last 24h)')).toBeInTheDocument();
-        expect(screen.getByText('Error Rate (24h)')).toBeInTheDocument();
-        expect(screen.getByText('Avg Execution Time (24h)')).toBeInTheDocument();
-        expect(screen.getByText('Active Users (24h)')).toBeInTheDocument();
+        expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
+        expect(screen.getByText('Total Events')).toBeInTheDocument();
+        expect(screen.getByText('Error Rate')).toBeInTheDocument();
+        expect(screen.getByText('Avg Processing Time')).toBeInTheDocument();
+        expect(screen.getByText('Top Users')).toBeInTheDocument();
     });
 
     it('displays total_events with locale formatting and totalEvents denominator', () => {
@@ -62,6 +63,5 @@ describe('EventStatsCards', () => {
             }),
         );
         expect(screen.getByText('3')).toBeInTheDocument();
-        expect(screen.getByText('with events')).toBeInTheDocument();
     });
 });

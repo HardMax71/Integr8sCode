@@ -28,7 +28,7 @@ class DomainEditorSettings:
 @dataclass
 class DomainUserSettings:
     user_id: str
-    theme: Theme = Theme.AUTO
+    theme: Theme = Theme.SYSTEM
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"
     time_format: str = "24h"

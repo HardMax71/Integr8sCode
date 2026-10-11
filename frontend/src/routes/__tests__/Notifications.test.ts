@@ -83,12 +83,12 @@ describe('Notifications', () => {
             expect(screen.getByText('completed')).toBeInTheDocument();
         });
 
-        it('shows "Read" label for read notifications', async () => {
+        it('shows the read status as is', async () => {
             setNotifications([createMockNotification({ status: 'read' })]);
 
             renderNotifications();
             await waitFor(() => {
-                expect(screen.getByText('Read')).toBeInTheDocument();
+                expect(screen.getByText('read')).toBeInTheDocument();
             });
         });
 
@@ -227,9 +227,9 @@ describe('Notifications', () => {
             renderNotifications();
             await screen.findByText('No notifications yet');
 
-            await user.type(screen.getByLabelText('Include tags'), 'exec,completed');
-            await user.type(screen.getByLabelText('Exclude tags'), 'alert');
-            await user.type(screen.getByLabelText('Tag prefix'), 'exec:');
+            await user.type(screen.getByLabelText('Include Tags'), 'exec,completed');
+            await user.type(screen.getByLabelText('Exclude Tags'), 'alert');
+            await user.type(screen.getByLabelText('Tag Prefix'), 'exec:');
             expect(getNotifications).toHaveBeenCalledTimes(1);
             await user.click(screen.getByRole('button', { name: 'Filter' }));
 

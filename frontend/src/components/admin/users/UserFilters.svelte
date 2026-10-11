@@ -1,57 +1,54 @@
+<script lang="ts" module>
+    import type { ListUsersApiV1AdminUsersGetData } from '#lib/api/index.ts';
+
+    type UserQuery = NonNullable<ListUsersApiV1AdminUsersGetData['query']>;
+    export type UserListFilters = Required<
+        Pick<
+            UserQuery,
+            'search' | 'role' | 'is_active' | 'bypass_rate_limit' | 'has_custom_limits' | 'custom_multiplier'
+        >
+    >;
+</script>
+
 <script lang="ts">
     import { ChevronDown } from '@lucide/svelte';
     import { UserRole } from '#lib/api/index.ts';
-    import { formatEnumLabel } from '#lib/formatters.ts';
+    import { fieldTitle, formatBoolean } from '#lib/formatters.ts';
 
-    // Filter types - 'all' means no filter applied
-    type RoleFilter = 'all' | UserRole;
-    type StatusFilter = 'all' | 'active' | 'disabled';
-    type BooleanFilter = 'all' | 'yes' | 'no';
-    type MultiplierFilter = 'all' | 'custom' | 'default';
-
-    interface AdvancedFilters {
-        bypassRateLimit: BooleanFilter;
-        hasCustomLimits: BooleanFilter;
-        globalMultiplier: MultiplierFilter;
-    }
+    type BooleanFilter = 'is_active' | 'bypass_rate_limit' | 'has_custom_limits' | 'custom_multiplier';
 
     interface Props {
-        searchQuery: string;
-        roleFilter: RoleFilter;
-        statusFilter: StatusFilter;
-        advancedFilters: AdvancedFilters;
+        filters: UserListFilters;
         showAdvancedFilters: boolean;
         hasFiltersActive: boolean;
         onReset: () => void;
     }
 
-    let {
-        searchQuery = $bindable(''),
-        roleFilter = $bindable<RoleFilter>('all'),
-        statusFilter = $bindable<StatusFilter>('all'),
-        advancedFilters = $bindable<AdvancedFilters>({
-            bypassRateLimit: 'all',
-            hasCustomLimits: 'all',
-            globalMultiplier: 'all',
-        }),
-        showAdvancedFilters = $bindable(false),
-        hasFiltersActive,
-        onReset,
-    }: Props = $props();
+    let { filters = $bindable(), showAdvancedFilters = $bindable(false), hasFiltersActive, onReset }: Props = $props();
 </script>
+
+{#snippet booleanFilter(key: BooleanFilter)}
+    <label for="{key}-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+        >{fieldTitle(key)}</label
+    >
+    <select id="{key}-filter" bind:value={filters[key]} class="form-select-standard w-full">
+        <option value={null}>All</option>
+        <option value={true}>{formatBoolean(true)}</option>
+        <option value={false}>{formatBoolean(false)}</option>
+    </select>
+{/snippet}
 
 <div class="card mb-4">
     <div class="p-3 sm:p-4">
         <div class="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-end">
             <div class="w-full lg:flex-1 lg:max-w-md">
-                <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                    >Search</label
+                <label for="search-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >{fieldTitle('search')}</label
                 >
                 <input
-                    id="user-search"
+                    id="search-filter"
                     type="text"
-                    bind:value={searchQuery}
-                    placeholder="Search by username, email, or ID..."
+                    bind:value={filters.search}
                     class="input w-full"
                     autocomplete="off"
                     autocorrect="off"
@@ -61,24 +58,17 @@
             </div>
             <div class="w-full sm:w-auto sm:min-w-[140px]">
                 <label for="role-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                    >Role</label
+                    >{fieldTitle('role')}</label
                 >
-                <select id="role-filter" bind:value={roleFilter} class="form-select-standard w-full">
-                    <option value="all">All Roles</option>
+                <select id="role-filter" bind:value={filters.role} class="form-select-standard w-full">
+                    <option value={null}>All</option>
                     {#each Object.values(UserRole) as role (role)}
-                        <option value={role}>{formatEnumLabel(role)}</option>
+                        <option value={role}>{role}</option>
                     {/each}
                 </select>
             </div>
             <div class="w-full sm:w-auto sm:min-w-[140px]">
-                <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                    >Status</label
-                >
-                <select id="status-filter" bind:value={statusFilter} class="form-select-standard w-full">
-                    <option value="all">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
-                </select>
+                {@render booleanFilter('is_active')}
             </div>
             <button
                 type="button"
@@ -102,54 +92,9 @@
             <div class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
                 <h4 class="text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-3">Rate Limit Filters</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label
-                            for="bypass-rate-limit-filter"
-                            class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                            >Bypass Rate Limit</label
-                        >
-                        <select
-                            id="bypass-rate-limit-filter"
-                            bind:value={advancedFilters.bypassRateLimit}
-                            class="form-select-standard w-full"
-                        >
-                            <option value="all">All</option>
-                            <option value="yes">Yes (Bypassed)</option>
-                            <option value="no">No (Limited)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label
-                            for="custom-limits-filter"
-                            class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                            >Custom Limits</label
-                        >
-                        <select
-                            id="custom-limits-filter"
-                            bind:value={advancedFilters.hasCustomLimits}
-                            class="form-select-standard w-full"
-                        >
-                            <option value="all">All</option>
-                            <option value="yes">Has Custom</option>
-                            <option value="no">Default Only</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label
-                            for="global-multiplier-filter"
-                            class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                            >Global Multiplier</label
-                        >
-                        <select
-                            id="global-multiplier-filter"
-                            bind:value={advancedFilters.globalMultiplier}
-                            class="form-select-standard w-full"
-                        >
-                            <option value="all">All</option>
-                            <option value="custom">Custom (≠ 1.0)</option>
-                            <option value="default">Default (= 1.0)</option>
-                        </select>
-                    </div>
+                    <div>{@render booleanFilter('bypass_rate_limit')}</div>
+                    <div>{@render booleanFilter('has_custom_limits')}</div>
+                    <div>{@render booleanFilter('custom_multiplier')}</div>
                 </div>
             </div>
         {/if}

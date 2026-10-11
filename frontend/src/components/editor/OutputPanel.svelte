@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import type { ExecutionResult } from '#lib/api/index.ts';
     import type { ExecutionPhase } from '#lib/editor/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import Spinner from '#components/Spinner.svelte';
     import { TriangleAlert, FileText, Copy } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
@@ -74,6 +75,13 @@
     });
 </script>
 
+{#snippet usageField(key: string, value: string | number)}
+    <div class="flex flex-col">
+        <dt class="text-fg-muted dark:text-dark-fg-muted font-normal">{fieldTitle(key)}</dt>
+        <dd class="text-fg-default dark:text-dark-fg-default font-medium">{value}</dd>
+    </div>
+{/snippet}
+
 <div class="output-container flex flex-col h-full">
     <h3
         class="text-base font-medium text-fg-default dark:text-dark-fg-default mb-3 border-b border-border-default dark:border-dark-border-default pb-3 shrink-0"
@@ -100,7 +108,7 @@
                     <span
                         class="inline-flex items-center rounded-lg px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap {statusClasses}"
                     >
-                        Status: {result.status}
+                        <span class="mr-1 opacity-75">{fieldTitle('status')}</span>{result.status}
                     </span>
 
                     {#if result.execution_id}
@@ -116,8 +124,8 @@
                             <div
                                 class="absolute top-8 right-0 z-10 px-2 py-1 text-xs bg-neutral-800 dark:bg-neutral-200 text-white dark:text-neutral-800 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap"
                             >
-                                Execution ID: <br />{result.execution_id}<br /><span class="text-xs opacity-75"
-                                    >Click to copy</span
+                                {fieldTitle('execution_id')}<br />{result.execution_id}<br /><span
+                                    class="text-xs opacity-75">Click to copy</span
                                 >
                             </div>
                         </div>
@@ -129,7 +137,7 @@
                         <h4
                             class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted mb-1 uppercase tracking-wider"
                         >
-                            Output:
+                            {fieldTitle('stdout')}
                         </h4>
                         <div class="relative">
                             <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(
@@ -157,7 +165,7 @@
                 {#if result.stderr}
                     <div class="error-section">
                         <h4 class="text-xs font-medium text-red-700 dark:text-red-300 mb-1 uppercase tracking-wider">
-                            Errors:
+                            {fieldTitle('stderr')}
                         </h4>
                         <div class="relative">
                             <div
@@ -188,36 +196,21 @@
                 {/if}
 
                 {#if result.resource_usage}
-                    {@const clkTck = result.resource_usage.clk_tck_hertz}
-                    {@const cpuMs = (result.resource_usage.cpu_time_jiffies * 1000) / clkTck}
+                    {@const usage = result.resource_usage}
                     <div
                         class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs space-y-1"
                     >
                         <h4 class="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wider">
-                            Resource Usage:
+                            {fieldTitle('resource_usage')}
                         </h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
-                            <div class="flex flex-col">
-                                <span class="text-fg-muted dark:text-dark-fg-muted font-normal">CPU:</span>
-                                <span class="text-fg-default dark:text-dark-fg-default font-medium">
-                                    {result.resource_usage.cpu_time_jiffies === 0
-                                        ? `< ${(1000 / clkTck).toFixed(0)} m`
-                                        : `${cpuMs.toFixed(3)} m`}
-                                </span>
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Memory:</span>
-                                <span class="text-fg-default dark:text-dark-fg-default font-medium">
-                                    {`${(result.resource_usage.peak_memory_kb / 1024).toFixed(3)} MiB`}
-                                </span>
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-fg-muted dark:text-dark-fg-muted font-normal">Time:</span>
-                                <span class="text-fg-default dark:text-dark-fg-default font-medium">
-                                    {`${result.resource_usage.execution_time_wall_seconds.toFixed(3)} s`}
-                                </span>
-                            </div>
-                        </div>
+                        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
+                            {@render usageField(
+                                'execution_time_wall_seconds',
+                                usage.execution_time_wall_seconds.toFixed(3),
+                            )}
+                            {@render usageField('cpu_time_jiffies', usage.cpu_time_jiffies)}
+                            {@render usageField('peak_memory_kb', usage.peak_memory_kb)}
+                        </dl>
                     </div>
                 {/if}
             </div>

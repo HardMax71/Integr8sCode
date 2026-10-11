@@ -35,7 +35,7 @@ describe('EventsTable', () => {
         expect(screen.getByText('No events found')).toBeInTheDocument();
     });
 
-    it.each(['Time', 'Type', 'User', 'Service', 'Actions'])('renders the %s header', (header) => {
+    it.each(['Timestamp', 'Event Type', 'User Id', 'Service Name', 'Actions'])('renders the %s header', (header) => {
         renderTable();
         expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });

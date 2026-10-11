@@ -1,7 +1,7 @@
 <script lang="ts">
     import { TriangleAlert } from '@lucide/svelte';
     import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
-    import { formatTimestamp } from '#lib/formatters.ts';
+    import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
 
     interface Props {
@@ -31,14 +31,16 @@
                     <span class="font-semibold text-blue-900 dark:text-blue-100">
                         {preview.total_events} event{preview.total_events !== 1 ? 's' : ''} will be replayed
                     </span>
-                    <span class="text-sm text-blue-700 dark:text-blue-300">Dry Run</span>
+                    <span class="text-sm text-blue-700 dark:text-blue-300">{fieldTitle('dry_run')}</span>
                 </div>
             </div>
         </div>
 
         {#if preview.events_preview && preview.events_preview.length > 0}
             <div class="space-y-3">
-                <h3 class="font-medium text-fg-default dark:text-dark-fg-default mb-2">Events to Replay:</h3>
+                <h3 class="font-medium text-fg-default dark:text-dark-fg-default mb-2">
+                    {fieldTitle('events_preview')}
+                </h3>
                 {#each preview.events_preview as event}
                     <div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
                         <div class="flex justify-between items-start">
@@ -50,9 +52,10 @@
                                     {event.event_type}
                                 </div>
                                 {#if event.aggregate_id}
-                                    <div class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-                                        Aggregate: {event.aggregate_id}
-                                    </div>
+                                    <dl class="flex gap-2 text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+                                        <dt>{fieldTitle('aggregate_id')}</dt>
+                                        <dd class="font-mono">{event.aggregate_id}</dd>
+                                    </dl>
                                 {/if}
                             </div>
                             <div class="text-sm text-neutral-500 dark:text-neutral-400">

@@ -87,9 +87,9 @@ describe('RateLimitsModal', () => {
 
     it.each([
         ['Quick Settings', 'text'],
-        ['Bypass all rate limits', 'text'],
+        ['Bypass Rate Limit', 'label'],
         ['Global Multiplier', 'label'],
-        ['Admin Notes', 'label'],
+        ['Notes', 'label'],
         ['Endpoint Rate Limits', 'text'],
         ['Add Rule', 'text'],
     ] as const)('shows %s element', (text, queryType) => {
@@ -105,13 +105,57 @@ describe('RateLimitsModal', () => {
         });
     });
 
+    it('labels each default rule field by its key', async () => {
+        renderModal();
+        const shown = {
+            'Endpoint Pattern': '/api/v1/*',
+            Requests: '100',
+            'Window Seconds': '60',
+            Group: 'api',
+            Algorithm: 'sliding_window',
+        };
+        await waitFor(() => expect(screen.getByText('Endpoint Pattern')).toBeInTheDocument());
+        for (const [label, value] of Object.entries(shown)) {
+            expect(screen.getByText(label).nextElementSibling?.textContent?.trim()).toBe(value);
+        }
+    });
+
+    it('labels a user rule by its keys and shows the algorithm value', () => {
+        renderModal({
+            config: proxy({
+                user_id: 'user-1',
+                bypass_rate_limit: false,
+                global_multiplier: 1.0,
+                notes: '',
+                rules: [
+                    {
+                        endpoint_pattern: '/api/v1/execute',
+                        requests: 5,
+                        window_seconds: 30,
+                        group: 'execution',
+                        algorithm: 'token_bucket',
+                        enabled: true,
+                    },
+                ],
+                created_at: new Date('2024-01-01T00:00:00Z'),
+                updated_at: new Date('2024-01-01T00:00:00Z'),
+            }),
+        });
+        expect(screen.getByText('Rules')).toBeInTheDocument();
+        expect(screen.getByLabelText('Endpoint Pattern')).toHaveValue('/api/v1/execute');
+        expect(screen.getByLabelText('Requests')).toHaveValue(5);
+        expect(screen.getByLabelText('Window Seconds')).toHaveValue(30);
+        expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveDisplayValue('token_bucket');
+        expect(screen.getByRole('checkbox', { name: 'Enabled' })).toBeChecked();
+    });
+
     it('shows current usage section when usage data provided', () => {
         renderModal({
             usage: { '/api/v1/execute': { algorithm: 'sliding_window', remaining: 50 } },
         });
         expect(screen.getByText('Current Usage')).toBeInTheDocument();
         expect(screen.getByText('/api/v1/execute')).toBeInTheDocument();
-        expect(screen.getByText('50 remaining')).toBeInTheDocument();
+        expect(screen.getByText('Remaining').nextElementSibling?.textContent?.trim()).toBe('50');
     });
 
     it('hides current usage when no usage data', () => {

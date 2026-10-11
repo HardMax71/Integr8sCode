@@ -168,6 +168,8 @@ class UserRole(StringEnum):
     ADMIN = "admin"
 ```
 
+A member is named after its value (`SYSTEM = "system"`, never `AUTO = "system"`), so code and API use the same word; tests/unit/app/test_one_name.py checks every enum.
+
 ### Logging
 ```python
 # WRONG
@@ -362,6 +364,7 @@ class UserResponse(BaseModel):
 - `from_attributes=True` on model_config, never as a kwarg to `model_validate()`
 - `json_schema_serialization_defaults_required=True` for OpenAPI correctness
 - Separate schemas: Create / Update / Response
+- A field's key is its only name: no `alias`, `validation_alias`, `serialization_alias`, alias generator or custom `title`, since the frontend labels every field from its key (tests/unit/app/test_one_name.py)
 - `ErrorResponse(detail: str, type: str | None)` is the standard error shape
 
 ## Backend: Beanie ODM (MongoDB)
@@ -658,7 +661,12 @@ z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties;  // min/
 client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/api/v1/admin/events/export/{export_format}', ... });
 ```
 
-UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value.
+UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value. A map of display text is not: every API name has one spelling in the UI.
+
+- A label, column header, detail row or filter for an API field shows `fieldTitle(key)` from `#lib/formatters.ts`, which titles the key the way Pydantic does in the spec (`created_at` is "Created At"). A hint goes in a description next to the field, never into its label
+- `DataTable` titles each column by its id, so a column is named after its API key and has no `header`
+- Enum values show exactly as the API sends them, and a boolean reads Yes or No through `formatBoolean`
+- ESLint rejects literal text inside `<label>`, formsnap's `Label`, `<dt>` and `<th>`, and a `header` on a column. A UI-only label (one that names no API field) goes outside those elements or on the control's `aria-label`
 
 Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
 

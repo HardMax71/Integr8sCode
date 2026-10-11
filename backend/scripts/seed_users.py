@@ -7,8 +7,9 @@ Creates:
   2. Admin user (role=admin, is_superuser=True) for administration
 
 Also drops duplicate system settings documents, which an old get-or-insert race could create
-and which would stop the unique settings_id index from building. Compose starts the API and
-the workers only after this script succeeds.
+and which would stop the unique settings_id index from building, and rewrites the stored theme
+"auto" to its current name "system". Compose starts the API and the workers only after this
+script succeeds.
 
 Uses main Settings for MongoDB connection. Password env vars are script-specific:
   DEFAULT_USER_PASSWORD: Default user password (default: user123)
@@ -82,6 +83,20 @@ async def drop_duplicate_system_settings(db: AsyncDatabase[dict[str, Any]]) -> N
         await db.system_settings.delete_many({"_id": {"$in": stale}})
 
 
+async def rename_auto_theme(db: AsyncDatabase[dict[str, Any]]) -> None:
+    """The theme that follows the system was stored as "auto" before it became "system"; rewrite every stored copy."""
+    renames = [
+        (db.user_settings, {"theme": "auto"}, "theme"),
+        (db.events, {"event_type": "user_settings_updated", "theme": "auto"}, "theme"),
+        (db.events_archive, {"event_type": "user_settings_updated", "theme": "auto"}, "theme"),
+        (db.dlq_messages, {"event.event_type": "user_settings_updated", "event.theme": "auto"}, "event.theme"),
+    ]
+    for collection, query, field in renames:
+        result = await collection.update_many(query, {"$set": {field: "system"}})
+        if result.modified_count:
+            print(f"Renamed the auto theme to system in {result.modified_count} {collection.name} documents")
+
+
 async def seed_users(settings: Settings) -> None:
     """Seed default users using provided settings for MongoDB connection."""
     pwd_hasher = PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))
@@ -93,6 +108,7 @@ async def seed_users(settings: Settings) -> None:
     print(f"Connecting to MongoDB (database: {db.name})...")
 
     await drop_duplicate_system_settings(db)
+    await rename_auto_theme(db)
 
     # Default user
     await upsert_user(

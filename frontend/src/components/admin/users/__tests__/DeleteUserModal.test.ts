@@ -16,7 +16,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
         props: {
             open: true,
             user: createMockUser({ username: 'alice' }),
-            cascadeDelete: false,
+            cascade: false,
             deleting: false,
             onClose,
             onDelete,
@@ -44,16 +44,18 @@ describe('DeleteUserModal', () => {
         expect(screen.getByText(/Are you sure you want to delete user/)).toBeInTheDocument();
     });
 
-    it('shows cascade delete checkbox', () => {
+    it('shows the cascade checkbox with what it deletes', () => {
         renderModal();
-        expect(screen.getByText(/Delete all user data/)).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: 'Cascade' })).toHaveAccessibleDescription(
+            "Also deletes the user's executions, scripts and other data",
+        );
     });
 
     it.each([
         [false, false],
         [true, true],
-    ] as const)('cascade warning visibility when cascadeDelete=%s', (cascadeDelete, visible) => {
-        renderModal({ cascadeDelete });
+    ] as const)('cascade warning visibility when cascade=%s', (cascade, visible) => {
+        renderModal({ cascade });
         if (visible) expect(screen.getByText(/permanently delete all data/)).toBeInTheDocument();
         else expect(screen.queryByText(/permanently delete all data/)).not.toBeInTheDocument();
     });

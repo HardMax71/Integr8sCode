@@ -26,10 +26,7 @@
     }: Props = $props();
 
     const column = columnHelper<Thing>();
-    const columns = [
-        column.accessor('name', { header: 'Name', meta: { class: 'text-right' } }),
-        column.accessor('id', { header: 'ID' }),
-    ];
+    const columns = [column.accessor('name', { meta: { class: 'text-right' } }), column.accessor('id', {})];
 
     const table = createServerTable(columns, {
         get rows() {

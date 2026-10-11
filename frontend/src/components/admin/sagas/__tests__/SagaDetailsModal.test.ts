@@ -10,10 +10,7 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 }));
 
 vi.mock('#lib/admin/sagas/index.ts', () => ({
-    getSagaStateInfo: vi.fn((state: string) => ({
-        label: state.charAt(0).toUpperCase() + state.slice(1),
-        color: 'badge-neutral',
-    })),
+    getSagaStateInfo: vi.fn(() => ({ color: 'badge-neutral' })),
 }));
 
 function renderModal(overrides: Record<string, unknown> = {}) {
@@ -50,6 +47,20 @@ describe('SagaDetailsModal', () => {
         },
     );
 
+    it.each([
+        'Saga Id',
+        'Saga Name',
+        'Execution Id',
+        'State',
+        'Retry Count',
+        'Created At',
+        'Updated At',
+        'Completed At',
+    ])('labels the %s field by its API name', (title) => {
+        renderModal();
+        expect(screen.getByText(title, { selector: 'dt' })).toBeInTheDocument();
+    });
+
     it('displays saga ID', () => {
         renderModal({ saga: createMockSaga({ saga_id: 'saga-test-123' }) });
         expect(screen.getByText('saga-test-123')).toBeInTheDocument();
@@ -68,7 +79,7 @@ describe('SagaDetailsModal', () => {
 
     it('displays state badge', () => {
         renderModal({ saga: createMockSaga({ state: 'completed' }) });
-        expect(screen.getByText('Completed')).toBeInTheDocument();
+        expect(screen.getByText('completed')).toHaveClass('badge');
     });
 
     it('displays retry count', () => {
@@ -78,7 +89,7 @@ describe('SagaDetailsModal', () => {
 
     it('shows completed steps count', () => {
         renderModal({ saga: createMockSaga({ completed_steps: ['step1', 'step2'] }) });
-        expect(screen.getByText('Completed (2)')).toBeInTheDocument();
+        expect(screen.getByText('Completed Steps (2)')).toBeInTheDocument();
     });
 
     it('lists completed steps', () => {
@@ -97,12 +108,12 @@ describe('SagaDetailsModal', () => {
 
     it('shows compensated steps count', () => {
         renderModal({ saga: createMockSaga({ compensated_steps: ['step1'] }) });
-        expect(screen.getByText('Compensated (1)')).toBeInTheDocument();
+        expect(screen.getByText('Compensated Steps (1)')).toBeInTheDocument();
     });
 
     it.each([
-        ['current step', { current_step: 'create_pod' }, /Current Step:/, 'create_pod'],
-        ['error message', { error_message: 'Pod creation failed' }, 'Error Information', 'Pod creation failed'],
+        ['current step', { current_step: 'create_pod' }, 'Current Step', 'create_pod'],
+        ['error message', { error_message: 'Pod creation failed' }, 'Error Message', 'Pod creation failed'],
     ] as const)('shows %s when present', (_label, overrides, sectionText, valueText) => {
         renderModal({ saga: createMockSaga(overrides) });
         expect(screen.getByText(sectionText)).toBeInTheDocument();
@@ -110,8 +121,8 @@ describe('SagaDetailsModal', () => {
     });
 
     it.each([
-        ['current step', { current_step: null }, /Current Step:/],
-        ['error section', { error_message: null }, 'Error Information'],
+        ['current step', { current_step: null }, 'Current Step'],
+        ['error section', { error_message: null }, 'Error Message'],
     ] as const)('hides %s when null', (_label, overrides, hiddenText) => {
         renderModal({ saga: createMockSaga(overrides) });
         expect(screen.queryByText(hiddenText)).not.toBeInTheDocument();

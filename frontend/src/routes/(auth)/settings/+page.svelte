@@ -22,7 +22,7 @@
     import SettingsHistoryTable from '#components/settings/SettingsHistoryTable.svelte';
     import { Select } from 'bits-ui';
     import { Check, ChevronDown } from '@lucide/svelte';
-    import { formatTimestamp } from '#lib/formatters.ts';
+    import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
 
     type SettingsForm = Pick<UserSettings, 'theme' | 'notifications' | 'editor'>;
 
@@ -31,12 +31,11 @@
 
     const tabs = [
         { id: 'general', label: 'General' },
-        { id: 'editor', label: 'Editor' },
-        { id: 'notifications', label: 'Notifications' },
+        { id: 'editor', label: fieldTitle('editor') },
+        { id: 'notifications', label: fieldTitle('notifications') },
     ];
 
-    const themeLabels: Record<Theme, string> = { light: 'Light', dark: 'Dark', auto: 'Auto (System)' };
-    const themes = Object.values(Theme).map((value) => ({ value, label: themeLabels[value] }));
+    const themes = Object.values(Theme);
 
     function toForm(data: UserSettings): SettingsForm {
         return {
@@ -173,19 +172,19 @@
             <div class="card">
                 <div class="p-6">
                     {#if activeTab === 'general'}
-                        <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
-                            General Settings
-                        </h2>
+                        <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">General</h2>
 
                         <div class="form-control">
                             <label for="theme-select" class="block mb-2">
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default">Theme</span>
+                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                    >{fieldTitle('theme')}</span
+                                >
                             </label>
                             <Select.Root
                                 type="single"
                                 value={formData.theme}
                                 onValueChange={(value) => {
-                                    const picked = themes.find((t) => t.value === value)?.value;
+                                    const picked = themes.find((t) => t === value);
                                     if (!picked) return;
                                     formData.theme = picked;
                                     setTheme(picked);
@@ -195,7 +194,7 @@
                                     id="theme-select"
                                     class="form-control-base flex items-center justify-between text-left group"
                                 >
-                                    <span class="truncate">{themeLabels[formData.theme]}</span>
+                                    <span class="truncate">{formData.theme}</span>
                                     <ChevronDown
                                         class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
                                     />
@@ -206,14 +205,14 @@
                                         class="floating-panel w-(--bits-select-anchor-width)"
                                     >
                                         <Select.Viewport>
-                                            {#each themes as theme (theme.value)}
+                                            {#each themes as theme (theme)}
                                                 <Select.Item
-                                                    value={theme.value}
-                                                    label={theme.label}
+                                                    value={theme}
+                                                    label={theme}
                                                     class="floating-item justify-between"
                                                 >
                                                     {#snippet children({ selected })}
-                                                        {theme.label}
+                                                        {theme}
                                                         {#if selected}<Check class="w-4 h-4 text-primary" />{/if}
                                                     {/snippet}
                                                 </Select.Item>
@@ -225,14 +224,14 @@
                         </div>
                     {:else if activeTab === 'editor'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
-                            Editor Settings
+                            {fieldTitle('editor')}
                         </h2>
 
                         <div class="flex flex-wrap gap-4">
                             <div class="form-control flex-1 min-w-[100px]">
                                 <label for="font-size" class="block mb-2">
                                     <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >Font Size</span
+                                        >{fieldTitle('font_size')}</span
                                     >
                                 </label>
                                 <input
@@ -248,7 +247,7 @@
                             <div class="form-control flex-1 min-w-[100px]">
                                 <label for="tab-size" class="block mb-2">
                                     <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >Tab Size</span
+                                        >{fieldTitle('tab_size')}</span
                                     >
                                 </label>
                                 <input
@@ -269,7 +268,7 @@
                                 class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                             >
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >Use Tabs</span
+                                    >{fieldTitle('use_tabs')}</span
                                 >
                                 <input type="checkbox" bind:checked={formData.editor.use_tabs} class="" />
                             </label>
@@ -278,7 +277,7 @@
                                 class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                             >
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >Word Wrap</span
+                                    >{fieldTitle('word_wrap')}</span
                                 >
                                 <input type="checkbox" bind:checked={formData.editor.word_wrap} class="" />
                             </label>
@@ -287,14 +286,14 @@
                                 class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                             >
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >Show Line Numbers</span
+                                    >{fieldTitle('show_line_numbers')}</span
                                 >
                                 <input type="checkbox" bind:checked={formData.editor.show_line_numbers} class="" />
                             </label>
                         </div>
                     {:else if activeTab === 'notifications'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
-                            Notification Settings
+                            {fieldTitle('notifications')}
                         </h2>
 
                         <div class="space-y-4">
@@ -305,7 +304,7 @@
                                         class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                                     >
                                         <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >Execution Completed</span
+                                            >{fieldTitle('execution_completed')}</span
                                         >
                                         <input
                                             type="checkbox"
@@ -318,7 +317,7 @@
                                         class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                                     >
                                         <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >Execution Failed</span
+                                            >{fieldTitle('execution_failed')}</span
                                         >
                                         <input
                                             type="checkbox"
@@ -331,7 +330,7 @@
                                         class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                                     >
                                         <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >System Updates</span
+                                            >{fieldTitle('system_updates')}</span
                                         >
                                         <input
                                             type="checkbox"
@@ -344,7 +343,7 @@
                                         class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                                     >
                                         <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >Security Alerts</span
+                                            >{fieldTitle('security_alerts')}</span
                                         >
                                         <input
                                             type="checkbox"

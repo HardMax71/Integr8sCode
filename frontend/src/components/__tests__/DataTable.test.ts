@@ -8,11 +8,11 @@ const things = [
 ];
 
 describe('DataTable', () => {
-    it('renders a header per column and a row per item', () => {
+    it('titles each column by its key and renders a row per item', () => {
         render(TableHarness, { props: { rows: things, rowCount: 2 } });
         const table = within(screen.getByRole('table', { name: 'Things' }));
 
-        expect(table.getAllByRole('columnheader').map((th) => th.textContent?.trim())).toEqual(['Name', 'ID']);
+        expect(table.getAllByRole('columnheader').map((th) => th.textContent?.trim())).toEqual(['Name', 'Id']);
         expect(table.getAllByRole('row')).toHaveLength(3);
         expect(table.getByRole('cell', { name: 'second' })).toBeInTheDocument();
     });
@@ -26,7 +26,7 @@ describe('DataTable', () => {
         expect(table.getByRole('cell', { name: 't1' })).not.toHaveClass('text-right');
     });
 
-    it('renders a card per item, labelled by the column headers', () => {
+    it('renders a card per item, labelled by the column keys', () => {
         render(TableHarness, { props: { rows: things, rowCount: 2 } });
         const cards = within(screen.getByRole('list', { name: 'Things' })).getAllByRole('listitem');
 

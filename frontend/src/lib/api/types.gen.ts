@@ -5022,7 +5022,7 @@ export type SystemSettingsSchemaOutput = {
 export const Theme = {
     LIGHT: 'light',
     DARK: 'dark',
-    AUTO: 'auto'
+    SYSTEM: 'system'
 } as const;
 
 /**

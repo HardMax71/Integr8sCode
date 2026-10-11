@@ -11,6 +11,7 @@
         zSystemSettingsSchemaInput,
     } from '#lib/api/index.ts';
     import { firstIssue } from '#lib/validation.ts';
+    import { fieldTitle, formatBoolean } from '#lib/formatters.ts';
     import * as z from 'zod/mini';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
@@ -93,7 +94,7 @@
                                 <label
                                     for="max-timeout"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Max Timeout (seconds)</label
+                                    >{fieldTitle('max_timeout_seconds')}</label
                                 >
                                 <input
                                     id="max-timeout"
@@ -107,7 +108,7 @@
                                 <label
                                     for="memory-limit"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Memory Limit (e.g. 512Mi)</label
+                                    >{fieldTitle('memory_limit')}</label
                                 >
                                 <input
                                     id="memory-limit"
@@ -121,7 +122,7 @@
                                 <label
                                     for="cpu-limit"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >CPU Limit (e.g. 2000m)</label
+                                    >{fieldTitle('cpu_limit')}</label
                                 >
                                 <input
                                     id="cpu-limit"
@@ -135,7 +136,7 @@
                                 <label
                                     for="max-concurrent"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Max Concurrent Executions</label
+                                    >{fieldTitle('max_concurrent_executions')}</label
                                 >
                                 <input
                                     id="max-concurrent"
@@ -149,7 +150,7 @@
                                 <label
                                     for="max-per-user"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Max Executions per User</label
+                                    >{fieldTitle('max_executions_per_user')}</label
                                 >
                                 <input
                                     id="max-per-user"
@@ -172,7 +173,7 @@
                                 <label
                                     for="min-password"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Min Password Length</label
+                                    >{fieldTitle('password_min_length')}</label
                                 >
                                 <input
                                     id="min-password"
@@ -186,7 +187,7 @@
                                 <label
                                     for="session-timeout"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Session Timeout (minutes)</label
+                                    >{fieldTitle('session_timeout_minutes')}</label
                                 >
                                 <input
                                     id="session-timeout"
@@ -200,7 +201,7 @@
                                 <label
                                     for="max-login"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Max Login Attempts</label
+                                    >{fieldTitle('max_login_attempts')}</label
                                 >
                                 <input
                                     id="max-login"
@@ -214,7 +215,7 @@
                                 <label
                                     for="lockout-duration"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Lockout Duration (minutes)</label
+                                    >{fieldTitle('lockout_duration_minutes')}</label
                                 >
                                 <input
                                     id="lockout-duration"
@@ -237,7 +238,7 @@
                                 <label
                                     for="metrics-retention"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Metrics Retention Days</label
+                                    >{fieldTitle('metrics_retention_days')}</label
                                 >
                                 <input
                                     id="metrics-retention"
@@ -251,7 +252,7 @@
                                 <label
                                     for="log-level"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Log Level</label
+                                    >{fieldTitle('log_level')}</label
                                 >
                                 <select id="log-level" bind:value={settings.log_level} class="form-select-standard">
                                     {#each Object.values(LogLevel) as level (level)}
@@ -263,22 +264,22 @@
                                 <label
                                     for="enable-tracing"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Enable Tracing</label
+                                    >{fieldTitle('enable_tracing')}</label
                                 >
                                 <select
                                     id="enable-tracing"
                                     bind:value={settings.enable_tracing}
                                     class="form-select-standard"
                                 >
-                                    <option value={true}>Enabled</option>
-                                    <option value={false}>Disabled</option>
+                                    <option value={true}>{formatBoolean(true)}</option>
+                                    <option value={false}>{formatBoolean(false)}</option>
                                 </select>
                             </div>
                             <div>
                                 <label
                                     for="sampling-rate"
                                     class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                    >Sampling Rate</label
+                                    >{fieldTitle('sampling_rate')}</label
                                 >
                                 <input
                                     id="sampling-rate"

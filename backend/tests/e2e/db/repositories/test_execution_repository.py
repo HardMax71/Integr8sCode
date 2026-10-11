@@ -72,6 +72,21 @@ async def _create_and_complete(
 
 
 @pytest.mark.asyncio
+async def test_terminal_result_exists_only_once_the_execution_finished() -> None:
+    repo = ExecutionRepository(logger=_test_logger)
+    user_id = str(uuid4())
+    queued = await repo.create_execution(DomainExecutionCreate(script="x = 1", user_id=user_id))
+    finished_id = await _create_and_complete(repo, user_id)
+
+    assert await repo.get_terminal_result(queued.execution_id) is None
+    assert await repo.get_terminal_result("missing-" + user_id) is None
+
+    result = await repo.get_terminal_result(finished_id)
+    assert result is not None
+    assert (result.status, result.exit_code, result.stdout, result.stderr) == (ExecutionStatus.COMPLETED, 0, "ok", "")
+
+
+@pytest.mark.asyncio
 async def test_aggregate_stats_empty() -> None:
     """Empty result set returns zero-value stats."""
     repo = ExecutionRepository(logger=_test_logger)

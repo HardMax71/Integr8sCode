@@ -62,7 +62,7 @@ class SSEService:
         }
         async for event in self._bus.listen_execution(execution_id):
             if event.event_type == EventType.RESULT_STORED:
-                result = await self._execution_repository.get_execution_result(execution_id)
+                result = await self._execution_repository.get_terminal_result(execution_id)
                 event = dataclasses.replace(event, result=result)
             self._logger.info("SSE event", execution_id=execution_id, event_type=event.event_type)
             yield {"data": _exec_adapter.dump_json(event).decode()}

@@ -156,6 +156,16 @@ describe('EventsStore', () => {
             );
         });
 
+        it('turns the event timestamp the generated transformer skips into a Date', async () => {
+            const event = { ...createMockEvent(), timestamp: '2026-10-11T08:00:00Z' };
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok({ event, related_events: [], timeline: [] });
+
+            createStore();
+            await store.openEventDetail('evt-1');
+
+            expect(store.selectedEvent?.event.timestamp).toEqual(new Date('2026-10-11T08:00:00Z'));
+        });
+
         it('leaves selectedEvent empty when the load fails', async () => {
             mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ detail: 'Event not found' });
 

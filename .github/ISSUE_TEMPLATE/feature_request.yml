@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting a feature! Please describe what you'd like to see.
+        Describe the problem first, then what you'd like to see.
 
   - type: textarea
     id: problem
@@ -40,12 +40,15 @@ body:
       description: Which part of the system would this affect?
       options:
         - Frontend (UI)
-        - Backend API
-        - Execution (K8s pods)
-        - Workers
+        - API (routes, auth, rate limits, settings)
+        - Running scripts (queue, sagas, pods, results)
+        - Kafka events (consumers, DLQ, replay)
+        - Live updates and notifications
+        - Metrics, dashboards and logs
+        - Deployment (compose, deploy.sh, production)
+        - CI and tooling
         - Documentation
-        - DevOps / CI/CD
-        - Other
+        - Not sure
     validations:
       required: true
 

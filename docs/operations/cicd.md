@@ -35,10 +35,16 @@ graph LR
 | Frontend CI                    | frontend-ci.yml      | push and PRs to `main` touching `frontend/`; manual                     |
 | docs                           | docs.yml             | push and PRs to `main` touching `docs/`, mkdocs.yml or the workflow; manual |
 | Generated API                  | generated-api.yml    | push and PRs to `main`; manual                                          |
+| Labels                         | labels.yml           | PRs opened or updated (`pull_request_target`), issues opened or edited  |
+| Label Sync                     | label-sync.yml       | push and PRs to `main` touching the label files or issue forms; Mondays at 03:00; manual |
 
 The lint workflows are one job each. Ruff runs `ruff check`. MyPy runs `mypy --strict` with `SECRET_KEY` from the `TEST_SECRET_KEY` secret. Grimp runs `python -m scripts.check_orphan_modules`, which fails on any module nothing imports except `app.main` and `__init__.py` files that hold only a docstring. Security Scanning runs `uvx --no-build --python 3.14 bandit==1.9.4 -r backend/ -x backend/tests/ -ll`. Bandit parses with the Python it runs on, so on anything older it skips the files that use 3.14 syntax such as `except A, B:` without failing. Frontend CI runs ESLint, Stylelint, the Prettier check, `svelte-check --fail-on-warnings` and a production build. The SBOM workflow generates SPDX SBOMs for backend and frontend with `anchore/sbom-action`, scans them with Grype through `anchore/scan-action` (cutoff `high`, `fail-build: false`) and uploads SARIF to the Security tab.
 
 The docs workflow installs the backend dependencies, runs `./deploy.sh openapi`, builds with `mkdocs build --strict` and deploys to GitHub Pages on pushes to `main`.
+
+Labels adds `area:` labels. On a PR, `actions/labeler` matches the changed paths against `.github/labeler.yml`; it runs on `pull_request_target` so fork PRs can be labeled too, and it never checks out the PR's code. On an issue, `github/issue-labeler` matches the Component answer of the issue form against `.github/issue-labeler.yml` and adds the label. It never removes one, so labels added by hand stay.
+
+Label Sync keeps labels as code. `.github/labels.yml` lists every label in the repo, and `crazy-max/ghaction-github-labeler` makes the repo match it: it creates and updates labels, renames one that has `from_name`, and deletes any label the file doesn't list, which also takes it off every issue. On a PR it only prints what it would change. Before that, a `yq` step fails the run when `.github/labeler.yml`, `.github/issue-labeler.yml` or an issue form uses a label the file doesn't declare. A new area needs its label in `.github/labels.yml`, a path rule in `.github/labeler.yml`, an option in both issue forms and a pattern in `.github/issue-labeler.yml`.
 
 Generated API enforces that `docs/reference/openapi.json` and `frontend/src/lib/api/` only ever come from the generators. It runs `./deploy.sh openapi` and `npm run generate:api` on the checked-out code and fails if either leaves a difference, which catches a hand edit and a spec or client someone forgot to regenerate.
 

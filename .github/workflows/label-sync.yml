@@ -1,0 +1,55 @@
+name: Label Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/labeler.yml
+      - .github/issue-labeler.yml
+      - .github/ISSUE_TEMPLATE/**
+      - .github/workflows/label-sync.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/labeler.yml
+      - .github/issue-labeler.yml
+      - .github/ISSUE_TEMPLATE/**
+      - .github/workflows/label-sync.yml
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sync:
+    name: Check and sync labels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fail on labels used but not declared
+        run: |
+          declared=$(yq '.[].name' .github/labels.yml | sort -u)
+          used=$({
+            yq -N 'keys | .[]' .github/labeler.yml .github/issue-labeler.yml
+            yq -N '.labels[]' .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml
+          } | sort -u)
+          undeclared=$(comm -13 <(echo "$declared") <(echo "$used"))
+          if [ -n "$undeclared" ]; then
+            echo "::error::Labels used in the labeler configs or issue forms but missing from .github/labels.yml:"
+            echo "$undeclared"
+            exit 1
+          fi
+
+      # Makes the repo's labels match .github/labels.yml; on PRs it only prints what it would change
+      - uses: crazy-max/ghaction-github-labeler@548a7c3603594ec17c819e1239f281a3b801ab4d  # v6.0.0
+        with:
+          dry-run: ${{ github.event_name == 'pull_request' }}

@@ -1,0 +1,99 @@
+# Area labels for pull requests by changed path, applied by the Labels workflow.
+# Issues get theirs from the Component field instead; keep both in step with the label list.
+
+"area: frontend":
+  - changed-files:
+      - any-glob-to-any-file: frontend/**
+
+"area: api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/app/api/**
+          - backend/app/schemas_pydantic/**
+          - backend/app/core/middlewares/**
+          - backend/app/core/exceptions/**
+          - backend/app/core/security.py
+          - backend/app/services/admin/**
+          - backend/app/services/auth_service.py
+          - backend/app/services/login_lockout.py
+          - backend/app/services/rate_limit_service.py
+          - backend/app/services/saved_script_service.py
+          - backend/app/services/user_settings_service.py
+          - backend/app/settings.py
+          - backend/config*.toml
+          - docs/reference/openapi.json
+
+"area: execution":
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/app/services/execution_service.py
+          - backend/app/services/execution_queue.py
+          - backend/app/services/runtime_settings.py
+          - backend/app/services/saga/**
+          - backend/app/services/k8s_worker/**
+          - backend/app/services/pod_monitor/**
+          - backend/app/services/result_processor/**
+          - backend/app/runtime_registry.py
+          - backend/app/scripts/**
+          - backend/workers/run_k8s_worker.py
+          - backend/workers/run_pod_monitor.py
+          - backend/workers/run_result_processor.py
+          - backend/workers/run_saga_orchestrator.py
+
+"area: events":
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/app/events/**
+          - backend/app/dlq/**
+          - backend/app/domain/events/**
+          - backend/app/infrastructure/kafka/**
+          - backend/app/services/idempotency/**
+          - backend/app/services/event_replay/**
+          - backend/app/services/event_service.py
+          - backend/workers/run_dlq_processor.py
+          - backend/workers/run_event_replay.py
+
+"area: realtime":
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/app/services/sse/**
+          - backend/app/services/notification_service.py
+          - backend/app/services/notification_scheduler.py
+          - backend/app/api/routes/sse.py
+          - backend/app/api/routes/notifications.py
+          - frontend/src/lib/notifications/**
+
+"area: observability":
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/app/core/metrics/**
+          - backend/app/core/tracing/**
+          - backend/app/core/logging.py
+          - backend/app/core/middlewares/metrics.py
+          - backend/grafana/**
+          - backend/loki/**
+          - backend/otel-collector-config.yaml
+          - backend/tests/contract/**
+
+"area: deploy":
+  - changed-files:
+      - any-glob-to-any-file:
+          - docker-compose.yaml
+          - deploy.sh
+          - "**/Dockerfile*"
+          - cert-generator/**
+          - .github/workflows/docker.yml
+          - .github/workflows/release-deploy.yml
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - .pre-commit-config.yaml
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - "*.md"
+          - mkdocs.yml

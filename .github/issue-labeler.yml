@@ -1,0 +1,21 @@
+# Area label per answer to the Component field of the issue forms, applied by the Labels workflow.
+# Each pattern matches the start of a dropdown option, so keep them in step with both forms.
+
+"area: frontend":
+  - '### Component\s+Frontend'
+"area: api":
+  - '### Component\s+API'
+"area: execution":
+  - '### Component\s+Running scripts'
+"area: events":
+  - '### Component\s+Kafka events'
+"area: realtime":
+  - '### Component\s+Live updates'
+"area: observability":
+  - '### Component\s+Metrics'
+"area: deploy":
+  - '### Component\s+Deployment'
+"area: ci":
+  - '### Component\s+CI and tooling'
+documentation:
+  - '### Component\s+Documentation'

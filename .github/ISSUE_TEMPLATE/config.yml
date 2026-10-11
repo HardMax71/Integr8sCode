@@ -1,6 +1,9 @@
 # Discussions are off, so questions come in as issues. Neither template fits a question, hence blank issues stay on.
 blank_issues_enabled: true
 contact_links:
+  - name: Report a security weakness
+    url: https://github.com/HardMax71/Integr8sCode/security/advisories/new
+    about: Report it privately so it can be fixed before it's public
   - name: Documentation
     url: https://hardmax71.github.io/Integr8sCode/
     about: Check the documentation for guides and reference material

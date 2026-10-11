@@ -41,7 +41,7 @@ frontend/
 └── src/
     ├── routes/              # Page components (admin/ pages included)
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
-    ├── lib/api/             # Generated API client, DO NOT EDIT (see Frontend: API Client)
+    ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
     ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
     ├── lib/editor/          # Execution state, languages, runtime helpers (newestVersion)
     ├── lib/notifications/   # Notification SSE stream
@@ -619,7 +619,9 @@ Use `interface` for object shapes, `type` for unions/intersections/aliases. Defi
 
 ## Frontend: API Client
 
-Generated from the OpenAPI spec, so **do not edit `src/lib/api/`**. `npm run generate:api` reads `../docs/reference/openapi.json`, and `./deploy.sh types` regenerates the spec only when that file is missing. After any backend API change, regenerate the spec first:
+Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/api/` come from the generators only. Never edit them by hand, not even a one-line fix; change the backend (routes, schemas) and regenerate. The Generated API workflow regenerates both from the code on every PR and fails on any difference, so a hand edit can't merge.
+
+`npm run generate:api` reads `../docs/reference/openapi.json`, and `./deploy.sh types` regenerates the spec only when that file is missing. After any backend API change, regenerate the spec first:
 ```bash
 # From project root
 ./deploy.sh openapi   # writes docs/reference/openapi.json from create_app()
@@ -771,6 +773,10 @@ npm run format:check
 npm run check           # svelte-check, 0 errors and 0 warnings
 npm run build
 npm run test:coverage   # Vitest with coverage thresholds
+
+# Generated API (from the project root): must leave no diff
+./deploy.sh openapi && (cd frontend && npm run generate:api)
+git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api
 ```
 
 CI also runs the backend E2E suite and Playwright against a k3s stack, plus bandit and image scans. The grimp check (`backend/scripts/check_orphan_modules.py`) fails on any module in `app` that no other module imports. It skips `app.main`, the only whitelisted entry point, and `__init__.py` files that hold nothing but a docstring.

@@ -875,7 +875,7 @@ export const listUsersApiV1AdminUsersGetQueryKey = (options?: Options<ListUsersA
 /**
  * List Users
  *
- * List all users with optional search and role filtering.
+ * List users, filtered and paginated on the server.
  */
 export const listUsersApiV1AdminUsersGetOptions = (options?: Options<ListUsersApiV1AdminUsersGetData>) => queryOptions<ListUsersApiV1AdminUsersGetResponse, ListUsersApiV1AdminUsersGetError, ListUsersApiV1AdminUsersGetResponse, ReturnType<typeof listUsersApiV1AdminUsersGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -924,7 +924,7 @@ export const listUsersApiV1AdminUsersGetInfiniteQueryKey = (options?: Options<Li
 /**
  * List Users
  *
- * List all users with optional search and role filtering.
+ * List users, filtered and paginated on the server.
  */
 export const listUsersApiV1AdminUsersGetInfiniteOptions = (options?: Options<ListUsersApiV1AdminUsersGetData>) => {
     const opts = infiniteQueryOptions<ListUsersApiV1AdminUsersGetResponse, ListUsersApiV1AdminUsersGetError, InfiniteData<ListUsersApiV1AdminUsersGetResponse>, QueryKey<Options<ListUsersApiV1AdminUsersGetData>>, number | Pick<QueryKey<Options<ListUsersApiV1AdminUsersGetData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

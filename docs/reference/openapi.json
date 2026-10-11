@@ -2747,7 +2747,7 @@
           "users"
         ],
         "summary": "List Users",
-        "description": "List all users with optional search and role filtering.",
+        "description": "List users, filtered and paginated on the server.",
         "operationId": "list_users_api_v1_admin_users__get",
         "parameters": [
           {
@@ -2808,6 +2808,78 @@
               "title": "Role"
             },
             "description": "Filter by user role"
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by active or disabled",
+              "title": "Is Active"
+            },
+            "description": "Filter by active or disabled"
+          },
+          {
+            "name": "bypass_rate_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by rate limit bypass",
+              "title": "Bypass Rate Limit"
+            },
+            "description": "Filter by rate limit bypass"
+          },
+          {
+            "name": "has_custom_limits",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by custom rate limits",
+              "title": "Has Custom Limits"
+            },
+            "description": "Filter by custom rate limits"
+          },
+          {
+            "name": "custom_multiplier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by a global rate limit multiplier other than 1",
+              "title": "Custom Multiplier"
+            },
+            "description": "Filter by a global rate limit multiplier other than 1"
           }
         ],
         "responses": {

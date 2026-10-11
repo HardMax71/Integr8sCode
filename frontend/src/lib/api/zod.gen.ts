@@ -3148,7 +3148,11 @@ export const zListUsersApiV1AdminUsersGetQuery = z.object({
     limit: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100),
     offset: z._default(z.optional(z.int().check(z.gte(0))), 0),
     search: z.nullish(z.string()),
-    role: z.nullish(zUserRole)
+    role: z.nullish(zUserRole),
+    is_active: z.nullish(z.boolean()),
+    bypass_rate_limit: z.nullish(z.boolean()),
+    has_custom_limits: z.nullish(z.boolean()),
+    custom_multiplier: z.nullish(z.boolean())
 });
 
 /**

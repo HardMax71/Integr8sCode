@@ -7240,6 +7240,30 @@ export type ListUsersApiV1AdminUsersGetData = {
          * Filter by user role
          */
         role?: UserRole | null;
+        /**
+         * Is Active
+         *
+         * Filter by active or disabled
+         */
+        is_active?: boolean | null;
+        /**
+         * Bypass Rate Limit
+         *
+         * Filter by rate limit bypass
+         */
+        bypass_rate_limit?: boolean | null;
+        /**
+         * Has Custom Limits
+         *
+         * Filter by custom rate limits
+         */
+        has_custom_limits?: boolean | null;
+        /**
+         * Custom Multiplier
+         *
+         * Filter by a global rate limit multiplier other than 1
+         */
+        custom_multiplier?: boolean | null;
     };
     url: '/api/v1/admin/users/';
 };

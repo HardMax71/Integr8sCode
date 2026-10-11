@@ -28,12 +28,14 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 // Simple mock for AdminLayout that just renders children
 import AdminUsers from '#routes/admin/users/+page.svelte';
 
-async function renderWithUsers(users = createMockUsers(3)) {
-    mockApi(listUsersApiV1AdminUsersGet).ok({ users, total: users.length, offset: 0, limit: 20 });
+async function renderWithUsers(users = createMockUsers(3), total = users.length) {
+    mockApi(listUsersApiV1AdminUsersGet).ok({ users, total, offset: 0, limit: 20 });
     const result = renderWithQueryClient(AdminUsers);
     await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
     return result;
 }
+
+const lastUsersQuery = () => vi.mocked(listUsersApiV1AdminUsersGet).mock.lastCall?.[0]?.query;
 
 describe('AdminUsers', () => {
     beforeEach(() => {
@@ -147,18 +149,10 @@ describe('AdminUsers', () => {
             });
         });
 
-        it('filters users by status', async () => {
-            const users = [
-                createMockUser({ username: 'activeuser', is_active: true }),
-                createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false }),
-            ];
-            await renderWithUsers(users);
-            const statusSelect = screen.getByRole('combobox', { name: /Status/i });
-            selectOption(statusSelect, 'disabled');
-            await waitFor(() => {
-                expect(screen.getAllByText('disableduser')).toHaveLength(2);
-                expect(screen.queryAllByText('activeuser')).toHaveLength(0);
-            });
+        it('asks the server for disabled users', async () => {
+            await renderWithUsers();
+            selectOption(screen.getByRole('combobox', { name: /Status/i }), 'disabled');
+            await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: false }));
         });
 
         it('resets filters on Reset button click', async () => {
@@ -190,19 +184,17 @@ describe('AdminUsers', () => {
             });
         });
 
-        it('filters by bypass rate limit', async () => {
-            const users = [
-                createMockUser({ username: 'bypassed', bypass_rate_limit: true }),
-                createMockUser({ user_id: 'u2', username: 'limited', bypass_rate_limit: false }),
-            ];
-            await renderWithUsers(users);
+        it.each([
+            [/Bypass Rate Limit/i, 'yes', { bypass_rate_limit: true }],
+            [/Bypass Rate Limit/i, 'no', { bypass_rate_limit: false }],
+            [/Custom Limits/i, 'yes', { has_custom_limits: true }],
+            [/Global Multiplier/i, 'custom', { custom_multiplier: true }],
+            [/Global Multiplier/i, 'default', { custom_multiplier: false }],
+        ])('asks the server with the %s filter set to %s', async (name, option, query) => {
+            await renderWithUsers();
             await user.click(screen.getByRole('button', { name: /Advanced/i }));
-            const bypassSelect = screen.getByRole('combobox', { name: /Bypass Rate Limit/i });
-            selectOption(bypassSelect, 'yes');
-            await waitFor(() => {
-                expect(screen.getAllByText('bypassed')).toHaveLength(2);
-                expect(screen.queryAllByText('limited')).toHaveLength(0);
-            });
+            selectOption(screen.getByRole('combobox', { name }), option);
+            await waitFor(() => expect(lastUsersQuery()).toMatchObject(query));
         });
     });
 
@@ -611,19 +603,26 @@ describe('AdminUsers', () => {
             expect(screen.getByText(/Users \(5\)/)).toBeInTheDocument();
         });
 
-        it('shows filtered count when filters applied', async () => {
-            const users = [
-                createMockUser({ username: 'activeuser', is_active: true }),
-                createMockUser({ user_id: 'u2', username: 'disableduser', is_active: false }),
-            ];
-            await renderWithUsers(users);
+        it('shows the total the server counted, not the users on this page', async () => {
+            await renderWithUsers(createMockUsers(10), 42);
+            expect(await screen.findByText(/Users \(42\)/)).toBeInTheDocument();
+        });
 
-            const statusSelect = screen.getByRole('combobox', { name: /Status/i });
-            selectOption(statusSelect, 'active');
+        it('asks the server for the next page', async () => {
+            await renderWithUsers(createMockUsers(10), 25);
+            expect(lastUsersQuery()).toMatchObject({ limit: 10, offset: 0 });
+            await user.click(await screen.findByRole('button', { name: 'Next page' }));
+            await waitFor(() => expect(lastUsersQuery()).toMatchObject({ limit: 10, offset: 10 }));
+        });
 
-            await waitFor(() => {
-                expect(screen.getByText(/Users \(1 of 2\)/)).toBeInTheDocument();
-            });
+        it('goes back to the first page when a filter changes', async () => {
+            await renderWithUsers(createMockUsers(10), 25);
+            await user.click(await screen.findByRole('button', { name: 'Next page' }));
+            await waitFor(() => expect(lastUsersQuery()).toMatchObject({ offset: 10 }));
+
+            selectOption(screen.getByRole('combobox', { name: /Status/i }), 'active');
+
+            await waitFor(() => expect(lastUsersQuery()).toMatchObject({ is_active: true, offset: 0 }));
         });
     });
 

@@ -321,6 +321,11 @@ return {allowed, tostring(tokens)}
             rules_count=0,
         )
 
+    async def get_override_summaries(self) -> list[UserRateLimitSummary]:
+        """Summaries of the users with an override; every other user has the defaults."""
+        config = await self._get_config()
+        return [await self.get_user_rate_limit_summary(user_id, config=config) for user_id in config.user_overrides]
+
     async def get_user_rate_limit_summaries(self, user_ids: list[str]) -> dict[str, UserRateLimitSummary]:
         """Batch build summaries for a set of users using a single config load."""
         config = await self._get_config()

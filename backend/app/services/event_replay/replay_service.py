@@ -380,13 +380,16 @@ class EventReplayService:
                 case _:
                     raise ValueError(f"Unknown replay target: {config.target}")
 
+        success = False
         try:
             await retrying(_dispatch)
-            self._metrics.record_replay_by_target(config.target, success=True)
-            return True
+            success = True
         except _DISPATCH_ERRORS:
-            self._metrics.record_replay_by_target(config.target, success=False)
             return False
+        finally:
+            # Unexpected errors still propagate to _dispatch_next, but count against the target first
+            self._metrics.record_replay_by_target(config.target, success=success)
+        return True
 
     async def _write_event_to_file(self, event: DomainEvent, file_path: str) -> None:
         if file_path not in self._file_locks:

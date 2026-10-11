@@ -637,6 +637,20 @@ Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/
 
 Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimitsUserIdGet`.
 
+Anything that comes from the backend comes from `$lib/api`, never from a hand-written copy: types, enum values, validation rules, defaults, URLs and SSE streams. The generator emits runtime enums and a Zod schema per model, and the index re-exports the client and the schemas, so the copies have nothing to add and only drift.
+
+```typescript
+import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportExportFormatGetData } from '$lib/api';
+
+Object.values(UserRole);                        // option lists, never a literal array
+zUserCreate.safeParse(form);                    // the spec's rules (email format, minLength)
+zEditorSettingsInput.parse({});                 // the API's defaults
+z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties;  // min/max for inputs
+client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/api/v1/admin/events/export/{export_format}', ... });
+```
+
+UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value.
+
 ```typescript
 import { someApiEndpoint } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -752,7 +766,7 @@ vi.mock('$lib/api', () => ({
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `$lib/api`, `$lib/api-interceptors`, `svelte-sonner` and the router, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock` when a test needs specific behavior
+- `vitest.setup.ts` already mocks `$lib/api` (SDK functions only; enums, Zod schemas and the client stay real), `$lib/api-interceptors`, `svelte-sonner` and the router, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock`, and spread `importOriginal()` into a `$lib/api` or `$lib/formatters` factory so the real exports stay available
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

@@ -247,7 +247,14 @@ export type CancelResponse = {
  *
  * Outcome of a cancel request.
  */
-export type CancelStatus = 'already_cancelled' | 'cancellation_requested';
+export const CancelStatus = { ALREADY_CANCELLED: 'already_cancelled', CANCELLATION_REQUESTED: 'cancellation_requested' } as const;
+
+/**
+ * CancelStatus
+ *
+ * Outcome of a cancel request.
+ */
+export type CancelStatus = typeof CancelStatus[keyof typeof CancelStatus];
 
 /**
  * CleanupResponse
@@ -711,7 +718,20 @@ export type EditorSettingsOutput = {
 /**
  * EndpointGroup
  */
-export type EndpointGroup = 'execution' | 'admin' | 'sse' | 'websocket' | 'auth' | 'public' | 'api';
+export const EndpointGroup = {
+    EXECUTION: 'execution',
+    ADMIN: 'admin',
+    SSE: 'sse',
+    WEBSOCKET: 'websocket',
+    AUTH: 'auth',
+    PUBLIC: 'public',
+    API: 'api'
+} as const;
+
+/**
+ * EndpointGroup
+ */
+export type EndpointGroup = typeof EndpointGroup[keyof typeof EndpointGroup];
 
 /**
  * EndpointUsageStats
@@ -731,7 +751,19 @@ export type EndpointUsageStats = {
  *
  * Deployment environments.
  */
-export type Environment = 'development' | 'staging' | 'production' | 'test';
+export const Environment = {
+    DEVELOPMENT: 'development',
+    STAGING: 'staging',
+    PRODUCTION: 'production',
+    TEST: 'test'
+} as const;
+
+/**
+ * Environment
+ *
+ * Deployment environments.
+ */
+export type Environment = typeof Environment[keyof typeof Environment];
 
 /**
  * ErrorResponse
@@ -1221,7 +1253,72 @@ export type EventSummary = {
  *
  * Event types used throughout the system.
  */
-export type EventType = 'execution_requested' | 'execution_accepted' | 'execution_queued' | 'execution_started' | 'execution_running' | 'execution_completed' | 'execution_failed' | 'execution_timeout' | 'execution_cancelled' | 'pod_created' | 'pod_scheduled' | 'pod_running' | 'pod_succeeded' | 'pod_failed' | 'pod_terminated' | 'pod_deleted' | 'user_registered' | 'user_login' | 'user_logged_in' | 'user_logged_out' | 'user_updated' | 'user_deleted' | 'user_settings_updated' | 'notification_created' | 'notification_sent' | 'notification_delivered' | 'notification_failed' | 'notification_read' | 'notification_all_read' | 'notification_clicked' | 'notification_preferences_updated' | 'script_saved' | 'script_deleted' | 'script_shared' | 'security_violation' | 'rate_limit_exceeded' | 'auth_failed' | 'resource_limit_exceeded' | 'quota_exceeded' | 'system_error' | 'service_unhealthy' | 'service_recovered' | 'result_stored' | 'result_failed' | 'saga_started' | 'saga_completed' | 'saga_failed' | 'saga_cancelled' | 'saga_compensating' | 'saga_compensated' | 'create_pod_command' | 'delete_pod_command' | 'allocate_resources_command' | 'release_resources_command' | 'dlq_message_received' | 'dlq_message_retried' | 'dlq_message_discarded';
+export const EventType = {
+    EXECUTION_REQUESTED: 'execution_requested',
+    EXECUTION_ACCEPTED: 'execution_accepted',
+    EXECUTION_QUEUED: 'execution_queued',
+    EXECUTION_STARTED: 'execution_started',
+    EXECUTION_RUNNING: 'execution_running',
+    EXECUTION_COMPLETED: 'execution_completed',
+    EXECUTION_FAILED: 'execution_failed',
+    EXECUTION_TIMEOUT: 'execution_timeout',
+    EXECUTION_CANCELLED: 'execution_cancelled',
+    POD_CREATED: 'pod_created',
+    POD_SCHEDULED: 'pod_scheduled',
+    POD_RUNNING: 'pod_running',
+    POD_SUCCEEDED: 'pod_succeeded',
+    POD_FAILED: 'pod_failed',
+    POD_TERMINATED: 'pod_terminated',
+    POD_DELETED: 'pod_deleted',
+    USER_REGISTERED: 'user_registered',
+    USER_LOGIN: 'user_login',
+    USER_LOGGED_IN: 'user_logged_in',
+    USER_LOGGED_OUT: 'user_logged_out',
+    USER_UPDATED: 'user_updated',
+    USER_DELETED: 'user_deleted',
+    USER_SETTINGS_UPDATED: 'user_settings_updated',
+    NOTIFICATION_CREATED: 'notification_created',
+    NOTIFICATION_SENT: 'notification_sent',
+    NOTIFICATION_DELIVERED: 'notification_delivered',
+    NOTIFICATION_FAILED: 'notification_failed',
+    NOTIFICATION_READ: 'notification_read',
+    NOTIFICATION_ALL_READ: 'notification_all_read',
+    NOTIFICATION_CLICKED: 'notification_clicked',
+    NOTIFICATION_PREFERENCES_UPDATED: 'notification_preferences_updated',
+    SCRIPT_SAVED: 'script_saved',
+    SCRIPT_DELETED: 'script_deleted',
+    SCRIPT_SHARED: 'script_shared',
+    SECURITY_VIOLATION: 'security_violation',
+    RATE_LIMIT_EXCEEDED: 'rate_limit_exceeded',
+    AUTH_FAILED: 'auth_failed',
+    RESOURCE_LIMIT_EXCEEDED: 'resource_limit_exceeded',
+    QUOTA_EXCEEDED: 'quota_exceeded',
+    SYSTEM_ERROR: 'system_error',
+    SERVICE_UNHEALTHY: 'service_unhealthy',
+    SERVICE_RECOVERED: 'service_recovered',
+    RESULT_STORED: 'result_stored',
+    RESULT_FAILED: 'result_failed',
+    SAGA_STARTED: 'saga_started',
+    SAGA_COMPLETED: 'saga_completed',
+    SAGA_FAILED: 'saga_failed',
+    SAGA_CANCELLED: 'saga_cancelled',
+    SAGA_COMPENSATING: 'saga_compensating',
+    SAGA_COMPENSATED: 'saga_compensated',
+    CREATE_POD_COMMAND: 'create_pod_command',
+    DELETE_POD_COMMAND: 'delete_pod_command',
+    ALLOCATE_RESOURCES_COMMAND: 'allocate_resources_command',
+    RELEASE_RESOURCES_COMMAND: 'release_resources_command',
+    DLQ_MESSAGE_RECEIVED: 'dlq_message_received',
+    DLQ_MESSAGE_RETRIED: 'dlq_message_retried',
+    DLQ_MESSAGE_DISCARDED: 'dlq_message_discarded'
+} as const;
+
+/**
+ * EventType
+ *
+ * Event types used throughout the system.
+ */
+export type EventType = typeof EventType[keyof typeof EventType];
 
 /**
  * EventTypeCount
@@ -1376,7 +1473,20 @@ export type ExecutionCompletedEvent = {
  *
  * Types of execution errors.
  */
-export type ExecutionErrorType = 'system_error' | 'timeout' | 'resource_limit' | 'script_error' | 'permission_denied';
+export const ExecutionErrorType = {
+    SYSTEM_ERROR: 'system_error',
+    TIMEOUT: 'timeout',
+    RESOURCE_LIMIT: 'resource_limit',
+    SCRIPT_ERROR: 'script_error',
+    PERMISSION_DENIED: 'permission_denied'
+} as const;
+
+/**
+ * ExecutionErrorType
+ *
+ * Types of execution errors.
+ */
+export type ExecutionErrorType = typeof ExecutionErrorType[keyof typeof ExecutionErrorType];
 
 /**
  * ExecutionFailedEvent
@@ -1728,7 +1838,23 @@ export type ExecutionStartedEvent = {
  *
  * Status of an execution.
  */
-export type ExecutionStatus = 'queued' | 'scheduled' | 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'error';
+export const ExecutionStatus = {
+    QUEUED: 'queued',
+    SCHEDULED: 'scheduled',
+    RUNNING: 'running',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    TIMEOUT: 'timeout',
+    CANCELLED: 'cancelled',
+    ERROR: 'error'
+} as const;
+
+/**
+ * ExecutionStatus
+ *
+ * Status of an execution.
+ */
+export type ExecutionStatus = typeof ExecutionStatus[keyof typeof ExecutionStatus];
 
 /**
  * ExecutionTimeoutEvent
@@ -1779,7 +1905,14 @@ export type ExecutionTimeoutEvent = {
  *
  * Supported export file formats.
  */
-export type ExportFormat = 'csv' | 'json';
+export const ExportFormat = { CSV: 'csv', JSON: 'json' } as const;
+
+/**
+ * ExportFormat
+ *
+ * Supported export file formats.
+ */
+export type ExportFormat = typeof ExportFormat[keyof typeof ExportFormat];
 
 /**
  * HTTPValidationError
@@ -1872,14 +2005,39 @@ export type LivenessResponse = {
  *
  * Log level options.
  */
-export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+export const LogLevel = {
+    DEBUG: 'DEBUG',
+    INFO: 'INFO',
+    WARNING: 'WARNING',
+    ERROR: 'ERROR',
+    CRITICAL: 'CRITICAL'
+} as const;
+
+/**
+ * LogLevel
+ *
+ * Log level options.
+ */
+export type LogLevel = typeof LogLevel[keyof typeof LogLevel];
 
 /**
  * LoginMethod
  *
  * User login methods.
  */
-export type LoginMethod = 'password' | 'oauth' | 'sso' | 'api_key';
+export const LoginMethod = {
+    PASSWORD: 'password',
+    OAUTH: 'oauth',
+    SSO: 'sso',
+    API_KEY: 'api_key'
+} as const;
+
+/**
+ * LoginMethod
+ *
+ * User login methods.
+ */
+export type LoginMethod = typeof LoginMethod[keyof typeof LoginMethod];
 
 /**
  * LoginResponse
@@ -1958,7 +2116,18 @@ export type NotificationAllReadEvent = {
  *
  * Notification delivery channels.
  */
-export type NotificationChannel = 'in_app' | 'webhook' | 'slack';
+export const NotificationChannel = {
+    IN_APP: 'in_app',
+    WEBHOOK: 'webhook',
+    SLACK: 'slack'
+} as const;
+
+/**
+ * NotificationChannel
+ *
+ * Notification delivery channels.
+ */
+export type NotificationChannel = typeof NotificationChannel[keyof typeof NotificationChannel];
 
 /**
  * NotificationClickedEvent
@@ -2373,14 +2542,42 @@ export type NotificationSettingsOutput = {
  *
  * Notification severity levels.
  */
-export type NotificationSeverity = 'low' | 'medium' | 'high' | 'urgent';
+export const NotificationSeverity = {
+    LOW: 'low',
+    MEDIUM: 'medium',
+    HIGH: 'high',
+    URGENT: 'urgent'
+} as const;
+
+/**
+ * NotificationSeverity
+ *
+ * Notification severity levels.
+ */
+export type NotificationSeverity = typeof NotificationSeverity[keyof typeof NotificationSeverity];
 
 /**
  * NotificationStatus
  *
  * Notification delivery status.
  */
-export type NotificationStatus = 'pending' | 'queued' | 'sending' | 'delivered' | 'failed' | 'skipped' | 'read' | 'clicked';
+export const NotificationStatus = {
+    PENDING: 'pending',
+    QUEUED: 'queued',
+    SENDING: 'sending',
+    DELIVERED: 'delivered',
+    FAILED: 'failed',
+    SKIPPED: 'skipped',
+    READ: 'read',
+    CLICKED: 'clicked'
+} as const;
+
+/**
+ * NotificationStatus
+ *
+ * Notification delivery status.
+ */
+export type NotificationStatus = typeof NotificationStatus[keyof typeof NotificationStatus];
 
 /**
  * NotificationSubscription
@@ -2783,7 +2980,20 @@ export type PriorityUpdateRequest = {
  *
  * Execution priority, ordered highest to lowest.
  */
-export type QueuePriority = 'critical' | 'high' | 'normal' | 'low' | 'background';
+export const QueuePriority = {
+    CRITICAL: 'critical',
+    HIGH: 'high',
+    NORMAL: 'normal',
+    LOW: 'low',
+    BACKGROUND: 'background'
+} as const;
+
+/**
+ * QueuePriority
+ *
+ * Execution priority, ordered highest to lowest.
+ */
+export type QueuePriority = typeof QueuePriority[keyof typeof QueuePriority];
 
 /**
  * QueueStatusResponse
@@ -2865,7 +3075,17 @@ export type QuotaExceededEvent = {
 /**
  * RateLimitAlgorithm
  */
-export type RateLimitAlgorithm = 'sliding_window' | 'token_bucket' | 'fixed_window' | 'leaky_bucket';
+export const RateLimitAlgorithm = {
+    SLIDING_WINDOW: 'sliding_window',
+    TOKEN_BUCKET: 'token_bucket',
+    FIXED_WINDOW: 'fixed_window',
+    LEAKY_BUCKET: 'leaky_bucket'
+} as const;
+
+/**
+ * RateLimitAlgorithm
+ */
+export type RateLimitAlgorithm = typeof RateLimitAlgorithm[keyof typeof RateLimitAlgorithm];
 
 /**
  * RateLimitExceededEvent
@@ -3364,17 +3584,52 @@ export type ReplaySession = {
 /**
  * ReplayStatus
  */
-export type ReplayStatus = 'preview' | 'scheduled' | 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export const ReplayStatus = {
+    PREVIEW: 'preview',
+    SCHEDULED: 'scheduled',
+    CREATED: 'created',
+    RUNNING: 'running',
+    PAUSED: 'paused',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled'
+} as const;
+
+/**
+ * ReplayStatus
+ */
+export type ReplayStatus = typeof ReplayStatus[keyof typeof ReplayStatus];
 
 /**
  * ReplayTarget
  */
-export type ReplayTarget = 'kafka' | 'callback' | 'file' | 'test';
+export const ReplayTarget = {
+    KAFKA: 'kafka',
+    CALLBACK: 'callback',
+    FILE: 'file',
+    TEST: 'test'
+} as const;
+
+/**
+ * ReplayTarget
+ */
+export type ReplayTarget = typeof ReplayTarget[keyof typeof ReplayTarget];
 
 /**
  * ReplayType
  */
-export type ReplayType = 'execution' | 'time_range' | 'event_type' | 'query' | 'recovery';
+export const ReplayType = {
+    EXECUTION: 'execution',
+    TIME_RANGE: 'time_range',
+    EVENT_TYPE: 'event_type',
+    QUERY: 'query',
+    RECOVERY: 'recovery'
+} as const;
+
+/**
+ * ReplayType
+ */
+export type ReplayType = typeof ReplayType[keyof typeof ReplayType];
 
 /**
  * ResourceLimitExceededEvent
@@ -3600,7 +3855,14 @@ export type ResultStoredEvent = {
  *
  * Control events for execution SSE streams (not from Kafka).
  */
-export type SseControlEvent = 'status';
+export const SseControlEvent = { STATUS: 'status' } as const;
+
+/**
+ * SSEControlEvent
+ *
+ * Control events for execution SSE streams (not from Kafka).
+ */
+export type SseControlEvent = typeof SseControlEvent[keyof typeof SseControlEvent];
 
 /**
  * SSEExecutionEventSchema
@@ -3977,7 +4239,22 @@ export type SagaStartedEvent = {
  *
  * Saga execution states.
  */
-export type SagaState = 'created' | 'running' | 'compensating' | 'completed' | 'failed' | 'timeout' | 'cancelled';
+export const SagaState = {
+    CREATED: 'created',
+    RUNNING: 'running',
+    COMPENSATING: 'compensating',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    TIMEOUT: 'timeout',
+    CANCELLED: 'cancelled'
+} as const;
+
+/**
+ * SagaState
+ *
+ * Saga execution states.
+ */
+export type SagaState = typeof SagaState[keyof typeof SagaState];
 
 /**
  * SagaStatusResponse
@@ -4502,7 +4779,19 @@ export type SettingsHistoryResponse = {
  *
  * Types of storage backends.
  */
-export type StorageType = 'database' | 's3' | 'filesystem' | 'redis';
+export const StorageType = {
+    DATABASE: 'database',
+    S3: 's3',
+    FILESYSTEM: 'filesystem',
+    REDIS: 'redis'
+} as const;
+
+/**
+ * StorageType
+ *
+ * Types of storage backends.
+ */
+export type StorageType = typeof StorageType[keyof typeof StorageType];
 
 /**
  * SubscriptionUpdate
@@ -4730,7 +5019,18 @@ export type SystemSettingsSchemaOutput = {
  *
  * Available UI themes.
  */
-export type Theme = 'light' | 'dark' | 'auto';
+export const Theme = {
+    LIGHT: 'light',
+    DARK: 'dark',
+    AUTO: 'auto'
+} as const;
+
+/**
+ * Theme
+ *
+ * Available UI themes.
+ */
+export type Theme = typeof Theme[keyof typeof Theme];
 
 /**
  * ThemeUpdateRequest
@@ -5134,7 +5434,18 @@ export type UserResponse = {
  *
  * User roles in the system.
  */
-export type UserRole = 'user' | 'admin' | 'moderator';
+export const UserRole = {
+    USER: 'user',
+    ADMIN: 'admin',
+    MODERATOR: 'moderator'
+} as const;
+
+/**
+ * UserRole
+ *
+ * User roles in the system.
+ */
+export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 /**
  * UserSettings

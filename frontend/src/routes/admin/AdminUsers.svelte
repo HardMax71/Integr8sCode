@@ -11,9 +11,13 @@
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
+        type UserCreate,
         type UserUpdate,
         type EndpointUsageStats,
+        zUserCreate,
+        zUserUpdate,
     } from '$lib/api';
+    import { firstIssue } from '$lib/validation';
     import { unwrap, unwrapOr } from '$lib/api-interceptors';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
@@ -52,14 +56,14 @@
     let loadingRateLimits = $state(false);
     let savingRateLimits = $state(false);
 
-    // User form state
-    let userForm = $state<{ username: string; email: string; password: string; role: UserRole; is_active: boolean }>({
+    // User form state, with role and is_active defaulted the way the API defaults them
+    const blankUserForm = (): Required<UserCreate> => ({
         username: '',
         email: '',
         password: '',
-        role: 'user',
-        is_active: true,
+        ...zUserCreate.pick({ role: true, is_active: true }).parse({}),
     });
+    let userForm = $state<Required<UserCreate>>(blankUserForm());
     let savingUser = $state(false);
     let cascadeDelete = $state(false);
     let deletingUser = $state(false);
@@ -132,7 +136,7 @@
     // User CRUD
     function openCreateUserModal(): void {
         editingUser = null;
-        userForm = { username: '', email: '', password: '', role: 'user', is_active: true };
+        userForm = blankUserForm();
         showUserModal = true;
     }
 
@@ -149,15 +153,6 @@
     }
 
     async function saveUser(): Promise<void> {
-        if (!userForm.username) {
-            toast.error('Username is required');
-            return;
-        }
-        if (!editingUser && !userForm.password) {
-            toast.error('Password is required');
-            return;
-        }
-        savingUser = true;
         let result;
         if (editingUser) {
             const updateData: UserUpdate = {
@@ -167,20 +162,24 @@
                 is_active: userForm.is_active,
             };
             if (userForm.password) updateData.password = userForm.password;
+            const parsed = zUserUpdate.safeParse(updateData);
+            if (!parsed.success) {
+                toast.error(firstIssue(parsed.error));
+                return;
+            }
+            savingUser = true;
             result = await updateUserApiV1AdminUsersUserIdPut({
                 path: { user_id: editingUser.user_id },
-                body: updateData,
+                body: parsed.data,
             });
         } else {
-            result = await createUserApiV1AdminUsersPost({
-                body: {
-                    username: userForm.username,
-                    email: userForm.email,
-                    password: userForm.password,
-                    role: userForm.role,
-                    is_active: userForm.is_active,
-                },
-            });
+            const parsed = zUserCreate.safeParse(userForm);
+            if (!parsed.success) {
+                toast.error(firstIssue(parsed.error));
+                return;
+            }
+            savingUser = true;
+            result = await createUserApiV1AdminUsersPost({ body: parsed.data });
         }
         savingUser = false;
         unwrap(result);

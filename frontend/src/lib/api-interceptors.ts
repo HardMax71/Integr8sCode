@@ -1,5 +1,4 @@
-import { client } from '$lib/api/client.gen';
-import type { ValidationError } from '$lib/api';
+import { client, type ValidationError } from '$lib/api';
 import { toast } from 'svelte-sonner';
 import { goto } from '@mateothegreat/svelte5-router';
 import { authStore } from '$stores/auth.svelte';

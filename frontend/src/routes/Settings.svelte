@@ -8,8 +8,10 @@
         type SettingsHistoryEntry,
         type UserSettings,
         type UserSettingsUpdate,
-        type Theme,
-        type NotificationChannel,
+        Theme,
+        zEditorSettingsInput,
+        zNotificationSettingsInput,
+        zUserSettings,
     } from '$lib/api';
     import { authStore } from '$stores/auth.svelte';
     import { setTheme } from '$stores/theme.svelte';
@@ -32,39 +34,11 @@
     // Dropdown states
     let showThemeDropdown = $state(false);
 
-    // Form state (single source of truth for UI)
-    let formData = $state<{
-        theme: Theme;
-        notifications: {
-            execution_completed: boolean;
-            execution_failed: boolean;
-            system_updates: boolean;
-            security_alerts: boolean;
-            channels: NotificationChannel[];
-        };
-        editor: {
-            font_size: number;
-            tab_size: number;
-            use_tabs: boolean;
-            word_wrap: boolean;
-            show_line_numbers: boolean;
-        };
-    }>({
-        theme: 'auto',
-        notifications: {
-            execution_completed: true,
-            execution_failed: true,
-            system_updates: true,
-            security_alerts: true,
-            channels: ['in_app'],
-        },
-        editor: {
-            font_size: 14,
-            tab_size: 4,
-            use_tabs: false,
-            word_wrap: true,
-            show_line_numbers: true,
-        },
+    // Form state (single source of truth for UI); shows the API's defaults until the saved settings load
+    let formData = $state<Pick<UserSettings, 'theme' | 'notifications' | 'editor'>>({
+        theme: zUserSettings.shape.theme.parse(undefined),
+        notifications: zNotificationSettingsInput.parse({}),
+        editor: zEditorSettingsInput.parse({}),
     });
 
     let savedSnapshot = $state<typeof formData | null>(null);
@@ -75,11 +49,8 @@
         { id: 'notifications', label: 'Notifications' },
     ];
 
-    const themes: { value: Theme; label: string }[] = [
-        { value: 'light', label: 'Light' },
-        { value: 'dark', label: 'Dark' },
-        { value: 'auto', label: 'Auto (System)' },
-    ];
+    const themeLabels: Record<Theme, string> = { light: 'Light', dark: 'Dark', auto: 'Auto (System)' };
+    const themes = Object.values(Theme).map((value) => ({ value, label: themeLabels[value] }));
 
     function apiToFormData(data: UserSettings): typeof formData {
         return {

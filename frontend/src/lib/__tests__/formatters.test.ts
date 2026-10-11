@@ -7,6 +7,7 @@ import {
     formatDurationBetween,
     formatRelativeTime,
     truncate,
+    formatEnumLabel,
 } from '$lib/formatters';
 
 const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
@@ -159,5 +160,16 @@ describe('truncate', () => {
 
     it('respects custom maxLength', () => {
         expect(truncate('abcdefghij', 7)).toBe('abcd...');
+    });
+});
+
+describe('formatEnumLabel', () => {
+    it.each([
+        ['sliding_window', 'Sliding window'],
+        ['user', 'User'],
+        ['WARNING', 'Warning'],
+        ['in_app', 'In app'],
+    ])('%s -> %s', (value, expected) => {
+        expect(formatEnumLabel(value)).toBe(expected);
     });
 });

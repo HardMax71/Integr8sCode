@@ -5,12 +5,16 @@ import {
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+    streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
+    client,
+    ExportFormat,
+    type ExportEventsApiV1AdminEventsExportExportFormatGetData,
     type EventBrowseResponse,
     type EventFilter,
     type EventStatsResponse,
     type EventDetailResponse,
+    type EventReplayResponse,
     type EventReplayStatusResponse,
-    type EventSummary,
     type AdminUserOverview,
 } from '$lib/api';
 import { unwrap, unwrapOr } from '$lib/api-interceptors';
@@ -23,11 +27,8 @@ import { logger } from '$lib/logger';
 const log = logger.withTag('EventsStore');
 const POLL_INTERVAL_MS = 30_000;
 
-function replayStatusUrl(sessionId: string): string {
-    return `/api/v1/admin/events/replay/${sessionId}/status`;
-}
-
 export type BrowsedEvent = EventBrowseResponse['events'][number];
+export type ReplayPreview = Pick<EventReplayResponse, 'total_events' | 'events_preview'> & { eventId: string };
 
 class EventsStore {
     events = $state<BrowsedEvent[]>([]);
@@ -37,7 +38,7 @@ class EventsStore {
     filters = $state<EventFilter>({});
 
     activeReplaySession = $state<EventReplayStatusResponse | null>(null);
-    replayPreview = $state<{ eventId: string; total_events: number; events_preview?: EventSummary[] } | null>(null);
+    replayPreview = $state<ReplayPreview | null>(null);
     private replayAbortController: AbortController | null = null;
 
     userOverview = $state<AdminUserOverview | null>(null);
@@ -135,49 +136,33 @@ class EventsStore {
         this.disconnectReplayStream();
         const controller = new AbortController();
         this.replayAbortController = controller;
-        this.#startReplayStream(sessionId, controller.signal);
+        this.#startReplayStream(sessionId, controller.signal).catch((err: unknown) => {
+            if (!controller.signal.aborted) log.warn('Replay status stream failed:', err);
+        });
     }
 
-    #startReplayStream(sessionId: string, signal: AbortSignal): void {
-        const eventSource = new EventSource(replayStatusUrl(sessionId));
-
-        signal.addEventListener('abort', () => {
-            eventSource.close();
+    async #startReplayStream(sessionId: string, signal: AbortSignal): Promise<void> {
+        const { stream } = await streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
+            path: { session_id: sessionId },
+            signal,
+            sseMaxRetryAttempts: 3,
         });
 
-        eventSource.onmessage = (event: MessageEvent) => {
-            if (signal.aborted) return;
-            try {
-                const payload = JSON.parse(event.data as string) as EventReplayStatusResponse;
-                const pct =
-                    payload.total_events > 0 ? Math.round((payload.replayed_events / payload.total_events) * 100) : 0;
-                if (!this.activeReplaySession) return;
-                this.activeReplaySession = {
-                    ...this.activeReplaySession,
-                    ...payload,
-                    progress_percentage: pct,
-                };
+        for await (const status of stream) {
+            if (signal.aborted || !this.activeReplaySession) return;
+            const pct = status.total_events > 0 ? Math.round((status.replayed_events / status.total_events) * 100) : 0;
+            this.activeReplaySession = { ...this.activeReplaySession, ...status, progress_percentage: pct };
 
-                if (payload.status === 'completed' || payload.status === 'failed' || payload.status === 'cancelled') {
-                    if (payload.status === 'completed') {
-                        toast.success(`Replay completed! Processed ${payload.replayed_events} events successfully.`);
-                    } else if (payload.status === 'failed') {
-                        toast.error(`Replay failed: ${payload.errors?.[0]?.error || 'Unknown error'}`);
-                    }
-                    this.disconnectReplayStream();
-                }
-            } catch (e) {
-                if (!(e instanceof SyntaxError)) {
-                    log.warn('SSE parse error:', e);
-                }
+            if (status.status === 'completed') {
+                toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
+            } else if (status.status === 'failed') {
+                toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
             }
-        };
-
-        eventSource.onerror = () => {
-            if (!signal.aborted) {
+            if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
                 this.disconnectReplayStream();
+                return;
             }
-        };
+        }
     }
 
     disconnectReplayStream(): void {
@@ -194,16 +179,22 @@ class EventsStore {
         await Promise.all([this.loadEvents(), this.loadStats()]);
     }
 
-    exportEvents(format: 'csv' | 'json' = 'csv'): void {
-        const params = new URLSearchParams();
-        if (this.filters.event_types?.length) params.append('event_types', this.filters.event_types.join(','));
-        if (this.filters.start_time) params.append('start_time', parseISO(this.filters.start_time).toISOString());
-        if (this.filters.end_time) params.append('end_time', parseISO(this.filters.end_time).toISOString());
-        if (this.filters.aggregate_id) params.append('aggregate_id', this.filters.aggregate_id);
-        if (this.filters.user_id) params.append('user_id', this.filters.user_id);
-        if (this.filters.service_name) params.append('service_name', this.filters.service_name);
-
-        window.open(`/api/v1/admin/events/export/${format}?${params.toString()}`, '_blank');
+    exportEvents(format: ExportFormat = ExportFormat.CSV): void {
+        const { event_types, start_time, end_time, aggregate_id, user_id, service_name } = this.filters;
+        // A plain navigation lets the browser stream a large export to disk instead of buffering it
+        const url = client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({
+            url: '/api/v1/admin/events/export/{export_format}',
+            path: { export_format: format },
+            query: {
+                event_types: event_types?.length ? event_types : undefined,
+                start_time: start_time ? parseISO(start_time).toISOString() : undefined,
+                end_time: end_time ? parseISO(end_time).toISOString() : undefined,
+                aggregate_id: aggregate_id || undefined,
+                user_id: user_id || undefined,
+                service_name: service_name || undefined,
+            },
+        });
+        window.open(url, '_blank');
         toast.info(`Starting ${format.toUpperCase()} export...`);
     }
 

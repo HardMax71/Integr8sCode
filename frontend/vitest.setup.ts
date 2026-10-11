@@ -4,7 +4,13 @@ import { cleanup } from '@testing-library/svelte';
 
 vi.useFakeTimers({ shouldAdvanceTime: true });
 
-vi.mock('$lib/api');
+// SDK calls become mocks; enums, Zod schemas and the client stay real
+vi.mock('$lib/api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('$lib/api')>();
+    return Object.fromEntries(
+        Object.entries(actual).map(([name, value]) => [name, typeof value === 'function' ? vi.fn() : value]),
+    );
+});
 
 // svelte-sonner needs a factory (toast is an object with methods, not a function)
 vi.mock('svelte-sonner', () => ({

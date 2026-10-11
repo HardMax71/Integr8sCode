@@ -1,17 +1,17 @@
 <script lang="ts">
     import { onMount, untrack } from 'svelte';
-    import type { QueuePriority } from '$lib/api';
+    import { ExecutionStatus, QueuePriority } from '$lib/api';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
     import Pagination from '$components/Pagination.svelte';
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '$lib/admin/constants';
     import { createExecutionsStore } from '$lib/admin/stores/executionsStore.svelte';
-    import { formatTimestamp, truncate } from '$lib/formatters';
+    import { formatEnumLabel, formatTimestamp, truncate } from '$lib/formatters';
 
     const store = createExecutionsStore();
 
-    const statusColors: Record<string, string> = {
+    const statusColors: Record<ExecutionStatus, string> = {
         queued: 'badge-info',
         scheduled: 'badge-info',
         running: 'badge-warning',
@@ -22,7 +22,7 @@
         error: 'badge-danger',
     };
 
-    const priorityOptions: QueuePriority[] = ['critical', 'high', 'normal', 'low', 'background'];
+    const priorityOptions = Object.values(QueuePriority);
 
     let totalPages = $derived(Math.ceil(store.total / store.pagination.pageSize));
 
@@ -102,14 +102,9 @@
                     >
                     <select id="status-filter" bind:value={store.statusFilter} class="form-select-standard">
                         <option value="all">All</option>
-                        <option value="queued">Queued</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="running">Running</option>
-                        <option value="completed">Completed</option>
-                        <option value="failed">Failed</option>
-                        <option value="timeout">Timeout</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="error">Error</option>
+                        {#each Object.values(ExecutionStatus) as status (status)}
+                            <option value={status}>{formatEnumLabel(status)}</option>
+                        {/each}
                     </select>
                 </div>
                 <div>

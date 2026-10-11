@@ -1,14 +1,8 @@
 <script lang="ts">
     import { TriangleAlert } from '@lucide/svelte';
-    import type { EventSummary } from '$lib/api';
+    import type { ReplayPreview } from '$lib/admin/stores/eventsStore.svelte';
     import { formatTimestamp } from '$lib/formatters';
     import Modal from '$components/Modal.svelte';
-
-    interface ReplayPreview {
-        eventId: string;
-        total_events: number;
-        events_preview?: EventSummary[];
-    }
 
     interface Props {
         preview: ReplayPreview | null;

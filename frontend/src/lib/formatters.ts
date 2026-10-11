@@ -135,3 +135,13 @@ export function truncate(str: string | null | undefined, maxLength = 50): string
     if (str.length <= maxLength) return str;
     return `${str.slice(0, maxLength - 3)}...`;
 }
+
+/**
+ * Turn a generated enum value into a label: `sliding_window` becomes "Sliding window".
+ * @param value - Enum value from $lib/api
+ * @returns Human-readable label
+ */
+export function formatEnumLabel(value: string): string {
+    const words = value.replace(/_/g, ' ').toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+}

@@ -3,12 +3,14 @@
     import { Plus, X } from '@lucide/svelte';
     import {
         getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+        RateLimitAlgorithm,
         type UserResponse,
         type UserRateLimitConfigResponse,
         type RateLimitRuleResponse,
         type EndpointUsageStats,
     } from '$lib/api';
     import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/rate-limits';
+    import { formatEnumLabel } from '$lib/formatters';
     import Modal from '$components/Modal.svelte';
     import Spinner from '$components/Spinner.svelte';
 
@@ -239,9 +241,9 @@
                                                 class="input input-sm"
                                                 disabled={config.bypass_rate_limit}
                                             >
-                                                <option value="sliding_window">Sliding</option>
-                                                <option value="token_bucket">Token</option>
-                                                <option value="fixed_window">Fixed</option>
+                                                {#each Object.values(RateLimitAlgorithm) as algorithm (algorithm)}
+                                                    <option value={algorithm}>{formatEnumLabel(algorithm)}</option>
+                                                {/each}
                                             </select>
                                             <label class="flex items-center gap-2 cursor-pointer">
                                                 <input

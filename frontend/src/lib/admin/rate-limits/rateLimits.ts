@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import type { RateLimitRuleResponse, EndpointGroup } from '$lib/api';
+import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '$lib/api';
 
 // Group colors for rate limit endpoint groups
 const GROUP_COLORS: Record<EndpointGroup, string> = {
@@ -37,16 +37,12 @@ export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
     return 'api';
 }
 
-// Create a new empty rate limit rule
+// A new rule: the API's defaults, plus starting values for the fields the API requires
 export function createEmptyRule(): RateLimitRuleResponse {
-    return {
+    return zRateLimitRuleRequest.parse({
         endpoint_pattern: '',
-        group: 'api',
+        group: EndpointGroup.API,
         requests: 60,
         window_seconds: 60,
-        burst_multiplier: 1.5,
-        algorithm: 'sliding_window',
-        priority: 0,
-        enabled: true,
-    };
+    });
 }

@@ -46,7 +46,7 @@ describe('Register', () => {
             name: 'short password',
             password: 'short',
             confirmPassword: 'short',
-            expectedError: 'Password must be at least 8 characters long.',
+            expectedError: 'Password must be at least 8 characters',
             toastType: 'warning',
         },
     ])('client-side validation: $name', async ({ password, confirmPassword, expectedError, toastType }) => {

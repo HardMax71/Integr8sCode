@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
 import { user, createMockUser } from '$test/test-utils';
+import { UserRole } from '$lib/api';
 import UserFormModal from '$components/admin/users/UserFormModal.svelte';
 
 vi.mock('$components/Spinner.svelte', async () => {
@@ -16,7 +17,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
         props: {
             open: true,
             editingUser: null,
-            form: proxy({ username: '', email: '', password: '', role: 'user', is_active: true }),
+            form: proxy({ username: '', email: '', password: '', role: UserRole.USER, is_active: true }),
             saving: false,
             onClose,
             onSave,

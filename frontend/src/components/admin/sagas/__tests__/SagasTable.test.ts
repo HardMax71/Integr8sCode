@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/svelte';
 import { user, createMockSaga, createMockSagas } from '$test/test-utils';
 import SagasTable from '$components/admin/sagas/SagasTable.svelte';
 
-vi.mock('$lib/formatters', () => ({
+vi.mock('$lib/formatters', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/formatters')>()),
     formatTimestamp: vi.fn((ts: string) => `ts:${ts}`),
     formatDurationBetween: vi.fn(() => '1m 30s'),
 }));

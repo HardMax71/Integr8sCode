@@ -6,7 +6,8 @@ const mockMarkRead = vi.fn();
 const mockMarkAllRead = vi.fn();
 const mockDeleteNotification = vi.fn();
 
-vi.mock('$lib/api', () => ({
+vi.mock('$lib/api', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/api')>()),
     getNotificationsApiV1NotificationsGet: (...args: unknown[]) => mockGetNotifications(...args),
     markNotificationReadApiV1NotificationsNotificationIdReadPut: (...args: unknown[]) => mockMarkRead(...args),
     markAllReadApiV1NotificationsMarkAllReadPost: (...args: unknown[]) => mockMarkAllRead(...args),

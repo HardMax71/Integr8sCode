@@ -4,13 +4,25 @@
         getSystemSettingsApiV1AdminSettingsGet,
         updateSystemSettingsApiV1AdminSettingsPut,
         resetSystemSettingsApiV1AdminSettingsResetPost,
+        LogLevel,
         type SystemSettingsSchemaInput,
+        zSystemSettingsSchemaInput,
     } from '$lib/api';
+    import { firstIssue } from '$lib/validation';
+    import { z } from 'zod';
     import { toast } from 'svelte-sonner';
     import AdminLayout from '$routes/admin/AdminLayout.svelte';
     import Spinner from '$components/Spinner.svelte';
 
     let settings = $state<SystemSettingsSchemaInput>({});
+
+    const fieldSchemas = z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties ?? {};
+
+    // min and max for a numeric input, taken from the API's validation rules
+    function bounds(field: keyof SystemSettingsSchemaInput): { min?: number; max?: number } {
+        const schema = fieldSchemas[field];
+        return typeof schema === 'object' ? { min: schema.minimum, max: schema.maximum } : {};
+    }
     let loading = $state(false);
     let saving = $state(false);
     let resetting = $state(false);
@@ -31,8 +43,13 @@
     }
 
     async function saveSettings(): Promise<void> {
+        const parsed = zSystemSettingsSchemaInput.safeParse(settings);
+        if (!parsed.success) {
+            toast.error(firstIssue(parsed.error));
+            return;
+        }
         saving = true;
-        const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: settings });
+        const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: parsed.data });
         if (error) {
             saving = false;
             return;
@@ -91,8 +108,7 @@
                                         type="number"
                                         bind:value={settings.max_timeout_seconds}
                                         class="form-input-standard"
-                                        min="1"
-                                        max="3600"
+                                        {...bounds('max_timeout_seconds')}
                                     />
                                 </div>
                                 <div>
@@ -134,8 +150,7 @@
                                         type="number"
                                         bind:value={settings.max_concurrent_executions}
                                         class="form-input-standard"
-                                        min="1"
-                                        max="100"
+                                        {...bounds('max_concurrent_executions')}
                                     />
                                 </div>
                                 <div>
@@ -149,8 +164,7 @@
                                         type="number"
                                         bind:value={settings.max_executions_per_user}
                                         class="form-input-standard"
-                                        min="1"
-                                        max="1000"
+                                        {...bounds('max_executions_per_user')}
                                     />
                                 </div>
                             </div>
@@ -173,8 +187,7 @@
                                         type="number"
                                         bind:value={settings.password_min_length}
                                         class="form-input-standard"
-                                        min="8"
-                                        max="32"
+                                        {...bounds('password_min_length')}
                                     />
                                 </div>
                                 <div>
@@ -188,8 +201,7 @@
                                         type="number"
                                         bind:value={settings.session_timeout_minutes}
                                         class="form-input-standard"
-                                        min="5"
-                                        max="1440"
+                                        {...bounds('session_timeout_minutes')}
                                     />
                                 </div>
                                 <div>
@@ -203,8 +215,7 @@
                                         type="number"
                                         bind:value={settings.max_login_attempts}
                                         class="form-input-standard"
-                                        min="3"
-                                        max="10"
+                                        {...bounds('max_login_attempts')}
                                     />
                                 </div>
                                 <div>
@@ -218,8 +229,7 @@
                                         type="number"
                                         bind:value={settings.lockout_duration_minutes}
                                         class="form-input-standard"
-                                        min="5"
-                                        max="60"
+                                        {...bounds('lockout_duration_minutes')}
                                     />
                                 </div>
                             </div>
@@ -242,8 +252,7 @@
                                         type="number"
                                         bind:value={settings.metrics_retention_days}
                                         class="form-input-standard"
-                                        min="7"
-                                        max="90"
+                                        {...bounds('metrics_retention_days')}
                                     />
                                 </div>
                                 <div>
@@ -253,10 +262,9 @@
                                         >Log Level</label
                                     >
                                     <select id="log-level" bind:value={settings.log_level} class="form-select-standard">
-                                        <option value="DEBUG">DEBUG</option>
-                                        <option value="INFO">INFO</option>
-                                        <option value="WARNING">WARNING</option>
-                                        <option value="ERROR">ERROR</option>
+                                        {#each Object.values(LogLevel) as level (level)}
+                                            <option value={level}>{level}</option>
+                                        {/each}
                                     </select>
                                 </div>
                                 <div>
@@ -285,8 +293,7 @@
                                         type="number"
                                         bind:value={settings.sampling_rate}
                                         class="form-input-standard"
-                                        min="0"
-                                        max="1"
+                                        {...bounds('sampling_rate')}
                                         step="0.1"
                                     />
                                 </div>

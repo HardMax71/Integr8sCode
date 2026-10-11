@@ -13,7 +13,8 @@ import {
 } from '$lib/api';
 import { toast } from 'svelte-sonner';
 
-vi.mock('$lib/formatters', () => ({
+vi.mock('$lib/formatters', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$lib/formatters')>()),
     formatTimestamp: (ts: string) => (ts ? `formatted:${ts}` : 'N/A'),
 }));
 
@@ -252,7 +253,8 @@ describe('AdminUsers', () => {
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
             await user.type(screen.getByLabelText(/Username/i), 'test');
-            await user.type(screen.getByLabelText(/^Password/i), 'pass');
+            await user.type(screen.getByLabelText(/Email/i), 'test@example.com');
+            await user.type(screen.getByLabelText(/^Password/i), 'password123');
 
             const dialog = screen.getByRole('dialog');
             await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
@@ -260,6 +262,23 @@ describe('AdminUsers', () => {
             await waitFor(() =>
                 expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Validation error: username: Required'),
             );
+        });
+
+        it('rejects a short password from the API schema before calling the API', async () => {
+            await renderWithUsers();
+            const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
+            await user.click(createButton!);
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+            await user.type(screen.getByLabelText(/Username/i), 'test');
+            await user.type(screen.getByLabelText(/Email/i), 'test@example.com');
+            await user.type(screen.getByLabelText(/^Password/i), 'pass');
+            await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Create User/i }));
+
+            await waitFor(() =>
+                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Password must be at least 8 characters'),
+            );
+            expect(vi.mocked(createUserApiV1AdminUsersPost)).not.toHaveBeenCalled();
         });
 
         it('closes modal on cancel', async () => {

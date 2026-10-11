@@ -1,4 +1,9 @@
-import { loginApiV1AuthLoginPost, logoutApiV1AuthLogoutPost, getCurrentUserProfileApiV1AuthMeGet } from '$lib/api';
+import {
+    loginApiV1AuthLoginPost,
+    logoutApiV1AuthLogoutPost,
+    getCurrentUserProfileApiV1AuthMeGet,
+    type UserRole,
+} from '$lib/api';
 import { clearUserSettings } from '$stores/userSettings.svelte';
 import { logger } from '$lib/logger';
 
@@ -9,7 +14,7 @@ export interface AuthState {
     isAuthenticated: boolean | null;
     username: string | null;
     userId: string | null;
-    userRole: string | null;
+    userRole: UserRole | null;
     userEmail: string | null;
     csrfToken: string | null;
     timestamp: number;
@@ -45,7 +50,7 @@ class AuthStore {
     isAuthenticated = $state<boolean | null>(persisted?.isAuthenticated ?? null);
     username = $state<string | null>(persisted?.username ?? null);
     userId = $state<string | null>(persisted?.userId ?? null);
-    userRole = $state<string | null>(persisted?.userRole ?? null);
+    userRole = $state<UserRole | null>(persisted?.userRole ?? null);
     userEmail = $state<string | null>(persisted?.userEmail ?? null);
     csrfToken = $state<string | null>(persisted?.csrfToken ?? null);
 

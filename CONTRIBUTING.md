@@ -137,7 +137,9 @@ test: add e2e tests for DLQ processor
 
 ## Reporting Issues
 
-Use GitHub Issues: the Bug Report template for unexpected behavior or errors, the Feature Request template for new functionality. Include reproduction steps, environment details and relevant logs.
+Use GitHub Issues: the Bug Report template for unexpected behavior or errors, the Feature Request template for new functionality. Include reproduction steps, environment details and relevant logs. The Component you pick sets the issue's `area:` label, and pull requests get theirs from the files they change.
+
+Report a security weakness through [private vulnerability reporting](https://github.com/HardMax71/Integr8sCode/security/advisories/new) instead of an issue. See [SECURITY.md](SECURITY.md).
 
 ## Questions?
 

@@ -153,7 +153,7 @@ jobs:
             export SECRET_KEY="$SECRET_KEY"
             export MONGO_USER="$MONGO_USER"
             export MONGO_PASSWORD="$MONGO_PASSWORD"
-            export MONGO_MONITOR_PASSWORD="$MONGO_MONITOR_PASSWORD"
+            export MONGO_MONITOR_PASSWORD="${MONGO_MONITOR_PASSWORD:?the MONGO_MONITOR_PASSWORD secret is empty}"
             export REDIS_PASSWORD="$REDIS_PASSWORD"
             export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
             export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"

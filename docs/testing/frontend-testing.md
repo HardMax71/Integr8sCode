@@ -16,7 +16,7 @@ Unit tests sit in `__tests__/` directories next to the code they cover, under `s
 
 Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts, theme.svelte.ts, errorStore.svelte.ts, notificationStore.svelte.ts, userSettings.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again.
 
-Shared helpers live in `src/__tests__/test-utils.ts`, imported as `$test/test-utils`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and a preconfigured `user` from `@testing-library/user-event`.
+Shared helpers live in `src/__tests__/test-utils.ts`, imported as `$test/test-utils`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports.
 
 E2E specs live in `frontend/e2e/`, not under `src/`.
 

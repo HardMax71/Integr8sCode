@@ -69,7 +69,7 @@ export function createInQueryContext<T>(create: () => T): { value: T; unmount: (
     return { value: value as T, unmount };
 }
 
-/** Renders a component inside a QueryClientProvider, as the root layout does. */
+/** Renders a component inside the query client and tooltip providers, as the root layout does. */
 export function renderWithQueryClient<Props extends Record<string, any>>(
     component: Component<Props>,
     props?: Props,

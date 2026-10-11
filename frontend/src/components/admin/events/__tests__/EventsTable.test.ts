@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/svelte';
-import { createMockEvent, createMockEvents, user } from '#test/test-utils.ts';
+import { screen, within } from '@testing-library/svelte';
+import { createMockEvent, createMockEvents, renderWithQueryClient, user } from '#test/test-utils.ts';
 
 import EventsTable from '#components/admin/events/EventsTable.svelte';
 
@@ -11,18 +11,16 @@ function renderTable(events = createMockEvents(3), rowCount = events.length) {
     const onDelete = vi.fn();
     const onViewUser = vi.fn();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = render(EventsTable, {
-        props: {
-            events: events as any,
-            rowCount,
-            pagination: { pageIndex: 0, pageSize: 10 },
-            loading: false,
-            onViewDetails,
-            onPreviewReplay,
-            onReplay,
-            onDelete,
-            onViewUser,
-        },
+    const result = renderWithQueryClient(EventsTable, {
+        events: events as any,
+        rowCount,
+        pagination: { pageIndex: 0, pageSize: 10 },
+        loading: false,
+        onViewDetails,
+        onPreviewReplay,
+        onReplay,
+        onDelete,
+        onViewUser,
     });
     return { ...result, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser };
 }
@@ -130,10 +128,14 @@ describe('EventsTable', () => {
         expect(onViewDetails).not.toHaveBeenCalled();
     });
 
-    it('shows truncated event_id in tooltip', () => {
-        const event = createMockEvent({ event_id: 'abcdefgh-1234-5678' });
-        renderTable([event]);
-        const truncated = screen.getAllByText('abcdefgh...');
-        expect(truncated.length).toBeGreaterThanOrEqual(1);
+    it('shows the event type and the short id in a tooltip on keyboard focus', async () => {
+        renderTable([createMockEvent({ event_id: 'abcdefgh-1234-5678', event_type: 'execution_requested' })]);
+        expect(screen.queryByText('abcdefgh...')).not.toBeInTheDocument();
+
+        const trigger = screen.getAllByRole('button', { name: 'execution_requested' })[0]!;
+        while (document.activeElement !== trigger) await user.tab();
+
+        const tooltip = (await screen.findByText('abcdefgh...')).closest('[data-tooltip-content]');
+        expect(tooltip).toHaveTextContent('execution_requested');
     });
 });

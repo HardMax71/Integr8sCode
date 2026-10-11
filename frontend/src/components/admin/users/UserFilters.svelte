@@ -83,7 +83,7 @@
             <button
                 type="button"
                 onclick={() => (showAdvancedFilters = !showAdvancedFilters)}
-                class="btn btn-outline flex items-center gap-2 w-full sm:w-auto justify-center"
+                class="btn btn-secondary-outline flex items-center gap-2 w-full sm:w-auto justify-center"
             >
                 <ChevronDown class="w-4 h-4 transition-transform {showAdvancedFilters ? 'rotate-180' : ''}" />
                 Advanced
@@ -91,7 +91,7 @@
             <button
                 type="button"
                 onclick={onReset}
-                class="btn btn-outline w-full sm:w-auto"
+                class="btn btn-secondary-outline w-full sm:w-auto"
                 disabled={!hasFiltersActive}
             >
                 Reset

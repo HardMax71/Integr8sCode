@@ -21,7 +21,7 @@
         <button
             type="button"
             onclick={() => store.refresh()}
-            class="btn btn-outline flex items-center gap-2"
+            class="btn btn-secondary-outline flex items-center gap-2"
             disabled={fetching}
         >
             {#if fetching}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
@@ -94,7 +94,9 @@
                     class="form-input-standard"
                 />
             </div>
-            <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button>
+            <button type="button" onclick={() => store.resetFilters()} class="btn btn-secondary-outline text-sm"
+                >Reset</button
+            >
         </div>
     </div>
 

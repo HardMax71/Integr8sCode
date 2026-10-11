@@ -126,19 +126,30 @@ describe('Notifications', () => {
             setNotifications([createMockNotification({ notification_id: 'n-42', status: 'delivered' })], 1);
 
             renderNotifications();
-            const card = await screen.findByRole('button', { name: /mark notification as read/i });
-            await user.click(card);
+            await user.click(await screen.findByTitle('Mark as read'));
             await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
             expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'n-42' } }));
         });
 
-        it('does not mark already read notifications', async () => {
+        it('offers no mark-as-read button for a read notification', async () => {
             setNotifications([createMockNotification({ notification_id: 'n-read', status: 'read' })]);
 
             renderNotifications();
-            const card = await screen.findByRole('button', { name: /mark notification as read/i });
-            await user.click(card);
+            await screen.findByText('Test Notification');
+            expect(screen.queryByTitle('Mark as read')).not.toBeInTheDocument();
+            await user.click(screen.getByText('Test Notification'));
             expect(markRead).not.toHaveBeenCalled();
+        });
+
+        it('marks a notification as read from the keyboard', async () => {
+            setNotifications([createMockNotification({ notification_id: 'n-key', status: 'delivered' })], 1);
+
+            renderNotifications();
+            (await screen.findByTitle('Mark as read')).focus();
+            await user.keyboard('{Enter}');
+            await waitFor(() =>
+                expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'n-key' } })),
+            );
         });
     });
 

@@ -37,7 +37,7 @@
         type="button"
         onclick={handleToggle}
         aria-expanded={open}
-        class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
+        class="btn btn-sm flex items-center gap-1 sm:gap-2 transition-all duration-200"
         class:btn-primary={open}
         class:btn-secondary-outline={!open}
         class:ring-2={open}

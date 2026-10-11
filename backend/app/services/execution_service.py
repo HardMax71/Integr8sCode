@@ -404,7 +404,7 @@ class ExecutionService:
             ExecutionAccessDeniedError: If the execution belongs to another user.
         """
         execution = await self.get_execution_result(execution_id)
-        if execution.user_id and execution.user_id != user.user_id and user.role != UserRole.ADMIN:
+        if execution.user_id != user.user_id and user.role != UserRole.ADMIN:
             self.logger.warning("Execution access denied", execution_id=execution_id, user_id=user.user_id)
             raise ExecutionAccessDeniedError(execution_id)
         return execution
@@ -423,11 +423,11 @@ class ExecutionService:
         Raises:
             ExecutionNotFoundError: If execution not found.
             ExecutionAccessDeniedError: If the execution belongs to another user.
-            ExecutionNotRetryableError: If the execution is still queued or running.
+            ExecutionNotRetryableError: If the execution hasn't finished yet.
             RuntimeNotSupportedError: If the execution's language version is no longer offered.
         """
         original = await self.get_execution_for_user(execution_id, user)
-        if original.status in (ExecutionStatus.RUNNING, ExecutionStatus.QUEUED):
+        if not original.status.is_terminal:
             raise ExecutionNotRetryableError(execution_id, original.status)
         return await self.execute_script(
             script=original.script,

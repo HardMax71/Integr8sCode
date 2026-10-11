@@ -10,7 +10,12 @@ from app.db import ExecutionRepository
 from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, InfrastructureError
-from app.domain.execution import LanguageLimitsDomain, RuntimeNotSupportedError
+from app.domain.execution import (
+    ExecutionAccessDeniedError,
+    ExecutionNotRetryableError,
+    LanguageLimitsDomain,
+    RuntimeNotSupportedError,
+)
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.domain.user import User
 from app.events import UnifiedProducer
@@ -77,6 +82,29 @@ async def test_retry_of_an_unoffered_runtime_is_rejected(
     assert _map_to_status_code(exc.value) == 422
     repo.create_execution.assert_not_awaited()
     producer.produce.assert_not_awaited()
+
+
+@pytest.mark.parametrize("status", [s for s in ExecutionStatus if not s.is_terminal])
+async def test_retry_of_an_unfinished_execution_is_rejected(
+    service: ExecutionService, repo: AsyncMock, producer: AsyncMock, status: ExecutionStatus
+) -> None:
+    repo.get_execution.return_value = make_domain_execution(status=status, user_id="owner")
+
+    with pytest.raises(ExecutionNotRetryableError) as exc:
+        await service.retry_execution("e1", _user("owner"))
+
+    assert _map_to_status_code(exc.value) == 400
+    repo.create_execution.assert_not_awaited()
+    producer.produce.assert_not_awaited()
+
+
+async def test_execution_without_owner_is_hidden_from_other_users(service: ExecutionService, repo: AsyncMock) -> None:
+    repo.get_execution.return_value = make_domain_execution(status=ExecutionStatus.COMPLETED, user_id=None)
+
+    with pytest.raises(ExecutionAccessDeniedError) as exc:
+        await service.get_execution_for_user("e1", _user("someone"))
+
+    assert _map_to_status_code(exc.value) == 403
 
 
 async def test_k8s_limits_report_effective_limits_per_language(

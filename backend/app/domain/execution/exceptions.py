@@ -18,7 +18,7 @@ class ExecutionAccessDeniedError(ForbiddenError):
 
 
 class ExecutionNotRetryableError(InvalidStateError):
-    """Raised when retrying an execution that is still queued or running."""
+    """Raised when retrying an execution that hasn't finished yet."""
 
     def __init__(self, execution_id: str, status: ExecutionStatus) -> None:
         self.execution_id = execution_id

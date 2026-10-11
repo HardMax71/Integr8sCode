@@ -1360,7 +1360,7 @@ export type ExecutionCompletedEvent = {
      * Exit Code
      */
     exit_code?: number;
-    resource_usage?: ResourceUsageDomain | null;
+    resource_usage?: ResourceUsageDomain;
     /**
      * Stdout
      */
@@ -1615,7 +1615,7 @@ export type ExecutionResult = {
      * Execution Id
      */
     execution_id: string;
-    status: ExecutionStatus | null;
+    status: ExecutionStatus;
     /**
      * Stdout
      */
@@ -1763,7 +1763,7 @@ export type ExecutionTimeoutEvent = {
      * Timeout Seconds
      */
     timeout_seconds?: number;
-    resource_usage?: ResourceUsageDomain | null;
+    resource_usage?: ResourceUsageDomain;
     /**
      * Stdout
      */

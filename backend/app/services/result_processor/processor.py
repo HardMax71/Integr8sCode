@@ -48,9 +48,6 @@ class ResultProcessor:
 
         self._metrics.record_script_execution(ExecutionStatus.COMPLETED, lang_and_version)
 
-        if event.resource_usage is None:
-            raise ValueError(f"ExecutionCompletedEvent {event.execution_id} missing resource_usage")
-
         runtime_seconds = event.resource_usage.execution_time_wall_seconds
         self._metrics.record_execution_duration(runtime_seconds, lang_and_version)
 
@@ -70,7 +67,6 @@ class ResultProcessor:
             stdout=event.stdout,
             stderr=event.stderr,
             resource_usage=event.resource_usage,
-            metadata=event.metadata,
             status=ExecutionStatus.COMPLETED,
         )
 
@@ -105,7 +101,6 @@ class ResultProcessor:
             stderr=event.stderr,
             resource_usage=event.resource_usage,
             error_type=event.error_type,
-            metadata=event.metadata,
             status=ExecutionStatus.FAILED,
         )
         meta = event.metadata
@@ -138,7 +133,6 @@ class ResultProcessor:
             stderr=event.stderr,
             resource_usage=event.resource_usage,
             error_type=ExecutionErrorType.TIMEOUT,
-            metadata=event.metadata,
             status=ExecutionStatus.TIMEOUT,
         )
         meta = event.metadata

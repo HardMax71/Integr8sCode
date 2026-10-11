@@ -59,13 +59,17 @@ class TestHandlerTypeGuards:
 
     async def test_failed_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
         processor = _make_processor(execution_metrics)
-        wrong = ExecutionCompletedEvent(execution_id="e1", exit_code=0, metadata=_METADATA)
+        wrong = ExecutionCompletedEvent(
+            execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+        )
         with pytest.raises(TypeError, match="Expected ExecutionFailedEvent"):
             await processor.handle_execution_failed(wrong)
 
     async def test_timeout_rejects_wrong_type(self, execution_metrics: ExecutionMetrics) -> None:
         processor = _make_processor(execution_metrics)
-        wrong = ExecutionCompletedEvent(execution_id="e1", exit_code=0, metadata=_METADATA)
+        wrong = ExecutionCompletedEvent(
+            execution_id="e1", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+        )
         with pytest.raises(TypeError, match="Expected ExecutionTimeoutEvent"):
             await processor.handle_execution_timeout(wrong)
 
@@ -76,7 +80,9 @@ class TestHandleExecutionCompleted:
         repo.get_execution.return_value = None
         processor = _make_processor(execution_metrics, exec_repo=repo)
 
-        event = ExecutionCompletedEvent(execution_id="missing", exit_code=0, metadata=_METADATA)
+        event = ExecutionCompletedEvent(
+            execution_id="missing", exit_code=0, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+        )
         with pytest.raises(ExecutionNotFoundError):
             await processor.handle_execution_completed(event)
 
@@ -164,7 +170,9 @@ class TestHandleExecutionTimeout:
         producer = AsyncMock()
         processor = _make_processor(execution_metrics, exec_repo=repo, producer=producer)
 
-        event = ExecutionTimeoutEvent(execution_id="e3", timeout_seconds=30, metadata=_METADATA)
+        event = ExecutionTimeoutEvent(
+            execution_id="e3", timeout_seconds=30, resource_usage=ResourceUsageDomain(), metadata=_METADATA
+        )
         await processor.handle_execution_timeout(event)
 
         repo.write_terminal_result.assert_awaited_once()

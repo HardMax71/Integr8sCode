@@ -3,28 +3,18 @@ import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 
 import ReplayPreviewModal from '#components/admin/events/ReplayPreviewModal.svelte';
-
-interface ReplayPreview {
-    eventId: string;
-    total_events: number;
-    events_preview?: Array<{
-        event_id: string;
-        event_type: string;
-        timestamp: string;
-        aggregate_id?: string;
-    }>;
-}
+import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
 
 function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
     return {
         eventId: 'evt-replay-1',
         total_events: 3,
         events_preview: [
-            { event_id: 'e1', event_type: 'execution_requested', timestamp: '2024-01-15T10:00:00Z' },
+            { event_id: 'e1', event_type: 'execution_requested', timestamp: new Date('2024-01-15T10:00:00Z') },
             {
                 event_id: 'e2',
                 event_type: 'execution_completed',
-                timestamp: '2024-01-15T10:01:00Z',
+                timestamp: new Date('2024-01-15T10:01:00Z'),
                 aggregate_id: 'exec-1',
             },
         ],

@@ -1,23 +1,16 @@
-import { parseISO, differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
+import { differenceInSeconds, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 
-function toDate(timestamp: string | Date | null | undefined): Date | null {
-    if (!timestamp) return null;
-    if (timestamp instanceof Date) return isNaN(timestamp.getTime()) ? null : timestamp;
-    try {
-        const date = parseISO(timestamp);
-        return isNaN(date.getTime()) ? null : date;
-    } catch {
-        return null;
-    }
+function validDate(date: Date | null | undefined): Date | null {
+    return date && !isNaN(date.getTime()) ? date : null;
 }
 
 /**
  * Format a timestamp using the browser's locale (date + time).
- * @param timestamp - ISO timestamp string or Date object
+ * @param timestamp - The time to format
  * @returns Formatted date/time string or 'N/A' if invalid
  */
-export function formatTimestamp(timestamp: string | Date | null | undefined): string {
-    const date = toDate(timestamp);
+export function formatTimestamp(timestamp: Date | null | undefined): string {
+    const date = validDate(timestamp);
     if (!date) return 'N/A';
     return date.toLocaleString(undefined, {
         year: 'numeric',
@@ -31,22 +24,22 @@ export function formatTimestamp(timestamp: string | Date | null | undefined): st
 
 /**
  * Format a timestamp as a locale-aware date only (e.g., "Jun 15, 2024").
- * @param timestamp - ISO timestamp string or Date object
+ * @param timestamp - The time to format
  * @returns Formatted date string or 'N/A' if invalid
  */
-export function formatDateOnly(timestamp: string | Date | null | undefined): string {
-    const date = toDate(timestamp);
+export function formatDateOnly(timestamp: Date | null | undefined): string {
+    const date = validDate(timestamp);
     if (!date) return 'N/A';
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /**
  * Format a timestamp as a locale-aware time only (e.g., "2:30:00 PM").
- * @param timestamp - ISO timestamp string or Date object
+ * @param timestamp - The time to format
  * @returns Formatted time string or 'N/A' if invalid
  */
-export function formatTimeOnly(timestamp: string | Date | null | undefined): string {
-    const date = toDate(timestamp);
+export function formatTimeOnly(timestamp: Date | null | undefined): string {
+    const date = validDate(timestamp);
     if (!date) return 'N/A';
     return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
@@ -83,12 +76,9 @@ export function formatDuration(seconds: number | null | undefined): string {
  * @param endDate - End timestamp
  * @returns Human-readable duration
  */
-export function formatDurationBetween(
-    startDate: string | Date | null | undefined,
-    endDate: string | Date | null | undefined,
-): string {
-    const start = toDate(startDate);
-    const end = toDate(endDate);
+export function formatDurationBetween(startDate: Date | null | undefined, endDate: Date | null | undefined): string {
+    const start = validDate(startDate);
+    const end = validDate(endDate);
     if (!start || !end) return 'N/A';
 
     const durationMs = end.getTime() - start.getTime();
@@ -100,11 +90,11 @@ export function formatDurationBetween(
 /**
  * Format a timestamp as relative time (e.g., "just now", "5m ago", "2h ago").
  * Falls back to date string for timestamps older than 7 days.
- * @param timestamp - ISO timestamp string or Date object
+ * @param timestamp - The time to format
  * @returns Relative time string
  */
-export function formatRelativeTime(timestamp: string | Date | null | undefined): string {
-    const date = toDate(timestamp);
+export function formatRelativeTime(timestamp: Date | null | undefined): string {
+    const date = validDate(timestamp);
     if (!date) return 'N/A';
 
     const now = new Date();

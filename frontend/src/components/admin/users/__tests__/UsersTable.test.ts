@@ -5,7 +5,7 @@ import UsersTable from '#components/admin/users/UsersTable.svelte';
 
 vi.mock('#lib/formatters.ts', async (importOriginal) => ({
     ...(await importOriginal<typeof import('#lib/formatters.ts')>()),
-    formatTimestamp: vi.fn((ts: string) => `formatted:${ts}`),
+    formatTimestamp: vi.fn((ts: Date) => `formatted:${ts.toISOString()}`),
 }));
 
 function renderTable(props: Record<string, unknown> = {}) {
@@ -109,8 +109,8 @@ describe('UsersTable', () => {
     });
 
     it('formats created_at timestamp', () => {
-        renderTable({ users: [createMockUser({ created_at: '2024-01-15T10:30:00Z' })] });
-        const formatted = screen.getAllByText('formatted:2024-01-15T10:30:00Z');
+        renderTable({ users: [createMockUser({ created_at: new Date('2024-01-15T10:30:00Z') })] });
+        const formatted = screen.getAllByText('formatted:2024-01-15T10:30:00.000Z');
         expect(formatted.length).toBeGreaterThanOrEqual(1);
     });
 });

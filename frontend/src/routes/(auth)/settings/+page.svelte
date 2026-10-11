@@ -21,7 +21,6 @@
     import Spinner from '#components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '#lib/formatters.ts';
-    import { parseISO } from 'date-fns';
 
     type SettingsForm = Pick<UserSettings, 'theme' | 'notifications' | 'editor'>;
 
@@ -77,9 +76,7 @@
         staleTime: 30_000,
     }));
     let history = $derived(
-        [...(historyQuery.data?.history ?? [])].sort(
-            (a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime(),
-        ),
+        [...(historyQuery.data?.history ?? [])].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()),
     );
 
     function storeSettings(data: UserSettings): void {
@@ -120,7 +117,7 @@
         save.mutate({ body: updates });
     }
 
-    function restoreSettings(timestamp: string) {
+    function restoreSettings(timestamp: Date) {
         if (!confirm('Are you sure you want to restore settings to this point?')) return;
         restore.mutate({ body: { timestamp, reason: 'User requested restore' } });
     }

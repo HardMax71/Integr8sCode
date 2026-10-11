@@ -173,7 +173,7 @@ describe('Settings', () => {
             mockApi(getSettingsHistoryApiV1UserSettingsHistoryGet).ok({
                 history: [
                     {
-                        timestamp: '2025-01-15T10:00:00Z',
+                        timestamp: new Date('2025-01-15T10:00:00Z'),
                         event_type: 'settings_updated',
                         field: 'theme',
                         old_value: 'light',
@@ -219,7 +219,7 @@ describe('Settings', () => {
 
     describe('Restore', () => {
         const historyEntry = {
-            timestamp: '2025-01-15T10:00:00Z',
+            timestamp: new Date('2025-01-15T10:00:00Z'),
             event_type: 'settings_updated' as const,
             field: 'theme',
             old_value: 'light',
@@ -252,7 +252,7 @@ describe('Settings', () => {
             });
             expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    body: { timestamp: '2025-01-15T10:00:00Z', reason: 'User requested restore' },
+                    body: { timestamp: new Date('2025-01-15T10:00:00Z'), reason: 'User requested restore' },
                 }),
             );
             expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toMatchObject({

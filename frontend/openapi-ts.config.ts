@@ -8,7 +8,8 @@ export default defineConfig({
     postProcess: ['prettier'],
     plugins: [
         { name: '@hey-api/typescript', enums: 'javascript' },
-        '@hey-api/sdk',
+        { name: '@hey-api/sdk', transformer: '@hey-api/transformers' },
+        { name: '@hey-api/transformers', dates: true },
         { name: '@hey-api/client-fetch', includeInEntry: true },
         { name: 'zod', compatibilityVersion: 'mini', includeInEntry: true },
         {

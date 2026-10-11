@@ -57,4 +57,24 @@ describe('queryClient', () => {
         expect(mutationFn).toHaveBeenCalledTimes(1);
         expect(handler).toHaveBeenCalledWith(error, inline);
     });
+
+    it('keeps the previous data when a refetch returns the same values in new Date objects', async () => {
+        const queryKey = ['shared'];
+        const first = { name: 'a', at: new Date('2026-01-01T00:00:00Z') };
+        const queryFn = vi
+            .fn()
+            .mockResolvedValueOnce(first)
+            .mockResolvedValueOnce({ name: 'a', at: new Date('2026-01-01T00:00:00Z') })
+            .mockResolvedValueOnce({ name: 'a', at: new Date('2026-01-02T00:00:00Z') });
+        const observer = new QueryObserver(queryClient, { queryKey, queryFn });
+        const unsubscribe = observer.subscribe(() => {});
+        await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(first));
+
+        await observer.refetch();
+        expect(observer.getCurrentResult().data).toBe(first);
+
+        await observer.refetch();
+        expect(observer.getCurrentResult().data).toEqual({ name: 'a', at: new Date('2026-01-02T00:00:00Z') });
+        unsubscribe();
+    });
 });

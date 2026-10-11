@@ -76,11 +76,11 @@ export type AdminExecutionResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
 };
 
 /**
@@ -116,7 +116,7 @@ export type AllocateResourcesCommandEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -155,7 +155,7 @@ export type AuthFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -315,7 +315,7 @@ export type CreatePodCommandEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -397,7 +397,7 @@ export type DlqMessageDiscardedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -443,7 +443,7 @@ export type DlqMessageReceivedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -473,7 +473,7 @@ export type DlqMessageReceivedEvent = {
     /**
      * Failed At
      */
-    failed_at?: string;
+    failed_at?: Date;
 };
 
 /**
@@ -497,7 +497,7 @@ export type DlqMessageRetriedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -553,7 +553,7 @@ export type DeletePodCommandEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -995,11 +995,11 @@ export type EventFilter = {
     /**
      * Start Time
      */
-    start_time?: string | null;
+    start_time?: Date | null;
     /**
      * End Time
      */
-    end_time?: string | null;
+    end_time?: Date | null;
     /**
      * Service Name
      */
@@ -1048,11 +1048,11 @@ export type EventReplayRequest = {
     /**
      * Start Time
      */
-    start_time?: string | null;
+    start_time?: Date | null;
     /**
      * End Time
      */
-    end_time?: string | null;
+    end_time?: Date | null;
     /**
      * Target Service
      */
@@ -1126,15 +1126,15 @@ export type EventReplayStatusResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Started At
      */
-    started_at: string | null;
+    started_at: Date | null;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
     /**
      * Errors
      */
@@ -1142,7 +1142,7 @@ export type EventReplayStatusResponse = {
     /**
      * Estimated Completion
      */
-    estimated_completion: string | null;
+    estimated_completion: Date | null;
     /**
      * Execution Results
      */
@@ -1190,11 +1190,11 @@ export type EventStatistics = {
     /**
      * Start Time
      */
-    start_time: string | null;
+    start_time: Date | null;
     /**
      * End Time
      */
-    end_time: string | null;
+    end_time: Date | null;
 };
 
 /**
@@ -1241,7 +1241,7 @@ export type EventSummary = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1364,7 +1364,7 @@ export type ExecutionAcceptedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1404,7 +1404,7 @@ export type ExecutionCancelledEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1443,7 +1443,7 @@ export type ExecutionCompletedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1507,7 +1507,7 @@ export type ExecutionFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1580,7 +1580,7 @@ export type ExecutionQueuedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1597,7 +1597,7 @@ export type ExecutionQueuedEvent = {
     /**
      * Estimated Start Time
      */
-    estimated_start_time?: string | null;
+    estimated_start_time?: Date | null;
 };
 
 /**
@@ -1645,7 +1645,7 @@ export type ExecutionRequestedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1770,7 +1770,7 @@ export type ExecutionRunningEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1809,7 +1809,7 @@ export type ExecutionStartedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1875,7 +1875,7 @@ export type ExecutionTimeoutEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -1997,7 +1997,7 @@ export type LivenessResponse = {
      *
      * Timestamp of health check
      */
-    timestamp: string;
+    timestamp: Date;
 };
 
 /**
@@ -2091,7 +2091,7 @@ export type NotificationAllReadEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2108,7 +2108,7 @@ export type NotificationAllReadEvent = {
     /**
      * Read At
      */
-    read_at?: string;
+    read_at?: Date;
 };
 
 /**
@@ -2148,7 +2148,7 @@ export type NotificationClickedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2165,7 +2165,7 @@ export type NotificationClickedEvent = {
     /**
      * Clicked At
      */
-    clicked_at?: string;
+    clicked_at?: Date;
     /**
      * Action
      */
@@ -2191,7 +2191,7 @@ export type NotificationCreatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2243,7 +2243,7 @@ export type NotificationDeliveredEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2261,7 +2261,7 @@ export type NotificationDeliveredEvent = {
     /**
      * Delivered At
      */
-    delivered_at?: string;
+    delivered_at?: Date;
 };
 
 /**
@@ -2283,7 +2283,7 @@ export type NotificationFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2347,7 +2347,7 @@ export type NotificationPreferencesUpdatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2382,7 +2382,7 @@ export type NotificationReadEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2399,7 +2399,7 @@ export type NotificationReadEvent = {
     /**
      * Read At
      */
-    read_at?: string;
+    read_at?: Date;
 };
 
 /**
@@ -2429,11 +2429,11 @@ export type NotificationResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Read At
      */
-    read_at: string | null;
+    read_at: Date | null;
     severity: NotificationSeverity;
     /**
      * Tags
@@ -2460,7 +2460,7 @@ export type NotificationSentEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2478,7 +2478,7 @@ export type NotificationSentEvent = {
     /**
      * Sent At
      */
-    sent_at?: string;
+    sent_at?: Date;
 };
 
 /**
@@ -2637,11 +2637,11 @@ export type NotificationSubscription = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
 };
 
 /**
@@ -2677,7 +2677,7 @@ export type PodCreatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2716,7 +2716,7 @@ export type PodDeletedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2755,7 +2755,7 @@ export type PodFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2810,7 +2810,7 @@ export type PodRunningEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2849,7 +2849,7 @@ export type PodScheduledEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2888,7 +2888,7 @@ export type PodSucceededEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -2935,7 +2935,7 @@ export type PodTerminatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3048,7 +3048,7 @@ export type QuotaExceededEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3106,7 +3106,7 @@ export type RateLimitExceededEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3276,7 +3276,7 @@ export type ReleaseResourcesCommandEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3364,7 +3364,7 @@ export type ReplayError = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Error
      */
@@ -3406,11 +3406,11 @@ export type ReplayFilter = {
     /**
      * Start Time
      */
-    start_time?: string | null;
+    start_time?: Date | null;
     /**
      * End Time
      */
-    end_time?: string | null;
+    end_time?: Date | null;
     /**
      * User Id
      */
@@ -3448,11 +3448,11 @@ export type ReplayFilterSchema = {
     /**
      * Start Time
      */
-    start_time: string | null;
+    start_time: Date | null;
     /**
      * End Time
      */
-    end_time: string | null;
+    end_time: Date | null;
     /**
      * User Id
      */
@@ -3562,19 +3562,19 @@ export type ReplaySession = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Started At
      */
-    started_at: string | null;
+    started_at: Date | null;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
     /**
      * Last Event At
      */
-    last_event_at: string | null;
+    last_event_at: Date | null;
     /**
      * Errors
      */
@@ -3650,7 +3650,7 @@ export type ResourceLimitExceededEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3771,7 +3771,7 @@ export type RestoreSettingsRequest = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Reason
      */
@@ -3797,7 +3797,7 @@ export type ResultFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3829,7 +3829,7 @@ export type ResultStoredEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3891,7 +3891,7 @@ export type SseExecutionEventSchema = {
      *
      * Event timestamp
      */
-    timestamp: string | null;
+    timestamp: Date | null;
     /**
      * Event Id
      *
@@ -3947,7 +3947,7 @@ export type SagaCancelledEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -3980,7 +3980,7 @@ export type SagaCancelledEvent = {
     /**
      * Cancelled At
      */
-    cancelled_at?: string | null;
+    cancelled_at?: Date | null;
     /**
      * Cancelled By
      */
@@ -4006,7 +4006,7 @@ export type SagaCompensatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4049,7 +4049,7 @@ export type SagaCompensatingEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4092,7 +4092,7 @@ export type SagaCompletedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4135,7 +4135,7 @@ export type SagaFailedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4210,7 +4210,7 @@ export type SagaStartedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4294,15 +4294,15 @@ export type SagaStatusResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
     /**
      * Retry Count
      */
@@ -4376,11 +4376,11 @@ export type SavedScriptResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
 };
 
 /**
@@ -4410,7 +4410,7 @@ export type SavedScriptUpdate = {
     /**
      * Updated At
      */
-    updated_at?: string;
+    updated_at?: Date;
 };
 
 /**
@@ -4432,7 +4432,7 @@ export type ScriptDeletedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4471,7 +4471,7 @@ export type ScriptSavedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4514,7 +4514,7 @@ export type ScriptSharedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4557,7 +4557,7 @@ export type SecurityViolationEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4614,7 +4614,7 @@ export type ServiceRecoveredEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4653,7 +4653,7 @@ export type ServiceUnhealthyEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -4714,15 +4714,15 @@ export type SessionSummary = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Started At
      */
-    started_at: string | null;
+    started_at: Date | null;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
     /**
      * Duration Seconds
      */
@@ -4738,7 +4738,7 @@ export type SettingsHistoryEntry = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     event_type: EventType;
     /**
      * Field
@@ -4876,7 +4876,7 @@ export type SystemErrorEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5113,7 +5113,7 @@ export type UserDeletedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5190,7 +5190,7 @@ export type UserLoggedInEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5230,7 +5230,7 @@ export type UserLoggedOutEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5265,7 +5265,7 @@ export type UserLoginEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5311,11 +5311,11 @@ export type UserRateLimitConfigResponse = {
     /**
      * Created At
      */
-    created_at: string | null;
+    created_at: Date | null;
     /**
      * Updated At
      */
-    updated_at: string | null;
+    updated_at: Date | null;
     /**
      * Notes
      */
@@ -5360,7 +5360,7 @@ export type UserRegisteredEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5410,11 +5410,11 @@ export type UserResponse = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
     /**
      * Bypass Rate Limit
      */
@@ -5485,11 +5485,11 @@ export type UserSettings = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Updated At
      */
-    updated_at: string;
+    updated_at: Date;
 };
 
 /**
@@ -5540,7 +5540,7 @@ export type UserSettingsUpdatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5605,7 +5605,7 @@ export type UserUpdatedEvent = {
     /**
      * Timestamp
      */
-    timestamp: string;
+    timestamp: Date;
     /**
      * Aggregate Id
      */
@@ -5687,15 +5687,15 @@ export type EventReplayStatusResponseWritable = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Started At
      */
-    started_at: string | null;
+    started_at: Date | null;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
     /**
      * Errors
      */
@@ -5703,7 +5703,7 @@ export type EventReplayStatusResponseWritable = {
     /**
      * Estimated Completion
      */
-    estimated_completion: string | null;
+    estimated_completion: Date | null;
     /**
      * Execution Results
      */
@@ -5741,15 +5741,15 @@ export type SessionSummaryWritable = {
     /**
      * Created At
      */
-    created_at: string;
+    created_at: Date;
     /**
      * Started At
      */
-    started_at: string | null;
+    started_at: Date | null;
     /**
      * Completed At
      */
-    completed_at: string | null;
+    completed_at: Date | null;
 };
 
 export type LoginApiV1AuthLoginPostData = {
@@ -6109,13 +6109,13 @@ export type GetUserExecutionsApiV1UserExecutionsGetData = {
          *
          * Filter executions created after this time
          */
-        start_time?: string | null;
+        start_time?: Date | null;
         /**
          * End Time
          *
          * Filter executions created before this time
          */
-        end_time?: string | null;
+        end_time?: Date | null;
         /**
          * Limit
          */
@@ -6750,13 +6750,13 @@ export type ExportEventsApiV1AdminEventsExportExportFormatGetData = {
          *
          * Start time
          */
-        start_time?: string | null;
+        start_time?: Date | null;
         /**
          * End Time
          *
          * End time
          */
-        end_time?: string | null;
+        end_time?: Date | null;
         /**
          * Limit
          */

@@ -84,10 +84,22 @@ async def test_restore_survives_a_rebuild_and_later_updates_still_apply(
     restored = await service.restore_settings_to_point("u1", start + timedelta(seconds=30))
 
     assert restored.theme == Theme.DARK
-    assert (await service.get_user_settings_fresh("u1")).theme == Theme.DARK
+    assert (await service.get_user_settings("u1")).theme == Theme.DARK
 
     await service.update_theme("u1", Theme.LIGHT)
-    assert (await service.get_user_settings_fresh("u1")).theme == Theme.LIGHT
+    assert (await service.get_user_settings("u1")).theme == Theme.LIGHT
+
+
+async def test_a_read_sees_an_update_made_by_another_api_process(
+    service: UserSettingsService, repo: _MemoryRepo, test_settings: Settings
+) -> None:
+    # A second service over the same storage stands in for a second API worker process
+    other = UserSettingsService(repo, AsyncMock(spec=UnifiedProducer), test_settings, structlog.get_logger("test"))
+    assert (await other.get_user_settings("u1")).theme == Theme.AUTO
+
+    await service.update_theme("u1", Theme.DARK)
+
+    assert (await other.get_user_settings("u1")).theme == Theme.DARK
 
 
 async def test_history_returns_the_newest_events_newest_first(service: UserSettingsService, repo: _MemoryRepo) -> None:

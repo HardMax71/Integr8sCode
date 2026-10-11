@@ -1,9 +1,8 @@
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from cachetools import TTLCache
 
 from app.db import UserSettingsRepository
 from app.domain.enums import EventType, Theme
@@ -36,33 +35,13 @@ class UserSettingsService:
         self._producer = producer
         self.settings = settings
         self.logger = logger
-        self._cache_ttl = timedelta(minutes=5)
-        self._max_cache_size = 1000
-        # --8<-- [start:cache_init]
-        self._cache: TTLCache[str, DomainUserSettings] = TTLCache(
-            maxsize=self._max_cache_size,
-            ttl=self._cache_ttl.total_seconds(),
-        )
-        # --8<-- [end:cache_init]
 
-        self.logger.info(
-            "UserSettingsService initialized",
-            cache_ttl_seconds=self._cache_ttl.total_seconds(),
-            max_cache_size=self._max_cache_size,
-        )
-
+    # --8<-- [start:get_user_settings]
     async def get_user_settings(self, user_id: str) -> DomainUserSettings:
-        """Get settings with cache; rebuild and cache on miss."""
-        if user_id in self._cache:
-            cached = self._cache[user_id]
-            self.logger.debug("Settings cache hit", user_id=user_id, cache_size=len(self._cache))
-            return cached
+        """Rebuild settings from the latest snapshot and the events after it.
 
-        return await self.get_user_settings_fresh(user_id)
-
-    # --8<-- [start:get_user_settings_fresh]
-    async def get_user_settings_fresh(self, user_id: str) -> DomainUserSettings:
-        """Bypass cache and rebuild settings from snapshot + events."""
+        Not cached: each API worker process would keep its own copy, stale after another worker's update.
+        """
         snapshot = await self.repository.get_snapshot(user_id)
 
         settings: DomainUserSettings
@@ -77,16 +56,15 @@ class UserSettingsService:
         for event in events:
             settings = self._apply_event(settings, event)
 
-        self._add_to_cache(user_id, settings)
         return settings
 
-    # --8<-- [end:get_user_settings_fresh]
+    # --8<-- [end:get_user_settings]
 
     # --8<-- [start:update_user_settings]
     async def update_user_settings(
         self, user_id: str, updates: DomainUserSettingsUpdate, reason: str | None = None
     ) -> DomainUserSettings:
-        """Upsert provided fields into current settings, publish minimal event, and cache."""
+        """Upsert provided fields into current settings and publish a minimal event."""
         current = await self.get_user_settings(user_id)
 
         changes = {k: v for k, v in dataclasses.asdict(updates).items() if v is not None}
@@ -104,7 +82,6 @@ class UserSettingsService:
 
         await self._publish_settings_event(user_id, changes, reason)
 
-        self._add_to_cache(user_id, new_settings)
         if (await self.repository.count_events_since_snapshot(user_id)) >= 10:
             await self.repository.create_snapshot(new_settings)
         return new_settings
@@ -205,7 +182,6 @@ class UserSettingsService:
         # Rebuilds replay events after updated_at, so the snapshot carries the restore time
         settings = dataclasses.replace(settings, updated_at=restore_event.timestamp)
         await self.repository.create_snapshot(settings)
-        self._add_to_cache(user_id, settings)
         await self._producer.produce(event_to_produce=restore_event, key=f"user_settings_{user_id}")
 
         return settings
@@ -226,8 +202,3 @@ class UserSettingsService:
         if isinstance(filtered.get("editor"), dict):
             filtered["editor"] = DomainEditorSettings(**filtered["editor"])
         return DomainUserSettings(**filtered)
-
-    def _add_to_cache(self, user_id: str, settings: DomainUserSettings) -> None:
-        """Add settings to TTL+LRU cache."""
-        self._cache[user_id] = settings
-        self.logger.debug("Cached settings", user_id=user_id, cache_size=len(self._cache))

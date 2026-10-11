@@ -16,7 +16,7 @@ Route handlers get these from Dishka. They hold the business logic, talk to Mong
 | `event_replay/` | `EventReplayService`, which re-publishes stored events for admins. |
 | `sse/` | `SSERedisBus` and `SSEService`. See [SSE](../components/sse/sse-architecture.md). |
 | `notification_service.py`, `notification_scheduler.py` | Notifications for finished executions, delivery, subscriptions, and the job that sends scheduled ones. |
-| `user_settings_service.py` | Settings stored as events with snapshots and a 5-minute in-process cache. See [User Settings Events](user-settings-events.md). |
+| `user_settings_service.py` | Settings stored as events with snapshots, rebuilt on every read. See [User Settings Events](user-settings-events.md). |
 | `saved_script_service.py` | CRUD for saved scripts, scoped to the owner. |
 | `rate_limit_service.py` | Redis sliding window and token bucket limits per endpoint group. See [Rate Limiting](rate-limiting.md). |
 | `idempotency/` | `IdempotencyManager` and its Redis repository. See [Idempotency](idempotency.md). |

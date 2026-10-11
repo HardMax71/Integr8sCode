@@ -13,7 +13,6 @@ dependencies = [
     "asgiref==3.12.1",
     "async-timeout==5.0.1",
     "attrs==26.1.0",
-    "cachetools==7.2.1",
     "certifi==2026.7.22",
     "charset-normalizer==3.5.2",
     "click==8.5.0",
@@ -118,7 +117,6 @@ lint = [
     "mypy==2.4.0",
     "mypy_extensions==1.1.0",
     "ruff==0.17.0",
-    "types-cachetools==7.0.0.20260713",
     "grimp>=3.17",
 ]
 load = [

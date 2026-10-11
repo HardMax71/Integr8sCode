@@ -348,10 +348,16 @@ describe('Editor', () => {
             await runAndExpect('go', '1.27');
         });
 
-        it('falls back to the first language and its newest version when the stored language is gone', async () => {
-            storeSelection('cobol', '1.0');
-            await runAndExpect('python', '3.14');
-        });
+        it.each([
+            ['1.0', 'a version the fallback lacks'],
+            ['3.12', 'a version the fallback also offers'],
+        ])(
+            'falls back to the first language and its newest version when the stored language is gone (%s, %s)',
+            async (version) => {
+                storeSelection('cobol', version);
+                await runAndExpect('python', '3.14');
+            },
+        );
     });
 
     describe('Saved script with a dropped version', () => {

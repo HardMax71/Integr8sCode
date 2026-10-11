@@ -125,7 +125,7 @@
         supportedRuntimes = k8sLimits?.supported_runtimes || {};
         const lang = selectedLang in supportedRuntimes ? selectedLang : Object.keys(supportedRuntimes)[0];
         const versions = lang ? (supportedRuntimes[lang]?.versions ?? []) : [];
-        if (lang && !versions.includes(selectedVersion)) {
+        if (lang && (lang !== selectedLang || !versions.includes(selectedVersion))) {
             selectedLang = lang;
             selectedVersion = newestVersion(versions) ?? '';
         }

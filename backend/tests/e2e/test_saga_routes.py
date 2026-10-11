@@ -198,6 +198,30 @@ class TestListSagas:
         assert result.skip == 0
 
     @pytest.mark.asyncio
+    async def test_list_sagas_search(
+        self,
+        test_user: AsyncClient,
+        redis_client: redis.Redis,
+        exec_request: ExecutionRequest,
+    ) -> None:
+        """Search by saga ID returns that saga, and a term nothing matches returns none."""
+        _, saga = await create_execution_with_saga(test_user, redis_client, exec_request)
+
+        response = await test_user.get("/api/v1/sagas/", params={"search": saga.saga_id.upper()})
+
+        assert response.status_code == 200
+        result = SagaListResponse.model_validate(response.json())
+        assert [s.saga_id for s in result.sagas] == [saga.saga_id]
+        assert result.total == 1
+
+        response = await test_user.get("/api/v1/sagas/", params={"search": "no-saga-has-this.*"})
+
+        assert response.status_code == 200
+        result = SagaListResponse.model_validate(response.json())
+        assert result.sagas == []
+        assert result.total == 0
+
+    @pytest.mark.asyncio
     async def test_list_sagas_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/sagas/")

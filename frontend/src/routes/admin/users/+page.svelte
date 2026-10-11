@@ -1,25 +1,25 @@
 <script lang="ts">
     import * as z from 'zod/mini';
-    import { onMount } from 'svelte';
+    import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
     import {
-        listUsersApiV1AdminUsersGet,
-        createUserApiV1AdminUsersPost,
-        updateUserApiV1AdminUsersUserIdPut,
-        deleteUserApiV1AdminUsersUserIdDelete,
-        getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
-        updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
-        resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
+        listUsersApiV1AdminUsersGetOptions,
+        listUsersApiV1AdminUsersGetQueryKey,
+        createUserApiV1AdminUsersPostMutation,
+        updateUserApiV1AdminUsersUserIdPutMutation,
+        deleteUserApiV1AdminUsersUserIdDeleteMutation,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGetOptions,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey,
+        updateUserRateLimitsApiV1AdminRateLimitsUserIdPutMutation,
+        resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation,
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
         type UserCreate,
         type UserUpdate,
-        type EndpointUsageStats,
         zUserCreate,
         zUserUpdate,
     } from '#lib/api/index.ts';
     import { firstIssue } from '#lib/validation.ts';
-    import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import Pagination from '#components/Pagination.svelte';
@@ -44,10 +44,6 @@
         globalMultiplier: MultiplierFilter;
     }
 
-    // User list state
-    let users = $state<UserResponse[]>([]);
-    let loading = $state(false);
-
     // Modal states
     let showDeleteModal = $state(false);
     let showRateLimitModal = $state(false);
@@ -55,12 +51,6 @@
     let userToDelete = $state<UserResponse | null>(null);
     let rateLimitUser = $state<UserResponse | null>(null);
     let editingUser = $state<UserResponse | null>(null);
-
-    // Rate limit state
-    let rateLimitConfig = $state<UserRateLimitConfigResponse | null>(null);
-    let rateLimitUsage = $state<Record<string, EndpointUsageStats> | null>(null);
-    let loadingRateLimits = $state(false);
-    let savingRateLimits = $state(false);
 
     // User form state, with role and is_active defaulted the way the API defaults them
     const blankUserForm = (): Required<UserCreate> => ({
@@ -70,9 +60,7 @@
         ...z.pick(zUserCreate, { role: true, is_active: true }).parse({}),
     });
     let userForm = $state<Required<UserCreate>>(blankUserForm());
-    let savingUser = $state(false);
     let cascadeDelete = $state(false);
-    let deletingUser = $state(false);
 
     // Pagination
     let currentPage = $state(1);
@@ -89,6 +77,87 @@
         globalMultiplier: 'all',
     });
 
+    const queryClient = useQueryClient();
+
+    const usersQuery = createQuery(() => ({
+        ...listUsersApiV1AdminUsersGetOptions({
+            query: {
+                search: searchQuery || null,
+                role: roleFilter !== 'all' ? roleFilter : null,
+            },
+        }),
+        placeholderData: keepPreviousData,
+    }));
+    let users = $derived(usersQuery.data?.users ?? []);
+
+    function invalidateUsers(): Promise<void> {
+        return queryClient.invalidateQueries({ queryKey: listUsersApiV1AdminUsersGetQueryKey() });
+    }
+
+    const onUserSaved = (): Promise<void> => {
+        showUserModal = false;
+        return invalidateUsers();
+    };
+    const createUser = createMutation(() => ({ ...createUserApiV1AdminUsersPostMutation(), onSuccess: onUserSaved }));
+    const updateUser = createMutation(() => ({
+        ...updateUserApiV1AdminUsersUserIdPutMutation(),
+        onSuccess: onUserSaved,
+    }));
+    const removeUser = createMutation(() => ({
+        ...deleteUserApiV1AdminUsersUserIdDeleteMutation(),
+        onSuccess: () => {
+            showDeleteModal = false;
+            userToDelete = null;
+            return invalidateUsers();
+        },
+    }));
+
+    const rateLimits = createQuery(() => ({
+        ...getUserRateLimitsApiV1AdminRateLimitsUserIdGetOptions({ path: { user_id: rateLimitUser?.user_id ?? '' } }),
+        enabled: rateLimitUser !== null,
+    }));
+    let loadedRateLimitConfig = $derived(rateLimits.data?.rate_limit_config);
+    // Edits go to a copy; structural sharing keeps the loaded config across an unchanged refetch, so they survive it
+    let rateLimitConfig = $derived.by(() => {
+        const loaded = loadedRateLimitConfig;
+        const user = rateLimitUser;
+        const draft = $state<UserRateLimitConfigResponse | null>(
+            loaded === undefined || !user
+                ? null
+                : structuredClone(
+                      loaded ?? {
+                          user_id: user.user_id,
+                          rules: [],
+                          global_multiplier: 1.0,
+                          bypass_rate_limit: false,
+                          notes: '',
+                          created_at: null,
+                          updated_at: null,
+                      },
+                  ),
+        );
+        return draft;
+    });
+    const saveRateLimitsMutation = createMutation(() => ({
+        ...updateUserRateLimitsApiV1AdminRateLimitsUserIdPutMutation(),
+        onSuccess: (_data, { path }) => {
+            showRateLimitModal = false;
+            return Promise.all([
+                invalidateUsers(),
+                queryClient.invalidateQueries({
+                    queryKey: getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey({ path }),
+                }),
+            ]);
+        },
+    }));
+    const resetRateLimitsMutation = createMutation(() => ({
+        ...resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation(),
+        onSuccess: (_data, { path }) =>
+            queryClient.invalidateQueries({
+                queryKey: getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey({ path }),
+            }),
+    }));
+
     // Derived state
     let filteredUsers = $derived(filterUsers(users, statusFilter, advancedFilters));
     let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
@@ -102,28 +171,9 @@
             advancedFilters.globalMultiplier !== 'all',
     );
 
-    onMount(() => {
-        loadUsers();
-    });
-
-    async function loadUsers(): Promise<void> {
-        loading = true;
-        const data = unwrapOr(
-            await listUsersApiV1AdminUsersGet({
-                query: {
-                    search: searchQuery || null,
-                    role: roleFilter !== 'all' ? roleFilter : null,
-                },
-            }),
-            null,
-        );
-        loading = false;
-        users = data?.users ?? [];
-    }
-
     function filterUsers(userList: UserResponse[], status: StatusFilter, advanced: AdvancedFilters): UserResponse[] {
         let filtered = [...userList];
-        // search and role are handled server-side in loadUsers()
+        // search and role are handled server-side by usersQuery
         if (status === 'active') filtered = filtered.filter((user) => user.is_active !== false);
         else if (status === 'disabled') filtered = filtered.filter((user) => user.is_active === false);
         if (advanced.bypassRateLimit === 'yes') filtered = filtered.filter((user) => user.bypass_rate_limit === true);
@@ -158,8 +208,7 @@
         showUserModal = true;
     }
 
-    async function saveUser(): Promise<void> {
-        let result;
+    function saveUser(): void {
         if (editingUser) {
             const updateData: UserUpdate = {
                 username: userForm.username,
@@ -173,87 +222,39 @@
                 toast.error(firstIssue(parsed.error));
                 return;
             }
-            savingUser = true;
-            result = await updateUserApiV1AdminUsersUserIdPut({
-                path: { user_id: editingUser.user_id },
-                body: parsed.data,
-            });
+            updateUser.mutate({ path: { user_id: editingUser.user_id }, body: parsed.data });
         } else {
             const parsed = zUserCreate.safeParse(userForm);
             if (!parsed.success) {
                 toast.error(firstIssue(parsed.error));
                 return;
             }
-            savingUser = true;
-            result = await createUserApiV1AdminUsersPost({ body: parsed.data });
+            createUser.mutate({ body: parsed.data });
         }
-        savingUser = false;
-        unwrap(result);
-        showUserModal = false;
-        await loadUsers();
     }
 
-    async function deleteUser(): Promise<void> {
+    function deleteUser(): void {
         if (!userToDelete) return;
-        deletingUser = true;
-        const result = await deleteUserApiV1AdminUsersUserIdDelete({
-            path: { user_id: userToDelete.user_id },
-            query: { cascade: cascadeDelete },
-        });
-        deletingUser = false;
-        unwrap(result);
-        await loadUsers();
-        showDeleteModal = false;
-        userToDelete = null;
+        removeUser.mutate({ path: { user_id: userToDelete.user_id }, query: { cascade: cascadeDelete } });
     }
 
     // Rate limits
-    async function openRateLimitModal(user: UserResponse): Promise<void> {
+    function openRateLimitModal(user: UserResponse): void {
         rateLimitUser = user;
         showRateLimitModal = true;
-        loadingRateLimits = true;
-        const result = await getUserRateLimitsApiV1AdminRateLimitsUserIdGet({
-            path: { user_id: user.user_id },
-        });
-        loadingRateLimits = false;
-        if (result.error) {
-            showRateLimitModal = false;
-            rateLimitUser = null;
-            return;
-        }
-        const response = unwrap(result);
-        rateLimitConfig = response?.rate_limit_config ?? {
-            user_id: user.user_id,
-            rules: [],
-            global_multiplier: 1.0,
-            bypass_rate_limit: false,
-            notes: '',
-            created_at: null,
-            updated_at: null,
-        };
-        rateLimitUsage = response?.current_usage || {};
     }
 
-    async function saveRateLimits(): Promise<void> {
+    function saveRateLimits(): void {
         if (!rateLimitUser || !rateLimitConfig) return;
-        savingRateLimits = true;
-        const result = await updateUserRateLimitsApiV1AdminRateLimitsUserIdPut({
+        saveRateLimitsMutation.mutate({
             path: { user_id: rateLimitUser.user_id },
-            body: rateLimitConfig,
+            body: $state.snapshot(rateLimitConfig),
         });
-        savingRateLimits = false;
-        unwrap(result);
-        showRateLimitModal = false;
     }
 
-    async function resetRateLimits(): Promise<void> {
+    function resetRateLimits(): void {
         if (!rateLimitUser) return;
-        unwrap(
-            await resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost({
-                path: { user_id: rateLimitUser.user_id },
-            }),
-        );
-        rateLimitUsage = {};
+        resetRateLimitsMutation.mutate({ path: { user_id: rateLimitUser.user_id } });
     }
 
     function handlePageChange(page: number): void {
@@ -276,17 +277,16 @@
         showDeleteModal = true;
     }
 
-    // Reset page on filter changes; re-fetch from server when search or role changes
+    // Reset page on filter changes
     let prevFilters = { searchQuery: '', roleFilter: 'all' as RoleFilter, statusFilter: 'all' as StatusFilter };
     $effect(() => {
-        const searchChanged = searchQuery !== prevFilters.searchQuery;
-        const roleChanged = roleFilter !== prevFilters.roleFilter;
-        if (searchChanged || roleChanged || statusFilter !== prevFilters.statusFilter) {
+        if (
+            searchQuery !== prevFilters.searchQuery ||
+            roleFilter !== prevFilters.roleFilter ||
+            statusFilter !== prevFilters.statusFilter
+        ) {
             prevFilters = { searchQuery, roleFilter, statusFilter };
             currentPage = 1;
-        }
-        if (searchChanged || roleChanged) {
-            void loadUsers();
         }
     });
 </script>
@@ -304,11 +304,11 @@
             </button>
             <button
                 type="button"
-                onclick={loadUsers}
+                onclick={invalidateUsers}
                 class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
-                disabled={loading}
+                disabled={usersQuery.isFetching}
             >
-                {#if loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
+                {#if usersQuery.isFetching}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
             </button>
         </div>
     </div>
@@ -331,7 +331,7 @@
 
             <UsersTable
                 users={paginatedUsers}
-                {loading}
+                loading={usersQuery.isPending}
                 onEdit={openEditUserModal}
                 onRateLimits={openRateLimitModal}
                 onDelete={handleDelete}
@@ -360,7 +360,7 @@
         open={showDeleteModal}
         user={userToDelete}
         bind:cascadeDelete
-        deleting={deletingUser}
+        deleting={removeUser.isPending}
         onClose={() => {
             showDeleteModal = false;
             userToDelete = null;
@@ -374,13 +374,12 @@
         open={showRateLimitModal}
         user={rateLimitUser}
         bind:config={rateLimitConfig}
-        usage={rateLimitUsage}
-        loading={loadingRateLimits}
-        saving={savingRateLimits}
+        usage={rateLimits.data?.current_usage ?? null}
+        loading={rateLimits.isPending}
+        saving={saveRateLimitsMutation.isPending}
         onClose={() => {
             showRateLimitModal = false;
             rateLimitUser = null;
-            rateLimitConfig = null;
         }}
         onSave={saveRateLimits}
         onReset={resetRateLimits}
@@ -392,7 +391,7 @@
         open={showUserModal}
         {editingUser}
         bind:form={userForm}
-        saving={savingUser}
+        saving={createUser.isPending || updateUser.isPending}
         onClose={() => (showUserModal = false)}
         onSave={saveUser}
     />

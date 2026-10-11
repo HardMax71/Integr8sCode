@@ -1,79 +1,82 @@
-import { listSagasApiV1SagasGet, type SagaStatusResponse } from '#lib/api/index.ts';
-import { unwrapOr } from '#lib/api-interceptors.ts';
-import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
-import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
+import { createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
+import {
+    getSagaStatusApiV1SagasSagaIdGetOptions,
+    listSagasApiV1SagasGetOptions,
+    type SagaStatusResponse,
+} from '#lib/api/index.ts';
 import { type SagaStateFilter } from '#lib/admin/sagas/index.ts';
 
 class SagasStore {
-    sagas = $state<SagaStatusResponse[]>([]);
-    loading = $state(true);
-    totalItems = $state(0);
-    serverReturnedCount = $state(0);
-
-    stateFilter = $state<SagaStateFilter>('');
-    executionIdFilter = $state('');
-    searchQuery = $state('');
-
-    hasClientFilters = $derived(Boolean(this.executionIdFilter || this.searchQuery));
+    #stateFilter = $state<SagaStateFilter>('');
+    #executionIdFilter = $state('');
+    #searchQuery = $state('');
 
     refreshEnabled = $state(true);
     refreshRate = $state(5);
 
-    pagination = createPaginationState({ initialPageSize: 10 });
+    currentPage = $state(1);
+    pageSize = $state(10);
 
-    constructor() {
-        pollWhileVisible(
-            () => {
-                if (this.refreshEnabled) void this.loadSagas();
+    selectedSaga = $state<SagaStatusResponse | null>(null);
+
+    #queryClient = useQueryClient();
+
+    // --8<-- [start:list]
+    list = createQuery(() => ({
+        ...listSagasApiV1SagasGetOptions({
+            query: {
+                state: this.stateFilter || undefined,
+                execution_id: this.executionIdFilter || undefined,
+                search: this.searchQuery || undefined,
+                limit: this.pageSize,
+                skip: (this.currentPage - 1) * this.pageSize,
             },
-            () => this.refreshRate * 1000,
-        );
+        }),
+        placeholderData: keepPreviousData,
+        refetchInterval: this.refreshEnabled ? this.refreshRate * 1000 : false,
+    }));
+    // --8<-- [end:list]
+
+    sagas = $derived(this.list.data?.sagas ?? []);
+    totalItems = $derived(this.list.data?.total ?? 0);
+    totalPages = $derived(Math.ceil(this.totalItems / this.pageSize));
+
+    // Each filter setter goes back to the first page, since the old page may not exist under the new filter
+    get stateFilter(): SagaStateFilter {
+        return this.#stateFilter;
+    }
+    set stateFilter(value: SagaStateFilter) {
+        this.#stateFilter = value;
+        this.currentPage = 1;
     }
 
-    async loadSagas(): Promise<void> {
-        this.loading = true;
-        const data = unwrapOr(
-            await listSagasApiV1SagasGet({
-                query: {
-                    state: this.stateFilter || undefined,
-                    execution_id: this.executionIdFilter || undefined,
-                    limit: this.pagination.pageSize,
-                    skip: this.pagination.skip,
-                },
-            }),
-            null,
-        );
-        this.loading = false;
-
-        let result = data?.sagas || [];
-        this.totalItems = data?.total || 0;
-        this.serverReturnedCount = result.length;
-
-        if (this.searchQuery) {
-            const q = this.searchQuery.toLowerCase();
-            result = result.filter(
-                (s) =>
-                    s.saga_id.toLowerCase().includes(q) ||
-                    s.saga_name.toLowerCase().includes(q) ||
-                    s.execution_id.toLowerCase().includes(q) ||
-                    s.error_message?.toLowerCase().includes(q),
-            );
-        }
-        this.sagas = result;
+    get executionIdFilter(): string {
+        return this.#executionIdFilter;
+    }
+    set executionIdFilter(value: string) {
+        this.#executionIdFilter = value;
+        this.currentPage = 1;
     }
 
-    async loadExecutionSagas(executionId: string): Promise<void> {
-        this.executionIdFilter = executionId;
-        this.pagination.currentPage = 1;
-        await this.loadSagas();
+    get searchQuery(): string {
+        return this.#searchQuery;
+    }
+    set searchQuery(value: string) {
+        this.#searchQuery = value;
+        this.currentPage = 1;
+    }
+
+    async openDetails(sagaId: string): Promise<void> {
+        // A failed load already showed the interceptor's toast, so the modal just stays closed
+        this.selectedSaga = await this.#queryClient
+            .query(getSagaStatusApiV1SagasSagaIdGetOptions({ path: { saga_id: sagaId } }))
+            .catch(() => null);
     }
 
     clearFilters(): void {
         this.stateFilter = '';
         this.executionIdFilter = '';
         this.searchQuery = '';
-        this.pagination.currentPage = 1;
-        void this.loadSagas();
     }
 }
 

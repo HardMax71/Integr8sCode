@@ -171,6 +171,34 @@ class TestListUserSagas:
             assert saga.state == SagaState.CREATED
 
     @pytest.mark.asyncio
+    async def test_list_user_sagas_search(self, scope: AsyncContainer) -> None:
+        """Search matches saga name or execution ID case-insensitively and treats regex characters literally."""
+        svc: SagaService = await scope.get(SagaService)
+        exec_repo: ExecutionRepository = await scope.get(ExecutionRepository)
+        saga_repo: SagaRepository = await scope.get(SagaRepository)
+
+        user_id = f"search_user_{uuid4().hex[:8]}"
+        user = make_test_user(user_id=user_id)
+        exec_ids = [await create_execution_for_user(exec_repo, user_id) for _ in range(3)]
+        await create_saga_for_execution(saga_repo, exec_ids[0], saga_name="Alpha_flow")
+        await create_saga_for_execution(saga_repo, exec_ids[1], saga_name="beta.flow")
+        await create_saga_for_execution(saga_repo, exec_ids[2], saga_name="gamma_flow")
+
+        by_name = await svc.list_user_sagas(user, search="ALPHA")
+        assert [s.saga_name for s in by_name.sagas] == ["Alpha_flow"]
+        assert by_name.total == 1
+
+        literal_dot = await svc.list_user_sagas(user, search=".flow")
+        assert [s.saga_name for s in literal_dot.sagas] == ["beta.flow"]
+
+        by_execution = await svc.list_user_sagas(user, search=exec_ids[2][:13])
+        assert [s.execution_id for s in by_execution.sagas] == [exec_ids[2]]
+
+        scoped = await svc.list_user_sagas(user, execution_id=exec_ids[0], search="beta")
+        assert scoped.total == 0
+        assert scoped.sagas == []
+
+    @pytest.mark.asyncio
     async def test_admin_can_list_all_sagas(self, scope: AsyncContainer) -> None:
         """Admin user can list all sagas."""
         svc: SagaService = await scope.get(SagaService)

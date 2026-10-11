@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user, selectOption, createMockUser, createMockUsers, mockApi } from '#test/test-utils.ts';
+import { screen, waitFor, within } from '@testing-library/svelte';
+import {
+    user,
+    selectOption,
+    createMockUser,
+    createMockUsers,
+    mockApi,
+    renderWithQueryClient,
+} from '#test/test-utils.ts';
 import {
     listUsersApiV1AdminUsersGet,
     createUserApiV1AdminUsersPost,
@@ -23,7 +30,7 @@ import AdminUsers from '#routes/admin/users/+page.svelte';
 
 async function renderWithUsers(users = createMockUsers(3)) {
     mockApi(listUsersApiV1AdminUsersGet).ok({ users, total: users.length, offset: 0, limit: 20 });
-    const result = render(AdminUsers);
+    const result = renderWithQueryClient(AdminUsers);
     await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
     return result;
 }
@@ -37,7 +44,7 @@ describe('AdminUsers', () => {
 
     describe('initial loading', () => {
         it('calls loadUsers on mount', async () => {
-            render(AdminUsers);
+            renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalledTimes(1));
         });
 
@@ -47,7 +54,7 @@ describe('AdminUsers', () => {
                 toast.error('Failed to load users');
                 return { data: null, error } as any;
             });
-            render(AdminUsers);
+            renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load users'));
             expect(screen.queryByText('testuser')).not.toBeInTheDocument();
         });
@@ -108,7 +115,7 @@ describe('AdminUsers', () => {
                 const filtered = search ? allUsers.filter((u) => u.username.includes(search)) : allUsers;
                 return { data: { users: filtered, total: filtered.length, offset: 0, limit: 20 }, error: null } as any;
             });
-            render(AdminUsers);
+            renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
             const searchInput = screen.getByPlaceholderText(/Search by username/i);
@@ -129,7 +136,7 @@ describe('AdminUsers', () => {
                 const filtered = role ? allUsers.filter((u) => u.role === role) : allUsers;
                 return { data: { users: filtered, total: filtered.length, offset: 0, limit: 20 }, error: null } as any;
             });
-            render(AdminUsers);
+            renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
             const roleSelect = screen.getByRole('combobox', { name: /Role/i });
@@ -163,7 +170,7 @@ describe('AdminUsers', () => {
                 }
                 return { data: { users, total: users.length, offset: 0, limit: 20 }, error: null } as any;
             });
-            render(AdminUsers);
+            renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
             const searchInput = screen.getByPlaceholderText(/Search by username/i);
@@ -226,13 +233,15 @@ describe('AdminUsers', () => {
             await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(createUserApiV1AdminUsersPost)).toHaveBeenCalledWith({
-                    body: expect.objectContaining({
-                        username: 'newuser',
-                        email: 'new@test.com',
-                        password: 'password123',
+                expect(vi.mocked(createUserApiV1AdminUsersPost)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: expect.objectContaining({
+                            username: 'newuser',
+                            email: 'new@test.com',
+                            password: 'password123',
+                        }),
                     }),
-                });
+                );
             });
         });
 
@@ -320,10 +329,12 @@ describe('AdminUsers', () => {
             await user.click(screen.getByRole('button', { name: /Update User/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(updateUserApiV1AdminUsersUserIdPut)).toHaveBeenCalledWith({
-                    path: { user_id: 'u1' },
-                    body: expect.objectContaining({ username: 'updated' }),
-                });
+                expect(vi.mocked(updateUserApiV1AdminUsersUserIdPut)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'u1' },
+                        body: expect.objectContaining({ username: 'updated' }),
+                    }),
+                );
             });
         });
     });
@@ -361,10 +372,12 @@ describe('AdminUsers', () => {
             await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalledWith({
-                    path: { user_id: 'del1' },
-                    query: { cascade: false },
-                });
+                expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'del1' },
+                        query: { cascade: false },
+                    }),
+                );
             });
         });
 
@@ -392,10 +405,12 @@ describe('AdminUsers', () => {
             await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalledWith({
-                    path: { user_id: 'del1' },
-                    query: { cascade: true },
-                });
+                expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'del1' },
+                        query: { cascade: true },
+                    }),
+                );
             });
         });
 
@@ -514,10 +529,12 @@ describe('AdminUsers', () => {
             await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut)).toHaveBeenCalledWith({
-                    path: { user_id: 'u1' },
-                    body: expect.any(Object),
-                });
+                expect(vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'u1' },
+                        body: expect.any(Object),
+                    }),
+                );
             });
         });
 
@@ -578,9 +595,11 @@ describe('AdminUsers', () => {
             await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalledWith({
-                    path: { user_id: 'u1' },
-                });
+                expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'u1' },
+                    }),
+                );
             });
         });
     });
@@ -669,10 +688,12 @@ describe('AdminUsers', () => {
             await user.click(screen.getByRole('button', { name: /Update User/i }));
 
             await waitFor(() => {
-                expect(vi.mocked(updateUserApiV1AdminUsersUserIdPut)).toHaveBeenCalledWith({
-                    path: { user_id: 'u1' },
-                    body: expect.not.objectContaining({ password: expect.anything() }),
-                });
+                expect(vi.mocked(updateUserApiV1AdminUsersUserIdPut)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'u1' },
+                        body: expect.not.objectContaining({ password: expect.anything() }),
+                    }),
+                );
             });
         });
     });

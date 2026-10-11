@@ -1,26 +1,22 @@
+import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
 import {
-    browseEventsApiV1AdminEventsBrowsePost,
-    getEventStatsApiV1AdminEventsStatsGet,
-    getEventDetailApiV1AdminEventsEventIdGet,
-    replayEventsApiV1AdminEventsReplayPost,
-    deleteEventApiV1AdminEventsEventIdDelete,
-    getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+    browseEventsApiV1AdminEventsBrowsePostOptions,
+    getEventStatsApiV1AdminEventsStatsGetOptions,
+    getEventDetailApiV1AdminEventsEventIdGetOptions,
+    getUserOverviewApiV1AdminUsersUserIdOverviewGetOptions,
+    replayEventsApiV1AdminEventsReplayPostMutation,
+    deleteEventApiV1AdminEventsEventIdDeleteMutation,
     streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
     client,
     ExportFormat,
     type ExportEventsApiV1AdminEventsExportExportFormatGetData,
     type EventBrowseResponse,
     type EventFilter,
-    type EventStatsResponse,
     type EventDetailResponse,
     type EventReplayResponse,
     type EventReplayStatusResponse,
-    type AdminUserOverview,
 } from '#lib/api/index.ts';
-import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
 import { toast } from 'svelte-sonner';
-import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
-import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
 import { parseISO } from 'date-fns';
 import { logger } from '#lib/logger.ts';
 
@@ -30,60 +26,84 @@ const POLL_INTERVAL_MS = 30_000;
 export type BrowsedEvent = EventBrowseResponse['events'][number];
 export type ReplayPreview = Pick<EventReplayResponse, 'total_events' | 'events_preview'> & { eventId: string };
 
+function toIso(value: string | null | undefined): string | null {
+    return value ? parseISO(value).toISOString() : null;
+}
+
 class EventsStore {
-    events = $state<BrowsedEvent[]>([]);
-    loading = $state(false);
-    totalEvents = $state(0);
-    stats = $state<EventStatsResponse | null>(null);
+    // The filter form edits `filters`; the list and the export follow `appliedFilters`, set by Apply
     filters = $state<EventFilter>({});
+    appliedFilters = $state<EventFilter>({});
+
+    currentPage = $state(1);
+    pageSize = $state(10);
+
+    selectedEvent = $state<EventDetailResponse | null>(null);
+    overviewUserId = $state<string | null>(null);
 
     activeReplaySession = $state<EventReplayStatusResponse | null>(null);
     replayPreview = $state<ReplayPreview | null>(null);
     private replayAbortController: AbortController | null = null;
 
-    userOverview = $state<AdminUserOverview | null>(null);
-    userOverviewLoading = $state(false);
+    #queryClient = useQueryClient();
 
-    pagination = createPaginationState({ initialPageSize: 10 });
-
-    constructor() {
-        pollWhileVisible(() => this.loadAll(), POLL_INTERVAL_MS);
-    }
-
-    async loadAll(): Promise<void> {
-        await Promise.all([this.loadEvents(), this.loadStats()]);
-    }
-
-    async loadEvents(): Promise<void> {
-        this.loading = true;
-        const data = unwrapOr(
-            await browseEventsApiV1AdminEventsBrowsePost({
-                body: {
-                    filters: {
-                        ...this.filters,
-                        start_time: this.filters.start_time ? parseISO(this.filters.start_time).toISOString() : null,
-                        end_time: this.filters.end_time ? parseISO(this.filters.end_time).toISOString() : null,
-                    },
-                    skip: this.pagination.skip,
-                    limit: this.pagination.pageSize,
+    list = createQuery(() => ({
+        ...browseEventsApiV1AdminEventsBrowsePostOptions({
+            body: {
+                filters: {
+                    ...this.appliedFilters,
+                    start_time: toIso(this.appliedFilters.start_time),
+                    end_time: toIso(this.appliedFilters.end_time),
                 },
-            }),
-            null,
-        );
-        this.loading = false;
-        this.events = data?.events ?? [];
-        this.totalEvents = data?.total || 0;
+                skip: (this.currentPage - 1) * this.pageSize,
+                limit: this.pageSize,
+            },
+        }),
+        placeholderData: keepPreviousData,
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+
+    stats = createQuery(() => ({
+        ...getEventStatsApiV1AdminEventsStatsGetOptions({ query: { hours: 24 } }),
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+
+    userOverview = createQuery(() => ({
+        ...getUserOverviewApiV1AdminUsersUserIdOverviewGetOptions({ path: { user_id: this.overviewUserId ?? '' } }),
+        enabled: this.overviewUserId !== null,
+    }));
+
+    #replay = createMutation(() => replayEventsApiV1AdminEventsReplayPostMutation());
+
+    #delete = createMutation(() => ({
+        ...deleteEventApiV1AdminEventsEventIdDeleteMutation(),
+        onSuccess: () => {
+            toast.success('Event deleted successfully');
+            return this.refresh();
+        },
+    }));
+
+    events = $derived(this.list.data?.events ?? []);
+    totalEvents = $derived(this.list.data?.total ?? 0);
+    totalPages = $derived(Math.ceil(this.totalEvents / this.pageSize));
+
+    // The browse key needs a body, so there's no key prefix to invalidate; other pages refetch when opened anyway
+    async refresh(): Promise<void> {
+        await Promise.all([this.list.refetch(), this.stats.refetch()]);
     }
 
-    async loadStats(): Promise<void> {
-        this.stats = unwrapOr(await getEventStatsApiV1AdminEventsStatsGet({ query: { hours: 24 } }), null);
+    async openEventDetail(eventId: string): Promise<void> {
+        // A failed load already showed the interceptor's toast, so the modal just stays closed
+        this.selectedEvent = await this.#queryClient
+            .query(getEventDetailApiV1AdminEventsEventIdGetOptions({ path: { event_id: eventId } }))
+            .catch(() => null);
     }
 
-    async loadEventDetail(eventId: string): Promise<EventDetailResponse | null> {
-        return unwrapOr(await getEventDetailApiV1AdminEventsEventIdGet({ path: { event_id: eventId } }), null);
+    openUserOverview(userId: string): void {
+        if (userId) this.overviewUserId = userId;
     }
 
-    async replayEvent(eventId: string, dryRun: boolean = true): Promise<void> {
+    replayEvent(eventId: string, dryRun: boolean = true): void {
         if (
             !dryRun &&
             !confirm('Are you sure you want to replay this event? This will re-process the event through the system.')
@@ -91,12 +111,17 @@ class EventsStore {
             return;
         }
 
-        const response = unwrap(
-            await replayEventsApiV1AdminEventsReplayPost({
-                body: { event_ids: [eventId], dry_run: dryRun },
-            }),
+        this.#replay.mutate(
+            { body: { event_ids: [eventId], dry_run: dryRun } },
+            {
+                onSuccess: (response) => {
+                    this.#onReplayed(eventId, dryRun, response);
+                },
+            },
         );
+    }
 
+    #onReplayed(eventId: string, dryRun: boolean, response: EventReplayResponse): void {
         if (dryRun) {
             if (response.events_preview && response.events_preview.length > 0) {
                 this.replayPreview = {
@@ -107,29 +132,29 @@ class EventsStore {
             } else {
                 toast.info(`Dry run: ${response.total_events} events would be replayed`);
             }
-        } else {
-            toast.success(`Replay scheduled! Tracking progress...`);
-            const sessionId = response.session_id;
-            if (sessionId) {
-                this.activeReplaySession = {
-                    session_id: sessionId,
-                    status: 'scheduled',
-                    total_events: response.total_events,
-                    replayed_events: 0,
-                    progress_percentage: 0,
-                    failed_events: 0,
-                    skipped_events: 0,
-                    replay_id: response.replay_id,
-                    created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
-                    errors: null,
-                    estimated_completion: null,
-                    execution_results: null,
-                };
-                this.connectReplayStream(sessionId);
-            }
+            return;
         }
+
+        toast.success(`Replay scheduled! Tracking progress...`);
+        const sessionId = response.session_id;
+        if (!sessionId) return;
+        this.activeReplaySession = {
+            session_id: sessionId,
+            status: 'scheduled',
+            total_events: response.total_events,
+            replayed_events: 0,
+            progress_percentage: 0,
+            failed_events: 0,
+            skipped_events: 0,
+            replay_id: response.replay_id,
+            created_at: new Date().toISOString(),
+            started_at: null,
+            completed_at: null,
+            errors: null,
+            estimated_completion: null,
+            execution_results: null,
+        };
+        this.connectReplayStream(sessionId);
     }
 
     connectReplayStream(sessionId: string): void {
@@ -172,23 +197,21 @@ class EventsStore {
         }
     }
 
-    async deleteEvent(eventId: string): Promise<void> {
+    deleteEvent(eventId: string): void {
         if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
-        unwrap(await deleteEventApiV1AdminEventsEventIdDelete({ path: { event_id: eventId } }));
-        toast.success('Event deleted successfully');
-        await Promise.all([this.loadEvents(), this.loadStats()]);
+        this.#delete.mutate({ path: { event_id: eventId } });
     }
 
     exportEvents(format: ExportFormat = ExportFormat.CSV): void {
-        const { event_types, start_time, end_time, aggregate_id, user_id, service_name } = this.filters;
+        const { event_types, start_time, end_time, aggregate_id, user_id, service_name } = this.appliedFilters;
         // A plain navigation lets the browser stream a large export to disk instead of buffering it
         const url = client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({
             url: '/api/v1/admin/events/export/{export_format}',
             path: { export_format: format },
             query: {
                 event_types: event_types?.length ? event_types : undefined,
-                start_time: start_time ? parseISO(start_time).toISOString() : undefined,
-                end_time: end_time ? parseISO(end_time).toISOString() : undefined,
+                start_time: toIso(start_time) ?? undefined,
+                end_time: toIso(end_time) ?? undefined,
                 aggregate_id: aggregate_id || undefined,
                 user_id: user_id || undefined,
                 service_name: service_name || undefined,
@@ -198,28 +221,14 @@ class EventsStore {
         toast.info(`Starting ${format.toUpperCase()} export...`);
     }
 
-    async openUserOverview(userId: string): Promise<void> {
-        if (!userId) return;
-        this.userOverview = null;
-        this.userOverviewLoading = true;
-        const data = unwrapOr(
-            await getUserOverviewApiV1AdminUsersUserIdOverviewGet({ path: { user_id: userId } }),
-            null,
-        );
-        this.userOverviewLoading = false;
-        if (!data) return;
-        this.userOverview = data;
+    applyFilters(): void {
+        this.appliedFilters = $state.snapshot(this.filters);
+        this.currentPage = 1;
     }
 
     clearFilters(): void {
         this.filters = {};
-        this.pagination.currentPage = 1;
-        void this.loadEvents();
-    }
-
-    applyFilters(): void {
-        this.pagination.currentPage = 1;
-        void this.loadEvents();
+        this.applyFilters();
     }
 
     cleanup(): void {

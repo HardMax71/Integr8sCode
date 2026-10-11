@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import {
     mockWindowGlobals,
@@ -11,6 +11,7 @@ import {
     user,
     selectOption,
     mockApi,
+    renderWithQueryClient,
 } from '#test/test-utils.ts';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
@@ -34,7 +35,7 @@ async function renderWithEvents(events = createMockEvents(5), stats = createMock
     mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: events.length, skip: 0, limit: 10 });
     mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
-    const result = render(AdminEvents);
+    const result = renderWithQueryClient(AdminEvents);
     await waitFor(() => expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled());
     return result;
 }
@@ -58,7 +59,7 @@ describe('AdminEvents', () => {
 
     describe('initial loading', () => {
         it('calls loadEvents and loadStats on mount', async () => {
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             await waitFor(() => {
                 expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(1);
                 expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledTimes(1);
@@ -66,7 +67,7 @@ describe('AdminEvents', () => {
         });
 
         it('sets up auto-refresh interval', async () => {
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             await tick();
 
             // Fast-forward 30 seconds
@@ -84,7 +85,7 @@ describe('AdminEvents', () => {
                 toast.error('Failed to load events');
                 return { data: null, error } as any;
             });
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load events'));
         });
 
@@ -234,8 +235,9 @@ describe('AdminEvents', () => {
 
             await user.type(screen.getByLabelText(/Search/i), 'test');
             await user.type(screen.getByLabelText(/User ID/i), 'user-1');
+            await user.click(screen.getByRole('button', { name: /Apply/i }));
 
-            // Close filters to see the badge
+            // Close filters to see the badge, which counts the applied filters
             await user.click(screen.getByRole('button', { name: /Filters/i }));
 
             await waitFor(() => {
@@ -256,7 +258,7 @@ describe('AdminEvents', () => {
             });
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             await waitFor(() => expect(screen.getByText(/Showing 1 - 10 of 25/i)).toBeInTheDocument());
         });
 
@@ -269,7 +271,7 @@ describe('AdminEvents', () => {
             });
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             const nextBtn = await waitFor(() => screen.getByLabelText('Next page'));
 
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
@@ -295,7 +297,7 @@ describe('AdminEvents', () => {
             });
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
 
-            render(AdminEvents);
+            renderWithQueryClient(AdminEvents);
             const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Items per page/i));
 
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
@@ -324,9 +326,11 @@ describe('AdminEvents', () => {
             await user.click(eventRow!);
 
             await waitFor(() => {
-                expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith({
-                    path: { event_id: 'evt-detail-1' },
-                });
+                expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { event_id: 'evt-detail-1' },
+                    }),
+                );
                 expect(screen.getByText(/Event Details/i)).toBeInTheDocument();
             });
         });
@@ -394,9 +398,11 @@ describe('AdminEvents', () => {
             await user.click(previewBtn!);
 
             await waitFor(() => {
-                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith({
-                    body: { event_ids: ['evt-replay-1'], dry_run: true },
-                });
+                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: { event_ids: ['evt-replay-1'], dry_run: true },
+                    }),
+                );
                 expect(screen.getByText(/Replay Preview/i)).toBeInTheDocument();
             });
         });
@@ -418,9 +424,11 @@ describe('AdminEvents', () => {
 
             expect(mocks.windowConfirm).toHaveBeenCalled();
             await waitFor(() => {
-                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith({
-                    body: { event_ids: ['evt-replay-2'], dry_run: false },
-                });
+                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: { event_ids: ['evt-replay-2'], dry_run: false },
+                    }),
+                );
             });
         });
 
@@ -474,9 +482,11 @@ describe('AdminEvents', () => {
 
             expect(mocks.windowConfirm).toHaveBeenCalled();
             await waitFor(() => {
-                expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith({
-                    path: { event_id: 'evt-delete-1' },
-                });
+                expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { event_id: 'evt-delete-1' },
+                    }),
+                );
             });
         });
 
@@ -576,9 +586,11 @@ describe('AdminEvents', () => {
             await user.click(userLink!);
 
             await waitFor(() => {
-                expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith({
-                    path: { user_id: 'user-overview-1' },
-                });
+                expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: { user_id: 'user-overview-1' },
+                    }),
+                );
                 expect(screen.getByText(/User Overview/i)).toBeInTheDocument();
             });
         });

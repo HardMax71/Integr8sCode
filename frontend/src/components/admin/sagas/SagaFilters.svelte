@@ -6,7 +6,6 @@
         searchQuery: string;
         stateFilter: SagaStateFilter;
         executionIdFilter: string;
-        onSearch: () => void;
         onClear: () => void;
     }
 
@@ -14,7 +13,6 @@
         searchQuery = $bindable(''),
         stateFilter = $bindable<SagaStateFilter>(''),
         executionIdFilter = $bindable(''),
-        onSearch,
         onClear,
     }: Props = $props();
 </script>
@@ -26,7 +24,6 @@
             id="saga-search"
             type="text"
             bind:value={searchQuery}
-            oninput={onSearch}
             placeholder="Search by ID, name, or error..."
             class="form-input-standard"
         />
@@ -46,7 +43,6 @@
             id="saga-execution-filter"
             type="text"
             bind:value={executionIdFilter}
-            oninput={onSearch}
             placeholder="Filter by execution ID..."
             class="form-input-standard"
         />

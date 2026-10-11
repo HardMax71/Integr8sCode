@@ -1,19 +1,19 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import {
-        getSystemSettingsApiV1AdminSettingsGet,
-        updateSystemSettingsApiV1AdminSettingsPut,
-        resetSystemSettingsApiV1AdminSettingsResetPost,
+        getSystemSettingsApiV1AdminSettingsGetOptions,
+        getSystemSettingsApiV1AdminSettingsGetQueryKey,
+        updateSystemSettingsApiV1AdminSettingsPutMutation,
+        resetSystemSettingsApiV1AdminSettingsResetPostMutation,
         LogLevel,
         type SystemSettingsSchemaInput,
+        type SystemSettingsSchemaOutput,
         zSystemSettingsSchemaInput,
     } from '#lib/api/index.ts';
     import { firstIssue } from '#lib/validation.ts';
     import * as z from 'zod/mini';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
-
-    let settings = $state<SystemSettingsSchemaInput>({});
 
     const fieldSchemas = z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties ?? {};
 
@@ -22,55 +22,49 @@
         const schema = fieldSchemas[field];
         return typeof schema === 'object' ? { min: schema.minimum, max: schema.maximum } : {};
     }
-    let loading = $state(false);
-    let saving = $state(false);
-    let resetting = $state(false);
 
-    onMount(() => {
-        loadSettings();
+    const queryClient = useQueryClient();
+    const settingsQuery = createQuery(() => getSystemSettingsApiV1AdminSettingsGetOptions());
+
+    let loaded = $derived(settingsQuery.data);
+    // Edits go to a copy; structural sharing keeps the loaded settings across an unchanged refetch, so they survive it
+    let settings = $derived.by(() => {
+        const draft = $state<SystemSettingsSchemaInput>(structuredClone(loaded ?? {}));
+        return draft;
     });
 
-    async function loadSettings(): Promise<void> {
-        loading = true;
-        const { data, error } = await getSystemSettingsApiV1AdminSettingsGet({});
-        if (error) {
-            loading = false;
-            return;
-        }
-        if (data) settings = data;
-        loading = false;
+    function storeSettings(data: SystemSettingsSchemaOutput): void {
+        queryClient.setQueryData(getSystemSettingsApiV1AdminSettingsGetQueryKey(), data);
     }
 
-    async function saveSettings(): Promise<void> {
+    const save = createMutation(() => ({
+        ...updateSystemSettingsApiV1AdminSettingsPutMutation(),
+        onSuccess: (data) => {
+            storeSettings(data);
+            toast.success('Settings saved successfully');
+        },
+    }));
+
+    const reset = createMutation(() => ({
+        ...resetSystemSettingsApiV1AdminSettingsResetPostMutation(),
+        onSuccess: (data) => {
+            storeSettings(data);
+            toast.success('Settings reset to defaults');
+        },
+    }));
+
+    function saveSettings(): void {
         const parsed = zSystemSettingsSchemaInput.safeParse(settings);
         if (!parsed.success) {
             toast.error(firstIssue(parsed.error));
             return;
         }
-        saving = true;
-        const { error } = await updateSystemSettingsApiV1AdminSettingsPut({ body: parsed.data });
-        if (error) {
-            saving = false;
-            return;
-        }
-        toast.success('Settings saved successfully');
-        saving = false;
+        save.mutate({ body: parsed.data });
     }
 
-    async function resetSettings(): Promise<void> {
-        if (!confirm('Are you sure you want to reset all settings to defaults?')) {
-            return;
-        }
-
-        resetting = true;
-        const { data, error } = await resetSystemSettingsApiV1AdminSettingsResetPost({});
-        if (error) {
-            resetting = false;
-            return;
-        }
-        if (data) settings = data;
-        toast.success('Settings reset to defaults');
-        resetting = false;
+    function resetSettings(): void {
+        if (!confirm('Are you sure you want to reset all settings to defaults?')) return;
+        reset.mutate({});
     }
 </script>
 
@@ -83,7 +77,7 @@
         <div class="p-6">
             <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Configuration</h3>
 
-            {#if loading}
+            {#if settingsQuery.isPending}
                 <div class="flex justify-center items-center h-64">
                     <Spinner size="xlarge" />
                 </div>
@@ -306,17 +300,17 @@
                             type="button"
                             onclick={resetSettings}
                             class="btn btn-ghost"
-                            disabled={saving || resetting}
+                            disabled={save.isPending || reset.isPending}
                         >
-                            {resetting ? 'Resetting...' : 'Reset to Defaults'}
+                            {reset.isPending ? 'Resetting...' : 'Reset to Defaults'}
                         </button>
                         <button
                             type="button"
                             onclick={saveSettings}
                             class="btn btn-primary"
-                            disabled={saving || resetting}
+                            disabled={save.isPending || reset.isPending}
                         >
-                            {saving ? 'Saving...' : 'Save Settings'}
+                            {save.isPending ? 'Saving...' : 'Save Settings'}
                         </button>
                     </div>
                 </div>

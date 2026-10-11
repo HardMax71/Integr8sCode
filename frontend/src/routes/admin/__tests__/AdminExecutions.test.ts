@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor } from '@testing-library/svelte';
 import {
     user,
     selectOption,
@@ -7,6 +7,7 @@ import {
     createMockExecutions,
     createMockQueueStatus,
     mockApi,
+    renderWithQueryClient,
 } from '#test/test-utils.ts';
 import {
     listExecutionsApiV1AdminExecutionsGet,
@@ -27,7 +28,7 @@ async function renderWithExecutions(executions = createMockExecutions(5), queueS
     });
     mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(queueStatus);
 
-    const result = render(AdminExecutions);
+    const result = renderWithQueryClient(AdminExecutions);
     await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
     return result;
 }
@@ -48,7 +49,7 @@ describe('AdminExecutions', () => {
 
     describe('initial loading', () => {
         it('calls API on mount', async () => {
-            render(AdminExecutions);
+            renderWithQueryClient(AdminExecutions);
             await waitFor(() => {
                 expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled();
                 expect(vi.mocked(getQueueStatusApiV1AdminExecutionsQueueGet)).toHaveBeenCalled();
@@ -256,7 +257,7 @@ describe('AdminExecutions', () => {
             });
             mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
 
-            render(AdminExecutions);
+            renderWithQueryClient(AdminExecutions);
             await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
 
             expect(screen.getByText(/showing/i)).toBeInTheDocument();

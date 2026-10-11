@@ -8013,6 +8013,12 @@ export type ListSagasApiV1SagasGetData = {
          */
         execution_id?: string | null;
         /**
+         * Search
+         *
+         * Search saga ID, saga name, execution ID or error message
+         */
+        search?: string | null;
+        /**
          * Limit
          */
         limit?: number;

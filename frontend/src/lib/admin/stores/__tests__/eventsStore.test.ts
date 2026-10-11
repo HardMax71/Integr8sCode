@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { effect_root } from 'svelte/internal/client';
-import { createMockEvent, createMockStats, mockApi } from '#test/test-utils.ts';
+import { createInQueryContext, createMockEvent, createMockStats, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
@@ -57,111 +56,118 @@ function mockReplayStream() {
     };
 }
 
+const browseEvents = vi.mocked(browseEventsApiV1AdminEventsBrowsePost);
+
+function lastBrowseBody() {
+    return browseEvents.mock.lastCall?.[0]?.body;
+}
+
 describe('EventsStore', () => {
     let store: ReturnType<typeof createEventsStore>;
-    let teardown: () => void;
+    let unmount: () => void;
 
     beforeEach(() => {
         vi.clearAllMocks();
         vi.stubGlobal('open', windowOpen);
         vi.stubGlobal('confirm', windowConfirm);
         windowConfirm.mockReturnValue(true);
-        mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0 });
-        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(null);
+        mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
+        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
     });
 
     function createStore() {
-        teardown = effect_root(() => {
-            store = createEventsStore();
-        });
+        ({ value: store, unmount } = createInQueryContext(createEventsStore));
     }
 
     afterEach(() => {
         vi.unstubAllGlobals();
         store?.cleanup();
-        teardown?.();
     });
 
     describe('initial state', () => {
-        it('starts with empty data', () => {
+        it('starts with empty data and no filters', () => {
             createStore();
             expect(store.events).toEqual([]);
             expect(store.totalEvents).toBe(0);
-            expect(store.loading).toBe(false);
-            expect(store.stats).toBeNull();
+            expect(store.stats.data).toBeUndefined();
             expect(store.filters).toEqual({});
+            expect(store.appliedFilters).toEqual({});
         });
     });
 
-    describe('loadAll', () => {
+    describe('queries', () => {
         it('loads events and stats', async () => {
             const events = [createMockEvent()];
             const stats = createMockStats();
-            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: 1 });
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: 1, skip: 0, limit: 10 });
             mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
             createStore();
-            await store.loadAll();
 
-            expect(store.events).toEqual(events);
+            await vi.waitFor(() => expect(store.events).toEqual(events));
             expect(store.totalEvents).toBe(1);
-            expect(store.stats).toEqual(stats);
-        });
-    });
-
-    describe('loadEvents', () => {
-        it('passes pagination to API', async () => {
-            createStore();
-            store.pagination.currentPage = 2;
-            await store.loadEvents();
-
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    body: expect.objectContaining({ skip: 10, limit: 10 }),
-                }),
+            await vi.waitFor(() => expect(store.stats.data).toEqual(stats));
+            expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledWith(
+                expect.objectContaining({ query: { hours: 24 } }),
             );
         });
 
-        it('passes filters to API', async () => {
+        it('sends the page as skip and limit', async () => {
             createStore();
-            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1' };
-            await store.loadEvents();
+            store.currentPage = 2;
 
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    body: expect.objectContaining({
-                        filters: expect.objectContaining({
-                            user_id: 'user-1',
-                            aggregate_id: 'agg-1',
-                        }),
-                    }),
+            await vi.waitFor(() => expect(lastBrowseBody()).toMatchObject({ skip: 10, limit: 10 }));
+        });
+
+        it('sends the filters only once they are applied, with times as ISO strings', async () => {
+            createStore();
+            await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
+            store.currentPage = 2;
+            await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(2));
+
+            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: '2026-01-02T03:04' };
+            await vi.advanceTimersByTimeAsync(100);
+            expect(browseEvents).toHaveBeenCalledTimes(2);
+
+            store.applyFilters();
+
+            expect(store.currentPage).toBe(1);
+            await vi.waitFor(() =>
+                expect(lastBrowseBody()).toEqual({
+                    filters: {
+                        user_id: 'user-1',
+                        aggregate_id: 'agg-1',
+                        start_time: new Date('2026-01-02T03:04').toISOString(),
+                        end_time: null,
+                    },
+                    skip: 0,
+                    limit: 10,
                 }),
             );
         });
-
-        it('handles empty response', async () => {
-            mockApi(browseEventsApiV1AdminEventsBrowsePost).ok(undefined);
-
-            createStore();
-            await store.loadEvents();
-
-            expect(store.events).toEqual([]);
-            expect(store.totalEvents).toBe(0);
-        });
     });
 
-    describe('loadEventDetail', () => {
-        it('returns event detail', async () => {
+    describe('openEventDetail', () => {
+        it('loads the event into selectedEvent', async () => {
             const detail = { event: createMockEvent(), related_events: [], timeline: [] };
             mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(detail);
 
             createStore();
-            const result = await store.loadEventDetail('evt-1');
+            await store.openEventDetail('evt-1');
 
-            expect(result).toEqual(detail);
-            expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith({
-                path: { event_id: 'evt-1' },
-            });
+            expect(store.selectedEvent).toEqual(detail);
+            expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { event_id: 'evt-1' } }),
+            );
+        });
+
+        it('leaves selectedEvent empty when the load fails', async () => {
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ detail: 'Event not found' });
+
+            createStore();
+            await store.openEventDetail('missing');
+
+            expect(store.selectedEvent).toBeNull();
         });
     });
 
@@ -174,13 +180,19 @@ describe('EventsStore', () => {
             });
 
             createStore();
-            await store.replayEvent('evt-1', true);
+            store.replayEvent('evt-1', true);
 
-            expect(store.replayPreview).toEqual({
-                eventId: 'evt-1',
-                total_events: 1,
-                events_preview: preview,
-            });
+            await vi.waitFor(() =>
+                expect(store.replayPreview).toEqual({
+                    eventId: 'evt-1',
+                    total_events: 1,
+                    events_preview: preview,
+                }),
+            );
+            expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalledWith(
+                expect.objectContaining({ body: { event_ids: ['evt-1'], dry_run: true } }),
+            );
+            expect(windowConfirm).not.toHaveBeenCalled();
         });
 
         it('confirms and starts SSE stream for actual replay', async () => {
@@ -192,10 +204,12 @@ describe('EventsStore', () => {
 
             mockReplayStream();
             createStore();
-            await store.replayEvent('evt-1', false);
+            store.replayEvent('evt-1', false);
 
             expect(windowConfirm).toHaveBeenCalled();
-            expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled'));
+            await vi.waitFor(() =>
+                expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled')),
+            );
             expect(store.activeReplaySession).toBeTruthy();
             expect(vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet)).toHaveBeenCalledWith(
                 expect.objectContaining({ path: { session_id: 'session-1' } }),
@@ -211,7 +225,8 @@ describe('EventsStore', () => {
 
             const replay = mockReplayStream();
             createStore();
-            await store.replayEvent('evt-1', false);
+            store.replayEvent('evt-1', false);
+            await vi.waitFor(() => expect(store.activeReplaySession).toBeTruthy());
 
             replay.push({
                 status: 'running',
@@ -234,7 +249,8 @@ describe('EventsStore', () => {
 
             const replay = mockReplayStream();
             createStore();
-            await store.replayEvent('evt-1', false);
+            store.replayEvent('evt-1', false);
+            await vi.waitFor(() => expect(store.activeReplaySession).toBeTruthy());
 
             replay.push({
                 status: 'completed',
@@ -254,31 +270,39 @@ describe('EventsStore', () => {
             windowConfirm.mockReturnValue(false);
 
             createStore();
-            await store.replayEvent('evt-1', false);
+            store.replayEvent('evt-1', false);
+            await vi.advanceTimersByTimeAsync(100);
 
             expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).not.toHaveBeenCalled();
         });
     });
 
     describe('deleteEvent', () => {
-        it('confirms and deletes event', async () => {
-            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
+        it('confirms, deletes and refetches the list and the stats', async () => {
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({ message: 'deleted', event_id: 'evt-1' });
 
             createStore();
-            await store.deleteEvent('evt-1');
+            await vi.waitFor(() => expect(store.list.isSuccess).toBe(true));
+            browseEvents.mockClear();
+            vi.mocked(getEventStatsApiV1AdminEventsStatsGet).mockClear();
+
+            store.deleteEvent('evt-1');
 
             expect(windowConfirm).toHaveBeenCalled();
-            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith({
-                path: { event_id: 'evt-1' },
-            });
-            expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Event deleted successfully');
+            await vi.waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Event deleted successfully'));
+            expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { event_id: 'evt-1' } }),
+            );
+            await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
+            expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledTimes(1);
         });
 
         it('does not delete if confirm is cancelled', async () => {
             windowConfirm.mockReturnValue(false);
 
             createStore();
-            await store.deleteEvent('evt-1');
+            store.deleteEvent('evt-1');
+            await vi.advanceTimersByTimeAsync(100);
 
             expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).not.toHaveBeenCalled();
         });
@@ -306,17 +330,22 @@ describe('EventsStore', () => {
             );
         });
 
-        it('includes filter params in export URL', () => {
+        it('exports with the applied filters, not the unapplied edits', () => {
             createStore();
             store.filters = { user_id: 'user-1', aggregate_id: 'agg-1' };
+            store.applyFilters();
+            store.filters = { user_id: 'user-2' };
             store.exportEvents('csv');
 
-            expect(windowOpen).toHaveBeenCalledWith(expect.stringMatching(/user_id=user-1/), '_blank');
+            const url = new URL(windowOpen.mock.calls[0]![0] as string, 'https://x');
+            expect(url.searchParams.get('user_id')).toBe('user-1');
+            expect(url.searchParams.get('aggregate_id')).toBe('agg-1');
         });
 
         it('sends each event type as its own query parameter, as the API expects', () => {
             createStore();
             store.filters = { event_types: ['execution_requested', 'pod_created'] };
+            store.applyFilters();
             store.exportEvents('csv');
 
             const url = windowOpen.mock.calls[0]![0] as string;
@@ -333,56 +362,62 @@ describe('EventsStore', () => {
             mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
 
             createStore();
-            await store.openUserOverview('user-1');
+            expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).not.toHaveBeenCalled();
+            store.openUserOverview('user-1');
 
-            expect(store.userOverview).toEqual(overview);
-            expect(store.userOverviewLoading).toBe(false);
+            await vi.waitFor(() => expect(store.userOverview.data).toEqual(overview));
+            expect(store.overviewUserId).toBe('user-1');
+            expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { user_id: 'user-1' } }),
+            );
         });
 
         it('skips empty userId', async () => {
             createStore();
-            await store.openUserOverview('');
+            store.openUserOverview('');
+            await vi.advanceTimersByTimeAsync(100);
 
+            expect(store.overviewUserId).toBeNull();
             expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).not.toHaveBeenCalled();
         });
     });
 
     describe('clearFilters', () => {
-        it('resets filters and reloads', async () => {
+        it('resets the edited and applied filters and the page', () => {
             createStore();
             store.filters = { user_id: 'test' };
-            store.pagination.currentPage = 3;
+            store.applyFilters();
+            store.currentPage = 3;
 
             store.clearFilters();
 
             expect(store.filters).toEqual({});
-            expect(store.pagination.currentPage).toBe(1);
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled();
+            expect(store.appliedFilters).toEqual({});
+            expect(store.currentPage).toBe(1);
         });
     });
 
     describe('auto-refresh', () => {
-        it('fires loadAll on 30s interval', async () => {
+        it('refetches events and stats every 30 seconds', async () => {
             createStore();
-            vi.clearAllMocks();
+            await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
 
             await vi.advanceTimersByTimeAsync(30000);
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(1);
+            expect(browseEvents).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledTimes(2);
 
             await vi.advanceTimersByTimeAsync(30000);
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalledTimes(2);
+            expect(browseEvents).toHaveBeenCalledTimes(3);
         });
 
-        it('stops on teardown', async () => {
+        it('stops when the page unmounts', async () => {
             createStore();
-            await vi.advanceTimersByTimeAsync(30000);
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost)).toHaveBeenCalled();
+            await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
 
-            const callsBefore = vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mock.calls.length;
-            teardown();
-
+            unmount();
             await vi.advanceTimersByTimeAsync(60000);
-            expect(vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mock.calls.length).toBe(callsBefore);
+
+            expect(browseEvents).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -396,7 +431,8 @@ describe('EventsStore', () => {
 
             const replay = mockReplayStream();
             createStore();
-            await store.replayEvent('evt-1', false);
+            store.replayEvent('evt-1', false);
+            await vi.waitFor(() => expect(replay.signal).toBeDefined());
 
             expect(replay.signal?.aborted).toBe(false);
 

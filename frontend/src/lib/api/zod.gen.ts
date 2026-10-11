@@ -3373,6 +3373,7 @@ export const zGetExecutionSagasApiV1SagasExecutionExecutionIdGetResponse = zSaga
 export const zListSagasApiV1SagasGetQuery = z.object({
     state: z.nullish(zSagaState),
     execution_id: z.nullish(z.string()),
+    search: z.nullish(z.string().check(z.maxLength(200))),
     limit: z._default(z.optional(z.int().check(z.gte(1), z.lte(1000))), 100),
     skip: z._default(z.optional(z.int().check(z.gte(0))), 0)
 });

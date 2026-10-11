@@ -16,19 +16,17 @@ vi.mock('#lib/admin/sagas/index.ts', () => ({
 }));
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
-    const onSearch = vi.fn();
     const onClear = vi.fn();
     const result = render(SagaFilters, {
         props: {
             searchQuery: '',
             stateFilter: '',
             executionIdFilter: '',
-            onSearch,
             onClear,
             ...overrides,
         },
     });
-    return { ...result, onSearch, onClear };
+    return { ...result, onClear };
 }
 
 describe('SagaFilters', () => {

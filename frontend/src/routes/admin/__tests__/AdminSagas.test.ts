@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/svelte';
+import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, selectOption, createMockSaga, createMockSagas, mockApi } from '#test/test-utils.ts';
+import {
+    user,
+    selectOption,
+    createMockSaga,
+    createMockSagas,
+    mockApi,
+    renderWithQueryClient,
+} from '#test/test-utils.ts';
 import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '#lib/api/index.ts';
 
 import { SAGA_STATES } from '#lib/admin/sagas/index.ts';
@@ -10,7 +17,7 @@ import AdminSagas from '#routes/admin/sagas/+page.svelte';
 async function renderWithSagas(sagas = createMockSagas(5)) {
     mockApi(listSagasApiV1SagasGet).ok({ sagas, total: sagas.length, skip: 0, limit: 10, has_more: false });
 
-    const result = render(AdminSagas);
+    const result = renderWithQueryClient(AdminSagas);
     await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
     return result;
 }
@@ -24,13 +31,13 @@ describe('AdminSagas', () => {
 
     describe('initial loading', () => {
         it('calls listSagas on mount', async () => {
-            render(AdminSagas);
+            renderWithQueryClient(AdminSagas);
             await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
         });
 
         it('displays loading state', async () => {
             mockApi(listSagasApiV1SagasGet).mock.mockImplementation(() => new Promise(() => {}));
-            render(AdminSagas);
+            renderWithQueryClient(AdminSagas);
             await tick();
             expect(screen.getByText(/loading sagas/i)).toBeInTheDocument();
         });
@@ -142,19 +149,20 @@ describe('AdminSagas', () => {
             });
         });
 
-        it('filters by search query', async () => {
-            const sagas = [
-                createMockSaga({ saga_id: 's1', saga_name: 'alpha_saga' }),
-                createMockSaga({ saga_id: 's2', saga_name: 'beta_saga' }),
-            ];
-            await renderWithSagas(sagas);
+        it('sends the search to the API, so it covers every page', async () => {
+            const alpha = createMockSaga({ saga_id: 's1', saga_name: 'alpha_saga' });
+            await renderWithSagas([alpha, createMockSaga({ saga_id: 's2', saga_name: 'beta_saga' })]);
+            mockApi(listSagasApiV1SagasGet).ok({ sagas: [alpha], total: 1, skip: 0, limit: 10, has_more: false });
 
-            const searchInput = screen.getByLabelText(/search/i);
-            await user.type(searchInput, 'alpha');
+            await user.type(screen.getByLabelText(/search/i), 'alpha');
 
             await waitFor(() => {
-                expect(screen.getAllByText('alpha_saga')).toHaveLength(2);
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ query: expect.objectContaining({ search: 'alpha', skip: 0 }) }),
+                );
+                expect(screen.queryAllByText('beta_saga')).toHaveLength(0);
             });
+            expect(screen.getAllByText('alpha_saga').length).toBeGreaterThan(0);
         });
 
         it('filters by execution ID', async () => {
@@ -314,7 +322,7 @@ describe('AdminSagas', () => {
             const sagas = createMockSagas(5);
             mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
-            render(AdminSagas);
+            renderWithQueryClient(AdminSagas);
             await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
 
             expect(screen.getByText(/showing/i)).toBeInTheDocument();
@@ -324,7 +332,7 @@ describe('AdminSagas', () => {
             const sagas = createMockSagas(5);
             mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
-            render(AdminSagas);
+            renderWithQueryClient(AdminSagas);
             await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
 
             vi.clearAllMocks();

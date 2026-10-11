@@ -7,7 +7,11 @@
  */
 
 import { vi, type Mock } from 'vitest';
+import type { Component } from 'svelte';
+import { render, type RenderResult } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
+import QueryClientWrapper from '#test/QueryClientWrapper.svelte';
+import RunInContext from '#test/RunInContext.svelte';
 import { EVENT_TYPES } from '#lib/admin/events/eventTypes.ts';
 import type {
     ExecutionCompletedEvent,
@@ -31,7 +35,8 @@ const _s = new Response();
 
 /**
  * Fluent mock wrapper for hey-api SDK functions.
- * Hides the `request`/`response` fields that `RequestResult` requires.
+ * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects
+ * when the call passes `throwOnError`, which the generated query and mutation options always do.
  */
 export function mockApi(fn: (...args: any[]) => any) {
     const mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
@@ -40,10 +45,36 @@ export function mockApi(fn: (...args: any[]) => any) {
             mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
         },
         err(error: unknown) {
-            mock.mockResolvedValue({ data: undefined, error, request: _r, response: _s });
+            mock.mockImplementation((options?: { throwOnError?: boolean }) =>
+                options?.throwOnError
+                    ? Promise.reject(error)
+                    : Promise.resolve({ data: undefined, error, request: _r, response: _s }),
+            );
         },
         mock,
     };
+}
+
+/**
+ * Calls `create` inside a component under a QueryClientProvider, the way a page creates a store that runs
+ * queries. The component unmounts with `unmount()` or at the next test's cleanup.
+ */
+export function createInQueryContext<T>(create: () => T): { value: T; unmount: () => void } {
+    let value: T | undefined;
+    const { unmount } = renderWithQueryClient(RunInContext, {
+        run: () => {
+            value = create();
+        },
+    });
+    return { value: value as T, unmount };
+}
+
+/** Renders a component inside a QueryClientProvider, as the root layout does. */
+export function renderWithQueryClient<Props extends Record<string, any>>(
+    component: Component<Props>,
+    props?: Props,
+): RenderResult<typeof QueryClientWrapper> {
+    return render(QueryClientWrapper, { props: { component, props } });
 }
 
 export const user: UserEventInstance = userEvent.setup({

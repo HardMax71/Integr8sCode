@@ -1,7 +1,4 @@
 <script lang="ts">
-    import { onMount, untrack } from 'svelte';
-    import { getSagaStatusApiV1SagasSagaIdGet, type SagaStatusResponse } from '#lib/api/index.ts';
-    import { unwrapOr } from '#lib/api-interceptors.ts';
     import Pagination from '#components/Pagination.svelte';
     import { AutoRefreshControl } from '#components/admin/index.ts';
     import { SagaStatsCards, SagaFilters, SagasTable, SagaDetailsModal } from '#components/admin/sagas/index.ts';
@@ -9,52 +6,10 @@
 
     const store = createSagasStore();
 
-    // Modal-only state
-    let selectedSaga = $state<SagaStatusResponse | null>(null);
-    let showDetailModal = $state(false);
-
-    let totalPages = $derived(Math.ceil(store.totalItems / store.pagination.pageSize));
-
-    async function loadSagaDetails(sagaId: string): Promise<void> {
-        const data = unwrapOr(
-            await getSagaStatusApiV1SagasSagaIdGet({
-                path: { saga_id: sagaId },
-            }),
-            null,
-        );
-        if (!data) return;
-        selectedSaga = data;
-        showDetailModal = true;
+    function showExecution(executionId: string): void {
+        store.selectedSaga = null;
+        store.executionIdFilter = executionId;
     }
-
-    function handleViewExecution(executionId: string): void {
-        showDetailModal = false;
-        store.loadExecutionSagas(executionId);
-    }
-
-    function handlePageChange(page: number): void {
-        store.pagination.handlePageChange(page, () => store.loadSagas());
-    }
-
-    function handlePageSizeChange(): void {
-        store.pagination.currentPage = 1;
-        store.loadSagas();
-    }
-
-    let prevStateFilter = $state(store.stateFilter);
-    $effect(() => {
-        if (store.stateFilter !== prevStateFilter) {
-            prevStateFilter = store.stateFilter;
-            untrack(() => {
-                store.pagination.currentPage = 1;
-                store.loadSagas();
-            });
-        }
-    });
-
-    onMount(() => {
-        store.loadSagas();
-    });
 </script>
 
 <div class="px-6 pb-6">
@@ -69,8 +24,8 @@
         <AutoRefreshControl
             bind:enabled={store.refreshEnabled}
             bind:rate={store.refreshRate}
-            loading={store.loading}
-            onRefresh={() => store.loadSagas()}
+            loading={store.list.isFetching}
+            onRefresh={() => store.list.refetch()}
         />
     </div>
 
@@ -78,42 +33,36 @@
         bind:searchQuery={store.searchQuery}
         bind:stateFilter={store.stateFilter}
         bind:executionIdFilter={store.executionIdFilter}
-        onSearch={() => store.loadSagas()}
         onClear={() => store.clearFilters()}
     />
 
     <SagasTable
         sagas={store.sagas}
-        loading={store.loading}
-        onViewDetails={loadSagaDetails}
-        onViewExecution={(id) => store.loadExecutionSagas(id)}
+        loading={store.list.isPending}
+        onViewDetails={(id) => store.openDetails(id)}
+        onViewExecution={showExecution}
     />
 
     {#if store.totalItems > 0}
         <div class="p-4 border-t divider">
-            {#if store.hasClientFilters && store.sagas.length < store.serverReturnedCount}
-                <p class="text-sm text-fg-muted dark:text-dark-fg-muted mb-2">
-                    Showing {store.sagas.length} of {store.serverReturnedCount} on this page (filtered locally)
-                </p>
-            {/if}
             <Pagination
-                currentPage={store.pagination.currentPage}
-                {totalPages}
+                currentPage={store.currentPage}
+                totalPages={store.totalPages}
                 totalItems={store.totalItems}
-                bind:pageSize={store.pagination.pageSize}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
+                bind:pageSize={store.pageSize}
+                onPageChange={(page) => (store.currentPage = page)}
+                onPageSizeChange={() => (store.currentPage = 1)}
                 itemName="sagas"
             />
         </div>
     {/if}
 </div>
 
-{#if showDetailModal && selectedSaga}
+{#if store.selectedSaga}
     <SagaDetailsModal
-        saga={selectedSaga}
-        open={showDetailModal}
-        onClose={() => (showDetailModal = false)}
-        onViewExecution={handleViewExecution}
+        saga={store.selectedSaga}
+        open={store.selectedSaga !== null}
+        onClose={() => (store.selectedSaga = null)}
+        onViewExecution={showExecution}
     />
 {/if}

@@ -6,7 +6,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TypeScript 6 strict, TailwindCSS 4, Node 26 |
+| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
@@ -50,6 +50,7 @@ frontend/
     ├── lib/editor/          # Execution state, languages, runtime helpers (newestVersion)
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
+    ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
     ├── stores/              # auth, notificationStore, theme, userSettings (.svelte.ts)
     └── styles/              # Global CSS
 ```
@@ -655,6 +656,31 @@ client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/
 
 UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value.
 
+Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop or retry. The admin pages are done; the editor, settings, notifications and auth still call the SDK directly and move next (#326). `docs/frontend/server-state.md` has the details.
+
+```typescript
+import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
+import { listSagasApiV1SagasGetOptions, cancelSagaApiV1SagasSagaIdCancelPostMutation, listSagasApiV1SagasGetQueryKey } from '#lib/api/index.ts';
+
+// reads: the callback is reactive, so new filters or a new page are a new key and a new fetch
+const list = createQuery(() => ({
+    ...listSagasApiV1SagasGetOptions({ query: { state, skip, limit } }),
+    placeholderData: keepPreviousData,
+    refetchInterval: 5_000,               // polling; pauses in a hidden tab, stops on unmount
+}));
+
+// writes: invalidate what the write changed
+const queryClient = useQueryClient();
+const cancel = createMutation(() => ({
+    ...cancelSagaApiV1SagasSagaIdCancelPostMutation(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listSagasApiV1SagasGetQueryKey() }),
+}));
+```
+
+`src/lib/query-client.ts` holds the one client, provided by the root layout. Queries don't retry, since the interceptor toasts every failure and a retry would toast again. Use `isPending` for first-load spinners and `isFetching` for refresh buttons.
+
+Code that still calls the SDK directly uses `unwrap` and `unwrapOr`:
+
 ```typescript
 import { someApiEndpoint } from '#lib/api/index.ts';
 import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
@@ -683,7 +709,7 @@ The global interceptor in `src/lib/api-interceptors.ts` handles:
 
 For the login and register endpoints the interceptor skips only the 401, network and other-4xx toasts; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
 
-**Do not add try/catch around API calls**; the interceptor handles display. Use `unwrap` / `unwrapOr` only. The one exception is `Login.svelte` and `Register.svelte`: since the interceptor stays quiet for their 401, network and other-4xx errors, they keep their own try/catch and show `getErrorMessage(err, ...)` inline.
+**Do not add try/catch around API calls**; the interceptor handles display. Use queries and mutations, or `unwrap` / `unwrapOr` where the SDK is still called directly. The one exception is `Login.svelte` and `Register.svelte`: since the interceptor stays quiet for their 401, network and other-4xx errors, they keep their own try/catch and show `getErrorMessage(err, ...)` inline.
 
 ## Frontend: Auth Store
 
@@ -765,7 +791,8 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `#lib/api/index.ts` (SDK functions only; enums, Zod schemas and the client stay real), `#lib/api-interceptors.ts`, `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `#lib/api-interceptors.ts`, `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

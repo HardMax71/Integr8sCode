@@ -94,5 +94,5 @@ Nothing calls `handle_message` today, so the collection stays empty. Combined wi
 - `app/domain/enums/events.py` holds `EventType`, which doubles as the topic list.
 - `app/domain/events/typed.py` holds the Pydantic event models and the `DomainEvent` union.
 - `app/events/core/producer.py` and `transport.py` hold `UnifiedProducer` and `KafkaEventTransport`.
-- `app/events/handlers.py` registers every subscriber.
+- `app/events/handlers.py` declares every subscriber, on one `KafkaRouter` per consumer.
 - `app/infrastructure/kafka/topics.py` has the event type category sets.

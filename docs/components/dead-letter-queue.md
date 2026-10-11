@@ -4,7 +4,7 @@ Nothing feeds the dead letter queue today, so a Kafka event whose handler fails 
 
 ## What happens to a failed event
 
-Every subscriber in `app/events/handlers.py` except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in the `event.processing.errors.total` metric. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs, and its failures aren't counted in that metric.
+Every subscriber in `app/events/handlers.py` except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in `messaging_process_duration_seconds` under an `error_type` label. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs.
 
 `DLQManager.handle_message` in `app/dlq/manager.py` is the code that would take a failed message in: drop it if it's older than 7 days or its event id starts with `test-` (outside the test environment), save it to MongoDB, publish `dlq_message_received`, and schedule a retry. It has had no caller since the switch to one topic per event type in commit 95389b4.
 

@@ -16,10 +16,7 @@ from pymongo import AsyncMongoClient
 
 from app.core.tracing import Tracer
 from app.db.docs import ALL_DOCUMENTS
-from app.events.handlers import (
-    register_notification_subscriber,
-    register_sse_subscriber,
-)
+from app.events.handlers import notification_router, sse_router
 from app.services.notification_scheduler import NotificationScheduler
 from app.settings import Settings
 
@@ -64,8 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     broker: KafkaBroker = await container.get(KafkaBroker)
 
     # Register subscribers BEFORE broker.start() - FastStream requirement
-    register_sse_subscriber(broker, settings)
-    register_notification_subscriber(broker)
+    broker.include_routers(sse_router(settings), notification_router())
     logger.info("Kafka subscribers registered")
 
     # Set up FastStream DI integration (must be before start per Dishka docs)

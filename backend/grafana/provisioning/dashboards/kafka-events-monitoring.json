@@ -853,9 +853,9 @@
         {
           "datasource": "Victoria Metrics",
           "editorMode": "code",
-          "expr": "(rate(event_processing_errors_total[1m]) or vector(0)) * 60",
+          "expr": "(sum(rate(messaging_process_duration_seconds_count{error_type!=\"\"}[1m])) by (messaging_destination_publish_name) or vector(0)) * 60",
           "instant": false,
-          "legendFormat": "{{event_type}}",
+          "legendFormat": "{{messaging_destination_publish_name}}",
           "range": true,
           "refId": "A"
         }

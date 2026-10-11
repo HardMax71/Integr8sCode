@@ -24,7 +24,7 @@ backend/
 │   ├── db/                  # Beanie documents (db/docs/) and repositories (db/repositories/)
 │   ├── dlq/                 # DLQ manager and models
 │   ├── domain/              # Domain models (stdlib dataclasses), events, enums, exceptions
-│   ├── events/              # handlers.py (Kafka subscribers), core/ (producer, transport)
+│   ├── events/              # handlers.py (Kafka routers), middlewares.py (idempotency), core/ (producer, transport)
 │   ├── infrastructure/      # kafka/topics.py: event type groupings
 │   ├── schemas_pydantic/    # API request and response schemas
 │   ├── services/            # Business services, constructor-injected via Dishka
@@ -213,7 +213,7 @@ Rules:
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
 - Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
 
-A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `_track_consumed` and `with_idempotency` in `app/events/handlers.py` record a metric or mark the idempotency key failed, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
+A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` in `app/events/middlewares.py` marks the idempotency key failed, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 
 ```python
 # Repository: returns None for reads; raises only on write constraints
@@ -507,21 +507,27 @@ await self.producer.produce(event_to_produce=event, key=execution_id)
 ```
 
 ### Consumers
-Subscribers live in `app/events/handlers.py`, grouped in `register_<worker>_subscriber(broker)` functions.
+Subscribers live in `app/events/handlers.py`, one `<worker>_router()` factory per consumer that returns a `KafkaRouter`. The router carries the ack policy and middlewares; the handler takes the body and the service and does nothing else.
 
 ```python
-@broker.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator", ack_policy=AckPolicy.ACK)
-async def on_execution_requested(
-    body: ExecutionRequestedEvent,
-    orchestrator: FromDishka[SagaOrchestrator],
-) -> None:
-    ...
+def saga_router() -> KafkaRouter:
+    router = KafkaRouter(
+        ack_policy=AckPolicy.ACK,
+        middlewares=(idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600),),
+    )
+
+    @router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")
+    async def on_execution_requested(body: ExecutionRequestedEvent, saga: FromDishka[SagaOrchestrator]) -> None:
+        await saga.handle_execution_requested(body)
+
+    return router
 ```
 
 - Pass the `EventType` member as the topic, never a string literal
 - String literal `group_id` per consumer group
 - One topic per subscriber, no filtering inside handlers. The one exception is the API's `sse-bridge-pool` subscriber, which takes the 17 execution, result and pod event types in one handler and forwards them to Redis for SSE
-- Handlers that must not run twice go through `with_idempotency(...)`
+- Consumers that must not run a handler twice put `idempotent(strategy, ttl_seconds=...)` from `app/events/middlewares.py` on their router
+- Don't wrap handlers to count failures: FastStream's `KafkaTelemetryMiddleware` already records them under `error_type` on `messaging_process_duration_seconds`
 
 ### Worker Pattern
 Each `backend/workers/run_<worker>.py` follows the same order:
@@ -529,7 +535,7 @@ Each `backend/workers/run_<worker>.py` follows the same order:
 1. `Settings(override_path="config.<worker>.toml")`
 2. `init_beanie()` on a tz-aware `AsyncMongoClient`, before the container exists
 3. `create_<worker>_container(settings)`
-4. Get `KafkaBroker` from the container and call `register_<worker>_subscriber(broker)` if the worker consumes
+4. Get `KafkaBroker` from the container and `broker.include_router(<worker>_router())` if the worker consumes
 5. `setup_dishka(container, broker=broker, auto_inject=True)`
 6. `FastStream(broker, on_startup=[...], on_shutdown=[...]).run()`; APScheduler jobs start in `on_startup`
 

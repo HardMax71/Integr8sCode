@@ -14,7 +14,7 @@ flowchart LR
 
 ## Where they come from
 
-`dishka_lifespan` calls `register_notification_subscriber`, which subscribes to `execution_completed`, `execution_failed` and `execution_timeout` in the consumer group `notification-service`, starting from the latest offset. Each handler turns the event into a notification for the execution's owner.
+`dishka_lifespan` includes `notification_router`, which subscribes to `execution_completed`, `execution_failed` and `execution_timeout` in the consumer group `notification-service`, starting from the latest offset. Each handler turns the event into a notification for the execution's owner.
 
 | Event                 | Subject                         | Severity | Tags                                                           |
 |-----------------------|---------------------------------|----------|----------------------------------------------------------------|

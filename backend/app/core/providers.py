@@ -94,6 +94,7 @@ class BrokerProvider(Provider):
             client_id=f"integr8scode-{settings.SERVICE_NAME}",
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
             graceful_timeout=settings.KAFKA_GRACEFUL_TIMEOUT,
+            enable_idempotence=True,
             middlewares=(KafkaTelemetryMiddleware(),),
         )
         logger.info("Kafka broker created")

@@ -150,6 +150,9 @@ jobs:
             : "${REDIS_PASSWORD:?the REDIS_PASSWORD secret is empty}"
             cd /opt/Integr8sCode
 
+            # Images the running stack doesn't use; old tags can be pulled from GHCR again
+            docker image prune -af || true
+
             git pull origin main
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
@@ -174,7 +177,7 @@ jobs:
 
             echo "Backend healthy (IMAGE_TAG=$IMAGE_TAG)"
 
-            docker image prune -af --filter "until=72h" || true
+            docker image prune -af || true
 
   summary:
     name: Summary

@@ -1,6 +1,6 @@
 # Pod and namespace security
 
-User code runs in executor pods in the `integr8scode` namespace. The pod builder locks down each pod, the k8s worker locks down the namespace at startup, and Kueue caps how much the namespace can use in total.
+User code runs in executor pods in the `integr8scode` namespace. The pod builder locks down each pod, the k8s worker locks down the namespace at startup, and Kueue caps how much CPU and memory the pods can request in total.
 
 ## Executor pods
 
@@ -18,11 +18,11 @@ User code runs in executor pods in the `integr8scode` namespace. The pod builder
 
 The script and entrypoint.sh come from a per-execution ConfigMap, mounted read-only. The only writable paths are two `emptyDir` volumes: `/output` (10Mi) and `/tmp` (10Mi, or more for languages that need it).
 
-The timeout is the admin setting `max_timeout_seconds`, which falls back to `K8S_POD_EXECUTION_TIMEOUT` (5 seconds in config.toml). CPU and memory limits come from `K8S_POD_CPU_LIMIT` and `K8S_POD_MEMORY_LIMIT`. A language can raise all three through its `PodRuntimeConfig` in runtime_registry.py. Today only Go does: at least 1000m CPU, 320Mi memory, 30 seconds and a 64Mi `/tmp` for its build cache.
+The timeout and the CPU and memory limits are the admin settings `max_timeout_seconds`, `cpu_limit` and `memory_limit`. The first read stores them in MongoDB, seeded from `K8S_POD_EXECUTION_TIMEOUT` (5 seconds), `K8S_POD_CPU_LIMIT` (1000m) and `K8S_POD_MEMORY_LIMIT` (128Mi) in config.toml. After that, editing those keys changes nothing until an admin resets the settings. A language can raise all three through its `PodRuntimeConfig` in runtime_registry.py. Today only Go does: at least 1000m CPU, 320Mi memory, 30 seconds and a 64Mi `/tmp` for its build cache. Requests always come from `K8S_POD_CPU_REQUEST` (200m) and `K8S_POD_MEMORY_REQUEST` (128Mi).
 
 ## Namespace
 
-The k8s worker calls `ensure_namespace_security()` when it starts. Both steps are server-side applies, so they're safe to repeat.
+The k8s worker calls `ensure_namespace_security()` when it starts. The first step is a server-side apply and the second a plain namespace patch, and both are safe to repeat.
 
 The first creates or updates the `executor-deny-all` NetworkPolicy. It selects pods labelled `component: executor`, which every executor pod has, and denies all ingress and egress. The worker is the only owner of this policy; setup-k8s.sh doesn't create it.
 
@@ -45,11 +45,11 @@ The second labels the namespace with the `restricted` Pod Security Standard for 
 
 The worker also applies a `runtime-image-pre-puller` DaemonSet that pulls every runtime image onto each node, so executor pods don't wait on a pull. Its containers also follow the restricted profile.
 
-The worker reaches the cluster with the `integr8scode-sa` service account that setup-k8s.sh creates. setup-k8s.sh also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs and exec), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
+The worker reaches the cluster with the `integr8scode-sa` service account that setup-k8s.sh creates. setup-k8s.sh also writes the kubeconfig with that account's token. A Role in the namespace lets it manage pods (with logs), ConfigMaps, services, DaemonSets and NetworkPolicies, and a ClusterRole lets it get, list and patch namespaces for the labels.
 
 ## Quota with Kueue
 
-Kueue enforces the namespace's total CPU and memory, not the worker and not a ResourceQuota. setup-k8s.sh installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
+Kueue caps the total CPU and memory that executor pods request, not what they use: a default pod requests 200m CPU but may use up to its 1000m limit. Neither the worker nor a ResourceQuota enforces this. The quota sits on a ClusterQueue that would admit a LocalQueue from any namespace, and only `integr8scode` has one. setup-k8s.sh installs Kueue v0.20.1 (manifest checked by SHA256) and creates the queues:
 
 | Resource       | Name             | Purpose                                        |
 |----------------|------------------|------------------------------------------------|
@@ -57,7 +57,7 @@ Kueue enforces the namespace's total CPU and memory, not the worker and not a Re
 | ClusterQueue   | `executor-queue` | quota of 32 CPU and 4Gi memory                 |
 | LocalQueue     | `executor-queue` | queue in `integr8scode`, bound to the ClusterQueue |
 
-Executor pods carry `kueue.x-k8s.io/queue-name: executor-queue`. When the quota is used up, Kueue holds new pods behind a scheduling gate instead of rejecting them the way a ResourceQuota would, and releases them as quota frees up. `activeDeadlineSeconds` only starts once a pod is running on a node, so time spent gated doesn't eat into the execution timeout. How many executions run at once is still decided by the saga orchestrator's queue; Kueue is the backstop for total resource use.
+Executor pods carry `kueue.x-k8s.io/queue-name: executor-queue`. When the quota is used up, Kueue holds new pods behind a scheduling gate instead of rejecting them the way a ResourceQuota would, and releases them as quota frees up. `activeDeadlineSeconds` only starts once a pod is running on a node, so time spent gated doesn't eat into the execution timeout. How many executions run at once is still decided by the saga orchestrator's queue; Kueue is the backstop for total resource requests.
 
 ## Network policy enforcement
 

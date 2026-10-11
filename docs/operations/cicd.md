@@ -90,6 +90,8 @@ The deploy job runs `appleboy/ssh-action` against the production server. It's sk
 | `CODECOV_TOKEN`                                | Stack Tests                 | coverage upload                             |
 | `TEST_SECRET_KEY`                              | MyPy Type Checking          | exported as `SECRET_KEY` for the mypy step |
 
+Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials and the monitor password, so the deploy script stops before it touches the server when any of those secrets is empty. `JWT_SECRET_KEY` was missing until 2026-10-11, so every deploy before then ran with the default key from docker-compose.yaml.
+
 ## Supply chain
 
 Every action, the composite ones included, is pinned to a full commit SHA with the version in a comment, for example `actions/checkout@3d3c42e5... # v7.0.1`. The Trivy action is pinned to the commit of v0.36.0 because the older tags were deleted upstream.

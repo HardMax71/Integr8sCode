@@ -147,6 +147,28 @@ async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "results", "released"),
+    [
+        ("release", [1, 1], True),
+        ("release", [0, 1], False),  # a duplicate completion, or a pending execution that remove() already took
+        ("remove", [0, 0, 0, 0, 0, 1, 0, 1], True),  # cancelled while running
+        ("remove", [0, 0, 1, 0, 0, 1, 0, 0], False),  # cancelled while still pending
+    ],
+)
+async def test_active_count_drops_only_when_an_execution_leaves_the_active_set(
+    mock_redis: AsyncMock, method: str, results: list[int], released: bool
+) -> None:
+    metrics = MagicMock(spec=QueueMetrics)
+    service = ExecutionQueueService(mock_redis, structlog.get_logger("test"), metrics)
+    mock_redis.pipeline.return_value.execute = AsyncMock(return_value=results)
+
+    await getattr(service, method)("e1")
+
+    assert metrics.record_release.called is released
+
+
+@pytest.mark.asyncio
 async def test_get_queue_status(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     # 5 ZCARD results (one per priority) + 1 SCARD

@@ -68,10 +68,10 @@ The queue status reads Redis directly: `queue_depth` is the sum of `ZCARD` over 
 | Instrument | Series | Meaning |
 |------------|--------|---------|
 | `queue.depth` | `queue_depth` | Up-down counter: up on enqueue, down on schedule |
-| `queue.active` | `queue_active` | Up-down counter: up on schedule, down on every `release` |
+| `queue.active` | `queue_active` | Up-down counter: up on schedule, down when `release` or `remove` takes an id out of the active set |
 | `queue.enqueue.total` | `queue_enqueue_total` | Enqueues, including re-enqueues after a failed saga start |
 | `queue.schedule.total` | `queue_schedule_total` | Executions popped from the queue |
 | `queue.wait_time` | `queue_wait_time_seconds` | Histogram of enqueue to schedule, by `priority` |
 | `queue.event_data_lost` | `queue_event_data_lost_total` | Scheduled ids whose stored event had expired |
 
-`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `release` also decrements `queue_active` for ids that never held a slot, like a cancelled pending execution, so the series drifts. `queue_depth` drifts the other way: an id popped with an expired event, or removed by a cancel, leaves the pending set without decrementing it. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.
+`queue_depth` and `queue_active` are counted in the orchestrator process, so they start from zero after a restart. `queue_depth` also drifts: an id popped with an expired event, or removed by a cancel, leaves the pending set without decrementing it. The admin queue endpoint is the number to trust. The [metrics reference](../operations/metrics-reference.md) lists the rest.

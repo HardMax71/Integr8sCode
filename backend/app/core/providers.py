@@ -44,6 +44,7 @@ from app.dlq.manager import DLQManager
 from app.domain.saga import SagaConfig
 from app.events import UnifiedProducer
 from app.events.core.transport import KafkaEventTransport
+from app.events.middlewares import RetryTargetMiddleware
 from app.services.admin import AdminEventsService, AdminSettingsService, AdminUserService
 from app.services.admin.admin_execution_service import AdminExecutionService
 from app.services.auth_service import AuthService
@@ -95,7 +96,7 @@ class BrokerProvider(Provider):
             request_timeout_ms=settings.KAFKA_REQUEST_TIMEOUT_MS,
             graceful_timeout=settings.KAFKA_GRACEFUL_TIMEOUT,
             enable_idempotence=True,
-            middlewares=(KafkaTelemetryMiddleware(),),
+            middlewares=(KafkaTelemetryMiddleware(), RetryTargetMiddleware),
         )
         logger.info("Kafka broker created")
         return broker
@@ -203,7 +204,7 @@ class MessagingProvider(Provider):
 
 
 class DLQProvider(Provider):
-    """Provides DLQManager without scheduling. Used by all containers except the DLQ worker."""
+    """Provides DLQManager. Every container has one, since the routers save failed events through it."""
 
     scope = Scope.APP
 

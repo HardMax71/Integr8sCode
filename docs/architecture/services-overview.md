@@ -49,7 +49,7 @@ The result processor writes the final status, output and resource usage to Mongo
 
 The event-replay container only runs `cleanup_old_sessions` every 6 hours. Replay sessions themselves run inside the API process, which owns the `EventReplayService` the admin routes use.
 
-The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic. Nothing writes to that collection today, so it has nothing to retry ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). See [Dead Letter Queue](../components/dead-letter-queue.md).
+The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic for the consumer group that failed on them. The k8s worker, result processor, saga orchestrator and notification routers save their failed events there. See [Dead Letter Queue](../components/dead-letter-queue.md).
 
 ## Idempotent consumers
 

@@ -38,7 +38,7 @@ flowchart TB
     AGE -->|No| DUP
     AGE -->|Yes| RUN
     RUN -->|OK| DONE[Mark completed]
-    RUN -->|Raises| FAIL[Mark failed, re-raise]
+    RUN -->|Raises| FAIL[Release key, re-raise]
 ```
 
 A record has one of three states:
@@ -55,7 +55,7 @@ A record has one of three states:
 
 When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd for a Redis store but it's what the manager catches. Each record is a JSON document with the status, the event type and id, timestamps, processing duration, the error and an optional cached result. Updates keep the key's remaining TTL, read with `TTL` in whole seconds. If that reads 0 because the key is about to expire, the rewrite sets no expiry at all and the key stays until something deletes it.
 
-A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires.
+A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires. Neither the Kafka middleware nor the HTTP path writes `failed` today: both release the key when the work raises.
 
 Kafka handlers get the guard from `IdempotencyMiddleware`, which each router takes with its key strategy and TTL:
 
@@ -65,7 +65,7 @@ Kafka handlers get the guard from `IdempotencyMiddleware`, which each router tak
 
 It runs before FastStream hands the message to the handler, so it parses the raw body into the `DomainEvent` union itself and takes the manager from the request container that the broker's Dishka middleware opens around it.
 
-A duplicate is logged and skipped, and the message is acked as usual. A handler that raises leaves a `failed` record, which blocks that event for the rest of the TTL, so this layer never retries a failure. Nothing else retries it either today: see [issue #288](https://github.com/HardMax71/Integr8sCode/issues/288).
+A duplicate is logged and skipped, and the message is acked as usual. A handler that raises gets its key released, so nothing is left to block the event. The router's `DeadLetterMiddleware` saves it to the [dead letter queue](../components/dead-letter-queue.md), and the retry runs the handler again.
 
 ## HTTP Idempotency-Key
 

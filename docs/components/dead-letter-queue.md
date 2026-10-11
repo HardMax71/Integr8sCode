@@ -1,18 +1,28 @@
 # Dead letter queue
 
-Nothing feeds the dead letter queue today, so a Kafka event whose handler fails is lost. [#288](https://github.com/HardMax71/Integr8sCode/issues/288) tracks the fix. This page describes what the code does now.
+When a Kafka handler raises, its event goes to the dead letter queue, and the dlq-processor later sends it back to the one consumer group that failed. The queue is the `dlq_messages` MongoDB collection, not a Kafka topic. FastStream has no dead letter queue for Kafka, so two small middlewares in `app/events/middlewares.py` connect the subscribers to it.
 
 ## What happens to a failed event
 
-Every subscriber in `app/events/handlers.py` except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. A handler that raises is logged and counted in `messaging_process_duration_seconds` under an `error_type` label. Where the handler has an idempotency guard, its key is marked failed, which would also turn away a redelivery while the key lives. Kafka doesn't redeliver it anyway, and nothing stores it for a retry. The SSE bridge uses `ACK_FIRST` and acks before it even runs.
+Every subscriber except the SSE bridge uses `AckPolicy.ACK`, which commits the offset after the handler returns, whether it succeeded or raised. The k8s worker, result processor, saga orchestrator and notification routers also carry `DeadLetterMiddleware`:
 
-`DLQManager.handle_message` in `app/dlq/manager.py` is the code that would take a failed message in: drop it if it's older than 7 days or its event id starts with `test-` (outside the test environment), save it to MongoDB, publish `dlq_message_received`, and schedule a retry. It has had no caller since the switch to one topic per event type in commit 95389b4.
+```python
+--8<-- "backend/app/events/middlewares.py:DeadLetterMiddleware"
+```
 
-## What's still there
+When the handler raises, the middleware passes the event to `DLQManager.handle_message` with its topic, the subscriber's consumer group, the error and the retry count, then re-raises. FastStream logs the error, the telemetry middleware counts it in `messaging_process_duration_seconds` under `error_type`, and the offset is committed. Where the router also has an idempotency guard, the guard releases the event's key on the way out, so the retry isn't turned away as a duplicate.
 
-Messages would live in the `dlq_messages` collection, never in a Kafka topic. The collection has a unique index on `event.event_id` and a TTL index that deletes rows 7 days after `created_at`.
+`handle_message` drops the message if it's older than 7 days or its event id starts with `test-` (outside the test environment). Otherwise it saves the row as `pending`, publishes `dlq_message_received`, and then either discards the message, when its retries are used up, or schedules the next retry by the event type's policy.
 
-The [DLQ processor](workers/dlq_processor.md) worker runs every 10 seconds, picks up rows with status `scheduled` whose `next_retry_at` has passed, republishes each event to its original topic and marks the row `retried`. Both `retried` and `discarded` are terminal, so a row is retried at most once and then stays `retried`, even if the retried event fails again. With nothing writing rows, every cycle finds nothing.
+The SSE bridge has no DLQ middleware. It acks before it runs (`ACK_FIRST`), and pushing a stale status to a browser minutes later would do more harm than missing it.
+
+## Retries
+
+The [DLQ processor](workers/dlq_processor.md) runs every 10 seconds. It picks up rows with status `scheduled` whose `next_retry_at` has passed, marks each one `retried` with its retry count plus one, and republishes the event to its original topic.
+
+Every consumer group on that topic receives the retried event, so the publish carries two headers: `x-dlq-consumer-group` names the group that failed and `x-dlq-retry-count` the attempt. `RetryTargetMiddleware`, which every broker has, makes the other groups skip it. If the retry fails again, `DeadLetterMiddleware` saves it with that retry count, so the same row goes back to `pending` and gets scheduled or discarded. A retry that succeeds leaves the row at `retried`. If the republish itself fails, the row goes back to `scheduled` and the next cycle tries again.
+
+The row is marked before the publish on purpose. A retry can fail and save its new failure within milliseconds, and marking afterwards would overwrite that with `retried`.
 
 Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
 
@@ -23,15 +33,22 @@ Retry policies are hardcoded in `app/dlq/models.py`, chosen by event type:
 | `result_stored`, `result_failed` | Immediate | 3 | | |
 | Everything else | Exponential, x2.5 | 4 | 60 s | 1800 s |
 
-Exponential delays get 10% jitter. At intake, a message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded` and `dlq_message_discarded` is published.
+Exponential delays get 10% jitter. A message whose `retry_count` has reached the limit is discarded with reason `max_retries_exceeded`, and `dlq_message_discarded` goes out.
 
-The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are loaded and validated by `Settings`, but no code uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ either: the `/api/v1/dlq` routes were removed in the same commit.
+## Storage
+
+A row is one event in one consumer group. The unique index is on `event.event_id` plus `consumer_group`, so when the saga orchestrator and the result processor both fail on the same `execution_completed`, each gets its own row and its own retry. A TTL index deletes rows 7 days after `created_at`.
+
+A database created before consumer groups were added still has the old unique index `idx_dlq_event_id` on `event.event_id` alone, and Beanie never drops indexes. Until someone runs `db.dlq_messages.dropIndex("idx_dlq_event_id")` once, a second group that fails on the same event can't save its row.
+
+The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY_SECONDS`, `DLQ_RETRY_MAX_DELAY_SECONDS`, `DLQ_RETENTION_DAYS`, `DLQ_WARNING_THRESHOLD`, `DLQ_CRITICAL_THRESHOLD`) are loaded and validated by `Settings`, but no code uses them ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no HTTP API for the DLQ.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
+| [`middlewares.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/events/middlewares.py) | `DeadLetterMiddleware` and `RetryTargetMiddleware` |
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py) | Intake, retry, discard |
-| [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses and retry policies |
+| [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses, retry policies and the two headers |
 | [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/dlq.py) | `dlq_messages` document and indexes |
 | [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py) | Worker entry point |

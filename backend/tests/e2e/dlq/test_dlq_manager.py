@@ -83,6 +83,7 @@ async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_
         dlq_msg = DLQMessage(
             event=ev,
             original_topic=EventType.EXECUTION_REQUESTED,
+            consumer_group="saga-orchestrator",
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),

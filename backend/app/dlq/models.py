@@ -6,6 +6,10 @@ from app.core.utils import StringEnum
 from app.domain.enums import EventType
 from app.domain.events import DomainEvent
 
+# A retried event carries these, so only the consumer group that failed handles it again
+DLQ_GROUP_HEADER = "x-dlq-consumer-group"
+DLQ_RETRY_HEADER = "x-dlq-retry-count"
+
 
 class DLQMessageStatus(StringEnum):
     """Status of a message in the Dead Letter Queue."""
@@ -47,6 +51,7 @@ class DLQMessage:
 
     event: DomainEvent
     original_topic: str = ""
+    consumer_group: str = ""
     error: str = "Unknown error"
     retry_count: int = 0
     failed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -162,25 +167,6 @@ def retry_policy_for(event_type: EventType) -> RetryPolicy:
     if event_type in RESULT_TYPES:
         return IMMEDIATE_RETRY
     return DEFAULT_RETRY
-
-
-@dataclass
-class DLQRetryResult:
-    """Result of a single retry operation."""
-
-    event_id: str
-    status: str  # "success" or "failed"
-    error: str | None = None
-
-
-@dataclass
-class DLQBatchRetryResult:
-    """Result of batch retry operation."""
-
-    total: int
-    successful: int
-    failed: int
-    details: list[DLQRetryResult]
 
 
 @dataclass

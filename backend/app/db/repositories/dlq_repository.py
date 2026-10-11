@@ -57,10 +57,6 @@ class DLQRepository:
             limit=limit,
         )
 
-    async def get_message_by_id(self, event_id: str) -> DLQMessage | None:
-        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
-        return self._to_domain(doc) if doc else None
-
     async def get_topics_summary(self) -> list[DLQTopicSummary]:
         # Two-stage aggregation: group by topic+status first, then by topic with $arrayToObject
         # Note: compound keys need S.field() wrapper for monggregate to add $ prefix
@@ -115,17 +111,18 @@ class DLQRepository:
         ]
 
     async def save_message(self, message: DLQMessage) -> None:
-        """Upsert a DLQ message by event_id (atomic, no TOCTOU race)."""
+        """Upsert a DLQ message by event_id and consumer group (atomic, no TOCTOU race)."""
         payload = dataclasses.asdict(message)
         payload["event"] = message.event.model_dump()
-        await DLQMessageDocument.find_one({"event.event_id": message.event.event_id}).upsert(
+        key = {"event.event_id": message.event.event_id, "consumer_group": message.consumer_group}
+        await DLQMessageDocument.find_one(key).upsert(
             Set(payload),  # type: ignore[no-untyped-call]
             on_insert=DLQMessageDocument(**payload),
         )
 
-    async def update_status(self, event_id: str, update: DLQMessageUpdate) -> None:
+    async def update_status(self, event_id: str, consumer_group: str, update: DLQMessageUpdate) -> None:
         """Apply a status update to a DLQ message."""
-        doc = await DLQMessageDocument.find_one({"event.event_id": event_id})
+        doc = await DLQMessageDocument.find_one({"event.event_id": event_id, "consumer_group": consumer_group})
         if not doc:
             return
 

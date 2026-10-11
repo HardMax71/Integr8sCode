@@ -1,6 +1,6 @@
 # DLQ processor
 
-The DLQ processor has no Kafka subscriber and today has nothing to do. Nothing writes to the `dlq_messages` collection it reads, because failed events never reach the DLQ ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). [Dead letter queue](../dead-letter-queue.md) explains why and what the stored rows would look like.
+The DLQ processor has no Kafka subscriber. It retries the failed events that the other workers' routers save to the `dlq_messages` collection. [Dead letter queue](../dead-letter-queue.md) covers how they get there.
 
 ```mermaid
 graph LR
@@ -10,7 +10,7 @@ graph LR
     Manager -->|dlq_message_retried| Kafka[(Kafka)]
 ```
 
-Every 10 seconds `process_monitoring_cycle` does two things. First it loads up to 100 rows with status `scheduled` whose `next_retry_at` has passed, republishes each event to its original topic keyed by event id, sets the row to `retried` with `retry_count` plus one, and publishes `dlq_message_retried`. Then it updates the DLQ queue size metric per topic. A `retried` row is terminal and stays that way.
+Every 10 seconds `process_monitoring_cycle` does two things. First it loads up to 100 rows with status `scheduled` whose `next_retry_at` has passed. For each one it sets the row to `retried` with `retry_count` plus one, republishes the event to its original topic keyed by event id, with headers naming the consumer group that failed and the retry count, and publishes `dlq_message_retried`. Then it updates the DLQ queue size metric per topic. A retry that fails again comes back as a new failure for the same row.
 
 Retry policies are hardcoded in `app/dlq/models.py`, and the `DLQ_*` settings are never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). There's no admin API for the DLQ.
 

@@ -5,27 +5,27 @@ Import the manager explicitly from `app.dlq.manager` to avoid cycles.
 """
 
 from .models import (
-    DLQBatchRetryResult,
+    DLQ_GROUP_HEADER,
+    DLQ_RETRY_HEADER,
     DLQMessage,
     DLQMessageFilter,
     DLQMessageListResult,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQRetryResult,
     DLQTopicSummary,
     RetryPolicy,
     RetryStrategy,
 )
 
 __all__ = [
+    "DLQ_GROUP_HEADER",
+    "DLQ_RETRY_HEADER",
     "DLQMessageStatus",
     "RetryStrategy",
     "DLQMessage",
     "DLQMessageUpdate",
     "DLQMessageFilter",
     "RetryPolicy",
-    "DLQRetryResult",
-    "DLQBatchRetryResult",
     "DLQMessageListResult",
     "DLQTopicSummary",
 ]

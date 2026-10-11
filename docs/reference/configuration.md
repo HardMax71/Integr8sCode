@@ -132,7 +132,7 @@ Jaeger and the OTel collector only run with `./deploy.sh dev --observability` or
 --8<-- "backend/config.toml:dlq"
 ```
 
-All six keys are unused. The retry policies the DLQ code would apply are hardcoded in `app/dlq/models.py`, and nothing feeds the DLQ today ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). See [Dead letter queue](../components/dead-letter-queue.md).
+All six keys are unused. The DLQ's retry policies are hardcoded in `app/dlq/models.py`. See [Dead letter queue](../components/dead-letter-queue.md).
 
 | Key | Value | Source |
 |-----|-------|--------|

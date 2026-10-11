@@ -5,10 +5,12 @@ from typing import Any
 
 import redis.asyncio as redis
 import structlog
+from redis.exceptions import RedisError
 
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
 from app.domain.events import ExecutionRequestedEvent
+from app.runtime_registry import POD_RUNTIME_CONFIGS, PodRuntimeConfig
 
 PRIORITY_ORDER: list[QueuePriority] = [
     QueuePriority.CRITICAL,
@@ -23,6 +25,9 @@ _PENDING_KEYS = [f"{_PENDING_PREFIX}{p}" for p in PRIORITY_ORDER]
 # Sorted set of scheduled ids scored by a deadline, so a slot whose release got lost frees itself
 _RUNNING_KEY = "exec_queue:running"
 _EVENT_TTL = 86400  # 24 hours
+_SLOT_GRACE_SECONDS = 300
+# Until the event is loaded, a slot assumes the longest timeout an admin can set
+_PROVISIONAL_SLOT_SECONDS = 3600 + _SLOT_GRACE_SECONDS
 
 
 def _event_key(execution_id: str) -> str:
@@ -154,14 +159,17 @@ class ExecutionQueueService:
         return bool(reserved)
 
     async def release_user_slot(self, execution_id: str) -> None:
-        owner = await self._redis.get(_owner_key(execution_id))
-        if owner is None:
-            return
-        user_id = owner if isinstance(owner, str) else owner.decode()
-        pipe = self._redis.pipeline(transaction=True)
-        pipe.zrem(_user_key(user_id), execution_id)
-        pipe.delete(_owner_key(execution_id))
-        await pipe.execute()
+        try:
+            owner = await self._redis.get(_owner_key(execution_id))
+            if owner is None:
+                return
+            user_id = owner if isinstance(owner, str) else owner.decode()
+            pipe = self._redis.pipeline(transaction=True)
+            pipe.zrem(_user_key(user_id), execution_id)
+            pipe.delete(_owner_key(execution_id))
+            await pipe.execute()
+        except RedisError:
+            self._logger.warning("Failed to release user slot, it expires on its own", execution_id=execution_id)
 
     async def enqueue(self, event: ExecutionRequestedEvent) -> int:
         execution_id = event.execution_id
@@ -180,11 +188,13 @@ class ExecutionQueueService:
         self._logger.info("Enqueued execution", execution_id=execution_id, priority=event.priority, position=position)
         return position
 
-    async def try_schedule(self, max_active: int, slot_seconds: int) -> tuple[str, ExecutionRequestedEvent] | None:
-        """Move the next pending execution into a running slot that expires after ``slot_seconds``."""
+    async def try_schedule(self, max_active: int) -> tuple[str, ExecutionRequestedEvent] | None:
+        """Move the next pending execution into a running slot that expires shortly after its pod deadline."""
         script = await self._get_schedule_script()
         now = time.time()
-        result = await script(keys=[_RUNNING_KEY, *_PENDING_KEYS], args=[max_active, now, now + slot_seconds])
+        result = await script(
+            keys=[_RUNNING_KEY, *_PENDING_KEYS], args=[max_active, now, now + _PROVISIONAL_SLOT_SECONDS]
+        )
         if result is None:
             return None
 
@@ -200,11 +210,19 @@ class ExecutionQueueService:
                 execution_id=execution_id,
             )
             await self._redis.zrem(_RUNNING_KEY, execution_id)
+            await self.release_user_slot(execution_id)
             self._metrics.record_event_data_lost()
             return None
 
         event_str = event_json if isinstance(event_json, str) else event_json.decode()
         event = ExecutionRequestedEvent.model_validate_json(event_str)
+
+        pod_config = POD_RUNTIME_CONFIGS.get(event.language, PodRuntimeConfig())
+        deadline = time.time() + pod_config.timeout_for(event.timeout_seconds) + _SLOT_GRACE_SECONDS
+        pipe = self._redis.pipeline(transaction=True)
+        pipe.zadd(_RUNNING_KEY, {execution_id: deadline}, xx=True)
+        pipe.zadd(_user_key(event.metadata.user_id), {execution_id: deadline}, xx=True)
+        await pipe.execute()
 
         wait_seconds = time.time() - enqueue_score
         self._metrics.record_wait_time(wait_seconds, str(priority))

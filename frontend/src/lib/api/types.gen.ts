@@ -5572,7 +5572,7 @@ export type CreateExecutionApiV1ExecutePostData = {
 
 export type CreateExecutionApiV1ExecutePostErrors = {
     /**
-     * Idempotency-Key reused while in flight or after a failure
+     * Idempotency-Key reused while in flight or its cached result is gone
      */
     409: ErrorResponse;
     /**
@@ -5710,7 +5710,7 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
      */
     422: ErrorResponse;
     /**
-     * Too many executions queued or running
+     * Rate limited, or too many executions queued or running
      */
     429: ErrorResponse;
 };

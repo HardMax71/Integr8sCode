@@ -120,7 +120,6 @@ class _FakeQueue(ExecutionQueueService):
         self._pending: list[tuple[str, ExecutionRequestedEvent]] = []
         self.released: list[str] = []
         self.released_user_slots: list[str] = []
-        self.slot_seconds: list[int] = []
         self._retry_counts: dict[str, int] = {}
 
     async def enqueue(self, event: ExecutionRequestedEvent) -> int:
@@ -128,8 +127,7 @@ class _FakeQueue(ExecutionQueueService):
         self._pending.append((event.execution_id, event))
         return len(self._pending) - 1
 
-    async def try_schedule(self, max_active: int, slot_seconds: int) -> tuple[str, ExecutionRequestedEvent] | None:
-        self.slot_seconds.append(slot_seconds)
+    async def try_schedule(self, max_active: int) -> tuple[str, ExecutionRequestedEvent] | None:
         if not self._pending:
             return None
         return self._pending.pop(0)
@@ -419,17 +417,6 @@ async def test_retry_count_increments_across_failures() -> None:
     # No more re-enqueues after max retries, and giving up frees the user's slot
     assert len(fake_queue.enqueued) == 3
     assert fake_queue.released_user_slots == ["e1"]
-
-
-@pytest.mark.asyncio
-async def test_running_slot_outlives_the_longest_pod_deadline() -> None:
-    fake_queue = _FakeQueue()
-    orch = _orch(queue=fake_queue)
-
-    await orch.try_schedule_from_queue()
-
-    # admin timeout 30 s, Go's minimum 30 s, plus the grace period
-    assert fake_queue.slot_seconds == [330]
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,10 @@ class PodRuntimeConfig:
     min_memory: str | None = None
     min_timeout_seconds: int | None = None
 
+    def timeout_for(self, configured: int) -> int:
+        """The pod's deadline: the configured timeout, raised to this language's minimum."""
+        return max(configured, self.min_timeout_seconds or 0)
+
 
 _QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
 _QUANTITY_SCALE = {

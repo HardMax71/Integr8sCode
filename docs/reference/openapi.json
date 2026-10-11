@@ -248,7 +248,7 @@
             }
           },
           "409": {
-            "description": "Idempotency-Key reused while in flight or after a failure",
+            "description": "Idempotency-Key reused while in flight or its cached result is gone",
             "content": {
               "application/json": {
                 "schema": {
@@ -507,7 +507,7 @@
             }
           },
           "429": {
-            "description": "Too many executions queued or running",
+            "description": "Rate limited, or too many executions queued or running",
             "content": {
               "application/json": {
                 "schema": {

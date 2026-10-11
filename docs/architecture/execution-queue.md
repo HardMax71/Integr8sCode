@@ -41,9 +41,9 @@ A reservation lasts 24 hours, as long as a queued event does. The orchestrator g
 
 `try_schedule` is one Lua script that gets the running set and the five pending sets as keys. It first drops running entries whose expiry has passed. If `ZCARD` on the running set is then at the cap, it returns nothing. Otherwise it walks the pending sets from `critical` to `background`, pops the first entry it finds with `ZPOPMIN`, adds the id to the running set with its expiry, and returns the id, its score and the priority index. The count check and the pop happen in one round trip, so two callers can't both squeeze past the cap.
 
-A running slot expires after the longest pod deadline (the admin timeout or the largest per-language minimum, whichever is longer) plus 300 seconds. A normal run releases it long before that, so expiry only matters when a release got lost, for example a saga that timed out without a terminal event.
+Once the service has loaded the event, the slot gets the execution's own pod deadline plus 300 seconds: the timeout the execution was submitted with, raised to its language's minimum. The user's reservation moves to the same deadline, so a job that waited long in the queue keeps its place in the user's count while it runs. Until the event is loaded, the slot assumes the longest timeout an admin can set. A normal run releases the slot long before it expires, so expiry only matters when a release got lost, for example a saga that timed out without a terminal event.
 
-The service then loads the stored event. If that key already expired, the execution is lost: the id leaves the running set, `queue.event_data_lost` goes up and nothing is scheduled.
+The service then loads the stored event. If that key already expired, the execution is lost: the id leaves the running set and its user's reservation, `queue.event_data_lost` goes up and nothing is scheduled.
 
 `try_schedule_from_queue` reads `max_concurrent_executions` from the admin system settings (default 10, admins can set 1 to 100, cached for 60 seconds by `RuntimeSettingsLoader`). It calls `try_schedule` in a loop and starts a saga for each id it gets, until the queue is empty, the cap is reached or it pops an id whose event expired. That last case ends the pass even with entries still pending, and the next pass picks them up.
 
@@ -80,7 +80,7 @@ The queue status reads Redis directly: `queue_depth` is the sum of `ZCARD` over 
 | Instrument | Series | Meaning |
 |------------|--------|---------|
 | `queue.depth` | `queue_depth` | Up-down counter: up on enqueue, down on schedule |
-| `queue.active` | `queue_active` | Up-down counter: up on schedule, down when `release` or `remove` takes an id out of the running set |
+| `queue.active` | `queue_active` | Up-down counter: up on schedule, down when `release` or `remove` takes an id out of the running set; slots dropped for expiry don't bring it down |
 | `queue.enqueue.total` | `queue_enqueue_total` | Enqueues, including re-enqueues after a failed saga start |
 | `queue.schedule.total` | `queue_schedule_total` | Executions popped from the queue |
 | `queue.wait_time` | `queue_wait_time_seconds` | Histogram of enqueue to schedule, by `priority` |

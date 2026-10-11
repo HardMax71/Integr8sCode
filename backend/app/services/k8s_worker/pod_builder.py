@@ -103,7 +103,7 @@ class PodBuilder:
     ) -> k8s_client.V1PodSpec:
         """Build pod specification"""
         execution_id = command.execution_id
-        timeout = max(command.timeout_seconds or 300, pod_config.min_timeout_seconds or 0)
+        timeout = pod_config.timeout_for(command.timeout_seconds or 300)
 
         spec = k8s_client.V1PodSpec(
             containers=[container],

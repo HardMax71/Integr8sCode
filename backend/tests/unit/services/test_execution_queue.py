@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.core.metrics.queue import QueueMetrics
 from app.domain.enums import QueuePriority
@@ -63,7 +64,7 @@ async def test_enqueue(queue_service: ExecutionQueueService, mock_redis: AsyncMo
 
 @pytest.mark.asyncio
 async def test_try_schedule_empty(queue_service: ExecutionQueueService) -> None:
-    result = await queue_service.try_schedule(5, 600)
+    result = await queue_service.try_schedule(5)
     assert result is None
 
 
@@ -78,7 +79,7 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
 
     queue_service._schedule_script = None
 
-    result = await queue_service.try_schedule(5, 600)
+    result = await queue_service.try_schedule(5)
     assert result is not None
     exec_id, returned_event = result
     assert exec_id == "e1"
@@ -88,9 +89,15 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
     keys = script.call_args.kwargs["keys"]
     assert keys[0] == _RUNNING_KEY
     assert len(keys) == 1 + len(PRIORITY_ORDER)
-    max_active, now, deadline = script.call_args.kwargs["args"]
+    max_active, now, provisional = script.call_args.kwargs["args"]
     assert max_active == 5
-    assert deadline - now == 600
+    assert provisional - now == 3600 + 300
+
+    calls = mock_redis.pipeline.return_value.zadd.call_args_list
+    assert [c.args[0] for c in calls] == [_RUNNING_KEY, _user_key(event.metadata.user_id)]
+    assert calls[0].args[1] == {"e1": pytest.approx(time.time() + event.timeout_seconds + 300, abs=5)}
+    assert calls[1].args[1] == calls[0].args[1]
+    assert [c.kwargs for c in calls] == [{"xx": True}, {"xx": True}]
 
 
 @pytest.mark.asyncio
@@ -101,10 +108,11 @@ async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueServ
     mock_redis.get = AsyncMock(return_value=None)
     queue_service._schedule_script = None
 
-    result = await queue_service.try_schedule(5, 600)
+    result = await queue_service.try_schedule(5)
 
     assert result is None
     mock_redis.zrem.assert_awaited_once_with(_RUNNING_KEY, "e-gone")
+    mock_redis.get.assert_any_await(_owner_key("e-gone"))
 
 
 @pytest.mark.asyncio
@@ -248,3 +256,12 @@ async def test_release_user_slot_without_an_owner_is_a_no_op(
     await queue_service.release_user_slot("e1")
 
     mock_redis.pipeline.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_release_user_slot_survives_a_redis_error(
+    queue_service: ExecutionQueueService, mock_redis: AsyncMock
+) -> None:
+    mock_redis.get = AsyncMock(side_effect=RedisConnectionError("down"))
+
+    await queue_service.release_user_slot("e1")

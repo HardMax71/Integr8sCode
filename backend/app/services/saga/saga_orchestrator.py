@@ -29,7 +29,6 @@ from app.domain.saga import (
     SagaNotFoundError,
 )
 from app.events import PRODUCE_ERRORS, UnifiedProducer
-from app.runtime_registry import POD_RUNTIME_CONFIGS
 from app.services.execution_queue import ExecutionQueueService
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -37,7 +36,6 @@ from .execution_saga import ExecutionSaga
 from .saga_step import SagaContext
 
 _SAGA_NAME = ExecutionSaga.get_name()
-_SLOT_GRACE_SECONDS = 300
 
 
 class SagaOrchestrator:
@@ -141,12 +139,8 @@ class SagaOrchestrator:
     async def try_schedule_from_queue(self) -> None:
         """Try to schedule pending executions from the queue."""
         settings = await self._runtime_settings.get_effective_settings()
-        # A slot outlives the longest pod deadline, so it only expires when its release got lost
-        longest = max(
-            [settings.max_timeout_seconds, *(c.min_timeout_seconds or 0 for c in POD_RUNTIME_CONFIGS.values())]
-        )
         while True:
-            result = await self._queue.try_schedule(settings.max_concurrent_executions, longest + _SLOT_GRACE_SECONDS)
+            result = await self._queue.try_schedule(settings.max_concurrent_executions)
             if result is None:
                 break
             execution_id, event = result

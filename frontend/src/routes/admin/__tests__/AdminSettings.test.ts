@@ -136,6 +136,7 @@ describe('AdminSettings', () => {
                 memory_limit: '256Mi',
                 cpu_limit: '1000m',
                 max_concurrent_executions: 5,
+                max_executions_per_user: 50,
                 password_min_length: 6,
                 session_timeout_minutes: 60,
                 max_login_attempts: 3,
@@ -158,6 +159,9 @@ describe('AdminSettings', () => {
                 expect(vi.mocked(resetSystemSettingsApiV1AdminSettingsResetPost)).toHaveBeenCalled();
             });
             expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
+            await waitFor(() => {
+                expect((screen.getByLabelText('Max Executions per User') as HTMLInputElement).value).toBe('50');
+            });
 
             await waitFor(() => {
                 const timeoutInput = document.getElementById('max-timeout') as HTMLInputElement;

@@ -51,7 +51,7 @@ frontend/
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
-    ├── stores/              # auth, theme (.svelte.ts); server data lives in the query cache
+    ├── stores/              # auth, theme (a mode-watcher adapter); server data lives in the query cache
     └── styles/              # Global CSS
 ```
 

@@ -31,7 +31,7 @@
     const languageCompartment = new Compartment();
 
     function getThemeExtension() {
-        return document.documentElement.classList.contains('dark') ? oneDark : githubLight;
+        return themeStore.dark ? oneDark : githubLight;
     }
 
     function getStaticExtensions() {
@@ -97,7 +97,7 @@
 
     // React to app theme changes
     $effect(() => {
-        void themeStore.value;
+        void themeStore.dark;
         if (view) {
             view.dispatch({ effects: themeCompartment.reconfigure(getThemeExtension()) });
         }

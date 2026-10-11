@@ -8,22 +8,33 @@
     let { children }: { children: Snippet } = $props();
 
     const path = $derived(page.url.pathname);
+
+    let nav = $state<HTMLElement>();
+
+    // On a narrow screen the links scroll sideways, so bring the current one into view
+    $effect(() => {
+        void path;
+        nav?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+    });
 </script>
 
-<div class="flex">
-    <!-- Sidebar -->
-    <div class="w-64 bg-bg-sidebar dark:bg-dark-bg-sidebar shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto z-10">
-        <div class="p-4">
-            <div class="flex items-center gap-2 mb-8">
+<div class="lg:flex">
+    <!-- A fixed sidebar from lg up; above the content as a scrolling row of links below it -->
+    <aside
+        class="bg-bg-sidebar dark:bg-dark-bg-sidebar border-b border-border-default dark:border-dark-border-default lg:border-b-0 lg:shadow-lg lg:fixed lg:left-0 lg:top-16 lg:bottom-0 lg:w-64 lg:overflow-y-auto lg:z-10"
+    >
+        <div class="p-3 lg:p-4">
+            <div class="hidden lg:flex items-center gap-2 mb-8">
                 <ShieldCheck class="w-6 h-6 text-primary dark:text-primary-light" />
                 <h2 class="text-xl font-bold text-fg-default dark:text-dark-fg-default">Admin Panel</h2>
             </div>
 
-            <nav class="space-y-2">
+            <nav bind:this={nav} aria-label="Admin" class="flex gap-2 overflow-x-auto lg:block lg:space-y-2">
                 {#each ADMIN_ROUTES as navItem}
                     <a
                         href={navItem.path}
-                        class="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer"
+                        aria-current={path === navItem.path ? 'page' : undefined}
+                        class="flex shrink-0 items-center gap-3 whitespace-nowrap px-4 py-2 rounded-lg transition-colors cursor-pointer"
                         class:bg-primary={path === navItem.path}
                         class:text-white={path === navItem.path}
                         class:hover:bg-neutral-200={path !== navItem.path}
@@ -38,17 +49,16 @@
 
             {#if authStore.username}
                 <div
-                    class="mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
+                    class="hidden lg:block mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
                 >
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
                     <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">{authStore.username}</p>
                 </div>
             {/if}
         </div>
-    </div>
+    </aside>
 
-    <!-- Main content -->
-    <div class="flex-1 ml-64 pb-16">
+    <div class="flex-1 lg:ml-64 pb-16">
         {@render children()}
     </div>
 </div>

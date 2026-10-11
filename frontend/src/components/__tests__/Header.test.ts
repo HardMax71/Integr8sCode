@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { user, suppressConsoleError, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { logoutApiV1AuthLogoutPost, updateUserSettingsApiV1UserSettingsPut } from '#lib/api/index.ts';
@@ -61,6 +61,31 @@ const setAuth = (
     mocks.mockAuthStore.userEmail = email;
 };
 
+/** A matchMedia whose answer the test can flip, firing the change listeners the way a resize would */
+function controllableDesktopQuery(initial: boolean): (matches: boolean) => void {
+    let matches = initial;
+    const listeners = new Set<EventListener>();
+    vi.mocked(window.matchMedia).mockImplementation(
+        (query: string) =>
+            ({
+                get matches() {
+                    return matches;
+                },
+                media: query,
+                onchange: null,
+                addEventListener: (_type: string, listener: EventListener) => listeners.add(listener),
+                removeEventListener: (_type: string, listener: EventListener) => listeners.delete(listener),
+                addListener: vi.fn(),
+                removeListener: vi.fn(),
+                dispatchEvent: vi.fn(),
+            }) as unknown as MediaQueryList,
+    );
+    return (next) => {
+        matches = next;
+        listeners.forEach((listener) => listener(new Event('change')));
+    };
+}
+
 describe('Header', () => {
     const openUserDropdown = async () => {
         renderWithQueryClient(Header);
@@ -72,8 +97,6 @@ describe('Header', () => {
         await user.click(screen.getByRole('button', { name: 'Open menu' }));
     };
 
-    let originalInnerWidth: number;
-
     beforeEach(() => {
         setAuth(false);
         mocks.mockThemeStore.value = 'auto';
@@ -82,8 +105,6 @@ describe('Header', () => {
         mockApi(updateUserSettingsApiV1UserSettingsPut).ok({});
         mocks.mockToggleTheme.mockReset();
         vi.spyOn(navigation, 'goto');
-        originalInnerWidth = window.innerWidth;
-        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
         Object.defineProperty(window, 'matchMedia', {
             writable: true,
             value: vi.fn().mockImplementation((query: string) => ({
@@ -97,10 +118,6 @@ describe('Header', () => {
                 dispatchEvent: vi.fn(),
             })),
         });
-    });
-
-    afterEach(() => {
-        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: originalInnerWidth });
     });
 
     describe('branding', () => {
@@ -211,9 +228,7 @@ describe('Header', () => {
     });
 
     describe('mobile menu', () => {
-        beforeEach(() => {
-            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
-        });
+        beforeEach(() => {});
 
         it('shows hamburger menu and toggles on click', async () => {
             await openMobileMenu();
@@ -280,32 +295,22 @@ describe('Header', () => {
 
     describe('resize behavior', () => {
         it('closes mobile menu when resizing to desktop width', async () => {
-            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
-
+            const resizeTo = controllableDesktopQuery(false);
             await openMobileMenu();
             await waitFor(() => {
                 expect(screen.getByTestId('mobile-menu')).toBeInTheDocument();
             });
 
-            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
-            window.dispatchEvent(new Event('resize'));
+            resizeTo(true);
 
             await waitFor(() => {
                 expect(screen.queryByTestId('mobile-menu')).not.toBeInTheDocument();
             });
         });
-
-        it('detects mobile on mount when window is narrow', () => {
-            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
-            renderWithQueryClient(Header);
-
-            expect(screen.getByTestId('mobile-menu-toggle')).toBeInTheDocument();
-        });
     });
 
     describe('mobile menu logout', () => {
         it('calls logout and navigates from mobile menu', async () => {
-            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 800 });
             setAuth(true, 'mobileuser', 'user');
 
             await openMobileMenu();

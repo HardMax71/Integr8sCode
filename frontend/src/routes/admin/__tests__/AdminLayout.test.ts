@@ -78,6 +78,9 @@ describe('AdminLayout', () => {
         });
         const link = screen.getByRole('link', { name: label });
         expect(link.classList.toString()).toMatch(/bg-primary/);
+        expect(link).toHaveAttribute('aria-current', 'page');
+        const others = screen.getAllByRole('link').filter((l) => l !== link);
+        expect(others.every((l) => !l.hasAttribute('aria-current'))).toBe(true);
     });
 
     it('shows user info card with exact username', async () => {

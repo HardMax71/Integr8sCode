@@ -1,59 +1,29 @@
+import { untrack } from 'svelte';
+import { mode, setMode, userPrefersMode } from 'mode-watcher';
 import { Theme } from '#lib/api/index.ts';
 
-const browser = typeof window !== 'undefined' && typeof document !== 'undefined';
-const defaultTheme: Theme = Theme.AUTO;
-const storageKey = 'app-theme';
+// The API calls following the system "auto"; mode-watcher calls it "system"
+const toMode = { [Theme.LIGHT]: 'light', [Theme.DARK]: 'dark', [Theme.AUTO]: 'system' } as const;
+const fromMode = { light: Theme.LIGHT, dark: Theme.DARK, system: Theme.AUTO } as const;
+const cycle: Theme[] = [Theme.LIGHT, Theme.DARK, Theme.AUTO];
 
-function getSystemTheme(): 'light' | 'dark' {
-    if (!browser) return 'light';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-function getInitialTheme(): Theme {
-    if (!browser) return defaultTheme;
-    const stored = localStorage.getItem(storageKey);
-    if (stored && (Object.values(Theme) as string[]).includes(stored)) {
-        return stored as Theme;
-    }
-    return defaultTheme;
-}
-
-function applyTheme(newTheme: Theme): void {
-    if (!browser) return;
-    const effectiveTheme = newTheme === Theme.AUTO ? getSystemTheme() : newTheme;
-    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
-}
-
-class ThemeStore {
-    value = $state<Theme>(getInitialTheme());
-
-    constructor() {
-        // Apply initial theme
-        if (browser) {
-            applyTheme(this.value);
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-                if (this.value === Theme.AUTO) applyTheme(Theme.AUTO);
-            });
-        }
-    }
-
-    setTheme(v: Theme): void {
-        this.value = v;
-        if (browser) {
-            localStorage.setItem(storageKey, v);
-        }
-        applyTheme(v);
-    }
-
-    toggleTheme(): void {
-        this.setTheme(this.value === Theme.LIGHT ? Theme.DARK : this.value === Theme.DARK ? Theme.AUTO : Theme.LIGHT);
-    }
-}
-
-export const themeStore = new ThemeStore();
-export const setTheme = (v: Theme) => {
-    themeStore.setTheme(v);
+/** mode-watcher stores the choice and keeps the dark class on <html>; this maps it to the API's Theme */
+export const themeStore = {
+    /** The theme the user picked */
+    get value(): Theme {
+        return fromMode[userPrefersMode.current];
+    },
+    /** Whether the page is dark right now, with "auto" resolved against the system */
+    get dark(): boolean {
+        return mode.current === 'dark';
+    },
 };
-export const toggleTheme = () => {
-    themeStore.toggleTheme();
-};
+
+export function setTheme(theme: Theme): void {
+    // mode-watcher's persisted setter reads its own state, which would make a calling effect loop
+    untrack(() => setMode(toMode[theme]));
+}
+
+export function toggleTheme(): void {
+    setTheme(cycle[(cycle.indexOf(themeStore.value) + 1) % cycle.length]!);
+}

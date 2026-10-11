@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     const getLanguageExtensionFn = vi.fn((lang: string) => `lang-ext-${lang}`);
 
     return {
+        dark: false,
         mockView,
         dispatchFn,
         destroyFn,
@@ -85,7 +86,13 @@ vi.mock('@codemirror/autocomplete', () => ({
 }));
 vi.mock('@codemirror/theme-one-dark', () => ({ oneDark: 'oneDark-theme' }));
 vi.mock('@uiw/codemirror-theme-github', () => ({ githubLight: 'githubLight-theme' }));
-vi.mock('#stores/theme.svelte.ts', () => ({ themeStore: { value: 'light' } }));
+vi.mock('#stores/theme.svelte.ts', () => ({
+    themeStore: {
+        get dark() {
+            return mocks.dark;
+        },
+    },
+}));
 vi.mock('#lib/editor/languages.ts', () => ({ getLanguageExtension: mocks.getLanguageExtensionFn }));
 
 import CodeMirrorEditor from '#components/editor/CodeMirrorEditor.svelte';
@@ -106,8 +113,8 @@ function renderEditor(overrides: Partial<{ content: string; lang: string; settin
 
 describe('CodeMirrorEditor', () => {
     beforeEach(() => {
+        mocks.dark = false;
         vi.clearAllMocks();
-        document.documentElement.classList.remove('dark');
     });
 
     it('renders wrapper with h-full and w-full classes', () => {
@@ -151,10 +158,10 @@ describe('CodeMirrorEditor', () => {
 
     describe('theme selection', () => {
         it.each([
-            { darkClass: false, expectedTheme: 'githubLight-theme' },
-            { darkClass: true, expectedTheme: 'oneDark-theme' },
-        ])('selects $expectedTheme when dark=$darkClass', async ({ darkClass, expectedTheme }) => {
-            if (darkClass) document.documentElement.classList.add('dark');
+            { dark: false, expectedTheme: 'githubLight-theme' },
+            { dark: true, expectedTheme: 'oneDark-theme' },
+        ])('selects $expectedTheme when dark=$dark', async ({ dark, expectedTheme }) => {
+            mocks.dark = dark;
             renderEditor();
             await waitFor(() => {
                 expect(mocks.editorStateCreate).toHaveBeenCalled();

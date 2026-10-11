@@ -86,14 +86,7 @@ class EventsStore {
     async openEventDetail(eventId: string): Promise<void> {
         // A failed load already showed the interceptor's toast, so the modal just stays closed
         this.selectedEvent = await this.#queryClient
-            .query({
-                ...getEventDetailApiV1AdminEventsEventIdGetOptions({ path: { event_id: eventId } }),
-                // hey-api's transformer skips a union-typed field, so `event.timestamp` arrives as a string
-                select: (detail) => ({
-                    ...detail,
-                    event: { ...detail.event, timestamp: new Date(detail.event.timestamp) },
-                }),
-            })
+            .query(getEventDetailApiV1AdminEventsEventIdGetOptions({ path: { event_id: eventId } }))
             .catch(() => null);
     }
 

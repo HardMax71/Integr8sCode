@@ -17,7 +17,7 @@ from app.domain.events import (
 )
 from app.domain.idempotency import KeyStrategy
 from app.domain.sse import SSEExecutionEventData
-from app.events.middlewares import idempotent
+from app.events.middlewares import DeadLetterMiddleware, idempotent
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
 from app.services.result_processor import ResultProcessor
@@ -31,7 +31,7 @@ _sse_field_names: frozenset[str] = frozenset(f.name for f in dataclasses.fields(
 def k8s_worker_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
-        middlewares=(idempotent(KeyStrategy.CONTENT_HASH, ttl_seconds=3600),),
+        middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.CONTENT_HASH, ttl_seconds=3600)),
     )
 
     @router.subscriber(EventType.CREATE_POD_COMMAND, group_id="k8s-worker")
@@ -48,7 +48,7 @@ def k8s_worker_router() -> KafkaRouter:
 def result_processor_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
-        middlewares=(idempotent(KeyStrategy.CONTENT_HASH, ttl_seconds=7200),),
+        middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.CONTENT_HASH, ttl_seconds=7200)),
     )
 
     @router.subscriber(
@@ -75,7 +75,7 @@ def result_processor_router() -> KafkaRouter:
 def saga_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
-        middlewares=(idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600),),
+        middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600)),
     )
 
     @router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")
@@ -141,7 +141,7 @@ def sse_router(settings: Settings) -> KafkaRouter:
 
 
 def notification_router() -> KafkaRouter:
-    router = KafkaRouter(ack_policy=AckPolicy.ACK)
+    router = KafkaRouter(ack_policy=AckPolicy.ACK, middlewares=(DeadLetterMiddleware,))
 
     @router.subscriber(
         EventType.EXECUTION_COMPLETED, group_id="notification-service", max_poll_records=10, auto_offset_reset="latest"

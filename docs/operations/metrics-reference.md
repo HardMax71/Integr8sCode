@@ -192,9 +192,9 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `dlq_processing_duration_seconds` | histogram | operation: handle, retry, discard | |
 | `dlq_messages_received_total` | counter | original_topic, event_type | `handle_message` |
 | `dlq_message_age_seconds` | histogram | none | `handle_message` |
-| `dlq_processing_errors_total` | counter | original_topic, event_type, error_type | `retry_messages_batch` |
+| `dlq_processing_errors_total` | counter | original_topic, event_type, error_type | nothing records it |
 
-Nothing calls `handle_message` or `retry_messages_batch` today, so the last three and the `handle` operation stay empty even once workers export.
+`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s-worker, result-processor and saga-orchestrator. Only backend's numbers leave the process until workers export ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
 
 ## FastStream messaging families
 

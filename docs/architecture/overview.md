@@ -149,7 +149,7 @@ Notifications use the same bus on `sse:notif:{user_id}` through `GET /api/v1/eve
 
 ## Kafka, sagas and replay
 
-Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/workers/event_replay.md) lets admins re-publish stored events. A [dead letter queue](../components/dead-letter-queue.md) exists, but nothing writes to it today, so a failed handler loses its event ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)).
+Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/workers/event_replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
 
 ## Notifications
 

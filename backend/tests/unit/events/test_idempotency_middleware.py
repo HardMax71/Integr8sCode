@@ -79,7 +79,7 @@ async def test_duplicate_skips_handler() -> None:
     idem.mark_failed.assert_not_awaited()
 
 
-async def test_handler_error_marks_failed_and_propagates() -> None:
+async def test_handler_error_releases_the_key_and_propagates() -> None:
     idem = AsyncMock(spec=IdempotencyManager)
     idem.check_and_reserve.return_value = _reservation(is_duplicate=False)
     handler = AsyncMock(side_effect=RuntimeError("boom"))
@@ -87,7 +87,8 @@ async def test_handler_error_marks_failed_and_propagates() -> None:
     with pytest.raises(RuntimeError, match="boom"):
         await _deliver(idem, handler)
 
-    idem.mark_failed.assert_awaited_once()
-    assert idem.mark_failed.await_args is not None
-    assert idem.mark_failed.await_args.kwargs["error"] == "boom"
+    idem.release.assert_awaited_once()
+    assert idem.release.await_args is not None
+    assert idem.release.await_args.kwargs["key_strategy"] == KeyStrategy.EVENT_BASED
     idem.mark_completed.assert_not_awaited()
+    idem.mark_failed.assert_not_awaited()

@@ -16,6 +16,7 @@ class DLQMessageDocument(Document):
 
     event: DomainEvent  # Discriminated union - contains event_id, event_type
     original_topic: Indexed(str) = ""  # type: ignore[valid-type]
+    consumer_group: str = ""
     error: str = "Unknown error"
     retry_count: Indexed(int) = 0  # type: ignore[valid-type]
     failed_at: Indexed(datetime) = Field(default_factory=lambda: datetime.now(timezone.utc))  # type: ignore[valid-type]
@@ -41,7 +42,9 @@ class DLQMessageDocument(Document):
             ContainerStatusInfo: dataclasses.asdict,
         }
         indexes = [
-            IndexModel([("event.event_id", ASCENDING)], unique=True, name="idx_dlq_event_id"),
+            IndexModel(
+                [("event.event_id", ASCENDING), ("consumer_group", ASCENDING)], unique=True, name="idx_dlq_event_group"
+            ),
             IndexModel([("event.event_type", ASCENDING)], name="idx_dlq_event_type"),
             IndexModel([("status", ASCENDING)], name="idx_dlq_status"),
             IndexModel([("failed_at", DESCENDING)], name="idx_dlq_failed_desc"),

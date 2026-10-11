@@ -8,12 +8,11 @@ from faststream.kafka import KafkaBroker
 from app.core.metrics import DLQMetrics
 from app.db import DLQRepository
 from app.dlq.models import (
-    DLQBatchRetryResult,
+    DLQ_GROUP_HEADER,
+    DLQ_RETRY_HEADER,
     DLQMessage,
     DLQMessageStatus,
     DLQMessageUpdate,
-    DLQRetryResult,
-    RetryPolicy,
     RetryStrategy,
     retry_policy_for,
 )
@@ -24,6 +23,7 @@ from app.domain.events import (
     DLQMessageRetriedEvent,
     EventMetadata,
 )
+from app.events import PRODUCE_ERRORS
 from app.settings import Settings
 
 
@@ -49,7 +49,6 @@ class DLQManager:
         self.logger = logger
         self.metrics = dlq_metrics
         self.repository = repository
-        self._retry_overrides: dict[str, RetryPolicy] = {}
 
         self._filters: list[Callable[[DLQMessage], bool]] = (
             filters
@@ -71,11 +70,6 @@ class DLQManager:
         max_age_days = 7
         age_seconds = (datetime.now(timezone.utc) - message.failed_at).total_seconds()
         return age_seconds < (max_age_days * 24 * 3600)
-
-    def _resolve_retry_policy(self, message: DLQMessage) -> RetryPolicy:
-        if message.original_topic in self._retry_overrides:
-            return self._retry_overrides[message.original_topic]
-        return retry_policy_for(message.event.event_type)
 
     async def process_monitoring_cycle(self) -> None:
         """Process due retries and update queue metrics. Called by APScheduler."""
@@ -115,7 +109,7 @@ class DLQManager:
             topic=EventType.DLQ_MESSAGE_RECEIVED,
         )
 
-        retry_policy = self._resolve_retry_policy(message)
+        retry_policy = retry_policy_for(message.event.event_type)
 
         if not retry_policy.should_retry(message):
             await self.discard_message(message, "max_retries_exceeded")
@@ -124,6 +118,7 @@ class DLQManager:
         next_retry = retry_policy.get_next_retry_time(message)
         await self.repository.update_status(
             message.event.event_id,
+            message.consumer_group,
             DLQMessageUpdate(status=DLQMessageStatus.SCHEDULED, next_retry_at=next_retry),
         )
 
@@ -133,28 +128,39 @@ class DLQManager:
         self.metrics.record_dlq_processing_duration(time.monotonic() - start, "handle")
 
     async def retry_message(self, message: DLQMessage) -> None:
-        """Retry a DLQ message by republishing to the original topic.
+        """Republish a DLQ message to its original topic for the consumer group that failed on it.
 
-        FastStream handles JSON serialization of Pydantic models natively.
+        Every group subscribed to the topic receives the event again, and the headers tell all
+        but the failed group to skip it. A retry that fails again comes back with its retry count.
         """
         start = time.monotonic()
-        await self._broker.publish(
-            message=message.event,
-            topic=message.original_topic,
-            key=message.event.event_id.encode(),
-        )
-
-        self.metrics.record_dlq_message_retried(message.original_topic, message.event.event_type, "success")
-
         new_retry_count = message.retry_count + 1
+        # Mark it before publishing: a retry that fails fast saves its new failure over this row
         await self.repository.update_status(
             message.event.event_id,
+            message.consumer_group,
             DLQMessageUpdate(
                 status=DLQMessageStatus.RETRIED,
                 retried_at=datetime.now(timezone.utc),
                 retry_count=new_retry_count,
             ),
         )
+        try:
+            await self._broker.publish(
+                message=message.event,
+                topic=message.original_topic,
+                key=message.event.event_id.encode(),
+                headers={DLQ_GROUP_HEADER: message.consumer_group, DLQ_RETRY_HEADER: str(new_retry_count)},
+            )
+        except PRODUCE_ERRORS:
+            await self.repository.update_status(
+                message.event.event_id,
+                message.consumer_group,
+                DLQMessageUpdate(status=DLQMessageStatus.SCHEDULED, retry_count=message.retry_count),
+            )
+            raise
+
+        self.metrics.record_dlq_message_retried(message.original_topic, message.event.event_type, "success")
 
         await self._broker.publish(
             DLQMessageRetriedEvent(
@@ -181,6 +187,7 @@ class DLQManager:
 
         await self.repository.update_status(
             message.event.event_id,
+            message.consumer_group,
             DLQMessageUpdate(
                 status=DLQMessageStatus.DISCARDED,
                 discarded_at=datetime.now(timezone.utc),
@@ -221,71 +228,3 @@ class DLQManager:
         sizes = await self.repository.get_queue_sizes_by_topic()
         for topic, count in sizes.items():
             self.metrics.update_dlq_queue_size(topic, count)
-
-    def set_retry_policy(self, topic: str, policy: RetryPolicy) -> None:
-        self._retry_overrides[topic] = policy
-
-    async def retry_message_manually(self, event_id: str) -> bool:
-        message = await self.repository.get_message_by_id(event_id)
-        if not message:
-            self.logger.error("Message not found in DLQ", event_id=event_id)
-            return False
-
-        if message.status.is_terminal:
-            self.logger.info("Skipping manual retry", event_id=event_id, status=message.status)
-            return False
-
-        await self.retry_message(message)
-        return True
-
-    async def retry_messages_batch(self, event_ids: list[str]) -> DLQBatchRetryResult:
-        """Retry multiple DLQ messages in batch.
-
-        Args:
-            event_ids: List of event IDs to retry
-
-        Returns:
-            Batch result with success/failure counts and details
-        """
-        details: list[DLQRetryResult] = []
-        successful = 0
-        failed = 0
-
-        for event_id in event_ids:
-            try:
-                success = await self.retry_message_manually(event_id)
-                if success:
-                    successful += 1
-                    details.append(DLQRetryResult(event_id=event_id, status="success"))
-                else:
-                    failed += 1
-                    details.append(DLQRetryResult(event_id=event_id, status="failed", error="Retry failed"))
-            except Exception as e:
-                self.logger.error("Error retrying message", event_id=event_id, error=str(e))
-                self.metrics.record_dlq_processing_error("batch_retry", "unknown", type(e).__name__)
-                failed += 1
-                details.append(DLQRetryResult(event_id=event_id, status="failed", error=str(e)))
-
-        return DLQBatchRetryResult(total=len(event_ids), successful=successful, failed=failed, details=details)
-
-    async def discard_message_manually(self, event_id: str, reason: str) -> bool:
-        """Manually discard a DLQ message with state validation.
-
-        Args:
-            event_id: The event ID to discard
-            reason: Reason for discarding
-
-        Returns:
-            True if discarded, False if not found or in terminal state
-        """
-        message = await self.repository.get_message_by_id(event_id)
-        if not message:
-            self.logger.error("Message not found in DLQ", event_id=event_id)
-            return False
-
-        if message.status.is_terminal:
-            self.logger.info("Skipping manual discard", event_id=event_id, status=message.status)
-            return False
-
-        await self.discard_message(message, reason)
-        return True

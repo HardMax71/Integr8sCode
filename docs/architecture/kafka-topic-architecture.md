@@ -87,7 +87,7 @@ The service runs inside the API process, and a session's live state is kept in t
 
 The DLQ is a MongoDB collection, `dlq_messages`, not a Kafka topic. `DLQManager.handle_message` stores a failed message there and schedules a retry by the event type's category: execution and command events get 5 retries with exponential backoff from 30 seconds, pod events 3 retries from 60 seconds, result events 3 immediate retries, and everything else 4 retries from 60 seconds. The dlq-processor republishes due messages to their original topic every 10 seconds and publishes `dlq_message_retried`.
 
-Nothing calls `handle_message` today, so the collection stays empty. Combined with `AckPolicy.ACK`, an event whose handler raises is logged, counted in a metric and then lost ([#288](https://github.com/HardMax71/Integr8sCode/issues/288)). See [Dead Letter Queue](../components/dead-letter-queue.md).
+`DeadLetterMiddleware` on the k8s worker, result processor, saga orchestrator and notification routers calls `handle_message` when a handler raises. A retry goes back to the original topic with a header naming the failed consumer group, and every other group skips it. See [Dead Letter Queue](../components/dead-letter-queue.md).
 
 ## Key files
 

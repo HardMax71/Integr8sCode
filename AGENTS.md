@@ -213,7 +213,7 @@ Rules:
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
 - Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
 
-A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` in `app/events/middlewares.py` marks the idempotency key failed, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
+A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` and `DeadLetterMiddleware` in `app/events/middlewares.py` release the idempotency key and save the event to the DLQ, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 
 ```python
 # Repository: returns None for reads; raises only on write constraints
@@ -513,7 +513,7 @@ Subscribers live in `app/events/handlers.py`, one `<worker>_router()` factory pe
 def saga_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
-        middlewares=(idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600),),
+        middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600)),
     )
 
     @router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")
@@ -527,6 +527,7 @@ def saga_router() -> KafkaRouter:
 - String literal `group_id` per consumer group
 - One topic per subscriber, no filtering inside handlers. The one exception is the API's `sse-bridge-pool` subscriber, which takes the 17 execution, result and pod event types in one handler and forwards them to Redis for SSE
 - Consumers that must not run a handler twice put `idempotent(strategy, ttl_seconds=...)` from `app/events/middlewares.py` on their router
+- Consumers whose failures should be retried put `DeadLetterMiddleware` first on their router. It saves the failed event to the DLQ with the consumer group, and the dlq-processor republishes it with headers that `RetryTargetMiddleware` (on every broker) uses to skip it in the other groups. The SSE bridge has none, since a late SSE push is worse than a missed one
 - Don't wrap handlers to count failures: FastStream's `KafkaTelemetryMiddleware` already records them under `error_type` on `messaging_process_duration_seconds`
 
 ### Worker Pattern
@@ -545,7 +546,7 @@ Each `backend/workers/run_<worker>.py` follows the same order:
 | pod_monitor | Watches executor pods (watch cycle every 5s) and publishes pod and execution events; no subscribers |
 | result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed |
 | saga_orchestrator | Runs execution sagas, schedules the queue every 10s, checks saga timeouts every 30s |
-| dlq_processor | APScheduler only (no Kafka consumer), runs the DLQ retry cycle every 10s |
+| dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |
 | event_replay | APScheduler only, cleans up replay sessions older than 48h every 6h; replays themselves run in the API |
 
 The API process consumes too: `sse-bridge-pool` and `notification-service` are registered in `app/core/dishka_lifespan.py`.

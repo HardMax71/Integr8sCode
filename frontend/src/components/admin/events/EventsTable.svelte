@@ -1,5 +1,6 @@
 <script lang="ts">
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
+    import { Tooltip } from 'bits-ui';
     import { Eye, Play, Trash } from '@lucide/svelte';
     import type { BrowsedEvent } from '#lib/admin/stores/eventsStore.svelte.ts';
     import { formatDateOnly, formatTimeOnly } from '#lib/formatters.ts';
@@ -81,22 +82,23 @@
 {/snippet}
 
 {#snippet typeCell(event: BrowsedEvent)}
-    <div class="relative group">
-        <span
-            class="{getEventTypeColor(event.event_type)} shrink-0 cursor-help"
-            data-testid="event-type-icon"
-            data-event-type={event.event_type}
-        >
-            <EventTypeIcon eventType={event.event_type} />
-        </span>
-        <div
-            class="absolute z-10 invisible group-hover:visible bg-tooltip-bg text-white text-xs rounded py-1 px-2 left-0 top-8 min-w-max"
-        >
-            <div class="font-medium">{event.event_type}</div>
-            <div class="text-neutral-400 text-[10px] font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
-            <div class="absolute -top-1 left-2 w-2 h-2 bg-tooltip-bg transform rotate-45"></div>
-        </div>
-    </div>
+    <Tooltip.Root>
+        <Tooltip.Trigger class="cursor-help rounded" aria-label={event.event_type}>
+            <span
+                class={getEventTypeColor(event.event_type)}
+                data-testid="event-type-icon"
+                data-event-type={event.event_type}
+            >
+                <EventTypeIcon eventType={event.event_type} />
+            </span>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+            <Tooltip.Content side="bottom" align="start" sideOffset={6} class="tooltip-content">
+                <div class="font-medium">{event.event_type}</div>
+                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
+            </Tooltip.Content>
+        </Tooltip.Portal>
+    </Tooltip.Root>
 {/snippet}
 
 {#snippet userCell(event: BrowsedEvent)}

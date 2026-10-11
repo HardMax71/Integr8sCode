@@ -40,7 +40,7 @@
             <button
                 type="button"
                 onclick={() => (showFilters = !showFilters)}
-                class="btn btn-sm sm:btn-md flex items-center gap-1 sm:gap-2 transition-all duration-200"
+                class="btn btn-sm flex items-center gap-1 sm:gap-2 transition-all duration-200"
                 class:btn-primary={showFilters}
                 class:btn-secondary-outline={!showFilters}
                 class:ring-2={showFilters}
@@ -64,9 +64,7 @@
             </button>
 
             <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                    class="btn btn-sm sm:btn-md btn-secondary-outline flex items-center gap-1 sm:gap-2"
-                >
+                <DropdownMenu.Trigger class="btn btn-sm btn-secondary-outline flex items-center gap-1 sm:gap-2">
                     <Download size={16} />
                     <span class="hidden sm:inline">Export</span>
                     <ChevronRight size={12} class="ml-1 rotate-90" />
@@ -86,7 +84,7 @@
             <button
                 type="button"
                 onclick={() => store.refresh()}
-                class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
+                class="btn btn-sm btn-primary flex items-center gap-1 sm:gap-2"
                 disabled={store.list.isFetching}
             >
                 {#if store.list.isFetching}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}

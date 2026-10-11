@@ -224,8 +224,11 @@
   }
 
   .feature-card {
-    position: relative;
-    overflow: hidden;
+    @apply relative flex flex-col items-start text-left p-6 sm:p-8
+           bg-bg-alt dark:bg-dark-bg-alt rounded-xl overflow-hidden
+           border border-border-default/50 dark:border-dark-border-default/50
+           shadow-xs transition-transform duration-300
+           hover:shadow-lg hover:-translate-y-1 hover:border-primary/40;
   }
 
   .feature-card::before {

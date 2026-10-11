@@ -109,7 +109,9 @@
                 </div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
-                <button type="button" onclick={onClose} class="btn btn-outline" disabled={saving}>Cancel</button>
+                <button type="button" onclick={onClose} class="btn btn-secondary-outline" disabled={saving}
+                    >Cancel</button
+                >
                 <button type="submit" class="btn btn-primary flex items-center gap-2" disabled={saving}>
                     {#if saving}
                         <Spinner size="small" />Saving...

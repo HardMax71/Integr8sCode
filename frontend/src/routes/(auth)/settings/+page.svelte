@@ -241,7 +241,7 @@
                                     bind:value={formData.editor.font_size}
                                     min="10"
                                     max="24"
-                                    class="form-input-number"
+                                    class="form-input-standard"
                                 />
                             </div>
 
@@ -257,7 +257,7 @@
                                     bind:value={formData.editor.tab_size}
                                     min="2"
                                     max="8"
-                                    class="form-input-number"
+                                    class="form-input-standard"
                                 />
                             </div>
                         </div>
@@ -271,11 +271,7 @@
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
                                     >Use Tabs</span
                                 >
-                                <input
-                                    type="checkbox"
-                                    bind:checked={formData.editor.use_tabs}
-                                    class="form-checkbox-standard"
-                                />
+                                <input type="checkbox" bind:checked={formData.editor.use_tabs} class="" />
                             </label>
 
                             <label
@@ -284,11 +280,7 @@
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
                                     >Word Wrap</span
                                 >
-                                <input
-                                    type="checkbox"
-                                    bind:checked={formData.editor.word_wrap}
-                                    class="form-checkbox-standard"
-                                />
+                                <input type="checkbox" bind:checked={formData.editor.word_wrap} class="" />
                             </label>
 
                             <label
@@ -297,11 +289,7 @@
                                 <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
                                     >Show Line Numbers</span
                                 >
-                                <input
-                                    type="checkbox"
-                                    bind:checked={formData.editor.show_line_numbers}
-                                    class="form-checkbox-standard"
-                                />
+                                <input type="checkbox" bind:checked={formData.editor.show_line_numbers} class="" />
                             </label>
                         </div>
                     {:else if activeTab === 'notifications'}
@@ -322,7 +310,7 @@
                                         <input
                                             type="checkbox"
                                             bind:checked={formData.notifications.execution_completed}
-                                            class="form-checkbox-standard"
+                                            class=""
                                         />
                                     </label>
 
@@ -335,7 +323,7 @@
                                         <input
                                             type="checkbox"
                                             bind:checked={formData.notifications.execution_failed}
-                                            class="form-checkbox-standard"
+                                            class=""
                                         />
                                     </label>
 
@@ -348,7 +336,7 @@
                                         <input
                                             type="checkbox"
                                             bind:checked={formData.notifications.system_updates}
-                                            class="form-checkbox-standard"
+                                            class=""
                                         />
                                     </label>
 
@@ -361,7 +349,7 @@
                                         <input
                                             type="checkbox"
                                             bind:checked={formData.notifications.security_alerts}
-                                            class="form-checkbox-standard"
+                                            class=""
                                         />
                                     </label>
                                 </div>

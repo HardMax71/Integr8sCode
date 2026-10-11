@@ -137,6 +137,6 @@
     {/if}
 
     {#snippet footer()}
-        <a href="/admin/users" class="btn btn-outline">Open User Management</a>
+        <a href="/admin/users" class="btn btn-secondary-outline">Open User Management</a>
     {/snippet}
 </Modal>

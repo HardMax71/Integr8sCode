@@ -99,6 +99,11 @@
     }
 </script>
 
+{#snippet message(notification: NotificationResponse)}
+    <h3 class="font-semibold text-fg-default dark:text-dark-fg-default">{notification.subject}</h3>
+    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1">{notification.body}</p>
+{/snippet}
+
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 py-8 max-w-5xl">
         <div class="card p-4 mb-6">
@@ -174,17 +179,11 @@
             <div class="space-y-3">
                 {#each notifications as notification (notification.notification_id)}
                     {@const NotifIcon = getNotificationIcon(notification.tags)}
-                    <div
+                    <article
                         in:fly={{ y: 20, duration: 300 }}
-                        class="card transition-all duration-200 cursor-pointer {notification.status !== 'read'
+                        class="card transition-all duration-200 {notification.status !== 'read'
                             ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50'
                             : ''}"
-                        onclick={() => markAsRead(notification)}
-                        onkeydown={(e) =>
-                            (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), markAsRead(notification))}
-                        role="button"
-                        tabindex="0"
-                        aria-label="Mark notification as read"
                     >
                         <div class="p-4">
                             <div class="flex items-start gap-4">
@@ -194,21 +193,22 @@
 
                                 <div class="flex-1">
                                     <div class="flex items-start justify-between">
-                                        <div class="flex-1">
-                                            <h3 class="font-semibold text-fg-default dark:text-dark-fg-default">
-                                                {notification.subject}
-                                            </h3>
-                                            <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1">
-                                                {notification.body}
-                                            </p>
-                                        </div>
+                                        {#if notification.status !== 'read'}
+                                            <button
+                                                type="button"
+                                                class="flex-1 text-left"
+                                                title="Mark as read"
+                                                onclick={() => markAsRead(notification)}
+                                            >
+                                                {@render message(notification)}
+                                            </button>
+                                        {:else}
+                                            <div class="flex-1">{@render message(notification)}</div>
+                                        {/if}
 
                                         <button
                                             type="button"
-                                            onclick={(e) => {
-                                                e.stopPropagation();
-                                                deleteNotification(notification.notification_id);
-                                            }}
+                                            onclick={() => deleteNotification(notification.notification_id)}
                                             class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ml-4"
                                             disabled={isDeleting(notification.notification_id)}
                                             aria-label="Delete notification"
@@ -227,7 +227,6 @@
                                                 <a
                                                     href={`/editor?execution=${execTag.split(':')[1]}`}
                                                     class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ml-2"
-                                                    onclick={(e) => e.stopPropagation()}
                                                 >
                                                     View result
                                                 </a>
@@ -277,7 +276,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </article>
                 {/each}
             </div>
         {/if}

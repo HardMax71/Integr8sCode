@@ -1,4 +1,137 @@
 @layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs focus:outline-hidden focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-dark-bg-default transition-all duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs rounded;
+  }
+
+  .btn-xs {
+    @apply px-2.5 py-1 text-xs rounded;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base rounded-md;
+  }
+
+  .btn-icon {
+    @apply p-2!;
+  }
+
+  .btn-primary {
+    @apply text-white bg-primary hover:bg-primary-dark focus:ring-primary;
+  }
+
+  .btn-secondary {
+    @apply text-white bg-secondary hover:bg-secondary-dark focus:ring-secondary;
+  }
+
+  .btn-secondary-outline {
+    @apply text-neutral-700 bg-white border border-neutral-300 hover:bg-neutral-50 focus:ring-primary dark:text-dark-fg-default dark:bg-dark-bg-alt dark:border-dark-border-input dark:hover:bg-neutral-700;
+  }
+
+  .btn-ghost {
+    @apply text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-700 focus:ring-primary border-transparent bg-transparent shadow-none;
+  }
+
+  .btn-danger {
+    @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+  }
+
+  /* Layout */
+  .app-container {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .card {
+    @apply bg-bg-alt dark:bg-dark-bg-alt rounded-lg shadow-md overflow-hidden border border-border-default dark:border-dark-border-default;
+  }
+
+  .divider {
+    @apply border-border-default dark:border-dark-border-default;
+  }
+
+  .empty-state {
+    @apply py-8 text-center text-fg-muted dark:text-dark-fg-muted;
+  }
+
+  /* Forms; plain inputs, selects and checkboxes get their look from the base layer in app.css */
+  .form-control {
+    @apply space-y-1;
+  }
+
+  .form-control label {
+    @apply block text-sm font-medium text-fg-default dark:text-dark-fg-default;
+  }
+
+  .form-input-standard {
+    @apply form-control-base;
+  }
+
+  .form-input-standard:disabled {
+    @apply bg-neutral-100 dark:bg-neutral-700 opacity-70 cursor-not-allowed hover:bg-neutral-100 dark:hover:bg-neutral-700;
+  }
+
+  .form-select-standard {
+    @apply form-control-base pr-10 cursor-pointer;
+  }
+
+  .form-input-bare {
+    @apply bg-transparent border-0 border-b-2 border-neutral-300 dark:border-neutral-600
+           focus:border-primary dark:focus:border-primary rounded-none px-1 py-0
+           focus:outline-hidden focus:ring-0 transition-colors
+           w-full text-sm font-medium text-fg-default dark:text-dark-fg-default
+           placeholder-fg-muted dark:placeholder-dark-fg-muted;
+  }
+
+  .input-sm {
+    @apply px-2 py-1 text-sm border border-border-input dark:border-dark-border-input
+           rounded bg-surface-overlay dark:bg-dark-surface-overlay text-fg-default dark:text-dark-fg-default;
+  }
+
+  /* Badges and alerts */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+  }
+
+  .badge-info {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
+  }
+
+  .badge-neutral {
+    @apply bg-skeleton dark:bg-dark-skeleton text-fg-default dark:text-dark-fg-default;
+  }
+
+  .alert {
+    @apply p-4 rounded-lg border;
+  }
+
+  .alert-info {
+    @apply bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100;
+  }
+
+  .alert-warning {
+    @apply bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100;
+  }
+
+  .alert-danger {
+    @apply bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100;
+  }
+
   /* The surface and the items of the bits-ui menus, popovers and selects */
   .floating-panel {
     @apply z-50 rounded-lg border border-border-default bg-surface-overlay p-1 text-fg-default shadow-lg
@@ -13,71 +146,46 @@
            data-[disabled]:pointer-events-none data-[disabled]:opacity-50;
   }
 
-  /* Toast Container */
-  .toast-container {
-    position: fixed;
-    top: 5rem;
-    right: 1.5rem;
-    z-index: 100;
-    width: 100%;
-    max-width: 24rem;
-    pointer-events: none;
+  /* The bits-ui tooltips */
+  .tooltip-content {
+    @apply z-50 rounded bg-tooltip-bg px-2 py-1 text-xs text-tooltip-fg shadow-lg
+           data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0
+           data-[state=closed]:animate-out data-[state=closed]:fade-out-0;
   }
 
-  .toast-item {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
-    overflow: hidden;
-    pointer-events: auto;
-    border-width: 1px;
+  /* DataTable and Pagination */
+  .table {
+    @apply w-full divide-y divide-border-default dark:divide-dark-border-default;
   }
 
-  .toast-timer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 3px;
-    transform-origin: left;
-    transition: transform 0.1s linear;
+  .table-header {
+    @apply bg-neutral-50 dark:bg-neutral-900;
   }
 
-  @media (width <= 640px) {
-    .toast-container {
-      top: 4.5rem;
-      left: 1rem;
-      right: 1rem;
-      max-width: none;
-    }
+  .table-header-cell {
+    @apply px-4 py-3 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
   }
 
-  /* Button Extensions */
-  .btn-lg {
-    @apply px-6 py-3 text-base rounded-md;
+  .table-header-cell-sm {
+    @apply px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
   }
 
-  .btn-md {
-    @apply px-4 py-2 text-sm rounded-md;
+  .table-body {
+    @apply bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default;
   }
 
-  .btn-outline {
-    @apply bg-transparent border-2 border-current hover:bg-neutral-50 dark:hover:bg-neutral-800;
+  .table-row {
+    @apply hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors;
   }
 
-  /* Bare Input (for inline editing) */
-  .form-input-bare {
-    @apply bg-transparent border-0 border-b-2 border-neutral-300 dark:border-neutral-600
-           focus:border-primary dark:focus:border-primary rounded-none px-1 py-0
-           focus:outline-hidden focus:ring-0 transition-colors
-           w-full text-sm font-medium text-fg-default dark:text-dark-fg-default
-           placeholder-fg-muted dark:placeholder-dark-fg-muted;
+  .table-cell {
+    @apply px-4 py-3 text-sm text-fg-default dark:text-dark-fg-default;
   }
 
-  /* Pagination Controls */
+  .table-cell-sm {
+    @apply px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default;
+  }
+
   .pagination-container {
     @apply flex flex-col sm:flex-row items-center justify-between gap-4;
   }
@@ -111,109 +219,121 @@
     background-image: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22><path stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22M6 8l4 4 4-4%22/></svg>');
   }
 
-  /* Table Styles */
-
-  .table {
-    @apply w-full divide-y divide-border-default dark:divide-dark-border-default;
+  /* Execution output in the editor */
+  .output-container {
+    @apply bg-bg-alt dark:bg-dark-bg-alt border border-border-default
+           dark:border-dark-border-default rounded-lg p-4 w-full
+           overflow-hidden shadow-xs;
   }
 
-  .table-header {
-    @apply bg-neutral-50 dark:bg-neutral-900;
+  .output-pre {
+    @apply bg-bg-default dark:bg-dark-bg-default p-3 rounded border
+           border-border-default dark:border-dark-border-default text-xs
+           font-mono whitespace-pre-wrap break-words max-h-[40vh] overflow-auto;
+
+    padding-right: 3rem; /* Space for copy button */
   }
 
-  .table-header-cell {
-    @apply px-4 py-3 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
+  .output-content,
+  .output-pre,
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fg-subtle) var(--color-skeleton);
   }
 
-  .table-header-cell-sm {
-    @apply px-3 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider;
+  :is(.dark .output-content),
+  :is(.dark .output-pre),
+  :is(.dark .custom-scrollbar) {
+    scrollbar-color: var(--color-dark-fg-subtle) var(--color-dark-skeleton);
   }
 
-  .table-body {
-    @apply bg-bg-default dark:bg-dark-bg-default divide-y divide-border-default dark:divide-dark-border-default;
+  .output-content::-webkit-scrollbar,
+  .output-pre::-webkit-scrollbar,
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
 
-  .table-row {
-    @apply hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors;
+  .output-content::-webkit-scrollbar-track,
+  .output-pre::-webkit-scrollbar-track,
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-neutral-100 dark:bg-neutral-800 rounded;
+
+    margin-right: 2px;
   }
 
-  .table-cell {
-    @apply px-4 py-3 text-sm text-fg-default dark:text-dark-fg-default;
+  .output-content::-webkit-scrollbar-thumb,
+  .output-pre::-webkit-scrollbar-thumb,
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 dark:bg-neutral-600 rounded;
   }
 
-  .table-cell-sm {
-    @apply px-3 py-2 text-sm text-fg-default dark:text-dark-fg-default;
+  .output-content::-webkit-scrollbar-thumb:hover,
+  .output-pre::-webkit-scrollbar-thumb:hover,
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400 dark:bg-neutral-500;
   }
 
-  .divider {
-    @apply border-border-default dark:border-dark-border-default;
+  .output-section .relative {
+    overflow: visible;
   }
 
-  .empty-state {
-    @apply py-8 text-center text-fg-muted dark:text-dark-fg-muted;
+  .output-section .group,
+  .relative .group {
+    z-index: 10;
   }
 
-  /* Badge/Pill Styles */
-  .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  /* Privacy and other text pages */
+  .prose-page h2 {
+    @apply mt-8 mb-4;
   }
 
-  .badge-success {
-    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  .prose-page p {
+    @apply mb-4;
   }
 
-  .badge-warning {
-    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+  .prose-page section {
+    @apply mb-6;
   }
 
-  .badge-danger {
-    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
-  }
+  /* ANSI colours from ansi_up, which runs with use_classes */
+  .ansi-black-fg { color: #000; }
+  .ansi-red-fg { color: #C00; }
+  .ansi-green-fg { color: #0C0; }
+  .ansi-yellow-fg { color: #C50; }
+  .ansi-blue-fg { color: #00C; }
+  .ansi-magenta-fg { color: #C0C; }
+  .ansi-cyan-fg { color: #0CC; }
+  .ansi-white-fg { color: #CCC; }
+  .ansi-bright-black-fg { color: #555; }
+  .ansi-bright-red-fg { color: #F55; }
+  .ansi-bright-green-fg { color: #5F5; }
+  .ansi-bright-yellow-fg { color: #FF5; }
+  .ansi-bright-blue-fg { color: #55F; }
+  .ansi-bright-magenta-fg { color: #F5F; }
+  .ansi-bright-cyan-fg { color: #5FF; }
+  .ansi-bright-white-fg { color: #FFF; }
+  .ansi-black-bg { background-color: #000; }
+  .ansi-red-bg { background-color: #C00; }
+  .ansi-green-bg { background-color: #0C0; }
+  .ansi-yellow-bg { background-color: #C50; }
+  .ansi-blue-bg { background-color: #00C; }
+  .ansi-magenta-bg { background-color: #C0C; }
+  .ansi-cyan-bg { background-color: #0CC; }
+  .ansi-white-bg { background-color: #CCC; }
+  .ansi-bright-black-bg { background-color: #555; }
+  .ansi-bright-red-bg { background-color: #F55; }
+  .ansi-bright-green-bg { background-color: #5F5; }
+  .ansi-bright-yellow-bg { background-color: #FF5; }
+  .ansi-bright-blue-bg { background-color: #55F; }
+  .ansi-bright-magenta-bg { background-color: #F5F; }
+  .ansi-bright-cyan-bg { background-color: #5FF; }
+  .ansi-bright-white-bg { background-color: #FFF; }
+  .ansi-bold { font-weight: bold; }
+  .ansi-italic { font-style: italic; }
+  .ansi-underline { text-decoration: underline; }
 
-  .badge-info {
-    @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
-  }
-
-  .badge-neutral {
-    @apply bg-skeleton dark:bg-dark-skeleton text-fg-default dark:text-dark-fg-default;
-  }
-
-  /* Alert/Notification Styles */
-  .alert {
-    @apply p-4 rounded-lg border;
-  }
-
-  .alert-info {
-    @apply bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100;
-  }
-
-  .alert-warning {
-    @apply bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100;
-  }
-
-  .alert-danger {
-    @apply bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100;
-  }
-
-  /* Tooltip */
-  .tooltip {
-    @apply absolute bottom-8 right-0 z-10 px-2 py-1 text-xs bg-tooltip-bg
-           text-tooltip-fg rounded shadow-lg opacity-0 group-hover:opacity-100
-           transition-opacity duration-200 pointer-events-none whitespace-nowrap;
-  }
-
-  /* Loading Skeleton */
-  .skeleton {
-    @apply animate-pulse bg-skeleton dark:bg-dark-skeleton rounded;
-  }
-
-  /* Feature Card */
-  .feature-card {
-    @apply relative flex flex-col items-start text-left p-6 sm:p-8
-           bg-bg-alt dark:bg-dark-bg-alt rounded-xl
-           border border-border-default/50 dark:border-dark-border-default/50
-           shadow-xs transition-transform duration-300
-           hover:shadow-lg hover:-translate-y-1 hover:border-primary/40;
-  }
-
+  :is(.dark) .ansi-black-fg { color: #555; }
+  :is(.dark) .ansi-white-fg { color: #e2e8f0; }
+  :is(.dark) .ansi-bright-white-fg { color: #FFF; }
 }

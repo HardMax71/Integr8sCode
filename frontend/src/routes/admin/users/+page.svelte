@@ -274,7 +274,7 @@
             <button
                 type="button"
                 onclick={invalidateUsers}
-                class="btn btn-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                class="btn btn-secondary-outline flex items-center gap-2 flex-1 sm:flex-initial justify-center"
                 disabled={usersQuery.isFetching}
             >
                 {#if usersQuery.isFetching}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh

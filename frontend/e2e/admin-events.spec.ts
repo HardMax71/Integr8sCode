@@ -40,6 +40,14 @@ test.describe('Admin Events', () => {
       await adminPage.goto(PATH);
       await expectTableColumn(adminPage, 'Time', EMPTY_PATTERN);
     });
+
+    test('opens the details of an event with its timestamp', async ({ adminPage }) => {
+      await adminPage.goto(PATH);
+      await adminPage.getByRole('button', { name: /View details for event/ }).first().click();
+      const dialog = adminPage.getByRole('dialog', { name: 'Event Details' });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('row', { name: /Timestamp/ })).toContainText(/\d{4}/);
+    });
   });
 
   test.describe('Refresh', () => {

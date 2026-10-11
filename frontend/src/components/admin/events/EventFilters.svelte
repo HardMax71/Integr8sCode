@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { format, parseISO } from 'date-fns';
     import { EVENT_TYPES } from '#lib/admin/events/index.ts';
     import type { EventFilter, EventType } from '#lib/api/index.ts';
 
@@ -9,6 +10,18 @@
     }
 
     let { filters = $bindable({}), onApply, onClear }: Props = $props();
+
+    // A datetime-local input holds local wall time with no offset, which is what parseISO and format read and write
+    const LOCAL_DATETIME = "yyyy-MM-dd'T'HH:mm";
+
+    function inputValue(date: Date | null | undefined): string {
+        return date ? format(date, LOCAL_DATETIME) : '';
+    }
+
+    function fromInput(e: Event): Date | null {
+        const value = (e.currentTarget as HTMLInputElement).value;
+        return value ? parseISO(value) : null;
+    }
 </script>
 
 <div class="card mb-6">
@@ -142,9 +155,9 @@
                     <input
                         id="start-time-filter"
                         type="datetime-local"
-                        value={filters.start_time ?? ''}
+                        value={inputValue(filters.start_time)}
                         oninput={(e) => {
-                            filters.start_time = (e.currentTarget as HTMLInputElement).value || null;
+                            filters.start_time = fromInput(e);
                         }}
                         class="form-input-standard text-sm"
                     />
@@ -160,9 +173,9 @@
                     <input
                         id="end-time-filter"
                         type="datetime-local"
-                        value={filters.end_time ?? ''}
+                        value={inputValue(filters.end_time)}
                         oninput={(e) => {
-                            filters.end_time = (e.currentTarget as HTMLInputElement).value || null;
+                            filters.end_time = fromInput(e);
                         }}
                         class="form-input-standard text-sm"
                     />

@@ -14,7 +14,7 @@ interface MockNotification {
     status: 'unread' | 'read';
     severity: 'low' | 'medium' | 'high' | 'urgent';
     tags: string[];
-    created_at: string;
+    created_at: Date;
     action_url?: string;
 }
 
@@ -63,7 +63,7 @@ const createNotification = (overrides: Partial<MockNotification> = {}): MockNoti
     status: 'unread',
     severity: 'medium',
     tags: [],
-    created_at: new Date().toISOString(),
+    created_at: new Date(),
     ...overrides,
 });
 
@@ -290,7 +290,7 @@ describe('NotificationCenter', () => {
 
     describe('time formatting', () => {
         it.each(timeTestCases)('shows "$expected" for $offsetMs ms ago', async ({ offsetMs, expected }) => {
-            setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs).toISOString() })]);
+            setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs) })]);
             await openDropdown();
             await waitFor(() => {
                 expect(screen.getByText(expected)).toBeInTheDocument();
@@ -299,7 +299,7 @@ describe('NotificationCenter', () => {
 
         it('shows relative days for >24h old notifications', async () => {
             const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-            setNotifications([createNotification({ created_at: oldDate.toISOString() })]);
+            setNotifications([createNotification({ created_at: oldDate })]);
             await openDropdown();
             await waitFor(() => {
                 expect(screen.getByText('2d ago')).toBeInTheDocument();

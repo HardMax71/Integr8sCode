@@ -644,6 +644,8 @@ Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimit
 
 Anything that comes from the backend comes from `#lib/api/index.ts`, never from a hand-written copy: types, enum values, validation rules, defaults, URLs and SSE streams. The generator emits runtime enums and a Zod schema per model, and the index re-exports the client and the schemas, so the copies have nothing to add and only drift.
 
+Timestamps arrive as `Date` objects (the `@hey-api/transformers` plugin), in responses and SSE events alike, and a `Date` sent in a body or query string goes out as ISO. The formatters in `#lib/formatters.ts` take `Date`, never strings, and test fixtures build timestamps with `new Date(...)`.
+
 ```typescript
 import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportExportFormatGetData } from '#lib/api/index.ts';
 

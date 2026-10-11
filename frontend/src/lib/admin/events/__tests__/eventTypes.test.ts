@@ -92,8 +92,8 @@ describe('eventTypes', () => {
                     aggregate_id: 'a',
                     user_id: 'u',
                     service_name: 's',
-                    start_time: 't1',
-                    end_time: 't2',
+                    start_time: new Date(1),
+                    end_time: new Date(2),
                 }),
                 7,
             ],
@@ -125,7 +125,7 @@ describe('eventTypes', () => {
                     aggregate_id: 'a',
                     user_id: 'u',
                     service_name: 's',
-                    start_time: 't',
+                    start_time: new Date(1),
                 }),
             );
             ['1 event type', 'search', 'aggregate', 'user', 'service', 'time range'].forEach((label) =>

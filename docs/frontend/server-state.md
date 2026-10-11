@@ -46,7 +46,13 @@ let settings = $derived.by(() => {
 });
 ```
 
-The copy never touches the cached response. Structural sharing keeps `data` the same object when a refetch returns equal data, so `loaded` doesn't change and a background refetch keeps the edits. Saving puts the response into the cache with `setQueryData`, which starts a fresh copy.
+The copy never touches the cached response. When a refetch returns equal data, the query keeps the old `data` object, so `loaded` doesn't change and a background refetch keeps the edits. Saving puts the response into the cache with `setQueryData`, which starts a fresh copy.
+
+TanStack's own structural sharing would treat every `Date` as changed, since it only compares JSON values, and timestamps arrive as `Date` objects. So the client compares the old and new data as JSON instead, and keeps the old object when they match:
+
+```typescript
+--8<-- "frontend/src/lib/query-client.ts:sharing"
+```
 
 ## Session and user settings
 

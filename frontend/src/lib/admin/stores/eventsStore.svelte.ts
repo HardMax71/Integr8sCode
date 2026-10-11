@@ -17,7 +17,6 @@ import {
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
-import { parseISO } from 'date-fns';
 import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('EventsStore');
@@ -25,10 +24,6 @@ const POLL_INTERVAL_MS = 30_000;
 
 export type BrowsedEvent = EventBrowseResponse['events'][number];
 export type ReplayPreview = Pick<EventReplayResponse, 'total_events' | 'events_preview'> & { eventId: string };
-
-function toIso(value: string | null | undefined): string | null {
-    return value ? parseISO(value).toISOString() : null;
-}
 
 class EventsStore {
     // The filter form edits `filters`; the list and the export follow `appliedFilters`, set by Apply
@@ -50,11 +45,7 @@ class EventsStore {
     list = createQuery(() => ({
         ...browseEventsApiV1AdminEventsBrowsePostOptions({
             body: {
-                filters: {
-                    ...this.appliedFilters,
-                    start_time: toIso(this.appliedFilters.start_time),
-                    end_time: toIso(this.appliedFilters.end_time),
-                },
+                filters: this.appliedFilters,
                 skip: (this.currentPage - 1) * this.pageSize,
                 limit: this.pageSize,
             },
@@ -147,7 +138,7 @@ class EventsStore {
             failed_events: 0,
             skipped_events: 0,
             replay_id: response.replay_id,
-            created_at: new Date().toISOString(),
+            created_at: new Date(),
             started_at: null,
             completed_at: null,
             errors: null,
@@ -210,8 +201,8 @@ class EventsStore {
             path: { export_format: format },
             query: {
                 event_types: event_types?.length ? event_types : undefined,
-                start_time: toIso(start_time) ?? undefined,
-                end_time: toIso(end_time) ?? undefined,
+                start_time: start_time ?? undefined,
+                end_time: end_time ?? undefined,
                 aggregate_id: aggregate_id || undefined,
                 user_id: user_id || undefined,
                 service_name: service_name || undefined,

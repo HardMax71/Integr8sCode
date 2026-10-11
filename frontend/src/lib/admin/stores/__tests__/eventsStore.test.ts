@@ -119,13 +119,13 @@ describe('EventsStore', () => {
             await vi.waitFor(() => expect(lastBrowseBody()).toMatchObject({ skip: 10, limit: 10 }));
         });
 
-        it('sends the filters only once they are applied, with times as ISO strings', async () => {
+        it('sends the filters only once they are applied', async () => {
             createStore();
             await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(1));
             store.currentPage = 2;
             await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(2));
 
-            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: '2026-01-02T03:04' };
+            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') };
             await vi.advanceTimersByTimeAsync(100);
             expect(browseEvents).toHaveBeenCalledTimes(2);
 
@@ -134,12 +134,7 @@ describe('EventsStore', () => {
             expect(store.currentPage).toBe(1);
             await vi.waitFor(() =>
                 expect(lastBrowseBody()).toEqual({
-                    filters: {
-                        user_id: 'user-1',
-                        aggregate_id: 'agg-1',
-                        start_time: new Date('2026-01-02T03:04').toISOString(),
-                        end_time: null,
-                    },
+                    filters: { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') },
                     skip: 0,
                     limit: 10,
                 }),

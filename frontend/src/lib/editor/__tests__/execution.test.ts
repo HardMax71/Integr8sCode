@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExecutionResult } from '#lib/api/index.ts';
 import { createExecutionApiV1ExecutePost, executionEventsApiV1EventsExecutionsExecutionIdGet } from '#lib/api/index.ts';
 import { createExecutionState } from '#lib/editor/execution.svelte.ts';
+import { createInQueryContext, mockApi } from '#test/test-utils.ts';
 
 const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
 const mockSseFn = vi.mocked(executionEventsApiV1EventsExecutionsExecutionIdGet);
@@ -18,6 +19,14 @@ const RESULT: ExecutionResult = {
     error_type: null,
     priority: 'normal',
 };
+
+function createState() {
+    return createInQueryContext(createExecutionState).value;
+}
+
+function mockStarted() {
+    mockApi(createExecutionApiV1ExecutePost).ok({ execution_id: 'exec-1', status: 'queued' });
+}
 
 function mockSseEvents(...events: unknown[]) {
     mockSseFn.mockResolvedValue({
@@ -40,21 +49,18 @@ describe('createExecutionState', () => {
             ['error', null],
             ['isExecuting', false],
         ] as const)('%s is %j', (key, expected) => {
-            const s = createExecutionState();
+            const s = createState();
             expect(s[key]).toBe(expected);
         });
     });
 
     describe('execute → stream result_stored', () => {
         it('yields result from SSE stream', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents({ event_type: 'status', status: 'running' }, { event_type: 'result_stored', result: RESULT });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('print("hi")', 'python', '3.12');
 
             expect(s.result).toEqual(RESULT);
@@ -63,14 +69,11 @@ describe('createExecutionState', () => {
         });
 
         it('sets result to null and no error when result_stored has no result', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents({ event_type: 'result_stored', result: null });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.result).toBeNull();
@@ -85,14 +88,11 @@ describe('createExecutionState', () => {
             ['execution_timeout', 'Execution timed out.'],
             ['result_failed', 'Failed to store execution results.'],
         ] as const)('sets error on %s event', async (eventType, expectedError) => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents({ event_type: eventType });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.error).toBe(expectedError);
@@ -100,14 +100,11 @@ describe('createExecutionState', () => {
         });
 
         it('uses result from terminal failure event when available', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents({ event_type: 'execution_failed', result: RESULT });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.result).toEqual(RESULT);
@@ -117,14 +114,11 @@ describe('createExecutionState', () => {
 
     describe('execute → stream ends without terminal event', () => {
         it('sets connection lost error', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents({ event_type: 'status', status: 'running' });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.error).toBe('Connection to server lost.');
@@ -133,23 +127,43 @@ describe('createExecutionState', () => {
     });
 
     describe('execute → API error', () => {
-        it('sets error when createExecution fails', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: null,
-                error: { detail: 'rate limited' },
-            } as any);
+        it('shows the API error when the execution fails to start, and opens no stream', async () => {
+            mockApi(createExecutionApiV1ExecutePost).err({ detail: 'rate limited' });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
-            expect(s.error).toBe('Failed to start execution.');
+            await vi.waitFor(() => expect(s.error).toBe('rate limited'));
             expect(s.phase).toBe('idle');
+            expect(mockSseFn).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['an error without a message', 'nope', 'nope'],
+            ['an empty error', {}, 'Failed to start execution.'],
+        ])('falls back to a generic message for %s', async (_label, error, expected) => {
+            mockApi(createExecutionApiV1ExecutePost).err(error);
+
+            const s = createState();
+            await s.execute('x', 'python', '3.12');
+
+            await vi.waitFor(() => expect(s.error).toBe(expected));
+        });
+
+        it('is "starting" while the request is in flight', async () => {
+            mockApi(createExecutionApiV1ExecutePost).mock.mockImplementation(() => new Promise(() => {}));
+
+            const s = createState();
+            void s.execute('x', 'python', '3.12');
+
+            await vi.waitFor(() => expect(s.phase).toBe('starting'));
+            expect(s.isExecuting).toBe(true);
         });
     });
 
     describe('abort', () => {
         it('resets phase to idle', () => {
-            const s = createExecutionState();
+            const s = createState();
             s.abort();
             expect(s.phase).toBe('idle');
         });
@@ -157,28 +171,26 @@ describe('createExecutionState', () => {
 
     describe('reset', () => {
         it('clears all state', async () => {
-            mockCreateExecution.mockResolvedValue({ data: null, error: 'fail' } as any);
+            mockApi(createExecutionApiV1ExecutePost).err({ detail: 'fail' });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
+            await vi.waitFor(() => expect(s.error).toBe('fail'));
 
             s.reset();
             expect(s.phase).toBe('idle');
             expect(s.result).toBeNull();
-            expect(s.error).toBeNull();
+            await vi.waitFor(() => expect(s.error).toBeNull());
         });
     });
 
     describe('malformed SSE data', () => {
         it('skips non-object events and continues', async () => {
-            mockCreateExecution.mockResolvedValue({
-                data: { execution_id: 'exec-1', status: 'queued' },
-                error: undefined,
-            } as any);
+            mockStarted();
 
             mockSseEvents('{broken', { event_type: 'result_stored', result: RESULT });
 
-            const s = createExecutionState();
+            const s = createState();
             await s.execute('x', 'python', '3.12');
 
             expect(s.result).toEqual(RESULT);

@@ -1,17 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
+import { loginApiV1AuthLoginPost } from '#lib/api/index.ts';
+import { queryClient } from '#lib/query-client.ts';
 import Login from '#routes/login/+page.svelte';
 
-import { getErrorMessage } from '#lib/api-interceptors.ts';
-
 const mocks = vi.hoisted(() => ({
-    mockLogin: vi.fn(),
-    mockLoadUserSettings: vi.fn(),
     mockAuthStore: {
-        login: vi.fn(),
+        startSession: vi.fn(),
         isAuthenticated: false,
         username: null,
         userRole: null,
@@ -21,23 +19,24 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('#lib/user-settings.ts', () => ({
-    loadUserSettings: mocks.mockLoadUserSettings,
-}));
+const loginResponse = { message: 'ok', username: 'testuser', role: 'user', csrf_token: 'csrf' };
 
 describe('Login', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.login = vi.fn().mockResolvedValue(true);
-        mocks.mockLoadUserSettings.mockResolvedValue(undefined);
+        mocks.mockAuthStore.startSession.mockResolvedValue(undefined);
+        mockApi(loginApiV1AuthLoginPost).ok(loginResponse);
     });
 
-    function renderLogin() {
-        return render(Login);
+    async function submit(username = 'testuser', password = 'pass1234') {
+        renderWithQueryClient(Login);
+        await user.type(screen.getByPlaceholderText('Username'), username);
+        await user.type(screen.getByPlaceholderText('Password'), password);
+        await user.click(screen.getByRole('button', { name: /sign in/i }));
     }
 
-    it('renders sign-in form with heading, inputs, button, and register link', async () => {
-        await renderLogin();
+    it('renders sign-in form with heading, inputs, button, and register link', () => {
+        renderWithQueryClient(Login);
         expect(screen.getByRole('heading', { name: /sign in to your account/i })).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
@@ -47,25 +46,22 @@ describe('Login', () => {
 
     it('shows auth message from sessionStorage and removes it', async () => {
         sessionStorage.setItem('authMessage', 'Please log in to continue');
-        await renderLogin();
+        renderWithQueryClient(Login);
         await waitFor(() => {
             expect(toast.info).toHaveBeenCalledWith('Please log in to continue');
         });
         expect(sessionStorage.getItem('authMessage')).toBeNull();
     });
 
-    it('calls authStore.login with exact values, loads settings, shows toast, redirects to /editor', async () => {
-        await renderLogin();
-        await user.type(screen.getByPlaceholderText('Username'), 'testuser');
-        await user.type(screen.getByPlaceholderText('Password'), 'pass1234');
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+    it('posts the credentials, starts the session, shows toast, redirects to /editor', async () => {
+        await submit();
 
-        await waitFor(() => {
-            expect(mocks.mockAuthStore.login).toHaveBeenCalledWith('testuser', 'pass1234');
-        });
-        expect(mocks.mockLoadUserSettings).toHaveBeenCalled();
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
+        expect(vi.mocked(loginApiV1AuthLoginPost)).toHaveBeenCalledWith(
+            expect.objectContaining({ body: { username: 'testuser', password: 'pass1234', scope: '' } }),
+        );
+        expect(mocks.mockAuthStore.startSession).toHaveBeenCalledWith(loginResponse);
         expect(toast.success).toHaveBeenCalledWith('Login successful! Welcome back.');
-        expect(navigation.goto).toHaveBeenCalledWith('/editor');
     });
 
     it.each([
@@ -77,10 +73,7 @@ describe('Login', () => {
         if (redirectPath) {
             sessionStorage.setItem('redirectAfterLogin', redirectPath);
         }
-        await renderLogin();
-        await user.type(screen.getByPlaceholderText('Username'), 'u');
-        await user.type(screen.getByPlaceholderText('Password'), 'p');
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+        await submit('u', 'p');
 
         await waitFor(() => {
             expect(navigation.goto).toHaveBeenCalledWith(expectedNav);
@@ -88,48 +81,44 @@ describe('Login', () => {
         expect(sessionStorage.getItem('redirectAfterLogin')).toBeNull();
     });
 
-    it('shows error message in DOM on login failure (no duplicate toast)', async () => {
-        mocks.mockAuthStore.login = vi.fn().mockRejectedValue(new Error('Invalid credentials'));
-        vi.mocked(getErrorMessage).mockReturnValue('Login failed. Please check your credentials.');
+    it('shows the API error inline and opts out of the global toasts', async () => {
+        mockApi(loginApiV1AuthLoginPost).err({ detail: 'Invalid credentials' });
 
-        await renderLogin();
-        await user.type(screen.getByPlaceholderText('Username'), 'bad');
-        await user.type(screen.getByPlaceholderText('Password'), 'bad');
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+        await submit('bad', 'bad');
 
         await waitFor(() => {
-            expect(screen.getByText('Login failed. Please check your credentials.')).toBeInTheDocument();
+            expect(screen.getByTestId('error-message')).toHaveTextContent('Invalid credentials');
         });
+        expect(queryClient.getMutationCache().getAll()[0]?.meta).toEqual({ inlineErrors: true });
+        expect(mocks.mockAuthStore.startSession).not.toHaveBeenCalled();
         expect(toast.error).not.toHaveBeenCalled();
+        expect(navigation.goto).not.toHaveBeenCalled();
     });
 
-    it('disables button and shows "Logging in..." during loading', async () => {
-        let resolveLogin: (v: boolean) => void;
-        mocks.mockAuthStore.login = vi.fn().mockImplementation(
+    it('disables button and shows "Logging in..." until the session has started', async () => {
+        let finishSession: () => void;
+        mocks.mockAuthStore.startSession.mockImplementation(
             () =>
-                new Promise<boolean>((r) => {
-                    resolveLogin = r;
+                new Promise<void>((r) => {
+                    finishSession = r;
                 }),
         );
 
-        await renderLogin();
-        await user.type(screen.getByPlaceholderText('Username'), 'u');
-        await user.type(screen.getByPlaceholderText('Password'), 'p');
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
+        await submit('u', 'p');
 
         await waitFor(() => {
             expect(screen.getByText('Logging in...')).toBeInTheDocument();
         });
         expect(screen.getByRole('button', { name: /logging in/i })).toBeDisabled();
 
-        resolveLogin!(true);
+        finishSession!();
         await waitFor(() => {
             expect(screen.queryByText('Logging in...')).not.toBeInTheDocument();
         });
     });
 
     it('sets the page title', async () => {
-        await renderLogin();
+        renderWithQueryClient(Login);
         await waitFor(() => expect(document.title).toBe('Login - Integr8sCode'));
     });
 });

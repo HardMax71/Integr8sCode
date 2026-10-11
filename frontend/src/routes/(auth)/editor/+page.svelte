@@ -1,27 +1,25 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { untrack } from 'svelte';
     import { fade, slide } from 'svelte/transition';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { authStore } from '#stores/auth.svelte.ts';
     import {
-        getK8sResourceLimitsApiV1K8sLimitsGet,
-        getExampleScriptsApiV1ExampleScriptsGet,
-        listSavedScriptsApiV1ScriptsGet,
-        createSavedScriptApiV1ScriptsPost,
-        updateSavedScriptApiV1ScriptsScriptIdPut,
-        deleteSavedScriptApiV1ScriptsScriptIdDelete,
-        type ResourceLimits,
-        type LanguageInfo,
+        getK8sResourceLimitsApiV1K8sLimitsGetOptions,
+        getExampleScriptsApiV1ExampleScriptsGetOptions,
+        getUserSettingsApiV1UserSettingsGetOptions,
+        listSavedScriptsApiV1ScriptsGetOptions,
+        listSavedScriptsApiV1ScriptsGetQueryKey,
+        createSavedScriptApiV1ScriptsPostMutation,
+        updateSavedScriptApiV1ScriptsScriptIdPutMutation,
+        deleteSavedScriptApiV1ScriptsScriptIdDeleteMutation,
+        zEditorSettingsInput,
         type SavedScriptResponse,
     } from '#lib/api/index.ts';
+    import { ApiError } from '#lib/api-error.ts';
     import { toast } from 'svelte-sonner';
-    import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
     import Spinner from '#components/Spinner.svelte';
-    import { userSettingsStore } from '#stores/userSettings.svelte.ts';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
     import { createExecutionState, newestVersion } from '#lib/editor/index.ts';
-    import { logger } from '#lib/logger.ts';
-
-    const log = logger.withTag('Editor');
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -69,15 +67,27 @@
     // State
     let prevAuth = false;
     let authenticated = $derived(authStore.isAuthenticated ?? false);
-    let k8sLimits = $state<ResourceLimits | null>(null);
-    let supportedRuntimes = $state<Record<string, LanguageInfo>>({});
-    let exampleScripts: Record<string, string> = {};
-    let savedScripts = $state<SavedScriptResponse[]>([]);
     let showOptions = $state(false);
-    let editorSettings = $derived(userSettingsStore.editorSettings);
     let fileInput: HTMLInputElement;
     let editorRef: CodeMirrorEditor;
     let nameEditedByUser = false;
+
+    const DEFAULT_EDITOR_SETTINGS = zEditorSettingsInput.parse({});
+
+    const queryClient = useQueryClient();
+    const limitsQuery = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
+    const examplesQuery = createQuery(() => getExampleScriptsApiV1ExampleScriptsGetOptions());
+    const settingsQuery = createQuery(() => ({
+        ...getUserSettingsApiV1UserSettingsGetOptions(),
+        enabled: authenticated,
+    }));
+    const scriptsQuery = createQuery(() => ({ ...listSavedScriptsApiV1ScriptsGetOptions(), enabled: authenticated }));
+
+    let k8sLimits = $derived(limitsQuery.data ?? null);
+    let supportedRuntimes = $derived(k8sLimits?.supported_runtimes ?? {});
+    let exampleScripts = $derived(examplesQuery.data?.scripts ?? {});
+    let savedScripts = $derived(scriptsQuery.data?.scripts ?? []);
+    let editorSettings = $derived(settingsQuery.data?.editor ?? DEFAULT_EDITOR_SETTINGS);
 
     const execution = createExecutionState();
     const runtimesAvailable = $derived(Object.keys(supportedRuntimes).length > 0);
@@ -86,6 +96,20 @@
             .map((i) => `.${i.file_ext}`)
             .join(',') || '.txt',
     );
+
+    // Fall back to a supported language once the runtimes load; .pre, so LanguageSelect never sees the old one
+    $effect.pre(() => {
+        const runtimes = limitsQuery.data?.supported_runtimes;
+        if (!runtimes) return;
+        untrack(() => {
+            const lang = selectedLang in runtimes ? selectedLang : Object.keys(runtimes)[0];
+            const versions = lang ? (runtimes[lang]?.versions ?? []) : [];
+            if (lang && (lang !== selectedLang || !versions.includes(selectedVersion))) {
+                selectedLang = lang;
+                selectedVersion = newestVersion(versions) ?? '';
+            }
+        });
+    });
 
     $effect(() => {
         if (nameEditedByUser && typeof window !== 'undefined' && currentScriptId && savedScripts.length > 0) {
@@ -98,48 +122,45 @@
         }
     });
 
-    // React to auth changes
+    // Signing out drops the saved scripts with every other query, so forget which one is open
     $effect(() => {
         const isAuth = authenticated;
-        if (!prevAuth && isAuth) {
-            loadSavedScripts().catch((e) => log.error(e));
-        } else if (prevAuth && !isAuth) {
-            savedScripts = [];
+        if (prevAuth && !isAuth) {
             currentScriptId = null;
             scriptName = '';
         }
         prevAuth = isAuth;
     });
 
-    onMount(async () => {
-        await authStore.verifyAuth();
-
-        const [{ data: limitsData }, { data: examplesData }] = await Promise.all([
-            getK8sResourceLimitsApiV1K8sLimitsGet({}),
-            getExampleScriptsApiV1ExampleScriptsGet({}),
-        ]);
-        k8sLimits = limitsData ?? null;
-        supportedRuntimes = k8sLimits?.supported_runtimes || {};
-        const lang = selectedLang in supportedRuntimes ? selectedLang : Object.keys(supportedRuntimes)[0];
-        const versions = lang ? (supportedRuntimes[lang]?.versions ?? []) : [];
-        if (lang && (lang !== selectedLang || !versions.includes(selectedVersion))) {
-            selectedLang = lang;
-            selectedVersion = newestVersion(versions) ?? '';
-        }
-        exampleScripts = examplesData?.scripts || {};
-
-        if (authenticated) await loadSavedScripts();
-    });
-
-    async function loadSavedScripts() {
-        if (!authenticated) return;
-        const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
-        if (!data) {
-            toast.error('Failed to load saved scripts');
-            return;
-        }
-        savedScripts = data.scripts || [];
+    function refreshScripts(): Promise<void> {
+        return queryClient.invalidateQueries({ queryKey: listSavedScriptsApiV1ScriptsGetQueryKey() });
     }
+
+    const createScript = createMutation(() => ({
+        ...createSavedScriptApiV1ScriptsPostMutation(),
+        onSuccess: (data) => {
+            currentScriptId = data.script_id;
+            toast.success('Script saved successfully.');
+            return refreshScripts();
+        },
+    }));
+
+    const updateScript = createMutation(() => ({
+        ...updateSavedScriptApiV1ScriptsScriptIdPutMutation(),
+        onSuccess: () => {
+            toast.success('Script updated successfully.');
+            return refreshScripts();
+        },
+    }));
+
+    const deleteScriptMutation = createMutation(() => ({
+        ...deleteSavedScriptApiV1ScriptsScriptIdDeleteMutation(),
+        onSuccess: (_data, { path }) => {
+            toast.success('Script deleted successfully.');
+            if (currentScriptId === path.script_id) newScript();
+            return refreshScripts();
+        },
+    }));
 
     function loadScript(s: SavedScriptResponse) {
         script = s.script;
@@ -153,7 +174,7 @@
         showOptions = false;
     }
 
-    async function saveScript() {
+    function saveScript() {
         if (!authenticated) {
             toast.warning('Please log in to save scripts.');
             return;
@@ -164,31 +185,25 @@
         }
 
         const body = { name: scriptName, script, lang: selectedLang, lang_version: selectedVersion };
-
-        if (currentScriptId) {
-            const { error, response } = await updateSavedScriptApiV1ScriptsScriptIdPut({
-                path: { script_id: currentScriptId },
-                body,
-            });
-            if (error) {
-                if (response?.status === 404) {
-                    currentScriptId = null;
-                    const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-                    currentScriptId = data.script_id;
-                    toast.success('Script saved successfully.');
-                }
-                return;
-            }
-            toast.success('Script updated successfully.');
-        } else {
-            const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
-            currentScriptId = data.script_id;
-            toast.success('Script saved successfully.');
+        if (!currentScriptId) {
+            createScript.mutate({ body });
+            return;
         }
-        await loadSavedScripts();
+        updateScript.mutate(
+            { path: { script_id: currentScriptId }, body },
+            {
+                onError: (err) => {
+                    // Deleted elsewhere, so save it as a new script
+                    if (err instanceof ApiError && err.status === 404) {
+                        currentScriptId = null;
+                        createScript.mutate({ body });
+                    }
+                },
+            },
+        );
     }
 
-    async function deleteScript(id: string) {
+    function deleteScript(id: string) {
         const s = savedScripts.find((x) => x.script_id === id);
         if (
             !confirm(
@@ -196,10 +211,7 @@
             )
         )
             return;
-        unwrap(await deleteSavedScriptApiV1ScriptsScriptIdDelete({ path: { script_id: id } }));
-        toast.success('Script deleted successfully.');
-        if (currentScriptId === id) newScript();
-        await loadSavedScripts();
+        deleteScriptMutation.mutate({ path: { script_id: id } });
     }
 
     function newScript() {
@@ -414,7 +426,7 @@
                                 scripts={savedScripts}
                                 onload={loadScript}
                                 ondelete={deleteScript}
-                                onrefresh={loadSavedScripts}
+                                onrefresh={refreshScripts}
                             />
                         {:else}
                             <div class="flex flex-col items-center justify-center h-full text-center">

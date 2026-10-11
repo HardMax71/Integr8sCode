@@ -1,10 +1,12 @@
 import {
-    loginApiV1AuthLoginPost,
-    logoutApiV1AuthLogoutPost,
-    getCurrentUserProfileApiV1AuthMeGet,
+    getCurrentUserProfileApiV1AuthMeGetOptions,
+    getCurrentUserProfileApiV1AuthMeGetQueryKey,
+    type LoginResponse,
+    type UserResponse,
     type UserRole,
 } from '#lib/api/index.ts';
-import { clearUserSettings } from '#stores/userSettings.svelte.ts';
+import { ApiError } from '#lib/api-error.ts';
+import { queryClient } from '#lib/query-client.ts';
 import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('Auth');
@@ -43,7 +45,7 @@ function persistAuthState(state: Partial<AuthState> | null) {
 
 const persisted = getPersistedAuthState();
 
-const AUTH_CACHE_DURATION = 30000;
+const VERIFY_STALE_MS = 30_000;
 const STALE_AUTH_THRESHOLD = 5 * 60 * 1000;
 
 class AuthStore {
@@ -54,10 +56,6 @@ class AuthStore {
     userEmail = $state<string | null>(persisted?.userEmail ?? null);
     csrfToken = $state<string | null>(persisted?.csrfToken ?? null);
 
-    // --8<-- [start:auth_cache]
-    #authCache: { valid: boolean | null; timestamp: number } = { valid: null, timestamp: 0 };
-    #verifyPromise: Promise<boolean> | null = null;
-    // --8<-- [end:auth_cache]
     #initialized = false;
     #initPromise: Promise<boolean> | null = null;
 
@@ -78,6 +76,8 @@ class AuthStore {
         this.userEmail = null;
         this.csrfToken = null;
         persistAuthState(null);
+        // Nothing the previous user loaded may show to the next one
+        queryClient.removeQueries();
     }
 
     async initialize(): Promise<boolean> {
@@ -106,145 +106,74 @@ class AuthStore {
 
     async #performInitialization(): Promise<boolean> {
         const persistedState = getPersistedAuthState();
+        if (!persistedState) return this.verifyAuth();
 
-        if (persistedState) {
-            this.restoreFrom(persistedState);
-            const isValid = await this.verifyAuth(true);
-            if (!isValid) {
-                // Distinguish network error from explicit token invalidation.
-                // verifyAuth sets #authCache.valid = false when server says invalid,
-                // but leaves it null on network error (no cache to fall back to).
-                if (this.#authCache.valid === null && Date.now() - persistedState.timestamp < STALE_AUTH_THRESHOLD) {
-                    return true;
-                }
-                this.clearAuth();
-                clearUserSettings();
-                return false;
-            }
-            await this.#loadUserSettingsSafely();
-            return true;
-        }
-
-        const isValid = await this.verifyAuth();
-        if (isValid) await this.#loadUserSettingsSafely();
-        return isValid;
+        this.restoreFrom(persistedState);
+        if (await this.verifyAuth(true)) return true;
+        // A 401 has already cleared the session; after a network or server error a recent one stays
+        if (this.isAuthenticated && Date.now() - persistedState.timestamp < STALE_AUTH_THRESHOLD) return true;
+        this.clearAuth();
+        return false;
     }
 
-    async #loadUserSettingsSafely(): Promise<void> {
-        try {
-            // Dynamic import to avoid circular dependency:
-            // auth.svelte.ts -> user-settings.ts -> auth.svelte.ts
-            const { loadUserSettings } = await import('#lib/user-settings.ts');
-            await loadUserSettings();
-        } catch (err) {
-            log.warn('Failed to load user settings:', err);
-        }
-    }
-
-    async login(user: string, password: string): Promise<boolean> {
-        const { data, error } = await loginApiV1AuthLoginPost({
-            body: { username: user, password, scope: '' },
-        });
-        if (error) throw error;
-
+    /** Takes over the session a successful login started, then loads the full profile. */
+    async startSession(login: LoginResponse): Promise<void> {
         this.isAuthenticated = true;
-        this.username = data.username;
-        this.userRole = data.role;
-        this.csrfToken = data.csrf_token;
+        this.username = login.username;
+        this.userRole = login.role;
+        this.csrfToken = login.csrf_token;
         this.userId = null;
         this.userEmail = null;
-
         persistAuthState({
             isAuthenticated: true,
-            username: data.username,
-            userRole: data.role,
-            csrfToken: data.csrf_token,
+            username: login.username,
+            userRole: login.role,
+            csrfToken: login.csrf_token,
             userId: null,
             userEmail: null,
         });
-
-        this.#authCache = { valid: true, timestamp: Date.now() };
-        try {
-            const verified = await this.verifyAuth(true);
-            if (!verified) {
-                log.warn('Profile verification returned false after successful login');
-                return false;
-            }
-        } catch (err) {
-            log.warn('Failed to verify profile after login:', err);
-        }
-        return true;
-    }
-
-    async logout(): Promise<void> {
-        try {
-            await logoutApiV1AuthLogoutPost({});
-        } catch (err) {
-            log.error('Logout API call failed:', err);
-        } finally {
-            this.clearAuth();
-            clearUserSettings();
-            this.#authCache = { valid: false, timestamp: Date.now() };
-        }
+        await this.verifyAuth(true);
     }
 
     /**
-     * Verifies the current authentication state with the server.
+     * Checks the session with the server. The profile query is cached for 30 seconds, so checks within that
+     * window share one answer, and checks made at the same time share one request.
      *
-     * OFFLINE-FIRST BEHAVIOR: On network failure, this function returns the cached
-     * auth state (if available) rather than immediately logging the user out.
-     * This provides better UX during transient network issues but means:
-     * - Server-revoked tokens may remain "valid" locally for up to AUTH_CACHE_DURATION (30s)
-     * - Security-critical operations should use forceRefresh=true
-     *
-     * Trade-off: We prioritize availability over immediate consistency for better
-     * offline/flaky-network UX. The 30-second cache window is acceptable for most
-     * UI operations; sensitive actions should force re-verification.
+     * OFFLINE-FIRST: on a network or server error it returns the last answer instead of signing the user out,
+     * so a server-revoked session can look valid for up to 30 seconds; pass forceRefresh for sensitive actions.
      */
     async verifyAuth(forceRefresh = false): Promise<boolean> {
-        if (
-            !forceRefresh &&
-            this.#authCache.valid !== null &&
-            Date.now() - this.#authCache.timestamp < AUTH_CACHE_DURATION
-        ) {
-            return this.#authCache.valid;
-        }
-        if (this.#verifyPromise) return this.#verifyPromise;
-
-        this.#verifyPromise = (async () => {
-            try {
-                const { data, error, response } = await getCurrentUserProfileApiV1AuthMeGet({});
-                if (response?.status === 401) {
-                    this.clearAuth();
-                    this.#authCache = { valid: false, timestamp: Date.now() };
-                    return false;
-                }
-                if (error) {
-                    // Network failure or a server error: keep the cached state (offline-first)
-                    log.warn('Auth verification failed, keeping cached state:', response?.status ?? error);
-                    return this.#authCache.valid ?? false;
-                }
-                this.isAuthenticated = true;
-                this.username = data.username;
-                this.userRole = data.role;
-                this.userId = data.user_id;
-                this.userEmail = data.email;
-                this.csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1] ?? null;
-                persistAuthState({
-                    isAuthenticated: true,
-                    username: data.username,
-                    userRole: data.role,
-                    csrfToken: this.csrfToken,
-                    userId: data.user_id,
-                    userEmail: data.email,
-                });
-                this.#authCache = { valid: true, timestamp: Date.now() };
-                return true;
-            } finally {
-                this.#verifyPromise = null;
+        let user: UserResponse;
+        try {
+            user = await queryClient.query({
+                ...getCurrentUserProfileApiV1AuthMeGetOptions(),
+                staleTime: forceRefresh ? 0 : VERIFY_STALE_MS,
+                retry: false,
+            });
+        } catch (err) {
+            if (err instanceof ApiError && err.status === 401) {
+                this.clearAuth();
+                return false;
             }
-        })();
-        return this.#verifyPromise;
+            log.warn('Auth verification failed, keeping cached state:', err);
+            return queryClient.getQueryData(getCurrentUserProfileApiV1AuthMeGetQueryKey()) !== undefined;
+        }
+
+        this.isAuthenticated = true;
+        this.username = user.username;
+        this.userRole = user.role;
+        this.userId = user.user_id;
+        this.userEmail = user.email;
+        this.csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1] ?? null;
+        persistAuthState({
+            isAuthenticated: true,
+            username: user.username,
+            userRole: user.role,
+            csrfToken: this.csrfToken,
+            userId: user.user_id,
+            userEmail: user.email,
+        });
+        return true;
     }
 }
 

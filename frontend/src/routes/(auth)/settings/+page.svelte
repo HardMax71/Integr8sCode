@@ -1,11 +1,12 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import {
-        getUserSettingsApiV1UserSettingsGet,
-        updateUserSettingsApiV1UserSettingsPut,
-        restoreSettingsApiV1UserSettingsRestorePost,
-        getSettingsHistoryApiV1UserSettingsHistoryGet,
-        type SettingsHistoryEntry,
+        getUserSettingsApiV1UserSettingsGetOptions,
+        getUserSettingsApiV1UserSettingsGetQueryKey,
+        updateUserSettingsApiV1UserSettingsPutMutation,
+        restoreSettingsApiV1UserSettingsRestorePostMutation,
+        getSettingsHistoryApiV1UserSettingsHistoryGetOptions,
+        getSettingsHistoryApiV1UserSettingsHistoryGetQueryKey,
         type UserSettings,
         type UserSettingsUpdate,
         Theme,
@@ -17,30 +18,18 @@
     import { setTheme } from '#stores/theme.svelte.ts';
     import { toast } from 'svelte-sonner';
     import { fly } from 'svelte/transition';
-    import { setUserSettings } from '#stores/userSettings.svelte.ts';
     import Spinner from '#components/Spinner.svelte';
     import { ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '#lib/formatters.ts';
     import { parseISO } from 'date-fns';
 
-    let loading = $state(true);
-    let saving = $state(false);
+    type SettingsForm = Pick<UserSettings, 'theme' | 'notifications' | 'editor'>;
+
     let activeTab = $state('general');
     let showHistory = $state(false);
-    let history = $state<SettingsHistoryEntry[]>([]);
-    let historyLoading = $state(false);
 
     // Dropdown states
     let showThemeDropdown = $state(false);
-
-    // Form state (single source of truth for UI); shows the API's defaults until the saved settings load
-    let formData = $state<Pick<UserSettings, 'theme' | 'notifications' | 'editor'>>({
-        theme: zUserSettings.shape.theme.parse(undefined),
-        notifications: zNotificationSettingsInput.parse({}),
-        editor: zEditorSettingsInput.parse({}),
-    });
-
-    let savedSnapshot = $state<typeof formData | null>(null);
 
     const tabs = [
         { id: 'general', label: 'General' },
@@ -51,7 +40,7 @@
     const themeLabels: Record<Theme, string> = { light: 'Light', dark: 'Dark', auto: 'Auto (System)' };
     const themes = Object.values(Theme).map((value) => ({ value, label: themeLabels[value] }));
 
-    function apiToFormData(data: UserSettings): typeof formData {
+    function toForm(data: UserSettings): SettingsForm {
         return {
             theme: data.theme,
             notifications: { ...data.notifications },
@@ -59,109 +48,81 @@
         };
     }
 
-    onMount(() => {
-        if (!authStore.isAuthenticated) {
-            return;
-        }
-        loadSettings();
+    const queryClient = useQueryClient();
+    const settingsKey = getUserSettingsApiV1UserSettingsGetQueryKey();
+
+    const settingsQuery = createQuery(() => ({
+        ...getUserSettingsApiV1UserSettingsGetOptions(),
+        enabled: authStore.isAuthenticated === true,
+    }));
+
+    let loaded = $derived(settingsQuery.data);
+    // Edits go to a copy of the loaded settings (the API's defaults until then), which an unchanged refetch keeps
+    let formData = $derived.by(() => {
+        const draft = $state<SettingsForm>(
+            loaded
+                ? toForm(loaded)
+                : {
+                      theme: zUserSettings.shape.theme.parse(undefined),
+                      notifications: zNotificationSettingsInput.parse({}),
+                      editor: zEditorSettingsInput.parse({}),
+                  },
+        );
+        return draft;
     });
 
-    async function loadSettings() {
-        loading = true;
-        const { data, error } = await getUserSettingsApiV1UserSettingsGet({});
-        if (error) {
-            toast.error('Failed to load settings');
-            loading = false;
-            return;
-        }
+    const historyQuery = createQuery(() => ({
+        ...getSettingsHistoryApiV1UserSettingsHistoryGetOptions({ query: { limit: 10 } }),
+        enabled: showHistory,
+        staleTime: 30_000,
+    }));
+    let history = $derived(
+        [...(historyQuery.data?.history ?? [])].sort(
+            (a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime(),
+        ),
+    );
 
-        setUserSettings(data ?? null);
-        if (data) formData = apiToFormData(data);
-        savedSnapshot = $state.snapshot(formData);
-        loading = false;
+    function storeSettings(data: UserSettings): void {
+        queryClient.setQueryData(settingsKey, data);
+        void queryClient.invalidateQueries({ queryKey: getSettingsHistoryApiV1UserSettingsHistoryGetQueryKey() });
     }
 
-    async function saveSettings() {
+    const save = createMutation(() => ({
+        ...updateUserSettingsApiV1UserSettingsPutMutation(),
+        onSuccess: (data) => {
+            storeSettings(data);
+            toast.success('Settings saved successfully');
+        },
+    }));
+
+    const restore = createMutation(() => ({
+        ...restoreSettingsApiV1UserSettingsRestorePostMutation(),
+        onSuccess: (data) => {
+            storeSettings(data);
+            showHistory = false;
+            toast.success('Settings restored successfully');
+        },
+    }));
+
+    function saveSettings() {
         const current = $state.snapshot(formData);
-        if (!savedSnapshot || JSON.stringify(current) === JSON.stringify(savedSnapshot)) {
+        const saved = loaded ? toForm(loaded) : null;
+        if (!saved || JSON.stringify(current) === JSON.stringify(saved)) {
             toast.info('No changes to save');
             return;
         }
 
-        saving = true;
         const updates: UserSettingsUpdate = {};
-        if (current.theme !== savedSnapshot.theme) updates.theme = current.theme;
-        if (JSON.stringify(current.notifications) !== JSON.stringify(savedSnapshot.notifications))
+        if (current.theme !== saved.theme) updates.theme = current.theme;
+        if (JSON.stringify(current.notifications) !== JSON.stringify(saved.notifications))
             updates.notifications = current.notifications;
-        if (JSON.stringify(current.editor) !== JSON.stringify(savedSnapshot.editor)) updates.editor = current.editor;
-
-        const { data, error } = await updateUserSettingsApiV1UserSettingsPut({ body: updates });
-        if (error) {
-            toast.error('Failed to save settings');
-            saving = false;
-            return;
-        }
-
-        setUserSettings(data);
-        formData = apiToFormData(data);
-        savedSnapshot = $state.snapshot(formData);
-        toast.success('Settings saved successfully');
-        saving = false;
+        if (JSON.stringify(current.editor) !== JSON.stringify(saved.editor)) updates.editor = current.editor;
+        save.mutate({ body: updates });
     }
 
-    // Cache for history data
-    let historyCache: typeof history | null = null;
-    let historyCacheTime = 0;
-    const HISTORY_CACHE_DURATION = 30000; // Cache for 30 seconds
-
-    async function loadHistory() {
-        showHistory = true;
-
-        if (historyCache && Date.now() - historyCacheTime < HISTORY_CACHE_DURATION) {
-            history = historyCache;
-            historyLoading = false;
-            return;
-        }
-
-        history = [];
-        historyLoading = true;
-
-        const { data, error } = await getSettingsHistoryApiV1UserSettingsHistoryGet({ query: { limit: 10 } });
-        if (error) {
-            historyLoading = false;
-            return;
-        }
-
-        history = [...(data?.history || [])].sort(
-            (a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime(),
-        );
-
-        historyCache = history;
-        historyCacheTime = Date.now();
-        historyLoading = false;
-    }
-
-    async function restoreSettings(timestamp: string): Promise<void> {
-        if (!confirm('Are you sure you want to restore settings to this point?')) {
-            return;
-        }
-
-        const { data, error } = await restoreSettingsApiV1UserSettingsRestorePost({
-            body: { timestamp, reason: 'User requested restore' },
-        });
-        if (error) return;
-
-        historyCache = null;
-        historyCacheTime = 0;
-
-        await loadSettings();
-
-        if (data.theme) {
-            setTheme(data.theme);
-        }
-
-        showHistory = false;
-        toast.success('Settings restored successfully');
+    function restoreSettings(timestamp: string) {
+        if (!confirm('Are you sure you want to restore settings to this point?')) return;
+        restore.mutate({ body: { timestamp, reason: 'User requested restore' } });
     }
 </script>
 
@@ -183,7 +144,7 @@
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
-        {#if loading}
+        {#if settingsQuery.isPending && authStore.isAuthenticated}
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>
@@ -194,7 +155,7 @@
                         Settings
                     </h1>
 
-                    <button type="button" onclick={loadHistory} class="btn btn-secondary-outline btn-sm">
+                    <button type="button" onclick={() => (showHistory = true)} class="btn btn-secondary-outline btn-sm">
                         View History
                     </button>
                 </div>
@@ -418,8 +379,8 @@
                     {/if}
 
                     <div class="flex justify-end mt-6">
-                        <button type="button" onclick={saveSettings} class="btn btn-primary" disabled={saving}>
-                            {#if saving}
+                        <button type="button" onclick={saveSettings} class="btn btn-primary" disabled={save.isPending}>
+                            {#if save.isPending}
                                 <Spinner size="small" color="white" className="mr-2 inline-block" />
                                 Saving...
                             {:else}
@@ -479,7 +440,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {#if historyLoading}
+                            {#if historyQuery.isPending}
                                 <tr>
                                     <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
                                         <Spinner size="large" className="mx-auto" />

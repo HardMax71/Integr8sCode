@@ -1,51 +1,24 @@
 <script lang="ts">
-    import { onMount, type Component } from 'svelte';
+    import { type Component } from 'svelte';
     import { toast } from 'svelte-sonner';
-    import { notificationStore } from '#stores/notificationStore.svelte.ts';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
-    import type { NotificationResponse } from '#lib/api/index.ts';
+    import {
+        deleteNotificationApiV1NotificationsNotificationIdDeleteMutation,
+        getNotificationsApiV1NotificationsGetOptions,
+        getNotificationsApiV1NotificationsGetQueryKey,
+        markAllReadApiV1NotificationsMarkAllReadPostMutation,
+        markNotificationReadApiV1NotificationsNotificationIdReadPutMutation,
+        type GetNotificationsApiV1NotificationsGetData,
+        type NotificationResponse,
+    } from '#lib/api/index.ts';
     import { Bell, Trash, Clock, CircleCheck, CircleAlert, Info } from '@lucide/svelte';
     import { formatRelativeTime } from '#lib/formatters.ts';
 
-    let loading = $state(false);
-    let deleting = $state<Record<string, boolean>>({});
     let includeTagsInput = $state('');
     let excludeTagsInput = $state('');
     let prefixInput = $state('');
-
-    onMount(async () => {
-        loading = true;
-        await notificationStore.load(100);
-        loading = false;
-    });
-
-    async function deleteNotification(id: string): Promise<void> {
-        if (deleting[id]) return;
-
-        deleting[id] = true;
-        const success = await notificationStore.delete(id);
-        if (success) {
-            toast.success('Notification deleted');
-        } else {
-            toast.error('Failed to delete notification');
-        }
-        deleting[id] = false;
-    }
-
-    async function markAsRead(notification: NotificationResponse): Promise<void> {
-        if (notification.status === 'read') return;
-        await notificationStore.markAsRead(notification.notification_id);
-    }
-
-    async function markAllAsRead(): Promise<void> {
-        const success = await notificationStore.markAllAsRead();
-        if (success) {
-            toast.success('All notifications marked as read');
-        } else {
-            toast.error('Failed to mark all as read');
-        }
-    }
 
     function parseTags(input: string): string[] {
         return input
@@ -54,13 +27,59 @@
             .filter(Boolean);
     }
 
-    async function applyFilters(): Promise<void> {
-        loading = true;
-        const include_tags = parseTags(includeTagsInput);
-        const exclude_tags = parseTags(excludeTagsInput);
-        const tag_prefix = prefixInput.trim() || undefined;
-        await notificationStore.load(100, { include_tags, exclude_tags, tag_prefix });
-        loading = false;
+    let filters = $state<Omit<NonNullable<GetNotificationsApiV1NotificationsGetData['query']>, 'limit' | 'offset'>>({});
+
+    const queryClient = useQueryClient();
+
+    const list = createQuery(() => getNotificationsApiV1NotificationsGetOptions({ query: { limit: 100, ...filters } }));
+    let notifications = $derived(list.data?.notifications ?? []);
+    let unreadCount = $derived(list.data?.unread_count ?? 0);
+
+    function refreshNotifications(): Promise<void> {
+        return queryClient.invalidateQueries({ queryKey: getNotificationsApiV1NotificationsGetQueryKey() });
+    }
+
+    const markRead = createMutation(() => ({
+        ...markNotificationReadApiV1NotificationsNotificationIdReadPutMutation(),
+        onSuccess: refreshNotifications,
+    }));
+
+    const markAllRead = createMutation(() => ({
+        ...markAllReadApiV1NotificationsMarkAllReadPostMutation(),
+        onSuccess: () => {
+            toast.success('All notifications marked as read');
+            return refreshNotifications();
+        },
+    }));
+
+    const remove = createMutation(() => ({
+        ...deleteNotificationApiV1NotificationsNotificationIdDeleteMutation(),
+        onSuccess: () => {
+            toast.success('Notification deleted');
+            return refreshNotifications();
+        },
+    }));
+
+    function isDeleting(id: string): boolean {
+        return remove.isPending && remove.variables?.path.notification_id === id;
+    }
+
+    function deleteNotification(id: string): void {
+        if (isDeleting(id)) return;
+        remove.mutate({ path: { notification_id: id } });
+    }
+
+    function markAsRead(notification: NotificationResponse): void {
+        if (notification.status === 'read') return;
+        markRead.mutate({ path: { notification_id: notification.notification_id } });
+    }
+
+    function applyFilters(): void {
+        filters = {
+            include_tags: parseTags(includeTagsInput),
+            exclude_tags: parseTags(excludeTagsInput),
+            tag_prefix: prefixInput.trim() || undefined,
+        };
     }
 
     // New unified notification rendering: derive icons from tags and colors from severity
@@ -124,18 +143,18 @@
         </div>
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Notifications</h1>
-            {#if notificationStore.notifications.length > 0 && notificationStore.unreadCount > 0}
-                <button type="button" onclick={markAllAsRead} class="btn btn-secondary-outline btn-sm">
+            {#if notifications.length > 0 && unreadCount > 0}
+                <button type="button" onclick={() => markAllRead.mutate({})} class="btn btn-secondary-outline btn-sm">
                     Mark all as read
                 </button>
             {/if}
         </div>
 
-        {#if loading}
+        {#if list.isPending}
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>
-        {:else if notificationStore.notifications.length === 0}
+        {:else if notifications.length === 0}
             <div class="card">
                 <div class="p-12 text-center">
                     <div
@@ -153,7 +172,7 @@
             </div>
         {:else}
             <div class="space-y-3">
-                {#each notificationStore.notifications as notification (notification.notification_id)}
+                {#each notifications as notification (notification.notification_id)}
                     {@const NotifIcon = getNotificationIcon(notification.tags)}
                     <div
                         in:fly={{ y: 20, duration: 300 }}
@@ -191,10 +210,10 @@
                                                 deleteNotification(notification.notification_id);
                                             }}
                                             class="btn btn-ghost btn-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ml-4"
-                                            disabled={deleting[notification.notification_id]}
+                                            disabled={isDeleting(notification.notification_id)}
                                             aria-label="Delete notification"
                                         >
-                                            {#if deleting[notification.notification_id]}
+                                            {#if isDeleting(notification.notification_id)}
                                                 <Spinner size="small" />
                                             {:else}
                                                 <Trash class="w-4 h-4" />

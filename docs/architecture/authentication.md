@@ -91,7 +91,7 @@ The password check order matters: a deactivated account with a wrong password ge
 --8<-- "frontend/src/stores/auth.svelte.ts:AuthState"
 ```
 
-After login the store takes the CSRF token from the response body. `verifyAuth()` calls `/api/v1/auth/me` and rereads the token from the `csrf_token` cookie. Its answer is cached for 30 seconds unless the caller passes `forceRefresh = true`.
+The login page's mutation hands the response to `authStore.startSession()`, which takes the CSRF token from the body. `verifyAuth()` fetches `/api/v1/auth/me` through the TanStack query client and rereads the token from the `csrf_token` cookie. The query has a 30 second stale time, so answers within that window are shared unless the caller passes `forceRefresh = true`.
 
 The request interceptor in `frontend/src/lib/api-interceptors.ts` adds the header to every non-GET call:
 
@@ -99,13 +99,13 @@ The request interceptor in `frontend/src/lib/api-interceptors.ts` adds the heade
 --8<-- "frontend/src/lib/api-interceptors.ts:csrf_injection"
 ```
 
-The error interceptor turns status codes into toasts. On a 401 outside login and register it clears the store. If the user was logged in, it also shows "Session expired. Please log in again.", saves the current path in `redirectAfterLogin` and sends the user to `/login`:
+The query client's error handler turns status codes into toasts. On a 401 it clears the store and the query cache, unless the request came from the login or register form. If the user was logged in, it also shows "Session expired. Please log in again.", saves the current path in `redirectAfterLogin` and sends the user to `/login`:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-`verifyAuth()` clears the session only when `/auth/me` answers 401. The generated client returns a network failure as `{ error }` with no response, and on that or any other error the store keeps its cached answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
+`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ApiError` without a status, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
 
 ## Endpoints
 

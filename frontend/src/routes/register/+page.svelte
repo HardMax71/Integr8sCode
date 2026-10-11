@@ -2,7 +2,8 @@
     import { goto } from '$app/navigation';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
-    import { registerApiV1AuthRegisterPost, zUserCreate } from '#lib/api/index.ts';
+    import { createMutation } from '@tanstack/svelte-query';
+    import { registerApiV1AuthRegisterPostMutation, zUserCreate } from '#lib/api/index.ts';
     import { firstIssue } from '#lib/validation.ts';
     import { getErrorMessage } from '#lib/api-interceptors.ts';
     import Spinner from '#components/Spinner.svelte';
@@ -11,35 +12,38 @@
     let email = $state('');
     let password = $state('');
     let confirmPassword = $state('');
-    let loading = $state(false);
-    let error = $state<string | null>(null);
+    let formError = $state<string | null>(null);
 
-    async function handleRegister() {
+    const register = createMutation(() => ({
+        ...registerApiV1AuthRegisterPostMutation(),
+        meta: { inlineErrors: true },
+        onSuccess: () => {
+            toast.success('Registration successful! Please log in.');
+            void goto('/login');
+        },
+    }));
+
+    let loading = $derived(register.isPending);
+    let error = $derived(
+        formError ??
+            (register.error ? getErrorMessage(register.error, 'Registration failed. Please try again.') : null),
+    );
+
+    function handleRegister() {
+        formError = null;
+        register.reset();
         if (password !== confirmPassword) {
-            error = 'Passwords do not match.';
-            toast.error(error);
+            formError = 'Passwords do not match.';
+            toast.error(formError);
             return;
         }
         const parsed = zUserCreate.safeParse({ username, email, password });
         if (!parsed.success) {
-            error = firstIssue(parsed.error);
-            toast.warning(error);
+            formError = firstIssue(parsed.error);
+            toast.warning(formError);
             return;
         }
-
-        loading = true;
-        error = null;
-        try {
-            const { error: apiError } = await registerApiV1AuthRegisterPost({ body: { username, email, password } });
-            if (apiError) throw apiError;
-            toast.success('Registration successful! Please log in.');
-            goto('/login');
-        } catch (err: unknown) {
-            error = getErrorMessage(err, 'Registration failed. Please try again.');
-            // Interceptor already toasts for 422/429/5xx; inline error message handles the rest
-        } finally {
-            loading = false;
-        }
+        register.mutate({ body: { username, email, password } });
     }
 </script>
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { getErrorMessage, unwrap, unwrapOr } =
+import { ApiError } from '#lib/api-error.ts';
+
+const { getErrorMessage } =
     await vi.importActual<typeof import('#lib/api-interceptors.ts')>('#lib/api-interceptors.ts');
 
 describe('getErrorMessage', () => {
@@ -48,48 +50,22 @@ describe('getErrorMessage', () => {
             },
             'body: Error',
         ],
+        ['ApiError with a detail body', new ApiError(404, { detail: 'Script not found' }), 'Script not found'],
+        [
+            'ApiError for a network failure',
+            new ApiError(undefined, new TypeError('Failed to fetch')),
+            'Failed to fetch',
+        ],
     ] as [string, unknown, string][])('extracts message from %s', (_label, input, expected) => {
         expect(getErrorMessage(input)).toBe(expected);
     });
 });
 
-describe('unwrap', () => {
-    it.each([
-        ['number', { data: 42 }, 42],
-        ['zero', { data: 0 }, 0],
-        ['empty string', { data: '' }, ''],
-        ['false', { data: false }, false],
-    ] as [string, { data: unknown }, unknown][])('returns data for %s', (_label, result, expected) => {
-        expect(unwrap(result)).toBe(expected);
-    });
-
-    it.each([
-        ['error present', { data: 42, error: new Error('fail') }],
-        ['data undefined', {}],
-    ] as [string, { data?: unknown; error?: unknown }][])('throws when %s', (_label, result) => {
-        expect(() => unwrap(result)).toThrow();
-    });
-});
-
-describe('unwrapOr', () => {
-    it.each([
-        ['data present', { data: 'value' }, 'fb', 'value'],
-        ['data is 0', { data: 0 }, 99, 0],
-        ['data is empty string', { data: '' }, 'fb', ''],
-        ['error present', { data: 'v', error: new Error() }, 'fb', 'fb'],
-        ['data undefined', {}, 'fb', 'fb'],
-    ] as [string, { data?: unknown; error?: unknown }, unknown, unknown][])(
-        'returns correct value when %s',
-        (_label, result, fallback, expected) => {
-            expect(unwrapOr(result, fallback)).toBe(expected);
-        },
-    );
-});
-
-describe('initializeApiInterceptors', () => {
+describe('initializeApiInterceptors and showApiError', () => {
     let mockErrorUse: ReturnType<typeof vi.fn>;
     let mockRequestUse: ReturnType<typeof vi.fn>;
     let mockSetConfig: ReturnType<typeof vi.fn>;
+    let mockSetQueryErrorHandler: ReturnType<typeof vi.fn>;
     let mockToast: Record<string, ReturnType<typeof vi.fn>>;
     let mockGoto: ReturnType<typeof vi.fn>;
     let mockAuthStore: { isAuthenticated: boolean; csrfToken: string | null; clearAuth: ReturnType<typeof vi.fn> };
@@ -100,6 +76,8 @@ describe('initializeApiInterceptors', () => {
         opts: { url?: string },
     ) => unknown;
     let requestInterceptor: (request: Request, opts: unknown) => Request;
+    let mod: typeof import('#lib/api-interceptors.ts');
+    let FreshApiError: typeof ApiError;
 
     beforeEach(async () => {
         vi.resetModules();
@@ -107,6 +85,7 @@ describe('initializeApiInterceptors', () => {
         mockErrorUse = vi.fn();
         mockRequestUse = vi.fn();
         mockSetConfig = vi.fn();
+        mockSetQueryErrorHandler = vi.fn();
         mockToast = { error: vi.fn(), warning: vi.fn() };
         mockGoto = vi.fn();
         mockAuthStore = { isAuthenticated: true, csrfToken: 'csrf-123', clearAuth: vi.fn() };
@@ -120,99 +99,93 @@ describe('initializeApiInterceptors', () => {
                 },
             },
         }));
+        vi.doMock('#lib/query-client.ts', () => ({ setQueryErrorHandler: mockSetQueryErrorHandler }));
         vi.doMock('svelte-sonner', () => ({ toast: mockToast }));
         vi.doMock('$app/navigation', () => ({ goto: mockGoto }));
         vi.doMock('#stores/auth.svelte.ts', () => ({ authStore: mockAuthStore }));
         vi.doUnmock('#lib/api-interceptors.ts');
 
-        const mod = await import('#lib/api-interceptors.ts');
+        mod = await import('#lib/api-interceptors.ts');
+        ({ ApiError: FreshApiError } = await import('#lib/api-error.ts'));
         mod.initializeApiInterceptors();
 
         errorInterceptor = mockErrorUse.mock.calls[0]![0];
         requestInterceptor = mockRequestUse.mock.calls[0]![0];
+        vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
-    it('calls client.setConfig with baseUrl and credentials', () => {
-        expect(mockSetConfig).toHaveBeenCalledWith({ baseUrl: '', credentials: 'include' });
-    });
-
-    it('registers error interceptor', () => {
-        expect(mockErrorUse).toHaveBeenCalledOnce();
-    });
-
-    it('registers request interceptor', () => {
-        expect(mockRequestUse).toHaveBeenCalledOnce();
-    });
-
-    describe('error interceptor: handleErrorStatus', () => {
-        function callError(status: number | undefined, url = 'https://test/api/v1/execute') {
-            const response = status ? ({ status } as Response) : undefined;
-            const request = new Request(url);
-            vi.spyOn(console, 'error').mockImplementation(() => {});
-            return errorInterceptor('some error', response, request, {});
-        }
-
-        it('shows network error toast when status undefined', () => {
-            callError(undefined);
-            expect(mockToast.error).toHaveBeenCalledWith('Network error. Check your connection.');
+    function at(pathname: string, search = '') {
+        Object.defineProperty(window, 'location', {
+            value: { pathname, search },
+            writable: true,
+            configurable: true,
         });
+    }
 
-        it('skips network error toast for auth endpoints', () => {
-            callError(undefined, 'https://test/api/v1/auth/login');
+    it('configures the client and hands the query client its error handler', () => {
+        expect(mockSetConfig).toHaveBeenCalledWith({ baseUrl: '', credentials: 'include' });
+        expect(mockErrorUse).toHaveBeenCalledOnce();
+        expect(mockRequestUse).toHaveBeenCalledOnce();
+        expect(mockSetQueryErrorHandler).toHaveBeenCalledWith(mod.showApiError);
+    });
+
+    describe('error interceptor', () => {
+        it('wraps a failed response in an ApiError with its status and body, without a toast', () => {
+            const body = { detail: 'Not found' };
+            const result = errorInterceptor(body, { status: 404 } as Response, new Request('https://test/api'), {});
+
+            expect(result).toBeInstanceOf(FreshApiError);
+            expect(result).toMatchObject({ status: 404, body });
             expect(mockToast.error).not.toHaveBeenCalled();
         });
 
-        it('handles 401 - clears auth and redirects to /login', () => {
-            Object.defineProperty(window, 'location', {
-                value: { pathname: '/editor', search: '' },
-                writable: true,
-                configurable: true,
-            });
-            callError(401);
+        it('wraps a request that got no response in an ApiError without a status', () => {
+            const failure = new TypeError('Failed to fetch');
+            const result = errorInterceptor(failure, undefined, new Request('https://test/api'), {});
+
+            expect(result).toMatchObject({ status: undefined, body: failure });
+        });
+
+        it('passes the error through when the request was never built', () => {
+            const buildError = new TypeError('Invalid URL');
+            expect(errorInterceptor(buildError, undefined, undefined, { url: '/api/v1/execute' })).toBe(buildError);
+        });
+    });
+
+    describe('showApiError', () => {
+        const apiError = (status: number | undefined, body: unknown = 'some error') => new FreshApiError(status, body);
+
+        it('shows the network error toast when there was no response', () => {
+            mod.showApiError(apiError(undefined), false);
+            expect(mockToast.error).toHaveBeenCalledWith('Network error. Check your connection.');
+        });
+
+        it('ends the session on a 401: clears auth, remembers the page and goes to /login', async () => {
+            await vi.advanceTimersByTimeAsync(1500);
+            at('/editor', '?tab=1');
+            mod.showApiError(apiError(401), false);
+
             expect(mockAuthStore.clearAuth).toHaveBeenCalled();
             expect(mockToast.warning).toHaveBeenCalledWith('Session expired. Please log in again.');
+            expect(sessionStorage.setItem).toHaveBeenCalledWith('redirectAfterLogin', '/editor?tab=1');
             expect(mockGoto).toHaveBeenCalledWith('/login');
         });
 
-        it('stores redirectAfterLogin in sessionStorage for non-login paths', () => {
-            Object.defineProperty(window, 'location', {
-                value: { pathname: '/editor', search: '?tab=1' },
-                writable: true,
-                configurable: true,
-            });
-            callError(401);
-            expect(sessionStorage.setItem).toHaveBeenCalledWith('redirectAfterLogin', '/editor?tab=1');
-        });
-
-        it('does not store redirectAfterLogin for /login path', async () => {
-            // Wait for isHandling401 debounce from prior tests to clear
+        it('does not remember /login as the page to return to', async () => {
             await vi.advanceTimersByTimeAsync(1500);
             vi.mocked(sessionStorage.setItem).mockClear();
-            Object.defineProperty(window, 'location', {
-                value: { pathname: '/login', search: '' },
-                writable: true,
-                configurable: true,
-            });
-            callError(401);
+            at('/login');
+            mod.showApiError(apiError(401), false);
             expect(sessionStorage.setItem).not.toHaveBeenCalledWith('redirectAfterLogin', expect.anything());
         });
 
-        it('401 on auth endpoint is a no-op', () => {
-            callError(401, 'https://test/api/v1/auth/login');
-            expect(mockAuthStore.clearAuth).not.toHaveBeenCalled();
-            expect(mockGoto).not.toHaveBeenCalled();
-        });
-
-        it('401 when not authenticated just clears auth without redirect', () => {
+        it('just clears auth on a 401 when nobody was signed in', () => {
             mockAuthStore.isAuthenticated = false;
-            Object.defineProperty(window, 'location', {
-                value: { pathname: '/editor', search: '' },
-                writable: true,
-                configurable: true,
-            });
-            callError(401);
+            at('/editor');
+            mod.showApiError(apiError(401), false);
             expect(mockAuthStore.clearAuth).toHaveBeenCalled();
             expect(mockGoto).not.toHaveBeenCalled();
+            expect(mockToast.warning).not.toHaveBeenCalled();
         });
 
         it.each([
@@ -221,49 +194,45 @@ describe('initializeApiInterceptors', () => {
             [500, 'error', 'Server error. Please try again later.'],
             [503, 'error', 'Server error. Please try again later.'],
         ] as [number, 'error' | 'warning', string][])(
-            'shows correct toast for %i status',
-            (status, toastType, message) => {
-                callError(status);
-                expect(mockToast[toastType]).toHaveBeenCalledWith(message);
+            'shows the %i toast, inline form or not',
+            (status, type, message) => {
+                mod.showApiError(apiError(status), false);
+                mod.showApiError(apiError(status), true);
+                expect(mockToast[type]).toHaveBeenCalledTimes(2);
+                expect(mockToast[type]).toHaveBeenCalledWith(message);
             },
         );
 
         it('shows account locked for 423', () => {
-            callError(423);
+            mod.showApiError(apiError(423), true);
             expect(mockToast.warning).toHaveBeenCalledWith(expect.stringContaining('temporarily locked'));
         });
 
-        it('shows validation error for 422', () => {
-            const response = { status: 422 } as Response;
-            const request = new Request('https://test/api/v1/execute');
-            vi.spyOn(console, 'error').mockImplementation(() => {});
-            errorInterceptor({ detail: 'bad field' }, response, request, {});
-            expect(mockToast.error).toHaveBeenCalledWith(expect.stringContaining('Validation error'));
+        it('shows the validation errors for 422', () => {
+            mod.showApiError(apiError(422, { detail: [{ loc: ['body', 'email'], msg: 'invalid', type: 'x' }] }), false);
+            expect(mockToast.error).toHaveBeenCalledWith('Validation error: email: invalid');
         });
 
-        it('shows generic error for unhandled non-auth status', () => {
-            callError(418);
-            expect(mockToast.error).toHaveBeenCalledWith(expect.any(String));
+        it('shows the detail for any other 4xx', () => {
+            mod.showApiError(apiError(409, { detail: 'Username already exists' }), false);
+            expect(mockToast.error).toHaveBeenCalledWith('Username already exists');
         });
 
-        it('returns the error object', () => {
-            vi.spyOn(console, 'error').mockImplementation(() => {});
-            const result = errorInterceptor(
-                'my-error',
-                { status: 403 } as Response,
-                new Request('https://test/api'),
-                {},
-            );
-            expect(result).toBe('my-error');
-        });
+        it('leaves network errors, 401s and other 4xx to an inline form', () => {
+            at('/login');
+            mod.showApiError(apiError(undefined), true);
+            mod.showApiError(apiError(401), true);
+            mod.showApiError(apiError(409, { detail: 'Username already exists' }), true);
 
-        it('returns the error without a toast when the request was never built', () => {
-            vi.spyOn(console, 'error').mockImplementation(() => {});
-            const buildError = new TypeError('Invalid URL');
-            const result = errorInterceptor(buildError, undefined, undefined, { url: '/api/v1/execute' });
-            expect(result).toBe(buildError);
             expect(mockToast.error).not.toHaveBeenCalled();
             expect(mockToast.warning).not.toHaveBeenCalled();
+            expect(mockAuthStore.clearAuth).not.toHaveBeenCalled();
+            expect(mockGoto).not.toHaveBeenCalled();
+        });
+
+        it('ignores errors that never reached the server', () => {
+            mod.showApiError(new TypeError('Invalid URL'), false);
+            expect(mockToast.error).not.toHaveBeenCalled();
         });
     });
 

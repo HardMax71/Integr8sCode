@@ -14,11 +14,11 @@ npm run test:e2e         # playwright, needs the stack on https://localhost:5001
 
 Unit tests sit in `__tests__/` directories next to the code they cover, under `src/`: `components/`, `routes/` and `routes/admin/`, `stores/`, `lib/` and its `admin/`, `editor/` and `notifications/` subfolders, and `utils/`. Vitest picks up `src/**/*.{test,spec}.{js,ts}`.
 
-Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts, theme.svelte.ts, errorStore.svelte.ts, notificationStore.svelte.ts, userSettings.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again.
+Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts and theme.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again. The auth store's tests do that, so they also import `ApiError` and the query client after the reset: a class from before the reset isn't the one the fresh store checks with `instanceof`.
 
 Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-utils.ts`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports. Like the real client, `.err()` rejects when the call passes `throwOnError`, which the generated query and mutation options always do.
 
-A component that runs queries needs the query client from context, so render it with `renderWithQueryClient(Component, props)` instead of `render`. The admin stores build their queries when they're created, so their tests create them with `createInQueryContext(createSagasStore)`, which runs the factory inside a component under the provider and returns `{ value, unmount }`. Query results arrive asynchronously, so assert on them with `vi.waitFor` or `waitFor`. The generated functions pass extra options such as `signal` and `throwOnError`, so check SDK calls with `expect.objectContaining`.
+A component that runs queries needs the query client from context, so render it with `renderWithQueryClient(Component, props)` instead of `render`. The admin stores and the editor's execution state build their queries when they're created, so their tests create them with `createInQueryContext(createSagasStore)`, which runs the factory inside a component under the provider and returns `{ value, unmount }`. Query results arrive asynchronously, so assert on them with `vi.waitFor` or `waitFor`. The generated functions pass extra options such as `signal` and `throwOnError`, so check SDK calls with `expect.objectContaining`. To test a branch on a status, such as the editor's 404 fallback, reject with an `ApiError`, since `.err()` rejects with the plain body.
 
 E2E specs live in `frontend/e2e/`, not under `src/`.
 
@@ -34,7 +34,7 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 
 - fake timers with `shouldAdvanceTime: true`
 - `#lib/api/sdk.gen.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas, the client and the TanStack options stay real; mocking sdk.gen rather than the index means the generated query options, which import it directly, call the mocks too. A test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so the rest stays available
-- `#lib/api-interceptors.ts` with simple `unwrap` and `unwrapOr` that throw or fall back the way the real ones do
+- `#lib/api-interceptors.ts` with a no-op `initializeApiInterceptors`, so no test gets the toast handler unless it sets one; `getErrorMessage` and `showApiError` stay real
 - `svelte-sonner`'s `toast` and `goto` from `$app/navigation`; a test that needs `page` from `$app/state` mocks it in its own file
 - `localStorage`, `sessionStorage`, `matchMedia`, `ResizeObserver` and `IntersectionObserver`
 - `Element.prototype.animate`, which Svelte transitions call

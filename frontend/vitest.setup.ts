@@ -21,17 +21,9 @@ vi.mock('svelte-sonner', () => ({
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
-vi.mock('#lib/api-interceptors.ts', () => ({
-    unwrap: vi.fn((result: { data?: unknown; error?: unknown }) => {
-        if (result.error) throw result.error;
-        if (result.data === undefined) throw new Error('Unexpected empty response');
-        return result.data;
-    }),
-    unwrapOr: vi.fn((result: { data?: unknown; error?: unknown }, fallback: unknown) => {
-        if (result.error || result.data === undefined) return fallback;
-        return result.data;
-    }),
-    getErrorMessage: vi.fn((_err: unknown, fallback: string = 'An error occurred') => fallback),
+// The interceptors and the query client's error handler are wired up by hooks.client.ts, which tests don't run
+vi.mock('#lib/api-interceptors.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api-interceptors.ts')>()),
     initializeApiInterceptors: vi.fn(),
 }));
 

@@ -1,22 +1,24 @@
 <script lang="ts">
     import { type Component } from 'svelte';
     import { fly } from 'svelte/transition';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { authStore } from '#stores/auth.svelte.ts';
     import { goto } from '$app/navigation';
-    import { notificationStore } from '#stores/notificationStore.svelte.ts';
     import { notificationStream } from '#lib/notifications/stream.svelte.ts';
-    import type { NotificationResponse } from '#lib/api/index.ts';
+    import {
+        getNotificationsApiV1NotificationsGetOptions,
+        getNotificationsApiV1NotificationsGetQueryKey,
+        markAllReadApiV1NotificationsMarkAllReadPostMutation,
+        markNotificationReadApiV1NotificationsNotificationIdReadPutMutation,
+        type NotificationResponse,
+    } from '#lib/api/index.ts';
     import { Bell, CircleAlert, TriangleAlert, CircleCheck, Info } from '@lucide/svelte';
     import Spinner from '#components/Spinner.svelte';
     import { formatRelativeTime } from '#lib/formatters.ts';
-    import { logger } from '#lib/logger.ts';
-
-    const log = logger.withTag('Notifications');
 
     const AUTO_READ_DELAY_MS = 2000;
 
     let showDropdown = $state(false);
-    let hasLoadedInitialData = false;
 
     function getNotificationIcon(tags: string[] = []): Component {
         const set = new Set(tags || []);
@@ -33,49 +35,53 @@
         urgent: 'text-red-600 dark:text-red-400',
     };
 
+    const queryClient = useQueryClient();
+    const signedIn = $derived(authStore.isAuthenticated === true);
+
+    const list = createQuery(() => ({
+        ...getNotificationsApiV1NotificationsGetOptions({ query: { limit: 20 } }),
+        enabled: signedIn,
+    }));
+    let notifications = $derived(list.data?.notifications ?? []);
+    let unreadCount = $derived(list.data?.unread_count ?? 0);
+
+    function refreshNotifications(): Promise<void> {
+        return queryClient.invalidateQueries({ queryKey: getNotificationsApiV1NotificationsGetQueryKey() });
+    }
+
+    const markRead = createMutation(() => ({
+        ...markNotificationReadApiV1NotificationsNotificationIdReadPutMutation(),
+        onSuccess: refreshNotifications,
+    }));
+
+    const markAllRead = createMutation(() => ({
+        ...markAllReadApiV1NotificationsMarkAllReadPostMutation(),
+        onSuccess: () => {
+            showDropdown = false;
+            return refreshNotifications();
+        },
+    }));
+
     $effect(() => {
-        if (authStore.isAuthenticated) {
-            if (!hasLoadedInitialData) {
-                hasLoadedInitialData = true;
-                notificationStore
-                    .load(20)
-                    .then(() => {
-                        notificationStream.connect((data) => notificationStore.add(data));
-                    })
-                    .catch((err) => log.error('Failed to load notifications:', err));
-            }
-        } else {
-            notificationStream.disconnect();
-            hasLoadedInitialData = false;
-            notificationStore.clear();
-        }
+        if (!signedIn) return;
+        notificationStream.connect(() => void refreshNotifications());
         return () => {
             notificationStream.disconnect();
         };
     });
 
     $effect(() => {
-        if (!showDropdown || notificationStore.unreadCount === 0) return;
+        if (!showDropdown || unreadCount === 0) return;
         const timeout = setTimeout(() => {
             if (!showDropdown) return;
-            notificationStore.notifications.slice(0, 5).forEach((n) => {
-                if (n.status !== 'read')
-                    markAsRead(n).catch((err) => log.warn('Failed to mark notification as read', err));
-            });
+            notifications.slice(0, 5).forEach(markAsRead);
         }, AUTO_READ_DELAY_MS);
         return () => clearTimeout(timeout);
     });
 
-    async function markAsRead(notification: NotificationResponse): Promise<void> {
+    function markAsRead(notification: NotificationResponse): void {
         if (notification.status === 'read') return;
-        await notificationStore.markAsRead(notification.notification_id);
-    }
-
-    async function markAllAsRead(): Promise<void> {
-        const success = await notificationStore.markAllAsRead();
-        if (success) {
-            showDropdown = false;
-        }
+        markRead.mutate({ path: { notification_id: notification.notification_id } });
     }
 
     function handleNotificationClick(notification: NotificationResponse): void {
@@ -108,11 +114,11 @@
 <div class="relative z-40">
     <button type="button" onclick={toggleDropdown} class="btn btn-ghost btn-icon relative" aria-label="Notifications">
         <Bell class="w-5 h-5" />
-        {#if notificationStore.unreadCount > 0}
+        {#if unreadCount > 0}
             <span
                 class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
             >
-                {notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount}
+                {unreadCount > 9 ? '9+' : unreadCount}
             </span>
         {/if}
     </button>
@@ -125,10 +131,10 @@
             <div class="p-4 border-b border-border-default dark:border-dark-border-default">
                 <div class="flex justify-between items-center">
                     <h3 class="font-semibold text-lg">Notifications</h3>
-                    {#if notificationStore.unreadCount > 0}
+                    {#if unreadCount > 0}
                         <button
                             type="button"
-                            onclick={markAllAsRead}
+                            onclick={() => markAllRead.mutate({})}
                             class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                         >
                             Mark all as read
@@ -148,14 +154,14 @@
             </div>
 
             <div class="max-h-96 overflow-y-auto">
-                {#if notificationStore.loading}
+                {#if list.isPending && signedIn}
                     <div class="p-8 text-center">
                         <Spinner size="small" />
                     </div>
-                {:else if notificationStore.notifications.length === 0}
+                {:else if notifications.length === 0}
                     <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">No notifications yet</div>
                 {:else}
-                    {#each notificationStore.notifications as notification}
+                    {#each notifications as notification}
                         {@const NotifIcon = getNotificationIcon(notification.tags)}
                         <div
                             class="p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"

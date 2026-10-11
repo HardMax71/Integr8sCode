@@ -51,7 +51,7 @@ frontend/
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
-    ├── stores/              # auth, notificationStore, theme, userSettings (.svelte.ts)
+    ├── stores/              # auth, theme (.svelte.ts); server data lives in the query cache
     └── styles/              # Global CSS
 ```
 
@@ -656,7 +656,7 @@ client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/
 
 UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value.
 
-Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop or retry. The admin pages are done; the editor, settings, notifications and auth still call the SDK directly and move next (#326). `docs/frontend/server-state.md` has the details.
+Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
 
 ```typescript
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
@@ -677,24 +677,11 @@ const cancel = createMutation(() => ({
 }));
 ```
 
-`src/lib/query-client.ts` holds the one client, provided by the root layout. Queries don't retry, since the interceptor toasts every failure and a retry would toast again. Use `isPending` for first-load spinners and `isFetching` for refresh buttons.
-
-Code that still calls the SDK directly uses `unwrap` and `unwrapOr`:
-
-```typescript
-import { someApiEndpoint } from '#lib/api/index.ts';
-import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
-
-// unwrap: throws on error, use in event handlers (the interceptor shows the toast)
-const data = unwrap(await someApiEndpoint({ body: payload }));
-
-// unwrapOr: returns the fallback on error, use for optional/background loads
-const data = unwrapOr(await someApiEndpoint({}), null);
-```
+`src/lib/query-client.ts` holds the one client, provided by the root layout. It retries a query twice on a network error or a 5xx, never a mutation, and shows failures through its cache handlers. Use `isPending` for first-load spinners and `isFetching` for refresh buttons. Outside components (the auth store), use `queryClient.query(options)`; inside, a form edits a copy of its query data (see the settings pages) and saves through a mutation that calls `setQueryData`.
 
 ## Frontend: Error Handling & API Interceptors
 
-The global interceptor in `src/lib/api-interceptors.ts` handles:
+The fetch error interceptor in `src/lib/api-interceptors.ts` wraps every failure in an `ApiError` (`src/lib/api-error.ts`) that keeps the HTTP status, since `throwOnError` would throw only the body. The query client's cache `onError` then calls `showApiError`, once a query has used up its retries:
 
 | Status | Action |
 |--------|--------|
@@ -707,15 +694,15 @@ The global interceptor in `src/lib/api-interceptors.ts` handles:
 | Other 4xx | Toast error with the response `detail` |
 | Network | Toast error "Network error. Check your connection." |
 
-For the login and register endpoints the interceptor skips only the 401, network and other-4xx toasts; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
+A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `getErrorMessage(mutation.error, ...)` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
 
-**Do not add try/catch around API calls**; the interceptor handles display. Use queries and mutations, or `unwrap` / `unwrapOr` where the SDK is still called directly. The one exception is `Login.svelte` and `Register.svelte`: since the interceptor stays quiet for their 401, network and other-4xx errors, they keep their own try/catch and show `getErrorMessage(err, ...)` inline.
+**Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). Two kinds of catch are fine: the auth store's `verifyAuth`, which tells a 401 from a network error, and `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
 
 ## Frontend: Auth Store
 
 - Auth state lives in `#stores/auth.svelte.ts` and persists to `sessionStorage` under one key, `authState`, as a JSON blob (`isAuthenticated`, `username`, `userId`, `userRole`, `userEmail`, `csrfToken`, `timestamp`)
-- `login(username, password): Promise<boolean>` throws the API error on failure and returns `false` if the follow-up profile check fails
-- `verifyAuth()` has a 30-second cache; on a network error it returns the cached result (offline-first)
+- The login page's mutation passes the response to `authStore.startSession(login)`, which stores the session and loads the full profile; the header's logout mutation calls `authStore.clearAuth()`, which also empties the query cache
+- `verifyAuth()` reads the profile through `queryClient.query()` with a 30-second stale time, so checks share one answer and one request; on a network or server error it returns the last answer (offline-first)
 - `authStore.waitForInit()` awaits one-time initialization before checking auth
 
 ## Frontend: Routing
@@ -791,8 +778,8 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `#lib/api-interceptors.ts`, `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
-- Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`
+- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

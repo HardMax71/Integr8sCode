@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, suppressConsoleError } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, suppressConsoleError, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { logoutApiV1AuthLogoutPost, updateUserSettingsApiV1UserSettingsPut } from '#lib/api/index.ts';
 
 import * as navigation from '$app/navigation';
 
@@ -12,8 +13,7 @@ const mocks = vi.hoisted(() => ({
         userEmail: null as string | null,
         userId: null as string | null,
         csrfToken: null as string | null,
-        logout: vi.fn(),
-        login: vi.fn(),
+        clearAuth: vi.fn(),
         verifyAuth: vi.fn(),
     },
     mockThemeStore: {
@@ -63,12 +63,12 @@ const setAuth = (
 
 describe('Header', () => {
     const openUserDropdown = async () => {
-        render(Header);
+        renderWithQueryClient(Header);
         await user.click(screen.getByRole('button', { name: 'User menu' }));
     };
 
     const openMobileMenu = async () => {
-        render(Header);
+        renderWithQueryClient(Header);
         await user.click(screen.getByRole('button', { name: 'Open menu' }));
     };
 
@@ -77,7 +77,9 @@ describe('Header', () => {
     beforeEach(() => {
         setAuth(false);
         mocks.mockThemeStore.value = 'auto';
-        mocks.mockAuthStore.logout.mockReset();
+        mocks.mockAuthStore.clearAuth.mockReset();
+        mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
+        mockApi(updateUserSettingsApiV1UserSettingsPut).ok({});
         mocks.mockToggleTheme.mockReset();
         vi.spyOn(navigation, 'goto');
         originalInnerWidth = window.innerWidth;
@@ -103,7 +105,7 @@ describe('Header', () => {
 
     describe('branding', () => {
         it('displays logo with link to home page', () => {
-            render(Header);
+            renderWithQueryClient(Header);
             const logo = screen.getByAltText('Integr8sCode Logo');
             expect(logo).toBeInTheDocument();
             expect(logo.getAttribute('src')).toBe('/favicon.png');
@@ -113,12 +115,25 @@ describe('Header', () => {
     });
 
     describe('theme toggle', () => {
-        it('renders and calls toggleTheme when clicked', async () => {
-            render(Header);
-            const themeButton = screen.getByTitle('Toggle theme');
-            expect(themeButton).toBeInTheDocument();
-            await user.click(themeButton);
+        it('toggles the theme without saving it when signed out', async () => {
+            renderWithQueryClient(Header);
+            await user.click(screen.getByTitle('Toggle theme'));
             expect(mocks.mockToggleTheme).toHaveBeenCalled();
+            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).not.toHaveBeenCalled();
+        });
+
+        it('saves the toggled theme to the user settings when signed in', async () => {
+            setAuth(true, 'testuser', 'user');
+            mocks.mockToggleTheme.mockImplementation(() => {
+                mocks.mockThemeStore.value = 'dark';
+            });
+            renderWithQueryClient(Header);
+            await user.click(screen.getByTitle('Toggle theme'));
+            await waitFor(() =>
+                expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).toHaveBeenCalledWith(
+                    expect.objectContaining({ body: { theme: 'dark' } }),
+                ),
+            );
         });
 
         it.each([
@@ -127,7 +142,7 @@ describe('Header', () => {
             { theme: 'auto', iconClass: 'lucide-monitor-cog' },
         ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
             mocks.mockThemeStore.value = theme;
-            const { container } = render(Header);
+            const { container } = renderWithQueryClient(Header);
             await waitFor(() => {
                 const svg = container.querySelector('[title="Toggle theme"] svg');
                 expect(svg?.classList.contains(iconClass)).toBe(true);
@@ -137,7 +152,7 @@ describe('Header', () => {
 
     describe('unauthenticated state', () => {
         it('shows Login and Register buttons, no user dropdown', () => {
-            render(Header);
+            renderWithQueryClient(Header);
             expect(screen.getByRole('link', { name: /^Login$/i })).toHaveAttribute('href', '/login');
             expect(screen.getByRole('link', { name: /^Register$/i })).toHaveAttribute('href', '/register');
             expect(screen.queryByText('Settings')).not.toBeInTheDocument();
@@ -168,14 +183,19 @@ describe('Header', () => {
             });
         });
 
-        it('logout calls logout and redirects', async () => {
+        it.each([
+            ['succeeds', () => mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' })],
+            ['fails', () => mockApi(logoutApiV1AuthLogoutPost).err({ detail: 'Server error' })],
+        ])('logout ends the session and goes to /login when the call %s', async (_label, arrange) => {
+            arrange();
             await openUserDropdown();
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /Logout/i })).toBeInTheDocument();
             });
             await user.click(screen.getByRole('button', { name: /Logout/i }));
-            expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-            expect(navigation.goto).toHaveBeenCalledWith('/login');
+            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
+            expect(vi.mocked(logoutApiV1AuthLogoutPost)).toHaveBeenCalled();
+            expect(mocks.mockAuthStore.clearAuth).toHaveBeenCalled();
         });
     });
 
@@ -237,7 +257,7 @@ describe('Header', () => {
 
     describe('header structure', () => {
         it('has fixed header with nav and backdrop blur', () => {
-            render(Header);
+            renderWithQueryClient(Header);
             const header = screen.getByRole('banner');
             expect(header).toBeInTheDocument();
             expect(header).toHaveClass('fixed');
@@ -296,7 +316,7 @@ describe('Header', () => {
 
         it('detects mobile on mount when window is narrow', () => {
             Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
-            render(Header);
+            renderWithQueryClient(Header);
 
             expect(screen.getByTestId('mobile-menu-toggle')).toBeInTheDocument();
         });
@@ -316,8 +336,8 @@ describe('Header', () => {
             const logoutButton = screen.getByRole('button', { name: /Logout/i });
             await user.click(logoutButton);
 
-            expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-            expect(navigation.goto).toHaveBeenCalledWith('/login');
+            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
+            expect(mocks.mockAuthStore.clearAuth).toHaveBeenCalled();
         });
     });
 });

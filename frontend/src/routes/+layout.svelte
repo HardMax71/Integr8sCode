@@ -1,9 +1,10 @@
 <script lang="ts">
     import '../app.css';
-    import '#stores/theme.svelte.ts';
+    import { setTheme } from '#stores/theme.svelte.ts';
     import { onMount, type Snippet } from 'svelte';
     import { Toaster } from 'svelte-sonner';
-    import { QueryClientProvider } from '@tanstack/svelte-query';
+    import { QueryClientProvider, createQuery } from '@tanstack/svelte-query';
+    import { getUserSettingsApiV1UserSettingsGetOptions } from '#lib/api/index.ts';
     import Header from '#components/Header.svelte';
     import Footer from '#components/Footer.svelte';
     import Spinner from '#components/Spinner.svelte';
@@ -16,6 +17,19 @@
     const log = logger.withTag('App');
 
     let authInitialized = $state(false);
+
+    // This component provides the client, so it can't read it from context yet
+    const settings = createQuery(
+        () => ({
+            ...getUserSettingsApiV1UserSettingsGetOptions(),
+            enabled: authStore.isAuthenticated === true,
+        }),
+        () => queryClient,
+    );
+
+    $effect(() => {
+        if (settings.data) setTheme(settings.data.theme);
+    });
 
     onMount(async () => {
         try {

@@ -1,20 +1,39 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
+    import { createMutation } from '@tanstack/svelte-query';
+    import { loginApiV1AuthLoginPostMutation } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
     import { onMount } from 'svelte';
-    import { loadUserSettings } from '#lib/user-settings.ts';
     import { getErrorMessage } from '#lib/api-interceptors.ts';
-    import { logger } from '#lib/logger.ts';
-
-    const log = logger.withTag('Login');
 
     let username = $state('');
     let password = $state('');
-    let loading = $state(false);
-    let error = $state<string | null>(null);
+
+    const login = createMutation(() => ({
+        ...loginApiV1AuthLoginPostMutation(),
+        meta: { inlineErrors: true },
+        onSuccess: async (data) => {
+            await authStore.startSession(data);
+            toast.success('Login successful! Welcome back.');
+
+            // Only a local path, so a crafted link can't send the user off-site
+            const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+            sessionStorage.removeItem('redirectAfterLogin');
+            if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+                void goto(redirectPath);
+            } else {
+                void goto('/editor');
+            }
+        },
+    }));
+
+    let loading = $derived(login.isPending);
+    let error = $derived(
+        login.error ? getErrorMessage(login.error, 'Login failed. Please check your credentials.') : null,
+    );
 
     onMount(() => {
         // Check for authentication message from redirect
@@ -25,32 +44,8 @@
         }
     });
 
-    async function handleLogin() {
-        loading = true;
-        error = null; // Clear previous error
-        try {
-            await authStore.login(username, password);
-
-            // Load user settings in background (non-blocking)
-            loadUserSettings().catch((err) => log.warn('Failed to load user settings:', err));
-
-            toast.success('Login successful! Welcome back.');
-
-            // Check if there's a saved redirect path (validate to prevent open redirect)
-            const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-            sessionStorage.removeItem('redirectAfterLogin');
-            if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
-                goto(redirectPath);
-            } else {
-                goto('/editor');
-            }
-        } catch (err: unknown) {
-            const message = getErrorMessage(err, 'Login failed. Please check your credentials.');
-            error = message;
-            // Interceptor already toasts for 422/429/5xx; inline error message handles 401
-        } finally {
-            loading = false;
-        }
+    function handleLogin() {
+        login.mutate({ body: { username, password, scope: '' } });
     }
 </script>
 

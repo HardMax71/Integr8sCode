@@ -27,7 +27,7 @@ async def insert_test_dlq_docs() -> list[str]:
             event={
                 "event_id": event_ids[0],
                 "event_type": EventType.USER_LOGGED_IN,
-                "metadata": {"service_name": "svc", "service_version": "1"},
+                "metadata": {"service_name": "svc", "service_version": "1", "user_id": "u1"},
                 "user_id": "u1",
                 "login_method": "password",
             },
@@ -42,7 +42,7 @@ async def insert_test_dlq_docs() -> list[str]:
             event={
                 "event_id": event_ids[1],
                 "event_type": EventType.USER_LOGGED_IN,
-                "metadata": {"service_name": "svc", "service_version": "1"},
+                "metadata": {"service_name": "svc", "service_version": "1", "user_id": "u1"},
                 "user_id": "u1",
                 "login_method": "password",
             },
@@ -57,7 +57,7 @@ async def insert_test_dlq_docs() -> list[str]:
             event={
                 "event_id": event_ids[2],
                 "event_type": EventType.EXECUTION_STARTED,
-                "metadata": {"service_name": "svc", "service_version": "1"},
+                "metadata": {"service_name": "svc", "service_version": "1", "user_id": "u1"},
                 "execution_id": "x1",
                 "pod_name": "p1",
             },

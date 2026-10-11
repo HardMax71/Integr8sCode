@@ -6,7 +6,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, bits-ui 2, TypeScript 6 strict, TailwindCSS 4, Node 26 |
+| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TanStack Table 9, bits-ui 2, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
@@ -728,6 +728,10 @@ Navigation: plain `<a href>` for links (SvelteKit handles them), `goto('/path')`
 ## Frontend: Overlays
 
 Dialogs, menus, popovers and selects come from bits-ui, imported from npm and styled with our own Tailwind classes; don't copy component source into the repo and don't hand-roll click-outside or arrow-key handling. Dialogs go through `#components/Modal.svelte`, which wraps `Dialog` and keeps the `open`, `title`, `onClose`, `size`, `children` and `footer` props. Menu, popover and select content renders in a `Portal` with `class="floating-panel"`, and each item gets `class="floating-item"` (both in `styles/components.css`). A menu item that navigates renders an `<a href>` through its `child` snippet.
+
+## Frontend: Tables
+
+Tables run on TanStack Table through `#lib/data-table.ts`. A table component defines its columns with `columnHelper<Row>()`, rendering custom cells with `renderSnippet` and putting cell classes in `meta.class`, then renders `#components/DataTable.svelte` (a `<table>` from `lg` up, a card per row below it, both from the same columns) and `#components/Pagination.svelte`. Don't write separate mobile markup, and use real buttons or links in cells instead of clickable rows. A server-paged table uses `createServerTable(columns, source)`, where `source.pagination` is a `PaginationState` the store owns and its query reads for `skip`/`limit`; filter setters reset `pageIndex` to 0. `rowCount` comes from the API's `total`.
 
 ## Testing
 

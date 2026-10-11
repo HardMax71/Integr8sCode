@@ -112,9 +112,6 @@
   }
 
   /* Table Styles */
-  .table-container {
-    @apply overflow-x-auto;
-  }
 
   .table {
     @apply w-full divide-y divide-border-default dark:divide-dark-border-default;
@@ -140,10 +137,6 @@
     @apply hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors;
   }
 
-  .table-row-clickable {
-    @apply hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors;
-  }
-
   .table-cell {
     @apply px-4 py-3 text-sm text-fg-default dark:text-dark-fg-default;
   }
@@ -158,11 +151,6 @@
 
   .empty-state {
     @apply py-8 text-center text-fg-muted dark:text-dark-fg-muted;
-  }
-
-  .mobile-card {
-    @apply p-4 border-b border-border-default dark:border-dark-border-default
-           hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer;
   }
 
   /* Badge/Pill Styles */

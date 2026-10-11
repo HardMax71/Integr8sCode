@@ -91,8 +91,7 @@ describe('AdminUsers', () => {
         it('shows dash for missing email', async () => {
             const users = [createMockUser({ email: null as unknown as string })];
             await renderWithUsers(users);
-            // Desktop table shows '-' for missing email
-            expect(screen.getByText('-')).toBeInTheDocument();
+            expect(within(screen.getByRole('table', { name: 'Users' })).getByText('-')).toBeInTheDocument();
         });
     });
 

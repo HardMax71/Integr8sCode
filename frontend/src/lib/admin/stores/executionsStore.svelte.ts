@@ -1,4 +1,5 @@
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
+import type { PaginationState } from '@tanstack/svelte-table';
 import {
     getQueueStatusApiV1AdminExecutionsQueueGetOptions,
     getQueueStatusApiV1AdminExecutionsQueueGetQueryKey,
@@ -17,16 +18,15 @@ class ExecutionsStore {
     #priorityFilter = $state<'all' | QueuePriority>('all');
     #userSearch = $state('');
 
-    currentPage = $state(1);
-    pageSize = $state(20);
+    pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 20 });
 
     #queryClient = useQueryClient();
 
     list = createQuery(() => ({
         ...listExecutionsApiV1AdminExecutionsGetOptions({
             query: {
-                limit: this.pageSize,
-                skip: (this.currentPage - 1) * this.pageSize,
+                limit: this.pagination.pageSize,
+                skip: this.pagination.pageIndex * this.pagination.pageSize,
                 status: this.statusFilter !== 'all' ? this.statusFilter : undefined,
                 priority: this.priorityFilter !== 'all' ? this.priorityFilter : undefined,
                 user_id: this.userSearch || undefined,
@@ -51,7 +51,6 @@ class ExecutionsStore {
 
     executions = $derived(this.list.data?.executions ?? []);
     total = $derived(this.list.data?.total ?? 0);
-    totalPages = $derived(Math.ceil(this.total / this.pageSize));
 
     // Each filter setter goes back to the first page, since the old page may not exist under the new filter
     get statusFilter(): 'all' | ExecutionStatus {
@@ -59,7 +58,7 @@ class ExecutionsStore {
     }
     set statusFilter(value: 'all' | ExecutionStatus) {
         this.#statusFilter = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     get priorityFilter(): 'all' | QueuePriority {
@@ -67,7 +66,7 @@ class ExecutionsStore {
     }
     set priorityFilter(value: 'all' | QueuePriority) {
         this.#priorityFilter = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     get userSearch(): string {
@@ -75,7 +74,7 @@ class ExecutionsStore {
     }
     set userSearch(value: string) {
         this.#userSearch = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     async refresh(): Promise<void> {

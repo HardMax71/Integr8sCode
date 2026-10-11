@@ -12,7 +12,6 @@
     } from '#components/admin/events/index.ts';
     import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '#lib/admin/events/index.ts';
     import { Funnel, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
-    import Pagination from '#components/Pagination.svelte';
     import { DropdownMenu } from 'bits-ui';
     import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
 
@@ -139,21 +138,14 @@
 
             <EventsTable
                 events={store.events}
+                rowCount={store.totalEvents}
+                bind:pagination={store.pagination}
+                loading={store.list.isPending}
                 onViewDetails={(id) => store.openEventDetail(id)}
                 onPreviewReplay={(id) => store.replayEvent(id, true)}
                 onReplay={handleReplay}
                 onDelete={(id) => store.deleteEvent(id)}
                 onViewUser={(id) => store.openUserOverview(id)}
-            />
-
-            <Pagination
-                currentPage={store.currentPage}
-                totalPages={store.totalPages}
-                totalItems={store.totalEvents}
-                bind:pageSize={store.pageSize}
-                onPageChange={(page) => (store.currentPage = page)}
-                onPageSizeChange={() => (store.currentPage = 1)}
-                itemName="events"
             />
         </div>
     </div>

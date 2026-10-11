@@ -19,6 +19,7 @@
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import Modal from '#components/Modal.svelte';
+    import SettingsHistoryTable from '#components/settings/SettingsHistoryTable.svelte';
     import { Select } from 'bits-ui';
     import { Check, ChevronDown } from '@lucide/svelte';
     import { formatTimestamp } from '#lib/formatters.ts';
@@ -387,79 +388,7 @@
 <Modal open={showHistory} title="Settings History" onClose={() => (showHistory = false)} size="lg">
     {#snippet children()}
         <div class="overflow-y-auto max-h-96">
-            <table class="w-full">
-                <thead class="bg-neutral-50 dark:bg-neutral-900 sticky top-0">
-                    <tr>
-                        <th
-                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-36"
-                            >Date</th
-                        >
-                        <th
-                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-32"
-                            >Field</th
-                        >
-                        <th
-                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider"
-                            >Change</th
-                        >
-                        <th
-                            class="px-4 py-2 text-left text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider w-20"
-                        ></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#if historyQuery.isPending}
-                        <tr>
-                            <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
-                                <Spinner size="large" className="mx-auto" />
-                            </td>
-                        </tr>
-                    {:else if history.length === 0}
-                        <tr>
-                            <td colspan="4" class="px-4 py-8 text-center text-fg-muted dark:text-dark-fg-muted">
-                                No settings changes recorded yet. Make some changes to your settings to see history.
-                            </td>
-                        </tr>
-                    {:else}
-                        {#each history as item}
-                            <tr
-                                class="border-b border-border-default dark:border-dark-border-default hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                            >
-                                <td
-                                    class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default whitespace-nowrap"
-                                    >{formatTimestamp(item.timestamp)}</td
-                                >
-                                <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default">{item.field}</td
-                                >
-                                <td class="px-4 py-2 text-sm font-mono text-fg-muted dark:text-dark-fg-muted">
-                                    <div class="flex flex-wrap items-center gap-1">
-                                        <span class="text-red-600 dark:text-red-400 break-all"
-                                            >{typeof item.old_value === 'object'
-                                                ? JSON.stringify(item.old_value)
-                                                : item.old_value}</span
-                                        >
-                                        <span class="mx-1">→</span>
-                                        <span class="text-green-600 dark:text-green-400 break-all"
-                                            >{typeof item.new_value === 'object'
-                                                ? JSON.stringify(item.new_value)
-                                                : item.new_value}</span
-                                        >
-                                    </div>
-                                </td>
-                                <td class="px-4 py-2">
-                                    <button
-                                        type="button"
-                                        onclick={() => restoreSettings(item.timestamp)}
-                                        class="btn btn-ghost btn-xs"
-                                    >
-                                        Restore
-                                    </button>
-                                </td>
-                            </tr>
-                        {/each}
-                    {/if}
-                </tbody>
-            </table>
+            <SettingsHistoryTable {history} loading={historyQuery.isPending} onRestore={restoreSettings} />
         </div>
     {/snippet}
     {#snippet footer()}

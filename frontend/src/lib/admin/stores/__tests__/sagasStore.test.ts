@@ -28,7 +28,7 @@ describe('SagasStore', () => {
             expect(store.stateFilter).toBe('');
             expect(store.executionIdFilter).toBe('');
             expect(store.searchQuery).toBe('');
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination).toEqual({ pageIndex: 0, pageSize: 10 });
         });
     });
 
@@ -63,24 +63,24 @@ describe('SagasStore', () => {
 
         it('sends the page as skip and limit', async () => {
             const { value: store } = createStore();
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 10 };
 
             await vi.waitFor(() => expect(lastQuery()).toMatchObject({ skip: 20, limit: 10 }));
         });
 
         it('goes back to the first page when a filter changes', () => {
             const { value: store } = createStore();
-            store.currentPage = 4;
+            store.pagination = { pageIndex: 3, pageSize: 10 };
             store.stateFilter = 'failed';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
 
-            store.currentPage = 4;
+            store.pagination = { pageIndex: 3, pageSize: 10 };
             store.executionIdFilter = 'exec-1';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
 
-            store.currentPage = 4;
+            store.pagination = { pageIndex: 3, pageSize: 10 };
             store.searchQuery = 'alpha';
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
         });
     });
 
@@ -90,14 +90,14 @@ describe('SagasStore', () => {
             store.stateFilter = 'failed';
             store.executionIdFilter = 'test';
             store.searchQuery = 'query';
-            store.currentPage = 3;
+            store.pagination = { pageIndex: 2, pageSize: 10 };
 
             store.clearFilters();
 
             expect(store.stateFilter).toBe('');
             expect(store.executionIdFilter).toBe('');
             expect(store.searchQuery).toBe('');
-            expect(store.currentPage).toBe(1);
+            expect(store.pagination.pageIndex).toBe(0);
         });
     });
 

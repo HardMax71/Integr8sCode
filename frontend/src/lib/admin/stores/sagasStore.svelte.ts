@@ -1,4 +1,5 @@
 import { createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
+import type { PaginationState } from '@tanstack/svelte-table';
 import {
     getSagaStatusApiV1SagasSagaIdGetOptions,
     listSagasApiV1SagasGetOptions,
@@ -14,8 +15,7 @@ class SagasStore {
     refreshEnabled = $state(true);
     refreshRate = $state(5);
 
-    currentPage = $state(1);
-    pageSize = $state(10);
+    pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
     selectedSaga = $state<SagaStatusResponse | null>(null);
 
@@ -28,8 +28,8 @@ class SagasStore {
                 state: this.stateFilter || undefined,
                 execution_id: this.executionIdFilter || undefined,
                 search: this.searchQuery || undefined,
-                limit: this.pageSize,
-                skip: (this.currentPage - 1) * this.pageSize,
+                limit: this.pagination.pageSize,
+                skip: this.pagination.pageIndex * this.pagination.pageSize,
             },
         }),
         placeholderData: keepPreviousData,
@@ -39,7 +39,6 @@ class SagasStore {
 
     sagas = $derived(this.list.data?.sagas ?? []);
     totalItems = $derived(this.list.data?.total ?? 0);
-    totalPages = $derived(Math.ceil(this.totalItems / this.pageSize));
 
     // Each filter setter goes back to the first page, since the old page may not exist under the new filter
     get stateFilter(): SagaStateFilter {
@@ -47,7 +46,7 @@ class SagasStore {
     }
     set stateFilter(value: SagaStateFilter) {
         this.#stateFilter = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     get executionIdFilter(): string {
@@ -55,7 +54,7 @@ class SagasStore {
     }
     set executionIdFilter(value: string) {
         this.#executionIdFilter = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     get searchQuery(): string {
@@ -63,7 +62,7 @@ class SagasStore {
     }
     set searchQuery(value: string) {
         this.#searchQuery = value;
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     async openDetails(sagaId: string): Promise<void> {

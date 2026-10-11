@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { user, createMockUser, createMockUsers } from '#test/test-utils.ts';
 import UsersTable from '#components/admin/users/UsersTable.svelte';
 
@@ -13,7 +13,16 @@ function renderTable(props: Record<string, unknown> = {}) {
     const onRateLimits = vi.fn();
     const onDelete = vi.fn();
     const result = render(UsersTable, {
-        props: { users: [], loading: false, onEdit, onRateLimits, onDelete, ...props },
+        props: {
+            users: [],
+            rowCount: 0,
+            pagination: { pageIndex: 0, pageSize: 10 },
+            loading: false,
+            onEdit,
+            onRateLimits,
+            onDelete,
+            ...props,
+        },
     });
     return { ...result, onEdit, onRateLimits, onDelete };
 }
@@ -37,14 +46,9 @@ describe('UsersTable', () => {
         expect(screen.queryByText('No users found matching filters')).not.toBeInTheDocument();
     });
 
-    it('renders desktop table headers', () => {
+    it.each(['Username', 'Email', 'Role', 'Created', 'Status', 'Actions'])('renders the %s header', (header) => {
         renderTable({ users: [createMockUser()] });
-        expect(screen.getByText('Username')).toBeInTheDocument();
-        expect(screen.getByText('Email')).toBeInTheDocument();
-        expect(screen.getByText('Role')).toBeInTheDocument();
-        expect(screen.getByText('Created')).toBeInTheDocument();
-        expect(screen.getByText('Status')).toBeInTheDocument();
-        expect(screen.getByText('Actions')).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });
 
     it('renders one row per user in desktop table', () => {
@@ -54,12 +58,9 @@ describe('UsersTable', () => {
         expect(rows).toHaveLength(3);
     });
 
-    it('renders mobile cards for each user', () => {
-        const users = createMockUsers(2);
-        const { container } = renderTable({ users });
-        // Mobile view: block lg:hidden div with cards
-        const mobileCards = container.querySelectorAll('.block.lg\\:hidden > div');
-        expect(mobileCards).toHaveLength(2);
+    it('renders a card for each user for narrow screens', () => {
+        renderTable({ users: createMockUsers(2) });
+        expect(within(screen.getByRole('list', { name: 'Users' })).getAllByRole('listitem')).toHaveLength(2);
     });
 
     it('displays username and email', () => {
@@ -89,11 +90,6 @@ describe('UsersTable', () => {
         renderTable({ users: [createMockUser({ email: '' })] });
         const dashes = screen.getAllByText('-');
         expect(dashes.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('displays "No email" for missing email in mobile card', () => {
-        renderTable({ users: [createMockUser({ email: '' })] });
-        expect(screen.getByText('No email')).toBeInTheDocument();
     });
 
     it.each([

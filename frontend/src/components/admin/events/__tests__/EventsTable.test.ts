@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { createMockEvent, createMockEvents, user } from '#test/test-utils.ts';
 
 import EventsTable from '#components/admin/events/EventsTable.svelte';
 
-function renderTable(events = createMockEvents(3)) {
+function renderTable(events = createMockEvents(3), rowCount = events.length) {
     const onViewDetails = vi.fn();
     const onPreviewReplay = vi.fn();
     const onReplay = vi.fn();
@@ -12,7 +12,17 @@ function renderTable(events = createMockEvents(3)) {
     const onViewUser = vi.fn();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = render(EventsTable, {
-        props: { events: events as any, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser },
+        props: {
+            events: events as any,
+            rowCount,
+            pagination: { pageIndex: 0, pageSize: 10 },
+            loading: false,
+            onViewDetails,
+            onPreviewReplay,
+            onReplay,
+            onDelete,
+            onViewUser,
+        },
     });
     return { ...result, onViewDetails, onPreviewReplay, onReplay, onDelete, onViewUser };
 }
@@ -27,13 +37,9 @@ describe('EventsTable', () => {
         expect(screen.getByText('No events found')).toBeInTheDocument();
     });
 
-    it('renders table headers', () => {
+    it.each(['Time', 'Type', 'User', 'Service', 'Actions'])('renders the %s header', (header) => {
         renderTable();
-        expect(screen.getByText('Time')).toBeInTheDocument();
-        expect(screen.getByText('Type')).toBeInTheDocument();
-        expect(screen.getByText('User')).toBeInTheDocument();
-        expect(screen.getByText('Service')).toBeInTheDocument();
-        expect(screen.getByText('Actions')).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });
 
     it('renders one row per event in desktop table', () => {
@@ -43,11 +49,14 @@ describe('EventsTable', () => {
         expect(rows).toHaveLength(4);
     });
 
-    it('renders mobile cards for each event', () => {
-        const events = createMockEvents(2);
-        const { container } = renderTable(events);
-        const cards = container.querySelectorAll('.mobile-card');
-        expect(cards).toHaveLength(2);
+    it('renders a card for each event for narrow screens', () => {
+        renderTable(createMockEvents(2));
+        expect(within(screen.getByRole('list', { name: 'Events' })).getAllByRole('listitem')).toHaveLength(2);
+    });
+
+    it('shows the page range and the total', () => {
+        renderTable(createMockEvents(10), 42);
+        expect(screen.getByText('Showing 1 - 10 of 42 events')).toBeInTheDocument();
     });
 
     it('displays formatted timestamp in table rows', () => {
@@ -56,8 +65,9 @@ describe('EventsTable', () => {
         const date = new Date('2024-06-15T14:30:00Z');
         const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
         const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-        expect(screen.getByText(date.toLocaleDateString(undefined, dateOpts))).toBeInTheDocument();
-        expect(screen.getByText(date.toLocaleTimeString(undefined, timeOpts))).toBeInTheDocument();
+        const table = within(screen.getByRole('table', { name: 'Events' }));
+        expect(table.getByText(date.toLocaleDateString(undefined, dateOpts))).toBeInTheDocument();
+        expect(table.getByText(date.toLocaleTimeString(undefined, timeOpts))).toBeInTheDocument();
     });
 
     it('shows user_id as clickable link when present', () => {
@@ -81,30 +91,27 @@ describe('EventsTable', () => {
         expect(serviceElements.length).toBeGreaterThanOrEqual(1);
     });
 
-    describe('row click actions', () => {
-        it('calls onViewDetails when clicking a table row', async () => {
-            const events = [createMockEvent({ event_id: 'evt-click' })];
-            const { onViewDetails } = renderTable(events);
-            const rows = screen.getAllByRole('button', { name: /^View details for event/ });
-            await user.click(rows[0]!);
+    describe('details button', () => {
+        it('calls onViewDetails when the time is clicked', async () => {
+            const { onViewDetails } = renderTable([createMockEvent({ event_id: 'evt-click' })]);
+            await user.click(screen.getAllByRole('button', { name: /^View details for event/ })[0]!);
             expect(onViewDetails).toHaveBeenCalledWith('evt-click');
         });
 
-        it('calls onViewDetails on Enter keydown on table row', async () => {
-            const events = [createMockEvent({ event_id: 'evt-key' })];
-            const { onViewDetails } = renderTable(events);
-            const rows = screen.getAllByRole('button', { name: /^View details for event/ });
-            await fireEvent.keyDown(rows[0]!, { key: 'Enter' });
+        it('opens the details from the keyboard', async () => {
+            const { onViewDetails } = renderTable([createMockEvent({ event_id: 'evt-key' })]);
+            screen.getAllByRole('button', { name: /^View details for event/ })[0]!.focus();
+            await user.keyboard('{Enter}');
             expect(onViewDetails).toHaveBeenCalledWith('evt-key');
         });
     });
 
-    describe('action buttons (stopPropagation)', () => {
+    describe('action buttons', () => {
         it.each([
             { title: 'Preview replay', callback: 'onPreviewReplay' as const },
             { title: 'Replay', callback: 'onReplay' as const },
             { title: 'Delete', callback: 'onDelete' as const },
-        ])('$title button calls $callback with event_id without triggering row click', async ({ title, callback }) => {
+        ])('$title button calls $callback with event_id and nothing else', async ({ title, callback }) => {
             const events = [createMockEvent({ event_id: 'evt-action' })];
             const handlers = renderTable(events);
             const buttons = screen.getAllByTitle(title);
@@ -114,7 +121,7 @@ describe('EventsTable', () => {
         });
     });
 
-    it('calls onViewUser with user_id when clicking user link (stopPropagation)', async () => {
+    it('calls onViewUser with user_id when clicking user link', async () => {
         const event = createMockEvent({ metadata: { user_id: 'user-linked' } });
         const { onViewUser, onViewDetails } = renderTable([event]);
         const userButtons = screen.getAllByTitle('View user overview');

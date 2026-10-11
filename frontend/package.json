@@ -43,6 +43,7 @@
     "@internationalized/date": "^3.12.4",
     "@lucide/svelte": "^1.55.0",
     "@tanstack/svelte-query": "^6.3.1",
+    "@tanstack/svelte-table": "^9.2.8",
     "@uiw/codemirror-theme-bbedit": "^4.25.12",
     "@uiw/codemirror-theme-dracula": "^4.25.12",
     "@uiw/codemirror-theme-github": "^4.25.12",

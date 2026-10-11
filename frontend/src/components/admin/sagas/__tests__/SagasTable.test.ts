@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import { user, createMockSaga, createMockSagas } from '#test/test-utils.ts';
 import SagasTable from '#components/admin/sagas/SagasTable.svelte';
 
@@ -26,7 +26,15 @@ function renderTable(props: Record<string, unknown> = {}) {
     const onViewDetails = vi.fn();
     const onViewExecution = vi.fn();
     const result = render(SagasTable, {
-        props: { sagas: [], loading: false, onViewDetails, onViewExecution, ...props },
+        props: {
+            sagas: [],
+            rowCount: 0,
+            pagination: { pageIndex: 0, pageSize: 10 },
+            loading: false,
+            onViewDetails,
+            onViewExecution,
+            ...props,
+        },
     });
     return { ...result, onViewDetails, onViewExecution };
 }
@@ -44,9 +52,9 @@ describe('SagasTable', () => {
         expect(screen.getByText('No sagas found')).toBeInTheDocument();
     });
 
-    it.each(['Saga', 'State', 'Progress', 'Started', 'Duration'])('renders %s table header', (header) => {
-        renderTable({ sagas: [createMockSaga()] });
-        expect(screen.getByText(header)).toBeInTheDocument();
+    it.each(['Saga', 'State', 'Progress', 'Started', 'Duration', 'Actions'])('renders %s table header', (header) => {
+        renderTable({ sagas: [createMockSaga()], rowCount: 1 });
+        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     });
 
     it('renders one row per saga in desktop table', () => {
@@ -56,11 +64,14 @@ describe('SagasTable', () => {
         expect(rows).toHaveLength(4);
     });
 
-    it('renders mobile cards for each saga', () => {
-        const sagas = createMockSagas(2);
-        const { container } = renderTable({ sagas });
-        const mobileCards = container.querySelectorAll('.block.lg\\:hidden > div');
-        expect(mobileCards).toHaveLength(2);
+    it('renders a card for each saga for narrow screens', () => {
+        renderTable({ sagas: createMockSagas(2), rowCount: 2 });
+        expect(within(screen.getByRole('list', { name: 'Sagas' })).getAllByRole('listitem')).toHaveLength(2);
+    });
+
+    it('shows the page range and the total', () => {
+        renderTable({ sagas: createMockSagas(10), rowCount: 25, pagination: { pageIndex: 1, pageSize: 10 } });
+        expect(screen.getByText('Showing 11 - 20 of 25 sagas')).toBeInTheDocument();
     });
 
     it('displays saga name', () => {
@@ -108,11 +119,10 @@ describe('SagasTable', () => {
         expect(onViewDetails).toHaveBeenCalledWith('saga-click');
     });
 
-    it('calls onViewExecution when Execution button clicked in mobile view', async () => {
+    it('calls onViewExecution when the execution link is clicked', async () => {
         const saga = createMockSaga({ execution_id: 'exec-click' });
         const { onViewExecution } = renderTable({ sagas: [saga] });
-        const btns = screen.getAllByText('Execution');
-        await user.click(btns[0]!);
+        await user.click(screen.getAllByRole('button', { name: /Execution: exec-cli/ })[0]!);
         expect(onViewExecution).toHaveBeenCalledWith('exec-click');
     });
 });

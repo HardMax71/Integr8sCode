@@ -1,4 +1,5 @@
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
+import type { PaginationState } from '@tanstack/svelte-table';
 import {
     browseEventsApiV1AdminEventsBrowsePostOptions,
     getEventStatsApiV1AdminEventsStatsGetOptions,
@@ -30,8 +31,7 @@ class EventsStore {
     filters = $state<EventFilter>({});
     appliedFilters = $state<EventFilter>({});
 
-    currentPage = $state(1);
-    pageSize = $state(10);
+    pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
     selectedEvent = $state<EventDetailResponse | null>(null);
     overviewUserId = $state<string | null>(null);
@@ -46,8 +46,8 @@ class EventsStore {
         ...browseEventsApiV1AdminEventsBrowsePostOptions({
             body: {
                 filters: this.appliedFilters,
-                skip: (this.currentPage - 1) * this.pageSize,
-                limit: this.pageSize,
+                skip: this.pagination.pageIndex * this.pagination.pageSize,
+                limit: this.pagination.pageSize,
             },
         }),
         placeholderData: keepPreviousData,
@@ -76,7 +76,6 @@ class EventsStore {
 
     events = $derived(this.list.data?.events ?? []);
     totalEvents = $derived(this.list.data?.total ?? 0);
-    totalPages = $derived(Math.ceil(this.totalEvents / this.pageSize));
 
     // The browse key needs a body, so there's no key prefix to invalidate; other pages refetch when opened anyway
     async refresh(): Promise<void> {
@@ -214,7 +213,7 @@ class EventsStore {
 
     applyFilters(): void {
         this.appliedFilters = $state.snapshot(this.filters);
-        this.currentPage = 1;
+        this.pagination = { ...this.pagination, pageIndex: 0 };
     }
 
     clearFilters(): void {

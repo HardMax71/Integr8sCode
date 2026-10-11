@@ -16,7 +16,7 @@ from app.domain.user import (
     DomainUserSettingsChangedEvent,
     DomainUserSettingsUpdate,
 )
-from app.services.kafka_event_service import KafkaEventService
+from app.events import UnifiedProducer
 from app.settings import Settings
 
 # --8<-- [start:settings_fields]
@@ -28,12 +28,12 @@ class UserSettingsService:
     def __init__(
         self,
         repository: UserSettingsRepository,
-        event_service: KafkaEventService,
+        producer: UnifiedProducer,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
     ) -> None:
         self.repository = repository
-        self.event_service = event_service
+        self._producer = producer
         self.settings = settings
         self.logger = logger
         self._cache_ttl = timedelta(minutes=5)
@@ -125,7 +125,7 @@ class UserSettingsService:
             ),
             **changes,
         )
-        await self.event_service.publish_event(event, key=f"user_settings_{user_id}")
+        await self._producer.produce(event_to_produce=event, key=f"user_settings_{user_id}")
 
     async def update_theme(self, user_id: str, theme: Theme) -> DomainUserSettings:
         """Update user's theme preference"""
@@ -206,7 +206,7 @@ class UserSettingsService:
         settings = dataclasses.replace(settings, updated_at=restore_event.timestamp)
         await self.repository.create_snapshot(settings)
         self._add_to_cache(user_id, settings)
-        await self.event_service.publish_event(restore_event, key=f"user_settings_{user_id}")
+        await self._producer.produce(event_to_produce=restore_event, key=f"user_settings_{user_id}")
 
         return settings
 

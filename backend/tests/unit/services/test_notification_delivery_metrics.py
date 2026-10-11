@@ -7,7 +7,7 @@ from app.core.metrics import NotificationMetrics
 from app.db import NotificationRepository
 from app.domain.enums import NotificationChannel
 from app.domain.notification import DomainNotification, DomainNotificationSubscription
-from app.services.kafka_event_service import KafkaEventService
+from app.events import UnifiedProducer
 from app.services.notification_service import NotificationService
 from app.services.sse import SSERedisBus
 from app.settings import Settings
@@ -23,7 +23,7 @@ def _service(test_settings: Settings, metrics: NotificationMetrics, bus: SSERedi
     )
     return NotificationService(
         notification_repository=repo,
-        event_service=AsyncMock(spec=KafkaEventService),
+        producer=AsyncMock(spec=UnifiedProducer),
         sse_bus=bus,
         settings=test_settings,
         logger=structlog.get_logger("test.notification_delivery_metrics"),

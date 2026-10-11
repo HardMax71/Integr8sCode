@@ -12,8 +12,8 @@ from kubernetes_asyncio.client.rest import ApiException
 
 from app.core.metrics import KubernetesMetrics
 from app.core.utils import StringEnum
+from app.events import UnifiedProducer
 from app.infrastructure.kafka.topics import EXECUTION_TERMINAL_EVENT_TYPES
-from app.services.kafka_event_service import KafkaEventService
 from app.services.pod_monitor.config import PodMonitorConfig
 from app.services.pod_monitor.event_mapper import PodEventMapper, PodMonitorEvent, WatchEventType
 
@@ -51,7 +51,7 @@ class PodMonitor:
     def __init__(
         self,
         config: PodMonitorConfig,
-        kafka_event_service: KafkaEventService,
+        producer: UnifiedProducer,
         logger: structlog.stdlib.BoundLogger,
         api_client: k8s_client.ApiClient,
         event_mapper: PodEventMapper,
@@ -66,7 +66,7 @@ class PodMonitor:
 
         # Components
         self._event_mapper = event_mapper
-        self._kafka_event_service = kafka_event_service
+        self._producer = producer
 
         # Watch cursor — set from LIST on first run or after 410 Gone
         self._last_resource_version: str | None = None
@@ -201,7 +201,7 @@ class PodMonitor:
 
     async def _publish_event(self, event: PodMonitorEvent, pod: k8s_client.V1Pod) -> None:
         """Publish event to Kafka and store in events collection."""
-        await self._kafka_event_service.publish_event(event=event, key=event.execution_id)
+        await self._producer.produce(event_to_produce=event, key=event.execution_id)
 
         phase = pod.status.phase if pod.status else "Unknown"
         self._metrics.record_pod_monitor_event_published(event.event_type, phase)

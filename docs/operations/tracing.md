@@ -32,7 +32,7 @@ Beyond the automatic HTTP, Mongo, outbound HTTPX and Kafka spans:
 |-----------------------------------------|----------------------------------------------------------------------|
 | `POST /api/v1/execute`                  | language, language version, script length, `user.id`, `client.address` on the server span |
 | `EventRepository.store_event`           | `event.type`, `event.id`, `execution.id` on the current span         |
-| `KafkaEventService.publish_event`       | a `publish_event` span with `event.type` and `aggregate.id`          |
+| `UnifiedProducer.produce`               | a `publish_event` span with `event.type` and `aggregate.id`          |
 | `SagaOrchestrator`                      | a `saga.step` span per step with saga name, id, step and execution id |
 | Webhook and Slack notifications         | `notification.id`, `notification.channel` (and webhook host) on the current span |
 

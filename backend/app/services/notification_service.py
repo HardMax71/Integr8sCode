@@ -32,8 +32,7 @@ from app.domain.notification import (
     NotificationValidationError,
 )
 from app.domain.sse import DomainNotificationSSEPayload
-from app.events import PRODUCE_ERRORS
-from app.services.kafka_event_service import KafkaEventService
+from app.events import PRODUCE_ERRORS, UnifiedProducer
 from app.services.sse import SSERedisBus
 from app.settings import Settings
 
@@ -102,14 +101,14 @@ class NotificationService:
     def __init__(
         self,
         notification_repository: NotificationRepository,
-        event_service: KafkaEventService,
+        producer: UnifiedProducer,
         sse_bus: SSERedisBus,
         settings: Settings,
         logger: structlog.stdlib.BoundLogger,
         notification_metrics: NotificationMetrics,
     ) -> None:
         self.repository = notification_repository
-        self.event_service = event_service
+        self._producer = producer
         self.metrics = notification_metrics
         self.settings = settings
         self.sse_bus = sse_bus
@@ -217,7 +216,7 @@ class NotificationService:
                     user_id=notification.user_id,
                 ),
             )
-            await self.event_service.publish_event(event, key=notification.user_id)
+            await self._producer.produce(event_to_produce=event, key=notification.user_id)
         except PRODUCE_ERRORS as e:
             self.logger.error(
                 "Failed to publish notification created event",

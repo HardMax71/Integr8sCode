@@ -8,7 +8,7 @@ from app.db import UserSettingsRepository
 from app.domain.enums import EventType, Theme
 from app.domain.events import DomainEvent
 from app.domain.user import DomainUserSettings, DomainUserSettingsChangedEvent
-from app.services.kafka_event_service import KafkaEventService
+from app.events import UnifiedProducer
 from app.services.user_settings_service import UserSettingsService
 from app.settings import Settings
 
@@ -66,14 +66,13 @@ def repo() -> _MemoryRepo:
 
 @pytest.fixture
 def service(repo: _MemoryRepo, test_settings: Settings) -> UserSettingsService:
-    async def store(event: DomainEvent, key: str) -> str:
-        data = {k: v for k, v in event.model_dump().items() if k in _event_fields}
+    async def store(event_to_produce: DomainEvent, key: str) -> None:
+        data = {k: v for k, v in event_to_produce.model_dump().items() if k in _event_fields}
         repo.events.append(DomainUserSettingsChangedEvent(**data))
-        return event.event_id
 
-    events = AsyncMock(spec=KafkaEventService)
-    events.publish_event.side_effect = store
-    return UserSettingsService(repo, events, test_settings, structlog.get_logger("test"))
+    producer = AsyncMock(spec=UnifiedProducer)
+    producer.produce.side_effect = store
+    return UserSettingsService(repo, producer, test_settings, structlog.get_logger("test"))
 
 
 async def test_restore_survives_a_rebuild_and_later_updates_still_apply(

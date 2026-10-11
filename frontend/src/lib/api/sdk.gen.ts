@@ -482,7 +482,7 @@ export const resetSystemSettingsApiV1AdminSettingsResetPost = <ThrowOnError exte
 /**
  * List Users
  *
- * List all users with optional search and role filtering.
+ * List users, filtered and paginated on the server.
  */
 export const listUsersApiV1AdminUsersGet = <ThrowOnError extends boolean = false>(options?: Options<ListUsersApiV1AdminUsersGetData, ThrowOnError>): RequestResult<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError>({
     responseTransformer: listUsersApiV1AdminUsersGetResponseTransformer,

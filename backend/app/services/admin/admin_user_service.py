@@ -1,4 +1,6 @@
 import dataclasses
+import math
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -9,7 +11,13 @@ from app.db import UserRepository
 from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError
-from app.domain.rate_limit import RateLimitUpdateResult, UserRateLimit, UserRateLimitsResult, UserRateLimitUpdate
+from app.domain.rate_limit import (
+    RateLimitUpdateResult,
+    UserRateLimit,
+    UserRateLimitsResult,
+    UserRateLimitSummary,
+    UserRateLimitUpdate,
+)
 from app.domain.user import (
     DomainUserCreate,
     DomainUserUpdate,
@@ -114,7 +122,17 @@ class AdminUserService:
         )
 
     async def list_users(
-        self, *, admin_user_id: str, limit: int, offset: int, search: str | None, role: UserRole | None
+        self,
+        *,
+        admin_user_id: str,
+        limit: int,
+        offset: int,
+        search: str | None,
+        role: UserRole | None,
+        is_active: bool | None = None,
+        bypass_rate_limit: bool | None = None,
+        has_custom_limits: bool | None = None,
+        custom_multiplier: bool | None = None,
     ) -> UserListResult:
         self.logger.info(
             "Admin listing users",
@@ -123,9 +141,26 @@ class AdminUserService:
             offset=offset,
             search=search,
             role=role,
+            is_active=is_active,
+            bypass_rate_limit=bypass_rate_limit,
+            has_custom_limits=has_custom_limits,
+            custom_multiplier=custom_multiplier,
         )
 
-        result = await self._users.list_users(limit=limit, offset=offset, search=search, role=role)
+        user_ids, excluded_user_ids = await self._rate_limit_user_ids(
+            bypass_rate_limit=bypass_rate_limit,
+            has_custom_limits=has_custom_limits,
+            custom_multiplier=custom_multiplier,
+        )
+        result = await self._users.list_users(
+            limit=limit,
+            offset=offset,
+            search=search,
+            role=role,
+            is_active=is_active,
+            user_ids=user_ids,
+            excluded_user_ids=excluded_user_ids,
+        )
 
         # Enrich users with rate limit summaries
         summaries = await self._rate_limits.get_user_rate_limit_summaries([u.user_id for u in result.users])
@@ -142,6 +177,42 @@ class AdminUserService:
         ]
 
         return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
+
+    async def _rate_limit_user_ids(
+        self,
+        *,
+        bypass_rate_limit: bool | None,
+        has_custom_limits: bool | None,
+        custom_multiplier: bool | None,
+    ) -> tuple[set[str] | None, set[str]]:
+        """Turn the rate limit filters into user ids the list must keep and ids it must drop.
+
+        Only users with an override can differ from the defaults (no bypass, no custom limits,
+        a multiplier of 1), so a filter for the default value drops the users that differ.
+
+        Returns:
+            The ids to keep, or None to keep everyone, and the ids to drop.
+        """
+        filters: list[tuple[bool | None, Callable[[UserRateLimitSummary], bool]]] = [
+            (bypass_rate_limit, lambda s: s.bypass_rate_limit),
+            (has_custom_limits, lambda s: s.has_custom_limits),
+            (custom_multiplier, lambda s: not math.isclose(s.global_multiplier, 1.0)),
+        ]
+        if all(wanted is None for wanted, _ in filters):
+            return None, set()
+
+        summaries = await self._rate_limits.get_override_summaries()
+        keep: set[str] | None = None
+        drop: set[str] = set()
+        for wanted, differs in filters:
+            if wanted is None:
+                continue
+            matching = {s.user_id for s in summaries if differs(s)}
+            if wanted:
+                keep = matching if keep is None else keep & matching
+            else:
+                drop |= matching
+        return keep, drop
 
     async def create_user(
         self,

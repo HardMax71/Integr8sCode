@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import structlog
 from beanie.odm.operators.find import BaseFindOperator
-from beanie.operators import Eq, Or, RegEx
+from beanie.operators import Eq, In, NotIn, Or, RegEx
 from pymongo.errors import DuplicateKeyError
 
 from app.db.docs import (
@@ -55,7 +55,14 @@ class UserRepository:
         return User(**doc.model_dump(include=_user_fields)) if doc else None
 
     async def list_users(
-        self, limit: int = 100, offset: int = 0, search: str | None = None, role: UserRole | None = None
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        search: str | None = None,
+        role: UserRole | None = None,
+        is_active: bool | None = None,
+        user_ids: set[str] | None = None,
+        excluded_user_ids: set[str] | None = None,
     ) -> UserListResult:
         conditions: list[BaseFindOperator] = []
 
@@ -70,6 +77,15 @@ class UserRepository:
 
         if role:
             conditions.append(Eq(UserDocument.role, role))
+
+        if is_active is not None:
+            conditions.append(Eq(UserDocument.is_active, is_active))
+
+        if user_ids is not None:
+            conditions.append(In(UserDocument.user_id, list(user_ids)))
+
+        if excluded_user_ids:
+            conditions.append(NotIn(UserDocument.user_id, list(excluded_user_ids)))
 
         query = UserDocument.find(*conditions)
         total = await query.count()

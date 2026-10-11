@@ -87,6 +87,72 @@ class TestListUsers:
             assert user.role == UserRole.USER
 
     @pytest.mark.asyncio
+    async def test_list_users_pages_on_the_server(self, test_admin: AsyncClient) -> None:
+        """The total counts every match, and offset reaches the users past the first page."""
+        prefix = f"page_{uuid.uuid4().hex[:6]}"
+        names: set[str] = set()
+        for _ in range(3):
+            created = await test_admin.post("/api/v1/admin/users/", json=make_user_create(prefix).model_dump())
+            names.add(created.json()["username"])
+
+        first = UserListResponse.model_validate(
+            (await test_admin.get("/api/v1/admin/users/", params={"search": prefix, "limit": 2})).json()
+        )
+        rest = UserListResponse.model_validate(
+            (await test_admin.get("/api/v1/admin/users/", params={"search": prefix, "limit": 2, "offset": 2})).json()
+        )
+
+        assert (first.total, len(first.users), rest.total, len(rest.users)) == (3, 2, 3, 1)
+        assert {u.username for u in first.users + rest.users} == names
+
+    @pytest.mark.asyncio
+    async def test_list_users_by_active_status(self, test_admin: AsyncClient) -> None:
+        """is_active keeps only active or only disabled users."""
+        request = make_user_create("inactive")
+        user_id = (await test_admin.post("/api/v1/admin/users/", json=request.model_dump())).json()["user_id"]
+        update = UserUpdate(is_active=False)
+        await test_admin.put(f"/api/v1/admin/users/{user_id}", json=update.model_dump(exclude_none=True))
+
+        async def matches(is_active: bool) -> list[str]:
+            response = await test_admin.get(
+                "/api/v1/admin/users/", params={"search": request.username, "is_active": is_active}
+            )
+            assert response.status_code == 200
+            return [u.user_id for u in UserListResponse.model_validate(response.json()).users]
+
+        assert await matches(False) == [user_id]
+        assert await matches(True) == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("limits", "params", "listed"),
+        [
+            ({"bypass_rate_limit": True, "global_multiplier": 1.0}, {"bypass_rate_limit": True}, True),
+            ({"bypass_rate_limit": True, "global_multiplier": 1.0}, {"bypass_rate_limit": False}, False),
+            ({"bypass_rate_limit": False, "global_multiplier": 1.5}, {"custom_multiplier": True}, True),
+            ({"bypass_rate_limit": False, "global_multiplier": 1.5}, {"custom_multiplier": False}, False),
+            ({"bypass_rate_limit": False, "global_multiplier": 1.5}, {"has_custom_limits": True}, True),
+            ({"bypass_rate_limit": False, "global_multiplier": 1.5}, {"has_custom_limits": False}, False),
+            ({"bypass_rate_limit": False, "global_multiplier": 1.5}, {"bypass_rate_limit": True}, False),
+        ],
+    )
+    async def test_list_users_by_rate_limits(
+        self, test_admin: AsyncClient, limits: dict[str, object], params: dict[str, bool], listed: bool
+    ) -> None:
+        """The rate limit filters match the user's override."""
+        request = make_user_create("ratelimited")
+        user_id = (await test_admin.post("/api/v1/admin/users/", json=request.model_dump())).json()["user_id"]
+        update = RateLimitUpdateRequest.model_validate({**limits, "rules": []})
+        await test_admin.put(f"/api/v1/admin/rate-limits/{user_id}", json=update.model_dump())
+
+        response = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, **params})
+
+        assert response.status_code == 200
+        result = UserListResponse.model_validate(response.json())
+        assert [u.user_id for u in result.users] == ([user_id] if listed else [])
+        assert result.total == (1 if listed else 0)
+
+    @pytest.mark.asyncio
     async def test_list_users_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot list users."""
         response = await test_user.get("/api/v1/admin/users/")

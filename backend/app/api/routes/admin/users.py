@@ -36,14 +36,24 @@ async def list_users(
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query(description="Search by username or email")] = None,
     role: Annotated[UserRole | None, Query(description="Filter by user role")] = None,
+    is_active: Annotated[bool | None, Query(description="Filter by active or disabled")] = None,
+    bypass_rate_limit: Annotated[bool | None, Query(description="Filter by rate limit bypass")] = None,
+    has_custom_limits: Annotated[bool | None, Query(description="Filter by custom rate limits")] = None,
+    custom_multiplier: Annotated[
+        bool | None, Query(description="Filter by a global rate limit multiplier other than 1")
+    ] = None,
 ) -> UserListResponse:
-    """List all users with optional search and role filtering."""
+    """List users, filtered and paginated on the server."""
     result = await admin_user_service.list_users(
         admin_user_id=admin.user_id,
         limit=limit,
         offset=offset,
         search=search,
         role=role,
+        is_active=is_active,
+        bypass_rate_limit=bypass_rate_limit,
+        has_custom_limits=has_custom_limits,
+        custom_multiplier=custom_multiplier,
     )
     return UserListResponse.model_validate(result)
 

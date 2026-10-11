@@ -62,10 +62,6 @@
     let userForm = $state<Required<UserCreate>>(blankUserForm());
     let cascadeDelete = $state(false);
 
-    // Pagination
-    let currentPage = $state(1);
-    let pageSize = $state(10);
-
     // Filters
     let searchQuery = $state('');
     let roleFilter = $state<RoleFilter>('all');
@@ -77,18 +73,35 @@
         globalMultiplier: 'all',
     });
 
+    // Pagination; a new filter or page size goes back to the first page, since the old one may not exist
+    let pageSize = $state(10);
+    let currentPage = $derived.by(() => {
+        void [searchQuery, roleFilter, statusFilter, pageSize, { ...advancedFilters }];
+        return 1;
+    });
+
     const queryClient = useQueryClient();
+
+    const yesNo = (filter: BooleanFilter): boolean | null => (filter === 'all' ? null : filter === 'yes');
 
     const usersQuery = createQuery(() => ({
         ...listUsersApiV1AdminUsersGetOptions({
             query: {
                 search: searchQuery || null,
                 role: roleFilter !== 'all' ? roleFilter : null,
+                is_active: statusFilter === 'all' ? null : statusFilter === 'active',
+                bypass_rate_limit: yesNo(advancedFilters.bypassRateLimit),
+                has_custom_limits: yesNo(advancedFilters.hasCustomLimits),
+                custom_multiplier:
+                    advancedFilters.globalMultiplier === 'all' ? null : advancedFilters.globalMultiplier === 'custom',
+                limit: pageSize,
+                offset: (currentPage - 1) * pageSize,
             },
         }),
         placeholderData: keepPreviousData,
     }));
     let users = $derived(usersQuery.data?.users ?? []);
+    let totalUsers = $derived(usersQuery.data?.total ?? 0);
 
     function invalidateUsers(): Promise<void> {
         return queryClient.invalidateQueries({ queryKey: listUsersApiV1AdminUsersGetQueryKey() });
@@ -158,10 +171,7 @@
             }),
     }));
 
-    // Derived state
-    let filteredUsers = $derived(filterUsers(users, statusFilter, advancedFilters));
-    let totalPages = $derived(Math.ceil(filteredUsers.length / pageSize));
-    let paginatedUsers = $derived(filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize));
+    let totalPages = $derived(Math.ceil(totalUsers / pageSize));
     let hasFiltersActive = $derived(
         searchQuery !== '' ||
             roleFilter !== 'all' ||
@@ -170,24 +180,6 @@
             advancedFilters.hasCustomLimits !== 'all' ||
             advancedFilters.globalMultiplier !== 'all',
     );
-
-    function filterUsers(userList: UserResponse[], status: StatusFilter, advanced: AdvancedFilters): UserResponse[] {
-        let filtered = [...userList];
-        // search and role are handled server-side by usersQuery
-        if (status === 'active') filtered = filtered.filter((user) => user.is_active !== false);
-        else if (status === 'disabled') filtered = filtered.filter((user) => user.is_active === false);
-        if (advanced.bypassRateLimit === 'yes') filtered = filtered.filter((user) => user.bypass_rate_limit === true);
-        else if (advanced.bypassRateLimit === 'no')
-            filtered = filtered.filter((user) => user.bypass_rate_limit !== true);
-        if (advanced.hasCustomLimits === 'yes') filtered = filtered.filter((user) => user.has_custom_limits === true);
-        else if (advanced.hasCustomLimits === 'no')
-            filtered = filtered.filter((user) => user.has_custom_limits !== true);
-        if (advanced.globalMultiplier === 'custom')
-            filtered = filtered.filter((user) => user.global_multiplier && user.global_multiplier !== 1.0);
-        else if (advanced.globalMultiplier === 'default')
-            filtered = filtered.filter((user) => !user.global_multiplier || user.global_multiplier === 1.0);
-        return filtered;
-    }
 
     // User CRUD
     function openCreateUserModal(): void {
@@ -257,38 +249,17 @@
         resetRateLimitsMutation.mutate({ path: { user_id: rateLimitUser.user_id } });
     }
 
-    function handlePageChange(page: number): void {
-        currentPage = page;
-    }
-    function handlePageSizeChange(): void {
-        currentPage = 1;
-    }
-
     function resetFilters(): void {
         searchQuery = '';
         roleFilter = 'all';
         statusFilter = 'all';
         advancedFilters = { bypassRateLimit: 'all', hasCustomLimits: 'all', globalMultiplier: 'all' };
-        currentPage = 1;
     }
 
     function handleDelete(user: UserResponse): void {
         userToDelete = user;
         showDeleteModal = true;
     }
-
-    // Reset page on filter changes
-    let prevFilters = { searchQuery: '', roleFilter: 'all' as RoleFilter, statusFilter: 'all' as StatusFilter };
-    $effect(() => {
-        if (
-            searchQuery !== prevFilters.searchQuery ||
-            roleFilter !== prevFilters.roleFilter ||
-            statusFilter !== prevFilters.statusFilter
-        ) {
-            prevFilters = { searchQuery, roleFilter, statusFilter };
-            currentPage = 1;
-        }
-    });
 </script>
 
 <div class="container mx-auto px-2 sm:px-4 pb-8">
@@ -326,26 +297,26 @@
     <div class="card">
         <div class="p-3 sm:p-6">
             <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">
-                Users ({filteredUsers.length}{filteredUsers.length !== users.length ? ` of ${users.length}` : ''})
+                Users ({totalUsers})
             </h3>
 
             <UsersTable
-                users={paginatedUsers}
+                {users}
                 loading={usersQuery.isPending}
                 onEdit={openEditUserModal}
                 onRateLimits={openRateLimitModal}
                 onDelete={handleDelete}
             />
 
-            {#if totalPages > 1 || filteredUsers.length > 0}
+            {#if totalUsers > 0}
                 <div class="mt-4 border-t divider pt-4">
                     <Pagination
                         {currentPage}
                         {totalPages}
-                        totalItems={filteredUsers.length}
+                        totalItems={totalUsers}
                         bind:pageSize
-                        onPageChange={handlePageChange}
-                        onPageSizeChange={handlePageSizeChange}
+                        onPageChange={(page) => (currentPage = page)}
+                        onPageSizeChange={() => {}}
                         pageSizeOptions={[5, 10, 20, 50]}
                         itemName="users"
                     />

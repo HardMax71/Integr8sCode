@@ -7,11 +7,12 @@ import structlog
 
 from app.db.repositories import ResourceAllocationRepository, SagaRepository
 from app.domain.admin import SystemSettings
-from app.domain.enums import SagaState
+from app.domain.enums import ExecutionErrorType, SagaState
 from app.domain.events import (
     DomainEvent,
     EventMetadata,
     ExecutionCompletedEvent,
+    ExecutionFailedEvent,
     ExecutionRequestedEvent,
     ResourceUsageDomain,
 )
@@ -328,6 +329,38 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
 
     # Slot released even though no saga was found
     assert "orphan" in fake_queue.released
+
+
+@pytest.mark.asyncio
+async def test_resolve_completion_releases_slot_when_saga_deleted_before_update() -> None:
+    """A saga removed between the read and the update (user deletion) must not keep the slot."""
+
+    class _VanishingRepo(_FakeRepo):
+        vanished = False
+
+        async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
+            return None if self.vanished else await super().save_saga(saga_id, **updates)
+
+    fake_repo = _VanishingRepo()
+    fake_queue = _FakeQueue()
+    orch = _orch(repo=fake_repo, queue=fake_queue)
+    await orch.handle_execution_requested(make_execution_requested_event(execution_id="e1"))
+    fake_queue.released.clear()
+    fake_repo.vanished = True
+
+    await orch.handle_execution_failed(
+        ExecutionFailedEvent(
+            execution_id="e1",
+            aggregate_id="e1",
+            exit_code=1,
+            error_type=ExecutionErrorType.SCRIPT_ERROR,
+            stdout="",
+            stderr="boom",
+            metadata=EventMetadata(service_name="test", service_version="1.0.0", user_id="u"),
+        )
+    )
+
+    assert fake_queue.released == ["e1"]
 
 
 @pytest.mark.asyncio

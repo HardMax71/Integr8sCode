@@ -1,4 +1,5 @@
 import dataclasses
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -120,12 +121,14 @@ class SagaOrchestrator:
             self.logger.debug("Saga already in terminal state", saga_id=saga.saga_id, state=saga.state)
         else:
             self.logger.info("Marking saga terminal state", saga_id=saga.saga_id, state=state)
-            await self._save_saga(
-                saga.saga_id,
-                state=state,
-                error_message=error_message,
-                completed_at=datetime.now(UTC),
-            )
+            # Deleting the user removes their sagas; the slot below still has to go
+            with suppress(SagaNotFoundError):
+                await self._save_saga(
+                    saga.saga_id,
+                    state=state,
+                    error_message=error_message,
+                    completed_at=datetime.now(UTC),
+                )
 
         await self._queue.release(execution_id)
         await self.try_schedule_from_queue()

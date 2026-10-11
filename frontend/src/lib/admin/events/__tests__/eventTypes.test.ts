@@ -6,8 +6,8 @@ import {
     hasActiveFilters,
     getActiveFilterCount,
     getActiveFilterSummary,
-} from '$lib/admin/events/eventTypes';
-import type { EventFilter } from '$lib/api';
+} from '#lib/admin/events/eventTypes.ts';
+import type { EventFilter } from '#lib/api/index.ts';
 
 const withFilter = (override: Partial<EventFilter>): EventFilter => ({ ...override });
 
@@ -45,7 +45,7 @@ describe('eventTypes', () => {
             ['pod_terminated', 'text-orange'],
             ['unknown_event', 'text-neutral'],
         ])('%s returns %s', (eventType, expectedColor) => {
-            const color = getEventTypeColor(eventType as import('$lib/api').EventType);
+            const color = getEventTypeColor(eventType as import('#lib/api/index.ts').EventType);
             expect(color).toContain(expectedColor);
             expect(color).toContain('dark:');
         });
@@ -59,7 +59,7 @@ describe('eventTypes', () => {
             ['single', 'single'],
             ['a_b_c', 'a_b_c'],
         ])('%s returns %s', (input, expected) => {
-            expect(getEventTypeLabel(input as import('$lib/api').EventType)).toBe(expected);
+            expect(getEventTypeLabel(input as import('#lib/api/index.ts').EventType)).toBe(expected);
         });
     });
 
@@ -84,10 +84,10 @@ describe('eventTypes', () => {
     describe('getActiveFilterCount', () => {
         it.each([
             [{}, 0],
-            [withFilter({ event_types: ['x' as import('$lib/api').EventType], search_text: 'y' }), 2],
+            [withFilter({ event_types: ['x' as import('#lib/api/index.ts').EventType], search_text: 'y' }), 2],
             [
                 withFilter({
-                    event_types: ['x' as import('$lib/api').EventType],
+                    event_types: ['x' as import('#lib/api/index.ts').EventType],
                     search_text: 'y',
                     aggregate_id: 'a',
                     user_id: 'u',
@@ -120,7 +120,7 @@ describe('eventTypes', () => {
         it('includes all active filter labels', () => {
             const summary = getActiveFilterSummary(
                 withFilter({
-                    event_types: ['x' as import('$lib/api').EventType],
+                    event_types: ['x' as import('#lib/api/index.ts').EventType],
                     search_text: 'y',
                     aggregate_id: 'a',
                     user_id: 'u',

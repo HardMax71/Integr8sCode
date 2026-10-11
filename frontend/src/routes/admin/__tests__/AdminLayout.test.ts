@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { toast } from 'svelte-sonner';
-import * as router from '@mateothegreat/svelte5-router';
-import AdminLayout from '$routes/admin/AdminLayout.svelte';
+import { createRawSnippet } from 'svelte';
+import AdminLayout from '#routes/admin/+layout.svelte';
 
 const mocks = vi.hoisted(() => ({
+    page: { url: new URL('https://localhost/admin/events') },
     mockAuthStore: {
         isAuthenticated: true,
         username: 'adminuser',
@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('$app/state', () => ({ page: mocks.page }));
 
 describe('AdminLayout', () => {
     beforeEach(() => {
@@ -26,16 +27,14 @@ describe('AdminLayout', () => {
     });
 
     function renderLayout(path = '/admin/events') {
-        return render(AdminLayout, { props: { path } });
+        mocks.page.url = new URL(`https://localhost${path}`);
+        const children = createRawSnippet(() => ({ render: () => '<p>page content</p>' }));
+        return render(AdminLayout, { props: { children } });
     }
 
-    it('redirects non-admin users with error toast', async () => {
-        mocks.mockAuthStore.userRole = 'user';
+    it('renders the page inside the layout', async () => {
         await renderLayout();
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith('Admin access required');
-        });
-        expect(router.goto).toHaveBeenCalledWith('/');
+        await waitFor(() => expect(screen.getByText('page content')).toBeInTheDocument());
     });
 
     it('renders sidebar with "Admin Panel" heading for admin users', async () => {

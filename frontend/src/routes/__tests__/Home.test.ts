@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import * as meta from '$utils/meta';
-import Home from '$routes/Home.svelte';
+import Home from '#routes/+page.svelte';
 
 describe('Home', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.spyOn(meta, 'updateMetaTags');
     });
 
     function renderHome() {
@@ -50,10 +48,8 @@ describe('Home', () => {
         expect(screen.getByText(content)).toBeInTheDocument();
     });
 
-    it('calls updateMetaTags with home meta on mount', async () => {
+    it('sets the page title', async () => {
         await renderHome();
-        await waitFor(() => {
-            expect(meta.updateMetaTags).toHaveBeenCalledWith('Home', expect.stringContaining('Integr8sCode'));
-        });
+        await waitFor(() => expect(document.title).toBe('Home - Integr8sCode'));
     });
 });

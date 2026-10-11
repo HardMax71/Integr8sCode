@@ -1,10 +1,10 @@
 # Frontend error handling
 
-API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. Most call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. That works for `unwrapOr`. For `unwrap` inside an async event handler it currently goes wrong, see [below](#known-problem-unwrap-in-event-handlers). A few callers check `error` themselves instead: Settings.svelte, AdminSettings.svelte, the editor's script save and the rate limit modal in AdminUsers.svelte.
+API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. Most call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. A few callers check `error` themselves instead: the settings page, the admin settings page, the editor's script save and the rate limit modal on the admin users page.
 
 ## The interceptor
 
-`initializeApiInterceptors()` runs once in main.ts. Its error interceptor logs every failed call and picks a toast by status:
+`initializeApiInterceptors()` runs once, from the `init` hook in `src/hooks.client.ts`. Its error interceptor logs every failed call and picks a toast by status:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
@@ -45,14 +45,12 @@ showUserModal = false;   // only on success
 
 `getErrorMessage(err, fallback)` turns an error into text: a string `detail`, formatted validation errors, or an `Error`'s message.
 
-## Known problem: unwrap in event handlers
+## Errors outside API calls
 
-An error from `unwrap` inside an async click handler is never caught. It becomes an unhandled rejection, and the global handler in main.ts passes it to `appError.setError()`. App.svelte renders `ErrorDisplay` ("Unexpected Error", with Reload and Go to Home buttons) instead of the whole app whenever `appError.current` is set. So a failed delete in the admin users page shows the toast and then replaces the page with the error screen. It's tracked in [#291](https://github.com/HardMax71/Integr8sCode/issues/291).
+An error from `unwrap` inside an async click handler isn't caught by anything. The interceptor has already shown its toast, so the rejection only reaches the browser console and the page stays usable.
 
-`window.onerror` does the same for uncaught synchronous errors. If `App` fails to mount at all, main.ts mounts `ErrorDisplay` directly with the title "Failed to Load Application". `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
-
-In unit tests, vitest.setup.ts swallows unhandled rejections, so tests don't see this.
+Errors while navigating, loading or rendering a page go to `handleError` in `src/hooks.client.ts`, which logs them, and SvelteKit renders `src/routes/+error.svelte` in place of the page. It shows `ErrorDisplay` titled "Page not found" for a 404 and "Something went wrong" otherwise, with Reload and Go to Home buttons. `ErrorDisplay` never shows raw error text; it says either that the server is unreachable or that something went wrong.
 
 ## Login and register
 
-Login.svelte and Register.svelte wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.
+The login and register pages wrap their calls in `try`/`catch` and show the message from `getErrorMessage` inline, since the interceptor stays quiet on auth endpoints. `authStore.login()` throws the API error for them to catch. These two pages are the exception to the no-try/catch rule.

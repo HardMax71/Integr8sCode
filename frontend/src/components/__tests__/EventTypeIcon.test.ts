@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
-import EventTypeIcon from '$components/EventTypeIcon.svelte';
+import EventTypeIcon from '#components/EventTypeIcon.svelte';
 
 describe('EventTypeIcon', () => {
     beforeEach(() => {

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { createMockUserOverview } from '$test/test-utils';
+import { createMockUserOverview } from '#test/test-utils.ts';
 
-import UserOverviewModal from '$components/admin/events/UserOverviewModal.svelte';
+import UserOverviewModal from '#components/admin/events/UserOverviewModal.svelte';
 
 function renderModal(
     overrides: Partial<{

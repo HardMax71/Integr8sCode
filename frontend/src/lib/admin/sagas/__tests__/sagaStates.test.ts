@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SAGA_STATES, getSagaStateInfo } from '$lib/admin/sagas/sagaStates';
+import { SAGA_STATES, getSagaStateInfo } from '#lib/admin/sagas/sagaStates.ts';
 
 describe('sagaStates', () => {
     describe('SAGA_STATES', () => {

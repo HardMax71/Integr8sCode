@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 
-import EditorToolbar from '$components/editor/EditorToolbar.svelte';
+import EditorToolbar from '#components/editor/EditorToolbar.svelte';
 
 const defaultProps = {
     name: 'my_script.py',

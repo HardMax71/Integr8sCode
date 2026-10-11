@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import type { ExecutionResult } from '$lib/api';
-import type { ExecutionPhase } from '$lib/editor';
+import type { ExecutionResult } from '#lib/api/index.ts';
+import type { ExecutionPhase } from '#lib/editor/index.ts';
 
-import OutputPanel from '$components/editor/OutputPanel.svelte';
+import OutputPanel from '#components/editor/OutputPanel.svelte';
 
 function makeResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
     return {

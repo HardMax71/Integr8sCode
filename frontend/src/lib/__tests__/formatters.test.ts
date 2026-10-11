@@ -8,7 +8,7 @@ import {
     formatRelativeTime,
     truncate,
     formatEnumLabel,
-} from '$lib/formatters';
+} from '#lib/formatters.ts';
 
 const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
     year: 'numeric',

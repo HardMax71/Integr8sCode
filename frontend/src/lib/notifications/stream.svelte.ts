@@ -1,5 +1,5 @@
-import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '$lib/api';
-import { logger } from '$lib/logger';
+import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
+import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('NotificationStream');
 

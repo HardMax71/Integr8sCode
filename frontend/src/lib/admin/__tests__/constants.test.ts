@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '$lib/admin/constants';
+import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '#lib/admin/constants.ts';
 
 describe('admin constants', () => {
     describe('STATS_BG_COLORS', () => {

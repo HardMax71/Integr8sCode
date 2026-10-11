@@ -7,20 +7,15 @@ import {
     createMockExecutions,
     createMockQueueStatus,
     mockApi,
-} from '$test/test-utils';
+} from '#test/test-utils.ts';
 import {
     listExecutionsApiV1AdminExecutionsGet,
     updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
     getQueueStatusApiV1AdminExecutionsQueueGet,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 
-vi.mock('$routes/admin/AdminLayout.svelte', async () => {
-    const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
-    return { default: MockLayout };
-});
-
-import AdminExecutions from '$routes/admin/AdminExecutions.svelte';
+import AdminExecutions from '#routes/admin/executions/+page.svelte';
 
 async function renderWithExecutions(executions = createMockExecutions(5), queueStatus = createMockQueueStatus()) {
     mockApi(listExecutionsApiV1AdminExecutionsGet).ok({

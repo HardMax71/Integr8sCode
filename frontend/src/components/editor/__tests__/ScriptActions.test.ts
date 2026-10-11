@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 
-import ScriptActions from '$components/editor/ScriptActions.svelte';
+import ScriptActions from '#components/editor/ScriptActions.svelte';
 
 const defaultProps = {
     authenticated: false,

@@ -8,11 +8,11 @@
         type UserRateLimitConfigResponse,
         type RateLimitRuleResponse,
         type EndpointUsageStats,
-    } from '$lib/api';
-    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/rate-limits';
-    import { formatEnumLabel } from '$lib/formatters';
-    import Modal from '$components/Modal.svelte';
-    import Spinner from '$components/Spinner.svelte';
+    } from '#lib/api/index.ts';
+    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '#lib/admin/rate-limits/index.ts';
+    import { formatEnumLabel } from '#lib/formatters.ts';
+    import Modal from '#components/Modal.svelte';
+    import Spinner from '#components/Spinner.svelte';
 
     interface Props {
         open: boolean;

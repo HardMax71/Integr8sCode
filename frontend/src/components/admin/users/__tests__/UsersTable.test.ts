@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user, createMockUser, createMockUsers } from '$test/test-utils';
-import UsersTable from '$components/admin/users/UsersTable.svelte';
+import { user, createMockUser, createMockUsers } from '#test/test-utils.ts';
+import UsersTable from '#components/admin/users/UsersTable.svelte';
 
-vi.mock('$lib/formatters', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/formatters')>()),
+vi.mock('#lib/formatters.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/formatters.ts')>()),
     formatTimestamp: vi.fn((ts: string) => `formatted:${ts}`),
 }));
 

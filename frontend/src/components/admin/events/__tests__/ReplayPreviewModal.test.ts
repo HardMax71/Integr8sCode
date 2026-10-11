@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 
-import ReplayPreviewModal from '$components/admin/events/ReplayPreviewModal.svelte';
+import ReplayPreviewModal from '#components/admin/events/ReplayPreviewModal.svelte';
 
 interface ReplayPreview {
     eventId: string;

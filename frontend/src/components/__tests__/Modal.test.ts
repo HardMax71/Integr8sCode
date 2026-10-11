@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 import ModalWrapper from './ModalWrapper.svelte';
 
 describe('Modal', () => {

@@ -5,8 +5,8 @@ import {
     type ExecutionStatus,
     type EventType,
     type SseControlEvent,
-} from '$lib/api';
-import { getErrorMessage } from '$lib/api-interceptors';
+} from '#lib/api/index.ts';
+import { getErrorMessage } from '#lib/api-interceptors.ts';
 
 export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
 

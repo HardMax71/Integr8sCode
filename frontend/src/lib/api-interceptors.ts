@@ -1,8 +1,8 @@
-import { client, type ValidationError } from '$lib/api';
+import { client, type ValidationError } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
-import { goto } from '@mateothegreat/svelte5-router';
-import { authStore } from '$stores/auth.svelte';
-import { logger } from '$lib/logger';
+import { goto } from '$app/navigation';
+import { authStore } from '#stores/auth.svelte.ts';
+import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('API');
 
@@ -29,7 +29,7 @@ function formatValidationErrors(errors: ValidationError[]): string {
     return errors
         .map((e) => {
             if (!e.loc.length) return e.msg;
-            const field = e.loc[e.loc.length - 1];
+            const field = e.loc.at(-1);
             return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
         })
         .join(', ');
@@ -62,7 +62,7 @@ function handle401(isAuthEndpoint: boolean): void {
         if (currentPath !== '/login' && currentPath !== '/register') {
             sessionStorage.setItem('redirectAfterLogin', currentPath);
         }
-        goto('/login');
+        void goto('/login');
         setTimeout(() => {
             isHandling401 = false;
         }, 1000);

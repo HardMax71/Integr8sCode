@@ -1,11 +1,11 @@
 import { defineConfig } from 'vitest/config';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { sveltekit } from '@sveltejs/kit/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 
 // --8<-- [start:config]
 export default defineConfig({
   plugins: [
-    svelte({ compilerOptions: { hmr: !process.env.VITEST } }),
+    sveltekit(),
     svelteTesting(),
   ],
   test: {
@@ -44,15 +44,6 @@ export default defineConfig({
   },
   resolve: {
     conditions: ['browser'],
-    alias: {
-      $lib: '/src/lib',
-      $components: '/src/components',
-      $stores: '/src/stores',
-      $routes: '/src/routes',
-      $utils: '/src/utils',
-      $styles: '/src/styles',
-      $test: '/src/__tests__',
-    },
   },
 });
 // --8<-- [end:config]

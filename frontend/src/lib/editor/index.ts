@@ -1,3 +1,3 @@
-export { getLanguageExtension } from '$lib/editor/languages';
-export { newestVersion } from '$lib/editor/runtimes';
-export { createExecutionState, type ExecutionState, type ExecutionPhase } from '$lib/editor/execution.svelte';
+export { getLanguageExtension } from '#lib/editor/languages.ts';
+export { newestVersion } from '#lib/editor/runtimes.ts';
+export { createExecutionState, type ExecutionState, type ExecutionPhase } from '#lib/editor/execution.svelte.ts';

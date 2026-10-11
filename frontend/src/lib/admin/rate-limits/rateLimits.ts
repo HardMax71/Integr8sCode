@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '$lib/api';
+import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '#lib/api/index.ts';
 
 // Group colors for rate limit endpoint groups
 const GROUP_COLORS: Record<EndpointGroup, string> = {
@@ -30,7 +30,7 @@ const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> 
 
 export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
     // Strip regex anchors: leading ^, trailing $, and .* wildcards
-    const cleanEndpoint = endpoint.replace(/^\^/, '').replace(/\$$/, '').replace(/\.\*/g, '');
+    const cleanEndpoint = endpoint.replace(/^\^/, '').replace(/\$$/, '').replaceAll('.*', '');
     for (const { pattern, group } of ENDPOINT_GROUP_PATTERNS) {
         if (pattern.test(cleanEndpoint)) return group;
     }

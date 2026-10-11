@@ -7,9 +7,9 @@
     import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
     import { oneDark } from '@codemirror/theme-one-dark';
     import { githubLight } from '@uiw/codemirror-theme-github';
-    import { themeStore } from '$stores/theme.svelte';
-    import { getLanguageExtension } from '$lib/editor/languages';
-    import type { EditorSettingsOutput } from '$lib/api';
+    import { themeStore } from '#stores/theme.svelte.ts';
+    import { getLanguageExtension } from '#lib/editor/languages.ts';
+    import type { EditorSettingsOutput } from '#lib/api/index.ts';
 
     interface Props {
         content: string;
@@ -22,10 +22,6 @@
 
     let container: HTMLElement;
     let view: EditorView | null = null;
-
-    function getCspNonce(): string {
-        return document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') ?? '';
-    }
 
     const themeCompartment = new Compartment();
     const fontSizeCompartment = new Compartment();
@@ -40,7 +36,6 @@
 
     function getStaticExtensions() {
         return [
-            EditorView.cspNonce.of(getCspNonce()),
             lineNumbersCompartment.of(settings.show_line_numbers ? lineNumbers() : []),
             highlightActiveLineGutter(),
             highlightActiveLine(),

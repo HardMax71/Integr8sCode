@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { EventStatsResponse } from '$lib/api';
+    import type { EventStatsResponse } from '#lib/api/index.ts';
 
     interface Props {
         stats: EventStatsResponse | null;

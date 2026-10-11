@@ -1,15 +1,15 @@
 <script lang="ts">
     import { type Component } from 'svelte';
     import { fly } from 'svelte/transition';
-    import { authStore } from '$stores/auth.svelte';
-    import { goto } from '@mateothegreat/svelte5-router';
-    import { notificationStore } from '$stores/notificationStore.svelte';
-    import { notificationStream } from '$lib/notifications/stream.svelte';
-    import type { NotificationResponse } from '$lib/api';
+    import { authStore } from '#stores/auth.svelte.ts';
+    import { goto } from '$app/navigation';
+    import { notificationStore } from '#stores/notificationStore.svelte.ts';
+    import { notificationStream } from '#lib/notifications/stream.svelte.ts';
+    import type { NotificationResponse } from '#lib/api/index.ts';
     import { Bell, CircleAlert, TriangleAlert, CircleCheck, Info } from '@lucide/svelte';
-    import Spinner from '$components/Spinner.svelte';
-    import { formatRelativeTime } from '$lib/formatters';
-    import { logger } from '$lib/logger';
+    import Spinner from '#components/Spinner.svelte';
+    import { formatRelativeTime } from '#lib/formatters.ts';
+    import { logger } from '#lib/logger.ts';
 
     const log = logger.withTag('Notifications');
 

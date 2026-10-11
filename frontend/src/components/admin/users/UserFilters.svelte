@@ -1,7 +1,7 @@
 <script lang="ts">
     import { ChevronDown } from '@lucide/svelte';
-    import { UserRole } from '$lib/api';
-    import { formatEnumLabel } from '$lib/formatters';
+    import { UserRole } from '#lib/api/index.ts';
+    import { formatEnumLabel } from '#lib/formatters.ts';
 
     // Filter types - 'all' means no filter applied
     type RoleFilter = 'all' | UserRole;

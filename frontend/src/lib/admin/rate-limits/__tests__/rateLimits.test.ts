@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { EndpointGroup } from '$lib/api';
-import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '$lib/admin/rate-limits/rateLimits';
+import type { EndpointGroup } from '#lib/api/index.ts';
+import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '#lib/admin/rate-limits/rateLimits.ts';
 
 const EXPECTED_GROUPS: EndpointGroup[] = ['execution', 'admin', 'sse', 'websocket', 'auth', 'api', 'public'];
 

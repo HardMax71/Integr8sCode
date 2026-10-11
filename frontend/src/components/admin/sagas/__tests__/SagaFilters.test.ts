@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
-import SagaFilters from '$components/admin/sagas/SagaFilters.svelte';
+import { user } from '#test/test-utils.ts';
+import SagaFilters from '#components/admin/sagas/SagaFilters.svelte';
 
-vi.mock('$lib/admin/sagas', () => ({
+vi.mock('#lib/admin/sagas/index.ts', () => ({
     SAGA_STATES: {
         created: { label: 'Created' },
         running: { label: 'Running' },

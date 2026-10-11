@@ -11,7 +11,7 @@ import {
     user,
     selectOption,
     mockApi,
-} from '$test/test-utils';
+} from '#test/test-utils.ts';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
     getEventStatsApiV1AdminEventsStatsGet,
@@ -20,7 +20,7 @@ import {
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 
 const mocks = vi.hoisted(() => ({
@@ -28,12 +28,7 @@ const mocks = vi.hoisted(() => ({
     windowConfirm: vi.fn(),
 }));
 
-vi.mock('$routes/admin/AdminLayout.svelte', async () => {
-    const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
-    return { default: MockLayout };
-});
-
-import AdminEvents from '$routes/admin/AdminEvents.svelte';
+import AdminEvents from '#routes/admin/events/+page.svelte';
 
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
     mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: events.length, skip: 0, limit: 10 });

@@ -92,7 +92,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build outputs
-frontend/public/build/
+frontend/build/
+frontend/.svelte-kit/
 
 # Frontend testing
 frontend/coverage/

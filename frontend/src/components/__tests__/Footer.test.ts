@@ -5,13 +5,13 @@ const mocks = vi.hoisted(() => ({
     mockAuthStore: { userRole: null as string | null },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
+vi.mock('#stores/auth.svelte.ts', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
 
-import Footer from '$components/Footer.svelte';
+import Footer from '#components/Footer.svelte';
 
 describe('Footer', () => {
     let originalDate: DateConstructor;

@@ -3,9 +3,9 @@ import {
     logoutApiV1AuthLogoutPost,
     getCurrentUserProfileApiV1AuthMeGet,
     type UserRole,
-} from '$lib/api';
-import { clearUserSettings } from '$stores/userSettings.svelte';
-import { logger } from '$lib/logger';
+} from '#lib/api/index.ts';
+import { clearUserSettings } from '#stores/userSettings.svelte.ts';
+import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('Auth');
 
@@ -134,7 +134,7 @@ class AuthStore {
         try {
             // Dynamic import to avoid circular dependency:
             // auth.svelte.ts -> user-settings.ts -> auth.svelte.ts
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             await loadUserSettings();
         } catch (err) {
             log.warn('Failed to load user settings:', err);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user, selectOption } from '$test/test-utils';
-import Pagination from '$components/Pagination.svelte';
+import { user, selectOption } from '#test/test-utils.ts';
+import Pagination from '#components/Pagination.svelte';
 
 const defaultProps = {
     currentPage: 1,

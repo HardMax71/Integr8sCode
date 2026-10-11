@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import * as router from '@mateothegreat/svelte5-router';
-import * as meta from '$utils/meta';
-import Login from '$routes/Login.svelte';
+import * as navigation from '$app/navigation';
+import Login from '#routes/login/+page.svelte';
 
-import { getErrorMessage } from '$lib/api-interceptors';
+import { getErrorMessage } from '#lib/api-interceptors.ts';
 
 const mocks = vi.hoisted(() => ({
     mockLogin: vi.fn(),
@@ -20,9 +19,9 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('$lib/user-settings', () => ({
+vi.mock('#lib/user-settings.ts', () => ({
     loadUserSettings: mocks.mockLoadUserSettings,
 }));
 
@@ -31,7 +30,6 @@ describe('Login', () => {
         vi.clearAllMocks();
         mocks.mockAuthStore.login = vi.fn().mockResolvedValue(true);
         mocks.mockLoadUserSettings.mockResolvedValue(undefined);
-        vi.spyOn(meta, 'updateMetaTags');
     });
 
     function renderLogin() {
@@ -67,7 +65,7 @@ describe('Login', () => {
         });
         expect(mocks.mockLoadUserSettings).toHaveBeenCalled();
         expect(toast.success).toHaveBeenCalledWith('Login successful! Welcome back.');
-        expect(router.goto).toHaveBeenCalledWith('/editor');
+        expect(navigation.goto).toHaveBeenCalledWith('/editor');
     });
 
     it.each([
@@ -85,7 +83,7 @@ describe('Login', () => {
         await user.click(screen.getByRole('button', { name: /sign in/i }));
 
         await waitFor(() => {
-            expect(router.goto).toHaveBeenCalledWith(expectedNav);
+            expect(navigation.goto).toHaveBeenCalledWith(expectedNav);
         });
         expect(sessionStorage.getItem('redirectAfterLogin')).toBeNull();
     });
@@ -130,13 +128,8 @@ describe('Login', () => {
         });
     });
 
-    it('calls updateMetaTags on mount', async () => {
+    it('sets the page title', async () => {
         await renderLogin();
-        await waitFor(() => {
-            expect(meta.updateMetaTags).toHaveBeenCalledWith(
-                'Login',
-                expect.stringContaining('Sign in to Integr8sCode'),
-            );
-        });
+        await waitFor(() => expect(document.title).toBe('Login - Integr8sCode'));
     });
 });

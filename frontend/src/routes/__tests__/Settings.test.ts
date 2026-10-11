@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '$test/test-utils';
+import { user, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import Settings from '$routes/Settings.svelte';
+import Settings from '#routes/(auth)/settings/+page.svelte';
 
 function createMockSettings() {
     return {
@@ -35,7 +35,7 @@ import {
     updateUserSettingsApiV1UserSettingsPut,
     restoreSettingsApiV1UserSettingsRestorePost,
     getSettingsHistoryApiV1UserSettingsHistoryGet,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
     mockSetTheme: vi.fn(),
@@ -49,9 +49,9 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
-vi.mock('$stores/theme.svelte', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
-vi.mock('$stores/userSettings.svelte', () => ({
+vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('#stores/theme.svelte.ts', () => ({ setTheme: (...args: unknown[]) => mocks.mockSetTheme(...args) }));
+vi.mock('#stores/userSettings.svelte.ts', () => ({
     setUserSettings: (...args: unknown[]) => mocks.mockSetUserSettings(...args),
     userSettingsStore: { settings: null, editorSettings: {} },
 }));

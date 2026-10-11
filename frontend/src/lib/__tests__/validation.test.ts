@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { zSystemSettingsSchemaInput, zUserCreate } from '$lib/api';
-import { firstIssue } from '$lib/validation';
+import { zSystemSettingsSchemaInput, zUserCreate } from '#lib/api/index.ts';
+import { firstIssue } from '#lib/validation.ts';
 
 function issueFor(result: { success: boolean; error?: unknown }): string {
     if (result.success) throw new Error('expected the parse to fail');
@@ -32,7 +32,7 @@ describe('firstIssue', () => {
         [
             'a missing required field',
             zUserCreate.safeParse({ email: 'u@example.com', password: 'password123' }),
-            'Username: Invalid input: expected string, received undefined',
+            'Username must be a string',
         ],
     ])('phrases %s from the generated schema', (_name, result, expected) => {
         expect(issueFor(result)).toBe(expected);

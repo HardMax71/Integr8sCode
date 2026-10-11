@@ -1,7 +1,7 @@
 <script lang="ts">
     import { slide } from 'svelte/transition';
     import { List, Trash } from '@lucide/svelte';
-    import { type SavedScriptResponse } from '$lib/api';
+    import { type SavedScriptResponse } from '#lib/api/index.ts';
 
     interface Props {
         scripts: SavedScriptResponse[];

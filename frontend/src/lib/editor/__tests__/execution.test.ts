@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ExecutionResult } from '$lib/api';
-import { createExecutionApiV1ExecutePost, executionEventsApiV1EventsExecutionsExecutionIdGet } from '$lib/api';
-import { createExecutionState } from '$lib/editor/execution.svelte';
+import type { ExecutionResult } from '#lib/api/index.ts';
+import { createExecutionApiV1ExecutePost, executionEventsApiV1EventsExecutionsExecutionIdGet } from '#lib/api/index.ts';
+import { createExecutionState } from '#lib/editor/execution.svelte.ts';
 
 const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
 const mockSseFn = vi.mocked(executionEventsApiV1EventsExecutionsExecutionIdGet);

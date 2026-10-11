@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { UserRole, type UserCreate, type UserResponse } from '$lib/api';
-    import { formatEnumLabel } from '$lib/formatters';
-    import Modal from '$components/Modal.svelte';
-    import Spinner from '$components/Spinner.svelte';
+    import { UserRole, type UserCreate, type UserResponse } from '#lib/api/index.ts';
+    import { formatEnumLabel } from '#lib/formatters.ts';
+    import Modal from '#components/Modal.svelte';
+    import Spinner from '#components/Spinner.svelte';
 
     interface Props {
         open: boolean;

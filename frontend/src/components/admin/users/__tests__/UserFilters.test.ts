@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user } from '$test/test-utils';
-import UserFilters from '$components/admin/users/UserFilters.svelte';
-import { UserRole } from '$lib/api';
+import { user } from '#test/test-utils.ts';
+import UserFilters from '#components/admin/users/UserFilters.svelte';
+import { UserRole } from '#lib/api/index.ts';
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
     const onReset = vi.fn();

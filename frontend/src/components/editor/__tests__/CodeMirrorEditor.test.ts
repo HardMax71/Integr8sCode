@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
-import type { EditorSettingsOutput } from '$lib/api';
+import type { EditorSettingsOutput } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => {
     const dispatchFn = vi.fn();
@@ -85,10 +85,10 @@ vi.mock('@codemirror/autocomplete', () => ({
 }));
 vi.mock('@codemirror/theme-one-dark', () => ({ oneDark: 'oneDark-theme' }));
 vi.mock('@uiw/codemirror-theme-github', () => ({ githubLight: 'githubLight-theme' }));
-vi.mock('$stores/theme.svelte', () => ({ themeStore: { value: 'light' } }));
-vi.mock('$lib/editor/languages', () => ({ getLanguageExtension: mocks.getLanguageExtensionFn }));
+vi.mock('#stores/theme.svelte.ts', () => ({ themeStore: { value: 'light' } }));
+vi.mock('#lib/editor/languages.ts', () => ({ getLanguageExtension: mocks.getLanguageExtensionFn }));
 
-import CodeMirrorEditor from '$components/editor/CodeMirrorEditor.svelte';
+import CodeMirrorEditor from '#components/editor/CodeMirrorEditor.svelte';
 
 const defaultSettings: EditorSettingsOutput = {
     font_size: 14,

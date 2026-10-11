@@ -6,11 +6,11 @@ import {
     type QueueStatusResponse,
     type QueuePriority,
     type ExecutionStatus,
-} from '$lib/api';
-import { unwrap, unwrapOr } from '$lib/api-interceptors';
+} from '#lib/api/index.ts';
+import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
 import { toast } from 'svelte-sonner';
-import { createPaginationState } from '$lib/admin/pagination.svelte';
-import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
+import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
+import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
 
 const POLL_INTERVAL_MS = 5_000;
 

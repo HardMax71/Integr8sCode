@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 
-import LanguageSelect from '$components/editor/LanguageSelect.svelte';
-import type { LanguageInfo } from '$lib/api';
+import LanguageSelect from '#components/editor/LanguageSelect.svelte';
+import type { LanguageInfo } from '#lib/api/index.ts';
 
 const RUNTIMES: Record<string, LanguageInfo> = {
     python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' },

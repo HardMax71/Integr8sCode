@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-import { createMockSaga, mockApi } from '$test/test-utils';
-import { listSagasApiV1SagasGet } from '$lib/api';
-import { createSagasStore } from '$lib/admin/stores/sagasStore.svelte';
+import { createMockSaga, mockApi } from '#test/test-utils.ts';
+import { listSagasApiV1SagasGet } from '#lib/api/index.ts';
+import { createSagasStore } from '#lib/admin/stores/sagasStore.svelte.ts';
 
 describe('SagasStore', () => {
     let store: ReturnType<typeof createSagasStore>;

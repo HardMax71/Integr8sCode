@@ -10,6 +10,6 @@ export default defineConfig({
         { name: '@hey-api/typescript', enums: 'javascript' },
         '@hey-api/sdk',
         { name: '@hey-api/client-fetch', includeInEntry: true },
-        { name: 'zod', includeInEntry: true },
+        { name: 'zod', compatibilityVersion: 'mini', includeInEntry: true },
     ],
 });

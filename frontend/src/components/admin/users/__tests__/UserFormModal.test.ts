@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user, createMockUser } from '$test/test-utils';
-import { UserRole } from '$lib/api';
-import UserFormModal from '$components/admin/users/UserFormModal.svelte';
+import { user, createMockUser } from '#test/test-utils.ts';
+import { UserRole } from '#lib/api/index.ts';
+import UserFormModal from '#components/admin/users/UserFormModal.svelte';
 
-vi.mock('$components/Spinner.svelte', async () => {
-    const utils = await import('$test/test-utils');
+vi.mock('#components/Spinner.svelte', async () => {
+    const utils = await import('#test/test-utils.ts');
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 

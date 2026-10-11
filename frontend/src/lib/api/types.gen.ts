@@ -4634,6 +4634,10 @@ export type SystemSettingsSchemaInput = {
      */
     max_concurrent_executions?: number;
     /**
+     * Max Executions Per User
+     */
+    max_executions_per_user?: number;
+    /**
      * Password Min Length
      */
     password_min_length?: number;
@@ -4686,6 +4690,10 @@ export type SystemSettingsSchemaOutput = {
      * Max Concurrent Executions
      */
     max_concurrent_executions: number;
+    /**
+     * Max Executions Per User
+     */
+    max_executions_per_user: number;
     /**
      * Password Min Length
      */
@@ -5564,9 +5572,17 @@ export type CreateExecutionApiV1ExecutePostData = {
 
 export type CreateExecutionApiV1ExecutePostErrors = {
     /**
+     * Idempotency-Key reused while in flight or its cached result is gone
+     */
+    409: ErrorResponse;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
+    /**
+     * Rate limited, or too many executions queued or running
+     */
+    429: ErrorResponse;
     /**
      * Script execution failed
      */
@@ -5693,6 +5709,10 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
      * The execution's language version is no longer offered
      */
     422: ErrorResponse;
+    /**
+     * Rate limited, or too many executions queued or running
+     */
+    429: ErrorResponse;
 };
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostError = RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors[keyof RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors];

@@ -112,7 +112,7 @@ class SagaOrchestrator:
 
         Always releases the queue slot and attempts to schedule the next pending
         execution, even when no saga is found or the saga is already terminal.
-        ``release()`` is idempotent (Redis SREM on a missing member is a no-op).
+        ``release()`` and ``release_user_slot()`` are idempotent, so a missing slot is fine.
         """
         saga = await self._repo.get_saga_by_execution_and_name(execution_id, _SAGA_NAME)
         if not saga:
@@ -131,6 +131,7 @@ class SagaOrchestrator:
                 )
 
         await self._queue.release(execution_id)
+        await self._queue.release_user_slot(execution_id)
         await self.try_schedule_from_queue()
 
     _MAX_SAGA_START_RETRIES = 3

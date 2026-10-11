@@ -21,6 +21,7 @@ from app.domain.execution import (
     DomainExecution,
     DomainExecutionCreate,
     ExecutionAccessDeniedError,
+    ExecutionLimitExceededError,
     ExecutionNotFoundError,
     ExecutionNotRetryableError,
     ExecutionResultDomain,
@@ -32,6 +33,7 @@ from app.domain.idempotency import IdempotencyStatus, KeyStrategy
 from app.domain.user import User
 from app.events import UnifiedProducer
 from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, RUNTIME_REGISTRY
+from app.services.execution_queue import ExecutionQueueService
 from app.services.idempotency import IdempotencyManager
 from app.services.runtime_settings import RuntimeSettingsLoader
 from app.settings import Settings
@@ -57,6 +59,7 @@ class ExecutionService:
         execution_metrics: ExecutionMetrics,
         idempotency_manager: IdempotencyManager,
         runtime_settings: RuntimeSettingsLoader,
+        queue: ExecutionQueueService,
     ) -> None:
         self.execution_repo = execution_repo
         self.producer = producer
@@ -65,6 +68,7 @@ class ExecutionService:
         self.metrics = execution_metrics
         self.idempotency_manager = idempotency_manager
         self._runtime_settings = runtime_settings
+        self._queue = queue
 
     async def get_k8s_resource_limits(self) -> ResourceLimitsDomain:
         effective = await self._runtime_settings.get_effective_settings()
@@ -114,6 +118,7 @@ class ExecutionService:
 
         Raises:
             RuntimeNotSupportedError: If the language version is not offered.
+            ExecutionLimitExceededError: If the user already has the allowed number of executions in flight.
             InfrastructureError: If event publishing fails.
         """
         lang_and_version = f"{lang}-{lang_version}"
@@ -133,15 +138,18 @@ class ExecutionService:
             self.logger.warning("Runtime not supported", lang=lang, lang_version=lang_version)
             raise RuntimeNotSupportedError(lang, lang_version)
 
-        # Create execution record
-        created_execution = await self.execution_repo.create_execution(
-            DomainExecutionCreate(
-                script=script,
-                lang=lang,
-                lang_version=lang_version,
-                user_id=user_id,
-            )
-        )
+        effective = await self._runtime_settings.get_effective_settings()
+        create_data = DomainExecutionCreate(script=script, lang=lang, lang_version=lang_version, user_id=user_id)
+        limit = effective.max_executions_per_user
+        if not await self._queue.reserve_user_slot(user_id, create_data.execution_id, limit):
+            self.logger.warning("Execution limit reached", user_id=user_id, limit=limit)
+            raise ExecutionLimitExceededError(limit)
+
+        try:
+            created_execution = await self.execution_repo.create_execution(create_data)
+        except Exception:
+            await self._queue.release_user_slot(create_data.execution_id)
+            raise
 
         self.logger.info(
             "Created execution record",
@@ -154,7 +162,6 @@ class ExecutionService:
 
         # Metadata and event, with admin-configurable limits
         metadata = self._create_event_metadata(user_id=user_id)
-        effective = await self._runtime_settings.get_effective_settings()
         event = ExecutionRequestedEvent(
             execution_id=created_execution.execution_id,
             aggregate_id=created_execution.execution_id,
@@ -179,6 +186,7 @@ class ExecutionService:
         except Exception as e:  # pragma: no cover - mapped behavior
             self.metrics.record_script_execution(ExecutionStatus.ERROR, lang_and_version)
             self.metrics.record_error(type(e).__name__)
+            await self._queue.release_user_slot(created_execution.execution_id)
             await self._update_execution_error(
                 created_execution.execution_id,
                 f"Failed to submit execution: {e}",

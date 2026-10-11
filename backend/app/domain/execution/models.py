@@ -90,6 +90,7 @@ class DomainExecutionCreate:
     lang_version: str = DEFAULT_LANG_VERSION
     status: ExecutionStatus = ExecutionStatus.QUEUED
     priority: QueuePriority = QueuePriority.NORMAL
+    execution_id: str = field(default_factory=lambda: str(uuid4()))
 
 
 @dataclass

@@ -12,6 +12,7 @@ from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, InfrastructureError
 from app.domain.execution import (
     ExecutionAccessDeniedError,
+    ExecutionLimitExceededError,
     ExecutionNotRetryableError,
     LanguageLimitsDomain,
     RuntimeNotSupportedError,
@@ -19,6 +20,7 @@ from app.domain.execution import (
 from app.domain.idempotency import IdempotencyRecord, IdempotencyStatus
 from app.domain.user import User
 from app.events import UnifiedProducer
+from app.services.execution_queue import ExecutionQueueService
 from app.services.execution_service import ExecutionService
 from app.services.idempotency import IdempotencyConfig, IdempotencyManager, RedisIdempotencyRepository
 from app.services.runtime_settings import RuntimeSettingsLoader
@@ -54,7 +56,14 @@ def producer() -> AsyncMock:
 
 
 @pytest.fixture
-def service(repo: AsyncMock, producer: AsyncMock, test_settings: Settings) -> ExecutionService:
+def queue() -> AsyncMock:
+    q = AsyncMock(spec=ExecutionQueueService)
+    q.reserve_user_slot.return_value = True
+    return q
+
+
+@pytest.fixture
+def service(repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, test_settings: Settings) -> ExecutionService:
     runtime_settings = AsyncMock(spec=RuntimeSettingsLoader)
     runtime_settings.get_effective_settings.return_value = SystemSettings()
     return ExecutionService(
@@ -65,6 +74,7 @@ def service(repo: AsyncMock, producer: AsyncMock, test_settings: Settings) -> Ex
         execution_metrics=MagicMock(spec=ExecutionMetrics),
         idempotency_manager=AsyncMock(spec=IdempotencyManager),
         runtime_settings=runtime_settings,
+        queue=queue,
     )
 
 
@@ -122,6 +132,7 @@ async def test_k8s_limits_report_effective_limits_per_language(
         execution_metrics=MagicMock(spec=ExecutionMetrics),
         idempotency_manager=AsyncMock(spec=IdempotencyManager),
         runtime_settings=RuntimeSettingsLoader(settings_repo, test_settings, structlog.get_logger("test")),
+        queue=AsyncMock(spec=ExecutionQueueService),
     )
 
     limits = await service.get_k8s_resource_limits()
@@ -164,7 +175,11 @@ def idem_repo() -> _MemoryIdempotencyRepo:
 
 @pytest.fixture
 def idem_service(
-    repo: AsyncMock, producer: AsyncMock, test_settings: Settings, idem_repo: _MemoryIdempotencyRepo
+    repo: AsyncMock,
+    producer: AsyncMock,
+    queue: AsyncMock,
+    test_settings: Settings,
+    idem_repo: _MemoryIdempotencyRepo,
 ) -> ExecutionService:
     runtime_settings = AsyncMock(spec=RuntimeSettingsLoader)
     runtime_settings.get_effective_settings.return_value = SystemSettings()
@@ -178,6 +193,7 @@ def idem_service(
         execution_metrics=MagicMock(spec=ExecutionMetrics),
         idempotency_manager=manager,
         runtime_settings=runtime_settings,
+        queue=queue,
     )
 
 
@@ -227,3 +243,46 @@ async def test_request_in_flight_is_rejected(
 
     assert _map_to_status_code(exc.value) == 409
     repo.create_execution.assert_not_awaited()
+
+
+async def test_execute_refuses_a_user_at_the_execution_limit(
+    service: ExecutionService, repo: AsyncMock, producer: AsyncMock, queue: AsyncMock
+) -> None:
+    queue.reserve_user_slot.return_value = False
+
+    with pytest.raises(ExecutionLimitExceededError) as exc_info:
+        await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+
+    assert _map_to_status_code(exc_info.value) == 429
+    assert queue.reserve_user_slot.await_args.args[0] == "u1"
+    assert queue.reserve_user_slot.await_args.args[2] == SystemSettings().max_executions_per_user
+    repo.create_execution.assert_not_awaited()
+    producer.produce.assert_not_awaited()
+
+
+async def test_execute_reserves_the_slot_under_the_new_execution_id(
+    service: ExecutionService, repo: AsyncMock, queue: AsyncMock
+) -> None:
+    repo.create_execution.side_effect = lambda data: make_domain_execution(execution_id=data.execution_id)
+
+    created = await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+
+    assert queue.reserve_user_slot.await_args.args[1] == created.execution_id
+    queue.release_user_slot.assert_not_awaited()
+
+
+@pytest.mark.parametrize("failing", ["create", "publish"])
+async def test_execute_gives_the_slot_back_when_submission_fails(
+    service: ExecutionService, repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, failing: str
+) -> None:
+    repo.create_execution.side_effect = lambda data: make_domain_execution(execution_id=data.execution_id)
+    if failing == "create":
+        repo.create_execution.side_effect = InfrastructureError("mongo down")
+    else:
+        producer.produce.side_effect = RuntimeError("kafka down")
+
+    with pytest.raises(InfrastructureError):
+        await service.execute_script(script="print(1)", user_id="u1", lang="python", lang_version="3.14")
+
+    reserved_id = queue.reserve_user_slot.await_args.args[1]
+    queue.release_user_slot.assert_awaited_once_with(reserved_id)

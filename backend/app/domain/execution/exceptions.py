@@ -1,5 +1,5 @@
 from app.domain.enums import ExecutionStatus
-from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, ValidationError
+from app.domain.exceptions import ForbiddenError, InvalidStateError, NotFoundError, ThrottledError, ValidationError
 
 
 class ExecutionNotFoundError(NotFoundError):
@@ -24,6 +24,14 @@ class ExecutionNotRetryableError(InvalidStateError):
         self.execution_id = execution_id
         self.status = status
         super().__init__(f"Cannot retry execution in {status} state")
+
+
+class ExecutionLimitExceededError(ThrottledError):
+    """Raised when a user already has as many executions queued or running as allowed."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(f"You already have {limit} executions queued or running; wait for one to finish")
 
 
 class RuntimeNotSupportedError(ValidationError):

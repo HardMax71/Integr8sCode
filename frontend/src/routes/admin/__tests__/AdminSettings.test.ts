@@ -10,6 +10,7 @@ function createMockSystemSettings() {
         memory_limit: '512Mi',
         cpu_limit: '2000m',
         max_concurrent_executions: 10,
+        max_executions_per_user: 100,
         password_min_length: 8,
         session_timeout_minutes: 30,
         max_login_attempts: 5,
@@ -72,6 +73,7 @@ describe('AdminSettings', () => {
             ['Memory Limit (e.g. 512Mi)', '512Mi'],
             ['CPU Limit (e.g. 2000m)', '2000m'],
             ['Max Concurrent Executions', '10'],
+            ['Max Executions per User', '100'],
             ['Min Password Length', '8'],
             ['Session Timeout (minutes)', '30'],
             ['Max Login Attempts', '5'],
@@ -134,6 +136,7 @@ describe('AdminSettings', () => {
                 memory_limit: '256Mi',
                 cpu_limit: '1000m',
                 max_concurrent_executions: 5,
+                max_executions_per_user: 50,
                 password_min_length: 6,
                 session_timeout_minutes: 60,
                 max_login_attempts: 3,
@@ -156,6 +159,9 @@ describe('AdminSettings', () => {
                 expect(vi.mocked(resetSystemSettingsApiV1AdminSettingsResetPost)).toHaveBeenCalled();
             });
             expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
+            await waitFor(() => {
+                expect((screen.getByLabelText('Max Executions per User') as HTMLInputElement).value).toBe('50');
+            });
 
             await waitFor(() => {
                 const timeoutInput = document.getElementById('max-timeout') as HTMLInputElement;

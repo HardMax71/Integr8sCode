@@ -6,12 +6,14 @@ Kafka delivers at least once, so a consumer can see the same event twice. Handle
 
 | Caller | Events | Key strategy | TTL |
 |--------|--------|--------------|-----|
-| Saga orchestrator | `execution_requested` | `EVENT_BASED` | 1 hour |
+| Saga orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` | `EVENT_BASED` | 1 hour |
 | K8s worker | `create_pod_command`, `delete_pod_command` | `CONTENT_HASH` | 1 hour |
 | Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `CONTENT_HASH` | 2 hours |
 | API, `POST /api/v1/execute` with `Idempotency-Key` | none, see below | `CUSTOM` | 24 hours |
 
-The other subscribers (the saga orchestrator's completion handlers, `sse-bridge-pool`, `notification-service`) don't use it. The subscriptions live in `backend/app/events/handlers.py`.
+The other subscribers, `sse-bridge-pool` and `notification-service`, don't use it. The subscriptions live in `backend/app/events/handlers.py`, one `KafkaRouter` per consumer, and the guard is a middleware on the router, so it covers every subscriber on it.
+
+Keys aren't scoped by consumer group. The saga orchestrator and the result processor both guard `execution_completed`, `execution_failed` and `execution_timeout`, and they only stay out of each other's way because one keys on the event id and the other on a content hash. Two routers with the same strategy on the same event would skip each other's deliveries.
 
 ## Keys
 
@@ -55,11 +57,13 @@ When `SET NX` loses, the repository raises pymongo's `DuplicateKeyError`, odd fo
 
 A `processing` record older than `processing_timeout_seconds` (300) is taken to be a crashed consumer. The manager resets its `created_at` and lets the new caller run. `completed` and `failed` records both count as duplicates until the key expires.
 
-Kafka handlers wrap their work in `with_idempotency`:
+Kafka handlers get the guard from `IdempotencyMiddleware`, which each router takes with its key strategy and TTL:
 
 ```python
---8<-- "backend/app/events/handlers.py:with_idempotency"
+--8<-- "backend/app/events/middlewares.py:IdempotencyMiddleware"
 ```
+
+It runs before FastStream hands the message to the handler, so it parses the raw body into the `DomainEvent` union itself and takes the manager from the request container that the broker's Dishka middleware opens around it.
 
 A duplicate is logged and skipped, and the message is acked as usual. A handler that raises leaves a `failed` record, which blocks that event for the rest of the TTL, so this layer never retries a failure. Nothing else retries it either today: see [issue #288](https://github.com/HardMax71/Integr8sCode/issues/288).
 

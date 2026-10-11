@@ -15,7 +15,7 @@ graph LR
 
 ## The Kafka bridge
 
-`register_sse_subscriber` in `app/events/handlers.py` registers one FastStream subscriber with group id `sse-bridge-pool` on 17 topics, listed in `_SSE_EVENT_TYPES`:
+`sse_router` in `app/events/handlers.py` declares one FastStream subscriber with group id `sse-bridge-pool` on 17 topics, listed in `_SSE_EVENT_TYPES`:
 
 - `execution_requested`, `execution_queued`, `execution_started`, `execution_running`
 - `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled`

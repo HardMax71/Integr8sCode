@@ -228,14 +228,14 @@
       "id": 9,
       "targets": [
         {
-          "expr": "sum(rate(event_processing_errors_total[5m])) by (error_type) or vector(0)",
+          "expr": "sum(rate(messaging_process_duration_seconds_count{error_type!=\"\"}[5m])) by (error_type) or vector(0)",
           "legendFormat": "{{error_type}}",
           "refId": "A",
           "datasource": "Victoria Metrics"
         },
         {
-          "expr": "sum(rate(event_processing_errors_total[5m])) by (consumer_group) or vector(0)",
-          "legendFormat": "{{consumer_group}}",
+          "expr": "sum(rate(messaging_process_duration_seconds_count{error_type!=\"\"}[5m])) by (messaging_destination_publish_name) or vector(0)",
+          "legendFormat": "{{messaging_destination_publish_name}}",
           "refId": "B",
           "datasource": "Victoria Metrics"
         }

@@ -43,4 +43,4 @@ Replay sessions are created and driven through the API's replay routes, so they 
 
 A new service is a plain class with constructor dependencies and async methods. If it needs periodic work, add an APScheduler job in the entry point that owns it and keep the service unaware of scheduling.
 
-A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a `register_*_subscriber` function in `app/events/handlers.py` if it consumes events. Register subscribers and call `setup_dishka` before `app.run()`. Stop schedulers in `on_shutdown` and close the container in `after_shutdown`, so nothing the handlers use closes before the broker stops.
+A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a router factory in `app/events/handlers.py` if it consumes events. Include the router and call `setup_dishka` before `app.run()`. Stop schedulers in `on_shutdown` and close the container in `after_shutdown`, so nothing the handlers use closes before the broker stops.

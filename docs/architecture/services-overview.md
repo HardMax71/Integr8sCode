@@ -53,11 +53,11 @@ The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republ
 
 ## Idempotent consumers
 
-Three consumers wrap their handler in `with_idempotency` from `app/events/handlers.py`, which reserves a key in Redis, runs the handler and marks the key completed or failed. A duplicate delivery finds the key and is skipped.
+Three workers put `IdempotencyMiddleware` from `app/events/middlewares.py` on their `KafkaRouter`. It reserves a key in Redis, runs the handler and marks the key completed or failed. A duplicate delivery finds the key and is skipped.
 
 | Consumer | Key strategy | TTL |
 |----------|--------------|-----|
-| Saga orchestrator, `execution_requested` | `EVENT_BASED` | 1 hour |
+| Saga orchestrator, all five events | `EVENT_BASED` | 1 hour |
 | K8s worker, both commands | `CONTENT_HASH` | 1 hour |
 | Result processor, all three events | `CONTENT_HASH` | 2 hours |
 

@@ -22,4 +22,3 @@ def test_event_metrics_methods(test_settings: Settings) -> None:
     m = EventMetrics(test_settings)
     m.record_event_published("execution.requested", None)
     m.record_event_processing_duration(0.05, "execution.requested")
-    m.record_events_processing_failed("topic", "etype", "group", "error")

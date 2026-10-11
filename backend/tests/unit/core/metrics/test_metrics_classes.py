@@ -33,7 +33,6 @@ def test_event_metrics_smoke(test_settings: Settings) -> None:
     m = EventMetrics(test_settings)
     m.record_event_published("execution.requested")
     m.record_event_processing_duration(0.01, "execution.requested")
-    m.record_events_processing_failed("t", "x", "g", "ValueError")
 
 
 def test_other_metrics_classes_smoke(test_settings: Settings) -> None:

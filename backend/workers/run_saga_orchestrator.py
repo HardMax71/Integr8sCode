@@ -11,7 +11,7 @@ from pymongo import AsyncMongoClient
 from app.core.container import create_saga_orchestrator_container
 from app.core.logging import setup_log_exporter, setup_logger
 from app.db.docs import ALL_DOCUMENTS
-from app.events.handlers import register_saga_subscriber
+from app.events.handlers import saga_router
 from app.services.saga import SagaOrchestrator
 from app.settings import Settings
 
@@ -40,8 +40,8 @@ def main() -> None:
         # Get broker from DI
         broker: KafkaBroker = await container.get(KafkaBroker)
 
-        # Register subscriber and set up DI integration
-        register_saga_subscriber(broker)
+        # Include the subscribers, then set up DI integration
+        broker.include_router(saga_router())
         setup_dishka(container, broker=broker, auto_inject=True)
 
         scheduler = AsyncIOScheduler()

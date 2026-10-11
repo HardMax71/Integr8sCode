@@ -389,22 +389,25 @@ async def test_list_and_watch_keep_pods_by_phase_current(event_metrics: EventMet
 
     metrics.record_pod_monitor_reconciliation_run.assert_called_once_with()
     counts = [dict(c.args[0]) for c in metrics.update_pods_by_phase.call_args_list]
-    assert counts == [{"Pending": 1}, {"Pending": 1, "Running": 1}, {"Running": 2}, {"Running": 1}]
+    assert counts == [{}, {"Pending": 1}, {"Pending": 1, "Running": 1}, {"Running": 2}, {"Running": 1}]
 
 
 @pytest.mark.asyncio
-async def test_relist_drops_pods_the_watch_missed(event_metrics: EventMetrics) -> None:
+@pytest.mark.parametrize(("fresh", "expected"), [(["fresh"], {"Pending": 1}), ([], {})])
+async def test_relist_drops_pods_the_watch_missed(
+    event_metrics: EventMetrics, fresh: list[str], expected: dict[str, int]
+) -> None:
     metrics = MagicMock(spec=KubernetesMetrics)
     pm = make_pod_monitor(event_metrics, metrics, pods=[make_pod(name="gone", phase="Running")])
     await pm.watch_pod_events()
 
     pm._last_resource_version = None
-    pm._v1 = make_mock_v1_api(pods=[make_pod(name="fresh", phase="Pending")])
+    pm._v1 = make_mock_v1_api(pods=[make_pod(name=name, phase="Pending") for name in fresh])
     pm._watch = make_mock_watch([])
     await pm.watch_pod_events()
 
     assert metrics.record_pod_monitor_reconciliation_run.call_count == 2
-    assert dict(metrics.update_pods_by_phase.call_args.args[0]) == {"Pending": 1}
+    assert dict(metrics.update_pods_by_phase.call_args.args[0]) == expected
 
 
 @pytest.mark.asyncio

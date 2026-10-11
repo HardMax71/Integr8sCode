@@ -128,6 +128,7 @@ class PodMonitor:
         pod_list = await self._v1.list_namespaced_pod(**kwargs)
         self._metrics.record_pod_monitor_reconciliation_run()
         self._pod_phases.clear()
+        self._metrics.update_pods_by_phase(Counter())
 
         for pod in pod_list.items:
             event = PodEvent(event_type=WatchEventType.ADDED, pod=pod)

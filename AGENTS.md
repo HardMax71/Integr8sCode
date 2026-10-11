@@ -6,7 +6,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TanStack Table 9, bits-ui 2, TypeScript 6 strict, TailwindCSS 4, Node 26 |
+| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TanStack Table 9, bits-ui 2, superforms 3 with formsnap, mode-watcher, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
@@ -730,6 +730,10 @@ Navigation: plain `<a href>` for links (SvelteKit handles them), `goto('/path')`
 Dialogs, menus, popovers and selects come from bits-ui, imported from npm and styled with our own Tailwind classes; don't copy component source into the repo and don't hand-roll click-outside or arrow-key handling. Dialogs go through `#components/Modal.svelte`, which wraps `Dialog` and keeps the `open`, `title`, `onClose`, `size`, `children` and `footer` props. Menu, popover and select content renders in a `Portal` with `class="floating-panel"`, and each item gets `class="floating-item"` (both in `styles/components.css`). A menu item that navigates renders an `<a href>` through its `child` snippet.
 
 Tooltips use bits-ui `Tooltip` with `class="tooltip-content"`; the root layout holds the one `Tooltip.Provider`, and `renderWithQueryClient` adds it in tests. Shared styling is Tailwind classes in `styles/components.css` (`.btn-*`, `.badge-*`, `.card`, `.alert-*`, `.form-*-standard`); plain inputs, selects and checkboxes get their look from the base layer in `app.css`, and page-only rules go in `styles/pages.css`. Add a class there only when several components share it.
+
+## Frontend: Forms
+
+Forms go through `apiForm(schema, options, initial?)` from `#lib/forms.ts`: superforms in SPA mode on a generated Zod schema (or one picked, extended or checked from them), with JSON data and our wording from `issueMessage` in `#lib/validation.ts`. `onUpdate` saves through the mutation once `form.valid` is true. Fields use formsnap's `Field`, `Control`, `Label` and `FieldErrors`, with `props` and `$constraints[name]` spread on the input, so the label, `aria-invalid` and `aria-describedby` come wired; the form is `method="post" use:enhance novalidate`, so errors show under the fields instead of as browser bubbles. `filled()` marks a text field that mustn't be sent empty and `optionalText()` one that may stay empty. API errors, such as a taken username, show above the form from the mutation, not as field errors.
 
 ## Frontend: Tables
 

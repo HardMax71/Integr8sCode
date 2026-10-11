@@ -32,7 +32,7 @@ describe('firstIssue', () => {
         [
             'a missing required field',
             zUserCreate.safeParse({ email: 'u@example.com', password: 'password123' }),
-            'Username must be a string',
+            'Username is required',
         ],
     ])('phrases %s from the generated schema', (_name, result, expected) => {
         expect(issueFor(result)).toBe(expected);

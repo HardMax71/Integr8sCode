@@ -57,7 +57,8 @@ test.describe('Registration', () => {
       confirmPassword: 'DifferentPassword123!',
     });
     await page.locator('button[type="submit"]').click();
-    await expect(page.getByTestId('error-message')).toContainText('Passwords do not match');
+    await expect(page.locator('#confirm-password')).toHaveAccessibleDescription('Passwords do not match');
+    await expect(page.locator('#confirm-password')).toHaveAttribute('aria-invalid', 'true');
   });
 
   test('shows error when password is too short', async ({ page }) => {
@@ -68,7 +69,7 @@ test.describe('Registration', () => {
       confirmPassword: 'short',
     });
     await page.locator('button[type="submit"]').click();
-    await expect(page.getByTestId('error-message')).toContainText('at least 8 characters');
+    await expect(page.locator('#password')).toHaveAccessibleDescription('Must be at least 8 characters');
   });
 
   test('submits form and shows loading or redirects', async ({ page }) => {

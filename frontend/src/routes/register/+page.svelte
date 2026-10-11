@@ -2,17 +2,25 @@
     import { goto } from '$app/navigation';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
+    import * as z from 'zod/mini';
     import { createMutation } from '@tanstack/svelte-query';
+    import { Control, Field, FieldErrors, Label } from 'formsnap';
     import { registerApiV1AuthRegisterPostMutation, zUserCreate } from '#lib/api/index.ts';
-    import { firstIssue } from '#lib/validation.ts';
+    import { apiForm, filled } from '#lib/forms.ts';
     import { getErrorMessage } from '#lib/api-interceptors.ts';
     import Spinner from '#components/Spinner.svelte';
 
-    let username = $state('');
-    let email = $state('');
-    let password = $state('');
-    let confirmPassword = $state('');
-    let formError = $state<string | null>(null);
+    const zRegister = z
+        .extend(z.pick(zUserCreate, { email: true, password: true }), {
+            username: filled(zUserCreate.shape.username),
+            confirm_password: z.string(),
+        })
+        .check(
+            z.refine((v) => v.password === v.confirm_password, {
+                message: 'Passwords do not match',
+                path: ['confirm_password'],
+            }),
+        );
 
     const register = createMutation(() => ({
         ...registerApiV1AuthRegisterPostMutation(),
@@ -23,29 +31,48 @@
         },
     }));
 
+    const form = apiForm(zRegister, {
+        onSubmit: () => register.reset(),
+        onUpdate: ({ form: submitted }) => {
+            if (!submitted.valid) return;
+            const { username, email, password } = submitted.data;
+            register.mutate({ body: { username, email, password } });
+        },
+    });
+    const { form: formData, constraints, enhance } = form;
+
     let loading = $derived(register.isPending);
     let error = $derived(
-        formError ??
-            (register.error ? getErrorMessage(register.error, 'Registration failed. Please try again.') : null),
+        register.error ? getErrorMessage(register.error, 'Registration failed. Please try again.') : null,
     );
-
-    function handleRegister() {
-        formError = null;
-        register.reset();
-        if (password !== confirmPassword) {
-            formError = 'Passwords do not match.';
-            toast.error(formError);
-            return;
-        }
-        const parsed = zUserCreate.safeParse({ username, email, password });
-        if (!parsed.success) {
-            formError = firstIssue(parsed.error);
-            toast.warning(formError);
-            return;
-        }
-        register.mutate({ body: { username, email, password } });
-    }
 </script>
+
+{#snippet field(
+    name: 'username' | 'email' | 'password' | 'confirm_password',
+    id: string,
+    label: string,
+    type: string,
+    autocomplete: HTMLInputElement['autocomplete'],
+    placeholder: string,
+)}
+    <Field {form} {name}>
+        <Control {id}>
+            {#snippet children({ props })}
+                <Label class="sr-only">{label}</Label>
+                <input
+                    {...props}
+                    {...$constraints[name]}
+                    {type}
+                    {autocomplete}
+                    {placeholder}
+                    bind:value={$formData[name]}
+                    class="form-input-standard"
+                />
+            {/snippet}
+        </Control>
+        <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+    </Field>
+{/snippet}
 
 <svelte:head>
     <title>Register - Integr8sCode</title>
@@ -69,11 +96,10 @@
         </div>
 
         <form
+            method="post"
+            use:enhance
+            novalidate
             class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default"
-            onsubmit={(e) => {
-                e.preventDefault();
-                handleRegister();
-            }}
         >
             {#if error}
                 <p
@@ -86,59 +112,25 @@
             {/if}
 
             <div class="space-y-2">
-                <div>
-                    <label for="username" class="sr-only">Username</label>
-                    <input
-                        bind:value={username}
-                        id="username"
-                        name="username"
-                        type="text"
-                        required
-                        class="form-input-standard"
-                        placeholder="Username"
-                    />
-                </div>
-                <div>
-                    <label for="email" class="sr-only">Email address</label>
-                    <input
-                        bind:value={email}
-                        id="email"
-                        name="email"
-                        type="email"
-                        autocomplete="email"
-                        required
-                        class="form-input-standard"
-                        placeholder="Email address"
-                    />
-                </div>
-                <div>
-                    <label for="password" class="sr-only">Password</label>
-                    <input
-                        bind:value={password}
-                        id="password"
-                        name="password"
-                        type="password"
-                        autocomplete="new-password"
-                        required
-                        class="form-input-standard"
-                        placeholder="Password (min. 8 characters)"
-                    />
-                </div>
-                <div>
-                    <label for="confirm-password" class="sr-only">Confirm Password</label>
-                    <input
-                        bind:value={confirmPassword}
-                        id="confirm-password"
-                        name="confirm-password"
-                        type="password"
-                        autocomplete="new-password"
-                        required
-                        class="form-input-standard"
-                        placeholder="Confirm Password"
-                    />
-                </div>
+                {@render field('username', 'username', 'Username', 'text', 'username', 'Username')}
+                {@render field('email', 'email', 'Email address', 'email', 'email', 'Email address')}
+                {@render field(
+                    'password',
+                    'password',
+                    'Password',
+                    'password',
+                    'new-password',
+                    'Password (min. 8 characters)',
+                )}
+                {@render field(
+                    'confirm_password',
+                    'confirm-password',
+                    'Confirm Password',
+                    'password',
+                    'new-password',
+                    'Confirm Password',
+                )}
             </div>
-
             <div>
                 <button
                     type="submit"

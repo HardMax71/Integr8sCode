@@ -100,9 +100,13 @@ class ExecutionRepository:
         await doc.set({"priority": priority, "updated_at": datetime.now(timezone.utc)})
         return self._to_domain(doc)
 
-    async def get_execution_result(self, execution_id: str) -> ExecutionResultDomain | None:
+    async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:
+        """Return the stored result of a finished execution, or None while it hasn't finished.
+
+        Only write_terminal_result fills stdout, stderr and exit_code, so a result exists once the status is terminal.
+        """
         doc = await ExecutionDocument.find_one(ExecutionDocument.execution_id == execution_id)
-        if not doc:
+        if not doc or not doc.status.is_terminal:
             return None
         data = doc.model_dump(include=_result_fields)
         if data.get("resource_usage"):

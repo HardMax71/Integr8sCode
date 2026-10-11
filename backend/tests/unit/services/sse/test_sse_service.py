@@ -91,7 +91,7 @@ class _FakeExecRepo:
     async def get_execution(self, execution_id: str) -> DomainExecution | None:  # noqa: ARG002
         return self._execution
 
-    async def get_execution_result(self, execution_id: str) -> ExecutionResultDomain | None:  # noqa: ARG002
+    async def get_terminal_result(self, execution_id: str) -> ExecutionResultDomain | None:  # noqa: ARG002
         return self._result
 
 

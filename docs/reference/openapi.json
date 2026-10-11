@@ -6261,7 +6261,8 @@
         "type": "object",
         "required": [
           "service_name",
-          "service_version"
+          "service_version",
+          "user_id"
         ],
         "title": "EventMetadata",
         "description": "Event metadata - embedded in all events."

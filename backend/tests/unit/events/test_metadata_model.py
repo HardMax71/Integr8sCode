@@ -1,10 +1,11 @@
+import pytest
+
 from app.domain.events import EventMetadata
 
 
-def test_metadata_creation() -> None:
-    m = EventMetadata(service_name="svc", service_version="1")
-    assert m.service_name == "svc"
-    assert m.service_version == "1"
+def test_metadata_requires_user_id() -> None:
+    with pytest.raises(TypeError, match="user_id"):
+        EventMetadata(service_name="svc", service_version="1")  # type: ignore[call-arg]
 
 
 def test_metadata_with_user() -> None:

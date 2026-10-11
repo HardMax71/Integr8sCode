@@ -1,6 +1,5 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from uuid import uuid4
 
 import aiohttp
 import structlog
@@ -210,7 +209,7 @@ class PodEventMapper:
         labels = pod.metadata.labels or {}
 
         md = EventMetadata(
-            user_id=labels.get("user-id", str(uuid4())),
+            user_id=labels.get("user-id", ""),
             service_name="pod-monitor",
             service_version="1.0.0",
         )

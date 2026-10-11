@@ -23,7 +23,7 @@ pytestmark = pytest.mark.unit
 
 _test_logger = structlog.get_logger("test.services.result_processor.processor")
 
-_METADATA = EventMetadata(service_name="tests", service_version="1.0.0")
+_METADATA = EventMetadata(service_name="tests", service_version="1.0.0", user_id="u1")
 
 
 def _make_processor(

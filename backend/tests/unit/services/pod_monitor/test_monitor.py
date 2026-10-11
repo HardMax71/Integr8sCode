@@ -324,7 +324,7 @@ async def test_publish_event_full_flow(
         aggregate_id="exec1",
         exit_code=0,
         resource_usage=ResourceUsageDomain(),
-        metadata=EventMetadata(service_name="test", service_version="1.0"),
+        metadata=EventMetadata(service_name="test", service_version="1.0", user_id="u1"),
     )
 
     pod = make_pod(name="test-pod", phase="Succeeded", labels={"execution-id": "exec1"})
@@ -361,7 +361,7 @@ async def test_publish_event_exception_handling(
         execution_id="exec1",
         exit_code=0,
         resource_usage=ResourceUsageDomain(),
-        metadata=EventMetadata(service_name="test", service_version="1.0"),
+        metadata=EventMetadata(service_name="test", service_version="1.0", user_id="u1"),
     )
 
     pod = make_pod(name="no-meta-pod", phase="Pending")

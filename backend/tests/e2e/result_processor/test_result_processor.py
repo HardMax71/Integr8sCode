@@ -69,7 +69,7 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
         stdout="hello",
         stderr="",
         resource_usage=usage,
-        metadata=EventMetadata(service_name="tests", service_version="1.0.0"),
+        metadata=EventMetadata(service_name="tests", service_version="1.0.0", user_id="u1"),
     )
 
     # Directly call the handler (subscriber routing tested separately)

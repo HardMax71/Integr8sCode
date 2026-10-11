@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { createMockNotification, createMockNotifications, user } from '$test/test-utils';
+import { createMockNotification, createMockNotifications, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import Notifications from '$routes/Notifications.svelte';
+import Notifications from '#routes/(auth)/notifications/+page.svelte';
 
 const mocks = vi.hoisted(() => ({
     mockNotificationStore: {
@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/notificationStore.svelte', () => ({ notificationStore: mocks.mockNotificationStore }));
+vi.mock('#stores/notificationStore.svelte.ts', () => ({ notificationStore: mocks.mockNotificationStore }));
 
 describe('Notifications', () => {
     beforeEach(() => {

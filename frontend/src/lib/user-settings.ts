@@ -1,12 +1,12 @@
-import { authStore } from '$stores/auth.svelte';
-import { setTheme } from '$stores/theme.svelte';
-import { setUserSettings } from '$stores/userSettings.svelte';
+import { authStore } from '#stores/auth.svelte.ts';
+import { setTheme } from '#stores/theme.svelte.ts';
+import { setUserSettings } from '#stores/userSettings.svelte.ts';
 import {
     getUserSettingsApiV1UserSettingsGet,
     updateUserSettingsApiV1UserSettingsPut,
     type UserSettings,
     type UserSettingsUpdate,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 
 export async function loadUserSettings(): Promise<UserSettings | undefined> {
     const { data, error } = await getUserSettingsApiV1UserSettingsGet({});

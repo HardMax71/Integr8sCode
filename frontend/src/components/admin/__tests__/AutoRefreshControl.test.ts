@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
-import AutoRefreshControl from '$components/admin/AutoRefreshControl.svelte';
+import { user } from '#test/test-utils.ts';
+import AutoRefreshControl from '#components/admin/AutoRefreshControl.svelte';
 
-vi.mock('$components/Spinner.svelte', async () => {
-    const utils = await import('$test/test-utils');
+vi.mock('#components/Spinner.svelte', async () => {
+    const utils = await import('#test/test-utils.ts');
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 

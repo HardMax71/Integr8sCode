@@ -5,8 +5,8 @@ import {
     deleteNotificationApiV1NotificationsNotificationIdDelete,
     type GetNotificationsApiV1NotificationsGetData,
     type NotificationResponse,
-} from '$lib/api';
-import { getErrorMessage } from '$lib/api-interceptors';
+} from '#lib/api/index.ts';
+import { getErrorMessage } from '#lib/api-interceptors.ts';
 
 type NotificationQueryOpts = Omit<NonNullable<GetNotificationsApiV1NotificationsGetData['query']>, 'limit' | 'offset'>;
 

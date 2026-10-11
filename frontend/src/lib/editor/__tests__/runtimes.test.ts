@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newestVersion } from '$lib/editor/runtimes';
+import { newestVersion } from '#lib/editor/runtimes.ts';
 
 describe('newestVersion', () => {
     it.each([

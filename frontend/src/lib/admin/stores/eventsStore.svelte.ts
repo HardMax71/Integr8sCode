@@ -16,13 +16,13 @@ import {
     type EventReplayResponse,
     type EventReplayStatusResponse,
     type AdminUserOverview,
-} from '$lib/api';
-import { unwrap, unwrapOr } from '$lib/api-interceptors';
+} from '#lib/api/index.ts';
+import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
 import { toast } from 'svelte-sonner';
-import { createPaginationState } from '$lib/admin/pagination.svelte';
-import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
+import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
+import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
 import { parseISO } from 'date-fns';
-import { logger } from '$lib/logger';
+import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('EventsStore');
 const POLL_INTERVAL_MS = 30_000;

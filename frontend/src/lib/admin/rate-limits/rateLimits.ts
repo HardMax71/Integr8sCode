@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '$lib/api';
+import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '#lib/api/index.ts';
 
 // Group colors for rate limit endpoint groups
 const GROUP_COLORS: Record<EndpointGroup, string> = {

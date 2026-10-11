@@ -2,7 +2,7 @@
  * Saga state configurations
  */
 import { Plus, Loader, TriangleAlert, CircleCheckBig, CircleX, Clock } from '@lucide/svelte';
-import type { SagaState } from '$lib/api';
+import type { SagaState } from '#lib/api/index.ts';
 
 export interface SagaStateConfig {
     label: string;

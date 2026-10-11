@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { EVENT_TYPES } from '$lib/admin/events';
-    import type { EventFilter, EventType } from '$lib/api';
+    import { EVENT_TYPES } from '#lib/admin/events/index.ts';
+    import type { EventFilter, EventType } from '#lib/api/index.ts';
 
     interface Props {
         filters: EventFilter;

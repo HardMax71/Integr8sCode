@@ -1,6 +1,6 @@
 <script>
     import { Icon, Send } from '@lucide/svelte';
-    import { authStore } from '$stores/auth.svelte';
+    import { authStore } from '#stores/auth.svelte.ts';
 
     // Lucide 1.0 dropped its brand icons, so this is the GitHub mark it used to ship, drawn by its Icon.
     const github = {

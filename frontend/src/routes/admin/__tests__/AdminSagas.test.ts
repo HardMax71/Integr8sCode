@@ -1,15 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, selectOption, createMockSaga, createMockSagas, mockApi } from '$test/test-utils';
-import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '$lib/api';
+import { user, selectOption, createMockSaga, createMockSagas, mockApi } from '#test/test-utils.ts';
+import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '#lib/api/index.ts';
 
-vi.mock('$routes/admin/AdminLayout.svelte', async () => {
-    const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
-    return { default: MockLayout };
-});
-
-import AdminSagas from '$routes/admin/AdminSagas.svelte';
+import { SAGA_STATES } from '#lib/admin/sagas/index.ts';
+import AdminSagas from '#routes/admin/sagas/+page.svelte';
 
 async function renderWithSagas(sagas = createMockSagas(5)) {
     mockApi(listSagasApiV1SagasGet).ok({ sagas, total: sagas.length, skip: 0, limit: 10, has_more: false });
@@ -86,8 +82,11 @@ describe('AdminSagas', () => {
                 createMockSaga({ saga_id: 's3', state: 'failed' }),
             ];
             await renderWithSagas(sagas);
-            const statsSection = screen.getByTestId('admin-layout');
-            expect(statsSection).toBeInTheDocument();
+            const completedCard = screen
+                .getAllByText(SAGA_STATES.completed.label)
+                .map((el) => el.closest('.card'))
+                .find((card): card is HTMLElement => card instanceof HTMLElement);
+            expect(within(completedCard!).getByText('2')).toBeInTheDocument();
         });
     });
 

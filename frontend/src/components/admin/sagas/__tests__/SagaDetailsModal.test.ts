@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user, createMockSaga } from '$test/test-utils';
-import SagaDetailsModal from '$components/admin/sagas/SagaDetailsModal.svelte';
+import { user, createMockSaga } from '#test/test-utils.ts';
+import SagaDetailsModal from '#components/admin/sagas/SagaDetailsModal.svelte';
 
-vi.mock('$lib/formatters', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/formatters')>()),
+vi.mock('#lib/formatters.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/formatters.ts')>()),
     formatTimestamp: vi.fn((ts: string | null) => (ts ? `ts:${ts}` : 'N/A')),
     formatDurationBetween: vi.fn(() => '1m 30s'),
 }));
 
-vi.mock('$lib/admin/sagas', () => ({
+vi.mock('#lib/admin/sagas/index.ts', () => ({
     getSagaStateInfo: vi.fn((state: string) => ({
         label: state.charAt(0).toUpperCase() + state.slice(1),
         color: 'badge-neutral',

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-import { createMockEvent, createMockStats, mockApi } from '$test/test-utils';
+import { createMockEvent, createMockStats, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
@@ -11,8 +11,8 @@ import {
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
     streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
     type EventReplayStatusResponse,
-} from '$lib/api';
-import { createEventsStore } from '$lib/admin/stores/eventsStore.svelte';
+} from '#lib/api/index.ts';
+import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
 
 const windowOpen = vi.fn();
 const windowConfirm = vi.fn();

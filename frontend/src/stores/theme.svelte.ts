@@ -1,5 +1,5 @@
-import { Theme } from '$lib/api';
-import { logger } from '$lib/logger';
+import { Theme } from '#lib/api/index.ts';
+import { logger } from '#lib/logger.ts';
 
 const log = logger.withTag('Theme');
 
@@ -31,10 +31,12 @@ let saveUserSettingsFn: ((partial: { theme?: Theme }) => Promise<boolean>) | nul
 let authStoreRef: { isAuthenticated: boolean | null } | null = null;
 
 if (browser) {
-    void Promise.all([import('$lib/user-settings'), import('$stores/auth.svelte')]).then(([userSettings, auth]) => {
-        saveUserSettingsFn = userSettings.saveUserSettings;
-        authStoreRef = auth.authStore;
-    });
+    void Promise.all([import('#lib/user-settings.ts'), import('#stores/auth.svelte.ts')]).then(
+        ([userSettings, auth]) => {
+            saveUserSettingsFn = userSettings.saveUserSettings;
+            authStoreRef = auth.authStore;
+        },
+    );
 }
 
 class ThemeStore {

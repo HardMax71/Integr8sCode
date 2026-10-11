@@ -1,8 +1,8 @@
-import { listSagasApiV1SagasGet, type SagaStatusResponse } from '$lib/api';
-import { unwrapOr } from '$lib/api-interceptors';
-import { createPaginationState } from '$lib/admin/pagination.svelte';
-import { pollWhileVisible } from '$lib/admin/pollWhileVisible.svelte';
-import { type SagaStateFilter } from '$lib/admin/sagas';
+import { listSagasApiV1SagasGet, type SagaStatusResponse } from '#lib/api/index.ts';
+import { unwrapOr } from '#lib/api-interceptors.ts';
+import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
+import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
+import { type SagaStateFilter } from '#lib/admin/sagas/index.ts';
 
 class SagasStore {
     sagas = $state<SagaStatusResponse[]>([]);

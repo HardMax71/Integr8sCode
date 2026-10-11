@@ -17,7 +17,7 @@ FROM nginx:1.31-alpine
 RUN apk upgrade --no-cache && apk add --no-cache curl
 
 # Copy built static files
-COPY --from=builder /app/public /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy nginx config template (envsubst runs at container startup)
 # The nginx image automatically processes /etc/nginx/templates/*.template

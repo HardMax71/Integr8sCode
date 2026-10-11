@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, suppressConsoleError } from '$test/test-utils';
+import { user, suppressConsoleError } from '#test/test-utils.ts';
 
-import * as router from '@mateothegreat/svelte5-router';
+import * as navigation from '$app/navigation';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
@@ -22,12 +22,12 @@ const mocks = vi.hoisted(() => ({
     mockToggleTheme: vi.fn(),
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
+vi.mock('#stores/auth.svelte.ts', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
-vi.mock('$stores/theme.svelte', () => ({
+vi.mock('#stores/theme.svelte.ts', () => ({
     get themeStore() {
         return mocks.mockThemeStore;
     },
@@ -35,7 +35,7 @@ vi.mock('$stores/theme.svelte', () => ({
         return mocks.mockToggleTheme;
     },
 }));
-vi.mock('$components/NotificationCenter.svelte', () => {
+vi.mock('#components/NotificationCenter.svelte', () => {
     const M = function () {
         return {};
     } as any;
@@ -47,7 +47,7 @@ vi.mock('$components/NotificationCenter.svelte', () => {
     return { default: M };
 });
 
-import Header from '$components/Header.svelte';
+import Header from '#components/Header.svelte';
 
 const setAuth = (
     isAuth: boolean,
@@ -79,7 +79,7 @@ describe('Header', () => {
         mocks.mockThemeStore.value = 'auto';
         mocks.mockAuthStore.logout.mockReset();
         mocks.mockToggleTheme.mockReset();
-        vi.spyOn(router, 'goto');
+        vi.spyOn(navigation, 'goto');
         originalInnerWidth = window.innerWidth;
         Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1200 });
         Object.defineProperty(window, 'matchMedia', {
@@ -175,7 +175,7 @@ describe('Header', () => {
             });
             await user.click(screen.getByRole('button', { name: /Logout/i }));
             expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-            expect(router.goto).toHaveBeenCalledWith('/login');
+            expect(navigation.goto).toHaveBeenCalledWith('/login');
         });
     });
 
@@ -199,7 +199,7 @@ describe('Header', () => {
             });
             await user.click(screen.getByRole('button', { name: /^Admin$/ }));
             await waitFor(() => {
-                expect(router.goto).toHaveBeenCalledWith('/admin/events');
+                expect(navigation.goto).toHaveBeenCalledWith('/admin/events');
             });
         });
     });
@@ -317,7 +317,7 @@ describe('Header', () => {
             await user.click(logoutButton);
 
             expect(mocks.mockAuthStore.logout).toHaveBeenCalled();
-            expect(router.goto).toHaveBeenCalledWith('/login');
+            expect(navigation.goto).toHaveBeenCalledWith('/login');
         });
     });
 });

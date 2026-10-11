@@ -1,9 +1,9 @@
 <script lang="ts">
     import { Check, X, Undo2 } from '@lucide/svelte';
-    import type { SagaStatusResponse } from '$lib/api';
-    import { formatTimestamp, formatDurationBetween } from '$lib/formatters';
-    import { getSagaStateInfo } from '$lib/admin/sagas';
-    import Modal from '$components/Modal.svelte';
+    import type { SagaStatusResponse } from '#lib/api/index.ts';
+    import { formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
+    import { getSagaStateInfo } from '#lib/admin/sagas/index.ts';
+    import Modal from '#components/Modal.svelte';
 
     interface Props {
         saga: SagaStatusResponse | null;

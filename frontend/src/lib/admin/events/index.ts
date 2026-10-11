@@ -1,1 +1,1 @@
-export * from '$lib/admin/events/eventTypes';
+export * from '#lib/admin/events/eventTypes.ts';

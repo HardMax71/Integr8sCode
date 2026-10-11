@@ -1,9 +1,9 @@
 <script lang="ts">
     import { Eye, Play, Trash } from '@lucide/svelte';
-    import type { BrowsedEvent } from '$lib/admin/stores/eventsStore.svelte';
-    import { formatTimestamp, formatDateOnly, formatTimeOnly } from '$lib/formatters';
-    import { getEventTypeColor } from '$lib/admin/events';
-    import EventTypeIcon from '$components/EventTypeIcon.svelte';
+    import type { BrowsedEvent } from '#lib/admin/stores/eventsStore.svelte.ts';
+    import { formatTimestamp, formatDateOnly, formatTimeOnly } from '#lib/formatters.ts';
+    import { getEventTypeColor } from '#lib/admin/events/index.ts';
+    import EventTypeIcon from '#components/EventTypeIcon.svelte';
 
     interface Props {
         events: BrowsedEvent[];

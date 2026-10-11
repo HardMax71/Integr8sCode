@@ -1,10 +1,10 @@
 /**
  * Event type configurations and utilities
  */
-import { EventType, type EventFilter } from '$lib/api';
+import { EventType, type EventFilter } from '#lib/api/index.ts';
 
 // Re-export EventType from generated types
-export type { EventType } from '$lib/api';
+export type { EventType } from '#lib/api/index.ts';
 
 // Every event type, for the filter UI
 export const EVENT_TYPES: EventType[] = Object.values(EventType);

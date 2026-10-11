@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { suppressConsoleError, suppressConsoleWarn } from '$test/test-utils';
+import { suppressConsoleError, suppressConsoleWarn } from '#test/test-utils.ts';
 
 const mockLoginApi = vi.fn();
 const mockLogoutApi = vi.fn();
 const mockGetProfileApi = vi.fn();
 
-vi.mock('$lib/api', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/api')>()),
+vi.mock('#lib/api/index.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
     loginApiV1AuthLoginPost: (...args: unknown[]) => mockLoginApi(...args),
     logoutApiV1AuthLogoutPost: (...args: unknown[]) => mockLogoutApi(...args),
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
@@ -14,7 +14,7 @@ vi.mock('$lib/api', async (importOriginal) => ({
 
 // Mock clearUserSettings (static import in auth.svelte.ts)
 const mockClearUserSettings = vi.fn();
-vi.mock('$stores/userSettings.svelte', () => ({
+vi.mock('#stores/userSettings.svelte.ts', () => ({
     clearUserSettings: () => mockClearUserSettings(),
     setUserSettings: vi.fn(),
     userSettingsStore: { settings: null, editorSettings: {} },
@@ -22,7 +22,7 @@ vi.mock('$stores/userSettings.svelte', () => ({
 
 // Mock loadUserSettings (dynamic import in auth.svelte.ts)
 const mockLoadUserSettings = vi.fn();
-vi.mock('$lib/user-settings', () => ({
+vi.mock('#lib/user-settings.ts', () => ({
     loadUserSettings: () => mockLoadUserSettings(),
 }));
 
@@ -70,17 +70,17 @@ describe('auth store', () => {
 
     describe('initial state', () => {
         it('has null authentication state initially', async () => {
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             expect(authStore.isAuthenticated).toBe(null);
         });
 
         it('has null username initially', async () => {
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             expect(authStore.username).toBe(null);
         });
 
         it('has null userRole initially', async () => {
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             expect(authStore.userRole).toBe(null);
         });
 
@@ -96,7 +96,7 @@ describe('auth store', () => {
             };
             sessionStorageData['authState'] = JSON.stringify(authState);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             expect(authStore.isAuthenticated).toBe(true);
             expect(authStore.username).toBe('testuser');
@@ -120,7 +120,7 @@ describe('auth store', () => {
                 error: null,
             });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             const result = await authStore.login('testuser', 'password123');
 
@@ -144,7 +144,7 @@ describe('auth store', () => {
                 error: null,
             });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.login('testuser', 'password123');
 
             expect(sessionStorage.setItem).toHaveBeenCalledWith('authState', expect.stringContaining('testuser'));
@@ -156,7 +156,7 @@ describe('auth store', () => {
                 error: { detail: 'Invalid credentials' },
             });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             await expect(authStore.login('baduser', 'badpass')).rejects.toBeDefined();
         });
@@ -169,7 +169,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
 
             const restoreConsole = suppressConsoleWarn();
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.login('testuser', 'password123');
 
             expect(result).toBe(false);
@@ -185,7 +185,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
 
             const restoreConsole = suppressConsoleWarn();
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.login('testuser', 'password123');
 
             expect(result).toBe(true);
@@ -203,7 +203,7 @@ describe('auth store', () => {
                 error: null,
             });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.login('testuser', 'mypassword');
 
             expect(mockLoginApi).toHaveBeenCalledWith({
@@ -224,7 +224,7 @@ describe('auth store', () => {
             });
             mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             await authStore.login('testuser', 'password');
             expect(authStore.isAuthenticated).toBe(true);
@@ -238,7 +238,7 @@ describe('auth store', () => {
         it('clears sessionStorage on logout', async () => {
             mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.logout();
 
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
@@ -257,7 +257,7 @@ describe('auth store', () => {
             });
             mockLogoutApi.mockRejectedValue(new Error('Network error'));
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             await authStore.login('testuser', 'password');
             await authStore.logout();
@@ -271,7 +271,7 @@ describe('auth store', () => {
         it('returns true when verification succeeds', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.verifyAuth(true);
 
             expect(result).toBe(true);
@@ -280,7 +280,7 @@ describe('auth store', () => {
         it('returns false and clears state on a 401', async () => {
             mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.verifyAuth(true);
 
             expect(result).toBe(false);
@@ -291,7 +291,7 @@ describe('auth store', () => {
         it('uses cache when not force refreshing', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             await authStore.verifyAuth(true);
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
@@ -303,7 +303,7 @@ describe('auth store', () => {
         it('bypasses cache when force refreshing', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             await authStore.verifyAuth(true);
             await authStore.verifyAuth(true);
@@ -319,7 +319,7 @@ describe('auth store', () => {
 
             mockGetProfileApi.mockResolvedValueOnce({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
 
             const firstResult = await authStore.verifyAuth(true);
             expect(firstResult).toBe(true);
@@ -339,7 +339,7 @@ describe('auth store', () => {
             const restoreConsole = suppressConsoleWarn();
             mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.verifyAuth(true);
 
             expect(result).toBe(false);
@@ -353,7 +353,7 @@ describe('auth store', () => {
         it('returns false when no persisted auth and verification fails', async () => {
             mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(false);
@@ -362,7 +362,7 @@ describe('auth store', () => {
         it('returns true when no persisted auth but verification succeeds', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(true);
@@ -372,7 +372,7 @@ describe('auth store', () => {
         it('only initializes once', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.initialize();
             await authStore.initialize();
             await authStore.initialize();
@@ -395,7 +395,7 @@ describe('auth store', () => {
                     ),
             );
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const results = await Promise.all([authStore.initialize(), authStore.initialize(), authStore.initialize()]);
 
             expect(results).toEqual([true, true, true]);
@@ -419,7 +419,7 @@ describe('auth store', () => {
                 error: null,
             });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(true);
@@ -441,7 +441,7 @@ describe('auth store', () => {
 
             mockGetProfileApi.mockResolvedValue(UNAUTHORIZED);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(false);
@@ -465,7 +465,7 @@ describe('auth store', () => {
 
             mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(true);
@@ -491,7 +491,7 @@ describe('auth store', () => {
 
             mockGetProfileApi.mockResolvedValue(NETWORK_ERROR);
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.initialize();
 
             expect(result).toBe(false);
@@ -505,7 +505,7 @@ describe('auth store', () => {
         it('returns immediately if already initialized', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.initialize();
 
             const result = await authStore.waitForInit();
@@ -516,7 +516,7 @@ describe('auth store', () => {
         it('initializes if not started', async () => {
             mockGetProfileApi.mockResolvedValue({ data: PROFILE_RESPONSE, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             const result = await authStore.waitForInit();
 
             expect(result).toBe(true);
@@ -528,7 +528,7 @@ describe('auth store', () => {
         it('calls clearUserSettings on logout', async () => {
             mockLogoutApi.mockResolvedValue({ data: {}, error: null });
 
-            const { authStore } = await import('$stores/auth.svelte');
+            const { authStore } = await import('#stores/auth.svelte.ts');
             await authStore.logout();
 
             expect(mockClearUserSettings).toHaveBeenCalled();

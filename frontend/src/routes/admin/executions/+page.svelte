@@ -1,0 +1,213 @@
+<script lang="ts">
+    import { onMount, untrack } from 'svelte';
+    import { ExecutionStatus, QueuePriority } from '#lib/api/index.ts';
+    import Spinner from '#components/Spinner.svelte';
+    import Pagination from '#components/Pagination.svelte';
+    import { RefreshCw } from '@lucide/svelte';
+    import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '#lib/admin/constants.ts';
+    import { createExecutionsStore } from '#lib/admin/stores/executionsStore.svelte.ts';
+    import { formatEnumLabel, formatTimestamp, truncate } from '#lib/formatters.ts';
+
+    const store = createExecutionsStore();
+
+    const statusColors: Record<ExecutionStatus, string> = {
+        queued: 'badge-info',
+        scheduled: 'badge-info',
+        running: 'badge-warning',
+        completed: 'badge-success',
+        failed: 'badge-danger',
+        timeout: 'badge-danger',
+        cancelled: 'badge-neutral',
+        error: 'badge-danger',
+    };
+
+    const priorityOptions = Object.values(QueuePriority);
+
+    let totalPages = $derived(Math.ceil(store.total / store.pagination.pageSize));
+
+    let prevFilters = $state({ status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch });
+
+    $effect(() => {
+        const current = { status: store.statusFilter, priority: store.priorityFilter, search: store.userSearch };
+        if (
+            current.status !== prevFilters.status ||
+            current.priority !== prevFilters.priority ||
+            current.search !== prevFilters.search
+        ) {
+            prevFilters = current;
+            untrack(() => {
+                store.pagination.currentPage = 1;
+                store.loadExecutions();
+            });
+        }
+    });
+
+    onMount(() => {
+        store.loadData();
+    });
+</script>
+
+<div class="container mx-auto px-2 sm:px-4 pb-8">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">Execution Management</h1>
+        <button
+            type="button"
+            onclick={() => store.loadData()}
+            class="btn btn-outline flex items-center gap-2"
+            disabled={store.loading}
+        >
+            {#if store.loading}<Spinner size="small" />{:else}<RefreshCw class="w-4 h-4" />{/if}Refresh
+        </button>
+    </div>
+
+    <!-- Queue Status Cards -->
+    {#if store.queueStatus}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="card p-4 {STATS_BG_COLORS.blue}">
+                <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">Queue Depth</div>
+                <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                    {store.queueStatus.queue_depth}
+                </div>
+            </div>
+            <div class="card p-4 {STATS_BG_COLORS.green}">
+                <div class="text-sm {STATS_TEXT_COLORS.green} font-medium">Active</div>
+                <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                    {store.queueStatus.active_count} / {store.queueStatus.max_concurrent}
+                </div>
+            </div>
+            <div class="card p-4 {STATS_BG_COLORS.purple}">
+                <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">By Priority</div>
+                <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
+                    {#each Object.entries(store.queueStatus.by_priority) as [priority, count]}
+                        <span class="mr-2">{priority}: {count}</span>
+                    {:else}
+                        <span class="text-fg-muted dark:text-dark-fg-muted">Empty</span>
+                    {/each}
+                </div>
+            </div>
+        </div>
+    {/if}
+
+    <!-- Filters -->
+    <div class="card mb-6">
+        <div class="p-4 flex flex-wrap gap-4 items-end">
+            <div>
+                <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >Status</label
+                >
+                <select id="status-filter" bind:value={store.statusFilter} class="form-select-standard">
+                    <option value="all">All</option>
+                    {#each Object.values(ExecutionStatus) as status (status)}
+                        <option value={status}>{formatEnumLabel(status)}</option>
+                    {/each}
+                </select>
+            </div>
+            <div>
+                <label
+                    for="priority-filter"
+                    class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label
+                >
+                <select id="priority-filter" bind:value={store.priorityFilter} class="form-select-standard">
+                    <option value="all">All</option>
+                    {#each priorityOptions as p}
+                        <option value={p}>{p}</option>
+                    {/each}
+                </select>
+            </div>
+            <div>
+                <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >User ID</label
+                >
+                <input
+                    id="user-search"
+                    type="text"
+                    bind:value={store.userSearch}
+                    placeholder="Filter by user ID"
+                    class="form-input-standard"
+                />
+            </div>
+            <button type="button" onclick={() => store.resetFilters()} class="btn btn-outline text-sm">Reset</button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+        <div class="p-3 sm:p-6">
+            <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                Executions ({store.total})
+            </h3>
+
+            {#if store.loading && store.executions.length === 0}
+                <div class="flex justify-center py-8"><Spinner size="large" /></div>
+            {:else if store.executions.length === 0}
+                <p class="empty-state">No executions found</p>
+            {:else}
+                <div class="table-container">
+                    <table class="table text-sm">
+                        <thead class="table-header">
+                            <tr>
+                                <th scope="col" class="table-header-cell-sm">ID</th>
+                                <th scope="col" class="table-header-cell-sm">User</th>
+                                <th scope="col" class="table-header-cell-sm">Language</th>
+                                <th scope="col" class="table-header-cell-sm">Status</th>
+                                <th scope="col" class="table-header-cell-sm">Priority</th>
+                                <th scope="col" class="table-header-cell-sm">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table-body">
+                            {#each store.executions as exec}
+                                <tr class="table-row">
+                                    <td class="table-cell-sm font-mono text-xs">{truncate(exec.execution_id, 12)}</td>
+                                    <td class="table-cell-sm text-xs"
+                                        >{exec.user_id ? truncate(exec.user_id, 12) : '-'}</td
+                                    >
+                                    <td class="table-cell-sm">{exec.lang} {exec.lang_version}</td>
+                                    <td class="table-cell-sm">
+                                        <span class="badge {statusColors[exec.status] || 'badge-neutral'}"
+                                            >{exec.status}</span
+                                        >
+                                    </td>
+                                    <td class="table-cell-sm">
+                                        <select
+                                            value={exec.priority}
+                                            onchange={(e) =>
+                                                store.updatePriority(
+                                                    exec.execution_id,
+                                                    (e.target as HTMLSelectElement).value as QueuePriority,
+                                                )}
+                                            class="form-select-standard text-xs py-1 px-2"
+                                            aria-label="Priority for {exec.execution_id}"
+                                        >
+                                            {#each priorityOptions as p}
+                                                <option value={p}>{p}</option>
+                                            {/each}
+                                        </select>
+                                    </td>
+                                    <td class="table-cell-sm text-xs">{formatTimestamp(exec.created_at)}</td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </table>
+                </div>
+            {/if}
+
+            {#if totalPages > 1}
+                <div class="mt-4 border-t divider pt-4">
+                    <Pagination
+                        currentPage={store.pagination.currentPage}
+                        {totalPages}
+                        totalItems={store.total}
+                        bind:pageSize={store.pagination.pageSize}
+                        onPageChange={(page) => store.pagination.handlePageChange(page, () => store.loadExecutions())}
+                        onPageSizeChange={() => {
+                            store.pagination.currentPage = 1;
+                            store.loadExecutions();
+                        }}
+                        pageSizeOptions={[10, 20, 50, 100]}
+                        itemName="executions"
+                    />
+                </div>
+            {/if}
+        </div>
+    </div>
+</div>

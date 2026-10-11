@@ -6,7 +6,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Svelte 5 (runes), TypeScript 6 strict, Rollup, TailwindCSS 4, Node 26 |
+| Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
 | Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
@@ -38,15 +38,19 @@ backend/
 
 frontend/
 ├── e2e/                     # Playwright specs and fixtures.ts
+├── static/                  # favicon, robots.txt, sitemap.xml, copied into the build as is
+├── vite.config.ts           # SvelteKit plugin (adapter-static, CSP), Tailwind, dev server
 └── src/
-    ├── routes/              # Page components (admin/ pages included)
+    ├── app.html             # Page template
+    ├── hooks.client.ts      # init (API interceptors) and handleError
+    ├── routes/              # SvelteKit routes: +page.svelte per page, (auth)/ and admin/ guarded by +layout.ts
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
     ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
     ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
     ├── lib/editor/          # Execution state, languages, runtime helpers (newestVersion)
     ├── lib/notifications/   # Notification SSE stream
-    ├── stores/              # auth, errorStore, notificationStore, theme, userSettings (.svelte.ts)
-    ├── utils/               # meta.ts (page meta tags)
+    ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
+    ├── stores/              # auth, notificationStore, theme, userSettings (.svelte.ts)
     └── styles/              # Global CSS
 ```
 
@@ -63,7 +67,7 @@ uv run python -m scripts.check_orphan_modules        # dead code (must pass)
 
 # Frontend (from frontend/)
 npm ci                    # install deps
-npm run dev               # watch build + HTTPS server on :5001 (see note below)
+npm run dev               # Vite dev server with HMR on :5001 (see note below)
 npm run build             # production build
 npm run check             # svelte-check, 0 errors and 0 warnings required
 npm run lint              # ESLint
@@ -85,7 +89,7 @@ npm run test:e2e          # Playwright E2E, needs the running stack
 ./deploy.sh types                # regenerate frontend/src/lib/api/ from that spec
 ```
 
-`npm run dev` proxies /api to `backend:443` and needs the CA at /shared_ca/ca.pem, both of which exist only inside the compose network, so on the host it exits. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
+`npm run dev` serves HTTPS when ./certs/server.key and server.crt exist and proxies /api to `https://backend:443`, a hostname that only resolves inside the compose network, so on the host the API calls fail. The compose `frontend` service already serves a production build on :5001; rebuild it with `./deploy.sh dev --build` after frontend changes.
 
 Plain `uv run pytest` also collects tests/e2e, which needs the full stack, so always pass a path. E2E tests run inside the backend container against a running stack, the way CI does it (CI copies config.test.toml over config.toml before starting the stack):
 
@@ -455,7 +459,7 @@ class ExecutionService:
 - `Settings.SUPPORTED_RUNTIMES` and `ExecutionRequest` validation both derive from `LANGUAGE_SPECS`. Removing a version makes new executions, retries and saved-script writes on it fail with 422; stored scripts still load
 - Per-language pod settings go in the spec's optional `pod` key as a `PodRuntimeConfig` (env, tmp_size, min_cpu, min_memory, min_timeout_seconds). `POD_RUNTIME_CONFIGS` exposes them and the pod builder raises limits to those minimums. Only Go sets one today
 - Scripts mount at `/scripts/main.<ext>`. Every language needs an `EXAMPLE_SCRIPTS` entry, and the Python example must parse on every offered version
-- The frontend picks the newest version with `newestVersion()` from `$lib/editor/runtimes`, so it doesn't rely on API ordering
+- The frontend picks the newest version with `newestVersion()` from `#lib/editor/runtimes.ts`, so it doesn't rely on API ordering
 
 ## Backend: Settings (TOML, secrets from env)
 
@@ -611,16 +615,16 @@ Strict mode plus extra strictness in `tsconfig.json`:
 - `"noImplicitReturns": true`
 - `"verbatimModuleSyntax": true`: use `import type` for type-only imports
 
-Path aliases (always use them, never relative `../../lib/`):
+Imports go through the package.json subpath imports (SvelteKit 3 dropped `$lib`), always with the file extension; never relative `../../lib/`:
 ```text
-$lib        = src/lib
-$components = src/components
-$stores     = src/stores
-$routes     = src/routes
-$utils      = src/utils
-$styles     = src/styles
-$test       = src/__tests__
+#lib/*        = src/lib/*         e.g. #lib/api/index.ts, #lib/formatters.ts
+#components/* = src/components/*  e.g. #components/Header.svelte
+#stores/*     = src/stores/*      e.g. #stores/auth.svelte.ts
+#routes/*     = src/routes/*      e.g. #routes/admin/users/+page.svelte (tests)
+#test/*       = src/__tests__/*   e.g. #test/test-utils.ts
 ```
+
+`tsconfig.json` extends `$app/tsconfig`, which `svelte-kit sync` generates; `npm run check` and `npm run lint` run it first.
 
 Use `interface` for object shapes, `type` for unions/intersections/aliases. Define prop interfaces explicitly before `$props()`.
 
@@ -637,10 +641,10 @@ Hard rule: `docs/reference/openapi.json` and everything under `frontend/src/lib/
 
 Function names are derived from URL paths: `getUserRateLimitsApiV1AdminRateLimitsUserIdGet`.
 
-Anything that comes from the backend comes from `$lib/api`, never from a hand-written copy: types, enum values, validation rules, defaults, URLs and SSE streams. The generator emits runtime enums and a Zod schema per model, and the index re-exports the client and the schemas, so the copies have nothing to add and only drift.
+Anything that comes from the backend comes from `#lib/api/index.ts`, never from a hand-written copy: types, enum values, validation rules, defaults, URLs and SSE streams. The generator emits runtime enums and a Zod schema per model, and the index re-exports the client and the schemas, so the copies have nothing to add and only drift.
 
 ```typescript
-import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportExportFormatGetData } from '$lib/api';
+import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportExportFormatGetData } from '#lib/api/index.ts';
 
 Object.values(UserRole);                        // option lists, never a literal array
 zUserCreate.safeParse(form);                    // the spec's rules (email format, minLength)
@@ -652,8 +656,8 @@ client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/
 UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for badge colors) are fine, since the compiler flags a missing value.
 
 ```typescript
-import { someApiEndpoint } from '$lib/api';
-import { unwrap, unwrapOr } from '$lib/api-interceptors';
+import { someApiEndpoint } from '#lib/api/index.ts';
+import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
 
 // unwrap: throws on error, use in event handlers (the interceptor shows the toast)
 const data = unwrap(await someApiEndpoint({ body: payload }));
@@ -683,32 +687,26 @@ For the login and register endpoints the interceptor skips only the 401, network
 
 ## Frontend: Auth Store
 
-- Auth state lives in `$stores/auth.svelte.ts` and persists to `sessionStorage` under one key, `authState`, as a JSON blob (`isAuthenticated`, `username`, `userId`, `userRole`, `userEmail`, `csrfToken`, `timestamp`)
+- Auth state lives in `#stores/auth.svelte.ts` and persists to `sessionStorage` under one key, `authState`, as a JSON blob (`isAuthenticated`, `username`, `userId`, `userRole`, `userEmail`, `csrfToken`, `timestamp`)
 - `login(username, password): Promise<boolean>` throws the API error on failure and returns `false` if the follow-up profile check fails
 - `verifyAuth()` has a 30-second cache; on a network error it returns the cached result (offline-first)
 - `authStore.waitForInit()` awaits one-time initialization before checking auth
 
 ## Frontend: Routing
 
-Uses `@mateothegreat/svelte5-router`. Routes are defined in `App.svelte`:
-```typescript
-const requireAuth = async () => {
-    await authStore.waitForInit();
-    if (!authStore.isAuthenticated) {
-        const currentPath = window.location.pathname + window.location.search;
-        if (currentPath !== '/login' && currentPath !== '/register') {
-            sessionStorage.setItem('redirectAfterLogin', currentPath);
-        }
-        goto('/login');
-        return false;
-    }
-    return true;
-};
+SvelteKit's filesystem router: a page is `src/routes/<path>/+page.svelte`, and the root `+layout.ts` sets `ssr = false`, so it's a client-rendered SPA served through adapter-static's `200.html` fallback. Guards are `load` functions, which run before the page mounts:
 
-{ path: '/editor', component: Editor, hooks: { pre: requireAuth } }
+```typescript
+// src/routes/(auth)/+layout.ts guards /editor, /settings, /notifications; admin/+layout.ts uses requireAdmin
+import { requireAuth } from '#lib/auth-guard.ts';
+import type { LayoutLoad } from './$types';
+
+export const load: LayoutLoad = async ({ url }) => {
+    await requireAuth(url);
+};
 ```
 
-Navigation: `goto('/path')` programmatically, the `use:route` directive on links.
+Navigation: plain `<a href>` for links (SvelteKit handles them), `goto('/path')` from `$app/navigation` in code, and `page` from `$app/state` for the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
 
 ## Testing
 
@@ -760,13 +758,14 @@ const mocks = vi.hoisted(() => ({
     someApiFunction: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api/index.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
     someApiFunction: (...args: unknown[]) => mocks.someApiFunction(...args),
 }));
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `$lib/api` (SDK functions only; enums, Zod schemas and the client stay real), `$lib/api-interceptors`, `svelte-sonner` and the router, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock`, and spread `importOriginal()` into a `$lib/api` or `$lib/formatters` factory so the real exports stay available
+- `vitest.setup.ts` already mocks `#lib/api/index.ts` (SDK functions only; enums, Zod schemas and the client stay real), `#lib/api-interceptors.ts`, `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

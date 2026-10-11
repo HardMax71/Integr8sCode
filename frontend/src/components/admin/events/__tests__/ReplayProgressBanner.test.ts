@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
-import type { EventReplayStatusResponse } from '$lib/api';
+import { user } from '#test/test-utils.ts';
+import type { EventReplayStatusResponse } from '#lib/api/index.ts';
 
-import ReplayProgressBanner from '$components/admin/events/ReplayProgressBanner.svelte';
+import ReplayProgressBanner from '#components/admin/events/ReplayProgressBanner.svelte';
 
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
     return {
@@ -150,7 +150,7 @@ describe('ReplayProgressBanner', () => {
                     execution_results: [
                         {
                             execution_id: 'exec-x',
-                            status: status as import('$lib/api').ExecutionStatus,
+                            status: status as import('#lib/api/index.ts').ExecutionStatus,
                             stdout: null,
                             stderr: null,
                             lang: 'python',

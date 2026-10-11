@@ -1,9 +1,9 @@
 <script lang="ts">
-    import { route, goto } from '@mateothegreat/svelte5-router';
-    import { authStore } from '$stores/auth.svelte';
-    import { themeStore, toggleTheme } from '$stores/theme.svelte';
+    import { goto } from '$app/navigation';
+    import { authStore } from '#stores/auth.svelte.ts';
+    import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
     import { fade } from 'svelte/transition';
-    import NotificationCenter from '$components/NotificationCenter.svelte';
+    import NotificationCenter from '#components/NotificationCenter.svelte';
     import {
         Sun,
         Moon,
@@ -76,7 +76,7 @@
     <div class="app-container h-full">
         <nav class="flex items-center justify-between h-full">
             <div class="flex items-center shrink-0">
-                <a href="/" use:route onclick={closeMenu} class="flex items-center space-x-2 group">
+                <a href="/" onclick={closeMenu} class="flex items-center space-x-2 group">
                     <img src="/favicon.png" alt="Integr8sCode Logo" class={logoImgClass} />
                     <span
                         class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200"
@@ -184,7 +184,6 @@
                                             {/if}
                                             <a
                                                 href="/settings"
-                                                use:route
                                                 onclick={() => (showUserDropdown = false)}
                                                 class="btn btn-secondary-outline btn-sm flex-1 text-center"
                                             >
@@ -203,15 +202,8 @@
                             {/if}
                         </div>
                     {:else}
-                        <a href="/login" use:route onclick={closeMenu} class="btn btn-secondary-outline btn-sm">
-                            Login
-                        </a>
-                        <a
-                            href="/register"
-                            use:route
-                            onclick={closeMenu}
-                            class="btn btn-primary btn-sm hover:text-white"
-                        >
+                        <a href="/login" onclick={closeMenu} class="btn btn-secondary-outline btn-sm"> Login </a>
+                        <a href="/register" onclick={closeMenu} class="btn btn-primary btn-sm hover:text-white">
                             Register
                         </a>
                     {/if}
@@ -260,7 +252,6 @@
                         {#if authStore.userRole === 'admin'}
                             <a
                                 href="/admin/events"
-                                use:route
                                 onclick={closeMenu}
                                 class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                             >
@@ -269,7 +260,6 @@
                         {/if}
                         <a
                             href="/settings"
-                            use:route
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700"
                         >
@@ -285,7 +275,6 @@
                     {:else}
                         <a
                             href="/login"
-                            use:route
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                         >
@@ -293,7 +282,6 @@
                         </a>
                         <a
                             href="/register"
-                            use:route
                             onclick={closeMenu}
                             class="block px-3 py-2 rounded-md text-base font-medium text-fg-default dark:text-dark-fg-default hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center"
                         >

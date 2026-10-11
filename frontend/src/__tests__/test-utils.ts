@@ -8,7 +8,7 @@
 
 import { vi, type Mock } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { EVENT_TYPES } from '$lib/admin/events/eventTypes';
+import { EVENT_TYPES } from '#lib/admin/events/eventTypes.ts';
 import type {
     ExecutionCompletedEvent,
     EventBrowseResponse,
@@ -22,7 +22,7 @@ import type {
     QueueStatusResponse,
     SagaStatusResponse,
     UserResponse,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 
 export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 

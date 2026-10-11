@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { createMockNotification } from '$test/test-utils';
+import { createMockNotification } from '#test/test-utils.ts';
 
 const mockGetNotifications = vi.fn();
 const mockMarkRead = vi.fn();
 const mockMarkAllRead = vi.fn();
 const mockDeleteNotification = vi.fn();
 
-vi.mock('$lib/api', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/api')>()),
+vi.mock('#lib/api/index.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
     getNotificationsApiV1NotificationsGet: (...args: unknown[]) => mockGetNotifications(...args),
     markNotificationReadApiV1NotificationsNotificationIdReadPut: (...args: unknown[]) => mockMarkRead(...args),
     markAllReadApiV1NotificationsMarkAllReadPost: (...args: unknown[]) => mockMarkAllRead(...args),
     deleteNotificationApiV1NotificationsNotificationIdDelete: (...args: unknown[]) => mockDeleteNotification(...args),
 }));
 
-vi.mock('$lib/api-interceptors', () => ({
+vi.mock('#lib/api-interceptors.ts', () => ({
     getErrorMessage: (err: unknown, fallback = 'An error occurred') => {
         if (!err) return fallback;
         if (typeof err === 'string') return err;
@@ -51,17 +51,17 @@ describe('notificationStore', () => {
 
     describe('initial state', () => {
         it('has empty notifications array', async () => {
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             expect(notificationStore.notifications).toEqual([]);
         });
 
         it('has loading false', async () => {
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             expect(notificationStore.loading).toBe(false);
         });
 
         it('has null error', async () => {
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             expect(notificationStore.error).toBe(null);
         });
     });
@@ -75,7 +75,7 @@ describe('notificationStore', () => {
                 });
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             const loadPromise = notificationStore.load();
 
             capturedLoading = notificationStore.loading;
@@ -94,7 +94,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             expect(notificationStore.notifications).toHaveLength(2);
@@ -107,7 +107,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             expect(notificationStore.loading).toBe(false);
@@ -120,7 +120,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             const result = await notificationStore.load();
 
             expect(result).toEqual(notifications);
@@ -132,7 +132,7 @@ describe('notificationStore', () => {
                 error: { detail: [{ msg: 'Failed to fetch' }] },
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             expect(notificationStore.error).toBe('Failed to fetch');
@@ -144,7 +144,7 @@ describe('notificationStore', () => {
                 error: { detail: [{ msg: 'Error' }] },
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             const result = await notificationStore.load();
 
             expect(result).toEqual([]);
@@ -156,7 +156,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load(50);
 
             expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -170,7 +170,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load(20, {
                 include_tags: ['important'],
                 exclude_tags: ['spam'],
@@ -195,7 +195,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const newNotification = createMockNotification({ notification_id: 'new', subject: 'New' });
@@ -216,7 +216,7 @@ describe('notificationStore', () => {
             });
             mockMarkRead.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const result = await notificationStore.markAsRead('n1');
@@ -232,7 +232,7 @@ describe('notificationStore', () => {
             });
             mockMarkRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const result = await notificationStore.markAsRead('n1');
@@ -244,7 +244,7 @@ describe('notificationStore', () => {
         it('calls API with correct notification ID', async () => {
             mockMarkRead.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.markAsRead('test-id-123');
 
             expect(mockMarkRead).toHaveBeenCalledWith({
@@ -266,7 +266,7 @@ describe('notificationStore', () => {
             });
             mockMarkAllRead.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const result = await notificationStore.markAllAsRead();
@@ -278,7 +278,7 @@ describe('notificationStore', () => {
         it('returns false on failure', async () => {
             mockMarkAllRead.mockResolvedValue({ error: { detail: 'Failed' } });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             const result = await notificationStore.markAllAsRead();
 
             expect(result).toBe(false);
@@ -298,7 +298,7 @@ describe('notificationStore', () => {
             });
             mockDeleteNotification.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const result = await notificationStore.delete('n1');
@@ -315,7 +315,7 @@ describe('notificationStore', () => {
             });
             mockDeleteNotification.mockResolvedValue({ error: { detail: 'Failed' } });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             const result = await notificationStore.delete('n1');
@@ -327,7 +327,7 @@ describe('notificationStore', () => {
         it('calls API with correct notification ID', async () => {
             mockDeleteNotification.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.delete('delete-me-123');
 
             expect(mockDeleteNotification).toHaveBeenCalledWith({
@@ -345,7 +345,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
             expect(notificationStore.notifications).toHaveLength(2);
 
@@ -362,7 +362,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.refresh();
 
             expect(mockGetNotifications).toHaveBeenCalledWith({
@@ -385,7 +385,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             expect(notificationStore.unreadCount).toBe(2);
@@ -400,7 +400,7 @@ describe('notificationStore', () => {
                 error: null,
             });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
 
             expect(notificationStore.unreadCount).toBe(0);
@@ -416,7 +416,7 @@ describe('notificationStore', () => {
             });
             mockMarkRead.mockResolvedValue({ error: null });
 
-            const { notificationStore } = await import('$stores/notificationStore.svelte');
+            const { notificationStore } = await import('#stores/notificationStore.svelte.ts');
             await notificationStore.load();
             expect(notificationStore.unreadCount).toBe(1);
 

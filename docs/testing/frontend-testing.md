@@ -16,7 +16,7 @@ Unit tests sit in `__tests__/` directories next to the code they cover, under `s
 
 Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts, theme.svelte.ts, errorStore.svelte.ts, notificationStore.svelte.ts, userSettings.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again.
 
-Shared helpers live in `src/__tests__/test-utils.ts`, imported as `$test/test-utils`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports.
+Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-utils.ts`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports.
 
 E2E specs live in `frontend/e2e/`, not under `src/`.
 
@@ -31,9 +31,9 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 [vitest.setup.ts](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts) runs before every test file and sets up global mocks, so most tests don't mock these themselves:
 
 - fake timers with `shouldAdvanceTime: true`
-- `$lib/api` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas and the client stay real; a test that overrides `$lib/api` spreads `importOriginal()` into its factory so those stay available
-- `$lib/api-interceptors` with simple `unwrap` and `unwrapOr` that throw or fall back the way the real ones do
-- `svelte-sonner`'s `toast` and the router's `goto` and `route`
+- `#lib/api/index.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas and the client stay real; a test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so those stay available
+- `#lib/api-interceptors.ts` with simple `unwrap` and `unwrapOr` that throw or fall back the way the real ones do
+- `svelte-sonner`'s `toast` and `goto` from `$app/navigation`; a test that needs `page` from `$app/state` mocks it in its own file
 - `localStorage`, `sessionStorage`, `matchMedia`, `ResizeObserver` and `IntersectionObserver`
 - `Element.prototype.animate`, which Svelte transitions call
 - a `:checked` polyfill for `<select>`, since happy-dom lacks it and `bind:value` depends on it
@@ -44,9 +44,9 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 ```typescript
 import { beforeEach, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { mockApi } from '$test/test-utils';
-import { registerApiV1AuthRegisterPost } from '$lib/api';
-import Register from '$routes/Register.svelte';
+import { mockApi } from '#test/test-utils.ts';
+import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
+import Register from '#routes/register/+page.svelte';
 
 beforeEach(() => {
     vi.clearAllMocks();

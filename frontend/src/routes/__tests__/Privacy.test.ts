@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import Privacy from '$routes/Privacy.svelte';
+import Privacy from '#routes/privacy/+page.svelte';
 
 const mocks = vi.hoisted(() => ({
     scrollTo: vi.fn(),

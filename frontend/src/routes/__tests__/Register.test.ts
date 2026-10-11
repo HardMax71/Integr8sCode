@@ -1,19 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '$test/test-utils';
+import { user, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import * as router from '@mateothegreat/svelte5-router';
-import * as meta from '$utils/meta';
-import Register from '$routes/Register.svelte';
+import * as navigation from '$app/navigation';
+import Register from '#routes/register/+page.svelte';
 
-import { registerApiV1AuthRegisterPost } from '$lib/api';
-import { getErrorMessage } from '$lib/api-interceptors';
+import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
+import { getErrorMessage } from '#lib/api-interceptors.ts';
 
 describe('Register', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockApi(registerApiV1AuthRegisterPost).ok({});
-        vi.spyOn(meta, 'updateMetaTags');
     });
 
     function renderRegister() {
@@ -78,7 +76,7 @@ describe('Register', () => {
             });
         });
         expect(toast.success).toHaveBeenCalledWith('Registration successful! Please log in.');
-        expect(router.goto).toHaveBeenCalledWith('/login');
+        expect(navigation.goto).toHaveBeenCalledWith('/login');
     });
 
     it('shows error in DOM on API error (no duplicate toast)', async () => {
@@ -125,13 +123,8 @@ describe('Register', () => {
         });
     });
 
-    it('calls updateMetaTags on mount', async () => {
+    it('sets the page title', async () => {
         await renderRegister();
-        await waitFor(() => {
-            expect(meta.updateMetaTags).toHaveBeenCalledWith(
-                'Register',
-                expect.stringContaining('Create a free Integr8sCode account'),
-            );
-        });
+        await waitFor(() => expect(document.title).toBe('Register - Integr8sCode'));
     });
 });

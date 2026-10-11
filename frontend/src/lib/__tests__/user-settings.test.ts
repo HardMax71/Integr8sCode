@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 const mockGetUserSettings = vi.fn();
 const mockUpdateUserSettings = vi.fn();
 
-vi.mock('$lib/api', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/api')>()),
+vi.mock('#lib/api/index.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
     getUserSettingsApiV1UserSettingsGet: (...args: unknown[]) =>
         (mockGetUserSettings as (...a: unknown[]) => unknown)(...args),
     updateUserSettingsApiV1UserSettingsPut: (...args: unknown[]) =>
@@ -13,13 +13,13 @@ vi.mock('$lib/api', async (importOriginal) => ({
 
 const mockSetUserSettings = vi.fn();
 
-vi.mock('$stores/userSettings.svelte', () => ({
+vi.mock('#stores/userSettings.svelte.ts', () => ({
     setUserSettings: (settings: unknown) => mockSetUserSettings(settings),
 }));
 
 const mockSetTheme = vi.fn();
 
-vi.mock('$stores/theme.svelte', () => ({
+vi.mock('#stores/theme.svelte.ts', () => ({
     setTheme: (theme: string) => mockSetTheme(theme),
 }));
 
@@ -27,11 +27,11 @@ const mockAuthStore = {
     isAuthenticated: true as boolean | null,
 };
 
-vi.mock('$stores/auth.svelte', () => ({
+vi.mock('#stores/auth.svelte.ts', () => ({
     authStore: mockAuthStore,
 }));
 
-vi.mock('$lib/api-interceptors', () => ({}));
+vi.mock('#lib/api-interceptors.ts', () => ({}));
 
 describe('user-settings', () => {
     beforeEach(async () => {
@@ -60,7 +60,7 @@ describe('user-settings', () => {
                 error: null,
             });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             await loadUserSettings();
 
             expect(mockGetUserSettings).toHaveBeenCalledWith({});
@@ -70,7 +70,7 @@ describe('user-settings', () => {
             const apiSettings = { theme: 'system', editor: { tab_size: 4 } };
             mockGetUserSettings.mockResolvedValue({ data: apiSettings, error: null });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             await loadUserSettings();
 
             expect(mockSetUserSettings).toHaveBeenCalledWith(apiSettings);
@@ -82,7 +82,7 @@ describe('user-settings', () => {
                 error: null,
             });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             await loadUserSettings();
 
             expect(mockSetTheme).toHaveBeenCalledWith('dark');
@@ -94,7 +94,7 @@ describe('user-settings', () => {
                 error: { detail: 'Not found' },
             });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             const result = await loadUserSettings();
 
             expect(result).toBeUndefined();
@@ -103,7 +103,7 @@ describe('user-settings', () => {
         it('returns undefined on network error', async () => {
             mockGetUserSettings.mockResolvedValue({ data: undefined, error: new Error('Network error') });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             const result = await loadUserSettings();
 
             expect(result).toBeUndefined();
@@ -115,7 +115,7 @@ describe('user-settings', () => {
                 error: null,
             });
 
-            const { loadUserSettings } = await import('$lib/user-settings');
+            const { loadUserSettings } = await import('#lib/user-settings.ts');
             await loadUserSettings();
 
             expect(mockSetTheme).toHaveBeenCalledWith('auto');
@@ -127,7 +127,7 @@ describe('user-settings', () => {
             mockAuthStore.isAuthenticated = false;
             vi.resetModules();
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             const result = await saveUserSettings({ theme: 'dark' });
 
             expect(result).toBe(false);
@@ -137,7 +137,7 @@ describe('user-settings', () => {
         it('calls API with partial settings', async () => {
             mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             await saveUserSettings({ theme: 'dark' });
 
             expect(mockUpdateUserSettings).toHaveBeenCalledWith({
@@ -149,7 +149,7 @@ describe('user-settings', () => {
             mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
             const editorSettings = { font_size: 16, tab_size: 2 };
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             await saveUserSettings({ editor: editorSettings });
 
             expect(mockUpdateUserSettings).toHaveBeenCalledWith({
@@ -160,7 +160,7 @@ describe('user-settings', () => {
         it('can save multiple settings at once', async () => {
             mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             await saveUserSettings({ theme: 'dark', editor: { font_size: 18 } });
 
             expect(mockUpdateUserSettings).toHaveBeenCalledWith({
@@ -172,8 +172,8 @@ describe('user-settings', () => {
             const responseData = { user_id: '123', theme: 'system' };
             mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
-            await saveUserSettings({ theme: 'system' as import('$lib/api').Theme });
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
+            await saveUserSettings({ theme: 'system' as import('#lib/api/index.ts').Theme });
 
             expect(mockSetUserSettings).toHaveBeenCalledWith(responseData);
         });
@@ -182,7 +182,7 @@ describe('user-settings', () => {
             const responseData = { user_id: '123', theme: 'dark' };
             mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             await saveUserSettings({ theme: 'dark' });
 
             expect(mockSetTheme).toHaveBeenCalledWith('dark');
@@ -192,7 +192,7 @@ describe('user-settings', () => {
             const responseData = { user_id: '123', theme: 'auto', editor: { font_size: 16 } };
             mockUpdateUserSettings.mockResolvedValue({ data: responseData, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             await saveUserSettings({ editor: { font_size: 16 } });
 
             expect(mockSetTheme).toHaveBeenCalledWith('auto');
@@ -201,7 +201,7 @@ describe('user-settings', () => {
         it('returns true on success', async () => {
             mockUpdateUserSettings.mockResolvedValue({ data: {}, error: null });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             const result = await saveUserSettings({ theme: 'light' });
 
             expect(result).toBe(true);
@@ -213,7 +213,7 @@ describe('user-settings', () => {
                 error: { detail: 'Server error' },
             });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             const result = await saveUserSettings({ theme: 'dark' });
 
             expect(result).toBe(false);
@@ -222,7 +222,7 @@ describe('user-settings', () => {
         it('returns false on network error', async () => {
             mockUpdateUserSettings.mockResolvedValue({ data: undefined, error: new Error('Network error') });
 
-            const { saveUserSettings } = await import('$lib/user-settings');
+            const { saveUserSettings } = await import('#lib/user-settings.ts');
             const result = await saveUserSettings({ theme: 'dark' });
 
             expect(result).toBe(false);

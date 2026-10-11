@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, type UserEventInstance } from '$test/test-utils';
+import { user, type UserEventInstance } from '#test/test-utils.ts';
 
 interface MockNotification {
     notification_id: string;
@@ -40,18 +40,18 @@ const mocks = vi.hoisted(() => ({
     mockStreamDisconnect: vi.fn(),
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: mocks.mockGoto }));
-vi.mock('$stores/auth.svelte', () => ({
+vi.mock('$app/navigation', () => ({ goto: mocks.mockGoto }));
+vi.mock('#stores/auth.svelte.ts', () => ({
     get authStore() {
         return mocks.mockAuthStore;
     },
 }));
-vi.mock('$stores/notificationStore.svelte', () => ({
+vi.mock('#stores/notificationStore.svelte.ts', () => ({
     get notificationStore() {
         return mocks.mockNotificationStore;
     },
 }));
-vi.mock('$lib/notifications/stream.svelte', () => ({
+vi.mock('#lib/notifications/stream.svelte.ts', () => ({
     notificationStream: {
         connect: mocks.mockStreamConnect,
         disconnect: mocks.mockStreamDisconnect,
@@ -67,7 +67,7 @@ vi.stubGlobal('Notification', {
     requestPermission: mockRequestPermission,
 });
 
-import NotificationCenter from '$components/NotificationCenter.svelte';
+import NotificationCenter from '#components/NotificationCenter.svelte';
 
 const createNotification = (overrides: Partial<MockNotification> = {}): MockNotification => ({
     notification_id: '1',

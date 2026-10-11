@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-vi.mock('$lib/user-settings', () => ({
+vi.mock('#lib/user-settings.ts', () => ({
     saveUserSettings: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('$stores/auth.svelte', () => ({
+vi.mock('#stores/auth.svelte.ts', () => ({
     authStore: {
         isAuthenticated: false,
     },
@@ -31,51 +31,51 @@ describe('theme store', () => {
 
     describe('initial state', () => {
         it('defaults to auto when no stored value', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             expect(themeStore.value).toBe('auto');
         });
 
         it('loads stored theme from localStorage', async () => {
             localStorageData['app-theme'] = 'dark';
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             expect(themeStore.value).toBe('dark');
         });
 
         it('ignores invalid stored values', async () => {
             localStorageData['app-theme'] = 'invalid';
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             expect(themeStore.value).toBe('auto');
         });
 
         it('accepts light theme from storage', async () => {
             localStorageData['app-theme'] = 'light';
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             expect(themeStore.value).toBe('light');
         });
     });
 
     describe('setTheme', () => {
         it('updates the store value', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('dark');
             expect(themeStore.value).toBe('dark');
         });
 
         it('persists to localStorage', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('dark');
             expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
         });
 
         it('applies dark class when set to dark', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('dark');
             expect(document.documentElement.classList.contains('dark')).toBe(true);
         });
 
         it('removes dark class when set to light', async () => {
             document.documentElement.classList.add('dark');
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('light');
             expect(document.documentElement.classList.contains('dark')).toBe(false);
         });
@@ -84,7 +84,7 @@ describe('theme store', () => {
     describe('toggleTheme', () => {
         it('cycles from light to dark', async () => {
             localStorageData['app-theme'] = 'light';
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
 
             themeStore.toggleTheme();
             expect(themeStore.value).toBe('dark');
@@ -92,20 +92,20 @@ describe('theme store', () => {
 
         it('cycles from dark to auto', async () => {
             localStorageData['app-theme'] = 'dark';
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
 
             themeStore.toggleTheme();
             expect(themeStore.value).toBe('auto');
         });
 
         it('cycles from auto to light', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.toggleTheme();
             expect(themeStore.value).toBe('light');
         });
 
         it('completes full cycle', async () => {
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
 
             expect(themeStore.value).toBe('auto');
             themeStore.toggleTheme();
@@ -119,7 +119,7 @@ describe('theme store', () => {
 
     describe('setTheme export', () => {
         it('sets theme to specified value', async () => {
-            const { themeStore, setTheme } = await import('$stores/theme.svelte');
+            const { themeStore, setTheme } = await import('#stores/theme.svelte.ts');
 
             setTheme('dark');
             expect(themeStore.value).toBe('dark');
@@ -132,7 +132,7 @@ describe('theme store', () => {
         });
 
         it('persists to localStorage', async () => {
-            const { setTheme } = await import('$stores/theme.svelte');
+            const { setTheme } = await import('#stores/theme.svelte.ts');
             setTheme('dark');
             expect(localStorage.setItem).toHaveBeenCalledWith('app-theme', 'dark');
         });
@@ -151,7 +151,7 @@ describe('theme store', () => {
                 dispatchEvent: vi.fn(),
             }));
 
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('auto');
 
             expect(document.documentElement.classList.contains('dark')).toBe(false);
@@ -170,7 +170,7 @@ describe('theme store', () => {
             }));
 
             vi.resetModules();
-            const { themeStore } = await import('$stores/theme.svelte');
+            const { themeStore } = await import('#stores/theme.svelte.ts');
             themeStore.setTheme('auto');
 
             expect(document.documentElement.classList.contains('dark')).toBe(true);

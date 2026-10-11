@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '$test/test-utils';
+import { user } from '#test/test-utils.ts';
 
-import ResourceLimits from '$components/editor/ResourceLimits.svelte';
+import ResourceLimits from '#components/editor/ResourceLimits.svelte';
 
 const LIMITS = {
     cpu_limit: '500m',

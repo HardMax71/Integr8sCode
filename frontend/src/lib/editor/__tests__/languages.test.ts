@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getLanguageExtension } from '$lib/editor/languages';
+import { getLanguageExtension } from '#lib/editor/languages.ts';
 
 describe('getLanguageExtension', () => {
     it.each(['python', 'node', 'go', 'ruby', 'bash'])('returns an extension for "%s"', (lang) => {

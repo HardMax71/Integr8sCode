@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { NotificationResponse } from '$lib/api';
-import { notificationStreamApiV1EventsNotificationsStreamGet } from '$lib/api';
-import { notificationStream } from '$lib/notifications/stream.svelte';
+import type { NotificationResponse } from '#lib/api/index.ts';
+import { notificationStreamApiV1EventsNotificationsStreamGet } from '#lib/api/index.ts';
+import { notificationStream } from '#lib/notifications/stream.svelte.ts';
 
 type NotificationCallback = (data: NotificationResponse) => void;
 

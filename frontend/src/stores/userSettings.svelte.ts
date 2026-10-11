@@ -1,4 +1,4 @@
-import type { UserSettings, EditorSettingsOutput } from '$lib/api';
+import type { UserSettings, EditorSettingsOutput } from '#lib/api/index.ts';
 
 const FALLBACK_EDITOR_SETTINGS: EditorSettingsOutput = {
     font_size: 14,

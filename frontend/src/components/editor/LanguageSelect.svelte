@@ -2,8 +2,8 @@
     import { fly } from 'svelte/transition';
     import { ChevronDown, ChevronRight } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
-    import type { LanguageInfo } from '$lib/api';
-    import { newestVersion } from '$lib/editor/runtimes';
+    import type { LanguageInfo } from '#lib/api/index.ts';
+    import { newestVersion } from '#lib/editor/runtimes.ts';
 
     interface Props {
         runtimes: Record<string, LanguageInfo>;

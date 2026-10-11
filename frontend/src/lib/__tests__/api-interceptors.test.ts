@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { getErrorMessage, unwrap, unwrapOr } =
-    await vi.importActual<typeof import('$lib/api-interceptors')>('$lib/api-interceptors');
+    await vi.importActual<typeof import('#lib/api-interceptors.ts')>('#lib/api-interceptors.ts');
 
 describe('getErrorMessage', () => {
     it.each([
@@ -111,7 +111,7 @@ describe('initializeApiInterceptors', () => {
         mockGoto = vi.fn();
         mockAuthStore = { isAuthenticated: true, csrfToken: 'csrf-123', clearAuth: vi.fn() };
 
-        vi.doMock('$lib/api', () => ({
+        vi.doMock('#lib/api/index.ts', () => ({
             client: {
                 setConfig: mockSetConfig,
                 interceptors: {
@@ -121,11 +121,11 @@ describe('initializeApiInterceptors', () => {
             },
         }));
         vi.doMock('svelte-sonner', () => ({ toast: mockToast }));
-        vi.doMock('@mateothegreat/svelte5-router', () => ({ goto: mockGoto }));
-        vi.doMock('$stores/auth.svelte', () => ({ authStore: mockAuthStore }));
-        vi.doUnmock('$lib/api-interceptors');
+        vi.doMock('$app/navigation', () => ({ goto: mockGoto }));
+        vi.doMock('#stores/auth.svelte.ts', () => ({ authStore: mockAuthStore }));
+        vi.doUnmock('#lib/api-interceptors.ts');
 
-        const mod = await import('$lib/api-interceptors');
+        const mod = await import('#lib/api-interceptors.ts');
         mod.initializeApiInterceptors();
 
         errorInterceptor = mockErrorUse.mock.calls[0]![0];

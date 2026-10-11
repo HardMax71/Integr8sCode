@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '$test/test-utils';
+import { user, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import AdminSettings from '$routes/admin/AdminSettings.svelte';
+import AdminSettings from '#routes/admin/settings/+page.svelte';
 
 function createMockSystemSettings() {
     return {
@@ -26,7 +26,7 @@ import {
     getSystemSettingsApiV1AdminSettingsGet,
     updateSystemSettingsApiV1AdminSettingsPut,
     resetSystemSettingsApiV1AdminSettingsResetPost,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
     mockConfirm: vi.fn(),
@@ -38,9 +38,7 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
-
-vi.mock('$routes/admin/AdminLayout.svelte', () => import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte'));
+vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
 describe('AdminSettings', () => {
     beforeEach(() => {

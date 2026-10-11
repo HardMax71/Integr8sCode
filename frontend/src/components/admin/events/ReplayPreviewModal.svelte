@@ -1,8 +1,8 @@
 <script lang="ts">
     import { TriangleAlert } from '@lucide/svelte';
-    import type { ReplayPreview } from '$lib/admin/stores/eventsStore.svelte';
-    import { formatTimestamp } from '$lib/formatters';
-    import Modal from '$components/Modal.svelte';
+    import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
+    import { formatTimestamp } from '#lib/formatters.ts';
+    import Modal from '#components/Modal.svelte';
 
     interface Props {
         preview: ReplayPreview | null;

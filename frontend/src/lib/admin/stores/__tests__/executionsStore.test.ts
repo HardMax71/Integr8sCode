@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { effect_root } from 'svelte/internal/client';
-import { createMockExecution, createMockQueueStatus, mockApi } from '$test/test-utils';
+import { createMockExecution, createMockQueueStatus, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import {
     listExecutionsApiV1AdminExecutionsGet,
     updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
     getQueueStatusApiV1AdminExecutionsQueueGet,
-} from '$lib/api';
-import { createExecutionsStore } from '$lib/admin/stores/executionsStore.svelte';
+} from '#lib/api/index.ts';
+import { createExecutionsStore } from '#lib/admin/stores/executionsStore.svelte.ts';
 
 function setupDefaultMocks() {
     mockApi(listExecutionsApiV1AdminExecutionsGet).ok({

@@ -1,8 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import type { ExecutionResult } from '$lib/api';
-    import type { ExecutionPhase } from '$lib/editor';
-    import Spinner from '$components/Spinner.svelte';
+    import type { ExecutionResult } from '#lib/api/index.ts';
+    import type { ExecutionPhase } from '#lib/editor/index.ts';
+    import Spinner from '#components/Spinner.svelte';
     import { TriangleAlert, FileText, Copy } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { createMockSaga } from '$test/test-utils';
-import type { SagaStatusResponse } from '$lib/api';
-import SagaStatsCards from '$components/admin/sagas/SagaStatsCards.svelte';
+import { createMockSaga } from '#test/test-utils.ts';
+import type { SagaStatusResponse } from '#lib/api/index.ts';
+import SagaStatsCards from '#components/admin/sagas/SagaStatsCards.svelte';
 
 const MockIcon = vi.hoisted(() => {
     const Comp = function () {
@@ -15,7 +15,7 @@ const MockIcon = vi.hoisted(() => {
     return Comp;
 });
 
-vi.mock('$lib/admin/sagas', () => ({
+vi.mock('#lib/admin/sagas/index.ts', () => ({
     SAGA_STATES: {
         created: { label: 'Created', color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
         running: { label: 'Running', color: 'badge-info', bgColor: 'bg-blue-50', icon: MockIcon },

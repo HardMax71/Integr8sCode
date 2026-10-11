@@ -20,14 +20,6 @@ flowchart LR
 
 Both server blocks listen on `5001 ssl` with the cert and key that cert-generator writes into `frontend/certs`. Compose publishes the port as `5001:5001`.
 
-### Nonce injection
-
-```nginx
---8<-- "frontend/nginx.conf.template:nonce_injection"
-```
-
-index.html carries the literal `**CSP_NONCE**` in four places: a `<meta name="csp-nonce">` tag, the inline `<style>`, the loader `<script>`, and the module `<script>` that Rollup injects for the hashed bundle. `sub_filter` swaps each one for `$request_id`, which nginx generates per request, and the CSP header uses the same value. CodeMirror reads the meta tag so the `<style>` tags it injects at runtime carry the nonce too.
-
 ### Security headers
 
 ```nginx
@@ -36,7 +28,7 @@ index.html carries the literal `**CSP_NONCE**` in four places: a `<meta name="cs
 
 There are six headers: CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy`. Only HSTS has `always`, so it's the only one nginx also sends on 4xx and 5xx responses.
 
-The CSP allows scripts that are same-origin or carry the nonce, and inline `<style>` elements only with the nonce. `style-src-elem` also allows same-origin stylesheets and `https://fonts.googleapis.com`, and `font-src` allows `https://fonts.gstatic.com`, because index.html loads Inter and Fira Code from Google Fonts. `style-src-attr 'unsafe-inline'` allows `style=""` attributes, which Svelte transitions and CodeMirror set at runtime and which nonces can't cover. That doesn't reopen the CSS exfiltration path through injected `<style>` tags, since those still need the nonce. Scanners that only know CSP Level 2 flag the `'unsafe-inline'` anyway.
+The page's real CSP isn't here. SvelteKit writes it into `200.html` as a `<meta>` tag with a hash of its inline bootstrap script, from the `csp` option in `vite.config.ts`; [Frontend build](../architecture/frontend-build.md#configuration) has the policy. A meta CSP can't carry `frame-ancestors`, so nginx sends just that directive as a header. The browser enforces both.
 
 No `location` block uses `add_header`. That's on purpose: one `add_header` inside a location drops every `add_header` inherited from the `server` block, so the security headers would disappear from that location. If a location ever needs its own response header, it has to repeat all six. `proxy_set_header` has the same all-or-nothing inheritance, which is why the SSE location repeats the proxy headers of `/api/`.
 
@@ -68,7 +60,7 @@ The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connecti
 --8<-- "frontend/nginx.conf.template:static_caching"
 ```
 
-Rollup writes the bundle as `build/[name]-[hash].js` and `build/bundle-<hash>.css`, so a year of caching is safe. HTML gets `expires -1` so the browser always fetches the current asset names. Every other path goes to `location /`, which serves index.html when no file matches and lets the Svelte router handle the path. A missing file with one of the asset or `.html` extensions above gets a 404 instead, since its regex location has no fallback.
+SvelteKit writes the JavaScript and CSS under `_app/immutable/` with content hashes in their names, so a year of caching is safe. HTML gets `expires -1` so the browser always fetches the current asset names. Every other path goes to `location /`, which serves `200.html` when no file matches and lets the SvelteKit router handle the path. A missing file with one of the asset or `.html` extensions above gets a 404 instead, since its regex location has no fallback.
 
 `location = /grafana` returns a 302 to `${GRAFANA_PUBLIC_URL}`. There's no `/grafana/` subpath proxy.
 
@@ -111,7 +103,7 @@ docker compose up -d --build frontend
 | Issue                                  | Likely cause                                  |
 |----------------------------------------|-----------------------------------------------|
 | SSE events arrive in batches or stop   | SSE location missing `proxy_buffering off` or the 24h timeouts |
-| CSP blocks a resource                  | Source missing from the policy; the browser console names the directive |
+| CSP blocks a resource                  | Source missing from the `csp` directives in `vite.config.ts`; the browser console names the directive |
 | 502 on `/api/`                         | Backend down: `docker compose logs backend`   |
 | 502 on the Grafana host                | Observability profile not running             |
 | Security headers missing on a route    | An `add_header` in that location; check with `curl -kI` |

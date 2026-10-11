@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { UserSettings } from '$lib/api';
+import type { UserSettings } from '#lib/api/index.ts';
 
 const DEFAULTS = {
     font_size: 14,
@@ -15,7 +15,7 @@ describe('userSettings store', () => {
     });
 
     it('starts as null', async () => {
-        const { userSettingsStore } = await import('$stores/userSettings.svelte');
+        const { userSettingsStore } = await import('#stores/userSettings.svelte.ts');
         expect(userSettingsStore.settings).toBeNull();
     });
 
@@ -23,13 +23,14 @@ describe('userSettings store', () => {
         ['object', { editor: { font_size: 16 } } as UserSettings],
         ['null', null],
     ])('setUserSettings accepts %s', async (_, value) => {
-        const { userSettingsStore, setUserSettings } = await import('$stores/userSettings.svelte');
+        const { userSettingsStore, setUserSettings } = await import('#stores/userSettings.svelte.ts');
         setUserSettings(value);
         expect(userSettingsStore.settings).toEqual(value);
     });
 
     it('clearUserSettings resets to null', async () => {
-        const { userSettingsStore, setUserSettings, clearUserSettings } = await import('$stores/userSettings.svelte');
+        const { userSettingsStore, setUserSettings, clearUserSettings } =
+            await import('#stores/userSettings.svelte.ts');
         setUserSettings({ editor: { font_size: 20 } } as UserSettings);
         clearUserSettings();
         expect(userSettingsStore.settings).toBeNull();
@@ -37,7 +38,7 @@ describe('userSettings store', () => {
 
     describe('editorSettings (derived)', () => {
         it('returns defaults when userSettings is null', async () => {
-            const { userSettingsStore } = await import('$stores/userSettings.svelte');
+            const { userSettingsStore } = await import('#stores/userSettings.svelte.ts');
             expect(userSettingsStore.editorSettings).toEqual(DEFAULTS);
         });
 
@@ -53,14 +54,14 @@ describe('userSettings store', () => {
                 { font_size: 18, tab_size: 8, use_tabs: true, word_wrap: false, show_line_numbers: false },
             ],
         ])('returns %s from API', async (_, editor, expected) => {
-            const { userSettingsStore, setUserSettings } = await import('$stores/userSettings.svelte');
+            const { userSettingsStore, setUserSettings } = await import('#stores/userSettings.svelte.ts');
             setUserSettings({ editor } as UserSettings);
             expect(userSettingsStore.editorSettings).toEqual(expected);
         });
 
         it('reverts to defaults when cleared', async () => {
             const { userSettingsStore, setUserSettings, clearUserSettings } =
-                await import('$stores/userSettings.svelte');
+                await import('#stores/userSettings.svelte.ts');
             setUserSettings({ editor: { font_size: 20 } } as UserSettings);
             clearUserSettings();
             expect(userSettingsStore.editorSettings).toEqual(DEFAULTS);

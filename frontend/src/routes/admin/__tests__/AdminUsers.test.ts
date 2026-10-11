@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user, selectOption, createMockUser, createMockUsers, mockApi } from '$test/test-utils';
+import { user, selectOption, createMockUser, createMockUsers, mockApi } from '#test/test-utils.ts';
 import {
     listUsersApiV1AdminUsersGet,
     createUserApiV1AdminUsersPost,
@@ -10,21 +10,16 @@ import {
     updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
     resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
     getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 
-vi.mock('$lib/formatters', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('$lib/formatters')>()),
+vi.mock('#lib/formatters.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/formatters.ts')>()),
     formatTimestamp: (ts: string) => (ts ? `formatted:${ts}` : 'N/A'),
 }));
 
 // Simple mock for AdminLayout that just renders children
-vi.mock('$routes/admin/AdminLayout.svelte', async () => {
-    const { default: MockLayout } = await import('$routes/admin/__tests__/mocks/MockAdminLayout.svelte');
-    return { default: MockLayout };
-});
-
-import AdminUsers from '$routes/admin/AdminUsers.svelte';
+import AdminUsers from '#routes/admin/users/+page.svelte';
 
 async function renderWithUsers(users = createMockUsers(3)) {
     mockApi(listUsersApiV1AdminUsersGet).ok({ users, total: users.length, offset: 0, limit: 20 });

@@ -5,8 +5,8 @@ import { cleanup } from '@testing-library/svelte';
 vi.useFakeTimers({ shouldAdvanceTime: true });
 
 // SDK calls become mocks; enums, Zod schemas and the client stay real
-vi.mock('$lib/api', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('$lib/api')>();
+vi.mock('#lib/api/index.ts', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('#lib/api/index.ts')>();
     return Object.fromEntries(
         Object.entries(actual).map(([name, value]) => [name, typeof value === 'function' ? vi.fn() : value]),
     );
@@ -17,9 +17,9 @@ vi.mock('svelte-sonner', () => ({
     toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
-vi.mock('@mateothegreat/svelte5-router', () => ({ route: () => {}, goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
-vi.mock('$lib/api-interceptors', () => ({
+vi.mock('#lib/api-interceptors.ts', () => ({
     unwrap: vi.fn((result: { data?: unknown; error?: unknown }) => {
         if (result.error) throw result.error;
         if (result.data === undefined) throw new Error('Unexpected empty response');

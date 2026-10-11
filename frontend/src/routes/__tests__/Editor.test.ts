@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '$test/test-utils';
+import { user, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import * as meta from '$utils/meta';
-import Editor from '$routes/Editor.svelte';
+import Editor from '#routes/(auth)/editor/+page.svelte';
 
 function createMockLimits() {
     return {
@@ -25,7 +24,7 @@ import {
     createSavedScriptApiV1ScriptsPost,
     updateSavedScriptApiV1ScriptsScriptIdPut,
     deleteSavedScriptApiV1ScriptsScriptIdDelete,
-} from '$lib/api';
+} from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
     mockConfirm: vi.fn(),
@@ -46,22 +45,22 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('$stores/auth.svelte', () => ({ authStore: mocks.mockAuthStore }));
+vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('$stores/userSettings.svelte', () => ({
+vi.mock('#stores/userSettings.svelte.ts', () => ({
     userSettingsStore: {
         settings: null,
         editorSettings: { font_size: 14, tab_size: 4, use_tabs: false, word_wrap: true, show_line_numbers: true },
     },
 }));
 
-vi.mock('$lib/editor', async () => ({
+vi.mock('#lib/editor/index.ts', async () => ({
     createExecutionState: () => mocks.mockExecutionState,
-    newestVersion: (await import('$lib/editor/runtimes')).newestVersion,
+    newestVersion: (await import('#lib/editor/runtimes.ts')).newestVersion,
 }));
 
-vi.mock('$components/editor', async () => {
-    const utils = await import('$test/test-utils');
+vi.mock('#components/editor/index.ts', async () => {
+    const utils = await import('#test/test-utils.ts');
     const components = utils.createMockNamedComponents({
         OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
         ResourceLimits: '<div data-testid="resource-limits"></div>',
@@ -76,13 +75,13 @@ vi.mock('$components/editor', async () => {
         head: '',
     });
     components.CodeMirrorEditor = CodeMirrorEditor;
-    const { default: EditorToolbar } = await import('$components/editor/EditorToolbar.svelte');
+    const { default: EditorToolbar } = await import('#components/editor/EditorToolbar.svelte');
     components.EditorToolbar = EditorToolbar;
-    const { default: ScriptActions } = await import('$components/editor/ScriptActions.svelte');
+    const { default: ScriptActions } = await import('#components/editor/ScriptActions.svelte');
     components.ScriptActions = ScriptActions;
-    const { default: SavedScripts } = await import('$components/editor/SavedScripts.svelte');
+    const { default: SavedScripts } = await import('#components/editor/SavedScripts.svelte');
     components.SavedScripts = SavedScripts;
-    const { default: LanguageSelect } = await import('$components/editor/LanguageSelect.svelte');
+    const { default: LanguageSelect } = await import('#components/editor/LanguageSelect.svelte');
     components.LanguageSelect = LanguageSelect;
     return components;
 });
@@ -91,7 +90,6 @@ describe('Editor', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
-        vi.spyOn(meta, 'updateMetaTags');
         vi.stubGlobal('confirm', mocks.mockConfirm);
         mocks.mockAuthStore.isAuthenticated = true;
         mocks.mockAuthStore.verifyAuth.mockResolvedValue(true);
@@ -147,14 +145,9 @@ describe('Editor', () => {
             });
         });
 
-        it('calls updateMetaTags with editor meta', async () => {
+        it('sets the page title', async () => {
             await renderEditor();
-            await waitFor(() => {
-                expect(meta.updateMetaTags).toHaveBeenCalledWith(
-                    'Code Editor',
-                    expect.stringContaining('Online code editor'),
-                );
-            });
+            await waitFor(() => expect(document.title).toBe('Code Editor - Integr8sCode'));
         });
     });
 

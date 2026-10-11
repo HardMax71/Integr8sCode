@@ -1,8 +1,8 @@
 <script lang="ts">
     import { Pencil, Clock, Trash } from '@lucide/svelte';
-    import type { UserResponse } from '$lib/api';
-    import { formatTimestamp } from '$lib/formatters';
-    import Spinner from '$components/Spinner.svelte';
+    import type { UserResponse } from '#lib/api/index.ts';
+    import { formatTimestamp } from '#lib/formatters.ts';
+    import Spinner from '#components/Spinner.svelte';
 
     interface Props {
         users: UserResponse[];

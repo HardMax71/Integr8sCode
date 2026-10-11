@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user, createMockUser } from '$test/test-utils';
-import RateLimitsModal from '$components/admin/users/RateLimitsModal.svelte';
+import { user, createMockUser } from '#test/test-utils.ts';
+import RateLimitsModal from '#components/admin/users/RateLimitsModal.svelte';
 
-vi.mock('$components/Spinner.svelte', async () => {
-    const utils = await import('$test/test-utils');
+vi.mock('#components/Spinner.svelte', async () => {
+    const utils = await import('#test/test-utils.ts');
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-import { getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet } from '$lib/api';
+import { getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet } from '#lib/api/index.ts';
 
-vi.mock('$lib/admin/rate-limits', () => ({
+vi.mock('#lib/admin/rate-limits/index.ts', () => ({
     getGroupColor: vi.fn(() => 'badge-neutral'),
     detectGroupFromEndpoint: vi.fn(() => 'general'),
     createEmptyRule: vi.fn(() => ({

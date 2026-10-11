@@ -248,7 +248,8 @@ if ! kubectl wait --for=jsonpath='{.data.token}' secret/integr8scode-sa-token -n
     echo "ERROR: the token controller did not fill secret integr8scode-sa-token"
     exit 1
 fi
-TOKEN=$(kubectl get secret integr8scode-sa-token -n default -o jsonpath='{.data.token}' | base64 -d)
+TOKEN_B64=$(kubectl get secret integr8scode-sa-token -n default -o jsonpath='{.data.token}')
+TOKEN=$(printf %s "$TOKEN_B64" | base64 -d)
 TOKEN_LEN=$(printf %s "$TOKEN" | wc -c | awk '{print $1}')
 TOKEN_HEAD=$(printf %s "$TOKEN" | cut -c1-10)
 echo "ServiceAccount token acquired (len=${TOKEN_LEN}, head=${TOKEN_HEAD}...)"

@@ -170,6 +170,6 @@ docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 docker image prune -af
 ```
 
-Pruning before the pull and after the deploy keeps only the images the running stack uses, since every merge pulls a new set and the disk filled up when the job kept three days of them. To roll back by hand, set `IMAGE_TAG` to an older CalVer or SHA tag and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
+Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, set `IMAGE_TAG` to an older CalVer or SHA tag and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
 
 To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).

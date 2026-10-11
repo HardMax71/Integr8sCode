@@ -183,6 +183,7 @@ nav:
   - Frontend:
     - Routing: frontend/routing.md
     - Error Handling: frontend/error-handling.md
+    - Server State: frontend/server-state.md
 
   - Testing:
     - Contract Testing: testing/contract-testing.md

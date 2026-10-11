@@ -1,8 +1,8 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
     import { Plus, X } from '@lucide/svelte';
+    import { createQuery } from '@tanstack/svelte-query';
     import {
-        getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+        getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions,
         RateLimitAlgorithm,
         type UserResponse,
         type UserRateLimitConfigResponse,
@@ -28,12 +28,8 @@
 
     let { open, user, config = $bindable(null), usage, loading, saving, onClose, onSave, onReset }: Props = $props();
 
-    let defaultRules = $state<RateLimitRuleResponse[]>([]);
-
-    onMount(async () => {
-        const { data } = await getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet({});
-        if (data) defaultRules = data;
-    });
+    const defaults = createQuery(() => getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions());
+    let defaultRules = $derived(defaults.data ?? []);
 
     let defaultRulesWithEffective = $derived.by(() => {
         const multiplier = config && config.global_multiplier > 0 ? config.global_multiplier : 1;

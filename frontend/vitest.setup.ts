@@ -1,12 +1,14 @@
 import '@testing-library/jest-dom/vitest';
 import { vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/svelte';
+import { queryClient } from '#lib/query-client.ts';
 
 vi.useFakeTimers({ shouldAdvanceTime: true });
 
-// SDK calls become mocks; enums, Zod schemas and the client stay real
-vi.mock('#lib/api/index.ts', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('#lib/api/index.ts')>();
+// SDK calls become mocks, both through the index and through the generated query options, which import
+// sdk.gen directly; enums, Zod schemas, the client and the query options themselves stay real
+vi.mock('#lib/api/sdk.gen.ts', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('#lib/api/sdk.gen.ts')>();
     return Object.fromEntries(
         Object.entries(actual).map(([name, value]) => [name, typeof value === 'function' ? vi.fn() : value]),
     );
@@ -173,9 +175,10 @@ Element.prototype.animate = vi.fn().mockImplementation(() => {
     return mock as unknown as Animation;
 });
 
-// Reset storage and DOM between every test
+// Reset storage, DOM and the query cache between every test
 beforeEach(() => {
     Object.keys(localStorageStore).forEach((key) => delete localStorageStore[key]);
     Object.keys(sessionStorageStore).forEach((key) => delete sessionStorageStore[key]);
     cleanup();
+    queryClient.clear();
 });

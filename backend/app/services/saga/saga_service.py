@@ -99,16 +99,21 @@ class SagaService:
         state: SagaState | None = None,
         *,
         execution_id: str | None = None,
+        search: str | None = None,
         limit: int = 100,
         skip: int = 0,
     ) -> SagaListResult:
-        """List sagas accessible by user, optionally filtered by execution_id."""
+        """List sagas accessible by user, optionally filtered by execution_id and a search term.
+
+        The search term matches saga ID, saga name, execution ID or error message, case-insensitively.
+        """
         if execution_id:
             if not await self.check_execution_access(execution_id, user):
                 raise SagaAccessDeniedError(execution_id, user.user_id)
-            return await self.saga_repo.get_sagas_by_execution(execution_id, state, limit=limit, skip=skip)
+            saga_filter = SagaFilter(state=state, execution_ids=[execution_id], search=search)
+            return await self.saga_repo.list_sagas(saga_filter, limit, skip)
 
-        saga_filter = SagaFilter(state=state)
+        saga_filter = SagaFilter(state=state, search=search)
 
         # Non-admin users can only see their own sagas
         if user.role != UserRole.ADMIN:

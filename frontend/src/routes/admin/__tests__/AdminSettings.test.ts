@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import AdminSettings from '#routes/admin/settings/+page.svelte';
 
@@ -52,7 +52,7 @@ describe('AdminSettings', () => {
     afterEach(() => vi.unstubAllGlobals());
 
     function renderAdminSettings() {
-        return render(AdminSettings);
+        return renderWithQueryClient(AdminSettings);
     }
 
     describe('Loading', () => {

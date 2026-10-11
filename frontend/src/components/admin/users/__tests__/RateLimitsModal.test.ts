@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { screen, waitFor } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user, createMockUser } from '#test/test-utils.ts';
+import { user, createMockUser, renderWithQueryClient } from '#test/test-utils.ts';
 import RateLimitsModal from '#components/admin/users/RateLimitsModal.svelte';
 
 vi.mock('#components/Spinner.svelte', async () => {
@@ -28,27 +28,25 @@ function renderModal(overrides: Record<string, unknown> = {}) {
     const onClose = vi.fn();
     const onSave = vi.fn();
     const onReset = vi.fn();
-    const result = render(RateLimitsModal, {
-        props: {
-            open: true,
-            user: createMockUser({ username: 'alice' }),
-            config: proxy({
-                user_id: 'user-1',
-                bypass_rate_limit: false,
-                global_multiplier: 1.0,
-                notes: '',
-                rules: [],
-                created_at: '2024-01-01T00:00:00Z',
-                updated_at: '2024-01-01T00:00:00Z',
-            }),
-            usage: null,
-            loading: false,
-            saving: false,
-            onClose,
-            onSave,
-            onReset,
-            ...overrides,
-        },
+    const result = renderWithQueryClient(RateLimitsModal, {
+        open: true,
+        user: createMockUser({ username: 'alice' }),
+        config: proxy({
+            user_id: 'user-1',
+            bypass_rate_limit: false,
+            global_multiplier: 1.0,
+            notes: '',
+            rules: [],
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+        }),
+        usage: null,
+        loading: false,
+        saving: false,
+        onClose,
+        onSave,
+        onReset,
+        ...overrides,
     });
     return { ...result, onClose, onSave, onReset };
 }

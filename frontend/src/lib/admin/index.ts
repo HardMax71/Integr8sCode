@@ -1,5 +1,4 @@
 // Shared admin utilities
-export * from '#lib/admin/pagination.svelte.ts';
 export * from '#lib/admin/constants.ts';
 
 // Domain-specific exports

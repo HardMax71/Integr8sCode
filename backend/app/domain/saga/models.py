@@ -50,6 +50,7 @@ class SagaFilter:
     created_after: datetime | None = None
     created_before: datetime | None = None
     error_status: bool | None = None
+    search: str | None = None
 
 
 @dataclass

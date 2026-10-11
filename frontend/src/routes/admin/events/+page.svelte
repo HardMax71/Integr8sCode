@@ -1,8 +1,6 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
-    import type { EventDetailResponse } from '#lib/api/index.ts';
+    import { onDestroy } from 'svelte';
     import Spinner from '#components/Spinner.svelte';
-    import { FilterPanel } from '#components/admin/index.ts';
     import {
         EventStatsCards,
         EventFilters,
@@ -21,39 +19,15 @@
 
     // UI-only state
     let showFilters = $state(false);
-    let selectedEvent = $state<EventDetailResponse | null>(null);
     let showExportMenu = $state(false);
-    let showUserOverview = $state(false);
-
-    let totalPages = $derived(Math.ceil(store.totalEvents / store.pagination.pageSize));
 
     // Show replay preview modal when store populates replayPreview
     let showReplayPreview = $derived(store.replayPreview !== null);
 
-    async function loadEventDetail(eventId: string): Promise<void> {
-        selectedEvent = await store.loadEventDetail(eventId);
-    }
-
-    function handlePreviewReplay(eventId: string): void {
-        store.replayEvent(eventId, true);
-    }
-
     function handleReplay(eventId: string, closeModal = false): void {
-        if (closeModal) selectedEvent = null;
+        if (closeModal) store.selectedEvent = null;
         store.replayEvent(eventId, false);
     }
-
-    async function handleUserOverview(userId: string): Promise<void> {
-        showUserOverview = true;
-        await store.openUserOverview(userId);
-        if (!store.userOverview) {
-            showUserOverview = false;
-        }
-    }
-
-    onMount(() => {
-        store.loadAll();
-    });
 
     onDestroy(() => store.cleanup());
 </script>
@@ -87,13 +61,13 @@
                     <Funnel size={16} />
                 </span>
                 <span class="hidden sm:inline">Filters</span>
-                {#if hasActiveFilters(store.filters)}
+                {#if hasActiveFilters(store.appliedFilters)}
                     <span
                         class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters
                             ? 'bg-white text-primary'
                             : 'bg-primary text-white'}"
                     >
-                        {getActiveFilterCount(store.filters)}
+                        {getActiveFilterCount(store.appliedFilters)}
                     </span>
                 {/if}
             </button>
@@ -142,11 +116,11 @@
 
             <button
                 type="button"
-                onclick={() => store.loadEvents()}
+                onclick={() => store.refresh()}
                 class="btn btn-sm sm:btn-md btn-primary flex items-center gap-1 sm:gap-2"
-                disabled={store.loading}
+                disabled={store.list.isFetching}
             >
-                {#if store.loading}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
+                {#if store.list.isFetching}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
                 <span class="hidden sm:inline">Refresh</span>
             </button>
         </div>
@@ -154,13 +128,13 @@
 
     <ReplayProgressBanner session={store.activeReplaySession} onClose={() => (store.activeReplaySession = null)} />
 
-    <EventStatsCards stats={store.stats} totalEvents={store.totalEvents} />
+    <EventStatsCards stats={store.stats.data ?? null} totalEvents={store.totalEvents} />
 
     <!-- Active filters summary (when filters panel closed) -->
-    {#if !showFilters && hasActiveFilters(store.filters)}
+    {#if !showFilters && hasActiveFilters(store.appliedFilters)}
         <div class="mb-4 flex flex-wrap items-center gap-2">
             <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
-            {#each getActiveFilterSummary(store.filters) as filter}
+            {#each getActiveFilterSummary(store.appliedFilters) as filter}
                 <span
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light"
                 >
@@ -195,26 +169,20 @@
 
             <EventsTable
                 events={store.events}
-                onViewDetails={loadEventDetail}
-                onPreviewReplay={handlePreviewReplay}
+                onViewDetails={(id) => store.openEventDetail(id)}
+                onPreviewReplay={(id) => store.replayEvent(id, true)}
                 onReplay={handleReplay}
                 onDelete={(id) => store.deleteEvent(id)}
-                onViewUser={handleUserOverview}
+                onViewUser={(id) => store.openUserOverview(id)}
             />
 
             <Pagination
-                currentPage={store.pagination.currentPage}
-                {totalPages}
+                currentPage={store.currentPage}
+                totalPages={store.totalPages}
                 totalItems={store.totalEvents}
-                bind:pageSize={store.pagination.pageSize}
-                onPageChange={(page) => {
-                    store.pagination.currentPage = page;
-                    store.loadEvents();
-                }}
-                onPageSizeChange={() => {
-                    store.pagination.currentPage = 1;
-                    store.loadEvents();
-                }}
+                bind:pageSize={store.pageSize}
+                onPageChange={(page) => (store.currentPage = page)}
+                onPageSizeChange={() => (store.currentPage = 1)}
                 itemName="events"
             />
         </div>
@@ -222,13 +190,13 @@
 </div>
 
 <!-- Modals -->
-{#if selectedEvent}
+{#if store.selectedEvent}
     <EventDetailsModal
-        event={selectedEvent}
-        open={!!selectedEvent}
-        onClose={() => (selectedEvent = null)}
+        event={store.selectedEvent}
+        open={store.selectedEvent !== null}
+        onClose={() => (store.selectedEvent = null)}
         onReplay={(id) => handleReplay(id, true)}
-        onViewRelated={loadEventDetail}
+        onViewRelated={(id) => store.openEventDetail(id)}
     />
 {/if}
 
@@ -243,11 +211,11 @@
     />
 {/if}
 
-{#if showUserOverview}
+{#if store.overviewUserId !== null}
     <UserOverviewModal
-        overview={store.userOverview}
-        loading={store.userOverviewLoading}
-        open={showUserOverview}
-        onClose={() => (showUserOverview = false)}
+        overview={store.userOverview.data ?? null}
+        loading={store.userOverview.isPending}
+        open={store.overviewUserId !== null}
+        onClose={() => (store.overviewUserId = null)}
     />
 {/if}

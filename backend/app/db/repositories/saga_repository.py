@@ -1,4 +1,5 @@
 import dataclasses
+import re
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -8,7 +9,7 @@ from beanie.exceptions import RevisionIdWasChanged
 from beanie.odm.enums import SortDirection
 from beanie.odm.operators.find import BaseFindOperator
 from beanie.odm.queries.update import UpdateResponse
-from beanie.operators import GT, LT, NE, Eq, In, Set
+from beanie.operators import GT, LT, NE, Eq, In, Or, RegEx, Set
 from monggregate import Pipeline, S
 
 from app.db.docs import ExecutionDocument, SagaDocument
@@ -54,6 +55,16 @@ class SagaRepository:
             conditions.append(NE(SagaDocument.error_message, None))
         elif saga_filter.error_status is False:
             conditions.append(Eq(SagaDocument.error_message, None))
+        if saga_filter.search:
+            pattern = re.escape(saga_filter.search)
+            conditions.append(
+                Or(
+                    RegEx(SagaDocument.saga_id, pattern, options="i"),
+                    RegEx(SagaDocument.saga_name, pattern, options="i"),
+                    RegEx(SagaDocument.execution_id, pattern, options="i"),
+                    RegEx(SagaDocument.error_message, pattern, options="i"),
+                )
+            )
         return conditions
 
     async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:

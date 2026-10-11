@@ -64,11 +64,17 @@ async def list_sagas(
     saga_service: FromDishka[SagaService],
     state: Annotated[SagaState | None, Query(description="Filter by saga state")] = None,
     execution_id: Annotated[str | None, Query(description="Filter by execution ID")] = None,
+    search: Annotated[
+        str | None,
+        Query(max_length=200, description="Search saga ID, saga name, execution ID or error message"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     skip: Annotated[int, Query(ge=0)] = 0,
 ) -> SagaListResponse:
     """List sagas accessible by the current user."""
-    result = await saga_service.list_user_sagas(user, state, execution_id=execution_id, limit=limit, skip=skip)
+    result = await saga_service.list_user_sagas(
+        user, state, execution_id=execution_id, search=search, limit=limit, skip=skip
+    )
     return SagaListResponse.model_validate(result)
 
 

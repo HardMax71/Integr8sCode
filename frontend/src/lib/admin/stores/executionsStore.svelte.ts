@@ -1,74 +1,88 @@
+import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
 import {
-    listExecutionsApiV1AdminExecutionsGet,
-    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
-    getQueueStatusApiV1AdminExecutionsQueueGet,
-    type AdminExecutionResponse,
-    type QueueStatusResponse,
-    type QueuePriority,
+    getQueueStatusApiV1AdminExecutionsQueueGetOptions,
+    getQueueStatusApiV1AdminExecutionsQueueGetQueryKey,
+    listExecutionsApiV1AdminExecutionsGetOptions,
+    listExecutionsApiV1AdminExecutionsGetQueryKey,
+    updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation,
     type ExecutionStatus,
+    type QueuePriority,
 } from '#lib/api/index.ts';
-import { unwrap, unwrapOr } from '#lib/api-interceptors.ts';
 import { toast } from 'svelte-sonner';
-import { createPaginationState } from '#lib/admin/pagination.svelte.ts';
-import { pollWhileVisible } from '#lib/admin/pollWhileVisible.svelte.ts';
 
 const POLL_INTERVAL_MS = 5_000;
 
 class ExecutionsStore {
-    executions = $state<AdminExecutionResponse[]>([]);
-    total = $state(0);
-    loading = $state(false);
-    queueStatus = $state<QueueStatusResponse | null>(null);
+    #statusFilter = $state<'all' | ExecutionStatus>('all');
+    #priorityFilter = $state<'all' | QueuePriority>('all');
+    #userSearch = $state('');
 
-    statusFilter = $state<'all' | ExecutionStatus>('all');
-    priorityFilter = $state<'all' | QueuePriority>('all');
-    userSearch = $state('');
+    currentPage = $state(1);
+    pageSize = $state(20);
 
-    pagination = createPaginationState({ initialPageSize: 20 });
+    #queryClient = useQueryClient();
 
-    constructor() {
-        pollWhileVisible(() => this.loadData(), POLL_INTERVAL_MS);
+    list = createQuery(() => ({
+        ...listExecutionsApiV1AdminExecutionsGetOptions({
+            query: {
+                limit: this.pageSize,
+                skip: (this.currentPage - 1) * this.pageSize,
+                status: this.statusFilter !== 'all' ? this.statusFilter : undefined,
+                priority: this.priorityFilter !== 'all' ? this.priorityFilter : undefined,
+                user_id: this.userSearch || undefined,
+            },
+        }),
+        placeholderData: keepPreviousData,
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+
+    queueStatus = createQuery(() => ({
+        ...getQueueStatusApiV1AdminExecutionsQueueGetOptions(),
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+
+    updatePriority = createMutation(() => ({
+        ...updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation(),
+        onSuccess: (_data, { body }) => {
+            toast.success(`Priority updated to ${body.priority}`);
+            return this.refresh();
+        },
+    }));
+
+    executions = $derived(this.list.data?.executions ?? []);
+    total = $derived(this.list.data?.total ?? 0);
+    totalPages = $derived(Math.ceil(this.total / this.pageSize));
+
+    // Each filter setter goes back to the first page, since the old page may not exist under the new filter
+    get statusFilter(): 'all' | ExecutionStatus {
+        return this.#statusFilter;
+    }
+    set statusFilter(value: 'all' | ExecutionStatus) {
+        this.#statusFilter = value;
+        this.currentPage = 1;
     }
 
-    async loadData(): Promise<void> {
-        await Promise.all([this.loadExecutions(), this.loadQueueStatus()]);
+    get priorityFilter(): 'all' | QueuePriority {
+        return this.#priorityFilter;
+    }
+    set priorityFilter(value: 'all' | QueuePriority) {
+        this.#priorityFilter = value;
+        this.currentPage = 1;
     }
 
-    async loadExecutions(): Promise<void> {
-        this.loading = true;
-        const data = unwrapOr(
-            await listExecutionsApiV1AdminExecutionsGet({
-                query: {
-                    limit: this.pagination.pageSize,
-                    skip: this.pagination.skip,
-                    status: this.statusFilter !== 'all' ? this.statusFilter : undefined,
-                    priority: this.priorityFilter !== 'all' ? this.priorityFilter : undefined,
-                    user_id: this.userSearch || undefined,
-                },
-            }),
-            null,
-        );
-        this.executions = data?.executions || [];
-        this.total = data?.total || 0;
-        this.loading = false;
+    get userSearch(): string {
+        return this.#userSearch;
+    }
+    set userSearch(value: string) {
+        this.#userSearch = value;
+        this.currentPage = 1;
     }
 
-    async loadQueueStatus(): Promise<void> {
-        const data = unwrapOr(await getQueueStatusApiV1AdminExecutionsQueueGet({}), null);
-        if (data) {
-            this.queueStatus = data;
-        }
-    }
-
-    async updatePriority(executionId: string, newPriority: QueuePriority): Promise<void> {
-        unwrap(
-            await updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut({
-                path: { execution_id: executionId },
-                body: { priority: newPriority },
-            }),
-        );
-        toast.success(`Priority updated to ${newPriority}`);
-        await this.loadData();
+    async refresh(): Promise<void> {
+        await Promise.all([
+            this.#queryClient.invalidateQueries({ queryKey: listExecutionsApiV1AdminExecutionsGetQueryKey() }),
+            this.#queryClient.invalidateQueries({ queryKey: getQueueStatusApiV1AdminExecutionsQueueGetQueryKey() }),
+        ]);
     }
 
     resetFilters(): void {

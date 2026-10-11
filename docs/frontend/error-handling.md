@@ -1,6 +1,6 @@
 # Frontend error handling
 
-API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. Most call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. A few callers check `error` themselves instead: the settings page, the admin settings page, the editor's script save and the rate limit modal on the admin users page.
+API errors are shown in one place, the error interceptor in `src/lib/api-interceptors.ts`. Components don't catch them. The admin pages go through TanStack Query, whose queries and mutations land in an error state after the interceptor has toasted ([Server state](server-state.md)). The rest call `unwrap` or `unwrapOr` on the `{ data, error }` result of the generated client and let the interceptor do the toasts. A few callers check `error` themselves instead: the settings page, the notification store and the editor's execution start.
 
 ## The interceptor
 
@@ -29,18 +29,18 @@ The request interceptor adds `X-CSRF-Token` from `authStore.csrfToken` to every 
 
 ```typescript
 // throws the error, so nothing after it runs
-const data = unwrap(await listUsersApiV1AdminUsersGet({}));
+const data = unwrap(await createSavedScriptApiV1ScriptsPost({ body }));
 
 // returns the fallback instead
-const data = unwrapOr(await browseEventsApiV1AdminEventsBrowsePost({ body: filters }), null);
+const data = unwrapOr(await listSavedScriptsApiV1ScriptsGet({}), null);
 ```
 
 `unwrapOr` suits loads where an empty state is fine. `unwrap` is for actions where the code after it assumes success. Reset loading flags before calling `unwrap`, since it may not return:
 
 ```typescript
-savingUser = false;
+saving = false;
 unwrap(result);
-showUserModal = false;   // only on success
+showModal = false;   // only on success
 ```
 
 `getErrorMessage(err, fallback)` turns an error into text: a string `detail`, formatted validation errors, or an `Error`'s message.

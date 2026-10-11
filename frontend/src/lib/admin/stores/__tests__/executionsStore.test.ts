@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { effect_root } from 'svelte/internal/client';
-import { createMockExecution, createMockQueueStatus, mockApi } from '#test/test-utils.ts';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createInQueryContext, createMockExecution, createMockQueueStatus, mockApi } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import {
     listExecutionsApiV1AdminExecutionsGet,
@@ -9,164 +8,142 @@ import {
 } from '#lib/api/index.ts';
 import { createExecutionsStore } from '#lib/admin/stores/executionsStore.svelte.ts';
 
-function setupDefaultMocks() {
-    mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
-        executions: [],
-        total: 0,
-        limit: 20,
-        skip: 0,
-        has_more: false,
-    });
-    mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
-    mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(null);
+const listExecutions = vi.mocked(listExecutionsApiV1AdminExecutionsGet);
+const getQueueStatus = vi.mocked(getQueueStatusApiV1AdminExecutionsQueueGet);
+const updatePriority = vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut);
+
+function lastQuery() {
+    return listExecutions.mock.lastCall?.[0]?.query;
 }
 
 describe('ExecutionsStore', () => {
-    let store: ReturnType<typeof createExecutionsStore>;
-    let teardown: () => void;
-
     beforeEach(() => {
         vi.clearAllMocks();
-        setupDefaultMocks();
+        mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+            executions: [],
+            total: 0,
+            limit: 20,
+            skip: 0,
+            has_more: false,
+        });
+        mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
+        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(createMockExecution());
     });
 
-    /**
-     * Creates a store with auto-refresh timers immediately cleared.
-     * The $effect fires synchronously inside effect_root, starting a
-     * setInterval. We clear all timers, reset mocks, and re-apply defaults
-     * so individual tests control timing explicitly.
-     */
     function createStore() {
-        teardown = effect_root(() => {
-            store = createExecutionsStore();
-        });
-        vi.clearAllTimers();
-        vi.clearAllMocks();
-        setupDefaultMocks();
+        return createInQueryContext(createExecutionsStore);
     }
-
-    function createStoreWithAutoRefresh() {
-        teardown = effect_root(() => {
-            store = createExecutionsStore();
-        });
-    }
-
-    afterEach(() => {
-        teardown?.();
-        vi.clearAllTimers();
-    });
 
     describe('initial state', () => {
-        it('starts with empty data', () => {
-            createStore();
+        it('starts with empty data and default filters', () => {
+            const { value: store } = createStore();
             expect(store.executions).toEqual([]);
             expect(store.total).toBe(0);
-            expect(store.loading).toBe(false);
-            expect(store.queueStatus).toBeNull();
-        });
-
-        it('starts with default filters', () => {
-            createStore();
+            expect(store.queueStatus.data).toBeUndefined();
             expect(store.statusFilter).toBe('all');
             expect(store.priorityFilter).toBe('all');
             expect(store.userSearch).toBe('');
+            expect(store.currentPage).toBe(1);
         });
     });
 
-    describe('loadData', () => {
+    describe('queries', () => {
         it('loads executions and queue status', async () => {
-            createStore();
             const execs = [createMockExecution()];
-            mockApi(listExecutionsApiV1AdminExecutionsGet).ok({ executions: execs, total: 1 });
-            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
+            mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
+                executions: execs,
+                total: 1,
+                limit: 20,
+                skip: 0,
+                has_more: false,
+            });
 
-            await store.loadData();
+            const { value: store } = createStore();
 
-            expect(store.executions).toEqual(execs);
+            await vi.waitFor(() => expect(store.executions).toEqual(execs));
             expect(store.total).toBe(1);
-            expect(store.queueStatus).toEqual(createMockQueueStatus());
+            await vi.waitFor(() => expect(store.queueStatus.data).toEqual(createMockQueueStatus()));
         });
 
-        it('handles empty API response', async () => {
+        it('leaves "all" filters out of the request', async () => {
             createStore();
-            mockApi(listExecutionsApiV1AdminExecutionsGet).ok(undefined);
-
-            await store.loadExecutions();
-
-            expect(store.executions).toEqual([]);
-            expect(store.total).toBe(0);
+            await vi.waitFor(() =>
+                expect(lastQuery()).toEqual({
+                    limit: 20,
+                    skip: 0,
+                    status: undefined,
+                    priority: undefined,
+                    user_id: undefined,
+                }),
+            );
         });
-    });
 
-    describe('loadExecutions with filters', () => {
-        it('passes status filter to API', async () => {
-            createStore();
+        it('sends the filters and the page to the API', async () => {
+            const { value: store } = createStore();
             store.statusFilter = 'running';
-            await store.loadExecutions();
-
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: expect.objectContaining({ status: 'running' }),
-                }),
-            );
-        });
-
-        it('passes priority filter to API', async () => {
-            createStore();
             store.priorityFilter = 'high';
-            await store.loadExecutions();
-
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: expect.objectContaining({ priority: 'high' }),
-                }),
-            );
-        });
-
-        it('passes user search to API', async () => {
-            createStore();
             store.userSearch = 'user-42';
-            await store.loadExecutions();
+            store.currentPage = 2;
 
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: expect.objectContaining({ user_id: 'user-42' }),
+            await vi.waitFor(() =>
+                expect(lastQuery()).toEqual({
+                    limit: 20,
+                    skip: 20,
+                    status: 'running',
+                    priority: 'high',
+                    user_id: 'user-42',
                 }),
             );
         });
 
-        it('omits undefined filter values when "all"', async () => {
-            createStore();
-            await store.loadExecutions();
+        it('goes back to the first page when a filter changes', () => {
+            const { value: store } = createStore();
+            store.currentPage = 3;
+            store.statusFilter = 'failed';
+            expect(store.currentPage).toBe(1);
 
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: expect.objectContaining({
-                        status: undefined,
-                        priority: undefined,
-                        user_id: undefined,
-                    }),
-                }),
-            );
+            store.currentPage = 3;
+            store.priorityFilter = 'low';
+            expect(store.currentPage).toBe(1);
+
+            store.currentPage = 3;
+            store.userSearch = 'u';
+            expect(store.currentPage).toBe(1);
         });
     });
 
     describe('updatePriority', () => {
-        it('calls API and reloads data', async () => {
-            createStore();
-            await store.updatePriority('exec-1', 'high');
+        it('calls the API, toasts and refetches the list and the queue', async () => {
+            const { value: store } = createStore();
+            await vi.waitFor(() => expect(store.list.isSuccess).toBe(true));
+            listExecutions.mockClear();
+            getQueueStatus.mockClear();
 
-            expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith({
-                path: { execution_id: 'exec-1' },
-                body: { priority: 'high' },
-            });
+            await store.updatePriority.mutateAsync({ path: { execution_id: 'exec-1' }, body: { priority: 'high' } });
+
+            expect(updatePriority).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { execution_id: 'exec-1' }, body: { priority: 'high' } }),
+            );
             expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Priority updated to high');
+            expect(listExecutions).toHaveBeenCalledTimes(1);
+            expect(getQueueStatus).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not toast success when the API fails', async () => {
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).err({ detail: 'Not found' });
+            const { value: store } = createStore();
+
+            await expect(
+                store.updatePriority.mutateAsync({ path: { execution_id: 'e1' }, body: { priority: 'low' } }),
+            ).rejects.toEqual({ detail: 'Not found' });
+
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
         });
     });
 
     describe('resetFilters', () => {
         it('resets all filters to defaults', () => {
-            createStore();
+            const { value: store } = createStore();
             store.statusFilter = 'running';
             store.priorityFilter = 'high';
             store.userSearch = 'test';
@@ -180,48 +157,26 @@ describe('ExecutionsStore', () => {
     });
 
     describe('auto-refresh', () => {
-        it('fires loadData on interval', async () => {
-            createStoreWithAutoRefresh();
-            vi.clearAllMocks();
-            setupDefaultMocks();
-
-            await vi.advanceTimersByTimeAsync(5000);
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(1);
-
-            await vi.advanceTimersByTimeAsync(5000);
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledTimes(2);
-        });
-
-        it('stops on teardown', async () => {
-            createStoreWithAutoRefresh();
-            setupDefaultMocks();
-
-            await vi.advanceTimersByTimeAsync(5000);
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled();
-
-            const callsBefore = vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length;
-            teardown();
-            vi.clearAllTimers();
-
-            await vi.advanceTimersByTimeAsync(10000);
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length).toBe(callsBefore);
-        });
-    });
-
-    describe('pagination', () => {
-        it('passes pagination params to API', async () => {
+        it('refetches every 5 seconds', async () => {
             createStore();
-            store.pagination.currentPage = 2;
-            await store.loadExecutions();
+            await vi.waitFor(() => expect(listExecutions).toHaveBeenCalledTimes(1));
 
-            expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: expect.objectContaining({
-                        skip: 20,
-                        limit: 20,
-                    }),
-                }),
-            );
+            await vi.advanceTimersByTimeAsync(5000);
+            expect(listExecutions).toHaveBeenCalledTimes(2);
+            expect(getQueueStatus).toHaveBeenCalledTimes(2);
+
+            await vi.advanceTimersByTimeAsync(5000);
+            expect(listExecutions).toHaveBeenCalledTimes(3);
+        });
+
+        it('stops when the page unmounts', async () => {
+            const { unmount } = createStore();
+            await vi.waitFor(() => expect(listExecutions).toHaveBeenCalledTimes(1));
+
+            unmount();
+            await vi.advanceTimersByTimeAsync(10000);
+
+            expect(listExecutions).toHaveBeenCalledTimes(1);
         });
     });
 });

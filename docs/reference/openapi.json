@@ -4116,6 +4116,25 @@
             "description": "Filter by execution ID"
           },
           {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search saga ID, saga name, execution ID or error message",
+              "title": "Search"
+            },
+            "description": "Search saga ID, saga name, execution ID or error message"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,

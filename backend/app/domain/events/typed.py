@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -33,7 +33,7 @@ class EventMetadata:
 
     service_name: str
     service_version: str
-    user_id: str = field(default_factory=lambda: str(uuid4()))
+    user_id: str
     environment: Environment = Environment.PRODUCTION
 
 

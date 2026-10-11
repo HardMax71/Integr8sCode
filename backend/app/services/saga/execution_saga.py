@@ -1,5 +1,4 @@
 from typing import Any
-from uuid import uuid4
 
 import structlog
 
@@ -171,7 +170,7 @@ class DeletePodCompensation(CompensationStep):
             metadata=EventMetadata(
                 service_name="saga-orchestrator",
                 service_version="1.0.0",
-                user_id=context.get("user_id") or str(uuid4()),
+                user_id=context.get("user_id"),
             ),
         )
 

@@ -53,6 +53,18 @@ describe('Login', () => {
         expect(sessionStorage.getItem('authMessage')).toBeNull();
     });
 
+    it('marks both fields as required when submitted empty, and sends nothing', async () => {
+        renderWithQueryClient(Login);
+        await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+        for (const field of ['Username', 'Password']) {
+            const input = screen.getByPlaceholderText(field);
+            await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'));
+            expect(input).toHaveAccessibleDescription('Required');
+        }
+        expect(vi.mocked(loginApiV1AuthLoginPost)).not.toHaveBeenCalled();
+    });
+
     it('posts the credentials, starts the session, shows toast, redirects to /editor', async () => {
         await submit();
 

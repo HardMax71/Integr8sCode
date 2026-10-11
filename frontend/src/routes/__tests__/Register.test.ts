@@ -37,17 +37,17 @@ describe('Register', () => {
             name: 'mismatched passwords',
             password: 'password1',
             confirmPassword: 'password2',
-            expectedError: 'Passwords do not match.',
-            toastType: 'error',
+            field: 'Confirm Password',
+            expectedError: 'Passwords do not match',
         },
         {
-            name: 'short password',
+            name: 'a short password',
             password: 'short',
             confirmPassword: 'short',
-            expectedError: 'Password must be at least 8 characters',
-            toastType: 'warning',
+            field: 'Password (min. 8 characters)',
+            expectedError: 'Must be at least 8 characters',
         },
-    ])('client-side validation: $name', async ({ password, confirmPassword, expectedError, toastType }) => {
+    ])('shows $name under the field and sends nothing', async ({ password, confirmPassword, field, expectedError }) => {
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'testuser');
         await user.type(screen.getByPlaceholderText('Email address'), 'test@email.com');
@@ -55,11 +55,21 @@ describe('Register', () => {
         await user.type(screen.getByPlaceholderText('Confirm Password'), confirmPassword);
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
-        await waitFor(() => {
-            expect(screen.getByText(expectedError)).toBeInTheDocument();
-        });
-        expect(toast[toastType as keyof typeof toast]).toHaveBeenCalledWith(expectedError);
+        const input = screen.getByPlaceholderText(field);
+        await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'));
+        expect(input).toHaveAccessibleDescription(expectedError);
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(toast.warning).not.toHaveBeenCalled();
         expect(vi.mocked(registerApiV1AuthRegisterPost)).not.toHaveBeenCalled();
+    });
+
+    it('marks an invalid email with the reason', async () => {
+        await renderRegister();
+        await user.type(screen.getByPlaceholderText('Email address'), 'not-an-email');
+        await user.click(screen.getByRole('button', { name: /create account/i }));
+
+        const input = screen.getByPlaceholderText('Email address');
+        await waitFor(() => expect(input).toHaveAccessibleDescription('Must be a valid email'));
     });
 
     it('calls API with correct payload, shows toast, and redirects on success', async () => {

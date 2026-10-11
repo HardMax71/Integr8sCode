@@ -1,16 +1,16 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import { createMutation } from '@tanstack/svelte-query';
-    import { loginApiV1AuthLoginPostMutation } from '#lib/api/index.ts';
+    import * as z from 'zod/mini';
+    import { Control, Field, FieldErrors, Label } from 'formsnap';
+    import { loginApiV1AuthLoginPostMutation, zBodyLoginApiV1AuthLoginPost } from '#lib/api/index.ts';
+    import { apiForm, filled } from '#lib/forms.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
     import { onMount } from 'svelte';
     import { getErrorMessage } from '#lib/api-interceptors.ts';
-
-    let username = $state('');
-    let password = $state('');
 
     const login = createMutation(() => ({
         ...loginApiV1AuthLoginPostMutation(),
@@ -44,10 +44,40 @@
         }
     });
 
-    function handleLogin() {
-        login.mutate({ body: { username, password, scope: '' } });
-    }
+    const { username, password } = zBodyLoginApiV1AuthLoginPost.shape;
+    const form = apiForm(z.object({ username: filled(username), password: filled(password) }), {
+        onSubmit: () => login.reset(),
+        onUpdate: ({ form: submitted }) => {
+            if (submitted.valid) login.mutate({ body: { ...submitted.data, scope: '' } });
+        },
+    });
+    const { form: formData, constraints, enhance } = form;
 </script>
+
+{#snippet field(
+    name: 'username' | 'password',
+    label: string,
+    type: string,
+    autocomplete: HTMLInputElement['autocomplete'],
+)}
+    <Field {form} {name}>
+        <Control id={name}>
+            {#snippet children({ props })}
+                <Label class="sr-only">{label}</Label>
+                <input
+                    {...props}
+                    {...$constraints[name]}
+                    {type}
+                    {autocomplete}
+                    placeholder={label}
+                    bind:value={$formData[name]}
+                    class="form-input-standard"
+                />
+            {/snippet}
+        </Control>
+        <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+    </Field>
+{/snippet}
 
 <svelte:head>
     <title>Login - Integr8sCode</title>
@@ -71,11 +101,10 @@
         </div>
 
         <form
+            method="post"
+            use:enhance
+            novalidate
             class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default"
-            onsubmit={(e) => {
-                e.preventDefault();
-                handleLogin();
-            }}
         >
             <input type="hidden" name="remember" value="true" hidden />
 
@@ -90,32 +119,8 @@
             {/if}
 
             <div class="space-y-2">
-                <div>
-                    <label for="username" class="sr-only">Username</label>
-                    <input
-                        class="form-input-standard"
-                        bind:value={username}
-                        id="username"
-                        name="username"
-                        type="text"
-                        autocomplete="username"
-                        required
-                        placeholder="Username"
-                    />
-                </div>
-                <div>
-                    <label for="password" class="sr-only">Password</label>
-                    <input
-                        class="form-input-standard"
-                        bind:value={password}
-                        id="password"
-                        name="password"
-                        type="password"
-                        autocomplete="current-password"
-                        required
-                        placeholder="Password"
-                    />
-                </div>
+                {@render field('username', 'Username', 'text', 'username')}
+                {@render field('password', 'Password', 'password', 'current-password')}
             </div>
 
             <div>

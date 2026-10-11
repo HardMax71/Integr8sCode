@@ -1,5 +1,4 @@
 <script lang="ts">
-    import * as z from 'zod/mini';
     import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';
     import {
         listUsersApiV1AdminUsersGetOptions,
@@ -14,13 +13,7 @@
         type UserResponse,
         type UserRateLimitConfigResponse,
         type UserRole,
-        type UserCreate,
-        type UserUpdate,
-        zUserCreate,
-        zUserUpdate,
     } from '#lib/api/index.ts';
-    import { firstIssue } from '#lib/validation.ts';
-    import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import { Plus, RefreshCw } from '@lucide/svelte';
     import {
@@ -51,14 +44,6 @@
     let rateLimitUser = $state<UserResponse | null>(null);
     let editingUser = $state<UserResponse | null>(null);
 
-    // User form state, with role and is_active defaulted the way the API defaults them
-    const blankUserForm = (): Required<UserCreate> => ({
-        username: '',
-        email: '',
-        password: '',
-        ...z.pick(zUserCreate, { role: true, is_active: true }).parse({}),
-    });
-    let userForm = $state<Required<UserCreate>>(blankUserForm());
     let cascadeDelete = $state(false);
 
     // Filters
@@ -180,47 +165,9 @@
     );
 
     // User CRUD
-    function openCreateUserModal(): void {
-        editingUser = null;
-        userForm = blankUserForm();
-        showUserModal = true;
-    }
-
-    function openEditUserModal(user: UserResponse): void {
+    function openUserModal(user: UserResponse | null): void {
         editingUser = user;
-        userForm = {
-            username: user.username,
-            email: user.email || '',
-            password: '',
-            role: user.role,
-            is_active: user.is_active !== false,
-        };
         showUserModal = true;
-    }
-
-    function saveUser(): void {
-        if (editingUser) {
-            const updateData: UserUpdate = {
-                username: userForm.username,
-                email: userForm.email || null,
-                role: userForm.role,
-                is_active: userForm.is_active,
-            };
-            if (userForm.password) updateData.password = userForm.password;
-            const parsed = zUserUpdate.safeParse(updateData);
-            if (!parsed.success) {
-                toast.error(firstIssue(parsed.error));
-                return;
-            }
-            updateUser.mutate({ path: { user_id: editingUser.user_id }, body: parsed.data });
-        } else {
-            const parsed = zUserCreate.safeParse(userForm);
-            if (!parsed.success) {
-                toast.error(firstIssue(parsed.error));
-                return;
-            }
-            createUser.mutate({ body: parsed.data });
-        }
     }
 
     function deleteUser(): void {
@@ -266,7 +213,7 @@
         <div class="flex gap-2 w-full sm:w-auto">
             <button
                 type="button"
-                onclick={openCreateUserModal}
+                onclick={() => openUserModal(null)}
                 class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center"
             >
                 <Plus class="w-4 h-4" />Create User
@@ -309,7 +256,7 @@
                     }
                 }
                 loading={usersQuery.isPending}
-                onEdit={openEditUserModal}
+                onEdit={openUserModal}
                 onRateLimits={openRateLimitModal}
                 onDelete={handleDelete}
             />
@@ -352,9 +299,9 @@
     <UserFormModal
         open={showUserModal}
         {editingUser}
-        bind:form={userForm}
         saving={createUser.isPending || updateUser.isPending}
         onClose={() => (showUserModal = false)}
-        onSave={saveUser}
+        onCreate={(body) => createUser.mutate({ body })}
+        onEdit={(userId, body) => updateUser.mutate({ path: { user_id: userId }, body })}
     />
 {/if}

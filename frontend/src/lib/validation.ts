@@ -2,8 +2,38 @@ import type { core } from 'zod/mini';
 import { formatEnumLabel } from '#lib/formatters.ts';
 
 /**
- * The first problem in a failed parse of a generated Zod schema, as one readable line.
- * The rule comes from the API spec; only the wording is ours.
+ * Our wording for a rule from the API spec, without the field's name, for a form that shows it under the field.
+ * Used as the error map of the forms' Zod adapter; undefined leaves Zod's own message.
+ * @param issue - The issue Zod raised
+ * @returns A sentence such as "Must be at least 8 characters"
+ */
+export function issueMessage(issue: core.$ZodRawIssue): string | undefined {
+    switch (issue.code) {
+        case 'too_small':
+            if (issue.origin !== 'string') return `Must be at least ${issue.minimum}`;
+            return issue.minimum === 1 ? 'Required' : `Must be at least ${issue.minimum} characters`;
+        case 'too_big':
+            return issue.origin === 'string'
+                ? `Must be at most ${issue.maximum} characters`
+                : `Must be at most ${issue.maximum}`;
+        case 'invalid_format':
+            return `Must be a valid ${issue.format}`;
+        case 'invalid_type':
+            return issue.input === undefined ? 'Required' : `Must be a ${issue.expected}`;
+        case 'invalid_union':
+            // From optionalText: report the API rule, not the empty alternative
+            for (const branch of issue.errors) {
+                const [first] = branch;
+                if (first && first.code !== 'invalid_value') return issueMessage(first as core.$ZodRawIssue);
+            }
+            return undefined;
+        default:
+            return undefined;
+    }
+}
+
+/**
+ * The first problem in a failed parse of a generated Zod schema, as one readable line with the field's name.
  * @param error - The error from `safeParse`
  * @returns A sentence such as "Password must be at least 8 characters"
  */
@@ -12,20 +42,9 @@ export function firstIssue(error: core.$ZodError): string {
     if (!issue) return 'Invalid input';
     const last = issue.path.at(-1);
     const field = typeof last === 'string' ? formatEnumLabel(last) : 'Value';
-    switch (issue.code) {
-        case 'too_small':
-            return issue.origin === 'string'
-                ? `${field} must be at least ${issue.minimum} characters`
-                : `${field} must be at least ${issue.minimum}`;
-        case 'too_big':
-            return issue.origin === 'string'
-                ? `${field} must be at most ${issue.maximum} characters`
-                : `${field} must be at most ${issue.maximum}`;
-        case 'invalid_format':
-            return `${field} must be a valid ${issue.format}`;
-        case 'invalid_type':
-            return `${field} must be a ${issue.expected}`;
-        default:
-            return `${field}: ${issue.message}`;
-    }
+    const message = issueMessage(issue as core.$ZodRawIssue);
+    if (!message) return `${field}: ${issue.message}`;
+    return message === 'Required'
+        ? `${field} is required`
+        : `${field} ${message.charAt(0).toLowerCase()}${message.slice(1)}`;
 }

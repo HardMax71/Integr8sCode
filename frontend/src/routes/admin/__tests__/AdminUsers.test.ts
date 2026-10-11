@@ -216,7 +216,7 @@ describe('AdminUsers', () => {
             await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
 
             await user.type(screen.getByLabelText(/Username/i), 'newuser');
-            await user.type(screen.getByLabelText(/^Email$/i), 'new@test.com');
+            await user.type(screen.getByLabelText(/^Email/i), 'new@test.com');
             await user.type(screen.getByLabelText(/^Password/i), 'password123');
 
             // Click the submit button in the dialog
@@ -259,7 +259,7 @@ describe('AdminUsers', () => {
             );
         });
 
-        it('rejects a short password from the API schema before calling the API', async () => {
+        it('shows a short password under the field, from the API schema, before calling the API', async () => {
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -271,7 +271,9 @@ describe('AdminUsers', () => {
             await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Create User/i }));
 
             await waitFor(() =>
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Password must be at least 8 characters'),
+                expect(screen.getByLabelText(/^Password/i)).toHaveAccessibleDescription(
+                    'Must be at least 8 characters',
+                ),
             );
             expect(vi.mocked(createUserApiV1AdminUsersPost)).not.toHaveBeenCalled();
         });

@@ -19,7 +19,12 @@ vi.mock('svelte-sonner', () => ({
     toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
-vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({
+    goto: vi.fn(),
+    beforeNavigate: vi.fn(),
+    afterNavigate: vi.fn(),
+    invalidateAll: vi.fn(),
+}));
 
 // The interceptors and the query client's error handler are wired up by hooks.client.ts, which tests don't run
 vi.mock('#lib/api-interceptors.ts', async (importOriginal) => ({

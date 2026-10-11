@@ -22,6 +22,8 @@ A component that runs queries needs the query client from context, so render it 
 
 Dialogs, menus, popovers and selects come from bits-ui and render their content in a portal at the end of `document.body`, outside the container `render` returns. Query them through `screen`, which searches the whole body. bits-ui decides whether a click landed outside by comparing its coordinates with the content's box, and happy-dom lays nothing out, so a click outside can't be simulated; the Playwright suite covers it. Escape, focus and keyboard navigation work in happy-dom.
 
+Forms run on superforms, which submits asynchronously, so assert their results with `waitFor`, and check a field's error with `toHaveAccessibleDescription`, since formsnap ties it to the input through `aria-describedby`. superforms also finishes a submit a moment after it shows the errors and writes the submitted values back, so wait for the errors before typing again. The setup mocks the `beforeNavigate`, `afterNavigate` and `invalidateAll` it imports. Forms say `method="post"` in lowercase: SvelteKit's `enhance` compares `form.method` with `"post"`, and happy-dom returns the attribute as written.
+
 E2E specs live in `frontend/e2e/`, not under `src/`.
 
 ## Configuration

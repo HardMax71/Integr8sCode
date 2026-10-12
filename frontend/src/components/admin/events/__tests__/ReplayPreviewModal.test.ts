@@ -4,7 +4,7 @@ import { user } from '#test/test-utils.ts';
 import { EventType } from '#lib/api/index.ts';
 
 import ReplayPreviewModal from '#components/admin/events/ReplayPreviewModal.svelte';
-import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
+import type { ReplayPreview } from '#components/admin/events/ReplayPreviewModal.svelte';
 
 function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
     return {

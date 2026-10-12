@@ -1,52 +1,41 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { proxy } from 'svelte/internal/client';
 import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import RateLimitsModal from '#components/admin/users/RateLimitsModal.svelte';
 import {
     getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+    getUserRateLimitsApiV1AdminRateLimitsUserIdGet,
+    resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
+    updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
     zRateLimitRuleRequest,
-    type RateLimitRuleResponse,
+    zRateLimitUpdateRequest,
     type UserRateLimitConfigResponse,
     type UserRateLimitsResponse,
 } from '#lib/api/index.ts';
 
-vi.mock('#components/Spinner.svelte', async () => {
-    const utils = await import('#test/test-utils.ts');
-    return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
-});
-
-const createConfig = (rules: RateLimitRuleResponse[] = []): UserRateLimitConfigResponse => ({
+const createConfig = (overrides: Partial<UserRateLimitConfigResponse> = {}): UserRateLimitConfigResponse => ({
     user_id: 'user-1',
     bypass_rate_limit: false,
     global_multiplier: 1,
     notes: '',
-    rules,
+    rules: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
 });
 
-const usage = (endpoint: string, remaining: number): UserRateLimitsResponse['current_usage'] => ({
-    [endpoint]: { algorithm: 'sliding_window', remaining },
-});
+const updateLimits = () => vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut);
 
-function renderModal(overrides: Record<string, unknown> = {}) {
-    const onClose = vi.fn();
-    const onSave = vi.fn();
-    const onReset = vi.fn();
-    const result = renderWithQueryClient(RateLimitsModal, {
-        open: true,
-        user: createMockUser({ username: 'alice' }),
-        config: proxy(createConfig()),
-        usage: null,
-        loading: false,
-        saving: false,
-        onClose,
-        onSave,
-        onReset,
-        ...overrides,
+function renderModal(limits: Partial<UserRateLimitsResponse> = {}) {
+    mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+        user_id: 'user-1',
+        rate_limit_config: createConfig(),
+        current_usage: {},
+        ...limits,
     });
-    return { ...result, onClose, onSave, onReset };
+    const onClose = vi.fn();
+    renderWithQueryClient(RateLimitsModal, { user: createMockUser({ user_id: 'user-1', username: 'alice' }), onClose });
+    return { onClose };
 }
 
 describe('RateLimitsModal', () => {
@@ -60,15 +49,18 @@ describe('RateLimitsModal', () => {
                 window_seconds: 60,
             }),
         ]);
+        mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok({
+            user_id: 'user-1',
+            updated: true,
+            config: createConfig(),
+        });
+        mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).ok({ message: 'reset' });
     });
 
-    it('does not render content when open is false', () => {
-        renderModal({ open: false });
-        expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
-    });
-
-    it('shows spinner when loading', () => {
-        renderModal({ loading: true, config: null });
+    it('shows a spinner while the limits load', () => {
+        mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).mock.mockImplementation(() => new Promise(() => {}));
+        renderWithQueryClient(RateLimitsModal, { user: createMockUser(), onClose: vi.fn() });
+        expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
         expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
     });
 
@@ -84,17 +76,24 @@ describe('RateLimitsModal', () => {
         ['Notes', 'label'],
         ['Endpoint Rate Limits', 'text'],
         ['Add Rule', 'text'],
-    ] as const)('shows %s element', (text, queryType) => {
+    ] as const)('shows %s element', async (text, queryType) => {
         renderModal();
+        await screen.findByText('Quick Settings');
         if (queryType === 'label') expect(screen.getByLabelText(text)).toBeInTheDocument();
         else expect(screen.getByText(text)).toBeInTheDocument();
     });
 
+    it('starts from the API defaults when the user has no config', async () => {
+        renderModal({ rate_limit_config: null });
+        expect(await screen.findByLabelText('Global Multiplier')).toHaveValue(
+            zRateLimitUpdateRequest.parse({}).global_multiplier,
+        );
+        expect(screen.getByLabelText('Bypass Rate Limit')).not.toBeChecked();
+    });
+
     it('shows default rules after mount', async () => {
         renderModal();
-        await waitFor(() => {
-            expect(screen.getByText('Default Global Rules')).toBeInTheDocument();
-        });
+        expect(await screen.findByText('Default Global Rules')).toBeInTheDocument();
     });
 
     it('labels each default rule field by its key', async () => {
@@ -106,16 +105,16 @@ describe('RateLimitsModal', () => {
             Group: 'api',
             Algorithm: 'sliding_window',
         };
-        await waitFor(() => expect(screen.getByText('Endpoint Pattern')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('/api/v1/*')).toBeInTheDocument());
         for (const [label, value] of Object.entries(shown)) {
             expect(screen.getByText(label).nextElementSibling?.textContent?.trim()).toBe(value);
         }
     });
 
-    it('labels a user rule by its keys and shows the algorithm value', () => {
+    it('labels a user rule by its keys and shows the algorithm value', async () => {
         renderModal({
-            config: proxy(
-                createConfig([
+            rate_limit_config: createConfig({
+                rules: [
                     zRateLimitRuleRequest.parse({
                         endpoint_pattern: '/api/v1/execute',
                         group: 'execution',
@@ -123,10 +122,10 @@ describe('RateLimitsModal', () => {
                         window_seconds: 30,
                         algorithm: 'token_bucket',
                     }),
-                ]),
-            ),
+                ],
+            }),
         });
-        expect(screen.getByText('Rules')).toBeInTheDocument();
+        expect(await screen.findByText('Rules')).toBeInTheDocument();
         expect(screen.getByLabelText('Endpoint Pattern')).toHaveValue('/api/v1/execute');
         expect(screen.getByLabelText('Requests')).toHaveValue(5);
         expect(screen.getByLabelText('Window Seconds')).toHaveValue(30);
@@ -135,52 +134,62 @@ describe('RateLimitsModal', () => {
         expect(screen.getByRole('checkbox', { name: 'Enabled' })).toBeChecked();
     });
 
-    it('shows current usage section when usage data provided', () => {
-        renderModal({
-            usage: usage('/api/v1/execute', 50),
-        });
-        expect(screen.getByText('Current Usage')).toBeInTheDocument();
+    it('shows current usage section when usage data provided', async () => {
+        renderModal({ current_usage: { '/api/v1/execute': { algorithm: 'sliding_window', remaining: 50 } } });
+        expect(await screen.findByText('Current Usage')).toBeInTheDocument();
         expect(screen.getByText('/api/v1/execute')).toBeInTheDocument();
         expect(screen.getByText('Remaining').nextElementSibling?.textContent?.trim()).toBe('50');
     });
 
-    it('hides current usage when no usage data', () => {
-        renderModal({ usage: null });
+    it('hides current usage when no usage data', async () => {
+        renderModal();
+        await screen.findByText('Quick Settings');
         expect(screen.queryByText('Current Usage')).not.toBeInTheDocument();
     });
 
-    it('shows Reset All Counters when usage exists', () => {
-        renderModal({
-            usage: usage('/api/v1/test', 10),
-        });
-        expect(screen.getByText('Reset All Counters')).toBeInTheDocument();
+    it('resets the counters for this user', async () => {
+        renderModal({ current_usage: { '/api/v1/test': { algorithm: 'sliding_window', remaining: 10 } } });
+        await user.click(await screen.findByText('Reset All Counters'));
+        await waitFor(() =>
+            expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { user_id: 'user-1' } }),
+            ),
+        );
     });
 
-    it('calls onSave when Save Changes clicked', async () => {
-        const { onSave } = renderModal();
+    it('saves the edited config and closes', async () => {
+        const { onClose } = renderModal();
+        await user.click(await screen.findByLabelText('Bypass Rate Limit'));
         await user.click(screen.getByText('Save Changes'));
-        expect(onSave).toHaveBeenCalledOnce();
+
+        await waitFor(() =>
+            expect(updateLimits()).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    path: { user_id: 'user-1' },
+                    body: expect.objectContaining({ bypass_rate_limit: true, global_multiplier: 1, rules: [] }),
+                }),
+            ),
+        );
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 
     it('calls onClose when Cancel clicked', async () => {
         const { onClose } = renderModal();
-        await user.click(screen.getByText('Cancel'));
+        await user.click(await screen.findByText('Cancel'));
         expect(onClose).toHaveBeenCalledOnce();
+        expect(updateLimits()).not.toHaveBeenCalled();
     });
 
-    it('shows Saving... when saving', () => {
-        renderModal({ saving: true });
-        expect(screen.getByText('Saving...')).toBeInTheDocument();
-    });
-
-    it('disables Save button when saving', () => {
-        renderModal({ saving: true });
-        expect(screen.getByText('Saving...').closest('button')).toBeDisabled();
+    it('shows Saving... and disables Save while saving', async () => {
+        mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).mock.mockImplementation(() => new Promise(() => {}));
+        renderModal();
+        await user.click(await screen.findByText('Save Changes'));
+        expect((await screen.findByText('Saving...')).closest('button')).toBeDisabled();
     });
 
     it('adds a rule from the spec defaults and lets the admin pick its group', async () => {
         renderModal();
-        await user.click(screen.getByText('Add Rule'));
+        await user.click(await screen.findByText('Add Rule'));
         const group = screen.getByRole('combobox', { name: 'Group' });
         expect(group).toHaveDisplayValue('api');
         expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveDisplayValue(
@@ -192,7 +201,7 @@ describe('RateLimitsModal', () => {
     });
 
     it('shows the effective requests once the multiplier changes', async () => {
-        renderModal({ config: proxy({ ...createConfig(), global_multiplier: 2 }) });
-        await waitFor(() => expect(screen.getByText('200')).toBeInTheDocument());
+        renderModal({ rate_limit_config: createConfig({ global_multiplier: 2 }) });
+        expect(await screen.findByText('200')).toBeInTheDocument();
     });
 });

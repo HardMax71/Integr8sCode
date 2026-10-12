@@ -149,7 +149,7 @@ describe('AdminExecutions', () => {
             await waitFor(() => {
                 expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        query: expect.objectContaining({ status: undefined }),
+                        query: expect.objectContaining({ status: null }),
                     }),
                 );
             });

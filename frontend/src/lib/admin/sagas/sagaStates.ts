@@ -53,4 +53,3 @@ export function getSagaStateInfo(state: SagaState): SagaStateConfig {
 }
 
 // Filter type for saga state filters - empty string means "all"
-export type SagaStateFilter = '' | SagaState;

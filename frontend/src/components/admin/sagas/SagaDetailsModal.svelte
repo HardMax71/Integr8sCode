@@ -1,18 +1,26 @@
 <script lang="ts">
+    import { createQuery } from '@tanstack/svelte-query';
     import { Check, X, Undo2 } from '@lucide/svelte';
-    import type { SagaStatusResponse } from '#lib/api/index.ts';
+    import { getSagaStatusApiV1SagasSagaIdGetOptions } from '#lib/api/index.ts';
     import { fieldTitle, formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
     import { getSagaStateInfo } from '#lib/admin/sagas/index.ts';
     import Modal from '#components/Modal.svelte';
 
     interface Props {
-        saga: SagaStatusResponse | null;
-        open: boolean;
+        sagaId: string;
         onClose: () => void;
         onViewExecution?: (executionId: string) => void;
     }
 
-    let { saga, open, onClose, onViewExecution }: Props = $props();
+    let { sagaId, onClose, onViewExecution }: Props = $props();
+
+    const details = createQuery(() => getSagaStatusApiV1SagasSagaIdGetOptions({ path: { saga_id: sagaId } }));
+
+    // A failed load already showed the interceptor's toast, so the modal closes instead of staying empty
+    $effect(() => {
+        if (details.isError) onClose();
+    });
+    const saga = $derived(details.data);
 
     function handleViewExecution(): void {
         if (saga) {
@@ -22,7 +30,7 @@
     }
 </script>
 
-<Modal {open} title="Saga Details" {onClose} size="lg">
+<Modal open title="Saga Details" {onClose} size="lg">
     {#snippet children()}
         {#if saga}
             {@const stateInfo = getSagaStateInfo(saga.state)}

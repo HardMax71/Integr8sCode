@@ -1,23 +1,36 @@
 <script lang="ts">
     import { untrack } from 'svelte';
+    import { createMutation, useQueryClient } from '@tanstack/svelte-query';
     import * as z from 'zod/mini';
     import { Control, Description, Field, FieldErrors, Label } from 'formsnap';
-    import { UserRole, zUserCreate, type UserCreate, type UserResponse, type UserUpdate } from '#lib/api/index.ts';
+    import {
+        UserRole,
+        createUserApiV1AdminUsersPostMutation,
+        listUsersApiV1AdminUsersGetQueryKey,
+        updateUserApiV1AdminUsersUserIdPutMutation,
+        zUserCreate,
+        type UserResponse,
+    } from '#lib/api/index.ts';
     import { apiForm, filled, optionalText } from '#lib/forms.ts';
     import { fieldTitle } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
-        open: boolean;
         editingUser: UserResponse | null;
-        saving: boolean;
         onClose: () => void;
-        onCreate: (body: UserCreate) => void;
-        onEdit: (userId: string, body: UserUpdate) => void;
     }
 
-    let { open, editingUser, saving, onClose, onCreate, onEdit }: Props = $props();
+    let { editingUser, onClose }: Props = $props();
+
+    const queryClient = useQueryClient();
+    const onSaved = () => {
+        onClose();
+        return queryClient.invalidateQueries({ queryKey: listUsersApiV1AdminUsersGetQueryKey() });
+    };
+    const create = createMutation(() => ({ ...createUserApiV1AdminUsersPostMutation(), onSuccess: onSaved }));
+    const update = createMutation(() => ({ ...updateUserApiV1AdminUsersUserIdPutMutation(), onSuccess: onSaved }));
+    const saving = $derived(create.isPending || update.isPending);
 
     // The page mounts the dialog per open, so the user it edits never changes
     const editing = untrack(() => editingUser);
@@ -39,15 +52,18 @@
                 if (!submitted.valid) return;
                 const data = submitted.data;
                 if (!editing) {
-                    onCreate(data);
+                    create.mutate({ body: data });
                     return;
                 }
-                onEdit(editing.user_id, {
-                    username: data.username,
-                    email: data.email,
-                    role: data.role,
-                    is_active: data.is_active,
-                    ...(data.password ? { password: data.password } : {}),
+                update.mutate({
+                    path: { user_id: editing.user_id },
+                    body: {
+                        username: data.username,
+                        email: data.email,
+                        role: data.role,
+                        is_active: data.is_active,
+                        ...(data.password ? { password: data.password } : {}),
+                    },
                 });
             },
         },
@@ -102,7 +118,7 @@
     </Field>
 {/snippet}
 
-<Modal {open} title={editing ? 'Edit User' : 'Create New User'} {onClose} size="sm">
+<Modal open title={editing ? 'Edit User' : 'Create New User'} {onClose} size="sm">
     {#snippet children()}
         <form method="post" use:enhance novalidate autocomplete="off">
             <div class="space-y-4">

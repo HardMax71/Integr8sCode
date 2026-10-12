@@ -200,7 +200,7 @@ describe('AdminSagas', () => {
             await waitFor(() => {
                 expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        query: expect.objectContaining({ state: undefined }),
+                        query: expect.objectContaining({ state: null }),
                     }),
                 );
             });

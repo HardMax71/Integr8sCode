@@ -1,27 +1,32 @@
 <script lang="ts">
-    import type { EventDetailResponse } from '#lib/api/index.ts';
+    import { createQuery } from '@tanstack/svelte-query';
+    import { getEventDetailApiV1AdminEventsEventIdGetOptions } from '#lib/api/index.ts';
     import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
     import { getEventTypeColor } from '#lib/admin/events/index.ts';
     import Modal from '#components/Modal.svelte';
     import EventTypeIcon from '#components/EventTypeIcon.svelte';
 
     interface Props {
-        event: EventDetailResponse | null;
-        open: boolean;
+        eventId: string;
         onClose: () => void;
         onReplay: (eventId: string) => void;
         onViewRelated: (eventId: string) => void;
     }
 
-    let { event, open, onClose, onReplay, onViewRelated }: Props = $props();
+    let { eventId, onClose, onReplay, onViewRelated }: Props = $props();
 
-    // Properly typed - no casts needed, API types are now correct
-    const eventData = $derived(event?.event);
-    const relatedEvents = $derived(event?.related_events ?? []);
+    const details = createQuery(() => getEventDetailApiV1AdminEventsEventIdGetOptions({ path: { event_id: eventId } }));
+
+    // A failed load already showed the interceptor's toast, so the modal closes instead of staying empty
+    $effect(() => {
+        if (details.isError) onClose();
+    });
+    const eventData = $derived(details.data?.event);
+    const relatedEvents = $derived(details.data?.related_events ?? []);
 </script>
 
-<Modal {open} title="Event Details" {onClose} size="lg">
-    {#if event && eventData}
+<Modal open title="Event Details" {onClose} size="lg">
+    {#if eventData}
         <div class="space-y-4">
             <div>
                 <h4 class="font-semibold mb-2">Basic Information</h4>

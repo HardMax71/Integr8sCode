@@ -1,14 +1,18 @@
 <script lang="ts">
     import { Plus, X } from '@lucide/svelte';
-    import { createQuery } from '@tanstack/svelte-query';
+    import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import {
         getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGetOptions,
+        getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey,
+        listUsersApiV1AdminUsersGetQueryKey,
+        resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation,
+        updateUserRateLimitsApiV1AdminRateLimitsUserIdPutMutation,
         EndpointGroup,
         RateLimitAlgorithm,
         zRateLimitUpdateRequest,
         type UserResponse,
         type UserRateLimitConfigResponse,
-        type UserRateLimitsResponse,
     } from '#lib/api/index.ts';
     import { getGroupColor, createEmptyRule } from '#lib/admin/rate-limits/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
@@ -16,24 +20,61 @@
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
-        open: boolean;
-        user: UserResponse | null;
-        config: UserRateLimitConfigResponse | null;
-        usage: UserRateLimitsResponse['current_usage'] | null;
-        loading: boolean;
-        saving: boolean;
+        user: UserResponse;
         onClose: () => void;
-        onSave: () => void;
-        onReset: () => void;
     }
 
-    let { open, user, config = $bindable(null), usage, loading, saving, onClose, onSave, onReset }: Props = $props();
-
-    const defaults = createQuery(() => getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions());
-    let defaultRules = $derived(defaults.data ?? []);
+    let { user, onClose }: Props = $props();
 
     const DEFAULT_MULTIPLIER = zRateLimitUpdateRequest.parse({}).global_multiplier;
+
+    const queryClient = useQueryClient();
+    const path = $derived({ user_id: user.user_id });
+    const defaults = createQuery(() => getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions());
+    const limits = createQuery(() => getUserRateLimitsApiV1AdminRateLimitsUserIdGetOptions({ path }));
+    const refreshLimits = () =>
+        queryClient.invalidateQueries({ queryKey: getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey({ path }) });
+
+    let defaultRules = $derived(defaults.data ?? []);
+    let usage = $derived(limits.data?.current_usage);
+    // Edits go to a copy; structural sharing keeps the loaded config across an unchanged refetch, so they survive it
+    let config = $derived.by(() => {
+        const loaded = limits.data?.rate_limit_config;
+        const draft = $state<UserRateLimitConfigResponse | null>(
+            loaded === undefined
+                ? null
+                : structuredClone(
+                      loaded ?? {
+                          user_id: user.user_id,
+                          notes: null,
+                          created_at: null,
+                          updated_at: null,
+                          ...zRateLimitUpdateRequest.parse({}),
+                      },
+                  ),
+        );
+        return draft;
+    });
     let multiplied = $derived(config !== null && config.global_multiplier !== DEFAULT_MULTIPLIER);
+
+    const save = createMutation(() => ({
+        ...updateUserRateLimitsApiV1AdminRateLimitsUserIdPutMutation(),
+        onSuccess: () => {
+            onClose();
+            return Promise.all([
+                queryClient.invalidateQueries({ queryKey: listUsersApiV1AdminUsersGetQueryKey() }),
+                refreshLimits(),
+            ]);
+        },
+    }));
+    const reset = createMutation(() => ({
+        ...resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation(),
+        onSuccess: refreshLimits,
+    }));
+
+    function saveConfig(): void {
+        if (config) save.mutate({ path, body: zRateLimitUpdateRequest.parse($state.snapshot(config)) });
+    }
 
     function effectiveRequests(requests: number): number {
         return Math.floor(requests * (config?.global_multiplier ?? DEFAULT_MULTIPLIER));
@@ -50,9 +91,9 @@
     }
 </script>
 
-<Modal {open} title="Rate Limits for {user?.username || ''}" {onClose} size="xl">
+<Modal open title="Rate Limits for {user.username}" {onClose} size="xl">
     {#snippet children()}
-        {#if loading}
+        {#if limits.isPending}
             <div class="flex justify-center py-8"><Spinner /></div>
         {:else if config}
             <div class="space-y-4">
@@ -284,8 +325,10 @@
                             <h4 class="font-semibold text-fg-default dark:text-dark-fg-default">
                                 {fieldTitle('current_usage')}
                             </h4>
-                            <button type="button" onclick={onReset} class="btn btn-sm btn-secondary"
-                                >Reset All Counters</button
+                            <button
+                                type="button"
+                                onclick={() => reset.mutate({ path })}
+                                class="btn btn-sm btn-secondary">Reset All Counters</button
                             >
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -314,14 +357,16 @@
                 {/if}
             </div>
             <div class="flex gap-3 justify-end mt-6">
-                <button type="button" onclick={onClose} class="btn btn-secondary" disabled={saving}>Cancel</button>
+                <button type="button" onclick={onClose} class="btn btn-secondary" disabled={save.isPending}
+                    >Cancel</button
+                >
                 <button
                     type="button"
-                    onclick={onSave}
+                    onclick={saveConfig}
                     class="btn btn-primary flex items-center gap-2"
-                    disabled={saving || loading}
+                    disabled={save.isPending || limits.isPending}
                 >
-                    {#if saving}
+                    {#if save.isPending}
                         <Spinner size="small" />Saving...
                     {:else}
                         Save Changes

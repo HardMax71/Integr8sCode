@@ -1,14 +1,50 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import type { EventReplayStatusResponse, ExecutionStatus } from '#lib/api/index.ts';
+    import { toast } from 'svelte-sonner';
+    import {
+        ReplayStatus,
+        streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
+        type EventReplayStatusResponse,
+        type ExecutionStatus,
+    } from '#lib/api/index.ts';
+    import { logger } from '#lib/logger.ts';
     import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
-        session: EventReplayStatusResponse | null;
+        sessionId: string;
         onClose: () => void;
     }
 
-    let { session, onClose }: Props = $props();
+    let { sessionId, onClose }: Props = $props();
+
+    const log = logger.withTag('ReplayProgressBanner');
+    let session = $state<EventReplayStatusResponse | null>(null);
+
+    // Follows the session while the banner is open; closing it aborts the stream
+    $effect(() => {
+        const controller = new AbortController();
+        follow(sessionId, controller.signal).catch((err: unknown) => {
+            if (!controller.signal.aborted) log.warn('Replay status stream failed:', err);
+        });
+        return () => controller.abort();
+    });
+
+    async function follow(id: string, signal: AbortSignal): Promise<void> {
+        const { stream } = await streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
+            path: { session_id: id },
+            signal,
+            sseMaxRetryAttempts: 3,
+        });
+        // The server sends the whole session first and on every change, and closes the stream once it ends
+        for await (const status of stream) {
+            session = status;
+            if (status.status === ReplayStatus.COMPLETED) {
+                toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
+            } else if (status.status === ReplayStatus.FAILED) {
+                toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
+            }
+        }
+    }
 
     const pending = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
     const resultColors: Record<ExecutionStatus, string> = {

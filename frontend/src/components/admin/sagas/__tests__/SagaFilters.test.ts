@@ -4,16 +4,10 @@ import { user } from '#test/test-utils.ts';
 import { SagaState } from '#lib/api/index.ts';
 import SagaFilters from '#components/admin/sagas/SagaFilters.svelte';
 
-function renderFilters(overrides: Record<string, unknown> = {}) {
+function renderFilters() {
     const onClear = vi.fn();
     const result = render(SagaFilters, {
-        props: {
-            searchQuery: '',
-            stateFilter: '',
-            executionIdFilter: '',
-            onClear,
-            ...overrides,
-        },
+        props: { filters: { search: null, state: null, execution_id: null }, onClear },
     });
     return { ...result, onClear };
 }

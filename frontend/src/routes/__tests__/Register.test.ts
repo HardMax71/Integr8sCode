@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi, renderWithQueryClient, createMockUser } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import Register from '#routes/register/+page.svelte';
@@ -11,7 +12,7 @@ import { queryClient } from '#lib/query-client.ts';
 describe('Register', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockApi(registerApiV1AuthRegisterPost).ok(createMockUser());
+        mockApi(registerApiV1AuthRegisterPost).ok(fakeUserResponse());
     });
 
     function renderRegister() {
@@ -130,7 +131,7 @@ describe('Register', () => {
         });
         expect(screen.getByRole('button', { name: /registering/i })).toBeDisabled();
 
-        resolveRegister!({ data: createMockUser(), error: undefined });
+        resolveRegister!({ data: fakeUserResponse(), error: undefined });
         await waitFor(() => {
             expect(screen.queryByText('Registering...')).not.toBeInTheDocument();
         });

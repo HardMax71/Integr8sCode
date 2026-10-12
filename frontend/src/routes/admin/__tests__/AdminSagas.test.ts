@@ -1,19 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import {
-    user,
-    selectOption,
-    createMockSaga,
-    createMockSagas,
-    mockApi,
-    renderWithQueryClient,
-} from '#test/test-utils.ts';
-import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet } from '#lib/api/index.ts';
+import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeSagaStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet, type SagaStatusResponse } from '#lib/api/index.ts';
 
 import AdminSagas from '#routes/admin/sagas/+page.svelte';
 
-async function renderWithSagas(sagas = createMockSagas(5)) {
+async function renderWithSagas(sagas = Array.from({ length: 5 }, () => fakeSagaStatusResponse())) {
     mockApi(listSagasApiV1SagasGet).ok({ sagas, total: sagas.length, skip: 0, limit: 10, has_more: false });
 
     const result = renderWithQueryClient(AdminSagas);
@@ -25,7 +19,7 @@ describe('AdminSagas', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockApi(listSagasApiV1SagasGet).ok({ sagas: [], total: 0, skip: 0, limit: 10, has_more: false });
-        mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(createMockSaga());
+        mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(fakeSagaStatusResponse());
     });
 
     describe('initial loading', () => {
@@ -49,22 +43,27 @@ describe('AdminSagas', () => {
 
     describe('saga list rendering', () => {
         it('displays saga data in table', async () => {
-            const sagas = [createMockSaga({ saga_name: 'test_saga', state: 'running' })];
+            const sagas: SagaStatusResponse[] = [
+                { ...fakeSagaStatusResponse(), saga_name: 'test_saga', state: 'running' },
+            ];
             await renderWithSagas(sagas);
             expect(screen.getAllByText('test_saga')).toHaveLength(2);
         });
 
         it('displays multiple sagas', async () => {
-            const sagas = createMockSagas(3);
+            const sagas = Array.from({ length: 3 }, (_, i) => ({
+                ...fakeSagaStatusResponse(),
+                saga_id: `saga-${i + 1}`,
+            }));
             await renderWithSagas(sagas);
             expect(screen.getAllByText(/saga-1/)).toHaveLength(2);
         });
 
         it('shows state badges with correct labels', async () => {
-            const sagas = [
-                createMockSaga({ saga_id: 's1', state: 'completed' }),
-                createMockSaga({ saga_id: 's2', state: 'failed' }),
-                createMockSaga({ saga_id: 's3', state: 'running' }),
+            const sagas: SagaStatusResponse[] = [
+                { ...fakeSagaStatusResponse(), saga_id: 's1', state: 'completed' },
+                { ...fakeSagaStatusResponse(), saga_id: 's2', state: 'failed' },
+                { ...fakeSagaStatusResponse(), saga_id: 's3', state: 'running' },
             ];
             await renderWithSagas(sagas);
             // States appear in both table rows and stats cards
@@ -74,7 +73,7 @@ describe('AdminSagas', () => {
         });
 
         it('shows retry count when > 0', async () => {
-            const sagas = [createMockSaga({ retry_count: 3 })];
+            const sagas = [{ ...fakeSagaStatusResponse(), retry_count: 3 }];
             await renderWithSagas(sagas);
             expect(screen.getAllByText('(Retry Count 3)').length).toBeGreaterThan(0);
         });
@@ -82,10 +81,10 @@ describe('AdminSagas', () => {
 
     describe('stats cards', () => {
         it('displays state counts', async () => {
-            const sagas = [
-                createMockSaga({ saga_id: 's1', state: 'completed' }),
-                createMockSaga({ saga_id: 's2', state: 'completed' }),
-                createMockSaga({ saga_id: 's3', state: 'failed' }),
+            const sagas: SagaStatusResponse[] = [
+                { ...fakeSagaStatusResponse(), saga_id: 's1', state: 'completed' },
+                { ...fakeSagaStatusResponse(), saga_id: 's2', state: 'completed' },
+                { ...fakeSagaStatusResponse(), saga_id: 's3', state: 'failed' },
             ];
             await renderWithSagas(sagas);
             const completedCard = screen
@@ -149,8 +148,8 @@ describe('AdminSagas', () => {
         });
 
         it('sends the search to the API, so it covers every page', async () => {
-            const alpha = createMockSaga({ saga_id: 's1', saga_name: 'alpha_saga' });
-            await renderWithSagas([alpha, createMockSaga({ saga_id: 's2', saga_name: 'beta_saga' })]);
+            const alpha = { ...fakeSagaStatusResponse(), saga_id: 's1', saga_name: 'alpha_saga' };
+            await renderWithSagas([alpha, { ...fakeSagaStatusResponse(), saga_id: 's2', saga_name: 'beta_saga' }]);
             mockApi(listSagasApiV1SagasGet).ok({ sagas: [alpha], total: 1, skip: 0, limit: 10, has_more: false });
 
             await user.type(screen.getByLabelText(/search/i), 'alpha');
@@ -166,12 +165,12 @@ describe('AdminSagas', () => {
 
         it('filters by execution ID', async () => {
             const sagas = [
-                createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' }),
-                createMockSaga({ saga_id: 's2', execution_id: 'exec-xyz' }),
+                { ...fakeSagaStatusResponse(), saga_id: 's1', execution_id: 'exec-abc' },
+                { ...fakeSagaStatusResponse(), saga_id: 's2', execution_id: 'exec-xyz' },
             ];
             await renderWithSagas(sagas);
 
-            const matchingSaga = [createMockSaga({ saga_id: 's1', execution_id: 'exec-abc' })];
+            const matchingSaga = [{ ...fakeSagaStatusResponse(), saga_id: 's1', execution_id: 'exec-abc' }];
             mockApi(listSagasApiV1SagasGet).ok({ sagas: matchingSaga, total: 1, skip: 0, limit: 10, has_more: false });
 
             const execInput = screen.getByLabelText(/execution id/i);
@@ -209,10 +208,11 @@ describe('AdminSagas', () => {
 
     describe('saga details modal', () => {
         it('opens modal on View Details click', async () => {
-            const saga = createMockSaga({
+            const saga = {
+                ...fakeSagaStatusResponse(),
                 saga_name: 'execution_saga',
                 completed_steps: ['validate_execution', 'allocate_resources'],
-            });
+            };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
@@ -224,13 +224,14 @@ describe('AdminSagas', () => {
         });
 
         it('displays saga information in modal', async () => {
-            const saga = createMockSaga({
+            const saga: SagaStatusResponse = {
+                ...fakeSagaStatusResponse(),
                 saga_id: 'saga-detail-test',
                 saga_name: 'execution_saga',
                 state: 'completed',
                 completed_steps: ['validate_execution'],
                 retry_count: 2,
-            });
+            };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
@@ -243,10 +244,11 @@ describe('AdminSagas', () => {
         });
 
         it('shows error message when saga has error', async () => {
-            const saga = createMockSaga({
+            const saga: SagaStatusResponse = {
+                ...fakeSagaStatusResponse(),
                 state: 'failed',
                 error_message: 'Pod creation failed: timeout',
-            });
+            };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
@@ -259,7 +261,7 @@ describe('AdminSagas', () => {
         });
 
         it('closes modal on close button click', async () => {
-            const saga = createMockSaga();
+            const saga = fakeSagaStatusResponse();
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
@@ -275,12 +277,13 @@ describe('AdminSagas', () => {
         });
 
         it('shows compensated steps', async () => {
-            const saga = createMockSaga({
+            const saga: SagaStatusResponse = {
+                ...fakeSagaStatusResponse(),
                 saga_name: 'execution_saga',
                 state: 'failed',
                 completed_steps: ['validate_execution', 'allocate_resources'],
                 compensated_steps: ['release_resources'],
-            });
+            };
             mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
             await renderWithSagas([saga]);
 
@@ -294,7 +297,7 @@ describe('AdminSagas', () => {
 
     describe('view execution sagas', () => {
         it('loads sagas for specific execution', async () => {
-            const executionSagas = [createMockSaga({ execution_id: 'exec-target' })];
+            const executionSagas = [{ ...fakeSagaStatusResponse(), execution_id: 'exec-target' }];
             mockApi(listSagasApiV1SagasGet).ok({
                 sagas: executionSagas,
                 total: 1,
@@ -302,7 +305,7 @@ describe('AdminSagas', () => {
                 limit: 10,
                 has_more: false,
             });
-            await renderWithSagas([createMockSaga({ execution_id: 'exec-target' })]);
+            await renderWithSagas([{ ...fakeSagaStatusResponse(), execution_id: 'exec-target' }]);
 
             const [execButton] = screen.getAllByRole('button', { name: /execution/i });
             await user.click(execButton!);
@@ -318,7 +321,7 @@ describe('AdminSagas', () => {
 
     describe('pagination', () => {
         it('shows pagination when items exist', async () => {
-            const sagas = createMockSagas(5);
+            const sagas = Array.from({ length: 5 }, () => fakeSagaStatusResponse());
             mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
             renderWithQueryClient(AdminSagas);
@@ -328,7 +331,7 @@ describe('AdminSagas', () => {
         });
 
         it('changes page size', async () => {
-            const sagas = createMockSagas(5);
+            const sagas = Array.from({ length: 5 }, () => fakeSagaStatusResponse());
             mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
             renderWithQueryClient(AdminSagas);

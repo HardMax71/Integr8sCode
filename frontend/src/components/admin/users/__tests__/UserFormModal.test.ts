@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     createUserApiV1AdminUsersPost,
     updateUserApiV1AdminUsersUserIdPut,
@@ -39,15 +40,15 @@ async function fill(values: { username?: string; email?: string; password?: stri
 describe('UserFormModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
-        mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
+        mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
+        mockApi(updateUserApiV1AdminUsersUserIdPut).ok(fakeUserResponse());
     });
 
     it.each([
         ['creating', null, 'Create New User', 'Create User', false],
         ['editing', 'mock', 'Edit User', 'Update User', true],
     ] as const)('when %s: title, button and password hint', (_label, editingUser, title, buttonText, showsHint) => {
-        renderModal(editingUser === 'mock' ? createMockUser() : null);
+        renderModal(editingUser === 'mock' ? fakeUserResponse() : null);
         expect(screen.getByRole('dialog', { name: title })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: buttonText })).toBeInTheDocument();
         if (showsHint)
@@ -111,7 +112,7 @@ describe('UserFormModal', () => {
     });
 
     it('edits a user without sending the password when it stays empty, then closes', async () => {
-        const editingUser = createMockUser({ user_id: 'u-7', username: 'alice', email: 'alice@example.com' });
+        const editingUser = { ...fakeUserResponse(), user_id: 'u-7', username: 'alice', email: 'alice@example.com' };
         const { onClose } = renderModal(editingUser);
         expect(field(/Username/)).toHaveValue('alice');
 
@@ -135,7 +136,7 @@ describe('UserFormModal', () => {
     });
 
     it('sends a new password when one is typed', async () => {
-        renderModal(createMockUser({ user_id: 'u-8' }));
+        renderModal({ ...fakeUserResponse(), user_id: 'u-8', username: 'bob', email: 'bob@example.com' });
         await fill({ password: 'newpassword' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
@@ -150,7 +151,7 @@ describe('UserFormModal', () => {
     });
 
     it('keeps requiring an email when editing, since every user has one', async () => {
-        renderModal(createMockUser());
+        renderModal(fakeUserResponse());
         await fill({ email: '' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
@@ -159,7 +160,7 @@ describe('UserFormModal', () => {
     });
 
     it('still checks a new password against the API rule when editing', async () => {
-        renderModal(createMockUser());
+        renderModal(fakeUserResponse());
         await fill({ password: 'short' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 

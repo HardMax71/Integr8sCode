@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import {
-    createMockNotification,
-    createMockNotifications,
-    mockApi,
-    renderWithQueryClient,
-    user,
-} from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import {
     deleteNotificationApiV1NotificationsNotificationIdDelete,
@@ -62,14 +57,15 @@ describe('Notifications', () => {
         it('renders notification subject, body, channel, severity, and tags', async () => {
             setNotifications(
                 [
-                    createMockNotification({
+                    {
+                        ...fakeNotificationResponse(),
                         subject: 'Execution Complete',
                         body: 'Your script finished running',
                         channel: 'webhook',
                         severity: 'high',
                         tags: ['completed', 'exec:abc123'],
                         status: 'delivered',
-                    }),
+                    },
                 ],
                 1,
             );
@@ -85,7 +81,7 @@ describe('Notifications', () => {
         });
 
         it('shows the read status as is', async () => {
-            setNotifications([createMockNotification({ status: 'read' })]);
+            setNotifications([{ ...fakeNotificationResponse(), status: 'read' }]);
 
             renderNotifications();
             await waitFor(() => {
@@ -95,7 +91,7 @@ describe('Notifications', () => {
 
         it('shows up to 6 tag chips', async () => {
             const tags = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7', 'tag8'];
-            setNotifications([createMockNotification({ tags })]);
+            setNotifications([{ ...fakeNotificationResponse(), tags }]);
 
             renderNotifications();
             await waitFor(() => {
@@ -113,7 +109,9 @@ describe('Notifications', () => {
             [5 * 60 * 60 * 1000, '5h ago'],
             [2 * 24 * 60 * 60 * 1000, '2d ago'],
         ])('formats %dms ago as "%s"', async (msAgo, expected) => {
-            setNotifications([createMockNotification({ created_at: new Date(Date.now() - msAgo).toISOString() })]);
+            setNotifications([
+                { ...fakeNotificationResponse(), created_at: new Date(Date.now() - msAgo).toISOString() },
+            ]);
 
             renderNotifications();
             await waitFor(() => {
@@ -124,7 +122,7 @@ describe('Notifications', () => {
 
     describe('Mark as read', () => {
         it('marks the clicked unread notification as read and refetches', async () => {
-            setNotifications([createMockNotification({ notification_id: 'n-42', status: 'delivered' })], 1);
+            setNotifications([{ ...fakeNotificationResponse(), notification_id: 'n-42', status: 'delivered' }], 1);
 
             renderNotifications();
             await user.click(await screen.findByTitle('Mark as read'));
@@ -133,7 +131,14 @@ describe('Notifications', () => {
         });
 
         it('offers no mark-as-read button for a read notification', async () => {
-            setNotifications([createMockNotification({ notification_id: 'n-read', status: 'read' })]);
+            setNotifications([
+                {
+                    ...fakeNotificationResponse(),
+                    notification_id: 'n-read',
+                    subject: 'Test Notification',
+                    status: 'read',
+                },
+            ]);
 
             renderNotifications();
             await screen.findByText('Test Notification');
@@ -143,7 +148,7 @@ describe('Notifications', () => {
         });
 
         it('marks a notification as read from the keyboard', async () => {
-            setNotifications([createMockNotification({ notification_id: 'n-key', status: 'delivered' })], 1);
+            setNotifications([{ ...fakeNotificationResponse(), notification_id: 'n-key', status: 'delivered' }], 1);
 
             renderNotifications();
             (await screen.findByTitle('Mark as read')).focus();
@@ -162,7 +167,10 @@ describe('Notifications', () => {
         });
 
         it('marks all as read and shows success toast', async () => {
-            setNotifications(createMockNotifications(3), 2);
+            setNotifications(
+                Array.from({ length: 3 }, (_, i) => ({ ...fakeNotificationResponse(), notification_id: `n-${i}` })),
+                2,
+            );
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
@@ -174,7 +182,10 @@ describe('Notifications', () => {
 
         it('shows no success toast when the call fails', async () => {
             mockApi(markAllReadApiV1NotificationsMarkAllReadPost).err({ detail: 'boom' });
-            setNotifications(createMockNotifications(2), 1);
+            setNotifications(
+                Array.from({ length: 2 }, (_, i) => ({ ...fakeNotificationResponse(), notification_id: `n-${i}` })),
+                1,
+            );
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
@@ -185,7 +196,7 @@ describe('Notifications', () => {
 
     describe('Delete', () => {
         it('deletes by id, shows success toast and refetches', async () => {
-            setNotifications([createMockNotification({ notification_id: 'del-1' })]);
+            setNotifications([{ ...fakeNotificationResponse(), notification_id: 'del-1' }]);
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
@@ -200,7 +211,7 @@ describe('Notifications', () => {
 
         it('shows no success toast when the delete fails', async () => {
             mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).err({ detail: 'boom' });
-            setNotifications([createMockNotification({ notification_id: 'del-fail' })]);
+            setNotifications([{ ...fakeNotificationResponse(), notification_id: 'del-fail' }]);
 
             renderNotifications();
             await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
@@ -212,7 +223,7 @@ describe('Notifications', () => {
             mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).mock.mockImplementation(
                 () => new Promise(() => {}),
             );
-            setNotifications([createMockNotification({ notification_id: 'dbl-1' })]);
+            setNotifications([{ ...fakeNotificationResponse(), notification_id: 'dbl-1' }]);
 
             renderNotifications();
             const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });

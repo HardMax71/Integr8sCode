@@ -5,12 +5,13 @@ import {
     type SseExecutionEventSchema,
 } from '#lib/api/index.ts';
 import { createExecutionState } from '#lib/editor/execution.svelte.ts';
-import { createMockExecutionResult, createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
+import { createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
+import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 
 const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
 const mockSseFn = vi.mocked(executionEventsApiV1EventsExecutionsExecutionIdGet);
 
-const RESULT = createMockExecutionResult({ execution_id: 'exec-1', stdout: 'hello', stderr: '', lang_version: '3.12' });
+const RESULT = { ...fakeExecutionResult(), execution_id: 'exec-1', stdout: 'hello', stderr: '', lang_version: '3.12' };
 
 const event = (
     fields: Partial<SseExecutionEventSchema> & Pick<SseExecutionEventSchema, 'event_type'>,

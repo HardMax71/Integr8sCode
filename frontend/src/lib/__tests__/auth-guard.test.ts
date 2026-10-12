@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
 import { toast } from 'svelte-sonner';
 import { requireAdmin, requireAuth } from '#lib/auth-guard.ts';
-import { createMockUser } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole, type UserResponse } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -28,7 +28,7 @@ describe('auth guards', () => {
         vi.clearAllMocks();
         sessionStorage.clear();
         mocks.authStore.isAuthenticated = true;
-        mocks.authStore.user = createMockUser({ role: UserRole.ADMIN });
+        mocks.authStore.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
         mocks.authStore.waitForInit.mockResolvedValue(true);
     });
 
@@ -58,7 +58,7 @@ describe('auth guards', () => {
     });
 
     it('sends a non-admin home with a toast', async () => {
-        mocks.authStore.user = createMockUser({ role: UserRole.USER });
+        mocks.authStore.user = { ...fakeUserResponse(), role: UserRole.USER };
 
         expect((await redirectFrom(requireAdmin(url))).location).toBe('/');
         expect(toast.error).toHaveBeenCalledWith('Admin access required');

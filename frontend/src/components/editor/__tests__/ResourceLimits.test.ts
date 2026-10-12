@@ -1,17 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { createMockResourceLimits, mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { fakeResourceLimits } from '#lib/api/@faker-js/faker.gen.ts';
 
 import ResourceLimits from '#components/editor/ResourceLimits.svelte';
 import { getK8sResourceLimitsApiV1K8sLimitsGet } from '#lib/api/index.ts';
 import { draft } from '#lib/editor/draft.svelte.ts';
 
-const LIMITS = createMockResourceLimits({
+const LIMITS = {
+    ...fakeResourceLimits(),
     language_limits: {
         python: { cpu_limit: '500m', memory_limit: '256Mi', execution_timeout: 30 },
         go: { cpu_limit: '1000m', memory_limit: '320Mi', execution_timeout: 45 },
     },
-});
+};
 
 function renderLimits(lang: string) {
     mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(LIMITS);

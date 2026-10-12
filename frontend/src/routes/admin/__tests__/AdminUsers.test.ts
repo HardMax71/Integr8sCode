@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
+import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import {
-    user,
-    selectOption,
-    createMockUser,
-    createMockUsers,
-    mockApi,
-    renderWithQueryClient,
-} from '#test/test-utils.ts';
+    fakeRateLimitUpdateResponse,
+    fakeUserRateLimitConfigResponse,
+    fakeUserRateLimitsResponse,
+    fakeUserResponse,
+} from '#lib/api/@faker-js/faker.gen.ts';
 import { ApiError } from '#lib/api-error.ts';
 import {
     listUsersApiV1AdminUsersGet,
@@ -18,6 +17,7 @@ import {
     updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
     resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
     getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+    UserRole,
     zDeleteUserResponse,
     zRateLimitUpdateRequest,
     type HttpValidationError,
@@ -32,7 +32,7 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 // Simple mock for AdminLayout that just renders children
 import AdminUsers from '#routes/admin/users/+page.svelte';
 
-async function renderWithUsers(users = createMockUsers(3), total = users.length) {
+async function renderWithUsers(users = Array.from({ length: 3 }, () => fakeUserResponse()), total = users.length) {
     mockApi(listUsersApiV1AdminUsersGet).ok({ users, total, offset: 0, limit: 20 });
     const result = renderWithQueryClient(AdminUsers);
     await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
@@ -64,7 +64,9 @@ describe('AdminUsers', () => {
 
     describe('user list rendering', () => {
         it('displays user data in table', async () => {
-            const users = [createMockUser({ username: 'johndoe', email: 'john@test.com', role: 'admin' })];
+            const users = [
+                { ...fakeUserResponse(), username: 'johndoe', email: 'john@test.com', role: UserRole.ADMIN },
+            ];
             await renderWithUsers(users);
             // Component has both mobile and desktop views, so use getAllByText
             expect(screen.getAllByText('johndoe')).toHaveLength(2);
@@ -72,7 +74,7 @@ describe('AdminUsers', () => {
         });
 
         it('displays multiple users', async () => {
-            const users = createMockUsers(5);
+            const users = Array.from({ length: 5 }, (_, i) => ({ ...fakeUserResponse(), username: `user${i + 1}` }));
             await renderWithUsers(users);
             expect(screen.getAllByText('user1')).toHaveLength(2);
             expect(screen.getAllByText('user5')).toHaveLength(2);
@@ -80,8 +82,8 @@ describe('AdminUsers', () => {
 
         it('shows role badges for admin and user', async () => {
             const users = [
-                createMockUser({ username: 'adminuser', role: 'admin' }),
-                createMockUser({ user_id: 'u2', username: 'normaluser', role: 'user' }),
+                { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN },
+                { ...fakeUserResponse(), user_id: 'u2', username: 'normaluser', role: UserRole.USER },
             ];
             await renderWithUsers(users);
             expect(screen.getAllByText('adminuser')).toHaveLength(2);
@@ -102,8 +104,8 @@ describe('AdminUsers', () => {
     describe('search and filtering', () => {
         it('filters users by search query', async () => {
             const allUsers = [
-                createMockUser({ username: 'alice', email: 'alice@test.com' }),
-                createMockUser({ user_id: 'u2', username: 'bob', email: 'bob@test.com' }),
+                { ...fakeUserResponse(), username: 'alice', email: 'alice@test.com' },
+                { ...fakeUserResponse(), user_id: 'u2', username: 'bob', email: 'bob@test.com' },
             ];
             mockApi(listUsersApiV1AdminUsersGet).respond((options) => {
                 const search = options?.query?.search;
@@ -123,8 +125,8 @@ describe('AdminUsers', () => {
 
         it('filters users by role', async () => {
             const allUsers = [
-                createMockUser({ username: 'admin1', role: 'admin' }),
-                createMockUser({ user_id: 'u2', username: 'user1', role: 'user' }),
+                { ...fakeUserResponse(), username: 'admin1', role: UserRole.ADMIN },
+                { ...fakeUserResponse(), user_id: 'u2', username: 'user1', role: UserRole.USER },
             ];
             mockApi(listUsersApiV1AdminUsersGet).respond((options) => {
                 const role = options?.query?.role;
@@ -149,7 +151,7 @@ describe('AdminUsers', () => {
         });
 
         it('resets filters on Reset button click', async () => {
-            const users = createMockUsers(3);
+            const users = Array.from({ length: 3 }, (_, i) => ({ ...fakeUserResponse(), username: `user${i + 1}` }));
             mockApi(listUsersApiV1AdminUsersGet).respond((options) =>
                 options?.query?.search === 'nonexistent'
                     ? { users: [], total: 0, offset: 0, limit: 20 }
@@ -201,7 +203,7 @@ describe('AdminUsers', () => {
         });
 
         it('submits new user data', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
+            mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -283,7 +285,7 @@ describe('AdminUsers', () => {
 
     describe('edit user modal', () => {
         it('opens edit modal with user data', async () => {
-            const users = [createMockUser({ username: 'editme', email: 'edit@test.com' })];
+            const users = [{ ...fakeUserResponse(), username: 'editme', email: 'edit@test.com' }];
             await renderWithUsers(users);
 
             // Multiple edit buttons exist (mobile + desktop views)
@@ -298,8 +300,8 @@ describe('AdminUsers', () => {
         });
 
         it('submits updated user data', async () => {
-            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
-            const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
+            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(fakeUserResponse());
+            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'editme', email: 'edit@test.com' }];
             await renderWithUsers(users);
 
             const [editButton] = screen.getAllByTitle('Edit User');
@@ -324,7 +326,7 @@ describe('AdminUsers', () => {
 
     describe('delete user modal', () => {
         it('opens delete confirmation modal', async () => {
-            const users = [createMockUser({ username: 'deleteme' })];
+            const users = [{ ...fakeUserResponse(), username: 'deleteme' }];
             await renderWithUsers(users);
 
             // Multiple delete buttons exist (mobile + desktop views)
@@ -338,7 +340,7 @@ describe('AdminUsers', () => {
 
         it('confirms deletion without cascade by default', async () => {
             mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(zDeleteUserResponse.parse({ user_deleted: true }));
-            const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
+            const users = [{ ...fakeUserResponse(), user_id: 'del1', username: 'deleteme' }];
             await renderWithUsers(users);
 
             const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -360,7 +362,7 @@ describe('AdminUsers', () => {
 
         it('confirms deletion with cascade option', async () => {
             mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(zDeleteUserResponse.parse({ user_deleted: true }));
-            const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
+            const users = [{ ...fakeUserResponse(), user_id: 'del1', username: 'deleteme' }];
             await renderWithUsers(users);
 
             const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -389,7 +391,7 @@ describe('AdminUsers', () => {
             mockApi(deleteUserApiV1AdminUsersUserIdDelete).err(
                 new ApiError(500, { detail: 'Cannot delete', type: null }),
             );
-            const users = [createMockUser({ username: 'deleteme' })];
+            const users = [{ ...fakeUserResponse(), username: 'deleteme' }];
             await renderWithUsers(users);
 
             const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -404,7 +406,7 @@ describe('AdminUsers', () => {
         });
 
         it('cancels deletion', async () => {
-            const users = [createMockUser({ username: 'keepme' })];
+            const users = [{ ...fakeUserResponse(), username: 'keepme' }];
             await renderWithUsers(users);
 
             const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -420,7 +422,7 @@ describe('AdminUsers', () => {
         });
 
         it('shows cascade warning when enabled', async () => {
-            const users = [createMockUser({ username: 'deleteme' })];
+            const users = [{ ...fakeUserResponse(), username: 'deleteme' }];
             await renderWithUsers(users);
 
             const [deleteButton] = screen.getAllByTitle('Delete User');
@@ -442,20 +444,18 @@ describe('AdminUsers', () => {
 
     describe('rate limit modal', () => {
         const mockRateLimitConfig: UserRateLimitConfigResponse = {
-            user_id: 'u1',
-            notes: '',
-            created_at: null,
-            updated_at: null,
+            ...fakeUserRateLimitConfigResponse(),
             ...zRateLimitUpdateRequest.parse({}),
+            notes: '',
         };
 
         it('opens rate limit modal for user', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            const users = [createMockUser({ username: 'ratelimited' })];
+            const users = [{ ...fakeUserResponse(), username: 'ratelimited' }];
             await renderWithUsers(users);
 
             // Multiple rate limit buttons exist (mobile + desktop views)
@@ -470,11 +470,11 @@ describe('AdminUsers', () => {
 
         it('displays default rules in rate limit modal', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            const users = [createMockUser({ username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -487,16 +487,12 @@ describe('AdminUsers', () => {
 
         it('saves rate limit changes', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok({
-                user_id: 'u1',
-                updated: true,
-                config: mockRateLimitConfig,
-            });
-            const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
+            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok(fakeRateLimitUpdateResponse());
+            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -517,14 +513,14 @@ describe('AdminUsers', () => {
 
         it('keeps the rate limit dialog open when saving fails', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
             mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).err(
                 new ApiError(422, { detail: 'Invalid config', type: null }),
             );
-            const users = [createMockUser({ username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -541,11 +537,11 @@ describe('AdminUsers', () => {
 
         it('adds new rate limit rule', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            const users = [createMockUser({ username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -561,12 +557,12 @@ describe('AdminUsers', () => {
 
         it('resets rate limit counters', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: { '/api/test': { algorithm: 'sliding_window', remaining: 5 } },
             });
             mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).ok({ message: 'Rate limits reset' });
-            const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -587,25 +583,34 @@ describe('AdminUsers', () => {
 
     describe('pagination', () => {
         it('shows user count in header', async () => {
-            const users = createMockUsers(5);
+            const users = Array.from({ length: 5 }, () => fakeUserResponse());
             await renderWithUsers(users);
             expect(screen.getByText(/Users \(5\)/)).toBeInTheDocument();
         });
 
         it('shows the total the server counted, not the users on this page', async () => {
-            await renderWithUsers(createMockUsers(10), 42);
+            await renderWithUsers(
+                Array.from({ length: 10 }, () => fakeUserResponse()),
+                42,
+            );
             expect(await screen.findByText(/Users \(42\)/)).toBeInTheDocument();
         });
 
         it('asks the server for the next page', async () => {
-            await renderWithUsers(createMockUsers(10), 25);
+            await renderWithUsers(
+                Array.from({ length: 10 }, () => fakeUserResponse()),
+                25,
+            );
             expect(lastUsersQuery()).toMatchObject({ limit: 10, offset: 0 });
             await user.click(await screen.findByRole('button', { name: 'Next page' }));
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ limit: 10, offset: 10 }));
         });
 
         it('goes back to the first page when a filter changes', async () => {
-            await renderWithUsers(createMockUsers(10), 25);
+            await renderWithUsers(
+                Array.from({ length: 10 }, () => fakeUserResponse()),
+                25,
+            );
             await user.click(await screen.findByRole('button', { name: 'Next page' }));
             await waitFor(() => expect(lastUsersQuery()).toMatchObject({ offset: 10 }));
 
@@ -630,7 +635,7 @@ describe('AdminUsers', () => {
 
     describe('user form validation', () => {
         it('requires username for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
+            mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
             await renderWithUsers();
 
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -647,7 +652,7 @@ describe('AdminUsers', () => {
         });
 
         it('requires password for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
+            mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
             await renderWithUsers();
 
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -664,8 +669,8 @@ describe('AdminUsers', () => {
         });
 
         it('password is optional for edit', async () => {
-            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
-            const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
+            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(fakeUserResponse());
+            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'editme', email: 'edit@test.com' }];
             await renderWithUsers(users);
 
             // Desktop view has one edit button per user
@@ -691,7 +696,7 @@ describe('AdminUsers', () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).err(
                 new ApiError(500, { detail: 'Failed to load', type: null }),
             );
-            const users = [createMockUser({ username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
@@ -703,20 +708,18 @@ describe('AdminUsers', () => {
 
         it('keeps the usage when resetting the counters fails', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-                user_id: 'u1',
+                ...fakeUserRateLimitsResponse(),
                 rate_limit_config: {
-                    user_id: 'u1',
-                    notes: '',
-                    created_at: null,
-                    updated_at: null,
+                    ...fakeUserRateLimitConfigResponse(),
                     ...zRateLimitUpdateRequest.parse({}),
+                    notes: '',
                 },
                 current_usage: { '/api': { algorithm: 'sliding_window', remaining: 1 } },
             });
             mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).err(
                 new ApiError(500, { detail: 'Reset failed', type: null }),
             );
-            const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
+            const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'testuser' }];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');

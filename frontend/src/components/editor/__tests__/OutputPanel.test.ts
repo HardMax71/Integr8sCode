@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { createMockExecutionResult, user } from '#test/test-utils.ts';
+import { user } from '#test/test-utils.ts';
+import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import { ExecutionStatus, type ExecutionResult } from '#lib/api/index.ts';
 import type { ExecutionPhase } from '#lib/editor/index.ts';
 
 import OutputPanel from '#components/editor/OutputPanel.svelte';
-
-const makeResult = createMockExecutionResult;
 
 type IdleProps = { phase: ExecutionPhase; result: ExecutionResult | null; error: string | null };
 
@@ -60,7 +59,7 @@ describe('OutputPanel', () => {
         };
 
         it.each(Object.values(ExecutionStatus))('status "%s" shows its badge', async (status) => {
-            renderIdle({ result: makeResult({ status }) });
+            renderIdle({ result: { ...fakeExecutionResult(), status } });
             const badge = await screen.findByText(status);
             const expected = BADGE_CLASSES[status];
             if (expected) expect(badge).toHaveClass(expected);
@@ -72,19 +71,19 @@ describe('OutputPanel', () => {
             { field: 'stdout', heading: 'Stdout', content: 'Hello World!' },
             { field: 'stderr', heading: 'Stderr', content: 'NameError: x is not defined' },
         ])('shows $heading when $field present', async ({ field, heading, content }) => {
-            renderIdle({ result: makeResult({ [field]: content }) });
+            renderIdle({ result: { ...fakeExecutionResult(), [field]: content } });
             await waitFor(() => expect(screen.getByText(heading)).toBeInTheDocument());
         });
 
         it('hides stdout and stderr sections when both null', async () => {
-            renderIdle({ result: makeResult() });
+            renderIdle({ result: { ...fakeExecutionResult(), stdout: null, stderr: null } });
             await waitFor(() => expect(screen.getByText('Status')).toBeInTheDocument());
             expect(screen.queryByText('Stdout')).not.toBeInTheDocument();
             expect(screen.queryByText('Stderr')).not.toBeInTheDocument();
         });
 
         it('shows execution ID copy button when execution_id present', async () => {
-            renderIdle({ result: makeResult({ execution_id: 'abc-123' }) });
+            renderIdle({ result: { ...fakeExecutionResult(), execution_id: 'abc-123' } });
             await waitFor(() => expect(screen.getByLabelText('Click to copy execution ID')).toBeInTheDocument());
         });
     });
@@ -110,7 +109,7 @@ describe('OutputPanel', () => {
                 shown: { 'Execution Time Wall Seconds': '0.500', 'Cpu Time Jiffies': '0', 'Peak Memory Kb': '2048' },
             },
         ])('shows each field in its own unit: $shown', async ({ usage, shown }) => {
-            renderIdle({ result: makeResult({ resource_usage: usage }) });
+            renderIdle({ result: { ...fakeExecutionResult(), resource_usage: usage } });
             await waitFor(() => expect(screen.getByText('Resource Usage')).toBeInTheDocument());
             for (const [label, value] of Object.entries(shown)) {
                 expect(screen.getByText(label).nextElementSibling?.textContent?.trim()).toBe(value);
@@ -118,7 +117,7 @@ describe('OutputPanel', () => {
         });
 
         it('hides resource usage when not present', () => {
-            renderIdle({ result: makeResult() });
+            renderIdle({ result: { ...fakeExecutionResult(), resource_usage: null } });
             expect(screen.queryByText('Resource Usage')).not.toBeInTheDocument();
         });
     });
@@ -154,7 +153,7 @@ describe('OutputPanel', () => {
         ])('copies $target and shows success toast', async ({ target, ariaLabel, text, toastLabel }) => {
             mockClipboard();
             renderIdle({
-                result: makeResult({ [target]: text }),
+                result: { ...fakeExecutionResult(), [target]: text },
             });
             await waitFor(() => expect(screen.getByLabelText(ariaLabel)).toBeInTheDocument());
             await user.click(screen.getByLabelText(ariaLabel));
@@ -164,7 +163,7 @@ describe('OutputPanel', () => {
 
         it('shows error toast when clipboard write fails', async () => {
             mockClipboard(false);
-            renderIdle({ result: makeResult({ stdout: 'x' }) });
+            renderIdle({ result: { ...fakeExecutionResult(), stdout: 'x' } });
             await waitFor(() => expect(screen.getByLabelText('Copy output to clipboard')).toBeInTheDocument());
             await user.click(screen.getByLabelText('Copy output to clipboard'));
             expect(toast.error).toHaveBeenCalledWith('Failed to copy output');
@@ -175,7 +174,7 @@ describe('OutputPanel', () => {
         it('spinner takes priority over result', () => {
             renderIdle({
                 phase: 'running' as ExecutionPhase,
-                result: makeResult({ stdout: 'data' }),
+                result: { ...fakeExecutionResult(), stdout: 'data' },
             });
             expect(screen.getByText('Running...')).toBeInTheDocument();
             expect(screen.queryByText('Stdout')).not.toBeInTheDocument();
@@ -183,7 +182,7 @@ describe('OutputPanel', () => {
 
         it('result takes priority over error', async () => {
             renderIdle({
-                result: makeResult({ status: 'error' }),
+                result: { ...fakeExecutionResult(), status: 'error' },
                 error: 'Something went wrong',
             });
             expect(await screen.findByText('error')).toHaveClass('bg-red-50');

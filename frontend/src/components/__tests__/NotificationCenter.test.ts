@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import {
-    createMockNotification,
-    mockApi,
-    renderWithQueryClient,
-    user,
-    type UserEventInstance,
-} from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
+import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
@@ -48,8 +43,15 @@ vi.stubGlobal('Notification', {
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
 
-const createNotification = (overrides: Partial<NotificationResponse> = {}): NotificationResponse =>
-    createMockNotification({ notification_id: '1', subject: 'Test', body: 'Body', status: 'delivered', ...overrides });
+const createNotification = (overrides: Partial<NotificationResponse> = {}): NotificationResponse => ({
+    ...fakeNotificationResponse(),
+    notification_id: '1',
+    subject: 'Test',
+    body: 'Body',
+    status: 'delivered',
+    action_url: '',
+    ...overrides,
+});
 
 const setNotifications = (notifications: NotificationResponse[]) => {
     mockApi(getNotificationsApiV1NotificationsGet).ok({

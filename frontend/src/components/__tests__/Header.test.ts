@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, suppressConsoleError, mockApi, renderWithQueryClient, createMockUser } from '#test/test-utils.ts';
+import { user, suppressConsoleError, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     logoutApiV1AuthLogoutPost,
     Theme,
@@ -58,7 +59,7 @@ const setAuth = (isAuth: boolean, signedIn: UserResponse | null = null) => {
     mocks.mockAuthStore.user = signedIn;
 };
 
-const ROOT = createMockUser({ username: 'root', role: UserRole.ADMIN, email: 'root@example.com' });
+const ROOT = { ...fakeUserResponse(), username: 'root', role: UserRole.ADMIN, email: 'root@example.com' };
 
 /** A matchMedia whose answer the test can flip, firing the change listeners the way a resize would */
 function controllableDesktopQuery(initial: boolean): (matches: boolean) => void {
@@ -149,7 +150,7 @@ describe('Header', () => {
         });
 
         it('saves the toggled theme to the user settings when signed in', async () => {
-            setAuth(true, createMockUser());
+            setAuth(true, fakeUserResponse());
             mocks.mockToggleTheme.mockImplementation(() => {
                 mocks.mockThemeStore.value = Theme.DARK;
             });
@@ -187,7 +188,12 @@ describe('Header', () => {
 
     describe('authenticated state', () => {
         beforeEach(() => {
-            setAuth(true, createMockUser());
+            setAuth(true, {
+                ...fakeUserResponse(),
+                username: 'testuser',
+                email: 'test@example.com',
+                role: UserRole.USER,
+            });
         });
 
         it('shows username and opens dropdown with user info', async () => {
@@ -242,7 +248,7 @@ describe('Header', () => {
             { isAuth: false, signedIn: null, expectedContent: ['Login', 'Register'] },
             {
                 isAuth: true,
-                signedIn: createMockUser({ username: 'mobileuser' }),
+                signedIn: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
                 expectedContent: ['mobileuser', UserRole.USER, 'Settings', 'Logout'],
             },
             { isAuth: true, signedIn: ROOT, expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'] },
@@ -271,7 +277,7 @@ describe('Header', () => {
     describe('dropdown toggle behavior', () => {
         it('closes dropdown when clicking a menu item', async () => {
             const restoreConsole = suppressConsoleError();
-            setAuth(true, createMockUser());
+            setAuth(true, fakeUserResponse());
             await openUserDropdown();
             await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
@@ -281,7 +287,7 @@ describe('Header', () => {
         });
 
         it('closes the dropdown on Escape', async () => {
-            setAuth(true, createMockUser());
+            setAuth(true, fakeUserResponse());
             await openUserDropdown();
             await screen.findByRole('menuitem', { name: /Settings/i });
 
@@ -311,7 +317,7 @@ describe('Header', () => {
 
     describe('mobile menu logout', () => {
         it('calls logout and navigates from mobile menu', async () => {
-            setAuth(true, createMockUser({ username: 'mobileuser' }));
+            setAuth(true, { ...fakeUserResponse(), username: 'mobileuser' });
 
             await openMobileMenu();
             await waitFor(() => {

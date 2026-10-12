@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import { createMockUser } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole, type UserResponse } from '#lib/api/index.ts';
 import AdminLayout from '#routes/admin/+layout.svelte';
 
@@ -21,7 +21,7 @@ vi.mock('$app/state', () => ({ page: mocks.page }));
 describe('AdminLayout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.user = createMockUser({ username: 'adminuser', role: UserRole.ADMIN });
+        mocks.mockAuthStore.user = { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN };
     });
 
     function renderLayout(path = '/admin/events') {

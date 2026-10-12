@@ -1,11 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { createMockEventDetail, mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { getEventDetailApiV1AdminEventsEventIdGet, type EventDetailResponse } from '#lib/api/index.ts';
+import {
+    fakeEventDetailResponse,
+    fakeEventSummary,
+    fakeExecutionCompletedEvent,
+} from '#lib/api/@faker-js/faker.gen.ts';
 
 import EventDetailsModal from '#components/admin/events/EventDetailsModal.svelte';
 
-function renderModal(detail: EventDetailResponse = createMockEventDetail()) {
+function renderModal(
+    detail: EventDetailResponse = {
+        ...fakeEventDetailResponse(),
+        event: { ...fakeExecutionCompletedEvent(), event_id: 'evt-1', aggregate_id: 'exec-456' },
+        related_events: [
+            { ...fakeEventSummary(), event_id: 'rel-1', event_type: 'execution_started' },
+            { ...fakeEventSummary(), event_id: 'rel-2', event_type: 'pod_created' },
+        ],
+    },
+) {
     mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(detail);
     const onClose = vi.fn();
     const onReplay = vi.fn();
@@ -77,7 +91,7 @@ describe('EventDetailsModal', () => {
     });
 
     it('hides related events section when no related events', async () => {
-        renderModal({ ...createMockEventDetail(), related_events: [] });
+        renderModal({ ...fakeEventDetailResponse(), related_events: [] });
         await screen.findByText('Basic Information');
         expect(screen.queryByText('Related Events')).not.toBeInTheDocument();
     });

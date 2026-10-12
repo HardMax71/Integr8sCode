@@ -70,6 +70,13 @@ describe('AdminSettings', () => {
             });
         });
 
+        it('takes min and max for a number from the spec', async () => {
+            await renderAdminSettings();
+            const input = await screen.findByLabelText('Max Login Attempts');
+            expect(input).toHaveAttribute('min', '3');
+            expect(input).toHaveAttribute('max', '10');
+        });
+
         it('log-level select has value "INFO"', async () => {
             await renderAdminSettings();
             await waitFor(() => {
@@ -89,11 +96,21 @@ describe('AdminSettings', () => {
             await waitFor(() => {
                 expect(vi.mocked(updateSystemSettingsApiV1AdminSettingsPut)).toHaveBeenCalled();
             });
-            const callArgs = vi.mocked(updateSystemSettingsApiV1AdminSettingsPut).mock.calls[0]![0];
-            expect(callArgs.body).toHaveProperty('max_timeout_seconds');
-            expect(callArgs.body).toHaveProperty('password_min_length');
-            expect(callArgs.body).toHaveProperty('metrics_retention_days');
-            expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
+            expect(vi.mocked(updateSystemSettingsApiV1AdminSettingsPut)).toHaveBeenCalledWith(
+                expect.objectContaining({ body: createMockSystemSettings() }),
+            );
+            await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Settings saved successfully'));
+        });
+
+        it('shows the broken rule under the field and does not save', async () => {
+            await renderAdminSettings();
+            const input = await screen.findByLabelText('Max Login Attempts');
+            await user.clear(input);
+            await user.type(input, '50');
+            await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+            await waitFor(() => expect(input).toHaveAccessibleDescription('Must be at most 10'));
+            expect(vi.mocked(updateSystemSettingsApiV1AdminSettingsPut)).not.toHaveBeenCalled();
         });
 
         it('handles save error without crashing', async () => {
@@ -140,14 +157,8 @@ describe('AdminSettings', () => {
                 expect(vi.mocked(resetSystemSettingsApiV1AdminSettingsResetPost)).toHaveBeenCalled();
             });
             expect(toast.success).toHaveBeenCalledWith('Settings reset to defaults');
-            await waitFor(() => {
-                expect((screen.getByLabelText('Max Executions Per User') as HTMLInputElement).value).toBe('50');
-            });
-
-            await waitFor(() => {
-                const timeoutInput = document.getElementById('max-timeout') as HTMLInputElement;
-                expect(timeoutInput.value).toBe('30');
-            });
+            await waitFor(() => expect(screen.getByLabelText('Max Executions Per User')).toHaveValue(50));
+            expect(screen.getByLabelText('Max Timeout Seconds')).toHaveValue(30);
         });
 
         it('does not call API when confirm returns false', async () => {

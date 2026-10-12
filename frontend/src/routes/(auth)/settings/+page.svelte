@@ -1,5 +1,7 @@
 <script lang="ts">
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
+    import * as z from 'zod/mini';
+    import { Control, Field, FieldErrors, Label } from 'formsnap';
     import {
         getUserSettingsApiV1UserSettingsGetOptions,
         getUserSettingsApiV1UserSettingsGetQueryKey,
@@ -8,13 +10,14 @@
         getSettingsHistoryApiV1UserSettingsHistoryGetOptions,
         getSettingsHistoryApiV1UserSettingsHistoryGetQueryKey,
         type UserSettings,
-        type UserSettingsUpdate,
         Theme,
         zEditorSettingsInput,
         type EditorSettingsOutput,
+        type NotificationSettingsOutput,
         zNotificationSettingsInput,
         zUserSettings,
     } from '#lib/api/index.ts';
+    import { apiForm } from '#lib/forms.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { setTheme } from '#stores/theme.svelte.ts';
     import { toast } from 'svelte-sonner';
@@ -23,9 +26,7 @@
     import SettingsHistoryTable from '#components/settings/SettingsHistoryTable.svelte';
     import { Select } from 'bits-ui';
     import { Check, ChevronDown } from '@lucide/svelte';
-    import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
-
-    type SettingsForm = Pick<UserSettings, 'theme' | 'notifications' | 'editor'>;
+    import { fieldTitle } from '#lib/formatters.ts';
 
     let activeTab = $state('general');
     let showHistory = $state(false);
@@ -39,14 +40,20 @@
     const themes = Object.values(Theme);
 
     const tabSizes: EditorSettingsOutput['tab_size'][] = [2, 4, 8];
+    const editorToggles = [
+        'use_tabs',
+        'word_wrap',
+        'show_line_numbers',
+    ] as const satisfies (keyof EditorSettingsOutput)[];
+    const notificationToggles = [
+        'execution_completed',
+        'execution_failed',
+        'system_updates',
+        'security_alerts',
+    ] as const satisfies (keyof NotificationSettingsOutput)[];
 
-    function toForm(data: UserSettings): SettingsForm {
-        return {
-            theme: data.theme,
-            notifications: { ...data.notifications },
-            editor: { ...data.editor },
-        };
-    }
+    const toggleClass =
+        'flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors';
 
     const queryClient = useQueryClient();
     const settingsKey = getUserSettingsApiV1UserSettingsGetQueryKey();
@@ -55,21 +62,6 @@
         ...getUserSettingsApiV1UserSettingsGetOptions(),
         enabled: authStore.isAuthenticated === true,
     }));
-
-    let loaded = $derived(settingsQuery.data);
-    // Edits go to a copy of the loaded settings (the API's defaults until then), which an unchanged refetch keeps
-    let formData = $derived.by(() => {
-        const draft = $state<SettingsForm>(
-            loaded
-                ? toForm(loaded)
-                : {
-                      theme: zUserSettings.shape.theme.parse(undefined),
-                      notifications: zNotificationSettingsInput.parse({}),
-                      editor: zEditorSettingsInput.parse({}),
-                  },
-        );
-        return draft;
-    });
 
     const historyQuery = createQuery(() => ({
         ...getSettingsHistoryApiV1UserSettingsHistoryGetOptions({ query: { limit: 10 } }),
@@ -100,21 +92,42 @@
         },
     }));
 
-    function saveSettings() {
-        const current = $state.snapshot(formData);
-        const saved = loaded ? toForm(loaded) : null;
-        if (!saved || JSON.stringify(current) === JSON.stringify(saved)) {
-            toast.info('No changes to save');
-            return;
-        }
+    const form = apiForm(
+        z.object({
+            theme: zUserSettings.shape.theme,
+            notifications: zNotificationSettingsInput,
+            editor: zEditorSettingsInput,
+        }),
+        {
+            onUpdate: ({ form: submitted }) => {
+                if (!submitted.valid) {
+                    activeTab = tabs.find((tab) => tab.id in submitted.errors)?.id ?? activeTab;
+                    return;
+                }
+                if (!isTainted()) {
+                    toast.info('No changes to save');
+                    return;
+                }
+                // Only the sections that changed, so the history lists only them
+                const { theme, notifications, editor } = submitted.data;
+                save.mutate({
+                    body: {
+                        theme: isTainted('theme') ? theme : null,
+                        notifications: isTainted('notifications') ? notifications : null,
+                        editor: isTainted('editor') ? editor : null,
+                    },
+                });
+            },
+        },
+    );
+    const { form: formData, constraints, enhance, isTainted, reset } = form;
 
-        const updates: UserSettingsUpdate = {};
-        if (current.theme !== saved.theme) updates.theme = current.theme;
-        if (JSON.stringify(current.notifications) !== JSON.stringify(saved.notifications))
-            updates.notifications = current.notifications;
-        if (JSON.stringify(current.editor) !== JSON.stringify(saved.editor)) updates.editor = current.editor;
-        save.mutate({ body: updates });
-    }
+    // Loading, saving and restoring put new settings in the query, and the form starts over from them
+    $effect(() => {
+        const loaded = settingsQuery.data;
+        if (loaded)
+            reset({ newState: { theme: loaded.theme, notifications: loaded.notifications, editor: loaded.editor } });
+    });
 
     function restoreSettings(timestamp: string) {
         if (!confirm('Are you sure you want to restore settings to this point?')) return;
@@ -170,192 +183,167 @@
                 {/each}
             </div>
 
-            <div class="card">
+            <form method="post" use:enhance novalidate class="card">
                 <div class="p-6">
                     {#if activeTab === 'general'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">General</h2>
 
-                        <div class="form-control">
-                            <label for="theme-select" class="block mb-2">
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >{fieldTitle('theme')}</span
-                                >
-                            </label>
-                            <Select.Root
-                                type="single"
-                                value={formData.theme}
-                                onValueChange={(value) => {
-                                    const picked = themes.find((t) => t === value);
-                                    if (!picked) return;
-                                    formData.theme = picked;
-                                    setTheme(picked);
-                                }}
-                            >
-                                <Select.Trigger
-                                    id="theme-select"
-                                    class="form-control-base flex items-center justify-between text-left group"
-                                >
-                                    <span class="truncate">{formData.theme}</span>
-                                    <ChevronDown
-                                        class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
-                                    />
-                                </Select.Trigger>
-                                <Select.Portal>
-                                    <Select.Content
-                                        sideOffset={4}
-                                        class="floating-panel w-(--bits-select-anchor-width)"
+                        <Field {form} name="theme">
+                            <Control>
+                                {#snippet children({ props })}
+                                    <Label
+                                        class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                        >{fieldTitle('theme')}</Label
                                     >
-                                        <Select.Viewport>
-                                            {#each themes as theme (theme)}
-                                                <Select.Item
-                                                    value={theme}
-                                                    label={theme}
-                                                    class="floating-item justify-between"
-                                                >
-                                                    {#snippet children({ selected })}
-                                                        {theme}
-                                                        {#if selected}<Check class="w-4 h-4 text-primary" />{/if}
-                                                    {/snippet}
-                                                </Select.Item>
-                                            {/each}
-                                        </Select.Viewport>
-                                    </Select.Content>
-                                </Select.Portal>
-                            </Select.Root>
-                        </div>
+                                    <Select.Root
+                                        type="single"
+                                        value={$formData.theme}
+                                        onValueChange={(value) => {
+                                            const picked = themes.find((t) => t === value);
+                                            if (!picked) return;
+                                            $formData.theme = picked;
+                                            setTheme(picked);
+                                        }}
+                                    >
+                                        <Select.Trigger
+                                            {...props}
+                                            class="form-control-base flex items-center justify-between text-left group"
+                                        >
+                                            <span class="truncate">{$formData.theme}</span>
+                                            <ChevronDown
+                                                class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
+                                            />
+                                        </Select.Trigger>
+                                        <Select.Portal>
+                                            <Select.Content
+                                                sideOffset={4}
+                                                class="floating-panel w-(--bits-select-anchor-width)"
+                                            >
+                                                <Select.Viewport>
+                                                    {#each themes as theme (theme)}
+                                                        <Select.Item
+                                                            value={theme}
+                                                            label={theme}
+                                                            class="floating-item justify-between"
+                                                        >
+                                                            {#snippet children({ selected })}
+                                                                {theme}
+                                                                {#if selected}<Check
+                                                                        class="w-4 h-4 text-primary"
+                                                                    />{/if}
+                                                            {/snippet}
+                                                        </Select.Item>
+                                                    {/each}
+                                                </Select.Viewport>
+                                            </Select.Content>
+                                        </Select.Portal>
+                                    </Select.Root>
+                                {/snippet}
+                            </Control>
+                        </Field>
                     {:else if activeTab === 'editor'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                             {fieldTitle('editor')}
                         </h2>
 
                         <div class="flex flex-wrap gap-4">
-                            <div class="form-control flex-1 min-w-[100px]">
-                                <label for="font-size" class="block mb-2">
-                                    <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >{fieldTitle('font_size')}</span
-                                    >
-                                </label>
-                                <input
-                                    id="font-size"
-                                    type="number"
-                                    bind:value={formData.editor.font_size}
-                                    class="form-input-standard"
-                                />
-                            </div>
+                            <Field {form} name="editor.font_size">
+                                <Control>
+                                    {#snippet children({ props })}
+                                        <div class="flex-1 min-w-[100px]">
+                                            <Label
+                                                class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                                >{fieldTitle('font_size')}</Label
+                                            >
+                                            <input
+                                                {...props}
+                                                {...$constraints.editor?.font_size}
+                                                type="number"
+                                                bind:value={$formData.editor.font_size}
+                                                class="form-input-standard"
+                                            />
+                                            <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+                                        </div>
+                                    {/snippet}
+                                </Control>
+                            </Field>
 
-                            <div class="form-control flex-1 min-w-[100px]">
-                                <label for="tab-size" class="block mb-2">
-                                    <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >{fieldTitle('tab_size')}</span
-                                    >
-                                </label>
-                                <select
-                                    id="tab-size"
-                                    bind:value={formData.editor.tab_size}
-                                    class="form-select-standard"
-                                >
-                                    {#each tabSizes as size (size)}<option value={size}>{size}</option>{/each}
-                                </select>
-                            </div>
+                            <Field {form} name="editor.tab_size">
+                                <Control>
+                                    {#snippet children({ props })}
+                                        <div class="flex-1 min-w-[100px]">
+                                            <Label
+                                                class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                                >{fieldTitle('tab_size')}</Label
+                                            >
+                                            <select
+                                                {...props}
+                                                bind:value={$formData.editor.tab_size}
+                                                class="form-select-standard"
+                                            >
+                                                {#each tabSizes as size (size)}<option value={size}>{size}</option
+                                                    >{/each}
+                                            </select>
+                                        </div>
+                                    {/snippet}
+                                </Control>
+                            </Field>
                         </div>
 
                         <div class="my-6 border-t border-border-default dark:border-dark-border-default"></div>
 
                         <div class="space-y-3">
-                            <label
-                                class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >{fieldTitle('use_tabs')}</span
-                                >
-                                <input type="checkbox" bind:checked={formData.editor.use_tabs} class="" />
-                            </label>
-
-                            <label
-                                class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >{fieldTitle('word_wrap')}</span
-                                >
-                                <input type="checkbox" bind:checked={formData.editor.word_wrap} class="" />
-                            </label>
-
-                            <label
-                                class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                                <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                    >{fieldTitle('show_line_numbers')}</span
-                                >
-                                <input type="checkbox" bind:checked={formData.editor.show_line_numbers} class="" />
-                            </label>
+                            {#each editorToggles as key (key)}
+                                <Field {form} name="editor.{key}">
+                                    <Control>
+                                        {#snippet children({ props })}
+                                            <Label class={toggleClass}>
+                                                <span
+                                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                                    >{fieldTitle(key)}</span
+                                                >
+                                                <input
+                                                    {...props}
+                                                    type="checkbox"
+                                                    bind:checked={$formData.editor[key]}
+                                                />
+                                            </Label>
+                                        {/snippet}
+                                    </Control>
+                                </Field>
+                            {/each}
                         </div>
                     {:else if activeTab === 'notifications'}
                         <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
                             {fieldTitle('notifications')}
                         </h2>
 
-                        <div class="space-y-4">
-                            <div>
-                                <h3 class="font-semibold mb-2">Notification Types</h3>
-                                <div class="space-y-3">
-                                    <label
-                                        class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                                    >
-                                        <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >{fieldTitle('execution_completed')}</span
-                                        >
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={formData.notifications.execution_completed}
-                                            class=""
-                                        />
-                                    </label>
-
-                                    <label
-                                        class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                                    >
-                                        <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >{fieldTitle('execution_failed')}</span
-                                        >
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={formData.notifications.execution_failed}
-                                            class=""
-                                        />
-                                    </label>
-
-                                    <label
-                                        class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                                    >
-                                        <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >{fieldTitle('system_updates')}</span
-                                        >
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={formData.notifications.system_updates}
-                                            class=""
-                                        />
-                                    </label>
-
-                                    <label
-                                        class="flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-                                    >
-                                        <span class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                            >{fieldTitle('security_alerts')}</span
-                                        >
-                                        <input
-                                            type="checkbox"
-                                            bind:checked={formData.notifications.security_alerts}
-                                            class=""
-                                        />
-                                    </label>
-                                </div>
-                            </div>
+                        <h3 class="font-semibold mb-2">Notification Types</h3>
+                        <div class="space-y-3">
+                            {#each notificationToggles as key (key)}
+                                <Field {form} name="notifications.{key}">
+                                    <Control>
+                                        {#snippet children({ props })}
+                                            <Label class={toggleClass}>
+                                                <span
+                                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                                    >{fieldTitle(key)}</span
+                                                >
+                                                <input
+                                                    {...props}
+                                                    type="checkbox"
+                                                    bind:checked={$formData.notifications[key]}
+                                                />
+                                            </Label>
+                                        {/snippet}
+                                    </Control>
+                                </Field>
+                            {/each}
                         </div>
                     {/if}
 
                     <div class="flex justify-end mt-6">
-                        <button type="button" onclick={saveSettings} class="btn btn-primary" disabled={save.isPending}>
+                        <button type="submit" class="btn btn-primary" disabled={save.isPending}>
                             {#if save.isPending}
                                 <Spinner size="small" color="white" className="mr-2 inline-block" />
                                 Saving...
@@ -365,7 +353,7 @@
                         </button>
                     </div>
                 </div>
-            </div>
+            </form>
         {/if}
     </div>
 </div>

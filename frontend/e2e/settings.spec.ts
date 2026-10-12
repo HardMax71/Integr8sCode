@@ -17,12 +17,12 @@ test.describe('Settings Page', () => {
     await userPage.goto(PATH);
     await expect(userPage.getByRole('heading', { name: 'General', exact: true })).toBeVisible();
     await expect(userPage.getByText('Theme')).toBeVisible();
-    await expect(userPage.locator('#theme-select')).toBeVisible();
+    await expect(userPage.getByLabel('Theme', { exact: true })).toBeVisible();
   });
 
   test('can open theme dropdown and see options', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('#theme-select').click();
+    await userPage.getByLabel('Theme', { exact: true }).click();
     await expect(userPage.getByRole('option', { name: 'light', exact: true })).toBeVisible();
     await expect(userPage.getByRole('option', { name: 'dark', exact: true })).toBeVisible();
     await expect(userPage.getByRole('option', { name: 'system', exact: true })).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('Settings Page', () => {
 
   test('can change theme to dark', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('#theme-select').click();
+    await userPage.getByLabel('Theme', { exact: true }).click();
     await userPage.getByRole('option', { name: 'dark', exact: true }).click();
     const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(hasDarkClass).toBe(true);
@@ -38,7 +38,7 @@ test.describe('Settings Page', () => {
 
   test('can change theme to light', async ({ userPage }) => {
     await userPage.goto(PATH);
-    await userPage.locator('#theme-select').click();
+    await userPage.getByLabel('Theme', { exact: true }).click();
     await userPage.getByRole('option', { name: 'light', exact: true }).click();
     const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
     expect(hasDarkClass).toBe(false);
@@ -57,7 +57,7 @@ test.describe('Settings Editor Tab', () => {
   test('can change font size', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.locator('#font-size');
+    const fontSizeInput = userPage.getByLabel('Font Size');
     await fontSizeInput.fill('');
     await fontSizeInput.fill('16');
     await expect(fontSizeInput).toHaveValue('16');
@@ -66,7 +66,7 @@ test.describe('Settings Editor Tab', () => {
   test('can change tab size', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    const tabSize = userPage.locator('#tab-size');
+    const tabSize = userPage.getByLabel('Tab Size');
     await tabSize.selectOption('2');
     await expect(tabSize).toHaveValue('2');
   });
@@ -119,7 +119,7 @@ test.describe('Settings Save and History', () => {
   test('can save settings', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.locator('#font-size');
+    const fontSizeInput = userPage.getByLabel('Font Size');
     const currentValue = await fontSizeInput.inputValue();
     await fontSizeInput.fill(currentValue === '14' ? '15' : '14');
     await userPage.getByRole('button', { name: 'Save Settings' }).click();
@@ -143,7 +143,7 @@ test.describe('Settings Save and History', () => {
     // First make a change and save to ensure history exists
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.locator('#font-size');
+    const fontSizeInput = userPage.getByLabel('Font Size');
     const currentValue = await fontSizeInput.inputValue();
     await fontSizeInput.fill(currentValue === '14' ? '15' : '14');
     await userPage.getByRole('button', { name: 'Save Settings' }).click();

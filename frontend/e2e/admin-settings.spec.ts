@@ -3,9 +3,15 @@ import { test, expect, describeAdminCommonTests, describeAdminAccessControl, exp
 const PATH = '/admin/settings' as const;
 
 const SETTINGS_SECTIONS = [
-  { name: 'Execution Limits', inputs: ['#max-timeout', '#memory-limit', '#cpu-limit', '#max-concurrent', '#max-per-user'] },
-  { name: 'Security Settings', inputs: ['#min-password', '#session-timeout', '#max-login', '#lockout-duration'] },
-  { name: 'Monitoring Settings', inputs: ['#metrics-retention', '#log-level', '#enable-tracing', '#sampling-rate'] },
+  {
+    name: 'Execution Limits',
+    labels: ['Max Timeout Seconds', 'Memory Limit', 'Cpu Limit', 'Max Concurrent Executions', 'Max Executions Per User'],
+  },
+  {
+    name: 'Security Settings',
+    labels: ['Password Min Length', 'Session Timeout Minutes', 'Max Login Attempts', 'Lockout Duration Minutes'],
+  },
+  { name: 'Monitoring Settings', labels: ['Metrics Retention Days', 'Log Level', 'Enable Tracing', 'Sampling Rate'] },
 ] as const;
 
 test.describe('Admin Settings', () => {
@@ -20,15 +26,15 @@ test.describe('Admin Settings', () => {
     test(`shows ${section.name} section with all inputs`, async ({ adminPage }) => {
       await adminPage.goto(PATH);
       await expect(adminPage.getByText(section.name)).toBeVisible();
-      for (const input of section.inputs) {
-        await expect(adminPage.locator(input)).toBeVisible();
+      for (const label of section.labels) {
+        await expect(adminPage.getByLabel(label, { exact: true })).toBeVisible();
       }
     });
   }
 
   test('can modify max timeout value', async ({ adminPage }) => {
     await adminPage.goto(PATH);
-    const input = adminPage.locator('#max-timeout');
+    const input = adminPage.getByLabel('Max Timeout Seconds');
     const current = await input.inputValue();
     await input.fill('120');
     await expect(input).toHaveValue('120');
@@ -37,10 +43,9 @@ test.describe('Admin Settings', () => {
 
   test('log level select has correct options', async ({ adminPage }) => {
     await adminPage.goto(PATH);
-    // Wait for select to be visible and have options loaded
-    await expect(adminPage.locator('#log-level')).toBeVisible();
-    await expect(adminPage.locator('#log-level option').first()).toBeAttached();
-    const options = await adminPage.locator('#log-level option').allTextContents();
+    const select = adminPage.getByLabel('Log Level');
+    await expect(select.locator('option').first()).toBeAttached();
+    const options = await select.locator('option').allTextContents();
     expect(options).toContain('DEBUG');
     expect(options).toContain('INFO');
     expect(options).toContain('WARNING');
@@ -49,7 +54,7 @@ test.describe('Admin Settings', () => {
 
   test('can change log level', async ({ adminPage }) => {
     await adminPage.goto(PATH);
-    const select = adminPage.locator('#log-level');
+    const select = adminPage.getByLabel('Log Level');
     const original = await select.inputValue();
     await select.selectOption('DEBUG');
     await expect(select).toHaveValue('DEBUG');

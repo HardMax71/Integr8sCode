@@ -151,12 +151,51 @@ describe('Settings', () => {
             await waitFor(() => {
                 expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).toHaveBeenCalled();
             });
-            const callArgs = vi.mocked(updateUserSettingsApiV1UserSettingsPut).mock.calls[0]![0];
-            expect(callArgs.body).toHaveProperty('editor');
+            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: { theme: null, notifications: null, editor: updatedSettings.editor },
+                }),
+            );
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('Settings saved successfully');
             });
             expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toEqual(updatedSettings);
+        });
+        it('counts a value changed back as no change', async () => {
+            await renderSettings();
+            await user.click(await screen.findByRole('button', { name: 'Editor' }));
+            const fontInput = screen.getByLabelText(/font size/i);
+            await user.clear(fontInput);
+            await user.type(fontInput, '18');
+            await user.clear(fontInput);
+            await user.type(fontInput, '16');
+
+            await user.click(screen.getByRole('button', { name: /save settings/i }));
+            await waitFor(() => expect(toast.info).toHaveBeenCalledWith('No changes to save'));
+            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).not.toHaveBeenCalled();
+        });
+
+        it('takes the font size range from the spec', async () => {
+            await renderSettings();
+            await user.click(await screen.findByRole('button', { name: 'Editor' }));
+            const fontInput = screen.getByLabelText(/font size/i);
+            expect(fontInput).toHaveAttribute('min', '8');
+            expect(fontInput).toHaveAttribute('max', '32');
+        });
+
+        it('opens the tab with the broken rule instead of saving', async () => {
+            await renderSettings();
+            await user.click(await screen.findByRole('button', { name: 'Editor' }));
+            const fontInput = screen.getByLabelText(/font size/i);
+            await user.clear(fontInput);
+            await user.type(fontInput, '50');
+            await user.click(screen.getByRole('button', { name: 'General' }));
+
+            await user.click(screen.getByRole('button', { name: /save settings/i }));
+            await waitFor(() =>
+                expect(screen.getByLabelText(/font size/i)).toHaveAccessibleDescription('Must be at most 32'),
+            );
+            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).not.toHaveBeenCalled();
         });
     });
 

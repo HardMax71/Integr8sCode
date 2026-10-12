@@ -3320,12 +3320,6 @@ export type ReplayConfigSchema = {
      */
     max_events: number | null;
     /**
-     * Target Topics
-     */
-    target_topics: {
-        [key in EventType]?: string;
-    } | null;
-    /**
      * Target File Path
      */
     target_file_path: string | null;
@@ -3496,12 +3490,6 @@ export type ReplayRequest = {
      * Target File Path
      */
     target_file_path?: string | null;
-    /**
-     * Target Topics
-     */
-    target_topics?: {
-        [key in EventType]?: string;
-    } | null;
     /**
      * Retry Failed
      */

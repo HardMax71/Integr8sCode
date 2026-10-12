@@ -1371,7 +1371,6 @@ export const zReplayConfigSchema = z.object({
     preserve_timestamps: z._default(z.boolean(), false),
     batch_size: z._default(z.int().check(z.gte(1), z.lte(1000)), 100),
     max_events: z.nullable(z.int().check(z.gte(1))),
-    target_topics: z.nullable(z.record(z.string(), z.string())),
     target_file_path: z.nullable(z.string()),
     skip_errors: z._default(z.boolean(), true),
     retry_failed: z._default(z.boolean(), false),
@@ -1394,7 +1393,6 @@ export const zReplayRequest = z.object({
     max_events: z.nullish(z.int().check(z.gte(1))),
     skip_errors: z._default(z.optional(z.boolean()), true),
     target_file_path: z.nullish(z.string()),
-    target_topics: z.nullish(z.record(z.string(), z.string())),
     retry_failed: z._default(z.optional(z.boolean()), false),
     retry_attempts: z._default(z.optional(z.int().check(z.gte(1), z.lte(10))), 3),
     enable_progress_tracking: z._default(z.optional(z.boolean()), true)

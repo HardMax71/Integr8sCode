@@ -130,7 +130,6 @@ class ReplayConfig:
     batch_size: int = 100
     max_events: int | None = None
 
-    target_topics: dict[EventType, str] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True

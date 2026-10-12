@@ -9897,23 +9897,6 @@
             ],
             "title": "Max Events"
           },
-          "target_topics": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "propertyNames": {
-                  "$ref": "#/components/schemas/EventType"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Topics"
-          },
           "target_file_path": {
             "anyOf": [
               {
@@ -9955,7 +9938,6 @@
           "preserve_timestamps",
           "batch_size",
           "max_events",
-          "target_topics",
           "target_file_path",
           "skip_errors",
           "retry_failed",
@@ -10309,23 +10291,6 @@
               }
             ],
             "title": "Target File Path"
-          },
-          "target_topics": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "propertyNames": {
-                  "$ref": "#/components/schemas/EventType"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Topics"
           },
           "retry_failed": {
             "type": "boolean",

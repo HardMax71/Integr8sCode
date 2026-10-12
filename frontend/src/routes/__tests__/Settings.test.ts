@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
-import { user, mockApi, renderWithQueryClient, createMockUserSettings } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 import Settings from '#routes/(auth)/settings/+page.svelte';
 
-function createMockSettings() {
-    return createMockUserSettings({
+function createMockSettings(): UserSettings {
+    return {
+        ...fakeUserSettings(),
         theme: 'dark',
         notifications: {
             execution_completed: true,
@@ -22,7 +24,7 @@ function createMockSettings() {
             word_wrap: false,
             show_line_numbers: true,
         },
-    });
+    };
 }
 
 import {
@@ -32,6 +34,7 @@ import {
     getSettingsHistoryApiV1UserSettingsHistoryGet,
     getUserSettingsApiV1UserSettingsGetQueryKey,
     type SettingsHistoryEntry,
+    type UserSettings,
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({

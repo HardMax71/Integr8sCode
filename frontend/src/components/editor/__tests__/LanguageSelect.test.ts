@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, within, waitFor } from '@testing-library/svelte';
-import { createMockResourceLimits, mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
+import { fakeResourceLimits } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 
 import LanguageSelect from '#components/editor/LanguageSelect.svelte';
@@ -14,7 +15,7 @@ const RUNTIMES: ResourceLimits['supported_runtimes'] = {
 };
 
 function renderSelect({ runtimes = RUNTIMES, lang = 'python', version = '3.14' } = {}) {
-    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockResourceLimits({ supported_runtimes: runtimes }));
+    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({ ...fakeResourceLimits(), supported_runtimes: runtimes });
     draft.current = { ...draft.current, lang, lang_version: version };
     return renderWithQueryClient(LanguageSelect);
 }

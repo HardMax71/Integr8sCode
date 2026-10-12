@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/svelte';
+import { faker } from '@faker-js/faker';
 import { queryClient } from '#lib/query-client.ts';
 
 vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -173,10 +174,15 @@ Element.prototype.animate = vi.fn().mockImplementation(() => {
     return mock as unknown as Animation;
 });
 
-// Reset storage, DOM and the query cache between every test
+// The generated fakes use the shared faker instance, so a fixed seed and date give each test the same fixtures every run
+faker.setDefaultRefDate('2026-01-01T00:00:00Z');
+faker.seed(1);
+
+// Reset storage, DOM, the query cache and the fakes between every test
 beforeEach(() => {
     Object.keys(localStorageStore).forEach((key) => delete localStorageStore[key]);
     Object.keys(sessionStorageStore).forEach((key) => delete sessionStorageStore[key]);
     cleanup();
     queryClient.clear();
+    faker.seed(1);
 });

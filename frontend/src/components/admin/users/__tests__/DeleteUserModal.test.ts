@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { deleteUserApiV1AdminUsersUserIdDelete } from '#lib/api/index.ts';
 import DeleteUserModal from '#components/admin/users/DeleteUserModal.svelte';
 
@@ -22,7 +23,7 @@ const DELETED = {
 function renderModal() {
     const onClose = vi.fn();
     renderWithQueryClient(DeleteUserModal, {
-        user: createMockUser({ user_id: 'u-1', username: 'alice' }),
+        user: { ...fakeUserResponse(), user_id: 'u-1', username: 'alice' },
         onClose,
     });
     return { onClose };

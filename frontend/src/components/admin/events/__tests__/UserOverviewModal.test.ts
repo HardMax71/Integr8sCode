@@ -1,12 +1,34 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/svelte';
-import { createMockUserOverview, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { getUserOverviewApiV1AdminUsersUserIdOverviewGet, type AdminUserOverview } from '#lib/api/index.ts';
+import {
+    fakeAdminUserOverview,
+    fakeEventStatistics,
+    fakeExecutionCompletedEvent,
+    fakeUserResponse,
+} from '#lib/api/@faker-js/faker.gen.ts';
 import { ApiError } from '#lib/api-error.ts';
 
 import UserOverviewModal from '#components/admin/events/UserOverviewModal.svelte';
 
-async function renderModal(overview: AdminUserOverview = createMockUserOverview()) {
+async function renderModal(
+    overview: AdminUserOverview = {
+        user: {
+            ...fakeUserResponse(),
+            user_id: 'user-1',
+            username: 'testuser',
+            email: 'test@example.com',
+            role: 'user',
+            is_active: true,
+            is_superuser: false,
+        },
+        stats: { ...fakeEventStatistics(), total_events: 100 },
+        derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
+        rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1, has_custom_limits: false },
+        recent_events: [fakeExecutionCompletedEvent()],
+    },
+) {
     mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
     const onClose = vi.fn();
     const result = renderWithQueryClient(UserOverviewModal, { userId: 'user-1', onClose });
@@ -100,7 +122,7 @@ describe('UserOverviewModal', () => {
         });
 
         it('hides recent events section when empty', async () => {
-            await renderModal({ ...createMockUserOverview(), recent_events: [] });
+            await renderModal({ ...fakeAdminUserOverview(), recent_events: [] });
             expect(screen.queryByText('Recent Events')).not.toBeInTheDocument();
         });
     });

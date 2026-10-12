@@ -33,7 +33,6 @@ class ReplayConfigSchema(BaseModel):
     batch_size: int = Field(default=100, ge=1, le=1000)
     max_events: int | None = Field(default=None, ge=1)
 
-    target_topics: dict[EventType, str] | None = None
     target_file_path: str | None = None
 
     skip_errors: bool = True
@@ -76,7 +75,6 @@ class ReplayRequest(BaseModel):
     max_events: int | None = Field(default=None, ge=1)
     skip_errors: bool = True
     target_file_path: str | None = None
-    target_topics: dict[EventType, str] | None = None
     retry_failed: bool = False
     retry_attempts: int = Field(default=3, ge=1, le=10)
     enable_progress_tracking: bool = True

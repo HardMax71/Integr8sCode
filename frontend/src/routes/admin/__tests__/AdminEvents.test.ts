@@ -1,20 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import {
-    mockWindowGlobals,
-    createMockEvent,
-    createMockEvents,
-    createMockStats,
-    createMockEventDetail,
-    createMockReplayResponse,
-    createMockReplayStatus,
-    createMockUserOverview,
-    user,
-    selectOption,
-    mockApi,
-    renderWithQueryClient,
-} from '#test/test-utils.ts';
+import { mockWindowGlobals, user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
     getEventStatsApiV1AdminEventsStatsGet,
@@ -23,11 +10,23 @@ import {
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
-    EventType,
     ReplayStatus,
-    type EventReplayResponse,
+    type EventBrowseResponse,
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
+import {
+    fakeAdminUserOverview,
+    fakeEventDetailResponse,
+    fakeEventMetadata,
+    fakeEventReplayResponse,
+    fakeEventReplayStatusResponse,
+    fakeEventStatsResponse,
+    fakeEventSummary,
+    fakeExecutionCompletedEvent,
+    fakeExecutionFailedEvent,
+    fakeExecutionStartedEvent,
+    fakeUserResponse,
+} from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 
 const mocks = vi.hoisted(() => ({
@@ -46,7 +45,10 @@ function mockReplayStream(...statuses: EventReplayStatusResponse[]): void {
     }));
 }
 
-async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
+async function renderWithEvents(
+    events: EventBrowseResponse['events'] = Array.from({ length: 5 }, () => fakeExecutionCompletedEvent()),
+    stats = fakeEventStatsResponse(),
+) {
     mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: events.length, skip: 0, limit: 10 });
     mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(stats);
 
@@ -61,7 +63,7 @@ describe('AdminEvents', () => {
         mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
         vi.clearAllMocks();
         mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
-        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
+        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
         mockReplayStream();
         mocks.windowConfirm.mockReturnValue(true);
     });
@@ -95,7 +97,7 @@ describe('AdminEvents', () => {
         });
 
         it('displays empty state when no events', async () => {
-            await renderWithEvents([], createMockStats({ total_events: 0 }));
+            await renderWithEvents([], { ...fakeEventStatsResponse(), total_events: 0 });
             expect(screen.getByText(/No events found/i)).toBeInTheDocument();
         });
     });
@@ -103,8 +105,8 @@ describe('AdminEvents', () => {
     describe('stats display', () => {
         it('displays event statistics cards', async () => {
             await renderWithEvents(
-                createMockEvents(5),
-                createMockStats({ total_events: 150, error_rate: 2.5, avg_processing_time: 1.23 }),
+                Array.from({ length: 5 }, () => fakeExecutionCompletedEvent()),
+                { ...fakeEventStatsResponse(), total_events: 150, error_rate: 2.5, avg_processing_time: 1.23 },
             );
             expect(screen.getByText('Total Events')).toBeInTheDocument();
             expect(screen.getByText('150')).toBeInTheDocument();
@@ -113,13 +115,13 @@ describe('AdminEvents', () => {
         });
 
         it('shows error rate in red when > 0', async () => {
-            await renderWithEvents(createMockEvents(1), createMockStats({ error_rate: 5 }));
+            await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 5 });
             const errorRateElement = screen.getByText('5%');
             expect(errorRateElement).toHaveClass('text-red-600');
         });
 
         it('shows error rate in green when 0', async () => {
-            await renderWithEvents(createMockEvents(1), createMockStats({ error_rate: 0 }));
+            await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 0 });
             const errorRateElement = screen.getByText('0%');
             expect(errorRateElement).toHaveClass('text-green-600');
         });
@@ -128,10 +130,10 @@ describe('AdminEvents', () => {
     describe('event list rendering', () => {
         it('displays events in table', async () => {
             const events = [
-                createMockEvent({
-                    event_type: 'execution_completed',
-                    metadata: { user_id: 'user-1', service_name: 'test-service' },
-                }),
+                {
+                    ...fakeExecutionCompletedEvent(),
+                    metadata: { ...fakeEventMetadata(), user_id: 'user-1', service_name: 'test-service' },
+                },
             ];
             await renderWithEvents(events);
             // Events are displayed (multiple due to mobile + desktop views)
@@ -139,14 +141,16 @@ describe('AdminEvents', () => {
         });
 
         it('displays multiple events', async () => {
-            const events = createMockEvents(5);
+            const events = Array.from({ length: 5 }, () => fakeExecutionCompletedEvent());
             await renderWithEvents(events);
             // Should show events info in pagination
             expect(screen.getByText(/Showing 1 - 5 of 5/i)).toBeInTheDocument();
         });
 
         it('shows user ID as clickable link', async () => {
-            const events = [createMockEvent({ metadata: { user_id: 'user-123' } })];
+            const events = [
+                { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-123' } },
+            ];
             await renderWithEvents(events);
             const userLinks = screen.getAllByText('user-123');
             expect(userLinks.length).toBeGreaterThan(0);
@@ -233,7 +237,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows active filter count badge', async () => {
-            await renderWithEvents();
+            await renderWithEvents(undefined, { ...fakeEventStatsResponse(), top_users: [] });
 
             await user.click(screen.getByRole('button', { name: /Filters/i }));
             await waitFor(() => expect(screen.getByLabelText('Search Text')).toBeInTheDocument());
@@ -254,14 +258,14 @@ describe('AdminEvents', () => {
 
     describe('pagination', () => {
         it('shows pagination info', async () => {
-            const events = createMockEvents(25);
+            const events = Array.from({ length: 25 }, () => fakeExecutionCompletedEvent());
             mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
                 events: events.slice(0, 10),
                 total: 25,
                 skip: 0,
                 limit: 10,
             });
-            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
 
             renderWithQueryClient(AdminEvents);
             await waitFor(() => expect(screen.getByText(/Showing 1 - 10 of 25/i)).toBeInTheDocument());
@@ -269,12 +273,12 @@ describe('AdminEvents', () => {
 
         it('changes page when next is clicked', async () => {
             mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
-                events: createMockEvents(10),
+                events: Array.from({ length: 10 }, () => fakeExecutionCompletedEvent()),
                 total: 25,
                 skip: 0,
                 limit: 10,
             });
-            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
 
             renderWithQueryClient(AdminEvents);
             const nextBtn = await waitFor(() => screen.getByLabelText('Next page'));
@@ -295,12 +299,12 @@ describe('AdminEvents', () => {
 
         it('changes page size', async () => {
             mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({
-                events: createMockEvents(10),
+                events: Array.from({ length: 10 }, () => fakeExecutionCompletedEvent()),
                 total: 50,
                 skip: 0,
                 limit: 10,
             });
-            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
+            mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(fakeEventStatsResponse());
 
             renderWithQueryClient(AdminEvents);
             const pageSizeSelect = await waitFor(() => screen.getByLabelText(/Items per page/i));
@@ -322,9 +326,9 @@ describe('AdminEvents', () => {
 
     describe('event detail modal', () => {
         it('opens event detail modal when row is clicked', async () => {
-            const events = [createMockEvent({ event_id: 'evt-detail-1' })];
-            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(events[0]));
-            await renderWithEvents(events);
+            const event = { ...fakeExecutionCompletedEvent(), event_id: 'evt-detail-1' };
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok({ ...fakeEventDetailResponse(), event });
+            await renderWithEvents([event]);
 
             // Multiple view detail buttons may exist (mobile + desktop views)
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -341,8 +345,8 @@ describe('AdminEvents', () => {
         });
 
         it('displays event information in modal', async () => {
-            const event = createMockEvent({ event_id: 'evt-123', event_type: 'execution_completed' });
-            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
+            const event = { ...fakeExecutionCompletedEvent(), event_id: 'evt-123' };
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok({ ...fakeEventDetailResponse(), event });
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -356,8 +360,15 @@ describe('AdminEvents', () => {
         });
 
         it('shows related events in modal', async () => {
-            const event = createMockEvent();
-            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
+            const event = fakeExecutionCompletedEvent();
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok({
+                ...fakeEventDetailResponse(),
+                event,
+                related_events: [
+                    { ...fakeEventSummary(), event_type: 'execution_started' },
+                    { ...fakeEventSummary(), event_type: 'pod_created' },
+                ],
+            });
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -371,8 +382,8 @@ describe('AdminEvents', () => {
         });
 
         it('has close button in modal', async () => {
-            const event = createMockEvent();
-            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(createMockEventDetail(event));
+            const event = fakeExecutionCompletedEvent();
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok({ ...fakeEventDetailResponse(), event });
             await renderWithEvents([event]);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -388,17 +399,16 @@ describe('AdminEvents', () => {
 
     describe('replay functionality', () => {
         it('shows replay preview on dry run', async () => {
-            const events = [createMockEvent({ event_id: 'evt-replay-1' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(
-                createMockReplayResponse({
-                    dry_run: true,
-                    total_events: 1,
-                    replay_id: '',
-                    session_id: null,
-                    status: ReplayStatus.PREVIEW,
-                    events_preview: events,
-                }),
-            );
+            const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-replay-1' }];
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                ...fakeEventReplayResponse(),
+                dry_run: true,
+                total_events: 1,
+                replay_id: '',
+                session_id: null,
+                status: ReplayStatus.PREVIEW,
+                events_preview: events,
+            });
             await renderWithEvents(events);
 
             const [previewBtn] = screen.getAllByTitle('Preview replay');
@@ -415,8 +425,8 @@ describe('AdminEvents', () => {
         });
 
         it('confirms before actual replay', async () => {
-            const events = [createMockEvent({ event_id: 'evt-replay-2' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse({ total_events: 1 }));
+            const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-replay-2' }];
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({ ...fakeEventReplayResponse(), total_events: 1 });
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
@@ -434,7 +444,7 @@ describe('AdminEvents', () => {
 
         it('does not replay if confirm is cancelled', async () => {
             mocks.windowConfirm.mockReturnValue(false);
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
@@ -444,18 +454,18 @@ describe('AdminEvents', () => {
         });
 
         it('shows replay progress when session is active', async () => {
-            const events = [createMockEvent({ event_id: 'evt-progress' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(
-                createMockReplayResponse({ session_id: 'session-progress' }),
-            );
-            mockReplayStream(
-                createMockReplayStatus({
-                    session_id: 'session-progress',
-                    status: ReplayStatus.RUNNING,
-                    replayed_events: 2,
-                    progress_percentage: 40,
-                }),
-            );
+            const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-progress' }];
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                ...fakeEventReplayResponse(),
+                session_id: 'session-progress',
+            });
+            mockReplayStream({
+                ...fakeEventReplayStatusResponse(),
+                session_id: 'session-progress',
+                status: ReplayStatus.RUNNING,
+                replayed_events: 2,
+                progress_percentage: 40,
+            });
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
@@ -469,7 +479,7 @@ describe('AdminEvents', () => {
 
     describe('delete event', () => {
         it('confirms before deleting', async () => {
-            const events = [createMockEvent({ event_id: 'evt-delete-1' })];
+            const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-delete-1' }];
             mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({ message: 'Event deleted', event_id: 'evt-1' });
             await renderWithEvents(events);
 
@@ -487,7 +497,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows success toast after deletion', async () => {
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({ message: 'Event deleted', event_id: 'evt-1' });
             await renderWithEvents(events);
 
@@ -501,7 +511,7 @@ describe('AdminEvents', () => {
 
         it('does not delete if confirm is cancelled', async () => {
             mocks.windowConfirm.mockReturnValue(false);
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
@@ -512,7 +522,7 @@ describe('AdminEvents', () => {
 
         it('reports no success when the delete fails', async () => {
             mockApi(deleteEventApiV1AdminEventsEventIdDelete).err({ detail: 'Cannot delete' });
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
@@ -569,8 +579,10 @@ describe('AdminEvents', () => {
 
     describe('user overview modal', () => {
         it('opens user overview modal when user ID is clicked', async () => {
-            const events = [createMockEvent({ metadata: { user_id: 'user-overview-1' } })];
-            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(createMockUserOverview());
+            const events = [
+                { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-overview-1' } },
+            ];
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(fakeAdminUserOverview());
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-overview-1');
@@ -587,9 +599,13 @@ describe('AdminEvents', () => {
         });
 
         it('displays user information in overview modal', async () => {
-            const events = [createMockEvent({ metadata: { user_id: 'user-info' } })];
-            const overview = createMockUserOverview();
-            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
+            const events = [
+                { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-info' } },
+            ];
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok({
+                ...fakeAdminUserOverview(),
+                user: { ...fakeUserResponse(), username: 'testuser', email: 'test@example.com' },
+            });
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-info');
@@ -602,8 +618,13 @@ describe('AdminEvents', () => {
         });
 
         it('shows execution stats in overview modal', async () => {
-            const events = [createMockEvent({ metadata: { user_id: 'user-stats' } })];
-            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(createMockUserOverview());
+            const events = [
+                { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-stats' } },
+            ];
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok({
+                ...fakeAdminUserOverview(),
+                derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
+            });
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-stats');
@@ -620,7 +641,9 @@ describe('AdminEvents', () => {
 
         it('shows no data in the overview when it fails to load', async () => {
             mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err({ detail: 'Failed to load' });
-            const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
+            const events = [
+                { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-error' } },
+            ];
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-error');
@@ -632,7 +655,7 @@ describe('AdminEvents', () => {
 
     describe('event type display', () => {
         it('shows correct color for completed events', async () => {
-            const events = [createMockEvent({ event_type: EventType.EXECUTION_COMPLETED })];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_completed');
@@ -640,7 +663,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows correct color for failed events', async () => {
-            const events = [createMockEvent({ event_type: EventType.EXECUTION_FAILED })];
+            const events = [fakeExecutionFailedEvent()];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_failed');
@@ -648,7 +671,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows correct color for started events', async () => {
-            const events = [createMockEvent({ event_type: EventType.EXECUTION_STARTED })];
+            const events = [fakeExecutionStartedEvent()];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_started');
@@ -673,7 +696,7 @@ describe('AdminEvents', () => {
     describe('error handling', () => {
         it('opens no details when the event fails to load', async () => {
             mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ detail: 'Detail not found' });
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
@@ -685,7 +708,7 @@ describe('AdminEvents', () => {
 
         it('starts no progress tracking when the replay fails', async () => {
             mockApi(replayEventsApiV1AdminEventsReplayPost).err({ detail: 'Replay failed' });
-            const events = [createMockEvent()];
+            const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');

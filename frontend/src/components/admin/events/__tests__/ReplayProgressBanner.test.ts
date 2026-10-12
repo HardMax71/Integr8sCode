@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { toast } from 'svelte-sonner';
-import { createMockExecutionResult, createMockReplayStatus, mockStreamEvents, user } from '#test/test-utils.ts';
+import { mockStreamEvents, user } from '#test/test-utils.ts';
 import {
     ExecutionStatus,
     ReplayStatus,
@@ -9,16 +9,20 @@ import {
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 
+import { fakeEventReplayStatusResponse, fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 import ReplayProgressBanner from '#components/admin/events/ReplayProgressBanner.svelte';
 
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
-    return createMockReplayStatus({
+    return {
+        ...fakeEventReplayStatusResponse(),
         status: ReplayStatus.RUNNING,
         total_events: 10,
         replayed_events: 5,
         progress_percentage: 50,
+        errors: null,
+        execution_results: null,
         ...overrides,
-    });
+    };
 }
 
 async function renderBanner(...statuses: EventReplayStatusResponse[]) {
@@ -154,8 +158,10 @@ describe('ReplayProgressBanner', () => {
             await renderBanner(
                 makeSession({
                     execution_results: [
-                        createMockExecutionResult({
+                        {
+                            ...fakeExecutionResult(),
                             execution_id: 'exec-r1',
+                            status: ExecutionStatus.COMPLETED,
                             stdout: 'hello',
                             resource_usage: {
                                 execution_time_wall_seconds: 1.23,
@@ -163,7 +169,7 @@ describe('ReplayProgressBanner', () => {
                                 peak_memory_kb: 1024,
                                 clk_tck_hertz: 100,
                             },
-                        }),
+                        },
                     ],
                 }),
             );
@@ -181,7 +187,7 @@ describe('ReplayProgressBanner', () => {
         ])('status "$status" shows badge with $expectedClass', async ({ status, expectedClass }) => {
             const { container } = await renderBanner(
                 makeSession({
-                    execution_results: [createMockExecutionResult({ execution_id: 'exec-x', status })],
+                    execution_results: [{ ...fakeExecutionResult(), execution_id: 'exec-x', status }],
                 }),
             );
             expect(container.querySelector(`.${expectedClass}`)).not.toBeNull();
@@ -191,12 +197,13 @@ describe('ReplayProgressBanner', () => {
             await renderBanner(
                 makeSession({
                     execution_results: [
-                        createMockExecutionResult({
+                        {
+                            ...fakeExecutionResult(),
                             execution_id: 'exec-err',
                             status: ExecutionStatus.FAILED,
                             stderr: 'NameError',
                             exit_code: 1,
-                        }),
+                        },
                     ],
                 }),
             );

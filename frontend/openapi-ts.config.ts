@@ -11,6 +11,7 @@ export default defineConfig({
         '@hey-api/sdk',
         { name: '@hey-api/client-fetch', includeInEntry: true },
         { name: 'zod', compatibilityVersion: 'mini', includeInEntry: true },
+        '@faker-js/faker',
         {
             name: '@tanstack/svelte-query',
             includeInEntry: true,

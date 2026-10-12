@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import {
+    fakeRateLimitUpdateResponse,
+    fakeUserRateLimitConfigResponse,
+    fakeUserRateLimitsResponse,
+    fakeUserResponse,
+} from '#lib/api/@faker-js/faker.gen.ts';
 import RateLimitsModal from '#components/admin/users/RateLimitsModal.svelte';
 import {
     getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
@@ -14,13 +20,11 @@ import {
 } from '#lib/api/index.ts';
 
 const createConfig = (overrides: Partial<UserRateLimitConfigResponse> = {}): UserRateLimitConfigResponse => ({
-    user_id: 'user-1',
+    ...fakeUserRateLimitConfigResponse(),
     bypass_rate_limit: false,
     global_multiplier: 1,
     notes: '',
     rules: [],
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
 });
 
@@ -28,13 +32,16 @@ const updateLimits = () => vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUse
 
 function renderModal(limits: Partial<UserRateLimitsResponse> = {}) {
     mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
-        user_id: 'user-1',
+        ...fakeUserRateLimitsResponse(),
         rate_limit_config: createConfig(),
         current_usage: {},
         ...limits,
     });
     const onClose = vi.fn();
-    renderWithQueryClient(RateLimitsModal, { user: createMockUser({ user_id: 'user-1', username: 'alice' }), onClose });
+    renderWithQueryClient(RateLimitsModal, {
+        user: { ...fakeUserResponse(), user_id: 'user-1', username: 'alice' },
+        onClose,
+    });
     return { onClose };
 }
 
@@ -49,17 +56,13 @@ describe('RateLimitsModal', () => {
                 window_seconds: 60,
             }),
         ]);
-        mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok({
-            user_id: 'user-1',
-            updated: true,
-            config: createConfig(),
-        });
+        mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok(fakeRateLimitUpdateResponse());
         mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).ok({ message: 'reset' });
     });
 
     it('shows a spinner while the limits load', () => {
         mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).mock.mockImplementation(() => new Promise(() => {}));
-        renderWithQueryClient(RateLimitsModal, { user: createMockUser(), onClose: vi.fn() });
+        renderWithQueryClient(RateLimitsModal, { user: fakeUserResponse(), onClose: vi.fn() });
         expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
         expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
     });

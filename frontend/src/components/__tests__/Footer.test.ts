@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { createMockUser } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole, type UserResponse } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -82,7 +82,7 @@ describe('Footer', () => {
         });
 
         it('shows admins a Grafana link to the nginx redirect', () => {
-            mocks.mockAuthStore.user = createMockUser({ role: UserRole.ADMIN });
+            mocks.mockAuthStore.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
             render(Footer);
 
             const grafanaLink = screen.getByRole('link', { name: /Grafana/i });
@@ -92,7 +92,7 @@ describe('Footer', () => {
         });
 
         it.each([null, UserRole.USER])('hides the Grafana link for role %s', (role) => {
-            mocks.mockAuthStore.user = role && createMockUser({ role });
+            mocks.mockAuthStore.user = role && { ...fakeUserResponse(), role };
             render(Footer);
 
             expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();

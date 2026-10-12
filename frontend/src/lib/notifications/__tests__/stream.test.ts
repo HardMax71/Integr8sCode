@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
 import { notificationStream } from '#lib/notifications/stream.svelte.ts';
-import { createMockNotification } from '#test/test-utils.ts';
+import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 
 type StreamOptions = NonNullable<Parameters<typeof notificationStreamApiV1EventsNotificationsStreamGet>[0]>;
 type OnSseEvent = NonNullable<StreamOptions['onSseEvent']>;
@@ -10,14 +10,16 @@ const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet)
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const payload = (): NotificationResponse =>
-    createMockNotification({
-        notification_id: 'n-1',
-        subject: 'Test',
-        body: 'Hello',
-        action_url: '/action',
-        tags: ['tag1'],
-    });
+const payload = (): NotificationResponse => ({
+    ...fakeNotificationResponse(),
+    notification_id: 'n-1',
+    channel: 'in_app',
+    severity: 'medium',
+    subject: 'Test',
+    body: 'Hello',
+    action_url: '/action',
+    tags: ['tag1'],
+});
 
 function mockStream(): { readonly onSseEvent: OnSseEvent | undefined } {
     let onSseEvent: OnSseEvent | undefined;

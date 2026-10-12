@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { createMockUser, suppressConsoleWarn } from '#test/test-utils.ts';
+import { suppressConsoleWarn } from '#test/test-utils.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole, type LoginResponse, type UserResponse } from '#lib/api/index.ts';
 
 const mockGetProfileApi = vi.fn();
@@ -10,7 +11,7 @@ vi.mock('#lib/api/sdk.gen.ts', async (importOriginal) => ({
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
 }));
 
-const PROFILE_RESPONSE = createMockUser({ user_id: 'user-123' });
+const PROFILE_RESPONSE = { ...fakeUserResponse(), user_id: 'user-123' };
 
 const LOGIN_RESPONSE: LoginResponse = {
     message: 'ok',
@@ -256,7 +257,7 @@ describe('auth store', () => {
         });
 
         it('restores from persisted auth and verifies', async () => {
-            const admin = createMockUser({ user_id: 'user-123', role: UserRole.ADMIN });
+            const admin = { ...fakeUserResponse(), user_id: 'user-123', role: UserRole.ADMIN };
             sessionStorageData['authState'] = persistedState({ user: admin });
             profileOk(admin);
             const { authStore } = await load();

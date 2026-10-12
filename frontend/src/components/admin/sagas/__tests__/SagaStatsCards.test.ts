@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { createMockSaga } from '#test/test-utils.ts';
+import { fakeSagaStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { SagaState, type SagaStatusResponse } from '#lib/api/index.ts';
 import SagaStatsCards from '#components/admin/sagas/SagaStatsCards.svelte';
 
@@ -46,11 +46,11 @@ describe('SagaStatsCards', () => {
     });
 
     it('shows correct count for each state', () => {
-        const sagas = [
-            createMockSaga({ saga_id: 's1', state: 'running' }),
-            createMockSaga({ saga_id: 's2', state: 'running' }),
-            createMockSaga({ saga_id: 's3', state: 'completed' }),
-            createMockSaga({ saga_id: 's4', state: 'failed' }),
+        const sagas: SagaStatusResponse[] = [
+            { ...fakeSagaStatusResponse(), saga_id: 's1', state: 'running' },
+            { ...fakeSagaStatusResponse(), saga_id: 's2', state: 'running' },
+            { ...fakeSagaStatusResponse(), saga_id: 's3', state: 'completed' },
+            { ...fakeSagaStatusResponse(), saga_id: 's4', state: 'failed' },
         ];
         renderCards(sagas);
         expect(screen.getByText('2')).toBeInTheDocument();
@@ -61,12 +61,12 @@ describe('SagaStatsCards', () => {
     });
 
     it('updates counts when sagas change', () => {
-        const { rerender } = renderCards([createMockSaga({ state: 'running' })]);
+        const { rerender } = renderCards([{ ...fakeSagaStatusResponse(), state: 'running' }]);
         expect(screen.getByText('1')).toBeInTheDocument();
         rerender({
             sagas: [
-                createMockSaga({ saga_id: 's1', state: 'completed' }),
-                createMockSaga({ saga_id: 's2', state: 'completed' }),
+                { ...fakeSagaStatusResponse(), saga_id: 's1', state: 'completed' },
+                { ...fakeSagaStatusResponse(), saga_id: 's2', state: 'completed' },
             ],
         });
         expect(screen.getByText('2')).toBeInTheDocument();

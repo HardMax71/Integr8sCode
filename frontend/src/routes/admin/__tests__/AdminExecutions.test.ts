@@ -1,24 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
-import {
-    user,
-    selectOption,
-    createMockExecution,
-    createMockExecutions,
-    createMockQueueStatus,
-    mockApi,
-    renderWithQueryClient,
-} from '#test/test-utils.ts';
+import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeAdminExecutionResponse, fakeQueueStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     listExecutionsApiV1AdminExecutionsGet,
     updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut,
     getQueueStatusApiV1AdminExecutionsQueueGet,
+    type AdminExecutionResponse,
 } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 
 import AdminExecutions from '#routes/admin/executions/+page.svelte';
 
-async function renderWithExecutions(executions = createMockExecutions(5), queueStatus = createMockQueueStatus()) {
+async function renderWithExecutions(
+    executions = Array.from({ length: 5 }, () => fakeAdminExecutionResponse()),
+    queueStatus = fakeQueueStatusResponse(),
+) {
     mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
         executions,
         total: executions.length,
@@ -45,8 +42,8 @@ describe('AdminExecutions', () => {
             skip: 0,
             has_more: false,
         });
-        mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
-        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(createMockExecution());
+        mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(fakeQueueStatusResponse());
+        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(fakeAdminExecutionResponse());
     });
 
     describe('initial loading', () => {
@@ -64,7 +61,9 @@ describe('AdminExecutions', () => {
         });
 
         it('displays execution data in table', async () => {
-            const execs = [createMockExecution({ execution_id: 'exec-test-1', status: 'queued' })];
+            const execs: AdminExecutionResponse[] = [
+                { ...fakeAdminExecutionResponse(), execution_id: 'exec-test-1', status: 'queued' },
+            ];
             await renderWithExecutions(execs);
             expect(within(executionsTable()).getByText('exec-test-1')).toBeInTheDocument();
         });
@@ -72,16 +71,18 @@ describe('AdminExecutions', () => {
 
     describe('queue status cards', () => {
         it('displays queue depth and active count', async () => {
-            await renderWithExecutions(
-                [],
-                createMockQueueStatus({ queue_depth: 7, active_count: 3, max_concurrent: 10 }),
-            );
+            await renderWithExecutions([], {
+                ...fakeQueueStatusResponse(),
+                queue_depth: 7,
+                active_count: 3,
+                max_concurrent: 10,
+            });
             expect(screen.getByText('7')).toBeInTheDocument();
             expect(screen.getByText('3 / 10')).toBeInTheDocument();
         });
 
         it('displays by-priority breakdown', async () => {
-            await renderWithExecutions([], createMockQueueStatus({ by_priority: { high: 2, normal: 5 } }));
+            await renderWithExecutions([], { ...fakeQueueStatusResponse(), by_priority: { high: 2, normal: 5 } });
             expect(screen.getByText(/high: 2/)).toBeInTheDocument();
             expect(screen.getByText(/normal: 5/)).toBeInTheDocument();
         });
@@ -158,7 +159,7 @@ describe('AdminExecutions', () => {
 
     describe('table rendering', () => {
         it('shows correct column headers', async () => {
-            const execs = [createMockExecution()];
+            const execs = [fakeAdminExecutionResponse()];
             await renderWithExecutions(execs);
             const headers = screen.getAllByRole('columnheader');
             const headerTexts = headers.map((h) => h.textContent?.trim());
@@ -166,13 +167,13 @@ describe('AdminExecutions', () => {
         });
 
         it('shows language info', async () => {
-            const execs = [createMockExecution({ lang: 'python', lang_version: '3.12' })];
+            const execs = [{ ...fakeAdminExecutionResponse(), lang: 'python', lang_version: '3.12' }];
             await renderWithExecutions(execs);
             expect(within(executionsTable()).getByText('python 3.12')).toBeInTheDocument();
         });
 
         it('shows status badge', async () => {
-            const execs = [createMockExecution({ status: 'running' })];
+            const execs: AdminExecutionResponse[] = [{ ...fakeAdminExecutionResponse(), status: 'running' }];
             await renderWithExecutions(execs);
             expect(within(executionsTable()).getByText('running')).toBeInTheDocument();
         });
@@ -180,10 +181,14 @@ describe('AdminExecutions', () => {
 
     describe('priority update', () => {
         it('successful update shows success toast', async () => {
-            const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
-            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(
-                createMockExecution({ execution_id: 'e1', priority: 'high' }),
-            );
+            const execs: AdminExecutionResponse[] = [
+                { ...fakeAdminExecutionResponse(), execution_id: 'e1', priority: 'normal' },
+            ];
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok({
+                ...fakeAdminExecutionResponse(),
+                execution_id: 'e1',
+                priority: 'high',
+            });
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
@@ -204,7 +209,9 @@ describe('AdminExecutions', () => {
         });
 
         it('failed update calls API and does not show success toast', async () => {
-            const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
+            const execs: AdminExecutionResponse[] = [
+                { ...fakeAdminExecutionResponse(), execution_id: 'e1', priority: 'normal' },
+            ];
             mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).err({ detail: 'Not found' });
             await renderWithExecutions(execs);
 
@@ -251,7 +258,7 @@ describe('AdminExecutions', () => {
 
     describe('pagination', () => {
         it('shows pagination when totalPages > 1', async () => {
-            const execs = createMockExecutions(5);
+            const execs = Array.from({ length: 5 }, () => fakeAdminExecutionResponse());
             mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
                 executions: execs,
                 total: 50,
@@ -259,7 +266,7 @@ describe('AdminExecutions', () => {
                 skip: 0,
                 has_more: true,
             });
-            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
+            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(fakeQueueStatusResponse());
 
             renderWithQueryClient(AdminExecutions);
             await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());

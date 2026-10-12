@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import {
-    user,
-    mockApi,
-    renderWithQueryClient,
-    createMockResourceLimits,
-    createMockSavedScript,
-    createMockUserSettings,
-} from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeResourceLimits, fakeSavedScriptResponse, fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
 import { ApiError } from '#lib/api-error.ts';
 import { toast } from 'svelte-sonner';
 import Editor from '#routes/(auth)/editor/+page.svelte';
@@ -78,12 +72,15 @@ describe('Editor', () => {
         mocks.mockExecutionState.result = null;
         mocks.mockExecutionState.error = null;
 
-        mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockResourceLimits());
+        mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+            ...fakeResourceLimits(),
+            supported_runtimes: { python: { versions: ['3.14', '3.13', '3.12', '3.11'], file_ext: 'py' } },
+        });
         mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: { python: 'print("Hello")' } });
         mockApi(listSavedScriptsApiV1ScriptsGet).ok({ scripts: [] });
-        mockApi(getUserSettingsApiV1UserSettingsGet).ok(createMockUserSettings());
-        mockApi(createSavedScriptApiV1ScriptsPost).ok(createMockSavedScript({ script_id: 'new-1' }));
-        mockApi(updateSavedScriptApiV1ScriptsScriptIdPut).ok(createMockSavedScript());
+        mockApi(getUserSettingsApiV1UserSettingsGet).ok(fakeUserSettings());
+        mockApi(createSavedScriptApiV1ScriptsPost).ok({ ...fakeSavedScriptResponse(), script_id: 'new-1' });
+        mockApi(updateSavedScriptApiV1ScriptsScriptIdPut).ok(fakeSavedScriptResponse());
         mockApi(deleteSavedScriptApiV1ScriptsScriptIdDelete).ok();
     });
 
@@ -180,7 +177,7 @@ describe('Editor', () => {
             vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut).mockRejectedValue(
                 new ApiError(404, { detail: 'Not found' }),
             );
-            mockApi(createSavedScriptApiV1ScriptsPost).ok(createMockSavedScript({ script_id: 'fallback-1' }));
+            mockApi(createSavedScriptApiV1ScriptsPost).ok({ ...fakeSavedScriptResponse(), script_id: 'fallback-1' });
 
             await renderEditor();
             await waitForRuntimes();
@@ -286,7 +283,9 @@ describe('Editor', () => {
 
         it('keeps a script when its deletion is cancelled', async () => {
             mocks.mockConfirm.mockReturnValue(false);
-            mockApi(listSavedScriptsApiV1ScriptsGet).ok({ scripts: [createMockSavedScript({ name: 'Keep Me' })] });
+            mockApi(listSavedScriptsApiV1ScriptsGet).ok({
+                scripts: [{ ...fakeSavedScriptResponse(), name: 'Keep Me' }],
+            });
             await openSavedScripts();
             await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
             await user.click(await screen.findByTitle('Delete Keep Me'));
@@ -323,11 +322,10 @@ describe('Editor', () => {
         }
 
         it('defaults to the first version the runtimes endpoint lists, which is the newest', async () => {
-            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(
-                createMockResourceLimits({
-                    supported_runtimes: { python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' } },
-                }),
-            );
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+                ...fakeResourceLimits(),
+                supported_runtimes: { python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' } },
+            });
             await runAndExpect('python', '3.14');
         });
 
@@ -337,14 +335,13 @@ describe('Editor', () => {
         });
 
         it('keeps the stored language and picks its newest version when the stored version was dropped', async () => {
-            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(
-                createMockResourceLimits({
-                    supported_runtimes: {
-                        python: { versions: ['3.14', '3.13'], file_ext: 'py' },
-                        go: { versions: ['1.27', '1.26'], file_ext: 'go' },
-                    },
-                }),
-            );
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+                ...fakeResourceLimits(),
+                supported_runtimes: {
+                    python: { versions: ['3.14', '3.13'], file_ext: 'py' },
+                    go: { versions: ['1.27', '1.26'], file_ext: 'go' },
+                },
+            });
             storeSelection('go', '1.22');
             await runAndExpect('go', '1.27', 'Version 1.22 of go is no longer available, switched to 1.27.');
         });

@@ -162,7 +162,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Merges to `main` that trigger Stack Tests deploy automatically: Stack Tests, then Docker Scan & Promote, then [Release & Deploy](cicd.md#release-deploy). The deploy job SSHes into the server, removes images no container uses, runs `git pull` in `/opt/Integr8sCode`, logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
+Production gets one release a day. Every merge to `main` that triggers Stack Tests goes through Stack Tests and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images), logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
 
 ```bash
 docker compose pull
@@ -170,6 +170,6 @@ docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 docker image prune -af
 ```
 
-Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, set `IMAGE_TAG` to an older CalVer or SHA tag and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
+Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` to it and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
 
 To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).

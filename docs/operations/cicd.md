@@ -1,6 +1,6 @@
 # CI/CD pipeline
 
-CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. An automatic deploy only happens when the whole chain succeeds on `main`. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
+CI is ten GitHub Actions workflows, two composite actions and a Dependabot config. Three of the workflows form the release chain: Stack Tests builds and tests the images, Docker Scan & Promote scans them and moves `latest`, and Release & Deploy tags a CalVer release and deploys it. The first two run on every merge to `main`, so `latest` is always the newest build that passed both. Release & Deploy doesn't follow them: it runs once a day at 23:00 Europe/Berlin, or by hand, and releases whatever `latest` is then. A manual run of Docker Scan & Promote or Release & Deploy starts partway along the chain, without the steps before it.
 
 ```mermaid
 graph LR
@@ -17,7 +17,7 @@ graph LR
         Release["CalVer tag + GitHub release"] --> Deploy["SSH deploy"]
     end
     ST -->|"success on main"| DSP
-    DSP -->|"success on main"| RD
+    DSP -.->|"latest, picked up at 23:00 Berlin"| RD
 ```
 
 ## Workflows
@@ -26,7 +26,7 @@ graph LR
 |--------------------------------|------------------------|-------------------------------------------------------------------------|
 | Stack Tests                    | stack-tests.yml      | push to `main`, tags `v*`, PRs to `main`, when backend, frontend, cert-generator, compose, deploy.sh, stack-tests.yml or the composite actions change; manual |
 | Docker Scan & Promote          | docker.yml           | after Stack Tests completes; manual with an optional SHA                |
-| Release & Deploy               | release-deploy.yml   | after Docker Scan & Promote completes; manual on `main` with `skip_deploy` |
+| Release & Deploy               | release-deploy.yml   | daily at 23:00 Europe/Berlin; manual on `main` with `skip_deploy`       |
 | Ruff Linting                   | ruff.yml             | push and PRs to `main`; manual                                          |
 | MyPy Type Checking             | mypy.yml             | push and PRs to `main`; manual                                          |
 | Dead Code Detection            | grimp.yml            | push and PRs to `main`; manual                                          |
@@ -79,9 +79,9 @@ The jobs run only when Stack Tests succeeded on `main`, or on a manual run. A ma
 
 ## Release & Deploy
 
-The release job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies `latest` to that tag for all four images with crane, pushes an annotated git tag and creates a GitHub release with generated notes.
+The release job first finds the commit `latest` was built from, by matching the digest of `backend:latest` against the `sha-` tags of the last 100 commits on `main`. That commit can be behind `main`'s head when a later merge is still in Stack Tests or failed it. If the commit already has a CalVer tag, nothing new passed since the last release: a scheduled run stops there, and a manual run deploys that release again. Otherwise the job computes a CalVer version `YYYY.M.PATCH`, where `PATCH` is one more than the highest tag of the current month, starting at 0. It copies the commit's `sha-` images to that tag for all four images with crane, pushes an annotated git tag on that commit and creates a GitHub release with generated notes.
 
-The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`. What it runs on the server is in [Deployment](deployment.md#production).
+The deploy job runs `appleboy/ssh-action` against the production server. It's skipped on a manual run with `skip_deploy`, and on a scheduled run with nothing new. What it runs on the server is in [Deployment](deployment.md#production).
 
 ### Required secrets
 

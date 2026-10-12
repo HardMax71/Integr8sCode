@@ -1,3 +1,6 @@
+x-logging: &logging
+  driver: local
+
 x-backend-secrets: &backend-secrets
   SECRET_KEY: ${SECRET_KEY:-CHANGE_ME_min_32_chars_long_!!!!}
   MONGO_USER: ${MONGO_USER:-root}
@@ -7,12 +10,14 @@ x-backend-secrets: &backend-secrets
 services:
   # Shared base image for all Python backend services
   base:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/base:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.base
 
   shared-ca:
+    logging: *logging
     image: alpine:3.24
     volumes:
       - shared_ca:/shared_ca
@@ -21,6 +26,7 @@ services:
       - app-network
 
   cert-generator:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/cert-generator:${IMAGE_TAG:-latest}
     build:
       context: ./cert-generator
@@ -46,6 +52,7 @@ services:
         condition: service_completed_successfully
 
   mongo:
+    logging: *logging
     image: mongo:9.0.2
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.4"]
     ports:
@@ -73,6 +80,7 @@ services:
       start_period: 5s
 
   redis:
+    logging: *logging
     image: redis:8.10.2-alpine
     container_name: redis
     ports:
@@ -92,6 +100,7 @@ services:
       start_period: 2s
 
   backend:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     build:
       context: ./backend
@@ -122,7 +131,7 @@ services:
       - shared_ca:/shared_ca:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
     ports:
-      - "443:443"
+      - "127.0.0.1:443:443"
     networks:
       - app-network
     container_name: backend
@@ -143,6 +152,7 @@ services:
       start_period: 3s
 
   frontend:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/frontend:${IMAGE_TAG:-latest}
     container_name: frontend
     build:
@@ -175,6 +185,7 @@ services:
 
 
   grafana:
+    logging: *logging
     container_name: grafana
     profiles: ["observability"]
     image: grafana/grafana:13.2.3
@@ -235,6 +246,7 @@ services:
 
   # Kafka in KRaft mode, no ZooKeeper
   kafka:
+    logging: *logging
     image: confluentinc/cp-kafka:8.3.2
     container_name: kafka
     ports:
@@ -300,6 +312,7 @@ services:
       start_period: 3s
 
   kafdrop:
+    logging: *logging
     image: obsidiandynamics/kafdrop:4.3.0
     container_name: kafdrop
     profiles: ["debug"]
@@ -315,6 +328,7 @@ services:
 
   # Seed default users (runs once after mongo is ready)
   user-seed:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: user-seed
     depends_on:
@@ -335,6 +349,7 @@ services:
 
   # Event-driven workers
   k8s-worker:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: k8s-worker
     mem_limit: 160m
@@ -361,6 +376,7 @@ services:
     restart: unless-stopped
 
   pod-monitor:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: pod-monitor
     mem_limit: 160m
@@ -385,6 +401,7 @@ services:
     restart: unless-stopped
 
   result-processor:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: result-processor
     mem_limit: 160m
@@ -411,6 +428,7 @@ services:
     restart: unless-stopped
 
   saga-orchestrator:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: saga-orchestrator
     mem_limit: 160m
@@ -435,6 +453,7 @@ services:
 
   # Distributed tracing with Jaeger
   jaeger:
+    logging: *logging
     # 2.21+ dropped the search API Grafana's Jaeger datasource calls (grafana/grafana#112336)
     image: jaegertracing/jaeger:2.20.0
     container_name: jaeger
@@ -454,6 +473,7 @@ services:
     restart: unless-stopped
 
   loki:
+    logging: *logging
     container_name: loki
     profiles: ["observability"]
     image: grafana/loki:3.7.8
@@ -471,6 +491,7 @@ services:
 
   # Event replay service
   event-replay:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: event-replay
     mem_limit: 160m
@@ -495,6 +516,7 @@ services:
 
   # DLQ Processor Service
   dlq-processor:
+    logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
     container_name: dlq-processor
     mem_limit: 160m
@@ -520,6 +542,7 @@ services:
   # Monitoring Stack
   # Victoria Metrics - Time series database
   victoria-metrics:
+    logging: *logging
     image: victoriametrics/victoria-metrics:v1.153.0
     container_name: victoria-metrics
     profiles: ["observability"]
@@ -544,6 +567,7 @@ services:
 
   # OpenTelemetry Collector
   otel-collector:
+    logging: *logging
     image: otel/opentelemetry-collector-contrib:0.162.0
     container_name: otel-collector
     profiles: ["observability"]
@@ -578,6 +602,7 @@ services:
 
   # Least-privilege MongoDB user for the collector's mongodb receiver (root fails $indexStats on admin.system.*)
   mongo-monitor-user:
+    logging: *logging
     image: mongo:9.0.2
     container_name: mongo-monitor-user
     profiles: ["observability"]

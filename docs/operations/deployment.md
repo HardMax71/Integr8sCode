@@ -152,6 +152,10 @@ docker compose restart k8s-worker pod-monitor
 
 The cluster comes back empty, so Kueue and the `integr8scode` namespace are recreated by cert-generator on that restart. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
 
+### k3s certificates expired
+
+k3s issues its certificates for a year and renews them only when it starts. On a server that runs longer than that without a restart, kubectl and the workers fail with `x509: certificate has expired`, and `sudo systemctl restart k3s` fixes it. If k3s then hangs in `activating` and its journal repeats `dynamiclistener [::]:6443: failed to update cert with connection local address: EOF`, the cached serving certificate in /var/lib/rancher/k3s/server/tls/dynamic-cert.json is empty, which happens when the disk fills up. Move that file aside and start k3s again; it writes a new one.
+
 ## Pre-built images
 
 Stack Tests builds `base`, `backend`, `frontend` and `cert-generator` and pushes them to GHCR as `sha-<7 chars>`. On `main`, after the Trivy scan job, they're also tagged `latest`, and each release adds a CalVer tag such as `2026.10.0`. To run them instead of building:
@@ -162,7 +166,7 @@ IMAGE_TAG=sha-abc1234 docker compose up -d --no-build
 
 ## Production
 
-Production gets one release a day. Every merge to `main` that triggers Stack Tests goes through Stack Tests and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images), logs in to GHCR and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
+Production gets one release a day. Every merge to `main` that triggers Stack Tests goes through Stack Tests and Docker Scan & Promote, which moves `latest`; at 23:00 Europe/Berlin [Release & Deploy](cicd.md#release-deploy) releases whatever `latest` is and deploys it, and skips the night when nothing new passed. The deploy job SSHes into the server, removes images no container uses, checks out the release's git tag in `/opt/Integr8sCode` (so the compose file and config match the images) and exports the secrets from the repo (`SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `MONGO_MONITOR_PASSWORD`, `REDIS_PASSWORD`, the Grafana and Mailjet values) together with `COMPOSE_PROFILES=observability` and `GRAFANA_ROOT_URL=https://grafana.integr8scode.cc/`. Then it runs:
 
 ```bash
 docker compose pull
@@ -172,4 +176,18 @@ docker image prune -af
 
 Pruning before the pull and after the deploy keeps only the images the running stack uses. To roll back by hand, check out an older CalVer tag, set `IMAGE_TAG` to it and run the same `pull` and `up`; the old images come back from GHCR. Export the same variables the deploy job does first. Without them compose recreates the containers with the dev defaults.
 
-To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).
+The images on GHCR are public, so the server pulls them without logging in. To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).
+
+Every service logs through Docker's `local` driver, set once as `x-logging` at the top of docker-compose.yaml, which keeps at most five compressed 20MB files per container. The default `json-file` driver never rotates, and its logs once filled the production disk.
+
+`./deploy.sh backup` dumps MongoDB as a gzip archive into /var/backups/mongo (or the directory you pass), skips the run when less than 5G is free there, and deletes dumps older than 14 days. Production runs it every night from /etc/cron.d/integr8scode-backup:
+
+```text
+30 3 * * * root /opt/Integr8sCode/deploy.sh backup >> /var/log/integr8scode-backup.log 2>&1
+```
+
+The dumps sit on the same disk as the database, so they cover a bad write or a failed upgrade, not a lost server. To restore one:
+
+```bash
+docker compose exec -T mongo sh -c 'mongorestore -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip --drop' < /var/backups/mongo/mongo-2026-10-13.archive.gz
+```

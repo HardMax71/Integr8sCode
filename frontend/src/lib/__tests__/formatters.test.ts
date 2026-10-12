@@ -24,35 +24,35 @@ const LOCALE_OPTS_DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: '
 const LOCALE_OPTS_TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
 
 describe('formatTimestamp', () => {
-    it.each([null, undefined, new Date('garbage')])('returns N/A for %j', (input) => {
+    it.each([null, undefined, 'garbage'])('returns N/A for %j', (input) => {
         expect(formatTimestamp(input)).toBe('N/A');
     });
 
     it('formats the date and time in the browser locale', () => {
-        const date = new Date('2025-01-15T14:30:00Z');
-        expect(formatTimestamp(date)).toBe(date.toLocaleString(undefined, LOCALE_OPTS_DATETIME));
+        const iso = '2025-01-15T14:30:00Z';
+        expect(formatTimestamp(iso)).toBe(new Date(iso).toLocaleString(undefined, LOCALE_OPTS_DATETIME));
     });
 });
 
 describe('formatDateOnly', () => {
-    it.each([null, undefined, new Date('garbage')])('returns N/A for %j', (input) => {
+    it.each([null, undefined, 'garbage'])('returns N/A for %j', (input) => {
         expect(formatDateOnly(input)).toBe('N/A');
     });
 
     it('formats the date in the browser locale', () => {
-        const date = new Date('2025-01-15T14:30:00Z');
-        expect(formatDateOnly(date)).toBe(date.toLocaleDateString(undefined, LOCALE_OPTS_DATE));
+        const iso = '2025-01-15T14:30:00Z';
+        expect(formatDateOnly(iso)).toBe(new Date(iso).toLocaleDateString(undefined, LOCALE_OPTS_DATE));
     });
 });
 
 describe('formatTimeOnly', () => {
-    it.each([null, undefined, new Date('garbage')])('returns N/A for %j', (input) => {
+    it.each([null, undefined, 'garbage'])('returns N/A for %j', (input) => {
         expect(formatTimeOnly(input)).toBe('N/A');
     });
 
     it('formats the time in the browser locale', () => {
         const date = new Date(2025, 0, 15, 9, 5);
-        expect(formatTimeOnly(date)).toBe(date.toLocaleTimeString(undefined, LOCALE_OPTS_TIME));
+        expect(formatTimeOnly(date.toISOString())).toBe(date.toLocaleTimeString(undefined, LOCALE_OPTS_TIME));
     });
 });
 
@@ -76,23 +76,19 @@ describe('formatDuration', () => {
 
 describe('formatDurationBetween', () => {
     it('computes duration between two timestamps', () => {
-        const start = new Date(2025, 0, 1, 12, 0, 0);
-        const end = new Date(2025, 0, 1, 12, 1, 30);
-        expect(formatDurationBetween(start, end)).toBe('1m 30s');
+        expect(formatDurationBetween('2025-01-01T12:00:00Z', '2025-01-01T12:01:30Z')).toBe('1m 30s');
     });
 
     it.each([
-        [null, new Date('2025-01-01T12:00:00Z')],
-        [new Date('2025-01-01T12:00:00Z'), null],
-        [new Date('garbage'), new Date('2025-01-01T12:00:00Z')],
+        [null, '2025-01-01T12:00:00Z'],
+        ['2025-01-01T12:00:00Z', null],
+        ['garbage', '2025-01-01T12:00:00Z'],
     ])('returns N/A for (%j, %j)', (start, end) => {
         expect(formatDurationBetween(start, end)).toBe('N/A');
     });
 
     it('returns N/A when end is before start', () => {
-        const start = new Date(2025, 0, 1, 13, 0, 0);
-        const end = new Date(2025, 0, 1, 12, 0, 0);
-        expect(formatDurationBetween(start, end)).toBe('N/A');
+        expect(formatDurationBetween('2025-01-01T13:00:00Z', '2025-01-01T12:00:00Z')).toBe('N/A');
     });
 });
 
@@ -107,21 +103,21 @@ describe('formatRelativeTime', () => {
         [new Date(2025, 6, 15, 9, 0, 0), '3h ago'], // 3h ago
         [new Date(2025, 6, 13, 12, 0, 0), '2d ago'], // 2d ago
     ])('formats %j as %j', (date, expected) => {
-        expect(formatRelativeTime(date)).toBe(expected);
+        expect(formatRelativeTime(date.toISOString())).toBe(expected);
     });
 
     it('returns formatted date for >7 days ago', () => {
-        const result = formatRelativeTime(new Date(2025, 6, 1));
+        const result = formatRelativeTime(new Date(2025, 6, 1).toISOString());
         expect(result).not.toMatch(/ago$/);
         expect(result).not.toBe('N/A');
     });
 
     it('returns formatted date for future dates', () => {
-        const result = formatRelativeTime(new Date(2025, 6, 20));
+        const result = formatRelativeTime(new Date(2025, 6, 20).toISOString());
         expect(result).not.toMatch(/ago$/);
     });
 
-    it.each([null, new Date('not-valid')])('returns N/A for %j', (input) => {
+    it.each([null, 'not-valid'])('returns N/A for %j', (input) => {
         expect(formatRelativeTime(input)).toBe('N/A');
     });
 });

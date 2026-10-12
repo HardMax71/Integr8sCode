@@ -137,7 +137,7 @@ class EventsStore {
             failed_events: 0,
             skipped_events: 0,
             replay_id: response.replay_id,
-            created_at: new Date(),
+            created_at: new Date().toISOString(),
             started_at: null,
             completed_at: null,
             errors: null,

@@ -10,11 +10,11 @@ function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
         eventId: 'evt-replay-1',
         total_events: 3,
         events_preview: [
-            { event_id: 'e1', event_type: 'execution_requested', timestamp: new Date('2024-01-15T10:00:00Z') },
+            { event_id: 'e1', event_type: 'execution_requested', timestamp: '2024-01-15T10:00:00Z' },
             {
                 event_id: 'e2',
                 event_type: 'execution_completed',
-                timestamp: new Date('2024-01-15T10:01:00Z'),
+                timestamp: '2024-01-15T10:01:00Z',
                 aggregate_id: 'exec-1',
             },
         ],

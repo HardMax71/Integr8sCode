@@ -112,7 +112,7 @@ describe('Notifications', () => {
             [5 * 60 * 60 * 1000, '5h ago'],
             [2 * 24 * 60 * 60 * 1000, '2d ago'],
         ])('formats %dms ago as "%s"', async (msAgo, expected) => {
-            setNotifications([createMockNotification({ created_at: new Date(Date.now() - msAgo) })]);
+            setNotifications([createMockNotification({ created_at: new Date(Date.now() - msAgo).toISOString() })]);
 
             renderNotifications();
             await waitFor(() => {

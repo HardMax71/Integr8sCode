@@ -13,8 +13,8 @@ function createScripts(count: number): SavedScriptResponse[] {
         lang: 'python',
         lang_version: '3.11',
         description: null,
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
     }));
 }
 
@@ -75,8 +75,8 @@ describe('SavedScripts', () => {
                 lang,
                 lang_version,
                 description: null,
-                created_at: new Date(),
-                updated_at: new Date(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             },
         ]);
         expect(screen.getByText(expected)).toBeInTheDocument();
@@ -106,8 +106,8 @@ describe('SavedScripts', () => {
                 lang: 'go',
                 lang_version: '1.27',
                 description: null,
-                created_at: new Date(),
-                updated_at: new Date(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             },
         ]);
         expect(screen.getByTitle('Load Go App (go 1.27)')).toBeInTheDocument();

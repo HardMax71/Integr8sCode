@@ -79,8 +79,8 @@ describe('eventTypes', () => {
                     aggregate_id: 'a',
                     user_id: 'u',
                     service_name: 's',
-                    start_time: new Date(1),
-                    end_time: new Date(2),
+                    start_time: new Date(1).toISOString(),
+                    end_time: new Date(2).toISOString(),
                 }),
                 7,
             ],
@@ -111,7 +111,7 @@ describe('eventTypes', () => {
                     aggregate_id: 'a',
                     user_id: 'u',
                     service_name: 's',
-                    start_time: new Date(1),
+                    start_time: new Date(1).toISOString(),
                 }),
             );
             expect(summary).toEqual([

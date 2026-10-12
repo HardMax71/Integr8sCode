@@ -58,7 +58,7 @@ describe('EventsTable', () => {
     });
 
     it('displays formatted timestamp in table rows', () => {
-        const event = createMockEvent({ timestamp: new Date('2024-06-15T14:30:00Z') });
+        const event = createMockEvent({ timestamp: '2024-06-15T14:30:00Z' });
         renderTable([event]);
         const date = new Date('2024-06-15T14:30:00Z');
         const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };

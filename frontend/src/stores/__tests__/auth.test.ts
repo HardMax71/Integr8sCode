@@ -16,8 +16,8 @@ const PROFILE_RESPONSE = {
     role: 'user',
     is_active: true,
     is_superuser: false,
-    created_at: new Date('2024-01-01T00:00:00Z'),
-    updated_at: new Date('2024-01-01T00:00:00Z'),
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
 };
 
 const LOGIN_RESPONSE = { message: 'ok', username: 'testuser', role: 'user' as const, csrf_token: 'new-csrf-token' };

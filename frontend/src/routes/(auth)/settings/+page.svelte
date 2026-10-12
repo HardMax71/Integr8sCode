@@ -73,9 +73,7 @@
         enabled: showHistory,
         staleTime: 30_000,
     }));
-    let history = $derived(
-        [...(historyQuery.data?.history ?? [])].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()),
-    );
+    let history = $derived(historyQuery.data?.history ?? []);
 
     function storeSettings(data: UserSettings): void {
         queryClient.setQueryData(settingsKey, data);
@@ -115,7 +113,7 @@
         save.mutate({ body: updates });
     }
 
-    function restoreSettings(timestamp: Date) {
+    function restoreSettings(timestamp: string) {
         if (!confirm('Are you sure you want to restore settings to this point?')) return;
         restore.mutate({ body: { timestamp, reason: 'User requested restore' } });
     }

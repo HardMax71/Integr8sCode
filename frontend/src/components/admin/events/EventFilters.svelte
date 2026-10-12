@@ -15,13 +15,13 @@
     // A datetime-local input holds local wall time with no offset, which is what parseISO and format read and write
     const LOCAL_DATETIME = "yyyy-MM-dd'T'HH:mm";
 
-    function inputValue(date: Date | null | undefined): string {
-        return date ? format(date, LOCAL_DATETIME) : '';
+    function inputValue(timestamp: string | null | undefined): string {
+        return timestamp ? format(parseISO(timestamp), LOCAL_DATETIME) : '';
     }
 
-    function fromInput(e: Event): Date | null {
+    function fromInput(e: Event): string | null {
         const value = (e.currentTarget as HTMLInputElement).value;
-        return value ? parseISO(value) : null;
+        return value ? parseISO(value).toISOString() : null;
     }
 </script>
 

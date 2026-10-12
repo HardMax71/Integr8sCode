@@ -125,7 +125,7 @@ describe('EventsStore', () => {
             store.pagination = { pageIndex: 1, pageSize: 10 };
             await vi.waitFor(() => expect(browseEvents).toHaveBeenCalledTimes(2));
 
-            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') };
+            store.filters = { user_id: 'user-1', aggregate_id: 'agg-1', start_time: '2026-01-02T03:04:00.000Z' };
             await vi.advanceTimersByTimeAsync(100);
             expect(browseEvents).toHaveBeenCalledTimes(2);
 
@@ -134,7 +134,7 @@ describe('EventsStore', () => {
             expect(store.pagination.pageIndex).toBe(0);
             await vi.waitFor(() =>
                 expect(lastBrowseBody()).toEqual({
-                    filters: { user_id: 'user-1', aggregate_id: 'agg-1', start_time: new Date('2026-01-02T03:04') },
+                    filters: { user_id: 'user-1', aggregate_id: 'agg-1', start_time: '2026-01-02T03:04:00.000Z' },
                     skip: 0,
                     limit: 10,
                 }),

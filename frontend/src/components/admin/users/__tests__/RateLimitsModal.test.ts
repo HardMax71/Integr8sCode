@@ -37,8 +37,8 @@ function renderModal(overrides: Record<string, unknown> = {}) {
             global_multiplier: 1.0,
             notes: '',
             rules: [],
-            created_at: new Date('2024-01-01T00:00:00Z'),
-            updated_at: new Date('2024-01-01T00:00:00Z'),
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
         }),
         usage: null,
         loading: false,
@@ -137,8 +137,8 @@ describe('RateLimitsModal', () => {
                         enabled: true,
                     },
                 ],
-                created_at: new Date('2024-01-01T00:00:00Z'),
-                updated_at: new Date('2024-01-01T00:00:00Z'),
+                created_at: '2024-01-01T00:00:00Z',
+                updated_at: '2024-01-01T00:00:00Z',
             }),
         });
         expect(screen.getByText('Rules')).toBeInTheDocument();

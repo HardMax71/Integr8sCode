@@ -8,7 +8,7 @@
     interface Props {
         history: SettingsHistoryEntry[];
         loading: boolean;
-        onRestore: (timestamp: Date) => void;
+        onRestore: (timestamp: string) => void;
     }
 
     let { history, loading, onRestore }: Props = $props();

@@ -1,22 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
+import {
+    createMockNotification,
+    mockApi,
+    renderWithQueryClient,
+    user,
+    type UserEventInstance,
+} from '#test/test-utils.ts';
 import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
     markNotificationReadApiV1NotificationsNotificationIdReadPut,
+    type NotificationResponse,
 } from '#lib/api/index.ts';
-
-interface MockNotification {
-    notification_id: string;
-    subject: string;
-    body: string;
-    status: 'unread' | 'read';
-    severity: 'low' | 'medium' | 'high' | 'urgent';
-    tags: string[];
-    created_at: Date;
-    action_url?: string;
-}
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
@@ -56,18 +52,10 @@ vi.stubGlobal('Notification', {
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
 
-const createNotification = (overrides: Partial<MockNotification> = {}): MockNotification => ({
-    notification_id: '1',
-    subject: 'Test',
-    body: 'Body',
-    status: 'unread',
-    severity: 'medium',
-    tags: [],
-    created_at: new Date(),
-    ...overrides,
-});
+const createNotification = (overrides: Partial<NotificationResponse> = {}): NotificationResponse =>
+    createMockNotification({ notification_id: '1', subject: 'Test', body: 'Body', status: 'delivered', ...overrides });
 
-const setNotifications = (notifications: MockNotification[]) => {
+const setNotifications = (notifications: NotificationResponse[]) => {
     mockApi(getNotificationsApiV1NotificationsGet).ok({
         notifications,
         total: notifications.length,
@@ -240,7 +228,7 @@ describe('NotificationCenter', () => {
 
     describe('mark as read functionality', () => {
         it.each([
-            { status: 'unread' as const, visible: true },
+            { status: 'delivered' as const, visible: true },
             { status: 'read' as const, visible: false },
         ])('Mark all button visible=$visible for $status', async ({ status, visible }) => {
             setNotifications([createNotification({ status })]);
@@ -291,7 +279,7 @@ describe('NotificationCenter', () => {
 
     describe('time formatting', () => {
         it.each(timeTestCases)('shows "$expected" for $offsetMs ms ago', async ({ offsetMs, expected }) => {
-            setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs) })]);
+            setNotifications([createNotification({ created_at: new Date(Date.now() - offsetMs).toISOString() })]);
             await openDropdown();
             await waitFor(() => {
                 expect(screen.getByText(expected)).toBeInTheDocument();
@@ -299,7 +287,7 @@ describe('NotificationCenter', () => {
         });
 
         it('shows relative days for >24h old notifications', async () => {
-            const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+            const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
             setNotifications([createNotification({ created_at: oldDate })]);
             await openDropdown();
             await waitFor(() => {
@@ -386,7 +374,7 @@ describe('NotificationCenter', () => {
             );
             expect(mocks.mockStreamConnect).toHaveBeenCalledTimes(1);
 
-            const onNotification = mocks.mockStreamConnect.mock.calls[0]![0] as (n: MockNotification) => void;
+            const onNotification = mocks.mockStreamConnect.mock.calls[0]![0] as (n: NotificationResponse) => void;
             onNotification(createNotification({ notification_id: 'pushed' }));
 
             await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2));

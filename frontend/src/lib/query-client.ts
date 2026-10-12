@@ -34,11 +34,6 @@ export const queryClient = new QueryClient({
     }),
     defaultOptions: {
         queries: {
-            // --8<-- [start:sharing]
-            // The default sharing treats every Date as changed; comparing the JSON keeps unchanged data, dates included
-            structuralSharing: (previous, next) =>
-                JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
-            // --8<-- [end:sharing]
             // A network error or a 5xx may pass on another try, a 4xx won't; the default backoff waits 1s, then 2s
             retry: (failures, error) =>
                 failures < MAX_RETRIES &&

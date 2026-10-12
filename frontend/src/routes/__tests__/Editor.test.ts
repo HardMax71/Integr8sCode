@@ -184,8 +184,8 @@ describe('Editor', () => {
                         lang: 'python',
                         lang_version: '3.11',
                         description: null,
-                        created_at: new Date('2024-01-01T00:00:00Z'),
-                        updated_at: new Date('2024-01-01T00:00:00Z'),
+                        created_at: '2024-01-01T00:00:00Z',
+                        updated_at: '2024-01-01T00:00:00Z',
                     },
                 ],
             });
@@ -247,8 +247,8 @@ describe('Editor', () => {
                         lang: 'python',
                         lang_version: '3.11',
                         description: null,
-                        created_at: new Date('2024-01-01T00:00:00Z'),
-                        updated_at: new Date('2024-01-01T00:00:00Z'),
+                        created_at: '2024-01-01T00:00:00Z',
+                        updated_at: '2024-01-01T00:00:00Z',
                     },
                 ],
             });
@@ -351,8 +351,8 @@ describe('Editor', () => {
                         lang: 'python',
                         lang_version: '3.7',
                         description: null,
-                        created_at: new Date('2024-01-01T00:00:00Z'),
-                        updated_at: new Date('2024-01-01T00:00:00Z'),
+                        created_at: '2024-01-01T00:00:00Z',
+                        updated_at: '2024-01-01T00:00:00Z',
                     },
                 ],
             });

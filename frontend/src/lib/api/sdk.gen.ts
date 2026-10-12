@@ -2,7 +2,6 @@
 
 import { type Client, type ClientMeta, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape, urlSearchParamsBodySerializer } from './client';
 import { client } from './client.gen';
-import { browseEventsApiV1AdminEventsBrowsePostResponseTransformer, createSavedScriptApiV1ScriptsPostResponseTransformer, createUserApiV1AdminUsersPostResponseTransformer, executionEventsApiV1EventsExecutionsExecutionIdGetResponseTransformer, getCurrentUserProfileApiV1AuthMeGetResponseTransformer, getEventDetailApiV1AdminEventsEventIdGetResponseTransformer, getExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponseTransformer, getExecutionSagasApiV1SagasExecutionExecutionIdGetResponseTransformer, getNotificationsApiV1NotificationsGetResponseTransformer, getReplaySessionApiV1ReplaySessionsSessionIdGetResponseTransformer, getSagaStatusApiV1SagasSagaIdGetResponseTransformer, getSavedScriptApiV1ScriptsScriptIdGetResponseTransformer, getSettingsHistoryApiV1UserSettingsHistoryGetResponseTransformer, getSubscriptionsApiV1NotificationsSubscriptionsGetResponseTransformer, getUserApiV1AdminUsersUserIdGetResponseTransformer, getUserOverviewApiV1AdminUsersUserIdOverviewGetResponseTransformer, getUserRateLimitsApiV1AdminRateLimitsUserIdGetResponseTransformer, getUserSettingsApiV1UserSettingsGetResponseTransformer, listExecutionsApiV1AdminExecutionsGetResponseTransformer, listReplaySessionsApiV1ReplaySessionsGetResponseTransformer, listSagasApiV1SagasGetResponseTransformer, listSavedScriptsApiV1ScriptsGetResponseTransformer, listUsersApiV1AdminUsersGetResponseTransformer, livenessApiV1HealthLiveGetResponseTransformer, notificationStreamApiV1EventsNotificationsStreamGetResponseTransformer, registerApiV1AuthRegisterPostResponseTransformer, replayEventsApiV1AdminEventsReplayPostResponseTransformer, restoreSettingsApiV1UserSettingsRestorePostResponseTransformer, streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponseTransformer, updateCustomSettingApiV1UserSettingsCustomKeyPutResponseTransformer, updateEditorSettingsApiV1UserSettingsEditorPutResponseTransformer, updateNotificationSettingsApiV1UserSettingsNotificationsPutResponseTransformer, updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponseTransformer, updateSavedScriptApiV1ScriptsScriptIdPutResponseTransformer, updateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponseTransformer, updateThemeApiV1UserSettingsThemePutResponseTransformer, updateUserApiV1AdminUsersUserIdPutResponseTransformer, updateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponseTransformer, updateUserSettingsApiV1UserSettingsPutResponseTransformer } from './transformers.gen';
 import type { BrowseEventsApiV1AdminEventsBrowsePostData, BrowseEventsApiV1AdminEventsBrowsePostErrors, BrowseEventsApiV1AdminEventsBrowsePostResponses, CancelExecutionApiV1ExecutionsExecutionIdCancelPostData, CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors, CancelExecutionApiV1ExecutionsExecutionIdCancelPostResponses, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors, CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostResponses, CancelSagaApiV1SagasSagaIdCancelPostData, CancelSagaApiV1SagasSagaIdCancelPostErrors, CancelSagaApiV1SagasSagaIdCancelPostResponses, CleanupOldSessionsApiV1ReplayCleanupPostData, CleanupOldSessionsApiV1ReplayCleanupPostErrors, CleanupOldSessionsApiV1ReplayCleanupPostResponses, CreateExecutionApiV1ExecutePostData, CreateExecutionApiV1ExecutePostErrors, CreateExecutionApiV1ExecutePostResponses, CreateReplaySessionApiV1ReplaySessionsPostData, CreateReplaySessionApiV1ReplaySessionsPostErrors, CreateReplaySessionApiV1ReplaySessionsPostResponses, CreateSavedScriptApiV1ScriptsPostData, CreateSavedScriptApiV1ScriptsPostErrors, CreateSavedScriptApiV1ScriptsPostResponses, CreateUserApiV1AdminUsersPostData, CreateUserApiV1AdminUsersPostErrors, CreateUserApiV1AdminUsersPostResponses, DeleteEventApiV1AdminEventsEventIdDeleteData, DeleteEventApiV1AdminEventsEventIdDeleteErrors, DeleteEventApiV1AdminEventsEventIdDeleteResponses, DeleteExecutionApiV1ExecutionsExecutionIdDeleteData, DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors, DeleteExecutionApiV1ExecutionsExecutionIdDeleteResponses, DeleteNotificationApiV1NotificationsNotificationIdDeleteData, DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors, DeleteNotificationApiV1NotificationsNotificationIdDeleteResponses, DeleteSavedScriptApiV1ScriptsScriptIdDeleteData, DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors, DeleteSavedScriptApiV1ScriptsScriptIdDeleteResponses, DeleteUserApiV1AdminUsersUserIdDeleteData, DeleteUserApiV1AdminUsersUserIdDeleteErrors, DeleteUserApiV1AdminUsersUserIdDeleteResponses, ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExportEventsApiV1AdminEventsExportExportFormatGetData, ExportEventsApiV1AdminEventsExportExportFormatGetErrors, ExportEventsApiV1AdminEventsExportExportFormatGetResponses, GetCurrentUserProfileApiV1AuthMeGetData, GetCurrentUserProfileApiV1AuthMeGetErrors, GetCurrentUserProfileApiV1AuthMeGetResponses, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetData, GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses, GetEventDetailApiV1AdminEventsEventIdGetData, GetEventDetailApiV1AdminEventsEventIdGetErrors, GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventStatsApiV1AdminEventsStatsGetData, GetEventStatsApiV1AdminEventsStatsGetErrors, GetEventStatsApiV1AdminEventsStatsGetResponses, GetExampleScriptsApiV1ExampleScriptsGetData, GetExampleScriptsApiV1ExampleScriptsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetData, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetK8sResourceLimitsApiV1K8sLimitsGetData, GetK8sResourceLimitsApiV1K8sLimitsGetResponses, GetNotificationsApiV1NotificationsGetData, GetNotificationsApiV1NotificationsGetErrors, GetNotificationsApiV1NotificationsGetResponses, GetQueueStatusApiV1AdminExecutionsQueueGetData, GetQueueStatusApiV1AdminExecutionsQueueGetErrors, GetQueueStatusApiV1AdminExecutionsQueueGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetData, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetResultApiV1ExecutionsExecutionIdResultGetData, GetResultApiV1ExecutionsExecutionIdResultGetErrors, GetResultApiV1ExecutionsExecutionIdResultGetResponses, GetSagaStatusApiV1SagasSagaIdGetData, GetSagaStatusApiV1SagasSagaIdGetErrors, GetSagaStatusApiV1SagasSagaIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetData, GetSavedScriptApiV1ScriptsScriptIdGetErrors, GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetData, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSubscriptionsApiV1NotificationsSubscriptionsGetData, GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, GetSystemSettingsApiV1AdminSettingsGetData, GetSystemSettingsApiV1AdminSettingsGetErrors, GetSystemSettingsApiV1AdminSettingsGetResponses, GetUnreadCountApiV1NotificationsUnreadCountGetData, GetUnreadCountApiV1NotificationsUnreadCountGetResponses, GetUserApiV1AdminUsersUserIdGetData, GetUserApiV1AdminUsersUserIdGetErrors, GetUserApiV1AdminUsersUserIdGetResponses, GetUserExecutionsApiV1UserExecutionsGetData, GetUserExecutionsApiV1UserExecutionsGetErrors, GetUserExecutionsApiV1UserExecutionsGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserSettingsApiV1UserSettingsGetData, GetUserSettingsApiV1UserSettingsGetResponses, ListExecutionsApiV1AdminExecutionsGetData, ListExecutionsApiV1AdminExecutionsGetErrors, ListExecutionsApiV1AdminExecutionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetData, ListReplaySessionsApiV1ReplaySessionsGetErrors, ListReplaySessionsApiV1ReplaySessionsGetResponses, ListSagasApiV1SagasGetData, ListSagasApiV1SagasGetErrors, ListSagasApiV1SagasGetResponses, ListSavedScriptsApiV1ScriptsGetData, ListSavedScriptsApiV1ScriptsGetResponses, ListUsersApiV1AdminUsersGetData, ListUsersApiV1AdminUsersGetErrors, ListUsersApiV1AdminUsersGetResponses, LivenessApiV1HealthLiveGetData, LivenessApiV1HealthLiveGetResponses, LoginApiV1AuthLoginPostData, LoginApiV1AuthLoginPostErrors, LoginApiV1AuthLoginPostResponses, LogoutApiV1AuthLogoutPostData, LogoutApiV1AuthLogoutPostErrors, LogoutApiV1AuthLogoutPostResponses, MarkAllReadApiV1NotificationsMarkAllReadPostData, MarkAllReadApiV1NotificationsMarkAllReadPostResponses, MarkNotificationReadApiV1NotificationsNotificationIdReadPutData, MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors, MarkNotificationReadApiV1NotificationsNotificationIdReadPutResponses, NotificationStreamApiV1EventsNotificationsStreamGetData, NotificationStreamApiV1EventsNotificationsStreamGetResponse, NotificationStreamApiV1EventsNotificationsStreamGetResponses, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors, PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostResponses, RegisterApiV1AuthRegisterPostData, RegisterApiV1AuthRegisterPostErrors, RegisterApiV1AuthRegisterPostResponses, ReplayEventsApiV1AdminEventsReplayPostData, ReplayEventsApiV1AdminEventsReplayPostErrors, ReplayEventsApiV1AdminEventsReplayPostResponses, ResetSystemSettingsApiV1AdminSettingsResetPostData, ResetSystemSettingsApiV1AdminSettingsResetPostErrors, ResetSystemSettingsApiV1AdminSettingsResetPostResponses, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostData, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors, ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostResponses, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors, ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostResponses, RestoreSettingsApiV1UserSettingsRestorePostData, RestoreSettingsApiV1UserSettingsRestorePostErrors, RestoreSettingsApiV1UserSettingsRestorePostResponses, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors, ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostResponses, RetryExecutionApiV1ExecutionsExecutionIdRetryPostData, RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors, RetryExecutionApiV1ExecutionsExecutionIdRetryPostResponses, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors, StartReplaySessionApiV1ReplaySessionsSessionIdStartPostResponses, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, UnlockUserApiV1AdminUsersUserIdUnlockPostData, UnlockUserApiV1AdminUsersUserIdUnlockPostErrors, UnlockUserApiV1AdminUsersUserIdUnlockPostResponses, UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutData, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutData, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSystemSettingsApiV1AdminSettingsPutData, UpdateSystemSettingsApiV1AdminSettingsPutErrors, UpdateSystemSettingsApiV1AdminSettingsPutResponses, UpdateThemeApiV1UserSettingsThemePutData, UpdateThemeApiV1UserSettingsThemePutErrors, UpdateThemeApiV1UserSettingsThemePutResponses, UpdateUserApiV1AdminUsersUserIdPutData, UpdateUserApiV1AdminUsersUserIdPutErrors, UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserSettingsApiV1UserSettingsPutData, UpdateUserSettingsApiV1UserSettingsPutErrors, UpdateUserSettingsApiV1UserSettingsPutResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
@@ -40,7 +39,6 @@ export const loginApiV1AuthLoginPost = <ThrowOnError extends boolean = false>(op
  * Register a new user account.
  */
 export const registerApiV1AuthRegisterPost = <ThrowOnError extends boolean = false>(options: Options<RegisterApiV1AuthRegisterPostData, ThrowOnError>): RequestResult<RegisterApiV1AuthRegisterPostResponses, RegisterApiV1AuthRegisterPostErrors, ThrowOnError> => (options.client ?? client).post<RegisterApiV1AuthRegisterPostResponses, RegisterApiV1AuthRegisterPostErrors, ThrowOnError>({
-    responseTransformer: registerApiV1AuthRegisterPostResponseTransformer,
     url: '/api/v1/auth/register',
     ...options,
     headers: {
@@ -54,11 +52,7 @@ export const registerApiV1AuthRegisterPost = <ThrowOnError extends boolean = fal
  *
  * Get the authenticated user's profile.
  */
-export const getCurrentUserProfileApiV1AuthMeGet = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentUserProfileApiV1AuthMeGetData, ThrowOnError>): RequestResult<GetCurrentUserProfileApiV1AuthMeGetResponses, GetCurrentUserProfileApiV1AuthMeGetErrors, ThrowOnError> => (options?.client ?? client).get<GetCurrentUserProfileApiV1AuthMeGetResponses, GetCurrentUserProfileApiV1AuthMeGetErrors, ThrowOnError>({
-    responseTransformer: getCurrentUserProfileApiV1AuthMeGetResponseTransformer,
-    url: '/api/v1/auth/me',
-    ...options
-});
+export const getCurrentUserProfileApiV1AuthMeGet = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentUserProfileApiV1AuthMeGetData, ThrowOnError>): RequestResult<GetCurrentUserProfileApiV1AuthMeGetResponses, GetCurrentUserProfileApiV1AuthMeGetErrors, ThrowOnError> => (options?.client ?? client).get<GetCurrentUserProfileApiV1AuthMeGetResponses, GetCurrentUserProfileApiV1AuthMeGetErrors, ThrowOnError>({ url: '/api/v1/auth/me', ...options });
 
 /**
  * Logout
@@ -114,11 +108,7 @@ export const retryExecutionApiV1ExecutionsExecutionIdRetryPost = <ThrowOnError e
  *
  * Get all events for an execution.
  */
-export const getExecutionEventsApiV1ExecutionsExecutionIdEventsGet = <ThrowOnError extends boolean = false>(options: Options<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, ThrowOnError>): RequestResult<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, ThrowOnError> => (options.client ?? client).get<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, ThrowOnError>({
-    responseTransformer: getExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponseTransformer,
-    url: '/api/v1/executions/{execution_id}/events',
-    ...options
-});
+export const getExecutionEventsApiV1ExecutionsExecutionIdEventsGet = <ThrowOnError extends boolean = false>(options: Options<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetData, ThrowOnError>): RequestResult<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, ThrowOnError> => (options.client ?? client).get<GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetResponses, GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors, ThrowOnError>({ url: '/api/v1/executions/{execution_id}/events', ...options });
 
 /**
  * Get User Executions
@@ -153,11 +143,7 @@ export const deleteExecutionApiV1ExecutionsExecutionIdDelete = <ThrowOnError ext
  *
  * List all saved scripts for the authenticated user.
  */
-export const listSavedScriptsApiV1ScriptsGet = <ThrowOnError extends boolean = false>(options?: Options<ListSavedScriptsApiV1ScriptsGetData, ThrowOnError>): RequestResult<ListSavedScriptsApiV1ScriptsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListSavedScriptsApiV1ScriptsGetResponses, unknown, ThrowOnError>({
-    responseTransformer: listSavedScriptsApiV1ScriptsGetResponseTransformer,
-    url: '/api/v1/scripts',
-    ...options
-});
+export const listSavedScriptsApiV1ScriptsGet = <ThrowOnError extends boolean = false>(options?: Options<ListSavedScriptsApiV1ScriptsGetData, ThrowOnError>): RequestResult<ListSavedScriptsApiV1ScriptsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListSavedScriptsApiV1ScriptsGetResponses, unknown, ThrowOnError>({ url: '/api/v1/scripts', ...options });
 
 /**
  * Create Saved Script
@@ -165,7 +151,6 @@ export const listSavedScriptsApiV1ScriptsGet = <ThrowOnError extends boolean = f
  * Save a new script to the user's collection.
  */
 export const createSavedScriptApiV1ScriptsPost = <ThrowOnError extends boolean = false>(options: Options<CreateSavedScriptApiV1ScriptsPostData, ThrowOnError>): RequestResult<CreateSavedScriptApiV1ScriptsPostResponses, CreateSavedScriptApiV1ScriptsPostErrors, ThrowOnError> => (options.client ?? client).post<CreateSavedScriptApiV1ScriptsPostResponses, CreateSavedScriptApiV1ScriptsPostErrors, ThrowOnError>({
-    responseTransformer: createSavedScriptApiV1ScriptsPostResponseTransformer,
     url: '/api/v1/scripts',
     ...options,
     headers: {
@@ -186,11 +171,7 @@ export const deleteSavedScriptApiV1ScriptsScriptIdDelete = <ThrowOnError extends
  *
  * Get a saved script by ID.
  */
-export const getSavedScriptApiV1ScriptsScriptIdGet = <ThrowOnError extends boolean = false>(options: Options<GetSavedScriptApiV1ScriptsScriptIdGetData, ThrowOnError>): RequestResult<GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetErrors, ThrowOnError>({
-    responseTransformer: getSavedScriptApiV1ScriptsScriptIdGetResponseTransformer,
-    url: '/api/v1/scripts/{script_id}',
-    ...options
-});
+export const getSavedScriptApiV1ScriptsScriptIdGet = <ThrowOnError extends boolean = false>(options: Options<GetSavedScriptApiV1ScriptsScriptIdGetData, ThrowOnError>): RequestResult<GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetSavedScriptApiV1ScriptsScriptIdGetResponses, GetSavedScriptApiV1ScriptsScriptIdGetErrors, ThrowOnError>({ url: '/api/v1/scripts/{script_id}', ...options });
 
 /**
  * Update Saved Script
@@ -198,7 +179,6 @@ export const getSavedScriptApiV1ScriptsScriptIdGet = <ThrowOnError extends boole
  * Update an existing saved script.
  */
 export const updateSavedScriptApiV1ScriptsScriptIdPut = <ThrowOnError extends boolean = false>(options: Options<UpdateSavedScriptApiV1ScriptsScriptIdPutData, ThrowOnError>): RequestResult<UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateSavedScriptApiV1ScriptsScriptIdPutResponses, UpdateSavedScriptApiV1ScriptsScriptIdPutErrors, ThrowOnError>({
-    responseTransformer: updateSavedScriptApiV1ScriptsScriptIdPutResponseTransformer,
     url: '/api/v1/scripts/{script_id}',
     ...options,
     headers: {
@@ -212,11 +192,7 @@ export const updateSavedScriptApiV1ScriptsScriptIdPut = <ThrowOnError extends bo
  *
  * List replay sessions with optional status filtering.
  */
-export const listReplaySessionsApiV1ReplaySessionsGet = <ThrowOnError extends boolean = false>(options?: Options<ListReplaySessionsApiV1ReplaySessionsGetData, ThrowOnError>): RequestResult<ListReplaySessionsApiV1ReplaySessionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetErrors, ThrowOnError> => (options?.client ?? client).get<ListReplaySessionsApiV1ReplaySessionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetErrors, ThrowOnError>({
-    responseTransformer: listReplaySessionsApiV1ReplaySessionsGetResponseTransformer,
-    url: '/api/v1/replay/sessions',
-    ...options
-});
+export const listReplaySessionsApiV1ReplaySessionsGet = <ThrowOnError extends boolean = false>(options?: Options<ListReplaySessionsApiV1ReplaySessionsGetData, ThrowOnError>): RequestResult<ListReplaySessionsApiV1ReplaySessionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetErrors, ThrowOnError> => (options?.client ?? client).get<ListReplaySessionsApiV1ReplaySessionsGetResponses, ListReplaySessionsApiV1ReplaySessionsGetErrors, ThrowOnError>({ url: '/api/v1/replay/sessions', ...options });
 
 /**
  * Create Replay Session
@@ -265,11 +241,7 @@ export const cancelReplaySessionApiV1ReplaySessionsSessionIdCancelPost = <ThrowO
  *
  * Get full details of a replay session.
  */
-export const getReplaySessionApiV1ReplaySessionsSessionIdGet = <ThrowOnError extends boolean = false>(options: Options<GetReplaySessionApiV1ReplaySessionsSessionIdGetData, ThrowOnError>): RequestResult<GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, ThrowOnError>({
-    responseTransformer: getReplaySessionApiV1ReplaySessionsSessionIdGetResponseTransformer,
-    url: '/api/v1/replay/sessions/{session_id}',
-    ...options
-});
+export const getReplaySessionApiV1ReplaySessionsSessionIdGet = <ThrowOnError extends boolean = false>(options: Options<GetReplaySessionApiV1ReplaySessionsSessionIdGetData, ThrowOnError>): RequestResult<GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetReplaySessionApiV1ReplaySessionsSessionIdGetResponses, GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors, ThrowOnError>({ url: '/api/v1/replay/sessions/{session_id}', ...options });
 
 /**
  * Cleanup Old Sessions
@@ -283,33 +255,21 @@ export const cleanupOldSessionsApiV1ReplayCleanupPost = <ThrowOnError extends bo
  *
  * Basic liveness probe. Does not touch external deps.
  */
-export const livenessApiV1HealthLiveGet = <ThrowOnError extends boolean = false>(options?: Options<LivenessApiV1HealthLiveGetData, ThrowOnError>): RequestResult<LivenessApiV1HealthLiveGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<LivenessApiV1HealthLiveGetResponses, unknown, ThrowOnError>({
-    responseTransformer: livenessApiV1HealthLiveGetResponseTransformer,
-    url: '/api/v1/health/live',
-    ...options
-});
+export const livenessApiV1HealthLiveGet = <ThrowOnError extends boolean = false>(options?: Options<LivenessApiV1HealthLiveGetData, ThrowOnError>): RequestResult<LivenessApiV1HealthLiveGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<LivenessApiV1HealthLiveGetResponses, unknown, ThrowOnError>({ url: '/api/v1/health/live', ...options });
 
 /**
  * Notification Stream
  *
  * Stream notifications for authenticated user.
  */
-export const notificationStreamApiV1EventsNotificationsStreamGet = <ThrowOnError extends boolean = false>(options?: Options<NotificationStreamApiV1EventsNotificationsStreamGetData, ThrowOnError, NotificationStreamApiV1EventsNotificationsStreamGetResponse>): Promise<ServerSentEventsResult<NotificationStreamApiV1EventsNotificationsStreamGetResponses>> => (options?.client ?? client).sse.get<NotificationStreamApiV1EventsNotificationsStreamGetResponses, unknown, ThrowOnError>({
-    responseTransformer: notificationStreamApiV1EventsNotificationsStreamGetResponseTransformer,
-    url: '/api/v1/events/notifications/stream',
-    ...options
-});
+export const notificationStreamApiV1EventsNotificationsStreamGet = <ThrowOnError extends boolean = false>(options?: Options<NotificationStreamApiV1EventsNotificationsStreamGetData, ThrowOnError, NotificationStreamApiV1EventsNotificationsStreamGetResponse>): Promise<ServerSentEventsResult<NotificationStreamApiV1EventsNotificationsStreamGetResponses>> => (options?.client ?? client).sse.get<NotificationStreamApiV1EventsNotificationsStreamGetResponses, unknown, ThrowOnError>({ url: '/api/v1/events/notifications/stream', ...options });
 
 /**
  * Execution Events
  *
  * Stream events for specific execution.
  */
-export const executionEventsApiV1EventsExecutionsExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ThrowOnError, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse>): Promise<ServerSentEventsResult<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses>> => (options.client ?? client).sse.get<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ThrowOnError>({
-    responseTransformer: executionEventsApiV1EventsExecutionsExecutionIdGetResponseTransformer,
-    url: '/api/v1/events/executions/{execution_id}',
-    ...options
-});
+export const executionEventsApiV1EventsExecutionsExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<ExecutionEventsApiV1EventsExecutionsExecutionIdGetData, ThrowOnError, ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponse>): Promise<ServerSentEventsResult<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses>> => (options.client ?? client).sse.get<ExecutionEventsApiV1EventsExecutionsExecutionIdGetResponses, ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors, ThrowOnError>({ url: '/api/v1/events/executions/{execution_id}', ...options });
 
 /**
  * Browse Events
@@ -317,7 +277,6 @@ export const executionEventsApiV1EventsExecutionsExecutionIdGet = <ThrowOnError 
  * Browse events with filtering, sorting, and pagination.
  */
 export const browseEventsApiV1AdminEventsBrowsePost = <ThrowOnError extends boolean = false>(options: Options<BrowseEventsApiV1AdminEventsBrowsePostData, ThrowOnError>): RequestResult<BrowseEventsApiV1AdminEventsBrowsePostResponses, BrowseEventsApiV1AdminEventsBrowsePostErrors, ThrowOnError> => (options.client ?? client).post<BrowseEventsApiV1AdminEventsBrowsePostResponses, BrowseEventsApiV1AdminEventsBrowsePostErrors, ThrowOnError>({
-    responseTransformer: browseEventsApiV1AdminEventsBrowsePostResponseTransformer,
     url: '/api/v1/admin/events/browse',
     ...options,
     headers: {
@@ -352,11 +311,7 @@ export const deleteEventApiV1AdminEventsEventIdDelete = <ThrowOnError extends bo
  *
  * Get detailed information about a single event, including related events and timeline.
  */
-export const getEventDetailApiV1AdminEventsEventIdGet = <ThrowOnError extends boolean = false>(options: Options<GetEventDetailApiV1AdminEventsEventIdGetData, ThrowOnError>): RequestResult<GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventDetailApiV1AdminEventsEventIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventDetailApiV1AdminEventsEventIdGetErrors, ThrowOnError>({
-    responseTransformer: getEventDetailApiV1AdminEventsEventIdGetResponseTransformer,
-    url: '/api/v1/admin/events/{event_id}',
-    ...options
-});
+export const getEventDetailApiV1AdminEventsEventIdGet = <ThrowOnError extends boolean = false>(options: Options<GetEventDetailApiV1AdminEventsEventIdGetData, ThrowOnError>): RequestResult<GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventDetailApiV1AdminEventsEventIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetEventDetailApiV1AdminEventsEventIdGetResponses, GetEventDetailApiV1AdminEventsEventIdGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/{event_id}', ...options });
 
 /**
  * Replay Events
@@ -364,7 +319,6 @@ export const getEventDetailApiV1AdminEventsEventIdGet = <ThrowOnError extends bo
  * Replay events by filter criteria, with optional dry-run mode.
  */
 export const replayEventsApiV1AdminEventsReplayPost = <ThrowOnError extends boolean = false>(options: Options<ReplayEventsApiV1AdminEventsReplayPostData, ThrowOnError>): RequestResult<ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayEventsApiV1AdminEventsReplayPostErrors, ThrowOnError> => (options.client ?? client).post<ReplayEventsApiV1AdminEventsReplayPostResponses, ReplayEventsApiV1AdminEventsReplayPostErrors, ThrowOnError>({
-    responseTransformer: replayEventsApiV1AdminEventsReplayPostResponseTransformer,
     url: '/api/v1/admin/events/replay',
     ...options,
     headers: {
@@ -378,26 +332,17 @@ export const replayEventsApiV1AdminEventsReplayPost = <ThrowOnError extends bool
  *
  * Stream the status and progress of a replay session via SSE.
  */
-export const streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet = <ThrowOnError extends boolean = false>(options: Options<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, ThrowOnError, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse>): Promise<ServerSentEventsResult<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses>> => (options.client ?? client).sse.get<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, ThrowOnError>({
-    responseTransformer: streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponseTransformer,
-    url: '/api/v1/admin/events/replay/{session_id}/status',
-    ...options
-});
+export const streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet = <ThrowOnError extends boolean = false>(options: Options<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData, ThrowOnError, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponse>): Promise<ServerSentEventsResult<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses>> => (options.client ?? client).sse.get<StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetResponses, StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors, ThrowOnError>({ url: '/api/v1/admin/events/replay/{session_id}/status', ...options });
 
 /**
  * List Executions
  */
-export const listExecutionsApiV1AdminExecutionsGet = <ThrowOnError extends boolean = false>(options?: Options<ListExecutionsApiV1AdminExecutionsGetData, ThrowOnError>): RequestResult<ListExecutionsApiV1AdminExecutionsGetResponses, ListExecutionsApiV1AdminExecutionsGetErrors, ThrowOnError> => (options?.client ?? client).get<ListExecutionsApiV1AdminExecutionsGetResponses, ListExecutionsApiV1AdminExecutionsGetErrors, ThrowOnError>({
-    responseTransformer: listExecutionsApiV1AdminExecutionsGetResponseTransformer,
-    url: '/api/v1/admin/executions/',
-    ...options
-});
+export const listExecutionsApiV1AdminExecutionsGet = <ThrowOnError extends boolean = false>(options?: Options<ListExecutionsApiV1AdminExecutionsGetData, ThrowOnError>): RequestResult<ListExecutionsApiV1AdminExecutionsGetResponses, ListExecutionsApiV1AdminExecutionsGetErrors, ThrowOnError> => (options?.client ?? client).get<ListExecutionsApiV1AdminExecutionsGetResponses, ListExecutionsApiV1AdminExecutionsGetErrors, ThrowOnError>({ url: '/api/v1/admin/executions/', ...options });
 
 /**
  * Update Priority
  */
 export const updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut = <ThrowOnError extends boolean = false>(options: Options<UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutData, ThrowOnError>): RequestResult<UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, ThrowOnError> => (options.client ?? client).put<UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponses, UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors, ThrowOnError>({
-    responseTransformer: updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutResponseTransformer,
     url: '/api/v1/admin/executions/{execution_id}/priority',
     ...options,
     headers: {
@@ -423,11 +368,7 @@ export const getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet = <ThrowOnE
  *
  * Get rate limit configuration for a user.
  */
-export const getUserRateLimitsApiV1AdminRateLimitsUserIdGet = <ThrowOnError extends boolean = false>(options: Options<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, ThrowOnError>): RequestResult<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, ThrowOnError>({
-    responseTransformer: getUserRateLimitsApiV1AdminRateLimitsUserIdGetResponseTransformer,
-    url: '/api/v1/admin/rate-limits/{user_id}',
-    ...options
-});
+export const getUserRateLimitsApiV1AdminRateLimitsUserIdGet = <ThrowOnError extends boolean = false>(options: Options<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData, ThrowOnError>): RequestResult<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserRateLimitsApiV1AdminRateLimitsUserIdGetResponses, GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors, ThrowOnError>({ url: '/api/v1/admin/rate-limits/{user_id}', ...options });
 
 /**
  * Update User Rate Limits
@@ -435,7 +376,6 @@ export const getUserRateLimitsApiV1AdminRateLimitsUserIdGet = <ThrowOnError exte
  * Update rate limit rules for a user.
  */
 export const updateUserRateLimitsApiV1AdminRateLimitsUserIdPut = <ThrowOnError extends boolean = false>(options: Options<UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData, ThrowOnError>): RequestResult<UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponses, UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors, ThrowOnError>({
-    responseTransformer: updateUserRateLimitsApiV1AdminRateLimitsUserIdPutResponseTransformer,
     url: '/api/v1/admin/rate-limits/{user_id}',
     ...options,
     headers: {
@@ -484,11 +424,7 @@ export const resetSystemSettingsApiV1AdminSettingsResetPost = <ThrowOnError exte
  *
  * List users, filtered and paginated on the server.
  */
-export const listUsersApiV1AdminUsersGet = <ThrowOnError extends boolean = false>(options?: Options<ListUsersApiV1AdminUsersGetData, ThrowOnError>): RequestResult<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError>({
-    responseTransformer: listUsersApiV1AdminUsersGetResponseTransformer,
-    url: '/api/v1/admin/users/',
-    ...options
-});
+export const listUsersApiV1AdminUsersGet = <ThrowOnError extends boolean = false>(options?: Options<ListUsersApiV1AdminUsersGetData, ThrowOnError>): RequestResult<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersApiV1AdminUsersGetResponses, ListUsersApiV1AdminUsersGetErrors, ThrowOnError>({ url: '/api/v1/admin/users/', ...options });
 
 /**
  * Create User
@@ -496,7 +432,6 @@ export const listUsersApiV1AdminUsersGet = <ThrowOnError extends boolean = false
  * Create a new user (admin only).
  */
 export const createUserApiV1AdminUsersPost = <ThrowOnError extends boolean = false>(options: Options<CreateUserApiV1AdminUsersPostData, ThrowOnError>): RequestResult<CreateUserApiV1AdminUsersPostResponses, CreateUserApiV1AdminUsersPostErrors, ThrowOnError> => (options.client ?? client).post<CreateUserApiV1AdminUsersPostResponses, CreateUserApiV1AdminUsersPostErrors, ThrowOnError>({
-    responseTransformer: createUserApiV1AdminUsersPostResponseTransformer,
     url: '/api/v1/admin/users/',
     ...options,
     headers: {
@@ -517,11 +452,7 @@ export const deleteUserApiV1AdminUsersUserIdDelete = <ThrowOnError extends boole
  *
  * Get a user by ID.
  */
-export const getUserApiV1AdminUsersUserIdGet = <ThrowOnError extends boolean = false>(options: Options<GetUserApiV1AdminUsersUserIdGetData, ThrowOnError>): RequestResult<GetUserApiV1AdminUsersUserIdGetResponses, GetUserApiV1AdminUsersUserIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserApiV1AdminUsersUserIdGetResponses, GetUserApiV1AdminUsersUserIdGetErrors, ThrowOnError>({
-    responseTransformer: getUserApiV1AdminUsersUserIdGetResponseTransformer,
-    url: '/api/v1/admin/users/{user_id}',
-    ...options
-});
+export const getUserApiV1AdminUsersUserIdGet = <ThrowOnError extends boolean = false>(options: Options<GetUserApiV1AdminUsersUserIdGetData, ThrowOnError>): RequestResult<GetUserApiV1AdminUsersUserIdGetResponses, GetUserApiV1AdminUsersUserIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserApiV1AdminUsersUserIdGetResponses, GetUserApiV1AdminUsersUserIdGetErrors, ThrowOnError>({ url: '/api/v1/admin/users/{user_id}', ...options });
 
 /**
  * Update User
@@ -529,7 +460,6 @@ export const getUserApiV1AdminUsersUserIdGet = <ThrowOnError extends boolean = f
  * Update a user's profile fields.
  */
 export const updateUserApiV1AdminUsersUserIdPut = <ThrowOnError extends boolean = false>(options: Options<UpdateUserApiV1AdminUsersUserIdPutData, ThrowOnError>): RequestResult<UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserApiV1AdminUsersUserIdPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateUserApiV1AdminUsersUserIdPutResponses, UpdateUserApiV1AdminUsersUserIdPutErrors, ThrowOnError>({
-    responseTransformer: updateUserApiV1AdminUsersUserIdPutResponseTransformer,
     url: '/api/v1/admin/users/{user_id}',
     ...options,
     headers: {
@@ -543,11 +473,7 @@ export const updateUserApiV1AdminUsersUserIdPut = <ThrowOnError extends boolean 
  *
  * Get a comprehensive overview of a user including stats and rate limits.
  */
-export const getUserOverviewApiV1AdminUsersUserIdOverviewGet = <ThrowOnError extends boolean = false>(options: Options<GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, ThrowOnError>): RequestResult<GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, ThrowOnError>({
-    responseTransformer: getUserOverviewApiV1AdminUsersUserIdOverviewGetResponseTransformer,
-    url: '/api/v1/admin/users/{user_id}/overview',
-    ...options
-});
+export const getUserOverviewApiV1AdminUsersUserIdOverviewGet = <ThrowOnError extends boolean = false>(options: Options<GetUserOverviewApiV1AdminUsersUserIdOverviewGetData, ThrowOnError>): RequestResult<GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, ThrowOnError> => (options.client ?? client).get<GetUserOverviewApiV1AdminUsersUserIdOverviewGetResponses, GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors, ThrowOnError>({ url: '/api/v1/admin/users/{user_id}/overview', ...options });
 
 /**
  * Reset User Password
@@ -575,11 +501,7 @@ export const unlockUserApiV1AdminUsersUserIdUnlockPost = <ThrowOnError extends b
  *
  * Get the authenticated user's settings.
  */
-export const getUserSettingsApiV1UserSettingsGet = <ThrowOnError extends boolean = false>(options?: Options<GetUserSettingsApiV1UserSettingsGetData, ThrowOnError>): RequestResult<GetUserSettingsApiV1UserSettingsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetUserSettingsApiV1UserSettingsGetResponses, unknown, ThrowOnError>({
-    responseTransformer: getUserSettingsApiV1UserSettingsGetResponseTransformer,
-    url: '/api/v1/user/settings/',
-    ...options
-});
+export const getUserSettingsApiV1UserSettingsGet = <ThrowOnError extends boolean = false>(options?: Options<GetUserSettingsApiV1UserSettingsGetData, ThrowOnError>): RequestResult<GetUserSettingsApiV1UserSettingsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetUserSettingsApiV1UserSettingsGetResponses, unknown, ThrowOnError>({ url: '/api/v1/user/settings/', ...options });
 
 /**
  * Update User Settings
@@ -587,7 +509,6 @@ export const getUserSettingsApiV1UserSettingsGet = <ThrowOnError extends boolean
  * Update the authenticated user's settings.
  */
 export const updateUserSettingsApiV1UserSettingsPut = <ThrowOnError extends boolean = false>(options: Options<UpdateUserSettingsApiV1UserSettingsPutData, ThrowOnError>): RequestResult<UpdateUserSettingsApiV1UserSettingsPutResponses, UpdateUserSettingsApiV1UserSettingsPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateUserSettingsApiV1UserSettingsPutResponses, UpdateUserSettingsApiV1UserSettingsPutErrors, ThrowOnError>({
-    responseTransformer: updateUserSettingsApiV1UserSettingsPutResponseTransformer,
     url: '/api/v1/user/settings/',
     ...options,
     headers: {
@@ -602,7 +523,6 @@ export const updateUserSettingsApiV1UserSettingsPut = <ThrowOnError extends bool
  * Update the user's theme preference.
  */
 export const updateThemeApiV1UserSettingsThemePut = <ThrowOnError extends boolean = false>(options: Options<UpdateThemeApiV1UserSettingsThemePutData, ThrowOnError>): RequestResult<UpdateThemeApiV1UserSettingsThemePutResponses, UpdateThemeApiV1UserSettingsThemePutErrors, ThrowOnError> => (options.client ?? client).put<UpdateThemeApiV1UserSettingsThemePutResponses, UpdateThemeApiV1UserSettingsThemePutErrors, ThrowOnError>({
-    responseTransformer: updateThemeApiV1UserSettingsThemePutResponseTransformer,
     url: '/api/v1/user/settings/theme',
     ...options,
     headers: {
@@ -617,7 +537,6 @@ export const updateThemeApiV1UserSettingsThemePut = <ThrowOnError extends boolea
  * Update notification preferences.
  */
 export const updateNotificationSettingsApiV1UserSettingsNotificationsPut = <ThrowOnError extends boolean = false>(options: Options<UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData, ThrowOnError>): RequestResult<UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateNotificationSettingsApiV1UserSettingsNotificationsPutResponses, UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors, ThrowOnError>({
-    responseTransformer: updateNotificationSettingsApiV1UserSettingsNotificationsPutResponseTransformer,
     url: '/api/v1/user/settings/notifications',
     ...options,
     headers: {
@@ -632,7 +551,6 @@ export const updateNotificationSettingsApiV1UserSettingsNotificationsPut = <Thro
  * Update code editor preferences.
  */
 export const updateEditorSettingsApiV1UserSettingsEditorPut = <ThrowOnError extends boolean = false>(options: Options<UpdateEditorSettingsApiV1UserSettingsEditorPutData, ThrowOnError>): RequestResult<UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateEditorSettingsApiV1UserSettingsEditorPutResponses, UpdateEditorSettingsApiV1UserSettingsEditorPutErrors, ThrowOnError>({
-    responseTransformer: updateEditorSettingsApiV1UserSettingsEditorPutResponseTransformer,
     url: '/api/v1/user/settings/editor',
     ...options,
     headers: {
@@ -646,11 +564,7 @@ export const updateEditorSettingsApiV1UserSettingsEditorPut = <ThrowOnError exte
  *
  * Get the change history for the user's settings.
  */
-export const getSettingsHistoryApiV1UserSettingsHistoryGet = <ThrowOnError extends boolean = false>(options?: Options<GetSettingsHistoryApiV1UserSettingsHistoryGetData, ThrowOnError>): RequestResult<GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, ThrowOnError> => (options?.client ?? client).get<GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, ThrowOnError>({
-    responseTransformer: getSettingsHistoryApiV1UserSettingsHistoryGetResponseTransformer,
-    url: '/api/v1/user/settings/history',
-    ...options
-});
+export const getSettingsHistoryApiV1UserSettingsHistoryGet = <ThrowOnError extends boolean = false>(options?: Options<GetSettingsHistoryApiV1UserSettingsHistoryGetData, ThrowOnError>): RequestResult<GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, ThrowOnError> => (options?.client ?? client).get<GetSettingsHistoryApiV1UserSettingsHistoryGetResponses, GetSettingsHistoryApiV1UserSettingsHistoryGetErrors, ThrowOnError>({ url: '/api/v1/user/settings/history', ...options });
 
 /**
  * Restore Settings
@@ -658,7 +572,6 @@ export const getSettingsHistoryApiV1UserSettingsHistoryGet = <ThrowOnError exten
  * Restore settings to a previous point in time.
  */
 export const restoreSettingsApiV1UserSettingsRestorePost = <ThrowOnError extends boolean = false>(options: Options<RestoreSettingsApiV1UserSettingsRestorePostData, ThrowOnError>): RequestResult<RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsApiV1UserSettingsRestorePostErrors, ThrowOnError> => (options.client ?? client).post<RestoreSettingsApiV1UserSettingsRestorePostResponses, RestoreSettingsApiV1UserSettingsRestorePostErrors, ThrowOnError>({
-    responseTransformer: restoreSettingsApiV1UserSettingsRestorePostResponseTransformer,
     url: '/api/v1/user/settings/restore',
     ...options,
     headers: {
@@ -673,7 +586,6 @@ export const restoreSettingsApiV1UserSettingsRestorePost = <ThrowOnError extends
  * Set or update a single custom setting by key.
  */
 export const updateCustomSettingApiV1UserSettingsCustomKeyPut = <ThrowOnError extends boolean = false>(options: Options<UpdateCustomSettingApiV1UserSettingsCustomKeyPutData, ThrowOnError>): RequestResult<UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateCustomSettingApiV1UserSettingsCustomKeyPutResponses, UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors, ThrowOnError>({
-    responseTransformer: updateCustomSettingApiV1UserSettingsCustomKeyPutResponseTransformer,
     url: '/api/v1/user/settings/custom/{key}',
     ...options,
     headers: {
@@ -687,11 +599,7 @@ export const updateCustomSettingApiV1UserSettingsCustomKeyPut = <ThrowOnError ex
  *
  * List notifications for the authenticated user.
  */
-export const getNotificationsApiV1NotificationsGet = <ThrowOnError extends boolean = false>(options?: Options<GetNotificationsApiV1NotificationsGetData, ThrowOnError>): RequestResult<GetNotificationsApiV1NotificationsGetResponses, GetNotificationsApiV1NotificationsGetErrors, ThrowOnError> => (options?.client ?? client).get<GetNotificationsApiV1NotificationsGetResponses, GetNotificationsApiV1NotificationsGetErrors, ThrowOnError>({
-    responseTransformer: getNotificationsApiV1NotificationsGetResponseTransformer,
-    url: '/api/v1/notifications',
-    ...options
-});
+export const getNotificationsApiV1NotificationsGet = <ThrowOnError extends boolean = false>(options?: Options<GetNotificationsApiV1NotificationsGetData, ThrowOnError>): RequestResult<GetNotificationsApiV1NotificationsGetResponses, GetNotificationsApiV1NotificationsGetErrors, ThrowOnError> => (options?.client ?? client).get<GetNotificationsApiV1NotificationsGetResponses, GetNotificationsApiV1NotificationsGetErrors, ThrowOnError>({ url: '/api/v1/notifications', ...options });
 
 /**
  * Mark Notification Read
@@ -712,11 +620,7 @@ export const markAllReadApiV1NotificationsMarkAllReadPost = <ThrowOnError extend
  *
  * Get all notification channel subscriptions for the authenticated user.
  */
-export const getSubscriptionsApiV1NotificationsSubscriptionsGet = <ThrowOnError extends boolean = false>(options?: Options<GetSubscriptionsApiV1NotificationsSubscriptionsGetData, ThrowOnError>): RequestResult<GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, unknown, ThrowOnError>({
-    responseTransformer: getSubscriptionsApiV1NotificationsSubscriptionsGetResponseTransformer,
-    url: '/api/v1/notifications/subscriptions',
-    ...options
-});
+export const getSubscriptionsApiV1NotificationsSubscriptionsGet = <ThrowOnError extends boolean = false>(options?: Options<GetSubscriptionsApiV1NotificationsSubscriptionsGetData, ThrowOnError>): RequestResult<GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses, unknown, ThrowOnError>({ url: '/api/v1/notifications/subscriptions', ...options });
 
 /**
  * Update Subscription
@@ -724,7 +628,6 @@ export const getSubscriptionsApiV1NotificationsSubscriptionsGet = <ThrowOnError 
  * Update subscription settings for a notification channel.
  */
 export const updateSubscriptionApiV1NotificationsSubscriptionsChannelPut = <ThrowOnError extends boolean = false>(options: Options<UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData, ThrowOnError>): RequestResult<UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, ThrowOnError> => (options.client ?? client).put<UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponses, UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors, ThrowOnError>({
-    responseTransformer: updateSubscriptionApiV1NotificationsSubscriptionsChannelPutResponseTransformer,
     url: '/api/v1/notifications/subscriptions/{channel}',
     ...options,
     headers: {
@@ -752,33 +655,21 @@ export const deleteNotificationApiV1NotificationsNotificationIdDelete = <ThrowOn
  *
  * Get saga status by ID.
  */
-export const getSagaStatusApiV1SagasSagaIdGet = <ThrowOnError extends boolean = false>(options: Options<GetSagaStatusApiV1SagasSagaIdGetData, ThrowOnError>): RequestResult<GetSagaStatusApiV1SagasSagaIdGetResponses, GetSagaStatusApiV1SagasSagaIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetSagaStatusApiV1SagasSagaIdGetResponses, GetSagaStatusApiV1SagasSagaIdGetErrors, ThrowOnError>({
-    responseTransformer: getSagaStatusApiV1SagasSagaIdGetResponseTransformer,
-    url: '/api/v1/sagas/{saga_id}',
-    ...options
-});
+export const getSagaStatusApiV1SagasSagaIdGet = <ThrowOnError extends boolean = false>(options: Options<GetSagaStatusApiV1SagasSagaIdGetData, ThrowOnError>): RequestResult<GetSagaStatusApiV1SagasSagaIdGetResponses, GetSagaStatusApiV1SagasSagaIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetSagaStatusApiV1SagasSagaIdGetResponses, GetSagaStatusApiV1SagasSagaIdGetErrors, ThrowOnError>({ url: '/api/v1/sagas/{saga_id}', ...options });
 
 /**
  * Get Execution Sagas
  *
  * Get all sagas for an execution.
  */
-export const getExecutionSagasApiV1SagasExecutionExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<GetExecutionSagasApiV1SagasExecutionExecutionIdGetData, ThrowOnError>): RequestResult<GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, ThrowOnError>({
-    responseTransformer: getExecutionSagasApiV1SagasExecutionExecutionIdGetResponseTransformer,
-    url: '/api/v1/sagas/execution/{execution_id}',
-    ...options
-});
+export const getExecutionSagasApiV1SagasExecutionExecutionIdGet = <ThrowOnError extends boolean = false>(options: Options<GetExecutionSagasApiV1SagasExecutionExecutionIdGetData, ThrowOnError>): RequestResult<GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetExecutionSagasApiV1SagasExecutionExecutionIdGetResponses, GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors, ThrowOnError>({ url: '/api/v1/sagas/execution/{execution_id}', ...options });
 
 /**
  * List Sagas
  *
  * List sagas accessible by the current user.
  */
-export const listSagasApiV1SagasGet = <ThrowOnError extends boolean = false>(options?: Options<ListSagasApiV1SagasGetData, ThrowOnError>): RequestResult<ListSagasApiV1SagasGetResponses, ListSagasApiV1SagasGetErrors, ThrowOnError> => (options?.client ?? client).get<ListSagasApiV1SagasGetResponses, ListSagasApiV1SagasGetErrors, ThrowOnError>({
-    responseTransformer: listSagasApiV1SagasGetResponseTransformer,
-    url: '/api/v1/sagas/',
-    ...options
-});
+export const listSagasApiV1SagasGet = <ThrowOnError extends boolean = false>(options?: Options<ListSagasApiV1SagasGetData, ThrowOnError>): RequestResult<ListSagasApiV1SagasGetResponses, ListSagasApiV1SagasGetErrors, ThrowOnError> => (options?.client ?? client).get<ListSagasApiV1SagasGetResponses, ListSagasApiV1SagasGetErrors, ThrowOnError>({ url: '/api/v1/sagas/', ...options });
 
 /**
  * Cancel Saga

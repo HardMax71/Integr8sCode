@@ -40,8 +40,12 @@ server {
     # --8<-- [end:compression]
 
     # --8<-- [start:api_proxy]
+    # Resolved per request, so a backend that comes back with a new IP doesn't leave a stale upstream
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    set $backend_upstream ${BACKEND_URL};
+
     location /api/ {
-        proxy_pass ${BACKEND_URL};
+        proxy_pass $backend_upstream;
         proxy_ssl_verify off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -56,7 +60,7 @@ server {
         # --8<-- [start:sse_proxy]
         # SSE specific settings for /api/v1/events/
         location ~ ^/api/v1/events/ {
-            proxy_pass ${BACKEND_URL};
+            proxy_pass $backend_upstream;
             proxy_ssl_verify off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

@@ -847,7 +847,7 @@ CI also runs the backend E2E suite and Playwright against a k3s stack, plus band
 - Passwords: bcrypt via pwdlib (`PasswordHash((BcryptHasher(rounds=settings.BCRYPT_ROUNDS),))`)
 - Login lockout after `max_login_attempts` failures (default 5, for 15 minutes), configurable in admin system settings
 - Request size limit enforced by ASGI middleware (streams the body and rejects before the full payload is in memory; default 10MB)
-- Rate limiting: Redis-backed, keyed by client IP (the middleware runs before auth). Default rules per 60s: execution 10, auth 20, admin 100, sse 5, websocket 5, api 60. Login, register, logout and `/api/v1/health/` skip the middleware
+- Rate limiting: Redis-backed, keyed by the user id of a valid access token (the middleware verifies it, since it runs before auth) or else by client IP, and it fails open when Redis errors. Default rules per 60s: execution 10, auth 20, admin 100, sse 5, websocket 5, api 60. Login, register, logout and `/api/v1/health/` skip the middleware
 - CSRF: double-submit cookie pattern. `access_token` (httpOnly) plus `csrf_token` (readable) cookies, and the `X-CSRF-Token` header is required for POST, PUT, PATCH and DELETE. Login, register and unauthenticated requests are exempt
 - Sensitive data (API keys, tokens, passwords, connection-string credentials) is redacted before logging
 - Never log user-controlled data via string interpolation; always use structured keyword args

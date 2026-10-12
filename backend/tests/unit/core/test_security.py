@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -349,4 +350,46 @@ class TestDecodeToken:
 
         svc.decode_token(svc.create_access_token({"sub": "u"}, expires_delta=timedelta(minutes=5)))
 
+        metrics.record_token_validation_failure.assert_not_called()
+
+
+class TestDecodeUserId:
+    """SecurityService.decode_user_id gives an id only for a valid token that carries one."""
+
+    def test_valid_token_returns_user_id(self, test_settings: Settings, security_metrics: SecurityMetrics) -> None:
+        svc = SecurityService(test_settings, security_metrics)
+        token = svc.create_access_token({"sub": "u", "user_id": "user-1"}, expires_delta=timedelta(minutes=5))
+
+        assert svc.decode_user_id(token) == "user-1"
+
+    @pytest.mark.parametrize(
+        "make_token",
+        [
+            lambda s: jwt.encode(
+                {"sub": "u", "user_id": "user-1", "exp": datetime.now(timezone.utc) - timedelta(seconds=5)},
+                s.SECRET_KEY,
+                algorithm=s.ALGORITHM,
+            ),
+            lambda s: jwt.encode(
+                {"sub": "u", "user_id": "user-1", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+                "wrong-secret-key-padded-to-32-bytes",
+                algorithm=s.ALGORITHM,
+            ),
+            lambda s: jwt.encode(
+                {"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+                s.SECRET_KEY,
+                algorithm=s.ALGORITHM,
+            ),
+            lambda s: "not.a.token",
+        ],
+        ids=["expired", "wrong_signature", "no_user_id", "malformed"],
+    )
+    def test_unusable_token_raises_without_counting_a_failure(
+        self, test_settings: Settings, make_token: Callable[[Settings], str]
+    ) -> None:
+        metrics = MagicMock(spec=SecurityMetrics)
+        svc = SecurityService(test_settings, metrics)
+
+        with pytest.raises(InvalidCredentialsError):
+            svc.decode_user_id(make_token(test_settings))
         metrics.record_token_validation_failure.assert_not_called()

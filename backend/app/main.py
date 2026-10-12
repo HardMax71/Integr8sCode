@@ -82,7 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     setup_metrics(settings, logger)
     setup_log_exporter(settings, logger)
     app.add_middleware(MetricsMiddleware)
-    app.add_middleware(RateLimitMiddleware, settings=settings)
+    app.add_middleware(RateLimitMiddleware, container=container, settings=settings)
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)

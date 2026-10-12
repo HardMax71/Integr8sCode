@@ -170,7 +170,7 @@ class AuthService:
 
             access_token_expires = timedelta(minutes=session_timeout)
             access_token = self.security_service.create_access_token(
-                data={"sub": user.username},
+                data={"sub": user.username, "user_id": user.user_id},
                 expires_delta=access_token_expires,
             )
             csrf_token = self.security_service.generate_csrf_token(access_token)

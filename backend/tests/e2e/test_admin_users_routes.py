@@ -609,7 +609,7 @@ class TestGetUserRateLimits:
         result = UserRateLimitsResponse.model_validate(response.json())
 
         assert result.user_id == user_id
-        assert isinstance(result.current_usage, dict)
+        assert result.current_usage == {}
 
     @pytest.mark.asyncio
     async def test_get_user_rate_limits_forbidden_for_regular_user(

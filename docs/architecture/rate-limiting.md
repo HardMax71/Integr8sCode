@@ -1,12 +1,12 @@
 # Rate limiting
 
-Rate limiting is a Redis-backed check in `RateLimitMiddleware`, and today it keys every request by client IP. The middleware runs before authentication, so it never knows the user. That has a side effect: the per-user overrides admins can set never match anything ([#290](https://github.com/HardMax71/Integr8sCode/issues/290)).
+Rate limiting is a Redis-backed check in `RateLimitMiddleware`. A signed-in request is counted against its user, and any other request against its client IP. The middleware runs before the route's authentication, so it verifies the access token itself.
 
 ```mermaid
 flowchart LR
     REQ[Request] --> EX{Excluded path?}
     EX -->|yes| APP[Route]
-    EX -->|no| KEY[Key by client IP]
+    EX -->|no| KEY[Key by user id or client IP]
     KEY --> CFG[Load config from Redis]
     CFG --> RULE{First matching rule}
     RULE -->|none| APP
@@ -25,17 +25,17 @@ Every HTTP request goes through the middleware except these:
 
 Login, register and logout are skipped by exact path, and the health prefix covers `/api/v1/health/live`. Setting `RATE_LIMIT_ENABLED = false` turns the whole check off, which `config.test.toml` does.
 
-The bucket key comes from the client IP:
+The bucket key is the user id from a valid access token, or the client IP when there's no token or it doesn't verify:
 
 ```python
 --8<-- "backend/app/core/middlewares/rate_limit.py:extract_user_id"
 ```
 
-`get_client_ip` uses the socket peer address. It reads `X-Forwarded-For` (first entry) or `X-Real-IP` only when the peer is a loopback or private address, which is the case behind the frontend nginx.
+`decode_user_id` checks the signature and expiry and reads the token's `user_id` claim, which login sets. A forged or expired cookie fails that check, so it can't pick someone else's bucket. Tokens issued before the claim existed fall back to the IP until they expire. `get_client_ip` uses the socket peer address. It reads `X-Forwarded-For` (first entry) or `X-Real-IP` only when the peer is a loopback or private address, which is the case behind the frontend nginx.
 
 ## Rules
 
-`RateLimitService` loads a `RateLimitConfig` from the Redis key `rate_limit:config`. If the key is missing, it writes `RateLimitConfig.get_default_config()` there with a 300 second TTL. Rules are sorted by priority, highest first, and the first pattern that matches the path wins:
+`RateLimitService` loads a `RateLimitConfig` from the Redis key `rate_limit:config`, which has no expiry. If the key is missing, it uses `RateLimitConfig.get_default_config()` without storing it. Rules are sorted by priority, highest first, and the first pattern that matches the path wins:
 
 | Pattern | Group | Limit | Priority |
 |---------|-------|-------|----------|
@@ -48,7 +48,7 @@ The bucket key comes from the client IP:
 
 All six use the sliding window. The middleware matches the raw path before routing, so a rule also counts requests to URLs that don't exist. Since login, register and logout are excluded, `/api/v1/auth/me` is the only real route the auth rule covers. No route lives under `/api/v1/ws`, so the websocket rule only counts requests that end in 404.
 
-The counter key is `rate_limit:sw:ip:<addr>:<path>` with the raw request path. A limit therefore applies to each URL separately, not to the group: two different execution IDs under `/api/v1/events/executions/` get two separate budgets of 5.
+The counter key is `rate_limit:sw:<user id>:<path>`, or `rate_limit:sw:ip:<addr>:<path>` for anonymous requests, with the raw request path. A limit therefore applies to each URL separately, not to the group: two different execution IDs under `/api/v1/events/executions/` get two separate budgets of 5.
 
 ## Algorithms
 
@@ -66,7 +66,7 @@ The token bucket runs as a Lua script that refills `limit / window` tokens per s
 --8<-- "backend/app/services/rate_limit_service.py:check_token_bucket"
 ```
 
-No default rule uses it. The only way to add a token bucket rule is a per-user override, so today nothing reaches this path.
+No default rule uses it, so only a per-user override with a token bucket rule reaches this path.
 
 ## Responses
 
@@ -85,7 +85,7 @@ A rejected request gets 429 with this body:
 {"detail": "Rate limit exceeded", "retry_after": 45, "reset_at": "2026-01-15T10:30:00+00:00"}
 ```
 
-The service also counts `rate_limit.requests.total`, `rate_limit.allowed.total`, `rate_limit.rejected.total` and `rate_limit.bypass.total`, labelled with the path after IDs are replaced by `*`.
+The service also counts `rate_limit.requests.total`, `rate_limit.allowed.total`, `rate_limit.rejected.total` and `rate_limit.bypass.total`, labelled with the path after IDs are replaced by `*`. The `algorithm` label on `rate_limit.requests.total` also takes `bypassed`, `no_limit` and `redis_error`.
 
 ## Per-user overrides
 
@@ -95,13 +95,11 @@ The admin API (`/api/v1/admin/rate-limits/{user_id}`) stores a `UserRateLimit` i
 --8<-- "backend/app/domain/rate_limit/rate_limit_models.py:UserRateLimit"
 ```
 
-The check looks overrides up by the `ip:<addr>` key, so bypass, multiplier and custom rules never apply. The usage stats in the same admin view read counters indexed under `rate_limit:index:{user_id}`, which the middleware never writes, so they come back empty. Both are tracked in [#290](https://github.com/HardMax71/Integr8sCode/issues/290).
-
-Overrides are also short-lived. `update_config` writes the whole config back with the same 300 second TTL, so five minutes later the key expires and the defaults are written again without the override.
+A user without an override gets the neutral defaults: no bypass, a multiplier of 1 and no own rules. The check applies the override of the user the request is keyed by, and the usage stats in the same admin view read the counters indexed under `rate_limit:index:{user_id}`, which the check writes for signed-in requests.
 
 ## Failure mode
 
-Nothing catches Redis errors in the middleware or the service. When Redis is down, every checked request fails with 500 instead of passing through ([#290](https://github.com/HardMax71/Integr8sCode/issues/290)).
+Rate limiting fails open. When a Redis call fails, the service logs the error, counts the request with `algorithm="redis_error"` and lets it through, so a Redis outage doesn't take the API down with it.
 
 ## Settings
 

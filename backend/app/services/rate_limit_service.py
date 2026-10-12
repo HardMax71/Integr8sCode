@@ -4,9 +4,11 @@ import json
 import math
 import re
 import time
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
+import structlog
 from pydantic import TypeAdapter
 
 from app.core.metrics import RateLimitMetrics
@@ -22,12 +24,20 @@ from app.domain.rate_limit import (
 from app.settings import Settings
 
 _config_adapter = TypeAdapter(RateLimitConfig)
+_keys_adapter = TypeAdapter(set[str])
 
 
 class RateLimitService:
-    def __init__(self, redis_client: redis.Redis, settings: Settings, metrics: RateLimitMetrics):
+    def __init__(
+        self,
+        redis_client: redis.Redis,
+        settings: Settings,
+        metrics: RateLimitMetrics,
+        logger: structlog.stdlib.BoundLogger,
+    ):
         self.redis = redis_client
         self.settings = settings
+        self.logger = logger
         self.prefix = settings.RATE_LIMIT_REDIS_PREFIX
         self.metrics = metrics
         self._pattern_cache: dict[str, re.Pattern[str]] = {}
@@ -72,34 +82,41 @@ class RateLimitService:
         for user_limit in config.user_overrides.values():
             user_limit.rules.sort(key=lambda r: r.priority, reverse=True)
 
-    async def check_rate_limit(
-        self, user_id: str, endpoint: str, config: RateLimitConfig | None = None
-    ) -> RateLimitStatus:
+    async def check_rate_limit(self, user_id: str, endpoint: str) -> RateLimitStatus:
+        """Check a request against its limit, letting it through when Redis fails."""
+        try:
+            return await self._check(user_id, endpoint, await self._get_config())
+        except redis.RedisError as e:
+            self.logger.error("Rate limit check failed, allowing the request", endpoint=endpoint, error=str(e))
+            self.metrics.record_request(
+                self._normalize_endpoint(endpoint), not user_id.startswith("ip:"), "redis_error"
+            )
+            return self._unlimited()
+
+    async def _check(self, user_id: str, endpoint: str, config: RateLimitConfig) -> RateLimitStatus:
         normalized_endpoint = self._normalize_endpoint(endpoint)
         authenticated = not user_id.startswith("ip:")
-
-        if config is None:
-            config = await self._get_config()
-        self._prepare_config(config)
 
         if not config.global_enabled:
             return self._unlimited()
 
-        user_config = config.user_overrides.get(str(user_id))
-        if user_config and user_config.bypass_rate_limit:
+        user_config = self._user_limit(config, user_id)
+        if user_config.bypass_rate_limit:
             self.metrics.record_bypass(normalized_endpoint)
             self.metrics.record_request(normalized_endpoint, authenticated, "bypassed")
             return self._unlimited()
 
-        rule = self._find_matching_rule(endpoint, user_config, config)
-        if not rule:
-            self.metrics.record_request(normalized_endpoint, authenticated, "no_limit")
-            return self._unlimited()
+        for rule in self._matching_rules(endpoint, user_config, config):
+            return await self._apply_rule(user_id, endpoint, rule, user_config.global_multiplier)
 
-        multiplier = user_config.global_multiplier if user_config else 1.0
+        self.metrics.record_request(normalized_endpoint, authenticated, "no_limit")
+        return self._unlimited()
+
+    async def _apply_rule(self, user_id: str, endpoint: str, rule: RateLimitRule, multiplier: float) -> RateLimitStatus:
+        normalized_endpoint = self._normalize_endpoint(endpoint)
         effective_limit = int(rule.requests * multiplier)
 
-        self.metrics.record_request(normalized_endpoint, authenticated, rule.algorithm)
+        self.metrics.record_request(normalized_endpoint, not user_id.startswith("ip:"), rule.algorithm)
 
         if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
             status = await self._check_token_bucket(
@@ -239,100 +256,64 @@ return {allowed, tostring(tokens)}
             algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
         )
 
-    def _find_matching_rule(
-        self, endpoint: str, user_config: UserRateLimit | None, global_config: RateLimitConfig
-    ) -> RateLimitRule | None:
-        rules = []
+    @staticmethod
+    def _user_limit(config: RateLimitConfig, user_id: str) -> UserRateLimit:
+        """The user's override, or the neutral defaults when there is none."""
+        return config.user_overrides.get(user_id, UserRateLimit(user_id=user_id))
 
-        # Add user-specific rules (already pre-sorted)
-        if user_config and user_config.rules:
-            rules.extend(user_config.rules)
-
-        # Add global default rules (already pre-sorted)
-        rules.extend(global_config.default_rules)
-
-        for rule in rules:
-            if not rule.enabled:
-                continue
-            if self._compile_pattern(rule.endpoint_pattern).match(endpoint):
-                return rule
-
-        return None
+    def _matching_rules(
+        self, endpoint: str, user_config: UserRateLimit, config: RateLimitConfig
+    ) -> Iterator[RateLimitRule]:
+        """Enabled rules that match the endpoint, the user's own first, each list in priority order."""
+        for rule in [*user_config.rules, *config.default_rules]:
+            if rule.enabled and self._compile_pattern(rule.endpoint_pattern).match(endpoint):
+                yield rule
 
     async def _get_config(self) -> RateLimitConfig:
         config_key = f"{self.prefix}config"
         config_data = await self.redis.get(config_key)
 
-        if config_data:
-            config = _config_adapter.validate_json(config_data)
-        else:
-            config = RateLimitConfig.get_default_config()
-            await self.redis.setex(config_key, 300, _config_adapter.dump_json(config))
-
+        config = _config_adapter.validate_json(config_data) if config_data else RateLimitConfig.get_default_config()
         self._prepare_config(config)
         return config
 
     async def update_config(self, config: RateLimitConfig) -> None:
         config_key = f"{self.prefix}config"
-        await self.redis.setex(config_key, 300, _config_adapter.dump_json(config))
+        await self.redis.set(config_key, _config_adapter.dump_json(config))
 
     async def update_user_rate_limit(self, user_id: str, user_limit: UserRateLimit) -> None:
         config = await self._get_config()
         config.user_overrides[str(user_id)] = user_limit
         await self.update_config(config)
 
-    async def get_user_rate_limit(self, user_id: str) -> UserRateLimit | None:
-        config = await self._get_config()
-        return config.user_overrides.get(str(user_id))
+    async def get_user_rate_limit(self, user_id: str) -> UserRateLimit:
+        """The user's override, or the neutral defaults when there is none."""
+        return self._user_limit(await self._get_config(), user_id)
 
-    async def get_user_rate_limit_summary(
-        self,
-        user_id: str,
-        config: RateLimitConfig | None = None,
-    ) -> UserRateLimitSummary:
-        """Return a summary for the user's rate limit configuration with sensible defaults.
-
-        - has_custom_limits is true only if an override exists and differs from defaults
-        - bypass_rate_limit/global_multiplier reflect override or defaults (False/1.0)
-        """
-        if config is None:
-            config = await self._get_config()
-        override = config.user_overrides.get(str(user_id))
-        if override:
-            rules_count = len(override.rules)
-            has_custom = (
-                override.bypass_rate_limit
-                or not math.isclose(override.global_multiplier, 1.0, rel_tol=1e-9, abs_tol=1e-12)
-                or rules_count > 0
-            )
-            return UserRateLimitSummary(
-                user_id=str(user_id),
-                has_custom_limits=has_custom,
-                bypass_rate_limit=override.bypass_rate_limit,
-                global_multiplier=override.global_multiplier,
-                rules_count=rules_count,
-            )
-        # Defaults when no override exists
+    @classmethod
+    def _summary(cls, config: RateLimitConfig, user_id: str) -> UserRateLimitSummary:
+        limit = cls._user_limit(config, user_id)
         return UserRateLimitSummary(
-            user_id=str(user_id),
-            has_custom_limits=False,
-            bypass_rate_limit=False,
-            global_multiplier=1.0,
-            rules_count=0,
+            user_id=user_id,
+            has_custom_limits=(
+                limit.bypass_rate_limit
+                or not math.isclose(limit.global_multiplier, 1.0, rel_tol=1e-9, abs_tol=1e-12)
+                or len(limit.rules) > 0
+            ),
+            bypass_rate_limit=limit.bypass_rate_limit,
+            global_multiplier=limit.global_multiplier,
+            rules_count=len(limit.rules),
         )
 
     async def get_override_summaries(self) -> list[UserRateLimitSummary]:
         """Summaries of the users with an override; every other user has the defaults."""
         config = await self._get_config()
-        return [await self.get_user_rate_limit_summary(user_id, config=config) for user_id in config.user_overrides]
+        return [self._summary(config, user_id) for user_id in config.user_overrides]
 
     async def get_user_rate_limit_summaries(self, user_ids: list[str]) -> dict[str, UserRateLimitSummary]:
         """Batch build summaries for a set of users using a single config load."""
         config = await self._get_config()
-        summaries: dict[str, UserRateLimitSummary] = {}
-        for uid in user_ids:
-            summaries[uid] = await self.get_user_rate_limit_summary(uid, config=config)
-        return summaries
+        return {user_id: self._summary(config, user_id) for user_id in user_ids}
 
     async def reset_user_limits(self, user_id: str) -> None:
         index_key = self._index_key(user_id)
@@ -344,27 +325,26 @@ return {allowed, tostring(tokens)}
     async def get_usage_stats(self, user_id: str) -> dict[str, EndpointUsageStats]:
         stats: dict[str, EndpointUsageStats] = {}
         index_key = self._index_key(user_id)
-        keys = await self.redis.smembers(index_key)
+        keys = _keys_adapter.validate_python(await self.redis.smembers(index_key))
         if not keys:
             return stats
 
         config = await self._get_config()
-        user_config = config.user_overrides.get(str(user_id))
-        multiplier = user_config.global_multiplier if user_config else 1.0
+        user_config = self._user_limit(config, user_id)
 
         for key in keys:
-            key_str = key.decode() if isinstance(key, bytes) else key
-            parts = key_str.split(":")
-            # Expect: <prefix>(sw|tb):<user_id>:<endpoint>
-            if len(parts) < 4:
-                continue
-            algo = parts[1]
-            endpoint = ":".join(parts[3:])
+            algo, _, rest = key.removeprefix(self.prefix).partition(":")
+            endpoint = rest.removeprefix(f"{user_id}:")
 
             if algo == "sw":
                 count = await self.redis.zcard(key)
-                rule = self._find_matching_rule(endpoint, user_config, config)
-                limit = int(rule.requests * multiplier) if rule else 0
+                limit = next(
+                    (
+                        int(rule.requests * user_config.global_multiplier)
+                        for rule in self._matching_rules(endpoint, user_config, config)
+                    ),
+                    0,
+                )
                 remaining = max(0, limit - count)
                 stats[endpoint] = EndpointUsageStats(algorithm=RateLimitAlgorithm.SLIDING_WINDOW, remaining=remaining)
             elif algo == "tb":

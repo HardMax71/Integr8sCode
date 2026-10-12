@@ -88,9 +88,9 @@ class AdminUserService:
 
         rl = await self._rate_limits.get_user_rate_limit(user_id)
         rl_summary = RateLimitSummaryDomain(
-            bypass_rate_limit=rl.bypass_rate_limit if rl else False,
-            global_multiplier=rl.global_multiplier if rl else 1.0,
-            has_custom_limits=bool(rl.rules) if rl else False,
+            bypass_rate_limit=rl.bypass_rate_limit,
+            global_multiplier=rl.global_multiplier,
+            has_custom_limits=len(rl.rules) > 0,
         )
 
         # Recent execution-related events (last 10)

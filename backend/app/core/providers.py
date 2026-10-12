@@ -149,8 +149,9 @@ class RedisProvider(Provider):
         redis_client: redis.Redis,
         settings: Settings,
         rate_limit_metrics: RateLimitMetrics,
+        logger: structlog.stdlib.BoundLogger,
     ) -> RateLimitService:
-        return RateLimitService(redis_client, settings, rate_limit_metrics)
+        return RateLimitService(redis_client, settings, rate_limit_metrics, logger)
 
 
 class CoreServicesProvider(Provider):

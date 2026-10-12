@@ -1,12 +1,13 @@
-from datetime import datetime, timezone
-
+from dishka import AsyncContainer
 from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.domain.rate_limit import RateLimitStatus
+from app.domain.user import InvalidCredentialsError
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
@@ -35,14 +36,9 @@ class RateLimitMiddleware:
     # --8<-- [end:excluded_paths]
     # --8<-- [end:RateLimitMiddleware]
 
-    def __init__(
-        self,
-        app: ASGIApp,
-        rate_limit_service: RateLimitService | None = None,
-        settings: Settings | None = None,
-    ) -> None:
+    def __init__(self, app: ASGIApp, container: AsyncContainer, settings: Settings) -> None:
         self.app = app
-        self.rate_limit_service = rate_limit_service
+        self.container = container
         self.settings = settings
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -56,28 +52,16 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Check if rate limiting is globally disabled via settings
-        if self.settings is not None and not self.settings.RATE_LIMIT_ENABLED:
+        if not self.settings.RATE_LIMIT_ENABLED:
             await self.app(scope, receive, send)
             return
 
-        # Try to get service if not initialized
-        if self.rate_limit_service is None:
-            asgi_app = scope.get("app")
-            if asgi_app:
-                container = asgi_app.state.dishka_container
-                async with container() as container_scope:
-                    self.rate_limit_service = await container_scope.get(RateLimitService)
-
-            if self.rate_limit_service is None:
-                await self.app(scope, receive, send)
-                return
-
-        # Build request object to access state
+        rate_limit_service = await self.container.get(RateLimitService)
+        security_service = await self.container.get(SecurityService)
         request = Request(scope, receive=receive)
-        user_id = self._extract_user_id(request)
+        user_id = self._extract_user_id(request, security_service)
 
-        status = await self._check_rate_limit(user_id, path)
+        status = await rate_limit_service.check_rate_limit(user_id=user_id, endpoint=path)
 
         if not status.allowed:
             response = self._rate_limit_exceeded_response(status)
@@ -97,28 +81,18 @@ class RateLimitMiddleware:
 
     # --8<-- [start:extract_user_id]
     @staticmethod
-    def _extract_user_id(request: Request) -> str:
-        """Extract rate-limit bucket key from client IP.
+    def _extract_user_id(request: Request, security_service: SecurityService) -> str:
+        """Key a signed-in request by its user id and any other by client IP.
 
-        Middleware runs before route-level auth, so no verified identity is
-        available here. Using unverified JWT claims would let an attacker
-        craft arbitrary bucket keys to bypass IP-based limits.
+        Only a token whose signature and expiry check out gives a user id, so a forged
+        cookie can't pick another user's bucket or limits.
         """
-        return f"ip:{get_client_ip(request)}"
+        try:
+            return security_service.decode_user_id(request.cookies.get("access_token", ""))
+        except InvalidCredentialsError:
+            return f"ip:{get_client_ip(request)}"
 
     # --8<-- [end:extract_user_id]
-
-    async def _check_rate_limit(self, user_id: str, endpoint: str) -> RateLimitStatus:
-        # At this point service should be available; if not, allow request
-        if self.rate_limit_service is None:
-            return RateLimitStatus(
-                allowed=True,
-                limit=0,
-                remaining=0,
-                reset_at=datetime.now(timezone.utc),
-            )
-
-        return await self.rate_limit_service.check_rate_limit(user_id=user_id, endpoint=endpoint)
 
     def _rate_limit_exceeded_response(self, status: RateLimitStatus) -> JSONResponse:
         headers = {

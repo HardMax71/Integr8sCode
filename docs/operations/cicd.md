@@ -92,13 +92,14 @@ The deploy job runs `appleboy/ssh-action` against the production server. It's sk
 | `MONGO_USER`, `MONGO_PASSWORD`                 | Release & Deploy            | MongoDB root credentials                    |
 | `MONGO_MONITOR_PASSWORD`                       | Release & Deploy            | password of the collector's MongoDB user    |
 | `REDIS_PASSWORD`                               | Release & Deploy            | Redis password                              |
+| `ADMIN_USER_PASSWORD`, `DEFAULT_USER_PASSWORD` | Release & Deploy            | passwords the seed job sets for `admin` and `user` |
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | Release & Deploy            | Grafana admin login                         |
 | `MAILJET_HOST`, `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM_ADDRESS` | Release & Deploy | Grafana alert mail over SMTP |
 | `GRAFANA_ALERT_RECIPIENTS`                     | Release & Deploy            | who gets alert mail                         |
 | `CODECOV_TOKEN`                                | Stack Tests                 | coverage upload                             |
 | `TEST_SECRET_KEY`                              | MyPy Type Checking          | exported as `SECRET_KEY` for the mypy step |
 
-Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials and the monitor password, so the deploy script stops before it touches the server when any of those secrets is empty.
+Compose falls back to public defaults for `SECRET_KEY`, the MongoDB and Redis credentials, the monitor password and the two account passwords, so the deploy script stops before it touches the server when any of those secrets is empty.
 
 ## Supply chain
 

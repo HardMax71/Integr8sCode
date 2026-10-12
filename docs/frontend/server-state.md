@@ -39,22 +39,20 @@ const updatePriority = createMutation(() => ({
 
 The mutation lives in the executions table, which renders the priority select, and invalidates the list and queue status keys. `mutation.isPending` replaces the old `saving` and `deleting` flags. The browse events key includes its body, so there's no key prefix to invalidate; the events page refetches the list and stats on screen instead, and other pages fetch again when opened anyway.
 
-The admin settings page, the user settings page and the rate limits modal edit a copy of what they loaded:
+The two settings pages are superforms forms on the generated Zod schemas, and an effect starts the form over from whatever the query holds:
 
 ```typescript
-let loaded = $derived(settingsQuery.data);
-let settings = $derived.by(() => {
-    const draft = $state(structuredClone(loaded ?? {}));
-    return draft;
+$effect(() => {
+    if (settingsQuery.data) form.reset({ newState: settingsQuery.data });
 });
 ```
 
-The copy never touches the cached response. When a refetch returns equal data, the query keeps the old `data` object, so `loaded` doesn't change and a background refetch keeps the edits. Saving puts the response into the cache with `setQueryData`, which starts a fresh copy.
+The form keeps its own copy, so edits never touch the cached response. When a refetch returns equal data, the query keeps the old `data` object, so the effect doesn't run again and a background refetch keeps the edits. Saving, resetting or restoring puts the response into the cache with `setQueryData`, which starts the form over from it. The rate limits modal still edits a `structuredClone` of what it loaded until its rules have a schema (#290).
 
 ## Session and user settings
 
 The auth store isn't a component, so it uses the client directly. `verifyAuth()` asks `queryClient.query()` for the profile with a 30 second stale time, which replaces the store's own cache: checks within 30 seconds share one answer, and checks made at the same time share one request. `clearAuth()` empties the cache. Login and logout are mutations in the login page and the header.
 
-User settings are one query, `getUserSettingsApiV1UserSettingsGetOptions()`, read wherever they're needed. The root layout applies the saved theme from it, the editor takes its editor settings from it, and the settings page edits a copy. Saving or restoring puts the response into that query with `setQueryData`, so every reader sees the new settings at once. The header's theme toggle saves the theme the same way.
+User settings are one query, `getUserSettingsApiV1UserSettingsGetOptions()`, read wherever they're needed. The root layout applies the saved theme from it, the editor takes its editor settings from it, and the settings page's form starts from it. Saving or restoring puts the response into that query with `setQueryData`, so every reader sees the new settings at once. The header's theme toggle saves the theme the same way.
 
 New notifications arrive over SSE. The notification center refetches the notification queries on each one instead of patching the list, so the unread count always comes from the server.

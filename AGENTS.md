@@ -655,7 +655,6 @@ import { UserRole, zUserCreate, client, type ExportEventsApiV1AdminEventsExportE
 Object.values(UserRole);                        // option lists, never a literal array
 zUserCreate.safeParse(form);                    // the spec's rules (email format, minLength)
 zEditorSettingsInput.parse({});                 // the API's defaults
-z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties;  // min/max for inputs
 client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({ url: '/api/v1/admin/events/export/{export_format}', ... });
 ```
 
@@ -687,7 +686,7 @@ const cancel = createMutation(() => ({
 }));
 ```
 
-`src/lib/query-client.ts` holds the one client, provided by the root layout. It retries a query twice on a network error or a 5xx, never a mutation, and shows failures through its cache handlers. Use `isPending` for first-load spinners and `isFetching` for refresh buttons. Outside components (the auth store), use `queryClient.query(options)`; inside, a form edits a copy of its query data (see the settings pages) and saves through a mutation that calls `setQueryData`.
+`src/lib/query-client.ts` holds the one client, provided by the root layout. It retries a query twice on a network error or a 5xx, never a mutation, and shows failures through its cache handlers. Use `isPending` for first-load spinners and `isFetching` for refresh buttons. Outside components (the auth store), use `queryClient.query(options)`; inside, a form starts over from its query data whenever that changes (see the settings pages) and saves through a mutation that calls `setQueryData`.
 
 ## Frontend: Error Handling & API Interceptors
 
@@ -739,7 +738,7 @@ Tooltips use bits-ui `Tooltip` with `class="tooltip-content"`; the root layout h
 
 ## Frontend: Forms
 
-Forms go through `apiForm(schema, options, initial?)` from `#lib/forms.ts`: superforms in SPA mode on a generated Zod schema (or one picked, extended or checked from them), with JSON data and our wording from `issueMessage` in `#lib/validation.ts`. `onUpdate` saves through the mutation once `form.valid` is true. Fields use formsnap's `Field`, `Control`, `Label` and `FieldErrors`, with `props` and `$constraints[name]` spread on the input, so the label, `aria-invalid` and `aria-describedby` come wired; the form is `method="post" use:enhance novalidate`, so errors show under the fields instead of as browser bubbles. `filled()` marks a text field that mustn't be sent empty and `optionalText()` one that may stay empty. API errors, such as a taken username, show above the form from the mutation, not as field errors.
+Forms go through `apiForm(schema, options, initial?)` from `#lib/forms.ts`: superforms in SPA mode on a generated Zod schema (or one picked, extended or checked from them), with JSON data and our wording from `issueMessage` in `#lib/validation.ts`. `onUpdate` saves through the mutation once `form.valid` is true. Fields use formsnap's `Field`, `Control`, `Label` and `FieldErrors`, with `props` and `$constraints[name]` spread on the input, so the label, `aria-invalid` and `aria-describedby` come wired; the form is `method="post" use:enhance novalidate`, so errors show under the fields instead of as browser bubbles. `filled()` marks a text field that mustn't be sent empty and `optionalText()` one that may stay empty. API errors, such as a taken username, show above the form from the mutation, not as field errors. A form over loaded data, like the two settings pages, calls `reset({ newState })` in an `$effect` whenever the query data changes, and `isTainted(path)` says what the user changed since.
 
 ## Frontend: Tables
 

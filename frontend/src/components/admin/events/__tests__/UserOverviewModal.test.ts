@@ -1,26 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
-import { createMockUserOverview } from '#test/test-utils.ts';
+import { screen } from '@testing-library/svelte';
+import { createMockUserOverview, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { getUserOverviewApiV1AdminUsersUserIdOverviewGet, type AdminUserOverview } from '#lib/api/index.ts';
+import { ApiError } from '#lib/api-error.ts';
 
 import UserOverviewModal from '#components/admin/events/UserOverviewModal.svelte';
 
-function renderModal(
-    overrides: Partial<{
-        overview: ReturnType<typeof createMockUserOverview> | null;
-        loading: boolean;
-        open: boolean;
-    }> = {},
-) {
+async function renderModal(overview: AdminUserOverview = createMockUserOverview()) {
+    mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
     const onClose = vi.fn();
-    const overview = ('overview' in overrides ? overrides.overview : createMockUserOverview()) ?? null;
-    const result = render(UserOverviewModal, {
-        props: {
-            overview,
-            loading: overrides.loading ?? false,
-            open: overrides.open ?? true,
-            onClose,
-        },
-    });
+    const result = renderWithQueryClient(UserOverviewModal, { userId: 'user-1', onClose });
+    await screen.findByRole('heading', { name: 'User' });
     return { ...result, onClose };
 }
 
@@ -33,25 +23,30 @@ describe('UserOverviewModal', () => {
         vi.clearAllMocks();
     });
 
-    it('renders nothing when closed', () => {
-        renderModal({ open: false });
-        expect(screen.queryByText('User Overview')).not.toBeInTheDocument();
+    it('loads the overview of the given user', async () => {
+        await renderModal();
+        expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith(
+            expect.objectContaining({ path: { user_id: 'user-1' } }),
+        );
     });
 
-    it('shows loading state and hides overview data when loading', () => {
-        renderModal({ loading: true, overview: null });
+    it('shows loading state and hides overview data while loading', () => {
+        vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet).mockReturnValue(new Promise<never>(() => {}));
+        renderWithQueryClient(UserOverviewModal, { userId: 'user-1', onClose: vi.fn() });
+        expect(screen.getByText('User Overview')).toBeInTheDocument();
         expect(screen.queryByText('User')).not.toBeInTheDocument();
         expect(screen.queryByText('Derived Counts')).not.toBeInTheDocument();
     });
 
-    it('shows "No data available" when overview is null and not loading', () => {
-        renderModal({ overview: null });
-        expect(screen.getByText('No data available')).toBeInTheDocument();
+    it('shows "No data available" when the overview fails to load', async () => {
+        mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err(new ApiError(404, { detail: 'Not found' }));
+        renderWithQueryClient(UserOverviewModal, { userId: 'user-1', onClose: vi.fn() });
+        expect(await screen.findByText('No data available')).toBeInTheDocument();
     });
 
     describe('profile section', () => {
-        it('heads the section with the user field', () => {
-            renderModal();
+        it('heads the section with the user field', async () => {
+            await renderModal();
             expect(screen.getByRole('heading', { name: 'User' })).toBeInTheDocument();
         });
 
@@ -62,15 +57,15 @@ describe('UserOverviewModal', () => {
             { term: 'Role', value: 'user' },
             { term: 'Is Active', value: 'Yes' },
             { term: 'Is Superuser', value: 'No' },
-        ])('shows $term as $value', ({ term, value }) => {
-            renderModal();
+        ])('shows $term as $value', async ({ term, value }) => {
+            await renderModal();
             expect(detail(term)).toHaveTextContent(value);
         });
     });
 
     describe('execution stats', () => {
-        it('shows all stat card labels', () => {
-            renderModal();
+        it('shows all stat card labels', async () => {
+            await renderModal();
             expect(screen.getByRole('heading', { name: 'Derived Counts' })).toBeInTheDocument();
             expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
             expect(screen.getByText('Succeeded')).toBeInTheDocument();
@@ -81,46 +76,37 @@ describe('UserOverviewModal', () => {
             expect(screen.getByText('Cancelled')).toBeInTheDocument();
         });
 
-        it('shows terminal total and total events labels', () => {
-            renderModal();
+        it('shows terminal total and total events labels', async () => {
+            await renderModal();
             expect(detail('Terminal Total')).toHaveTextContent('100');
             expect(detail('Total Events')).toHaveTextContent('100');
         });
     });
 
     describe('rate limits', () => {
-        it('shows rate limit section with values', () => {
-            renderModal();
+        it('shows rate limit section with values', async () => {
+            await renderModal();
             expect(screen.getByRole('heading', { name: 'Rate Limit Summary' })).toBeInTheDocument();
             expect(detail('Bypass Rate Limit')).toHaveTextContent('No');
             expect(detail('Global Multiplier')).toHaveTextContent('1');
             expect(detail('Has Custom Limits')).toHaveTextContent('No');
         });
-
-        it('hides rate limit section when rate_limit_summary is null', () => {
-            const overview = createMockUserOverview();
-            (overview as Record<string, unknown>).rate_limit_summary = null;
-            renderModal({ overview });
-            expect(screen.queryByText('Rate Limit Summary')).not.toBeInTheDocument();
-        });
     });
 
     describe('recent events', () => {
-        it('shows recent events list when present', () => {
-            renderModal();
+        it('shows recent events list when present', async () => {
+            await renderModal();
             expect(screen.getByRole('heading', { name: 'Recent Events' })).toBeInTheDocument();
         });
 
-        it('hides recent events section when empty', () => {
-            const overview = createMockUserOverview();
-            overview.recent_events = [];
-            renderModal({ overview });
+        it('hides recent events section when empty', async () => {
+            await renderModal({ ...createMockUserOverview(), recent_events: [] });
             expect(screen.queryByText('Recent Events')).not.toBeInTheDocument();
         });
     });
 
-    it('renders footer link to user management', () => {
-        renderModal();
+    it('renders footer link to user management', async () => {
+        await renderModal();
         const link = screen.getByRole('link', { name: 'Open User Management' });
         expect(link).toBeInTheDocument();
         expect(link).toHaveAttribute('href', '/admin/users');

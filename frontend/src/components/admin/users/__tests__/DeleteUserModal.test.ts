@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
-import { user, createMockUser } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { deleteUserApiV1AdminUsersUserIdDelete } from '#lib/api/index.ts';
 import DeleteUserModal from '#components/admin/users/DeleteUserModal.svelte';
 
 vi.mock('#components/Spinner.svelte', async () => {
@@ -8,34 +9,29 @@ vi.mock('#components/Spinner.svelte', async () => {
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-function renderModal(overrides: Record<string, unknown> = {}) {
+const DELETED = {
+    user_deleted: true,
+    executions: 0,
+    saved_scripts: 0,
+    notifications: 0,
+    user_settings: 0,
+    events: 0,
+    sagas: 0,
+};
+
+function renderModal() {
     const onClose = vi.fn();
-    const onDelete = vi.fn();
-    const onCascadeChange = vi.fn();
-    const result = render(DeleteUserModal, {
-        props: {
-            open: true,
-            user: createMockUser({ username: 'alice' }),
-            cascade: false,
-            deleting: false,
-            onClose,
-            onDelete,
-            onCascadeChange,
-            ...overrides,
-        },
+    renderWithQueryClient(DeleteUserModal, {
+        user: createMockUser({ user_id: 'u-1', username: 'alice' }),
+        onClose,
     });
-    return { ...result, onClose, onDelete, onCascadeChange };
+    return { onClose };
 }
 
 describe('DeleteUserModal', () => {
-    beforeEach(() => vi.clearAllMocks());
-
-    it.each([
-        ['open is false', { open: false }],
-        ['user is null', { user: null }],
-    ] as const)('does not render content when %s', (_label, overrides) => {
-        renderModal(overrides);
-        expect(screen.queryByText(/Are you sure/)).not.toBeInTheDocument();
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(DELETED);
     });
 
     it('shows username in confirmation message', () => {
@@ -51,41 +47,40 @@ describe('DeleteUserModal', () => {
         );
     });
 
-    it.each([
-        [false, false],
-        [true, true],
-    ] as const)('cascade warning visibility when cascade=%s', (cascade, visible) => {
-        renderModal({ cascade });
-        if (visible) expect(screen.getByText(/permanently delete all data/)).toBeInTheDocument();
-        else expect(screen.queryByText(/permanently delete all data/)).not.toBeInTheDocument();
+    it('warns about deleting the data only once cascade is checked', async () => {
+        renderModal();
+        expect(screen.queryByText(/permanently delete all data/)).not.toBeInTheDocument();
+        await user.click(screen.getByRole('checkbox', { name: 'Cascade' }));
+        expect(screen.getByText(/permanently delete all data/)).toBeInTheDocument();
     });
 
-    it('shows Delete User button text when not deleting', () => {
-        renderModal({ deleting: false });
-        const deleteBtn = screen.getByRole('button', { name: 'Delete User' });
-        expect(deleteBtn).toBeInTheDocument();
+    it.each([false, true])('deletes the user with cascade=%s and closes', async (cascade) => {
+        const { onClose } = renderModal();
+        if (cascade) await user.click(screen.getByRole('checkbox', { name: 'Cascade' }));
+        await user.click(screen.getByRole('button', { name: 'Delete User' }));
+
+        await waitFor(() =>
+            expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalledWith(
+                expect.objectContaining({ path: { user_id: 'u-1' }, query: { cascade } }),
+            ),
+        );
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 
-    it('shows Deleting... text when deleting', () => {
-        renderModal({ deleting: true });
-        expect(screen.getByText('Deleting...')).toBeInTheDocument();
-    });
+    it('shows Deleting... and disables both buttons while the delete runs', async () => {
+        mockApi(deleteUserApiV1AdminUsersUserIdDelete).mock.mockImplementation(() => new Promise(() => {}));
+        renderModal();
+        await user.click(screen.getByRole('button', { name: 'Delete User' }));
 
-    it('disables buttons when deleting', () => {
-        renderModal({ deleting: true });
+        expect(await screen.findByText('Deleting...')).toBeInTheDocument();
         expect(screen.getByText('Cancel')).toBeDisabled();
         expect(screen.getByText('Deleting...').closest('button')).toBeDisabled();
-    });
-
-    it('calls onDelete when Delete User button clicked', async () => {
-        const { onDelete } = renderModal();
-        await user.click(screen.getByRole('button', { name: 'Delete User' }));
-        expect(onDelete).toHaveBeenCalledOnce();
     });
 
     it('calls onClose when Cancel button clicked', async () => {
         const { onClose } = renderModal();
         await user.click(screen.getByText('Cancel'));
         expect(onClose).toHaveBeenCalledOnce();
+        expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).not.toHaveBeenCalled();
     });
 });

@@ -2,13 +2,15 @@
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
     import { Tooltip } from 'bits-ui';
     import { Eye, Play, Trash } from '@lucide/svelte';
-    import type { BrowsedEvent } from '#lib/admin/stores/eventsStore.svelte.ts';
+    import type { EventBrowseResponse } from '#lib/api/index.ts';
     import { formatDateOnly, formatTimeOnly } from '#lib/formatters.ts';
     import { getEventTypeColor } from '#lib/admin/events/index.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
     import Pagination from '#components/Pagination.svelte';
     import EventTypeIcon from '#components/EventTypeIcon.svelte';
+
+    type BrowsedEvent = EventBrowseResponse['events'][number];
 
     interface Props {
         events: BrowsedEvent[];

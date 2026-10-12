@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, createMockUser } from '#test/test-utils.ts';
+import { screen, waitFor } from '@testing-library/svelte';
+import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import {
+    createUserApiV1AdminUsersPost,
+    updateUserApiV1AdminUsersUserIdPut,
+    type UserResponse,
+} from '#lib/api/index.ts';
 import UserFormModal from '#components/admin/users/UserFormModal.svelte';
 
 vi.mock('#components/Spinner.svelte', async () => {
@@ -8,15 +13,14 @@ vi.mock('#components/Spinner.svelte', async () => {
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-function renderModal(overrides: Record<string, unknown> = {}) {
+function renderModal(editingUser: UserResponse | null = null) {
     const onClose = vi.fn();
-    const onCreate = vi.fn();
-    const onEdit = vi.fn();
-    const result = render(UserFormModal, {
-        props: { open: true, editingUser: null, saving: false, onClose, onCreate, onEdit, ...overrides },
-    });
-    return { ...result, onClose, onCreate, onEdit };
+    renderWithQueryClient(UserFormModal, { editingUser, onClose });
+    return { onClose };
 }
+
+const createUser = () => vi.mocked(createUserApiV1AdminUsersPost);
+const updateUser = () => vi.mocked(updateUserApiV1AdminUsersUserIdPut);
 
 const field = (label: RegExp | string) => screen.getByLabelText(label);
 
@@ -33,18 +37,17 @@ async function fill(values: { username?: string; email?: string; password?: stri
 }
 
 describe('UserFormModal', () => {
-    beforeEach(() => vi.clearAllMocks());
-
-    it('does not render when open is false', () => {
-        renderModal({ open: false });
-        expect(screen.queryByText('Create New User')).not.toBeInTheDocument();
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
+        mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
     });
 
     it.each([
         ['creating', null, 'Create New User', 'Create User', false],
         ['editing', 'mock', 'Edit User', 'Update User', true],
     ] as const)('when %s: title, button and password hint', (_label, editingUser, title, buttonText, showsHint) => {
-        renderModal({ editingUser: editingUser === 'mock' ? createMockUser() : null });
+        renderModal(editingUser === 'mock' ? createMockUser() : null);
         expect(screen.getByRole('dialog', { name: title })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: buttonText })).toBeInTheDocument();
         if (showsHint)
@@ -63,20 +66,25 @@ describe('UserFormModal', () => {
         expect(field('Is Active')).toBeChecked();
     });
 
-    it('creates a user with what was typed', async () => {
-        const { onCreate } = renderModal();
+    it('creates a user with what was typed, then closes', async () => {
+        const { onClose } = renderModal();
         await fill({ username: 'newuser', email: 'new@example.com', password: 'password123' });
         await user.click(screen.getByRole('button', { name: 'Create User' }));
 
         await waitFor(() =>
-            expect(onCreate).toHaveBeenCalledWith({
-                username: 'newuser',
-                email: 'new@example.com',
-                password: 'password123',
-                role: 'user',
-                is_active: true,
-            }),
+            expect(createUser()).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: {
+                        username: 'newuser',
+                        email: 'new@example.com',
+                        password: 'password123',
+                        role: 'user',
+                        is_active: true,
+                    },
+                }),
+            ),
         );
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 
     it.each([
@@ -94,53 +102,64 @@ describe('UserFormModal', () => {
             'Must be at least 8 characters',
         ],
     ])('refuses to create with %s', async (_name, values, label, message) => {
-        const { onCreate } = renderModal();
+        renderModal();
         await fill(values);
         await user.click(screen.getByRole('button', { name: 'Create User' }));
 
         await waitFor(() => expect(field(label)).toHaveAccessibleDescription(message));
-        expect(onCreate).not.toHaveBeenCalled();
+        expect(createUser()).not.toHaveBeenCalled();
     });
 
-    it('edits a user without sending the password when it stays empty', async () => {
+    it('edits a user without sending the password when it stays empty, then closes', async () => {
         const editingUser = createMockUser({ user_id: 'u-7', username: 'alice', email: 'alice@example.com' });
-        const { onEdit } = renderModal({ editingUser });
+        const { onClose } = renderModal(editingUser);
         expect(field(/Username/)).toHaveValue('alice');
 
         await fill({ username: 'alice2' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
         await waitFor(() =>
-            expect(onEdit).toHaveBeenCalledWith('u-7', {
-                username: 'alice2',
-                email: 'alice@example.com',
-                role: editingUser.role,
-                is_active: editingUser.is_active,
-            }),
+            expect(updateUser()).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    path: { user_id: 'u-7' },
+                    body: {
+                        username: 'alice2',
+                        email: 'alice@example.com',
+                        role: editingUser.role,
+                        is_active: editingUser.is_active,
+                    },
+                }),
+            ),
         );
+        await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     });
 
     it('sends a new password when one is typed', async () => {
-        const { onEdit } = renderModal({ editingUser: createMockUser({ user_id: 'u-8' }) });
+        renderModal(createMockUser({ user_id: 'u-8' }));
         await fill({ password: 'newpassword' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
         await waitFor(() =>
-            expect(onEdit).toHaveBeenCalledWith('u-8', expect.objectContaining({ password: 'newpassword' })),
+            expect(updateUser()).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    path: { user_id: 'u-8' },
+                    body: expect.objectContaining({ password: 'newpassword' }),
+                }),
+            ),
         );
     });
 
     it('keeps requiring an email when editing, since every user has one', async () => {
-        const { onEdit } = renderModal({ editingUser: createMockUser() });
+        renderModal(createMockUser());
         await fill({ email: '' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
         await waitFor(() => expect(field(/^Email/)).toHaveAccessibleDescription('Must be a valid email'));
-        expect(onEdit).not.toHaveBeenCalled();
+        expect(updateUser()).not.toHaveBeenCalled();
     });
 
     it('still checks a new password against the API rule when editing', async () => {
-        const { onEdit } = renderModal({ editingUser: createMockUser() });
+        renderModal(createMockUser());
         await fill({ password: 'short' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
@@ -149,12 +168,16 @@ describe('UserFormModal', () => {
                 'Leave empty to keep the current password Must be at least 8 characters',
             ),
         );
-        expect(onEdit).not.toHaveBeenCalled();
+        expect(updateUser()).not.toHaveBeenCalled();
     });
 
-    it('disables the fields and buttons while saving', () => {
-        renderModal({ saving: true });
-        expect(screen.getByText('Saving...').closest('button')).toBeDisabled();
+    it('disables the fields and buttons while saving', async () => {
+        mockApi(createUserApiV1AdminUsersPost).mock.mockImplementation(() => new Promise(() => {}));
+        renderModal();
+        await fill({ username: 'newuser', email: 'new@example.com', password: 'password123' });
+        await user.click(screen.getByRole('button', { name: 'Create User' }));
+
+        expect((await screen.findByText('Saving...')).closest('button')).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
         expect(field(/Username/)).toBeDisabled();
     });

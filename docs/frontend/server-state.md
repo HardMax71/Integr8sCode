@@ -8,33 +8,36 @@ The hey-api `@tanstack/svelte-query` plugin generates the options, so there's no
 
 ## Reading
 
-A store builds its queries in class fields, and the options callback reads the store's state, so a new filter, page or refresh rate is a new query key and TanStack fetches it:
+A list page builds its query from its own state, and the options callback reads that state, so a new filter, page or refresh rate is a new query key and TanStack fetches it:
 
 ```typescript
---8<-- "frontend/src/lib/admin/stores/sagasStore.svelte.ts:list"
+--8<-- "frontend/src/routes/admin/sagas/+page.svelte:list"
 ```
 
-Every key is its own cache entry, so a slow response for an old filter can't overwrite a newer one. `keepPreviousData` keeps the last page on screen while the next one loads. `refetchInterval` is the polling: TanStack pauses it while the tab is hidden and stops it when the page unmounts. The page and its size are one TanStack Table `PaginationState` in the store, which the table component binds and the query turns into `skip` and `limit`; the table only renders the page the server sent. Filter setters send the store back to the first page, since the old page may not exist under the new filter.
+Every key is its own cache entry, so a slow response for an old filter can't overwrite a newer one. `keepPreviousData` keeps the last page on screen while the next one loads. `refetchInterval` is the polling: TanStack pauses it while the tab is hidden and stops it when the page unmounts. The page size is page state and the page index is derived from the filters, so a new filter goes back to the first page, since the old page may not exist under it. The table component binds both as a TanStack Table `PaginationState`, and the query turns them into `skip` and `limit`; the table only renders the page the server sent.
 
 `isPending` is true until the first data arrives, and the tables show their spinner for it. `isFetching` is true during any request, polls included, and only drives the refresh buttons.
 
-A detail modal loads on click with `queryClient.query(options)`, which goes through the cache and returns the data or rejects. The store catches the rejection and leaves the modal closed, since the interceptor has already shown the error. The user overview modal uses a query with `enabled` instead, because it has its own spinner and an empty state.
+A component fetches what only it shows. The page keeps the id of the open saga or event, and the detail modal runs the query for it; following a related event changes the id, which is a new key. A failed load closes the modal, since the interceptor has already shown the error. The replay banner follows the replay status stream while it's mounted, and closing it aborts the stream.
 
 ## Writing
 
 Writes use the generated mutation options, and their `onSuccess` refreshes what the write changed:
 
 ```typescript
-updatePriority = createMutation(() => ({
+const updatePriority = createMutation(() => ({
     ...updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation(),
     onSuccess: (_data, { body }) => {
         toast.success(`Priority updated to ${body.priority}`);
-        return this.refresh();
+        return Promise.all([
+            queryClient.invalidateQueries({ queryKey: listExecutionsApiV1AdminExecutionsGetQueryKey() }),
+            queryClient.invalidateQueries({ queryKey: getQueueStatusApiV1AdminExecutionsQueueGetQueryKey() }),
+        ]);
     },
 }));
 ```
 
-`refresh()` invalidates the list and queue status keys, and `mutation.isPending` replaces the old `saving` and `deleting` flags. The browse events key includes its body, so there's no key prefix to invalidate. The events store refetches the list and stats on screen instead, and other pages fetch again when opened anyway.
+The mutation lives in the executions table, which renders the priority select, and invalidates the list and queue status keys. `mutation.isPending` replaces the old `saving` and `deleting` flags. The browse events key includes its body, so there's no key prefix to invalidate; the events page refetches the list and stats on screen instead, and other pages fetch again when opened anyway.
 
 The admin settings page, the user settings page and the rate limits modal edit a copy of what they loaded:
 

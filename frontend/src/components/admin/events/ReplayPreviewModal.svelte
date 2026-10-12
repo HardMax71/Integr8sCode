@@ -1,6 +1,11 @@
+<script lang="ts" module>
+    import type { EventReplayResponse } from '#lib/api/index.ts';
+
+    export type ReplayPreview = Pick<EventReplayResponse, 'total_events' | 'events_preview'> & { eventId: string };
+</script>
+
 <script lang="ts">
     import { TriangleAlert } from '@lucide/svelte';
-    import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
     import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
 

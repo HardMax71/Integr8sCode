@@ -1,24 +1,28 @@
 <script lang="ts">
-    import type { AdminUserOverview } from '#lib/api/index.ts';
+    import { createQuery } from '@tanstack/svelte-query';
+    import { getUserOverviewApiV1AdminUsersUserIdOverviewGetOptions } from '#lib/api/index.ts';
     import { fieldTitle, formatBoolean, formatTimestamp } from '#lib/formatters.ts';
     import { getEventTypeColor } from '#lib/admin/events/index.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
-        overview: AdminUserOverview | null;
-        loading: boolean;
-        open: boolean;
+        userId: string;
         onClose: () => void;
     }
 
-    let { overview, loading, open, onClose }: Props = $props();
+    let { userId, onClose }: Props = $props();
+
+    const query = createQuery(() =>
+        getUserOverviewApiV1AdminUsersUserIdOverviewGetOptions({ path: { user_id: userId } }),
+    );
+    const overview = $derived(query.data);
 
     const recentEvents = $derived(overview?.recent_events ?? []);
 </script>
 
-<Modal {open} title="User Overview" {onClose} size="lg">
-    {#if loading}
+<Modal open title="User Overview" {onClose} size="lg">
+    {#if query.isPending}
         <div class="flex items-center justify-center py-10">
             <Spinner />
         </div>

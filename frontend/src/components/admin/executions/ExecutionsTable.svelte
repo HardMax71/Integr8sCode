@@ -1,6 +1,15 @@
 <script lang="ts">
+    import { createMutation, useQueryClient } from '@tanstack/svelte-query';
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
-    import { QueuePriority, type AdminExecutionResponse, type ExecutionStatus } from '#lib/api/index.ts';
+    import { toast } from 'svelte-sonner';
+    import {
+        QueuePriority,
+        getQueueStatusApiV1AdminExecutionsQueueGetQueryKey,
+        listExecutionsApiV1AdminExecutionsGetQueryKey,
+        updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation,
+        type AdminExecutionResponse,
+        type ExecutionStatus,
+    } from '#lib/api/index.ts';
     import { formatTimestamp, truncate } from '#lib/formatters.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
@@ -11,10 +20,21 @@
         rowCount: number;
         pagination: PaginationState;
         loading: boolean;
-        onPriorityChange: (executionId: string, priority: QueuePriority) => void;
     }
 
-    let { executions, rowCount, pagination = $bindable(), loading, onPriorityChange }: Props = $props();
+    let { executions, rowCount, pagination = $bindable(), loading }: Props = $props();
+
+    const queryClient = useQueryClient();
+    const updatePriority = createMutation(() => ({
+        ...updatePriorityApiV1AdminExecutionsExecutionIdPriorityPutMutation(),
+        onSuccess: (_data, { body }) => {
+            toast.success(`Priority updated to ${body.priority}`);
+            return Promise.all([
+                queryClient.invalidateQueries({ queryKey: listExecutionsApiV1AdminExecutionsGetQueryKey() }),
+                queryClient.invalidateQueries({ queryKey: getQueueStatusApiV1AdminExecutionsQueueGetQueryKey() }),
+            ]);
+        },
+    }));
 
     const statusColors: Record<ExecutionStatus, string> = {
         queued: 'badge-info',
@@ -74,7 +94,11 @@
 {#snippet priorityCell(execution: AdminExecutionResponse)}
     <select
         value={execution.priority}
-        onchange={(e) => onPriorityChange(execution.execution_id, e.currentTarget.value as QueuePriority)}
+        onchange={(e) =>
+            updatePriority.mutate({
+                path: { execution_id: execution.execution_id },
+                body: { priority: e.currentTarget.value as QueuePriority },
+            })}
         class="form-select-standard text-xs py-1 px-2"
         aria-label="Priority for {execution.execution_id}"
     >

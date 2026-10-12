@@ -46,7 +46,7 @@ frontend/
     ├── routes/              # SvelteKit routes: +page.svelte per page, (auth)/ and admin/ guarded by +layout.ts
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
     ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
-    ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
+    ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/
     ├── lib/editor/          # Execution state, the open script (draft), CodeMirror languages
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
@@ -743,7 +743,7 @@ Forms go through `apiForm(schema, options, initial?)` from `#lib/forms.ts`: supe
 
 ## Frontend: Tables
 
-Tables run on TanStack Table through `#lib/data-table.ts`. A table component defines its columns with `columnHelper<Row>()`, rendering custom cells with `renderSnippet` and putting cell classes in `meta.class`, then renders `#components/DataTable.svelte` (a `<table>` from `lg` up, a card per row below it, both from the same columns) and `#components/Pagination.svelte`. Don't write separate mobile markup, and use real buttons or links in cells instead of clickable rows. A server-paged table uses `createServerTable(columns, source)`, where `source.pagination` is a `PaginationState` the store owns and its query reads for `skip`/`limit`; filter setters reset `pageIndex` to 0. `rowCount` comes from the API's `total`.
+Tables run on TanStack Table through `#lib/data-table.ts`. A table component defines its columns with `columnHelper<Row>()`, rendering custom cells with `renderSnippet` and putting cell classes in `meta.class`, then renders `#components/DataTable.svelte` (a `<table>` from `lg` up, a card per row below it, both from the same columns) and `#components/Pagination.svelte`. Don't write separate mobile markup, and use real buttons or links in cells instead of clickable rows. A server-paged table uses `createServerTable(columns, source)`, where `source.pagination` is a `PaginationState` the page owns and its query reads for `skip`/`limit`; the page index is derived from the filters, so a new filter goes back to page 0. `rowCount` comes from the API's `total`.
 
 ## Testing
 
@@ -805,7 +805,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 - `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
 - bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
 - Fixtures use the generated types and the factories in `#test/test-utils.ts` (`createMockUser`, `createMockEvent`, `createMockReplayStatus` and the rest), never a local copy of an API type or an `as any`; `mockApi(fn).ok(data)` takes the data type from `fn`'s generated return type, and `mockStreamEvents(fn, ...events)` feeds an SSE function
-- Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
+- Components that run queries render with `renderWithQueryClient(Component, props)`; state that builds queries outside a component (the editor's execution state) is created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

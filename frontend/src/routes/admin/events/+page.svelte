@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onDestroy } from 'svelte';
+    import { createMutation, createQuery, keepPreviousData } from '@tanstack/svelte-query';
+    import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import {
         EventStatsCards,
@@ -10,31 +11,114 @@
         ReplayProgressBanner,
         UserOverviewModal,
     } from '#components/admin/events/index.ts';
+    import type { ReplayPreview } from '#components/admin/events/ReplayPreviewModal.svelte';
     import { hasActiveFilters, getActiveFilterCount, getActiveFilterSummary } from '#lib/admin/events/index.ts';
     import { Funnel, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
     import { DropdownMenu } from 'bits-ui';
-    import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
-    import { ExportFormat } from '#lib/api/index.ts';
+    import {
+        browseEventsApiV1AdminEventsBrowsePostOptions,
+        client,
+        deleteEventApiV1AdminEventsEventIdDeleteMutation,
+        ExportFormat,
+        getEventStatsApiV1AdminEventsStatsGetOptions,
+        replayEventsApiV1AdminEventsReplayPostMutation,
+        zExportEventsApiV1AdminEventsExportExportFormatGetQuery,
+        type EventFilter,
+        type ExportEventsApiV1AdminEventsExportExportFormatGetData,
+    } from '#lib/api/index.ts';
 
-    const store = createEventsStore();
+    const POLL_INTERVAL_MS = 30_000;
 
     const exportIcons: Record<ExportFormat, { icon: typeof FileText; color: string }> = {
         [ExportFormat.CSV]: { icon: FileText, color: 'text-green-600 dark:text-green-400' },
         [ExportFormat.JSON]: { icon: Code, color: 'text-blue-600 dark:text-blue-400' },
     };
 
-    // UI-only state
+    // The filter form edits `filters`; the list and the export follow `applied`, set by Apply
+    let filters = $state<EventFilter>({});
+    let applied = $state<EventFilter>({});
     let showFilters = $state(false);
+    let selectedEventId = $state<string | null>(null);
+    let overviewUserId = $state<string | null>(null);
+    let replayPreview = $state<ReplayPreview | null>(null);
+    let replaySessionId = $state<string | null>(null);
 
-    // Show replay preview modal when store populates replayPreview
-    let showReplayPreview = $derived(store.replayPreview !== null);
+    // Applied filters go back to the first page, since the old one may not exist under them
+    let pageSize = $state(10);
+    let pageIndex = $derived.by(() => {
+        void applied;
+        return 0;
+    });
 
-    function handleReplay(eventId: string, closeModal = false): void {
-        if (closeModal) store.selectedEvent = null;
-        store.replayEvent(eventId, false);
+    const list = createQuery(() => ({
+        ...browseEventsApiV1AdminEventsBrowsePostOptions({
+            body: { filters: applied, skip: pageIndex * pageSize, limit: pageSize },
+        }),
+        placeholderData: keepPreviousData,
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+    const stats = createQuery(() => ({
+        ...getEventStatsApiV1AdminEventsStatsGetOptions(),
+        refetchInterval: POLL_INTERVAL_MS,
+    }));
+
+    // The browse key carries its body, so there's no key prefix to invalidate
+    const refresh = () => Promise.all([list.refetch(), stats.refetch()]);
+
+    const remove = createMutation(() => ({
+        ...deleteEventApiV1AdminEventsEventIdDeleteMutation(),
+        onSuccess: () => {
+            toast.success('Event deleted successfully');
+            return refresh();
+        },
+    }));
+    const replay = createMutation(() => replayEventsApiV1AdminEventsReplayPostMutation());
+
+    function deleteEvent(eventId: string): void {
+        if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
+        remove.mutate({ path: { event_id: eventId } });
     }
 
-    onDestroy(() => store.cleanup());
+    function replayEvent(eventId: string, dryRun: boolean): void {
+        const message =
+            'Are you sure you want to replay this event? This will re-process the event through the system.';
+        if (!dryRun && !confirm(message)) return;
+        replay.mutate(
+            { body: { event_ids: [eventId], dry_run: dryRun } },
+            {
+                onSuccess: ({ total_events, events_preview, session_id }) => {
+                    if (!dryRun) {
+                        toast.success('Replay scheduled! Tracking progress...');
+                        replaySessionId = session_id ?? null;
+                    } else if (events_preview?.length) {
+                        replayPreview = { eventId, total_events, events_preview };
+                    } else {
+                        toast.info(`Dry run: ${total_events} events would be replayed`);
+                    }
+                },
+            },
+        );
+    }
+
+    function exportEvents(format: ExportFormat): void {
+        // A plain navigation lets the browser stream a large export to disk instead of buffering it
+        const url = client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({
+            url: '/api/v1/admin/events/export/{export_format}',
+            path: { export_format: format },
+            query: zExportEventsApiV1AdminEventsExportExportFormatGetQuery.parse(applied),
+        });
+        window.open(url, '_blank');
+        toast.info(`Starting ${format} export...`);
+    }
+
+    function applyFilters(): void {
+        applied = $state.snapshot(filters);
+    }
+
+    function clearFilters(): void {
+        filters = {};
+        applyFilters();
+    }
 </script>
 
 <div class="container mx-auto px-4 pb-8">
@@ -58,13 +142,13 @@
                     <Funnel size={16} />
                 </span>
                 <span class="hidden sm:inline">Filters</span>
-                {#if hasActiveFilters(store.appliedFilters)}
+                {#if hasActiveFilters(applied)}
                     <span
                         class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold {showFilters
                             ? 'bg-white text-primary'
                             : 'bg-primary text-white'}"
                     >
-                        {getActiveFilterCount(store.appliedFilters)}
+                        {getActiveFilterCount(applied)}
                     </span>
                 {/if}
             </button>
@@ -79,7 +163,7 @@
                     <DropdownMenu.Content align="end" sideOffset={8} class="floating-panel w-48">
                         {#each Object.values(ExportFormat) as format (format)}
                             {@const Icon = exportIcons[format].icon}
-                            <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents(format)}>
+                            <DropdownMenu.Item class="floating-item" onSelect={() => exportEvents(format)}>
                                 <Icon size={16} class={exportIcons[format].color} />Export as {format}
                             </DropdownMenu.Item>
                         {/each}
@@ -89,25 +173,27 @@
 
             <button
                 type="button"
-                onclick={() => store.refresh()}
+                onclick={refresh}
                 class="btn btn-sm btn-primary flex items-center gap-1 sm:gap-2"
-                disabled={store.list.isFetching}
+                disabled={list.isFetching}
             >
-                {#if store.list.isFetching}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
+                {#if list.isFetching}<Spinner size="small" />{:else}<RefreshCw size={16} />{/if}
                 <span class="hidden sm:inline">Refresh</span>
             </button>
         </div>
     </div>
 
-    <ReplayProgressBanner session={store.activeReplaySession} onClose={() => store.dismissReplay()} />
+    {#if replaySessionId}
+        <ReplayProgressBanner sessionId={replaySessionId} onClose={() => (replaySessionId = null)} />
+    {/if}
 
-    <EventStatsCards stats={store.stats.data ?? null} totalEvents={store.totalEvents} />
+    <EventStatsCards stats={stats.data ?? null} totalEvents={list.data?.total ?? 0} />
 
     <!-- Active filters summary (when filters panel closed) -->
-    {#if !showFilters && hasActiveFilters(store.appliedFilters)}
+    {#if !showFilters && hasActiveFilters(applied)}
         <div class="mb-4 flex flex-wrap items-center gap-2">
             <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
-            {#each getActiveFilterSummary(store.appliedFilters) as filter}
+            {#each getActiveFilterSummary(applied) as filter}
                 <span
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light"
                 >
@@ -116,7 +202,7 @@
             {/each}
             <button
                 type="button"
-                onclick={() => store.clearFilters()}
+                onclick={clearFilters}
                 class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
             >
                 <X size={12} class="mr-1" />
@@ -126,11 +212,7 @@
     {/if}
 
     {#if showFilters}
-        <EventFilters
-            bind:filters={store.filters}
-            onApply={() => store.applyFilters()}
-            onClear={() => store.clearFilters()}
-        />
+        <EventFilters bind:filters onApply={applyFilters} onClear={clearFilters} />
     {/if}
 
     <!-- Events table -->
@@ -141,47 +223,48 @@
             </div>
 
             <EventsTable
-                events={store.events}
-                rowCount={store.totalEvents}
-                bind:pagination={store.pagination}
-                loading={store.list.isPending}
-                onViewDetails={(id) => store.openEventDetail(id)}
-                onPreviewReplay={(id) => store.replayEvent(id, true)}
-                onReplay={handleReplay}
-                onDelete={(id) => store.deleteEvent(id)}
-                onViewUser={(id) => store.openUserOverview(id)}
+                events={list.data?.events ?? []}
+                rowCount={list.data?.total ?? 0}
+                bind:pagination={
+                    () => ({ pageIndex, pageSize }),
+                    (next) => {
+                        pageSize = next.pageSize;
+                        pageIndex = next.pageIndex;
+                    }
+                }
+                loading={list.isPending}
+                onViewDetails={(id) => (selectedEventId = id)}
+                onPreviewReplay={(id) => replayEvent(id, true)}
+                onReplay={(id) => replayEvent(id, false)}
+                onDelete={deleteEvent}
+                onViewUser={(id) => (overviewUserId = id || null)}
             />
         </div>
     </div>
 </div>
 
 <!-- Modals -->
-{#if store.selectedEvent}
+{#if selectedEventId}
     <EventDetailsModal
-        event={store.selectedEvent}
-        open={store.selectedEvent !== null}
-        onClose={() => (store.selectedEvent = null)}
-        onReplay={(id) => handleReplay(id, true)}
-        onViewRelated={(id) => store.openEventDetail(id)}
-    />
-{/if}
-
-{#if showReplayPreview && store.replayPreview}
-    <ReplayPreviewModal
-        preview={store.replayPreview}
-        open={showReplayPreview}
-        onClose={() => {
-            store.replayPreview = null;
+        eventId={selectedEventId}
+        onClose={() => (selectedEventId = null)}
+        onReplay={(id) => {
+            selectedEventId = null;
+            replayEvent(id, false);
         }}
-        onConfirm={handleReplay}
+        onViewRelated={(id) => (selectedEventId = id)}
     />
 {/if}
 
-{#if store.overviewUserId !== null}
-    <UserOverviewModal
-        overview={store.userOverview.data ?? null}
-        loading={store.userOverview.isPending}
-        open={store.overviewUserId !== null}
-        onClose={() => (store.overviewUserId = null)}
+{#if replayPreview}
+    <ReplayPreviewModal
+        preview={replayPreview}
+        open
+        onClose={() => (replayPreview = null)}
+        onConfirm={(id) => replayEvent(id, false)}
     />
+{/if}
+
+{#if overviewUserId}
+    <UserOverviewModal userId={overviewUserId} onClose={() => (overviewUserId = null)} />
 {/if}

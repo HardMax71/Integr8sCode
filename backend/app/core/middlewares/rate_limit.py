@@ -99,7 +99,7 @@ class RateLimitMiddleware:
             "X-RateLimit-Limit": str(status.limit),
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": str(int(status.reset_at.timestamp())),
-            "Retry-After": str(status.retry_after or 60),
+            "Retry-After": str(status.retry_after),
         }
 
         return JSONResponse(

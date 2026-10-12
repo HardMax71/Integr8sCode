@@ -1112,12 +1112,12 @@ export const fakeRateLimitExceededEvent = (options?: Options): RateLimitExceeded
 export const fakeRateLimitRuleRequest = (options?: Options): RateLimitRuleRequest => {
     const f = options?.faker ?? faker;
     return {
-        endpoint_pattern: f.string.sample(),
-        group: fakeEndpointGroup(options),
-        requests: f.number.int(),
-        window_seconds: f.number.int(),
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { endpoint_pattern: resolveCondition(options?.useDefault ?? false, f) ? '' : f.string.alpha({ length: { min: 1, max: 100 } }) },
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { group: fakeEndpointGroup(options) },
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { requests: resolveCondition(options?.useDefault ?? false, f) ? 60 : f.number.int({ min: 1 }) },
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { window_seconds: resolveCondition(options?.useDefault ?? false, f) ? 60 : f.number.int({ min: 1 }) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { algorithm: fakeRateLimitAlgorithm(options) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { burst_multiplier: resolveCondition(options?.useDefault ?? false, f) ? 1.5 : f.number.float() },
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { burst_multiplier: resolveCondition(options?.useDefault ?? false, f) ? 1.5 : f.number.float({ min: 1 }) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { priority: resolveCondition(options?.useDefault ?? false, f) ? 0 : f.number.int() },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { enabled: resolveCondition(options?.useDefault ?? false, f) ? true : f.datatype.boolean() }
     };
@@ -1140,9 +1140,9 @@ export const fakeRateLimitRuleResponse = (options?: Options): RateLimitRuleRespo
 export const fakeRateLimitSummary = (options?: Options): RateLimitSummary => {
     const f = options?.faker ?? faker;
     return {
-        bypass_rate_limit: f.datatype.boolean() ? f.datatype.boolean() : null,
-        global_multiplier: f.datatype.boolean() ? f.number.float() : null,
-        has_custom_limits: f.datatype.boolean() ? f.datatype.boolean() : null
+        bypass_rate_limit: f.datatype.boolean(),
+        global_multiplier: f.number.float(),
+        has_custom_limits: f.datatype.boolean()
     };
 };
 
@@ -1150,9 +1150,9 @@ export const fakeRateLimitUpdateRequest = (options?: Options): RateLimitUpdateRe
     const f = options?.faker ?? faker;
     return {
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { bypass_rate_limit: resolveCondition(options?.useDefault ?? false, f) ? false : f.datatype.boolean() },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { global_multiplier: resolveCondition(options?.useDefault ?? false, f) ? 1 : f.number.float() },
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { global_multiplier: resolveCondition(options?.useDefault ?? false, f) ? 1 : f.number.float({ min: 0 }) },
         ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { rules: resolveCondition(options?.useDefault ?? false, f) ? [] : f.helpers.multiple(() => fakeRateLimitRuleRequest(options)) },
-        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notes: f.datatype.boolean() ? f.string.sample() : null }
+        ...!resolveCondition(options?.includeOptional ?? true, f) ? {} : { notes: resolveCondition(options?.useDefault ?? false, f) ? '' : f.string.sample() }
     };
 };
 
@@ -2083,9 +2083,9 @@ export const fakeUserRateLimitConfigResponse = (options?: Options): UserRateLimi
         bypass_rate_limit: f.datatype.boolean(),
         global_multiplier: f.number.float(),
         rules: f.helpers.multiple(() => fakeRateLimitRuleResponse(options)),
-        created_at: f.datatype.boolean() ? f.date.recent().toISOString() : null,
-        updated_at: f.datatype.boolean() ? f.date.recent().toISOString() : null,
-        notes: f.datatype.boolean() ? f.string.sample() : null
+        created_at: f.date.recent().toISOString(),
+        updated_at: f.date.recent().toISOString(),
+        notes: f.string.sample()
     };
 };
 
@@ -2102,7 +2102,7 @@ export const fakeUserRateLimitsResponse = (options?: Options): UserRateLimitsRes
     const f = options?.faker ?? faker;
     return {
         user_id: f.string.sample(),
-        rate_limit_config: f.datatype.boolean() ? fakeUserRateLimitConfigResponse(options) : null,
+        rate_limit_config: fakeUserRateLimitConfigResponse(options),
         current_usage: !resolveCondition(options?.includeOptional ?? true, f) ? {} as {} : {
             additionalProp: fakeEndpointUsageStats(options)
         }
@@ -2164,10 +2164,7 @@ export const fakeUserResponse = (options?: Options): UserResponse => {
         user_id: f.string.sample(),
         is_superuser: f.datatype.boolean(),
         created_at: f.date.recent().toISOString(),
-        updated_at: f.date.recent().toISOString(),
-        bypass_rate_limit: f.datatype.boolean() ? f.datatype.boolean() : null,
-        global_multiplier: f.datatype.boolean() ? f.number.float() : null,
-        has_custom_limits: f.datatype.boolean() ? f.datatype.boolean() : null
+        updated_at: f.date.recent().toISOString()
     };
 };
 

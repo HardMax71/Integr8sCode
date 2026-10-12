@@ -223,6 +223,22 @@ describe('AdminSagas', () => {
             expect(screen.getByText('Saga Details')).toBeInTheDocument();
         });
 
+        it('shows the execution from the details and closes them', async () => {
+            const saga = { ...fakeSagaStatusResponse(), execution_id: 'exec-from-details' };
+            mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(saga);
+            await renderWithSagas([saga]);
+
+            await user.click(within(screen.getByRole('table')).getByRole('button', { name: /view details/i }));
+            await user.click(await within(await screen.findByRole('dialog')).findByText('exec-from-details'));
+
+            await waitFor(() =>
+                expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ query: expect.objectContaining({ execution_id: 'exec-from-details' }) }),
+                ),
+            );
+            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        });
+
         it('displays saga information in modal', async () => {
             const saga: SagaStatusResponse = {
                 ...fakeSagaStatusResponse(),

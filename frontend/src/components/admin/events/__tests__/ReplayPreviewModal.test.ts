@@ -23,28 +23,16 @@ function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
     };
 }
 
-function renderModal(overrides: Partial<{ preview: ReplayPreview | null; open: boolean }> = {}) {
+function renderModal(preview: ReplayPreview = makePreview()) {
     const onClose = vi.fn();
     const onConfirm = vi.fn();
-    const preview = ('preview' in overrides ? overrides.preview : makePreview()) ?? null;
-    const open = overrides.open ?? true;
-    const result = render(ReplayPreviewModal, { props: { preview, open, onClose, onConfirm } });
+    const result = render(ReplayPreviewModal, { props: { preview, onClose, onConfirm } });
     return { ...result, onClose, onConfirm };
 }
 
 describe('ReplayPreviewModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-    });
-
-    it('renders nothing when closed', () => {
-        renderModal({ open: false });
-        expect(screen.queryByText('Replay Preview')).not.toBeInTheDocument();
-    });
-
-    it('renders nothing visible when preview is null', () => {
-        renderModal({ preview: null });
-        expect(screen.queryByText(/event.*will be replayed/i)).not.toBeInTheDocument();
     });
 
     it('shows modal title and description when open', () => {
@@ -57,7 +45,7 @@ describe('ReplayPreviewModal', () => {
         { total: 1, expected: '1 event will be replayed' },
         { total: 5, expected: '5 events will be replayed' },
     ])('shows "$expected" for total_events=$total (pluralization)', ({ total, expected }) => {
-        renderModal({ preview: makePreview({ total_events: total }) });
+        renderModal(makePreview({ total_events: total }));
         expect(screen.getByText(expected)).toBeInTheDocument();
     });
 
@@ -77,12 +65,12 @@ describe('ReplayPreviewModal', () => {
     });
 
     it('hides events preview section when events_preview is empty', () => {
-        renderModal({ preview: makePreview({ events_preview: [] }) });
+        renderModal(makePreview({ events_preview: [] }));
         expect(screen.queryByText('Events Preview')).not.toBeInTheDocument();
     });
 
     it('hides events preview section when events_preview is undefined', () => {
-        renderModal({ preview: makePreview({ events_preview: undefined }) });
+        renderModal(makePreview({ events_preview: undefined }));
         expect(screen.queryByText('Events Preview')).not.toBeInTheDocument();
     });
 

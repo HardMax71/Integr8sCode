@@ -1188,12 +1188,12 @@ export const zRateLimitExceededEvent = z.object({
  * Request model for rate limit rule.
  */
 export const zRateLimitRuleRequest = z.object({
-    endpoint_pattern: z.string(),
-    group: zEndpointGroup,
-    requests: z.int(),
-    window_seconds: z.int(),
+    endpoint_pattern: z._default(z.optional(z.string().check(z.minLength(1))), ''),
+    group: z._default(z.optional(zEndpointGroup), 'api'),
+    requests: z._default(z.optional(z.int().check(z.gte(1))), 60),
+    window_seconds: z._default(z.optional(z.int().check(z.gte(1))), 60),
     algorithm: z._default(z.optional(zRateLimitAlgorithm), 'sliding_window'),
-    burst_multiplier: z._default(z.optional(z.number()), 1.5),
+    burst_multiplier: z._default(z.optional(z.number().check(z.gte(1))), 1.5),
     priority: z._default(z.optional(z.int()), 0),
     enabled: z._default(z.optional(z.boolean()), true)
 });
@@ -1218,9 +1218,9 @@ export const zRateLimitRuleResponse = z.object({
  * RateLimitSummary
  */
 export const zRateLimitSummary = z.object({
-    bypass_rate_limit: z.nullable(z.boolean()),
-    global_multiplier: z.nullable(z.number()),
-    has_custom_limits: z.nullable(z.boolean())
+    bypass_rate_limit: z.boolean(),
+    global_multiplier: z.number(),
+    has_custom_limits: z.boolean()
 });
 
 /**
@@ -1230,9 +1230,9 @@ export const zRateLimitSummary = z.object({
  */
 export const zRateLimitUpdateRequest = z.object({
     bypass_rate_limit: z._default(z.optional(z.boolean()), false),
-    global_multiplier: z._default(z.optional(z.number()), 1),
+    global_multiplier: z._default(z.optional(z.number().check(z.gt(0))), 1),
     rules: z._default(z.optional(z.array(zRateLimitRuleRequest)), []),
-    notes: z.nullish(z.string())
+    notes: z._default(z.optional(z.string()), '')
 });
 
 /**
@@ -2249,9 +2249,9 @@ export const zUserRateLimitConfigResponse = z.object({
     bypass_rate_limit: z.boolean(),
     global_multiplier: z.number(),
     rules: z.array(zRateLimitRuleResponse),
-    created_at: z.nullable(z.iso.datetime()),
-    updated_at: z.nullable(z.iso.datetime()),
-    notes: z.nullable(z.string())
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
+    notes: z.string()
 });
 
 /**
@@ -2272,7 +2272,7 @@ export const zRateLimitUpdateResponse = z.object({
  */
 export const zUserRateLimitsResponse = z.object({
     user_id: z.string(),
-    rate_limit_config: z.nullable(zUserRateLimitConfigResponse),
+    rate_limit_config: zUserRateLimitConfigResponse,
     current_usage: z.record(z.string(), zEndpointUsageStats)
 });
 
@@ -2340,10 +2340,7 @@ export const zUserResponse = z.object({
     user_id: z.string(),
     is_superuser: z.boolean(),
     created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime(),
-    bypass_rate_limit: z.nullable(z.boolean()),
-    global_multiplier: z.nullable(z.number()),
-    has_custom_limits: z.nullable(z.boolean())
+    updated_at: z.iso.datetime()
 });
 
 /**

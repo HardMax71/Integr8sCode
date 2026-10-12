@@ -46,23 +46,21 @@
                     <dt>{fieldTitle('is_superuser')}</dt>
                     <dd>{formatBoolean(overview.user.is_superuser)}</dd>
                 </dl>
-                {#if overview.rate_limit_summary}
-                    <div class="mt-4">
-                        <h4 class="font-medium mb-2 text-fg-default dark:text-dark-fg-default">
-                            {fieldTitle('rate_limit_summary')}
-                        </h4>
-                        <dl
-                            class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dt]:text-fg-muted dark:[&>dt]:text-dark-fg-muted"
-                        >
-                            <dt>{fieldTitle('bypass_rate_limit')}</dt>
-                            <dd>{formatBoolean(overview.rate_limit_summary.bypass_rate_limit ?? false)}</dd>
-                            <dt>{fieldTitle('global_multiplier')}</dt>
-                            <dd>{overview.rate_limit_summary.global_multiplier ?? 1.0}</dd>
-                            <dt>{fieldTitle('has_custom_limits')}</dt>
-                            <dd>{formatBoolean(overview.rate_limit_summary.has_custom_limits ?? false)}</dd>
-                        </dl>
-                    </div>
-                {/if}
+                <div class="mt-4">
+                    <h4 class="font-medium mb-2 text-fg-default dark:text-dark-fg-default">
+                        {fieldTitle('rate_limit_summary')}
+                    </h4>
+                    <dl
+                        class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm [&>dt]:text-fg-muted dark:[&>dt]:text-dark-fg-muted"
+                    >
+                        <dt>{fieldTitle('bypass_rate_limit')}</dt>
+                        <dd>{formatBoolean(overview.rate_limit_summary.bypass_rate_limit)}</dd>
+                        <dt>{fieldTitle('global_multiplier')}</dt>
+                        <dd>{overview.rate_limit_summary.global_multiplier}</dd>
+                        <dt>{fieldTitle('has_custom_limits')}</dt>
+                        <dd>{formatBoolean(overview.rate_limit_summary.has_custom_limits)}</dd>
+                    </dl>
+                </div>
             </div>
 
             <div>

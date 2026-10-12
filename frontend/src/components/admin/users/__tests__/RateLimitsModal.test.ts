@@ -14,7 +14,6 @@ import {
     resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
     updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
     zRateLimitRuleRequest,
-    zRateLimitUpdateRequest,
     type UserRateLimitConfigResponse,
     type UserRateLimitsResponse,
 } from '#lib/api/index.ts';
@@ -86,12 +85,10 @@ describe('RateLimitsModal', () => {
         else expect(screen.getByText(text)).toBeInTheDocument();
     });
 
-    it('starts from the API defaults when the user has no config', async () => {
-        renderModal({ rate_limit_config: null });
-        expect(await screen.findByLabelText('Global Multiplier')).toHaveValue(
-            zRateLimitUpdateRequest.parse({}).global_multiplier,
-        );
-        expect(screen.getByLabelText('Bypass Rate Limit')).not.toBeChecked();
+    it('starts from the loaded config', async () => {
+        renderModal({ rate_limit_config: createConfig({ bypass_rate_limit: true, global_multiplier: 1.5 }) });
+        await waitFor(() => expect(screen.getByLabelText('Global Multiplier')).toHaveValue(1.5));
+        expect(screen.getByLabelText('Bypass Rate Limit')).toBeChecked();
     });
 
     it('shows default rules after mount', async () => {
@@ -194,13 +191,39 @@ describe('RateLimitsModal', () => {
         renderModal();
         await user.click(await screen.findByText('Add Rule'));
         const group = screen.getByRole('combobox', { name: 'Group' });
-        expect(group).toHaveDisplayValue('api');
+        expect(group).toHaveDisplayValue(zRateLimitRuleRequest.parse({}).group);
         expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveDisplayValue(
-            zRateLimitRuleRequest.parse({ endpoint_pattern: '', group: 'api', requests: 1, window_seconds: 1 })
-                .algorithm,
+            zRateLimitRuleRequest.parse({}).algorithm,
         );
         await user.selectOptions(group, 'execution');
         expect(group).toHaveDisplayValue('execution');
+        await user.type(screen.getByLabelText('Endpoint Pattern'), '^/api/v1/execute');
+        await user.click(screen.getByText('Save Changes'));
+
+        await waitFor(() =>
+            expect(updateLimits()).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: expect.objectContaining({
+                        rules: [
+                            {
+                                ...zRateLimitRuleRequest.parse({}),
+                                group: 'execution',
+                                endpoint_pattern: '^/api/v1/execute',
+                            },
+                        ],
+                    }),
+                }),
+            ),
+        );
+    });
+
+    it('shows the broken rule under its field instead of saving', async () => {
+        renderModal();
+        await user.click(await screen.findByText('Add Rule'));
+        await user.click(screen.getByText('Save Changes'));
+
+        await waitFor(() => expect(screen.getByLabelText('Endpoint Pattern')).toHaveAccessibleDescription('Required'));
+        expect(updateLimits()).not.toHaveBeenCalled();
     });
 
     it('shows the effective requests once the multiplier changes', async () => {

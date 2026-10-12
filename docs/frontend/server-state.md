@@ -39,7 +39,7 @@ const updatePriority = createMutation(() => ({
 
 The mutation lives in the executions table, which renders the priority select, and invalidates the list and queue status keys. `mutation.isPending` replaces the old `saving` and `deleting` flags. The browse events key includes its body, so there's no key prefix to invalidate; the events page refetches the list and stats on screen instead, and other pages fetch again when opened anyway.
 
-The two settings pages are superforms forms on the generated Zod schemas, and an effect starts the form over from whatever the query holds:
+The two settings pages and the rate limits modal are superforms forms on the generated Zod schemas, and an effect starts the form over from whatever the query holds:
 
 ```typescript
 $effect(() => {
@@ -47,7 +47,7 @@ $effect(() => {
 });
 ```
 
-The form keeps its own copy, so edits never touch the cached response. When a refetch returns equal data, the query keeps the old `data` object, so the effect doesn't run again and a background refetch keeps the edits. Saving, resetting or restoring puts the response into the cache with `setQueryData`, which starts the form over from it. The rate limits modal still edits a `structuredClone` of what it loaded until its rules have a schema (#290).
+The form keeps its own copy, so edits never touch the cached response. When a refetch returns equal data, the query keeps the old `data` object, so the effect doesn't run again and a background refetch keeps the edits. Saving, resetting or restoring puts the response into the cache with `setQueryData`, which starts the form over from it.
 
 ## Session and user settings
 

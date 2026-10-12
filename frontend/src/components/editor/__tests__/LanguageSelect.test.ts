@@ -105,13 +105,17 @@ describe('LanguageSelect', () => {
             await waitFor(() => expect(mainMenu()).not.toBeInTheDocument());
         });
 
-        it('selects a version with the keyboard alone', async () => {
+        async function openWithKeyboard() {
             renderSelect();
             const trigger = screen.getByRole('button', { name: /Select language/i });
             await waitFor(() => expect(trigger).toBeEnabled());
             trigger.focus();
             await user.keyboard('{Enter}');
             await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
+        }
+
+        it('selects a version with the keyboard alone', async () => {
+            await openWithKeyboard();
             await user.keyboard('{ArrowRight}');
             await screen.findByRole('menu', { name: /python/i });
             await user.keyboard('{ArrowDown}{Enter}');
@@ -120,12 +124,7 @@ describe('LanguageSelect', () => {
         });
 
         it('closes on Escape and gives focus back to the trigger', async () => {
-            renderSelect();
-            const trigger = screen.getByRole('button', { name: /Select language/i });
-            await waitFor(() => expect(trigger).toBeEnabled());
-            trigger.focus();
-            await user.keyboard('{Enter}');
-            await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
+            await openWithKeyboard();
             await user.keyboard('{Escape}');
             await waitFor(() => expect(mainMenu()).not.toBeInTheDocument());
             expect(screen.getByRole('button', { name: /Select language/i })).toHaveFocus();

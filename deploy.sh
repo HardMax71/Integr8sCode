@@ -205,6 +205,7 @@ cmd_status() {
 
 cmd_backup() {
     local DIR="${1:-/var/backups/mongo}"
+    umask 077
     mkdir -p "$DIR"
     if (( $(df --output=avail -k "$DIR" | tail -1) < 5 * 1024 * 1024 )); then
         print_error "Less than 5G free in $DIR, no backup taken"

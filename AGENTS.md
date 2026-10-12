@@ -47,7 +47,7 @@ frontend/
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
     ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
     ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
-    ├── lib/editor/          # Execution state, CodeMirror languages
+    ├── lib/editor/          # Execution state, the open script (draft), CodeMirror languages
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
@@ -552,7 +552,7 @@ Each `backend/workers/run_<worker>.py` follows the same order:
 |--------|---------|
 | k8s_worker | Consumes create/delete pod commands, creates executor pods and ConfigMaps, applies the executor NetworkPolicy |
 | pod_monitor | Watches executor pods (watch cycle every 5s) and publishes pod and execution events; no subscribers |
-| result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed |
+| result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed; moves the stored status to scheduled or running on pod_scheduled and pod_running |
 | saga_orchestrator | Runs execution sagas, schedules the queue every 10s, checks saga timeouts every 30s |
 | dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |
 | event_replay | APScheduler only, cleans up replay sessions older than 48h every 6h; replays themselves run in the API |
@@ -666,7 +666,7 @@ UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for ba
 - Enum values show exactly as the API sends them, and a boolean reads Yes or No through `formatBoolean`
 - ESLint rejects literal text inside `<label>`, formsnap's `Label`, `<dt>` and `<th>`, and a `header` on a column. A UI-only label (one that names no API field) goes outside those elements or on the control's `aria-label`
 
-Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
+Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. A component calls the query or mutation for the data it renders; a page doesn't fetch on behalf of its children, since the query cache already shares one request between them. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
 
 ```typescript
 import { createMutation, createQuery, keepPreviousData, useQueryClient } from '@tanstack/svelte-query';

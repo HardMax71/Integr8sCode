@@ -5,3 +5,4 @@ export { default as ResourceLimits } from '#components/editor/ResourceLimits.sve
 export { default as EditorToolbar } from '#components/editor/EditorToolbar.svelte';
 export { default as ScriptActions } from '#components/editor/ScriptActions.svelte';
 export { default as SavedScripts } from '#components/editor/SavedScripts.svelte';
+export { default as LoadExample } from '#components/editor/LoadExample.svelte';

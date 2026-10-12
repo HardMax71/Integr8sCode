@@ -1,27 +1,35 @@
 <script lang="ts">
+    import { createQuery } from '@tanstack/svelte-query';
     import { Check, ChevronDown, ChevronRight } from '@lucide/svelte';
     import { DropdownMenu } from 'bits-ui';
     import { toast } from 'svelte-sonner';
-    import type { ResourceLimits } from '#lib/api/index.ts';
+    import { getK8sResourceLimitsApiV1K8sLimitsGetOptions } from '#lib/api/index.ts';
+    import { draft } from '#lib/editor/index.ts';
 
-    interface Props {
-        runtimes: ResourceLimits['supported_runtimes'];
-        lang: string;
-        version: string;
-        onselect: (lang: string, version: string) => void;
-    }
-
-    let { runtimes, lang, version, onselect }: Props = $props();
-
+    const limits = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
+    const runtimes = $derived(limits.data?.supported_runtimes ?? {});
     const available = $derived(Object.keys(runtimes).length > 0);
 
-    $effect(() => {
-        const versions = runtimes[lang]?.versions ?? [];
-        const fallback = versions[0];
-        if (!fallback || versions.includes(version)) return;
-        toast.info(`Version ${version} of ${lang} is no longer available, switched to ${fallback}.`);
-        onselect(lang, fallback);
+    // A stored or loaded language or version the API no longer offers falls back to one it does; .pre, so the menu never shows the old one
+    $effect.pre(() => {
+        const offered = limits.data?.supported_runtimes;
+        const { lang, lang_version } = draft.current;
+        if (!offered) return;
+        const nextLang = lang in offered ? lang : Object.keys(offered)[0];
+        const versions = nextLang ? (offered[nextLang]?.versions ?? []) : [];
+        if (!nextLang || (nextLang === lang && versions.includes(lang_version))) return;
+        const nextVersion = versions[0] ?? '';
+        if (nextLang === lang) {
+            toast.info(`Version ${lang_version} of ${lang} is no longer available, switched to ${nextVersion}.`);
+        }
+        draft.current.lang = nextLang;
+        draft.current.lang_version = nextVersion;
     });
+
+    function select(lang: string, version: string): void {
+        draft.current.lang = lang;
+        draft.current.lang_version = version;
+    }
 </script>
 
 <DropdownMenu.Root>
@@ -30,7 +38,9 @@
         aria-label="Select language and version"
         class="btn btn-secondary-outline btn-sm w-36 flex items-center justify-between text-left disabled:opacity-50 disabled:cursor-not-allowed group"
     >
-        <span class="capitalize truncate">{available ? `${lang} ${version}` : 'Unavailable'}</span>
+        <span class="capitalize truncate"
+            >{available ? `${draft.current.lang} ${draft.current.lang_version}` : 'Unavailable'}</span
+        >
         <ChevronDown
             class="ml-2 w-5 h-5 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
         />
@@ -56,8 +66,8 @@
                             aria-label="{l} versions"
                         >
                             <DropdownMenu.RadioGroup
-                                value={l === lang ? version : ''}
-                                onValueChange={(v) => onselect(l, v)}
+                                value={l === draft.current.lang ? draft.current.lang_version : ''}
+                                onValueChange={(v) => select(l, v)}
                             >
                                 {#each info.versions as v (v)}
                                     <DropdownMenu.RadioItem value={v} class="floating-item justify-between">

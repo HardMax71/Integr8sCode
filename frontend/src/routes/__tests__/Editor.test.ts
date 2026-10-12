@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import {
     user,
@@ -11,6 +11,7 @@ import {
 import { ApiError } from '#lib/api-error.ts';
 import { toast } from 'svelte-sonner';
 import Editor from '#routes/(auth)/editor/+page.svelte';
+import { draft } from '#lib/editor/draft.svelte.ts';
 
 import {
     getK8sResourceLimitsApiV1K8sLimitsGet,
@@ -40,7 +41,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('#lib/editor/index.ts', () => ({
+vi.mock('#lib/editor/index.ts', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('#lib/editor/index.ts')>()),
     createExecutionState: () => mocks.mockExecutionState,
 }));
 
@@ -49,17 +51,8 @@ vi.mock('#components/editor/index.ts', async () => {
     const components = utils.createMockNamedComponents({
         OutputPanel: '<div data-testid="output-panel">Execution Output</div>',
         ResourceLimits: '<div data-testid="resource-limits"></div>',
+        CodeMirrorEditor: '<div data-testid="code-editor" class="cm-editor"></div>',
     });
-    // CodeMirrorEditor needs setContent for bind:this usage in newScript/loadScript
-    const CodeMirrorEditor = function () {
-        return { setContent() {} };
-    } as unknown as { new (): object; render: () => { html: string; css: { code: string; map: null }; head: string } };
-    CodeMirrorEditor.render = () => ({
-        html: '<div data-testid="code-editor" class="cm-editor"></div>',
-        css: { code: '', map: null },
-        head: '',
-    });
-    components.CodeMirrorEditor = CodeMirrorEditor;
     const { default: EditorToolbar } = await import('#components/editor/EditorToolbar.svelte');
     components.EditorToolbar = EditorToolbar;
     const { default: ScriptActions } = await import('#components/editor/ScriptActions.svelte');
@@ -68,6 +61,8 @@ vi.mock('#components/editor/index.ts', async () => {
     components.SavedScripts = SavedScripts;
     const { default: LanguageSelect } = await import('#components/editor/LanguageSelect.svelte');
     components.LanguageSelect = LanguageSelect;
+    const { default: LoadExample } = await import('#components/editor/LoadExample.svelte');
+    components.LoadExample = LoadExample;
     return components;
 });
 
@@ -75,6 +70,7 @@ describe('Editor', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         localStorage.clear();
+        draft.current = { script_id: null, name: '', script: '', lang: 'python', lang_version: '3.14' };
         vi.stubGlobal('confirm', mocks.mockConfirm);
         mocks.mockAuthStore.isAuthenticated = true;
         mocks.mockExecutionState.phase = 'idle';
@@ -83,15 +79,13 @@ describe('Editor', () => {
         mocks.mockExecutionState.error = null;
 
         mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockResourceLimits());
-        mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: { python: '  print("Hello")' } });
+        mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: { python: 'print("Hello")' } });
         mockApi(listSavedScriptsApiV1ScriptsGet).ok({ scripts: [] });
         mockApi(getUserSettingsApiV1UserSettingsGet).ok(createMockUserSettings());
         mockApi(createSavedScriptApiV1ScriptsPost).ok(createMockSavedScript({ script_id: 'new-1' }));
         mockApi(updateSavedScriptApiV1ScriptsScriptIdPut).ok(createMockSavedScript());
         mockApi(deleteSavedScriptApiV1ScriptsScriptIdDelete).ok();
     });
-
-    afterEach(() => vi.unstubAllGlobals());
 
     function renderEditor() {
         return renderWithQueryClient(Editor);
@@ -103,14 +97,17 @@ describe('Editor', () => {
     }
 
     describe('Mount', () => {
-        it('loads the limits, the examples, the saved scripts and the user settings', async () => {
+        it('loads the limits, the examples and the user settings, and the saved scripts once the options open', async () => {
             renderEditor();
             await waitFor(() => {
                 expect(vi.mocked(getK8sResourceLimitsApiV1K8sLimitsGet)).toHaveBeenCalled();
                 expect(vi.mocked(getExampleScriptsApiV1ExampleScriptsGet)).toHaveBeenCalled();
-                expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled();
                 expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).toHaveBeenCalled();
             });
+            expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).not.toHaveBeenCalled();
+
+            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+            await waitFor(() => expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalled());
         });
 
         it('loads neither saved scripts nor user settings when unauthenticated', async () => {
@@ -196,7 +193,6 @@ describe('Editor', () => {
             await user.click(screen.getByTitle(/Load Existing Script/));
             expect(toast.info).toHaveBeenCalledWith('Loaded script: Existing Script');
 
-            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Save current script'));
 
             await waitFor(() => {
@@ -266,6 +262,38 @@ describe('Editor', () => {
         });
     });
 
+    describe('Saved scripts list', () => {
+        async function openSavedScripts() {
+            await renderEditor();
+            await waitForRuntimes();
+            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
+        }
+
+        it('asks the user to log in when signed out', async () => {
+            mocks.mockAuthStore.isAuthenticated = false;
+            await openSavedScripts();
+            expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login');
+            expect(screen.queryByRole('button', { name: 'Show Saved Scripts' })).not.toBeInTheDocument();
+        });
+
+        it('says so when there are none, and reloads the list each time it opens', async () => {
+            await openSavedScripts();
+            await waitFor(() => expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalledTimes(1));
+            await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
+            expect(await screen.findByText('No saved scripts yet.')).toBeInTheDocument();
+            await waitFor(() => expect(vi.mocked(listSavedScriptsApiV1ScriptsGet)).toHaveBeenCalledTimes(2));
+        });
+
+        it('keeps a script when its deletion is cancelled', async () => {
+            mocks.mockConfirm.mockReturnValue(false);
+            mockApi(listSavedScriptsApiV1ScriptsGet).ok({ scripts: [createMockSavedScript({ name: 'Keep Me' })] });
+            await openSavedScripts();
+            await user.click(screen.getByRole('button', { name: 'Show Saved Scripts' }));
+            await user.click(await screen.findByTitle('Delete Keep Me'));
+            expect(vi.mocked(deleteSavedScriptApiV1ScriptsScriptIdDelete)).not.toHaveBeenCalled();
+        });
+    });
+
     describe('Execution', () => {
         it('calls execution.execute with script, lang, and version when Run Script is clicked', async () => {
             await renderEditor();
@@ -278,11 +306,10 @@ describe('Editor', () => {
 
     describe('Initial language and version', () => {
         function storeSelection(lang: string, version: string) {
-            localStorage.setItem('selectedLang', JSON.stringify(lang));
-            localStorage.setItem('selectedVersion', JSON.stringify(version));
+            draft.current = { ...draft.current, lang, lang_version: version };
         }
 
-        async function runAndExpect(lang: string, version: string) {
+        async function runAndExpect(lang: string, version: string, notice?: string) {
             await renderEditor();
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: 'Select language and version' })).toHaveTextContent(
@@ -291,7 +318,8 @@ describe('Editor', () => {
             });
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
             expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith(expect.any(String), lang, version);
-            expect(toast.info).not.toHaveBeenCalled();
+            if (notice) expect(toast.info).toHaveBeenCalledWith(notice);
+            else expect(toast.info).not.toHaveBeenCalled();
         }
 
         it('defaults to the first version the runtimes endpoint lists, which is the newest', async () => {
@@ -318,7 +346,7 @@ describe('Editor', () => {
                 }),
             );
             storeSelection('go', '1.22');
-            await runAndExpect('go', '1.27');
+            await runAndExpect('go', '1.27', 'Version 1.22 of go is no longer available, switched to 1.27.');
         });
 
         it.each([
@@ -369,7 +397,6 @@ describe('Editor', () => {
             await user.click(screen.getByRole('button', { name: /Run Script/i }));
             expect(mocks.mockExecutionState.execute).toHaveBeenCalledWith('print(1)', 'python', '3.14');
 
-            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Save current script'));
             await waitFor(() => {
                 expect(vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut)).toHaveBeenCalledWith(
@@ -395,8 +422,10 @@ describe('Editor', () => {
     });
 
     describe('File upload', () => {
-        function createFileInput() {
+        async function openFileInput(): Promise<HTMLInputElement> {
             const { container } = renderEditor();
+            await waitForRuntimes();
+            await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             return container.querySelector('input[type="file"]') as HTMLInputElement;
         }
 
@@ -406,8 +435,7 @@ describe('Editor', () => {
         }
 
         it('rejects a script longer than the API allows, with the spec rule in the toast', async () => {
-            const input = createFileInput();
-            await waitForRuntimes();
+            const input = await openFileInput();
             const bigFile = new File(['x'.repeat(50_001)], 'large.py', { type: 'text/plain' });
             fireFileChange(input, bigFile);
             await waitFor(() => {
@@ -417,16 +445,14 @@ describe('Editor', () => {
         });
 
         it('rejects unsupported file extension with error toast', async () => {
-            const input = createFileInput();
-            await waitForRuntimes();
+            const input = await openFileInput();
             const badFile = new File(['content'], 'data.csv', { type: 'text/csv' });
             fireFileChange(input, badFile);
             expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Unsupported file type'));
         });
 
         it('loads .py file content and shows info toast', async () => {
-            const input = createFileInput();
-            await waitForRuntimes();
+            const input = await openFileInput();
             const pyFile = new File(['print("loaded")'], 'test_script.py', { type: 'text/plain' });
             fireFileChange(input, pyFile);
             await waitFor(() => {
@@ -441,9 +467,10 @@ describe('Editor', () => {
         it('loads example for selected language', async () => {
             await renderEditor();
             await waitForRuntimes();
-            const exampleBtn = screen.getByTitle('Load an example script for the selected language');
+            const exampleBtn = screen.getByRole('button', { name: 'Example' });
             await user.click(exampleBtn);
             expect(toast.info).toHaveBeenCalledWith('Loaded example script for python.');
+            expect(draft.current.script).toBe('print("Hello")');
             expect(mocks.mockExecutionState.reset).toHaveBeenCalled();
         });
 
@@ -451,7 +478,7 @@ describe('Editor', () => {
             mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: {} });
             await renderEditor();
             await waitForRuntimes();
-            const exampleBtn = screen.getByTitle('Load an example script for the selected language');
+            const exampleBtn = screen.getByRole('button', { name: 'Example' });
             await user.click(exampleBtn);
             expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('No example script available'));
         });
@@ -472,9 +499,8 @@ describe('Editor', () => {
                 }
                 return el;
             });
-            const mockCreateObjectURL = vi.fn(() => 'blob:mock-url');
-            const mockRevokeObjectURL = vi.fn();
-            vi.stubGlobal('URL', { createObjectURL: mockCreateObjectURL, revokeObjectURL: mockRevokeObjectURL });
+            const mockCreateObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url');
+            const mockRevokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
             await user.type(screen.getByLabelText('Name'), 'my_script');
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
@@ -485,21 +511,19 @@ describe('Editor', () => {
             expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
 
             vi.mocked(document.createElement).mockRestore();
+            mockCreateObjectURL.mockRestore();
+            mockRevokeObjectURL.mockRestore();
         });
     });
 
     describe('localStorage persistence', () => {
-        it('saves script name to localStorage after changes', async () => {
+        it('keeps the open script in localStorage', async () => {
             await renderEditor();
             await waitForRuntimes();
 
             await user.type(screen.getByLabelText('Name'), 'Persisted');
 
-            // Wait for debounced localStorage write (300ms)
-            await vi.advanceTimersByTimeAsync(400);
-
-            const stored = localStorage.getItem('scriptName');
-            expect(stored).toContain('Persisted');
+            expect(JSON.parse(localStorage.getItem('editorDraft') ?? '{}')).toMatchObject({ name: 'Persisted' });
         });
     });
 });

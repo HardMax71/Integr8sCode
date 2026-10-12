@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/svelte';
-import { tick } from 'svelte';
-import { user } from '#test/test-utils.ts';
+import { screen, within, waitFor } from '@testing-library/svelte';
+import { createMockResourceLimits, mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 
 import LanguageSelect from '#components/editor/LanguageSelect.svelte';
-import type { ResourceLimits } from '#lib/api/index.ts';
+import { getK8sResourceLimitsApiV1K8sLimitsGet, type ResourceLimits } from '#lib/api/index.ts';
+import { draft } from '#lib/editor/draft.svelte.ts';
 
 const RUNTIMES: ResourceLimits['supported_runtimes'] = {
     python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' },
@@ -13,12 +13,13 @@ const RUNTIMES: ResourceLimits['supported_runtimes'] = {
     go: { versions: ['1.27'], file_ext: 'go' },
 };
 
-const defaultProps = { runtimes: RUNTIMES, lang: 'python', version: '3.14', onselect: vi.fn() };
-
-function renderSelect(overrides: Partial<typeof defaultProps> = {}) {
-    const props = { ...defaultProps, onselect: vi.fn(), ...overrides };
-    return { ...render(LanguageSelect, { props }), onselect: props.onselect };
+function renderSelect({ runtimes = RUNTIMES, lang = 'python', version = '3.14' } = {}) {
+    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockResourceLimits({ supported_runtimes: runtimes }));
+    draft.current = { ...draft.current, lang, lang_version: version };
+    return renderWithQueryClient(LanguageSelect);
 }
+
+const selection = () => [draft.current.lang, draft.current.lang_version];
 
 describe('LanguageSelect', () => {
     beforeEach(() => {
@@ -26,9 +27,10 @@ describe('LanguageSelect', () => {
     });
 
     async function openMenu() {
-        const result = renderSelect();
-        await user.click(screen.getByRole('button', { name: /Select language/i }));
-        return result;
+        renderSelect();
+        const trigger = screen.getByRole('button', { name: /Select language/i });
+        await waitFor(() => expect(trigger).toBeEnabled());
+        await user.click(trigger);
     }
 
     describe('trigger button', () => {
@@ -39,8 +41,9 @@ describe('LanguageSelect', () => {
             expect(btn).toHaveAttribute('aria-haspopup', 'menu');
         });
 
-        it('shows "Unavailable" and is disabled when no runtimes', () => {
+        it('shows "Unavailable" and is disabled when no runtimes', async () => {
             renderSelect({ runtimes: {} });
+            await waitFor(() => expect(vi.mocked(getK8sResourceLimitsApiV1K8sLimitsGet)).toHaveBeenCalled());
             expect(screen.getByText('Unavailable')).toBeInTheDocument();
             expect(screen.getByRole('button')).toBeDisabled();
         });
@@ -48,22 +51,21 @@ describe('LanguageSelect', () => {
 
     describe('dropped versions', () => {
         it('switches to the first offered version, the newest, when the current one is no longer offered', async () => {
-            const { onselect } = renderSelect({ version: '3.7' });
-            await waitFor(() => {
-                expect(onselect).toHaveBeenCalledWith('python', '3.14');
-            });
-            expect(onselect).toHaveBeenCalledTimes(1);
+            renderSelect({ version: '3.7' });
+            await waitFor(() => expect(selection()).toEqual(['python', '3.14']));
             expect(toast.info).toHaveBeenCalledWith('Version 3.7 of python is no longer available, switched to 3.14.');
         });
 
-        it.each([
-            { desc: 'the version is offered', props: { version: '3.13' } },
-            { desc: 'the language is unknown', props: { lang: 'cobol', version: '85' } },
-            { desc: 'runtimes have not loaded', props: { runtimes: {}, version: '3.7' } },
-        ])('leaves the selection alone when $desc', async ({ props }) => {
-            const { onselect } = renderSelect(props);
-            await tick();
-            expect(onselect).not.toHaveBeenCalled();
+        it('switches a language the API no longer offers to the first one it does, without a notice', async () => {
+            renderSelect({ lang: 'cobol', version: '85' });
+            await waitFor(() => expect(selection()).toEqual(['python', '3.14']));
+            expect(toast.info).not.toHaveBeenCalled();
+        });
+
+        it('leaves an offered version alone', async () => {
+            renderSelect({ version: '3.13' });
+            await waitFor(() => expect(screen.getByRole('button', { name: /Select language/i })).toBeEnabled());
+            expect(selection()).toEqual(['python', '3.13']);
             expect(toast.info).not.toHaveBeenCalled();
         });
     });
@@ -95,29 +97,33 @@ describe('LanguageSelect', () => {
         });
 
         it('selects a version with the mouse and closes', async () => {
-            const { onselect } = await openMenu();
+            await openMenu();
             await user.hover(screen.getByRole('menuitem', { name: 'node' }));
             const versions = await screen.findByRole('menu', { name: /node/i });
             await user.click(within(versions).getByRole('menuitemradio', { name: '24' }));
-            expect(onselect).toHaveBeenCalledWith('node', '24');
+            expect(selection()).toEqual(['node', '24']);
             await waitFor(() => expect(mainMenu()).not.toBeInTheDocument());
         });
 
         it('selects a version with the keyboard alone', async () => {
-            const { onselect } = renderSelect();
-            screen.getByRole('button', { name: /Select language/i }).focus();
+            renderSelect();
+            const trigger = screen.getByRole('button', { name: /Select language/i });
+            await waitFor(() => expect(trigger).toBeEnabled());
+            trigger.focus();
             await user.keyboard('{Enter}');
             await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
             await user.keyboard('{ArrowRight}');
             await screen.findByRole('menu', { name: /python/i });
             await user.keyboard('{ArrowDown}{Enter}');
-            expect(onselect).toHaveBeenCalledWith('python', '3.13');
+            expect(selection()).toEqual(['python', '3.13']);
             await waitFor(() => expect(mainMenu()).not.toBeInTheDocument());
         });
 
         it('closes on Escape and gives focus back to the trigger', async () => {
             renderSelect();
-            screen.getByRole('button', { name: /Select language/i }).focus();
+            const trigger = screen.getByRole('button', { name: /Select language/i });
+            await waitFor(() => expect(trigger).toBeEnabled());
+            trigger.focus();
             await user.keyboard('{Enter}');
             await waitFor(() => expect(screen.getByRole('menuitem', { name: 'python' })).toHaveFocus());
             await user.keyboard('{Escape}');

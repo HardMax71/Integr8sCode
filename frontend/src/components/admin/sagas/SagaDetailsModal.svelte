@@ -9,7 +9,7 @@
     interface Props {
         sagaId: string;
         onClose: () => void;
-        onViewExecution?: (executionId: string) => void;
+        onViewExecution: (executionId: string) => void;
     }
 
     let { sagaId, onClose, onViewExecution }: Props = $props();
@@ -22,11 +22,10 @@
     });
     const saga = $derived(details.data);
 
-    function handleViewExecution(): void {
-        if (saga) {
-            onClose();
-            onViewExecution?.(saga.execution_id);
-        }
+    // Closing clears the id the query reads, so take the execution id first
+    function viewExecution(executionId: string): void {
+        onClose();
+        onViewExecution(executionId);
     }
 </script>
 
@@ -51,7 +50,7 @@
                             <dd>
                                 <button
                                     type="button"
-                                    onclick={handleViewExecution}
+                                    onclick={() => viewExecution(saga.execution_id)}
                                     class="text-primary hover:text-primary-dark font-mono"
                                 >
                                     {saga.execution_id}

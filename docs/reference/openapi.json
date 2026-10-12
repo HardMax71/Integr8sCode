@@ -9599,18 +9599,25 @@
         "properties": {
           "endpoint_pattern": {
             "type": "string",
-            "title": "Endpoint Pattern"
+            "minLength": 1,
+            "title": "Endpoint Pattern",
+            "default": ""
           },
           "group": {
-            "$ref": "#/components/schemas/EndpointGroup"
+            "$ref": "#/components/schemas/EndpointGroup",
+            "default": "api"
           },
           "requests": {
             "type": "integer",
-            "title": "Requests"
+            "minimum": 1.0,
+            "title": "Requests",
+            "default": 60
           },
           "window_seconds": {
             "type": "integer",
-            "title": "Window Seconds"
+            "minimum": 1.0,
+            "title": "Window Seconds",
+            "default": 60
           },
           "algorithm": {
             "$ref": "#/components/schemas/RateLimitAlgorithm",
@@ -9618,6 +9625,7 @@
           },
           "burst_multiplier": {
             "type": "number",
+            "minimum": 1.0,
             "title": "Burst Multiplier",
             "default": 1.5
           },
@@ -9633,12 +9641,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "endpoint_pattern",
-          "group",
-          "requests",
-          "window_seconds"
-        ],
         "title": "RateLimitRuleRequest",
         "description": "Request model for rate limit rule."
       },
@@ -9695,36 +9697,15 @@
       "RateLimitSummary": {
         "properties": {
           "bypass_rate_limit": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "boolean",
             "title": "Bypass Rate Limit"
           },
           "global_multiplier": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
             "title": "Global Multiplier"
           },
           "has_custom_limits": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "boolean",
             "title": "Has Custom Limits"
           }
         },
@@ -9745,6 +9726,7 @@
           },
           "global_multiplier": {
             "type": "number",
+            "exclusiveMinimum": 0.0,
             "title": "Global Multiplier",
             "default": 1.0
           },
@@ -9757,15 +9739,9 @@
             "default": []
           },
           "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
+            "type": "string",
+            "title": "Notes",
+            "default": ""
           }
         },
         "type": "object",
@@ -13090,38 +13066,17 @@
             "title": "Rules"
           },
           "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "date-time",
             "title": "Created At"
           },
           "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "date-time",
             "title": "Updated At"
           },
           "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Notes"
           }
         },
@@ -13145,14 +13100,7 @@
             "title": "User Id"
           },
           "rate_limit_config": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/UserRateLimitConfigResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/UserRateLimitConfigResponse"
           },
           "current_usage": {
             "additionalProperties": {
@@ -13265,39 +13213,6 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
-          },
-          "bypass_rate_limit": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bypass Rate Limit"
-          },
-          "global_multiplier": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Global Multiplier"
-          },
-          "has_custom_limits": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Has Custom Limits"
           }
         },
         "type": "object",
@@ -13309,10 +13224,7 @@
           "user_id",
           "is_superuser",
           "created_at",
-          "updated_at",
-          "bypass_rate_limit",
-          "global_multiplier",
-          "has_custom_limits"
+          "updated_at"
         ],
         "title": "UserResponse",
         "description": "User model for API responses (without password)"

@@ -1,7 +1,7 @@
 /**
  * Rate limit configurations and utilities for user management
  */
-import { EndpointGroup, zRateLimitRuleRequest, type RateLimitRuleResponse } from '#lib/api/index.ts';
+import type { EndpointGroup } from '#lib/api/index.ts';
 
 // Group colors for rate limit endpoint groups
 const GROUP_COLORS: Record<EndpointGroup, string> = {
@@ -16,14 +16,4 @@ const GROUP_COLORS: Record<EndpointGroup, string> = {
 
 export function getGroupColor(group: EndpointGroup): string {
     return GROUP_COLORS[group];
-}
-
-// A new rule: the API's defaults, plus starting values for the fields the API requires
-export function createEmptyRule(): RateLimitRuleResponse {
-    return zRateLimitRuleRequest.parse({
-        endpoint_pattern: '',
-        group: EndpointGroup.API,
-        requests: 60,
-        window_seconds: 60,
-    });
 }

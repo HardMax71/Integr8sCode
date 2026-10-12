@@ -58,7 +58,7 @@ class UserRateLimitUpdate:
     rules: list[RateLimitRule] = field(default_factory=list)
     bypass_rate_limit: bool = False
     global_multiplier: float = 1.0
-    notes: str | None = None
+    notes: str = ""
 
 
 # --8<-- [start:UserRateLimit]
@@ -70,7 +70,7 @@ class UserRateLimit:
     bypass_rate_limit: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    notes: str | None = None
+    notes: str = ""
 
 
 # --8<-- [end:UserRateLimit]
@@ -159,8 +159,7 @@ class RateLimitStatus:
     limit: int
     remaining: int
     reset_at: datetime
-    retry_after: int | None = None
-    matched_rule: str | None = None
+    retry_after: int = 0
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
 
 
@@ -183,7 +182,7 @@ class UserRateLimitsResult:
     """Result of fetching user rate limits with usage stats."""
 
     user_id: str
-    rate_limit_config: UserRateLimit | None
+    rate_limit_config: UserRateLimit
     current_usage: dict[str, EndpointUsageStats]
 
 

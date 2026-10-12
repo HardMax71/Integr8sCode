@@ -46,10 +46,6 @@ class UserResponse(UserBase):
     is_superuser: bool
     created_at: datetime
     updated_at: datetime
-    # Rate limit summary fields (optional, populated by admin endpoints)
-    bypass_rate_limit: bool | None = None
-    global_multiplier: float | None = None
-    has_custom_limits: bool | None = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -155,12 +151,12 @@ class RateLimitRuleResponse(BaseModel):
 class RateLimitRuleRequest(BaseModel):
     """Request model for rate limit rule."""
 
-    endpoint_pattern: str
-    group: EndpointGroup
-    requests: int
-    window_seconds: int
+    endpoint_pattern: str = Field(default="", min_length=1)
+    group: EndpointGroup = EndpointGroup.API
+    requests: int = Field(default=60, ge=1)
+    window_seconds: int = Field(default=60, ge=1)
     algorithm: RateLimitAlgorithm = RateLimitAlgorithm.SLIDING_WINDOW
-    burst_multiplier: float = 1.5
+    burst_multiplier: float = Field(default=1.5, ge=1.0)
     priority: int = 0
     enabled: bool = True
 
@@ -169,9 +165,9 @@ class RateLimitUpdateRequest(BaseModel):
     """Request model for updating user rate limits."""
 
     bypass_rate_limit: bool = False
-    global_multiplier: float = 1.0
+    global_multiplier: float = Field(default=1.0, gt=0)
     rules: list[RateLimitRuleRequest] = []
-    notes: str | None = None
+    notes: str = ""
 
 
 class UserRateLimitConfigResponse(BaseModel):
@@ -181,9 +177,9 @@ class UserRateLimitConfigResponse(BaseModel):
     bypass_rate_limit: bool
     global_multiplier: float
     rules: list[RateLimitRuleResponse]
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    notes: str
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
@@ -192,7 +188,7 @@ class UserRateLimitsResponse(BaseModel):
     """Response model for user rate limits with usage stats."""
 
     user_id: str
-    rate_limit_config: UserRateLimitConfigResponse | None = None
+    rate_limit_config: UserRateLimitConfigResponse
     current_usage: dict[str, EndpointUsageStats]
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)

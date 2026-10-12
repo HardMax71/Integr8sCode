@@ -1,4 +1,3 @@
-import dataclasses
 import math
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -8,7 +7,7 @@ import structlog
 from app.core.metrics import SecurityMetrics
 from app.core.security import SecurityService
 from app.db import UserRepository
-from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain, RateLimitSummaryDomain
+from app.domain.admin import AdminUserOverviewDomain, DerivedCountsDomain
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError
 from app.domain.rate_limit import (
@@ -86,12 +85,7 @@ class AdminUserService:
             terminal_total=succeeded + failed + timeout + cancelled,
         )
 
-        rl = await self._rate_limits.get_user_rate_limit(user_id)
-        rl_summary = RateLimitSummaryDomain(
-            bypass_rate_limit=rl.bypass_rate_limit,
-            global_multiplier=rl.global_multiplier,
-            has_custom_limits=len(rl.rules) > 0,
-        )
+        rl_summary = await self._rate_limits.get_user_rate_limit_summary(user_id)
 
         # Recent execution-related events (last 10)
         event_types: list[EventType] = [
@@ -152,7 +146,7 @@ class AdminUserService:
             has_custom_limits=has_custom_limits,
             custom_multiplier=custom_multiplier,
         )
-        result = await self._users.list_users(
+        return await self._users.list_users(
             limit=limit,
             offset=offset,
             search=search,
@@ -161,22 +155,6 @@ class AdminUserService:
             user_ids=user_ids,
             excluded_user_ids=excluded_user_ids,
         )
-
-        # Enrich users with rate limit summaries
-        summaries = await self._rate_limits.get_user_rate_limit_summaries([u.user_id for u in result.users])
-        enriched_users = [
-            dataclasses.replace(
-                user,
-                bypass_rate_limit=s.bypass_rate_limit,
-                global_multiplier=s.global_multiplier,
-                has_custom_limits=s.has_custom_limits,
-            )
-            if (s := summaries.get(user.user_id))
-            else user
-            for user in result.users
-        ]
-
-        return UserListResult(users=enriched_users, total=result.total, offset=result.offset, limit=result.limit)
 
     async def _rate_limit_user_ids(
         self,

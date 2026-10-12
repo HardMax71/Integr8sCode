@@ -1,7 +1,6 @@
 from .overview_models import (
     AdminUserOverviewDomain,
     DerivedCountsDomain,
-    RateLimitSummaryDomain,
 )
 from .replay_models import (
     ExecutionResultSummary,
@@ -20,7 +19,6 @@ __all__ = [
     # Overview
     "AdminUserOverviewDomain",
     "DerivedCountsDomain",
-    "RateLimitSummaryDomain",
     # Settings
     "AuditAction",
     "LogLevel",

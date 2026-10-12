@@ -259,7 +259,6 @@
 {#if replayPreview}
     <ReplayPreviewModal
         preview={replayPreview}
-        open
         onClose={() => (replayPreview = null)}
         onConfirm={(id) => replayEvent(id, false)}
     />

@@ -424,6 +424,27 @@ describe('AdminEvents', () => {
             });
         });
 
+        it('replays the previewed event on Proceed and closes the preview', async () => {
+            const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-replay-1' }];
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
+                ...fakeEventReplayResponse(),
+                dry_run: true,
+                total_events: 1,
+                events_preview: events,
+            });
+            await renderWithEvents(events);
+
+            await user.click(within(screen.getByRole('table')).getByTitle('Preview replay'));
+            await user.click(await screen.findByRole('button', { name: 'Proceed with Replay' }));
+
+            await waitFor(() =>
+                expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenLastCalledWith(
+                    expect.objectContaining({ body: { event_ids: ['evt-replay-1'], dry_run: false } }),
+                ),
+            );
+            await waitFor(() => expect(screen.queryByText('Replay Preview')).not.toBeInTheDocument());
+        });
+
         it('confirms before actual replay', async () => {
             const events = [{ ...fakeExecutionCompletedEvent(), event_id: 'evt-replay-2' }];
             mockApi(replayEventsApiV1AdminEventsReplayPost).ok({ ...fakeEventReplayResponse(), total_events: 1 });

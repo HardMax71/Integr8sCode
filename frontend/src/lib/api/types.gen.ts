@@ -3139,16 +3139,16 @@ export type RateLimitRuleRequest = {
     /**
      * Endpoint Pattern
      */
-    endpoint_pattern: string;
-    group: EndpointGroup;
+    endpoint_pattern?: string;
+    group?: EndpointGroup;
     /**
      * Requests
      */
-    requests: number;
+    requests?: number;
     /**
      * Window Seconds
      */
-    window_seconds: number;
+    window_seconds?: number;
     algorithm?: RateLimitAlgorithm;
     /**
      * Burst Multiplier
@@ -3205,15 +3205,15 @@ export type RateLimitSummary = {
     /**
      * Bypass Rate Limit
      */
-    bypass_rate_limit: boolean | null;
+    bypass_rate_limit: boolean;
     /**
      * Global Multiplier
      */
-    global_multiplier: number | null;
+    global_multiplier: number;
     /**
      * Has Custom Limits
      */
-    has_custom_limits: boolean | null;
+    has_custom_limits: boolean;
 };
 
 /**
@@ -3237,7 +3237,7 @@ export type RateLimitUpdateRequest = {
     /**
      * Notes
      */
-    notes?: string | null;
+    notes?: string;
 };
 
 /**
@@ -5299,15 +5299,15 @@ export type UserRateLimitConfigResponse = {
     /**
      * Created At
      */
-    created_at: string | null;
+    created_at: string;
     /**
      * Updated At
      */
-    updated_at: string | null;
+    updated_at: string;
     /**
      * Notes
      */
-    notes: string | null;
+    notes: string;
 };
 
 /**
@@ -5320,7 +5320,7 @@ export type UserRateLimitsResponse = {
      * User Id
      */
     user_id: string;
-    rate_limit_config: UserRateLimitConfigResponse | null;
+    rate_limit_config: UserRateLimitConfigResponse;
     /**
      * Current Usage
      */
@@ -5403,18 +5403,6 @@ export type UserResponse = {
      * Updated At
      */
     updated_at: string;
-    /**
-     * Bypass Rate Limit
-     */
-    bypass_rate_limit: boolean | null;
-    /**
-     * Global Multiplier
-     */
-    global_multiplier: number | null;
-    /**
-     * Has Custom Limits
-     */
-    has_custom_limits: boolean | null;
 };
 
 /**

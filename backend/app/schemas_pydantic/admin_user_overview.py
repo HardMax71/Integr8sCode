@@ -18,9 +18,9 @@ class DerivedCounts(BaseModel):
 
 
 class RateLimitSummary(BaseModel):
-    bypass_rate_limit: bool | None = None
-    global_multiplier: float | None = None
-    has_custom_limits: bool | None = None
+    bypass_rate_limit: bool
+    global_multiplier: float
+    has_custom_limits: bool
 
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 

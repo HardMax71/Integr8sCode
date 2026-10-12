@@ -65,8 +65,6 @@ class RateLimitService:
             limit=999999,
             remaining=999999,
             reset_at=datetime.now(timezone.utc) + timedelta(hours=1),
-            retry_after=None,
-            matched_rule=None,
             algorithm=algo,
         )
 
@@ -165,7 +163,6 @@ class RateLimitService:
                 remaining=0,
                 reset_at=datetime.fromtimestamp(now + retry_after, timezone.utc),
                 retry_after=retry_after,
-                matched_rule=rule.endpoint_pattern,
                 algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
             )
 
@@ -174,8 +171,6 @@ class RateLimitService:
             limit=limit,
             remaining=remaining,
             reset_at=datetime.fromtimestamp(now + window_seconds, timezone.utc),
-            retry_after=None,
-            matched_rule=rule.endpoint_pattern,
             algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
         )
 
@@ -240,8 +235,6 @@ return {allowed, tostring(tokens)}
                 limit=limit,
                 remaining=int(tokens),
                 reset_at=datetime.fromtimestamp(now + window_seconds, timezone.utc),
-                retry_after=None,
-                matched_rule=rule.endpoint_pattern,
                 algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
             )
 
@@ -252,7 +245,6 @@ return {allowed, tostring(tokens)}
             remaining=0,
             reset_at=datetime.fromtimestamp(now + retry_after, timezone.utc),
             retry_after=retry_after,
-            matched_rule=rule.endpoint_pattern,
             algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
         )
 
@@ -310,10 +302,9 @@ return {allowed, tostring(tokens)}
         config = await self._get_config()
         return [self._summary(config, user_id) for user_id in config.user_overrides]
 
-    async def get_user_rate_limit_summaries(self, user_ids: list[str]) -> dict[str, UserRateLimitSummary]:
-        """Batch build summaries for a set of users using a single config load."""
-        config = await self._get_config()
-        return {user_id: self._summary(config, user_id) for user_id in user_ids}
+    async def get_user_rate_limit_summary(self, user_id: str) -> UserRateLimitSummary:
+        """Summary of the user's limits; a user without an override gets the defaults."""
+        return self._summary(await self._get_config(), user_id)
 
     async def reset_user_limits(self, user_id: str) -> None:
         index_key = self._index_key(user_id)

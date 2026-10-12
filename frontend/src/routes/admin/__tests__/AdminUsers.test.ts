@@ -8,6 +8,7 @@ import {
     fakeUserResponse,
 } from '#lib/api/@faker-js/faker.gen.ts';
 import { ApiError } from '#lib/api-error.ts';
+import { queryClient } from '#lib/query-client.ts';
 import {
     listUsersApiV1AdminUsersGet,
     createUserApiV1AdminUsersPost,
@@ -509,6 +510,16 @@ describe('AdminUsers', () => {
                     }),
                 );
             });
+            await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+            expect(within(screen.getByRole('table')).getByText('testuser')).toBeInTheDocument();
+            await waitFor(() =>
+                expect(
+                    queryClient
+                        .getMutationCache()
+                        .getAll()
+                        .map((m) => m.state.status),
+                ).toEqual(['success']),
+            );
         });
 
         it('keeps the rate limit dialog open when saving fails', async () => {

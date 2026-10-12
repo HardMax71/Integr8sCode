@@ -38,7 +38,7 @@ describe('SagaDetailsModal', () => {
 
     it('shows only the title until the saga has loaded', async () => {
         vi.mocked(getSagaStatusApiV1SagasSagaIdGet).mockReturnValue(new Promise<never>(() => {}));
-        renderWithQueryClient(SagaDetailsModal, { sagaId: 'saga-1', onClose: vi.fn() });
+        renderWithQueryClient(SagaDetailsModal, { sagaId: 'saga-1', onClose: vi.fn(), onViewExecution: vi.fn() });
         expect(screen.getByText('Saga Details')).toBeInTheDocument();
         expect(screen.queryByText('Basic Information')).not.toBeInTheDocument();
     });

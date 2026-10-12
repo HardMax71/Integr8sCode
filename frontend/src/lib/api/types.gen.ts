@@ -672,7 +672,7 @@ export type EditorSettingsInput = {
     /**
      * Tab Size
      */
-    tab_size?: number;
+    tab_size?: 2 | 4 | 8;
     /**
      * Use Tabs
      */
@@ -700,7 +700,7 @@ export type EditorSettingsOutput = {
     /**
      * Tab Size
      */
-    tab_size: number;
+    tab_size: 2 | 4 | 8;
     /**
      * Use Tabs
      */

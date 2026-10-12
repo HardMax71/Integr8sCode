@@ -115,8 +115,12 @@ export const zDerivedCounts = z.object({
  * Code editor preferences
  */
 export const zEditorSettingsInput = z.object({
-    font_size: z._default(z.optional(z.int()), 14),
-    tab_size: z._default(z.optional(z.int()), 4),
+    font_size: z._default(z.optional(z.int().check(z.gte(8), z.lte(32))), 14),
+    tab_size: z._default(z.optional(z.union([
+        z.literal(2),
+        z.literal(4),
+        z.literal(8)
+    ])), 4),
     use_tabs: z._default(z.optional(z.boolean()), false),
     word_wrap: z._default(z.optional(z.boolean()), true),
     show_line_numbers: z._default(z.optional(z.boolean()), true)
@@ -128,8 +132,12 @@ export const zEditorSettingsInput = z.object({
  * Code editor preferences
  */
 export const zEditorSettingsOutput = z.object({
-    font_size: z._default(z.int(), 14),
-    tab_size: z._default(z.int(), 4),
+    font_size: z._default(z.int().check(z.gte(8), z.lte(32)), 14),
+    tab_size: z._default(z.union([
+        z.literal(2),
+        z.literal(4),
+        z.literal(8)
+    ]), 4),
     use_tabs: z._default(z.boolean(), false),
     word_wrap: z._default(z.boolean(), true),
     show_line_numbers: z._default(z.boolean(), true)

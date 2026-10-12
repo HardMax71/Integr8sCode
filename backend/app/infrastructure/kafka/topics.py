@@ -1,4 +1,4 @@
-from app.domain.enums import EventType
+from app.domain.enums import EventType, ExecutionStatus
 
 EXECUTION_TYPES: set[EventType] = {
     EventType.EXECUTION_REQUESTED,
@@ -73,3 +73,9 @@ EXECUTION_PIPELINE_TERMINAL_EVENT_TYPES: frozenset[EventType] = frozenset(
         EventType.EXECUTION_TIMEOUT,
     }
 )
+
+# The status a pod event moves its execution to; the result processor stores it and the SSE bridge sends it
+POD_EVENT_STATUS: dict[EventType, ExecutionStatus] = {
+    EventType.POD_SCHEDULED: ExecutionStatus.SCHEDULED,
+    EventType.POD_RUNNING: ExecutionStatus.RUNNING,
+}

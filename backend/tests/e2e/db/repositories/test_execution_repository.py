@@ -164,3 +164,26 @@ async def test_aggregate_stats_multiple_languages() -> None:
     finally:
         for eid in exec_ids:
             await repo.delete_execution(eid)
+
+
+@pytest.mark.asyncio
+async def test_advance_status_moves_forward_only() -> None:
+    repo = ExecutionRepository(logger=_test_logger)
+    created = await repo.create_execution(
+        DomainExecutionCreate(script="x = 1", lang="python", lang_version="3.11", user_id=str(uuid4()))
+    )
+    execution_id = created.execution_id
+
+    assert await repo.advance_status(execution_id, ExecutionStatus.RUNNING) is True
+    assert await repo.advance_status(execution_id, ExecutionStatus.SCHEDULED) is False
+    got = await repo.get_execution(execution_id)
+    assert got is not None and got.status == ExecutionStatus.RUNNING
+
+    await repo.write_terminal_result(
+        ExecutionResultDomain(
+            execution_id=execution_id, status=ExecutionStatus.COMPLETED, exit_code=0, stdout="", stderr=""
+        )
+    )
+    assert await repo.advance_status(execution_id, ExecutionStatus.RUNNING) is False
+    got = await repo.get_execution(execution_id)
+    assert got is not None and got.status == ExecutionStatus.COMPLETED

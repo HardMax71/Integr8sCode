@@ -77,6 +77,15 @@ class ExecutionRepository:
             return False
         return True
 
+    async def advance_status(self, execution_id: str, status: ExecutionStatus) -> bool:
+        """Move an active execution forward to status, never back and never over a terminal status."""
+        active = [s for s in ExecutionStatus if not s.is_terminal]
+        update_result = await ExecutionDocument.find_one(
+            ExecutionDocument.execution_id == execution_id,
+            In(ExecutionDocument.status, active[: active.index(status)]),
+        ).update({"$set": {"status": status, "updated_at": datetime.now(timezone.utc)}})
+        return bool(update_result and getattr(update_result, "modified_count", 0))
+
     async def get_executions(
         self, query: dict[str, Any], limit: int = 50, skip: int = 0, sort: list[tuple[str, int]] | None = None
     ) -> list[DomainExecution]:

@@ -14,10 +14,13 @@ from app.domain.events import (
     ExecutionFailedEvent,
     ExecutionRequestedEvent,
     ExecutionTimeoutEvent,
+    PodRunningEvent,
+    PodScheduledEvent,
 )
 from app.domain.idempotency import KeyStrategy
 from app.domain.sse import SSEExecutionEventData
 from app.events.middlewares import DeadLetterMiddleware, idempotent
+from app.infrastructure.kafka.topics import POD_EVENT_STATUS
 from app.services.k8s_worker import KubernetesWorker
 from app.services.notification_service import NotificationService
 from app.services.result_processor import ResultProcessor
@@ -68,6 +71,14 @@ def result_processor_router() -> KafkaRouter:
     )
     async def on_execution_timeout(body: ExecutionTimeoutEvent, processor: FromDishka[ResultProcessor]) -> None:
         await processor.handle_execution_timeout(body)
+
+    @router.subscriber(EventType.POD_SCHEDULED, group_id="result-processor", auto_offset_reset="earliest")
+    async def on_pod_scheduled(body: PodScheduledEvent, processor: FromDishka[ResultProcessor]) -> None:
+        await processor.handle_pod_progress(body)
+
+    @router.subscriber(EventType.POD_RUNNING, group_id="result-processor", auto_offset_reset="earliest")
+    async def on_pod_running(body: PodRunningEvent, processor: FromDishka[ResultProcessor]) -> None:
+        await processor.handle_pod_progress(body)
 
     return router
 
@@ -134,8 +145,9 @@ def sse_router(settings: Settings) -> KafkaRouter:
     async def on_sse_event(body: DomainEvent, sse_bus: FromDishka[SSERedisBus]) -> None:
         execution_id = getattr(body, "execution_id", None)
         if execution_id:
-            sse_data = SSEExecutionEventData(**{k: v for k, v in body.model_dump().items() if k in _sse_field_names})
-            await sse_bus.publish_event(execution_id, sse_data)
+            fields = {k: v for k, v in body.model_dump().items() if k in _sse_field_names}
+            fields.setdefault("status", POD_EVENT_STATUS.get(body.event_type))
+            await sse_bus.publish_event(execution_id, SSEExecutionEventData(**fields))
 
     return router
 

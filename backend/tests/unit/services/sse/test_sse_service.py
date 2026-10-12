@@ -192,6 +192,25 @@ async def test_execution_stream_enriches_result_stored() -> None:
 
 
 @pytest.mark.asyncio
+async def test_execution_stream_for_finished_execution_sends_result_and_closes() -> None:
+    result = ExecutionResultDomain(
+        execution_id="exec-3", status=ExecutionStatus.COMPLETED, exit_code=0, stdout="done", stderr=""
+    )
+    execution = DomainExecution(execution_id="exec-3", status=ExecutionStatus.COMPLETED)
+    bus = _FakeBus()
+    svc = _make_service(bus, _FakeExecRepo(execution=execution, result=result))
+
+    agen = await svc.create_execution_stream("exec-3", user_id="u1", user_role=UserRole.USER)
+
+    assert _decode(await agen.__anext__())["status"] == ExecutionStatus.COMPLETED
+    stored = _decode(await agen.__anext__())
+    assert stored["event_type"] == EventType.RESULT_STORED
+    assert stored["result"]["stdout"] == "done"
+    with pytest.raises(StopAsyncIteration):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
 async def test_notification_stream_yields_notification_and_cleans_up() -> None:
     """Notification stream yields {"event": "notification", "data": ...} for each message."""
     bus = _FakeBus()

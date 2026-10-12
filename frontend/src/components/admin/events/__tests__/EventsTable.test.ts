@@ -10,9 +10,8 @@ function renderTable(events = createMockEvents(3), rowCount = events.length) {
     const onReplay = vi.fn();
     const onDelete = vi.fn();
     const onViewUser = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = renderWithQueryClient(EventsTable, {
-        events: events as any,
+        events,
         rowCount,
         pagination: { pageIndex: 0, pageSize: 10 },
         loading: false,
@@ -75,8 +74,8 @@ describe('EventsTable', () => {
         expect(userButtons.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('shows "-" when user_id is absent', () => {
-        const event = createMockEvent({ metadata: { user_id: undefined } });
+    it('shows "-" when the event has no user', () => {
+        const event = createMockEvent({ metadata: { user_id: '' } });
         renderTable([event]);
         const dashes = screen.getAllByText('-');
         expect(dashes.length).toBeGreaterThanOrEqual(1);

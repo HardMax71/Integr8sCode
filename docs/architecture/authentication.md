@@ -85,7 +85,7 @@ The password check order matters: a deactivated account with a wrong password ge
 
 ## Frontend
 
-`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session and mirrors it to sessionStorage under `authState`:
+`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session: whether it's signed in, the user as the generated `UserResponse`, and the CSRF token. It mirrors them to sessionStorage under `authState` and checks the stored blob against this schema when it reads it back:
 
 ```typescript
 --8<-- "frontend/src/stores/auth.svelte.ts:AuthState"

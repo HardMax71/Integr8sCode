@@ -1,16 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
+import { createMockUser } from '#test/test-utils.ts';
+import { UserRole, type UserResponse } from '#lib/api/index.ts';
 import AdminLayout from '#routes/admin/+layout.svelte';
 
 const mocks = vi.hoisted(() => ({
     page: { url: new URL('https://localhost/admin/events') },
     mockAuthStore: {
         isAuthenticated: true,
-        username: 'adminuser',
-        userRole: 'admin',
-        userId: 'user-1',
-        userEmail: 'admin@test.com',
+        user: null as UserResponse | null,
         csrfToken: 'token',
         verifyAuth: vi.fn(),
     },
@@ -22,8 +21,7 @@ vi.mock('$app/state', () => ({ page: mocks.page }));
 describe('AdminLayout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.userRole = 'admin';
-        mocks.mockAuthStore.username = 'adminuser';
+        mocks.mockAuthStore.user = createMockUser({ username: 'adminuser', role: UserRole.ADMIN });
     });
 
     function renderLayout(path = '/admin/events') {

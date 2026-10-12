@@ -1,24 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ExecutionResult } from '#lib/api/index.ts';
-import { createExecutionApiV1ExecutePost, executionEventsApiV1EventsExecutionsExecutionIdGet } from '#lib/api/index.ts';
+import {
+    createExecutionApiV1ExecutePost,
+    executionEventsApiV1EventsExecutionsExecutionIdGet,
+    type SseExecutionEventSchema,
+} from '#lib/api/index.ts';
 import { createExecutionState } from '#lib/editor/execution.svelte.ts';
-import { createInQueryContext, mockApi } from '#test/test-utils.ts';
+import { createMockExecutionResult, createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
 
 const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
 const mockSseFn = vi.mocked(executionEventsApiV1EventsExecutionsExecutionIdGet);
 
-const RESULT: ExecutionResult = {
+const RESULT = createMockExecutionResult({ execution_id: 'exec-1', stdout: 'hello', stderr: '', lang_version: '3.12' });
+
+const event = (
+    fields: Partial<SseExecutionEventSchema> & Pick<SseExecutionEventSchema, 'event_type'>,
+): SseExecutionEventSchema => ({
     execution_id: 'exec-1',
-    status: 'completed',
-    stdout: 'hello',
-    stderr: '',
-    exit_code: 0,
-    lang: 'python',
-    lang_version: '3.12',
-    resource_usage: null,
-    error_type: null,
-    priority: 'normal',
-};
+    timestamp: null,
+    event_id: null,
+    status: null,
+    result: null,
+    ...fields,
+});
 
 function createState() {
     return createInQueryContext(createExecutionState).value;
@@ -28,12 +31,8 @@ function mockStarted() {
     mockApi(createExecutionApiV1ExecutePost).ok({ execution_id: 'exec-1', status: 'queued' });
 }
 
-function mockSseEvents(...events: unknown[]) {
-    mockSseFn.mockResolvedValue({
-        stream: (async function* () {
-            for (const e of events) yield e;
-        })() as any,
-    } as any);
+function mockSseEvents(...events: SseExecutionEventSchema[]) {
+    mockStreamEvents(executionEventsApiV1EventsExecutionsExecutionIdGet, ...events);
 }
 
 describe('createExecutionState', () => {
@@ -58,7 +57,10 @@ describe('createExecutionState', () => {
         it('yields result from SSE stream', async () => {
             mockStarted();
 
-            mockSseEvents({ event_type: 'status', status: 'running' }, { event_type: 'result_stored', result: RESULT });
+            mockSseEvents(
+                event({ event_type: 'status', status: 'running' }),
+                event({ event_type: 'result_stored', result: RESULT }),
+            );
 
             const s = createState();
             await s.execute('print("hi")', 'python', '3.12');
@@ -71,7 +73,7 @@ describe('createExecutionState', () => {
         it('sets result to null and no error when result_stored has no result', async () => {
             mockStarted();
 
-            mockSseEvents({ event_type: 'result_stored', result: null });
+            mockSseEvents(event({ event_type: 'result_stored' }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
@@ -90,7 +92,7 @@ describe('createExecutionState', () => {
         ] as const)('sets error on %s event', async (eventType, expectedError) => {
             mockStarted();
 
-            mockSseEvents({ event_type: eventType });
+            mockSseEvents(event({ event_type: eventType }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
@@ -102,7 +104,7 @@ describe('createExecutionState', () => {
         it('uses result from terminal failure event when available', async () => {
             mockStarted();
 
-            mockSseEvents({ event_type: 'execution_failed', result: RESULT });
+            mockSseEvents(event({ event_type: 'execution_failed', result: RESULT }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
@@ -116,7 +118,7 @@ describe('createExecutionState', () => {
         it('sets connection lost error', async () => {
             mockStarted();
 
-            mockSseEvents({ event_type: 'status', status: 'running' });
+            mockSseEvents(event({ event_type: 'status', status: 'running' }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
@@ -188,7 +190,9 @@ describe('createExecutionState', () => {
         it('skips non-object events and continues', async () => {
             mockStarted();
 
-            mockSseEvents('{broken', { event_type: 'result_stored', result: RESULT });
+            // The generated client yields the raw text when an event isn't JSON
+            const broken = '{broken' as unknown as SseExecutionEventSchema;
+            mockSseEvents(broken, event({ event_type: 'result_stored', result: RESULT }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');

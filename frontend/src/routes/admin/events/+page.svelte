@@ -99,7 +99,7 @@
         </div>
     </div>
 
-    <ReplayProgressBanner session={store.activeReplaySession} onClose={() => (store.activeReplaySession = null)} />
+    <ReplayProgressBanner session={store.activeReplaySession} onClose={() => store.dismissReplay()} />
 
     <EventStatsCards stats={store.stats.data ?? null} totalEvents={store.totalEvents} />
 

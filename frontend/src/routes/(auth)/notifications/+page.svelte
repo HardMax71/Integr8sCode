@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { type Component } from 'svelte';
     import { toast } from 'svelte-sonner';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { fly } from 'svelte/transition';
@@ -10,10 +9,12 @@
         getNotificationsApiV1NotificationsGetQueryKey,
         markAllReadApiV1NotificationsMarkAllReadPostMutation,
         markNotificationReadApiV1NotificationsNotificationIdReadPutMutation,
+        NotificationStatus,
         type GetNotificationsApiV1NotificationsGetData,
         type NotificationResponse,
     } from '#lib/api/index.ts';
-    import { Bell, Trash, Clock, CircleCheck, CircleAlert, Info } from '@lucide/svelte';
+    import { Bell, Trash, Clock } from '@lucide/svelte';
+    import { notificationIcon, SEVERITY_COLORS } from '#lib/notifications/display.ts';
     import { fieldTitle, formatRelativeTime } from '#lib/formatters.ts';
 
     let includeTagsInput = $state('');
@@ -70,7 +71,7 @@
     }
 
     function markAsRead(notification: NotificationResponse): void {
-        if (notification.status === 'read') return;
+        if (notification.status === NotificationStatus.READ) return;
         markRead.mutate({ path: { notification_id: notification.notification_id } });
     }
 
@@ -80,22 +81,6 @@
             exclude_tags: parseTags(excludeTagsInput),
             tag_prefix: tagPrefixInput.trim() || undefined,
         };
-    }
-
-    // New unified notification rendering: derive icons from tags and colors from severity
-    const severityColors: Record<string, string> = {
-        low: 'text-fg-muted dark:text-dark-fg-muted',
-        medium: 'text-blue-600 dark:text-blue-400',
-        high: 'text-orange-600 dark:text-orange-400',
-        urgent: 'text-red-600 dark:text-red-400',
-    };
-
-    function getNotificationIcon(tags: string[] = []): Component {
-        const set = new Set(tags || []);
-        if (set.has('failed') || set.has('error') || set.has('security')) return CircleAlert;
-        if (set.has('timeout') || set.has('warning')) return Clock;
-        if (set.has('completed') || set.has('success')) return CircleCheck;
-        return Info;
     }
 </script>
 
@@ -178,22 +163,22 @@
         {:else}
             <div class="space-y-3">
                 {#each notifications as notification (notification.notification_id)}
-                    {@const NotifIcon = getNotificationIcon(notification.tags)}
+                    {@const NotifIcon = notificationIcon(notification.tags)}
                     <article
                         in:fly={{ y: 20, duration: 300 }}
-                        class="card transition-all duration-200 {notification.status !== 'read'
+                        class="card transition-all duration-200 {notification.status !== NotificationStatus.READ
                             ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50'
                             : ''}"
                     >
                         <div class="p-4">
                             <div class="flex items-start gap-4">
-                                <div class="mt-1 {severityColors[notification.severity || 'medium']}">
+                                <div class="mt-1 {SEVERITY_COLORS[notification.severity]}">
                                     <NotifIcon class="w-5 h-5" />
                                 </div>
 
                                 <div class="flex-1">
                                     <div class="flex items-start justify-between">
-                                        {#if notification.status !== 'read'}
+                                        {#if notification.status !== NotificationStatus.READ}
                                             <button
                                                 type="button"
                                                 class="flex-1 text-left"
@@ -219,19 +204,6 @@
                                                 <Trash class="w-4 h-4" />
                                             {/if}
                                         </button>
-                                        {#if (notification.tags || []).some((t) => t.startsWith('exec:'))}
-                                            {@const execTag = (notification.tags || []).find((t) =>
-                                                t.startsWith('exec:'),
-                                            )}
-                                            {#if execTag}
-                                                <a
-                                                    href={`/editor?execution=${execTag.split(':')[1]}`}
-                                                    class="btn btn-ghost btn-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ml-2"
-                                                >
-                                                    View result
-                                                </a>
-                                            {/if}
-                                        {/if}
                                     </div>
 
                                     <div class="flex items-center gap-4 mt-3">
@@ -248,17 +220,15 @@
                                             {notification.channel}
                                         </span>
 
-                                        {#if notification.severity}
-                                            <span
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 {severityColors[
-                                                    notification.severity
-                                                ] || severityColors.medium}"
-                                            >
-                                                {notification.severity}
-                                            </span>
-                                        {/if}
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-neutral-100 dark:bg-neutral-800 {SEVERITY_COLORS[
+                                                notification.severity
+                                            ]}"
+                                        >
+                                            {notification.severity}
+                                        </span>
 
-                                        {#if notification.tags && notification.tags.length}
+                                        {#if notification.tags.length}
                                             <span class="flex flex-wrap gap-1">
                                                 {#each notification.tags.slice(0, 6) as tag}
                                                     <span
@@ -269,7 +239,7 @@
                                             </span>
                                         {/if}
 
-                                        {#if notification.status === 'read'}
+                                        {#if notification.status === NotificationStatus.READ}
                                             <span class="text-xs text-green-600 dark:text-green-400"
                                                 >{notification.status}</span
                                             >

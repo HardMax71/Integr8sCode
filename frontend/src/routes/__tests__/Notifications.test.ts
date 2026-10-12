@@ -13,6 +13,7 @@ import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
     markNotificationReadApiV1NotificationsNotificationIdReadPut,
+    type NotificationResponse,
 } from '#lib/api/index.ts';
 import Notifications from '#routes/(auth)/notifications/+page.svelte';
 
@@ -21,7 +22,7 @@ const markRead = vi.mocked(markNotificationReadApiV1NotificationsNotificationIdR
 const markAllRead = vi.mocked(markAllReadApiV1NotificationsMarkAllReadPost);
 const deleteNotification = vi.mocked(deleteNotificationApiV1NotificationsNotificationIdDelete);
 
-function setNotifications(notifications: ReturnType<typeof createMockNotification>[], unreadCount = 0) {
+function setNotifications(notifications: NotificationResponse[], unreadCount = 0) {
     mockApi(getNotificationsApiV1NotificationsGet).ok({
         notifications,
         total: notifications.length,
@@ -33,9 +34,9 @@ describe('Notifications', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         setNotifications([]);
-        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok({});
-        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok({});
-        mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).ok({});
+        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
+        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
+        mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).ok({ message: 'Notification deleted' });
     });
 
     function renderNotifications() {
@@ -245,28 +246,6 @@ describe('Notifications', () => {
                     }),
                 );
             });
-        });
-    });
-
-    describe('View result link', () => {
-        it('shows "View result" link for notifications with exec: tag', async () => {
-            setNotifications([createMockNotification({ tags: ['exec:abc123'] })]);
-
-            renderNotifications();
-            await waitFor(() => {
-                const link = screen.getByRole('link', { name: /view result/i });
-                expect(link).toHaveAttribute('href', '/editor?execution=abc123');
-            });
-        });
-
-        it('does not show "View result" for notifications without exec tag', async () => {
-            setNotifications([createMockNotification({ tags: ['system', 'info'] })]);
-
-            renderNotifications();
-            await waitFor(() => {
-                expect(screen.getByText('Test Notification')).toBeInTheDocument();
-            });
-            expect(screen.queryByRole('link', { name: /view result/i })).not.toBeInTheDocument();
         });
     });
 });

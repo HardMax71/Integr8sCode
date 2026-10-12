@@ -16,7 +16,7 @@ Unit tests sit in `__tests__/` directories next to the code they cover, under `s
 
 Stores are Svelte 5 rune classes in `*.svelte.ts` files (auth.svelte.ts and theme.svelte.ts), so tests import the store instance and read its fields directly. To get a fresh instance, call `vi.resetModules()` and import the module again. The auth store's tests do that, so they also import `ApiError` and the query client after the reset: a class from before the reset isn't the one the fresh store checks with `instanceof`.
 
-Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-utils.ts`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions (fixtures give timestamps as ISO strings, the way the API sends them), and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports. Like the real client, `.err()` rejects when the call passes `throwOnError`, which the generated query and mutation options always do.
+Shared helpers live in `src/__tests__/test-utils.ts`, imported as `#test/test-utils.ts`. The most used are `mockApi(fn).ok(data)` and `.err(error)` for the generated API functions, where `data` is typed from the function's generated return type, `mockStreamEvents(fn, ...events)` for the SSE functions, the `createMock*` factories that build fixtures from the generated types (timestamps as ISO strings, the way the API sends them), and `user`, a preconfigured `@testing-library/user-event` instance that test-utils exports. Like the real client, `.err()` rejects when the call passes `throwOnError`, which the generated query and mutation options always do.
 
 A component that runs queries needs the query client from context, so render it with `renderWithQueryClient(Component, props)` instead of `render`. The admin stores and the editor's execution state build their queries when they're created, so their tests create them with `createInQueryContext(createSagasStore)`, which runs the factory inside a component under the provider and returns `{ value, unmount }`. Query results arrive asynchronously, so assert on them with `vi.waitFor` or `waitFor`. The generated functions pass extra options such as `signal` and `throwOnError`, so check SDK calls with `expect.objectContaining`. To test a branch on a status, such as the editor's 404 fallback, reject with an `ApiError`, since `.err()` rejects with the plain body.
 
@@ -50,13 +50,13 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 ```typescript
 import { beforeEach, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { mockApi } from '#test/test-utils.ts';
+import { createMockUser, mockApi } from '#test/test-utils.ts';
 import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
 import Register from '#routes/register/+page.svelte';
 
 beforeEach(() => {
     vi.clearAllMocks();
-    mockApi(registerApiV1AuthRegisterPost).ok({});
+    mockApi(registerApiV1AuthRegisterPost).ok(createMockUser());
 });
 
 it('shows the form', async () => {

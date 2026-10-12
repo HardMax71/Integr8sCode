@@ -1,44 +1,35 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { NotificationResponse } from '#lib/api/index.ts';
-import { notificationStreamApiV1EventsNotificationsStreamGet } from '#lib/api/index.ts';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
 import { notificationStream } from '#lib/notifications/stream.svelte.ts';
+import { createMockNotification } from '#test/test-utils.ts';
 
-type NotificationCallback = (data: NotificationResponse) => void;
+type StreamOptions = NonNullable<Parameters<typeof notificationStreamApiV1EventsNotificationsStreamGet>[0]>;
+type OnSseEvent = NonNullable<StreamOptions['onSseEvent']>;
 
 const mockSseFn = vi.mocked(notificationStreamApiV1EventsNotificationsStreamGet);
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function validPayload(overrides: Partial<NotificationResponse> = {}): NotificationResponse {
-    return {
+const payload = (): NotificationResponse =>
+    createMockNotification({
         notification_id: 'n-1',
-        channel: 'in_app',
-        status: 'delivered',
         subject: 'Test',
         body: 'Hello',
         action_url: '/action',
-        created_at: '2025-01-01T00:00:00Z',
-        read_at: null,
-        severity: 'medium',
         tags: ['tag1'],
-        ...overrides,
-    };
-}
+    });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mockStream(): { readonly onSseEvent: ((event: any) => void) | undefined } {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let onSseEvent: ((event: any) => void) | undefined;
+function mockStream(): { readonly onSseEvent: OnSseEvent | undefined } {
+    let onSseEvent: OnSseEvent | undefined;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockSseFn.mockImplementation(async (options?: any) => {
+    mockSseFn.mockImplementation(async (options) => {
         onSseEvent = options?.onSseEvent;
         return {
+            // stays open until aborted
             stream: (async function* () {
-                yield; // keep generator alive until aborted
-                await new Promise<void>(() => {});
+                await new Promise<never>(() => {});
             })(),
-        } as any;
+        };
     });
 
     return {
@@ -48,11 +39,13 @@ function mockStream(): { readonly onSseEvent: ((event: any) => void) | undefined
     };
 }
 
+const options = (call: number): StreamOptions => mockSseFn.mock.calls[call]![0]!;
+
 describe('NotificationStream', () => {
-    let callback: ReturnType<typeof vi.fn>;
+    let callback: Mock<(data: NotificationResponse) => void>;
 
     beforeEach(() => {
-        callback = vi.fn();
+        callback = vi.fn<(data: NotificationResponse) => void>();
         mockSseFn.mockReset();
         notificationStream.disconnect();
     });
@@ -63,10 +56,10 @@ describe('NotificationStream', () => {
 
     it('calls callback with parsed NotificationResponse', async () => {
         const mock = mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        mock.onSseEvent!({ event: 'notification', data: validPayload() });
+        mock.onSseEvent!({ event: 'notification', data: payload() });
 
         expect(callback).toHaveBeenCalledOnce();
         expect(callback.mock.calls[0]![0]).toMatchObject({
@@ -80,12 +73,12 @@ describe('NotificationStream', () => {
 
     it('ignores non-notification events', async () => {
         const mock = mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        mock.onSseEvent!({ event: 'ping', data: {} });
-        mock.onSseEvent!({ event: '', data: {} });
-        mock.onSseEvent!({ data: {} });
+        mock.onSseEvent!({ event: 'ping', data: payload() });
+        mock.onSseEvent!({ event: '', data: payload() });
+        mock.onSseEvent!({ data: payload() });
         expect(callback).not.toHaveBeenCalled();
     });
 
@@ -95,19 +88,19 @@ describe('NotificationStream', () => {
         vi.stubGlobal('Notification', MockNotification);
 
         const mock = mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        mock.onSseEvent!({ event: 'notification', data: validPayload() });
+        mock.onSseEvent!({ event: 'notification', data: payload() });
         expect(MockNotification).toHaveBeenCalledWith('Test', { body: 'Hello', icon: '/favicon.png' });
     });
 
     it('passes abort signal to SSE client', async () => {
         mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        const signal = (mockSseFn.mock.calls[0]![0] as Record<string, unknown>).signal as AbortSignal;
+        const signal = options(0).signal!;
         expect(signal.aborted).toBe(false);
 
         notificationStream.disconnect();
@@ -116,13 +109,13 @@ describe('NotificationStream', () => {
 
     it('aborts previous connection on reconnect', async () => {
         mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        const firstSignal = (mockSseFn.mock.calls[0]![0] as Record<string, unknown>).signal as AbortSignal;
+        const firstSignal = options(0).signal!;
 
         mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
         expect(firstSignal.aborted).toBe(true);
@@ -131,12 +124,13 @@ describe('NotificationStream', () => {
 
     it('configures SSE retry options', async () => {
         mockStream();
-        notificationStream.connect(callback as unknown as NotificationCallback);
+        notificationStream.connect(callback);
         await tick();
 
-        const options = mockSseFn.mock.calls[0]![0] as Record<string, unknown>;
-        expect(options.sseMaxRetryAttempts).toBe(3);
-        expect(options.sseDefaultRetryDelay).toBe(5000);
-        expect(options.sseMaxRetryDelay).toBe(20000);
+        expect(options(0)).toMatchObject({
+            sseMaxRetryAttempts: 3,
+            sseDefaultRetryDelay: 5000,
+            sseMaxRetryDelay: 20000,
+        });
     });
 });

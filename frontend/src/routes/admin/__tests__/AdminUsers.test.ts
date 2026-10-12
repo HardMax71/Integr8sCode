@@ -8,6 +8,7 @@ import {
     mockApi,
     renderWithQueryClient,
 } from '#test/test-utils.ts';
+import { ApiError } from '#lib/api-error.ts';
 import {
     listUsersApiV1AdminUsersGet,
     createUserApiV1AdminUsersPost,
@@ -17,8 +18,11 @@ import {
     updateUserRateLimitsApiV1AdminRateLimitsUserIdPut,
     resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost,
     getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+    zDeleteUserResponse,
+    zRateLimitUpdateRequest,
+    type HttpValidationError,
+    type UserRateLimitConfigResponse,
 } from '#lib/api/index.ts';
-import { toast } from 'svelte-sonner';
 
 vi.mock('#lib/formatters.ts', async (importOriginal) => ({
     ...(await importOriginal<typeof import('#lib/formatters.ts')>()),
@@ -50,14 +54,10 @@ describe('AdminUsers', () => {
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalledTimes(1));
         });
 
-        it('handles API error on load and shows toast', async () => {
-            const error = { message: 'Network error' };
-            vi.mocked(listUsersApiV1AdminUsersGet).mockImplementation(async () => {
-                toast.error('Failed to load users');
-                return { data: null, error } as any;
-            });
+        it('shows no users when loading fails', async () => {
+            mockApi(listUsersApiV1AdminUsersGet).err(new ApiError(500, { detail: 'Server error', type: null }));
             renderWithQueryClient(AdminUsers);
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load users'));
+            await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
             expect(screen.queryByText('testuser')).not.toBeInTheDocument();
         });
     });
@@ -87,12 +87,6 @@ describe('AdminUsers', () => {
             expect(screen.getAllByText('adminuser')).toHaveLength(2);
             expect(screen.getAllByText('normaluser')).toHaveLength(2);
         });
-
-        it('shows dash for missing email', async () => {
-            const users = [createMockUser({ email: null as unknown as string })];
-            await renderWithUsers(users);
-            expect(within(screen.getByRole('table', { name: 'Users' })).getByText('-')).toBeInTheDocument();
-        });
     });
 
     describe('refresh functionality', () => {
@@ -111,10 +105,10 @@ describe('AdminUsers', () => {
                 createMockUser({ username: 'alice', email: 'alice@test.com' }),
                 createMockUser({ user_id: 'u2', username: 'bob', email: 'bob@test.com' }),
             ];
-            vi.mocked(listUsersApiV1AdminUsersGet).mockImplementation(async ({ query } = {}) => {
-                const search = (query as Record<string, unknown>)?.search as string | null;
+            mockApi(listUsersApiV1AdminUsersGet).respond((options) => {
+                const search = options?.query?.search;
                 const filtered = search ? allUsers.filter((u) => u.username.includes(search)) : allUsers;
-                return { data: { users: filtered, total: filtered.length, offset: 0, limit: 20 }, error: null } as any;
+                return { users: filtered, total: filtered.length, offset: 0, limit: 20 };
             });
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
@@ -132,10 +126,10 @@ describe('AdminUsers', () => {
                 createMockUser({ username: 'admin1', role: 'admin' }),
                 createMockUser({ user_id: 'u2', username: 'user1', role: 'user' }),
             ];
-            vi.mocked(listUsersApiV1AdminUsersGet).mockImplementation(async ({ query } = {}) => {
-                const role = (query as Record<string, unknown>)?.role as string | null;
+            mockApi(listUsersApiV1AdminUsersGet).respond((options) => {
+                const role = options?.query?.role;
                 const filtered = role ? allUsers.filter((u) => u.role === role) : allUsers;
-                return { data: { users: filtered, total: filtered.length, offset: 0, limit: 20 }, error: null } as any;
+                return { users: filtered, total: filtered.length, offset: 0, limit: 20 };
             });
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
@@ -156,13 +150,11 @@ describe('AdminUsers', () => {
 
         it('resets filters on Reset button click', async () => {
             const users = createMockUsers(3);
-            vi.mocked(listUsersApiV1AdminUsersGet).mockImplementation(async ({ query } = {}) => {
-                const search = (query as Record<string, unknown>)?.search as string | null;
-                if (search === 'nonexistent') {
-                    return { data: { users: [], total: 0, offset: 0, limit: 20 }, error: null } as any;
-                }
-                return { data: { users, total: users.length, offset: 0, limit: 20 }, error: null } as any;
-            });
+            mockApi(listUsersApiV1AdminUsersGet).respond((options) =>
+                options?.query?.search === 'nonexistent'
+                    ? { users: [], total: 0, offset: 0, limit: 20 }
+                    : { users, total: users.length, offset: 0, limit: 20 },
+            );
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
 
@@ -209,7 +201,7 @@ describe('AdminUsers', () => {
         });
 
         it('submits new user data', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok({});
+            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -236,12 +228,11 @@ describe('AdminUsers', () => {
             });
         });
 
-        it('handles validation error on create and shows toast', async () => {
-            const error = { status: 422, detail: [{ loc: ['body', 'username'], msg: 'Required' }] };
-            vi.mocked(createUserApiV1AdminUsersPost).mockImplementation(async () => {
-                toast.error('Validation error: username: Required');
-                return { data: null, error } as any;
-            });
+        it('keeps the dialog open when the server rejects a new user', async () => {
+            const body: HttpValidationError = {
+                detail: [{ loc: ['body', 'username'], msg: 'Required', type: 'missing' }],
+            };
+            mockApi(createUserApiV1AdminUsersPost).err(new ApiError(422, body));
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -254,9 +245,8 @@ describe('AdminUsers', () => {
             const dialog = screen.getByRole('dialog');
             await user.click(within(dialog).getByRole('button', { name: /Create User/i }));
 
-            await waitFor(() =>
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Validation error: username: Required'),
-            );
+            await waitFor(() => expect(vi.mocked(createUserApiV1AdminUsersPost)).toHaveBeenCalled());
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
         it('shows a short password under the field, from the API schema, before calling the API', async () => {
@@ -308,7 +298,7 @@ describe('AdminUsers', () => {
         });
 
         it('submits updated user data', async () => {
-            mockApi(updateUserApiV1AdminUsersUserIdPut).ok({});
+            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
             const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
             await renderWithUsers(users);
 
@@ -347,13 +337,7 @@ describe('AdminUsers', () => {
         });
 
         it('confirms deletion without cascade by default', async () => {
-            mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok({
-                user_deleted: true,
-                executions: 0,
-                saved_scripts: 0,
-                notifications: 0,
-                user_settings: 0,
-            });
+            mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(zDeleteUserResponse.parse({ user_deleted: true }));
             const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
             await renderWithUsers(users);
 
@@ -375,13 +359,7 @@ describe('AdminUsers', () => {
         });
 
         it('confirms deletion with cascade option', async () => {
-            mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok({
-                user_deleted: true,
-                executions: 0,
-                saved_scripts: 0,
-                notifications: 0,
-                user_settings: 0,
-            });
+            mockApi(deleteUserApiV1AdminUsersUserIdDelete).ok(zDeleteUserResponse.parse({ user_deleted: true }));
             const users = [createMockUser({ user_id: 'del1', username: 'deleteme' })];
             await renderWithUsers(users);
 
@@ -407,12 +385,10 @@ describe('AdminUsers', () => {
             });
         });
 
-        it('handles deletion error and shows toast', async () => {
-            const error = { message: 'Cannot delete' };
-            vi.mocked(deleteUserApiV1AdminUsersUserIdDelete).mockImplementation(async () => {
-                toast.error('Failed to delete user');
-                return { data: null, error } as any;
-            });
+        it('keeps the dialog open when deletion fails', async () => {
+            mockApi(deleteUserApiV1AdminUsersUserIdDelete).err(
+                new ApiError(500, { detail: 'Cannot delete', type: null }),
+            );
             const users = [createMockUser({ username: 'deleteme' })];
             await renderWithUsers(users);
 
@@ -423,7 +399,8 @@ describe('AdminUsers', () => {
             const dialog = screen.getByRole('dialog');
             await user.click(within(dialog).getByRole('button', { name: /Delete User/i }));
 
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete user'));
+            await waitFor(() => expect(vi.mocked(deleteUserApiV1AdminUsersUserIdDelete)).toHaveBeenCalled());
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
         it('cancels deletion', async () => {
@@ -464,16 +441,17 @@ describe('AdminUsers', () => {
     });
 
     describe('rate limit modal', () => {
-        const mockRateLimitConfig = {
+        const mockRateLimitConfig: UserRateLimitConfigResponse = {
             user_id: 'u1',
-            rules: [],
-            global_multiplier: 1.0,
-            bypass_rate_limit: false,
             notes: '',
+            created_at: null,
+            updated_at: null,
+            ...zRateLimitUpdateRequest.parse({}),
         };
 
         it('opens rate limit modal for user', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
@@ -492,6 +470,7 @@ describe('AdminUsers', () => {
 
         it('displays default rules in rate limit modal', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
@@ -508,10 +487,15 @@ describe('AdminUsers', () => {
 
         it('saves rate limit changes', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok({});
+            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).ok({
+                user_id: 'u1',
+                updated: true,
+                config: mockRateLimitConfig,
+            });
             const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
             await renderWithUsers(users);
 
@@ -531,16 +515,15 @@ describe('AdminUsers', () => {
             });
         });
 
-        it('handles rate limit save error and shows toast', async () => {
-            const error = { status: 422, detail: 'Invalid config' };
+        it('keeps the rate limit dialog open when saving fails', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).mockImplementation(async () => {
-                toast.error('Failed to save rate limits');
-                return { data: null, error } as any;
-            });
+            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).err(
+                new ApiError(422, { detail: 'Invalid config', type: null }),
+            );
             const users = [createMockUser({ username: 'testuser' })];
             await renderWithUsers(users);
 
@@ -550,11 +533,15 @@ describe('AdminUsers', () => {
 
             await user.click(screen.getByRole('button', { name: /Save Changes/i }));
 
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to save rate limits'));
+            await waitFor(() =>
+                expect(vi.mocked(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut)).toHaveBeenCalled(),
+            );
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
         });
 
         it('adds new rate limit rule', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
@@ -574,10 +561,11 @@ describe('AdminUsers', () => {
 
         it('resets rate limit counters', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: mockRateLimitConfig,
-                current_usage: { '/api/test': { count: 5 } },
+                current_usage: { '/api/test': { algorithm: 'sliding_window', remaining: 5 } },
             });
-            mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).ok({});
+            mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).ok({ message: 'Rate limits reset' });
             const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
             await renderWithUsers(users);
 
@@ -642,7 +630,7 @@ describe('AdminUsers', () => {
 
     describe('user form validation', () => {
         it('requires username for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok({});
+            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
             await renderWithUsers();
 
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -659,7 +647,7 @@ describe('AdminUsers', () => {
         });
 
         it('requires password for new user', async () => {
-            mockApi(createUserApiV1AdminUsersPost).ok({});
+            mockApi(createUserApiV1AdminUsersPost).ok(createMockUser());
             await renderWithUsers();
 
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
@@ -676,7 +664,7 @@ describe('AdminUsers', () => {
         });
 
         it('password is optional for edit', async () => {
-            mockApi(updateUserApiV1AdminUsersUserIdPut).ok({});
+            mockApi(updateUserApiV1AdminUsersUserIdPut).ok(createMockUser());
             const users = [createMockUser({ user_id: 'u1', username: 'editme' })];
             await renderWithUsers(users);
 
@@ -699,37 +687,35 @@ describe('AdminUsers', () => {
     });
 
     describe('error handling', () => {
-        it('handles API error when loading rate limits and shows toast', async () => {
-            const error = { message: 'Failed to load' };
-            vi.mocked(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).mockImplementation(async () => {
-                toast.error('Failed to load rate limits');
-                return { data: null, error } as any;
-            });
+        it('shows no rate limit settings when loading them fails', async () => {
+            mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).err(
+                new ApiError(500, { detail: 'Failed to load', type: null }),
+            );
             const users = [createMockUser({ username: 'testuser' })];
             await renderWithUsers(users);
 
             const [rateLimitButton] = screen.getAllByTitle('Manage Rate Limits');
             await user.click(rateLimitButton!);
 
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load rate limits'));
+            await waitFor(() => expect(vi.mocked(getUserRateLimitsApiV1AdminRateLimitsUserIdGet)).toHaveBeenCalled());
+            expect(screen.queryByText('Quick Settings')).not.toBeInTheDocument();
         });
 
-        it('handles API error when resetting rate limits and shows toast', async () => {
-            const resetError = { message: 'Reset failed' };
+        it('keeps the usage when resetting the counters fails', async () => {
             mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).ok({
+                user_id: 'u1',
                 rate_limit_config: {
                     user_id: 'u1',
-                    rules: [],
-                    global_multiplier: 1.0,
-                    bypass_rate_limit: false,
                     notes: '',
+                    created_at: null,
+                    updated_at: null,
+                    ...zRateLimitUpdateRequest.parse({}),
                 },
-                current_usage: { '/api': { count: 1 } },
+                current_usage: { '/api': { algorithm: 'sliding_window', remaining: 1 } },
             });
-            vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).mockImplementation(async () => {
-                toast.error('Failed to reset rate limits');
-                return { data: null, error: resetError } as any;
-            });
+            mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).err(
+                new ApiError(500, { detail: 'Reset failed', type: null }),
+            );
             const users = [createMockUser({ user_id: 'u1', username: 'testuser' })];
             await renderWithUsers(users);
 
@@ -741,7 +727,10 @@ describe('AdminUsers', () => {
 
             await user.click(screen.getByRole('button', { name: /Reset All Counters/i }));
 
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to reset rate limits'));
+            await waitFor(() =>
+                expect(vi.mocked(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost)).toHaveBeenCalled(),
+            );
+            expect(screen.getByText('/api')).toBeInTheDocument();
         });
     });
 });

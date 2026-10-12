@@ -1,17 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
-import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient, createMockUserSettings } from '#test/test-utils.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 import Settings from '#routes/(auth)/settings/+page.svelte';
 
 function createMockSettings() {
-    return {
-        user_id: 'user-1',
+    return createMockUserSettings({
         theme: 'dark',
-        timezone: 'UTC',
-        date_format: 'YYYY-MM-DD',
-        time_format: '24h',
         notifications: {
             execution_completed: true,
             execution_failed: false,
@@ -26,9 +22,7 @@ function createMockSettings() {
             word_wrap: false,
             show_line_numbers: true,
         },
-        custom_settings: {},
-        version: 1,
-    };
+    });
 }
 
 import {
@@ -37,6 +31,7 @@ import {
     restoreSettingsApiV1UserSettingsRestorePost,
     getSettingsHistoryApiV1UserSettingsHistoryGet,
     getUserSettingsApiV1UserSettingsGetQueryKey,
+    type SettingsHistoryEntry,
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -44,9 +39,6 @@ const mocks = vi.hoisted(() => ({
     mockConfirm: vi.fn(),
     mockAuthStore: {
         isAuthenticated: true,
-        username: 'testuser',
-        userRole: 'user',
-        verifyAuth: vi.fn(),
     },
 }));
 
@@ -174,7 +166,7 @@ describe('Settings', () => {
                 history: [
                     {
                         timestamp: '2025-01-15T10:00:00Z',
-                        event_type: 'settings_updated',
+                        event_type: 'user_settings_updated',
                         field: 'theme',
                         old_value: 'light',
                         new_value: 'dark',
@@ -220,9 +212,9 @@ describe('Settings', () => {
     });
 
     describe('Restore', () => {
-        const historyEntry = {
+        const historyEntry: SettingsHistoryEntry = {
             timestamp: '2025-01-15T10:00:00Z',
-            event_type: 'settings_updated' as const,
+            event_type: 'user_settings_updated',
             field: 'theme',
             old_value: 'light',
             new_value: 'dark',
@@ -254,7 +246,7 @@ describe('Settings', () => {
             });
             expect(vi.mocked(restoreSettingsApiV1UserSettingsRestorePost)).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    body: { timestamp: '2025-01-15T10:00:00Z', reason: 'User requested restore' },
+                    body: { timestamp: '2025-01-15T10:00:00Z' },
                 }),
             );
             expect(queryClient.getQueryData(getUserSettingsApiV1UserSettingsGetQueryKey())).toMatchObject({

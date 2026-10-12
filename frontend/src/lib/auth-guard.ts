@@ -20,7 +20,7 @@ export async function requireAuth(url: URL): Promise<void> {
  */
 export async function requireAdmin(url: URL): Promise<void> {
     await requireAuth(url);
-    if (authStore.userRole === UserRole.ADMIN) return;
+    if (authStore.user?.role === UserRole.ADMIN) return;
     toast.error('Admin access required');
     redirect(307, '/');
 }

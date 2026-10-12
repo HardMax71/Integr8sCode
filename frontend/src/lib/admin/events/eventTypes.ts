@@ -1,7 +1,7 @@
 /**
  * Event type configurations and utilities
  */
-import { EventType, type EventFilter } from '#lib/api/index.ts';
+import { EventType, zEventFilter, type EventFilter } from '#lib/api/index.ts';
 import { fieldTitle } from '#lib/formatters.ts';
 
 // Re-export EventType from generated types
@@ -33,17 +33,9 @@ export function getEventTypeColor(eventType: EventType): string {
     return 'text-neutral-600 dark:text-neutral-400';
 }
 
-const FILTER_KEYS = [
-    'event_types',
-    'search_text',
-    'aggregate_id',
-    'user_id',
-    'service_name',
-    'start_time',
-    'end_time',
-] as const satisfies readonly (keyof EventFilter)[];
+const FILTER_KEYS = Object.keys(zEventFilter.shape) as (keyof EventFilter)[];
 
-function activeFilterKeys(filters: EventFilter): (typeof FILTER_KEYS)[number][] {
+function activeFilterKeys(filters: EventFilter): (keyof EventFilter)[] {
     return FILTER_KEYS.filter((key) => {
         const value = filters[key];
         return Array.isArray(value) ? value.length > 0 : !!value;

@@ -2,11 +2,10 @@
     import { Check, ChevronDown, ChevronRight } from '@lucide/svelte';
     import { DropdownMenu } from 'bits-ui';
     import { toast } from 'svelte-sonner';
-    import type { LanguageInfo } from '#lib/api/index.ts';
-    import { newestVersion } from '#lib/editor/runtimes.ts';
+    import type { ResourceLimits } from '#lib/api/index.ts';
 
     interface Props {
-        runtimes: Record<string, LanguageInfo>;
+        runtimes: ResourceLimits['supported_runtimes'];
         lang: string;
         version: string;
         onselect: (lang: string, version: string) => void;
@@ -18,7 +17,7 @@
 
     $effect(() => {
         const versions = runtimes[lang]?.versions ?? [];
-        const fallback = newestVersion(versions);
+        const fallback = versions[0];
         if (!fallback || versions.includes(version)) return;
         toast.info(`Version ${version} of ${lang} is no longer available, switched to ${fallback}.`);
         onselect(lang, fallback);

@@ -17,6 +17,7 @@
     import Spinner from '#components/Spinner.svelte';
 
     const fieldSchemas = z.toJSONSchema(zSystemSettingsSchemaInput, { io: 'input' }).properties ?? {};
+    const DEFAULTS = zSystemSettingsSchemaInput.parse({});
 
     // min and max for a numeric input, taken from the API's validation rules
     function bounds(field: keyof SystemSettingsSchemaInput): { min?: number; max?: number } {
@@ -115,7 +116,7 @@
                                     type="text"
                                     bind:value={settings.memory_limit}
                                     class="form-input-standard"
-                                    placeholder="512Mi"
+                                    placeholder={DEFAULTS.memory_limit}
                                 />
                             </div>
                             <div>
@@ -129,7 +130,7 @@
                                     type="text"
                                     bind:value={settings.cpu_limit}
                                     class="form-input-standard"
-                                    placeholder="2000m"
+                                    placeholder={DEFAULTS.cpu_limit}
                                 />
                             </div>
                             <div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { suppressConsoleWarn } from '#test/test-utils.ts';
+import { createMockUser, suppressConsoleWarn } from '#test/test-utils.ts';
+import { UserRole, type LoginResponse, type UserResponse } from '#lib/api/index.ts';
 
 const mockGetProfileApi = vi.fn();
 
@@ -9,28 +10,21 @@ vi.mock('#lib/api/sdk.gen.ts', async (importOriginal) => ({
     getCurrentUserProfileApiV1AuthMeGet: (...args: unknown[]) => mockGetProfileApi(...args),
 }));
 
-const PROFILE_RESPONSE = {
-    user_id: 'user-123',
-    username: 'testuser',
-    email: 'test@example.com',
-    role: 'user',
-    is_active: true,
-    is_superuser: false,
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-};
+const PROFILE_RESPONSE = createMockUser({ user_id: 'user-123' });
 
-const LOGIN_RESPONSE = { message: 'ok', username: 'testuser', role: 'user' as const, csrf_token: 'new-csrf-token' };
+const LOGIN_RESPONSE: LoginResponse = {
+    message: 'ok',
+    username: 'testuser',
+    role: UserRole.USER,
+    csrf_token: 'new-csrf-token',
+};
 
 type Failure = 'unauthorized' | 'server' | 'network';
 
 function persistedState(overrides: Record<string, unknown> = {}) {
     return JSON.stringify({
         isAuthenticated: true,
-        username: 'testuser',
-        userId: 'user-123',
-        userRole: 'user',
-        userEmail: 'test@example.com',
+        user: PROFILE_RESPONSE,
         csrfToken: 'csrf-token',
         timestamp: Date.now(),
         ...overrides,
@@ -72,7 +66,7 @@ describe('auth store', () => {
         return { authStore, queryClient, fail };
     }
 
-    function profileOk(profile: Record<string, unknown> = PROFILE_RESPONSE) {
+    function profileOk(profile: UserResponse = PROFILE_RESPONSE) {
         mockGetProfileApi.mockResolvedValue({ data: profile });
     }
 
@@ -80,8 +74,7 @@ describe('auth store', () => {
         it('starts signed out with nothing persisted', async () => {
             const { authStore } = await load();
             expect(authStore.isAuthenticated).toBe(null);
-            expect(authStore.username).toBe(null);
-            expect(authStore.userRole).toBe(null);
+            expect(authStore.user).toBe(null);
         });
 
         it('restores auth state from sessionStorage', async () => {
@@ -90,14 +83,23 @@ describe('auth store', () => {
             const { authStore } = await load();
 
             expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.username).toBe('testuser');
-            expect(authStore.userRole).toBe('user');
+            expect(authStore.user).toEqual(PROFILE_RESPONSE);
             expect(authStore.csrfToken).toBe('test-token');
+        });
+
+        it('drops a persisted state that is not a valid session', async () => {
+            sessionStorageData['authState'] = persistedState({ user: { username: 'testuser' } });
+
+            const { authStore } = await load();
+
+            expect(authStore.isAuthenticated).toBe(null);
+            expect(authStore.user).toBe(null);
+            expect(sessionStorageData['authState']).toBeUndefined();
         });
     });
 
     describe('startSession', () => {
-        it('takes the login response, persists it and loads the full profile', async () => {
+        it('loads the profile before it resolves and persists the session', async () => {
             profileOk();
             const { authStore } = await load();
 
@@ -105,13 +107,10 @@ describe('auth store', () => {
 
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
             expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.username).toBe('testuser');
-            expect(authStore.userId).toBe('user-123');
-            expect(authStore.userEmail).toBe('test@example.com');
+            expect(authStore.user).toEqual(PROFILE_RESPONSE);
             expect(JSON.parse(sessionStorageData['authState']!)).toMatchObject({
                 isAuthenticated: true,
-                username: 'testuser',
-                userId: 'user-123',
+                user: PROFILE_RESPONSE,
             });
         });
 
@@ -134,6 +133,7 @@ describe('auth store', () => {
 
             expect(authStore.isAuthenticated).toBe(true);
             expect(authStore.csrfToken).toBe('new-csrf-token');
+            expect(authStore.user).toBe(null);
             restoreConsole();
         });
     });
@@ -148,7 +148,7 @@ describe('auth store', () => {
             authStore.clearAuth();
 
             expect(authStore.isAuthenticated).toBe(false);
-            expect(authStore.username).toBe(null);
+            expect(authStore.user).toBe(null);
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
             expect(queryClient.getQueryCache().getAll()).toEqual([]);
         });
@@ -160,7 +160,7 @@ describe('auth store', () => {
             const { authStore } = await load();
 
             expect(await authStore.verifyAuth(true)).toBe(true);
-            expect(authStore.userId).toBe('user-123');
+            expect(authStore.user).toEqual(PROFILE_RESPONSE);
         });
 
         it('returns false and clears state on a 401', async () => {
@@ -210,7 +210,7 @@ describe('auth store', () => {
 
                 expect(await authStore.verifyAuth(true)).toBe(true);
                 expect(authStore.isAuthenticated).toBe(true);
-                expect(authStore.username).toBe('testuser');
+                expect(authStore.user).toEqual(PROFILE_RESPONSE);
                 expect(sessionStorage.removeItem).not.toHaveBeenCalled();
                 restoreConsole();
             },
@@ -256,13 +256,14 @@ describe('auth store', () => {
         });
 
         it('restores from persisted auth and verifies', async () => {
-            sessionStorageData['authState'] = persistedState({ userRole: 'admin' });
-            profileOk({ ...PROFILE_RESPONSE, role: 'admin' });
+            const admin = createMockUser({ user_id: 'user-123', role: UserRole.ADMIN });
+            sessionStorageData['authState'] = persistedState({ user: admin });
+            profileOk(admin);
             const { authStore } = await load();
 
             expect(await authStore.initialize()).toBe(true);
             expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.userRole).toBe('admin');
+            expect(authStore.user?.role).toBe(UserRole.ADMIN);
         });
 
         it('clears auth when persisted auth verification gets a 401', async () => {

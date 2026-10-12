@@ -1,22 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import {
+    user,
+    mockApi,
+    renderWithQueryClient,
+    createMockResourceLimits,
+    createMockSavedScript,
+    createMockUserSettings,
+} from '#test/test-utils.ts';
 import { ApiError } from '#lib/api-error.ts';
 import { toast } from 'svelte-sonner';
 import Editor from '#routes/(auth)/editor/+page.svelte';
-
-function createMockLimits() {
-    return {
-        cpu_limit: '1',
-        memory_limit: '512Mi',
-        cpu_request: '0.5',
-        memory_request: '256Mi',
-        execution_timeout: 60,
-        supported_runtimes: {
-            python: { versions: ['3.14', '3.13', '3.12', '3.11'], file_ext: 'py', display_name: 'Python' },
-        },
-    };
-}
 
 import {
     getK8sResourceLimitsApiV1K8sLimitsGet,
@@ -41,16 +35,13 @@ const mocks = vi.hoisted(() => ({
     },
     mockAuthStore: {
         isAuthenticated: true,
-        username: 'testuser',
-        userRole: 'user',
     },
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-vi.mock('#lib/editor/index.ts', async () => ({
+vi.mock('#lib/editor/index.ts', () => ({
     createExecutionState: () => mocks.mockExecutionState,
-    newestVersion: (await import('#lib/editor/runtimes.ts')).newestVersion,
 }));
 
 vi.mock('#components/editor/index.ts', async () => {
@@ -91,13 +82,13 @@ describe('Editor', () => {
         mocks.mockExecutionState.result = null;
         mocks.mockExecutionState.error = null;
 
-        mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockLimits());
+        mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(createMockResourceLimits());
         mockApi(getExampleScriptsApiV1ExampleScriptsGet).ok({ scripts: { python: '  print("Hello")' } });
         mockApi(listSavedScriptsApiV1ScriptsGet).ok({ scripts: [] });
-        mockApi(getUserSettingsApiV1UserSettingsGet).ok({});
-        mockApi(createSavedScriptApiV1ScriptsPost).ok({ script_id: 'new-1' });
-        mockApi(updateSavedScriptApiV1ScriptsScriptIdPut).ok({});
-        mockApi(deleteSavedScriptApiV1ScriptsScriptIdDelete).ok({});
+        mockApi(getUserSettingsApiV1UserSettingsGet).ok(createMockUserSettings());
+        mockApi(createSavedScriptApiV1ScriptsPost).ok(createMockSavedScript({ script_id: 'new-1' }));
+        mockApi(updateSavedScriptApiV1ScriptsScriptIdPut).ok(createMockSavedScript());
+        mockApi(deleteSavedScriptApiV1ScriptsScriptIdDelete).ok();
     });
 
     afterEach(() => vi.unstubAllGlobals());
@@ -192,7 +183,7 @@ describe('Editor', () => {
             vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut).mockRejectedValue(
                 new ApiError(404, { detail: 'Not found' }),
             );
-            mockApi(createSavedScriptApiV1ScriptsPost).ok({ script_id: 'fallback-1' });
+            mockApi(createSavedScriptApiV1ScriptsPost).ok(createMockSavedScript({ script_id: 'fallback-1' }));
 
             await renderEditor();
             await waitForRuntimes();
@@ -303,11 +294,12 @@ describe('Editor', () => {
             expect(toast.info).not.toHaveBeenCalled();
         }
 
-        it('defaults to the newest version the runtimes endpoint returns, whatever its order', async () => {
-            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
-                ...createMockLimits(),
-                supported_runtimes: { python: { versions: ['3.12', '3.14', '3.13'], file_ext: 'py' } },
-            });
+        it('defaults to the first version the runtimes endpoint lists, which is the newest', async () => {
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(
+                createMockResourceLimits({
+                    supported_runtimes: { python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' } },
+                }),
+            );
             await runAndExpect('python', '3.14');
         });
 
@@ -317,13 +309,14 @@ describe('Editor', () => {
         });
 
         it('keeps the stored language and picks its newest version when the stored version was dropped', async () => {
-            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
-                ...createMockLimits(),
-                supported_runtimes: {
-                    python: { versions: ['3.14', '3.13'], file_ext: 'py' },
-                    go: { versions: ['1.26', '1.27'], file_ext: 'go' },
-                },
-            });
+            mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(
+                createMockResourceLimits({
+                    supported_runtimes: {
+                        python: { versions: ['3.14', '3.13'], file_ext: 'py' },
+                        go: { versions: ['1.27', '1.26'], file_ext: 'go' },
+                    },
+                }),
+            );
             storeSelection('go', '1.22');
             await runAndExpect('go', '1.27');
         });
@@ -412,12 +405,15 @@ describe('Editor', () => {
             input.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        it('rejects file > 1MB with error toast', async () => {
+        it('rejects a script longer than the API allows, with the spec rule in the toast', async () => {
             const input = createFileInput();
             await waitForRuntimes();
-            const bigFile = new File(['x'.repeat(1024 * 1024 + 1)], 'large.py', { type: 'text/plain' });
+            const bigFile = new File(['x'.repeat(50_001)], 'large.py', { type: 'text/plain' });
             fireFileChange(input, bigFile);
-            expect(toast.error).toHaveBeenCalledWith('File too large. Maximum size is 1MB.');
+            await waitFor(() => {
+                expect(toast.error).toHaveBeenCalledWith('Script must be at most 50000 characters');
+            });
+            expect(toast.info).not.toHaveBeenCalledWith(expect.stringContaining('Loaded python script'));
         });
 
         it('rejects unsupported file extension with error toast', async () => {

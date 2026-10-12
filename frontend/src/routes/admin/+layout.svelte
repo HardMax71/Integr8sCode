@@ -47,12 +47,14 @@
                 {/each}
             </nav>
 
-            {#if authStore.username}
+            {#if authStore.user}
                 <div
                     class="hidden lg:block mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
                 >
                     <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
-                    <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">{authStore.username}</p>
+                    <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">
+                        {authStore.user.username}
+                    </p>
                 </div>
             {/if}
         </div>

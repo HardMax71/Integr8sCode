@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/svelte';
-import type { EditorSettingsOutput } from '#lib/api/index.ts';
+import { zEditorSettingsInput, type EditorSettingsOutput } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => {
     const dispatchFn = vi.fn();
@@ -97,13 +97,7 @@ vi.mock('#lib/editor/languages.ts', () => ({ getLanguageExtension: mocks.getLang
 
 import CodeMirrorEditor from '#components/editor/CodeMirrorEditor.svelte';
 
-const defaultSettings: EditorSettingsOutput = {
-    font_size: 14,
-    tab_size: 4,
-    show_line_numbers: true,
-    word_wrap: false,
-    use_tabs: false,
-};
+const defaultSettings: EditorSettingsOutput = zEditorSettingsInput.parse({});
 
 function renderEditor(overrides: Partial<{ content: string; lang: string; settings: EditorSettingsOutput }> = {}) {
     return render(CodeMirrorEditor, {

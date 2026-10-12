@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
-import type { EventReplayStatusResponse } from '#lib/api/index.ts';
+import { ExecutionStatus, ReplayStatus, type EventReplayStatusResponse } from '#lib/api/index.ts';
 
 import ReplayProgressBanner from '#components/admin/events/ReplayProgressBanner.svelte';
 
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
     return {
         session_id: 'session-1',
-        status: 'running',
+        status: ReplayStatus.RUNNING,
         total_events: 10,
         replayed_events: 5,
         failed_events: 0,
@@ -42,7 +42,7 @@ describe('ReplayProgressBanner', () => {
     });
 
     it('shows title and status', () => {
-        renderBanner(makeSession({ status: 'running' }));
+        renderBanner(makeSession({ status: ReplayStatus.RUNNING }));
         expect(screen.getByText('Replay in Progress')).toBeInTheDocument();
         expect(screen.getByText('running')).toBeInTheDocument();
     });
@@ -141,16 +141,16 @@ describe('ReplayProgressBanner', () => {
         });
 
         it.each([
-            { status: 'completed', expectedClass: 'bg-green-100' },
-            { status: 'failed', expectedClass: 'bg-red-100' },
-            { status: 'running', expectedClass: 'bg-yellow-100' },
+            { status: ExecutionStatus.COMPLETED, expectedClass: 'bg-green-100' },
+            { status: ExecutionStatus.FAILED, expectedClass: 'bg-red-100' },
+            { status: ExecutionStatus.RUNNING, expectedClass: 'bg-yellow-100' },
         ])('status "$status" shows badge with $expectedClass', ({ status, expectedClass }) => {
             const { container } = renderBanner(
                 makeSession({
                     execution_results: [
                         {
                             execution_id: 'exec-x',
-                            status: status as import('#lib/api/index.ts').ExecutionStatus,
+                            status,
                             stdout: null,
                             stderr: null,
                             lang: 'python',

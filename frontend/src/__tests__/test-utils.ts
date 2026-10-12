@@ -12,20 +12,33 @@ import { render, type RenderResult } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import QueryClientWrapper from '#test/QueryClientWrapper.svelte';
 import RunInContext from '#test/RunInContext.svelte';
-import { EVENT_TYPES } from '#lib/admin/events/eventTypes.ts';
-import type {
-    ExecutionCompletedEvent,
-    EventBrowseResponse,
-    EventDetailResponse,
-    EventStatsResponse,
-    AdminUserOverview,
-    NotificationResponse,
-    EventMetadata,
+import {
     EventType,
-    AdminExecutionResponse,
-    QueueStatusResponse,
-    SagaStatusResponse,
-    UserResponse,
+    ExecutionStatus,
+    QueuePriority,
+    ReplayStatus,
+    SagaState,
+    zEditorSettingsInput,
+    zEventBrowseResponse,
+    zNotificationSettingsInput,
+    zUserSettings,
+    type ExecutionCompletedEvent,
+    type EventBrowseResponse,
+    type EventDetailResponse,
+    type EventStatsResponse,
+    type AdminUserOverview,
+    type NotificationResponse,
+    type EventMetadata,
+    type AdminExecutionResponse,
+    type QueueStatusResponse,
+    type SagaStatusResponse,
+    type UserResponse,
+    type UserSettings,
+    type SavedScriptResponse,
+    type ResourceLimits,
+    type ExecutionResult,
+    type EventReplayResponse,
+    type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 
 export type UserEventInstance = ReturnType<typeof userEvent.setup>;
@@ -33,16 +46,32 @@ export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 const _r = new Request('http://test');
 const _s = new Response();
 
+/** What a generated SDK function resolves with on success */
+type ApiData<F> = F extends (...args: any[]) => Promise<infer R>
+    ? R extends { data?: infer D }
+        ? Exclude<D, undefined>
+        : never
+    : never;
+
 /**
  * Fluent mock wrapper for hey-api SDK functions.
  * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects
  * when the call passes `throwOnError`, which the generated query and mutation options always do.
  */
-export function mockApi(fn: (...args: any[]) => any) {
+export function mockApi<F extends (...args: any[]) => any>(fn: F) {
     const mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
     return {
-        ok(data: unknown) {
+        ok(data: ApiData<F>) {
             mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
+        },
+        /** Answers each call from its options, such as a list filtered by the query */
+        respond(handler: (...args: Parameters<F>) => ApiData<F>) {
+            mock.mockImplementation(async (...args: Parameters<F>) => ({
+                data: handler(...args),
+                error: undefined,
+                request: _r,
+                response: _s,
+            }));
         },
         err(error: unknown) {
             mock.mockImplementation((options?: { throwOnError?: boolean }) =>
@@ -53,6 +82,20 @@ export function mockApi(fn: (...args: any[]) => any) {
         },
         mock,
     };
+}
+
+type StreamEvent<F> = F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<infer E, any, any> }> ? E : never;
+
+/** Makes a generated SSE function yield these events, then end the stream. */
+export function mockStreamEvents<F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<any, any, any> }>>(
+    fn: F,
+    ...events: StreamEvent<F>[]
+): void {
+    vi.mocked(fn).mockResolvedValue({
+        stream: (async function* () {
+            yield* events;
+        })(),
+    } as Awaited<ReturnType<F>>);
 }
 
 /**
@@ -182,10 +225,12 @@ export type MockEventOverrides = Omit<Partial<ExecutionCompletedEvent>, 'event_t
     metadata?: Partial<EventMetadata>;
 };
 
+type BrowsedEvent = EventBrowseResponse['events'][number];
+
 export const DEFAULT_EVENT: ExecutionCompletedEvent = {
     event_id: 'evt-1',
     event_type: 'execution_completed',
-    event_version: '1',
+    event_version: '1.0',
     timestamp: '2024-01-15T10:30:00Z',
     aggregate_id: 'exec-456',
     metadata: {
@@ -198,33 +243,27 @@ export const DEFAULT_EVENT: ExecutionCompletedEvent = {
     stdout: 'hello',
 };
 
-export { EVENT_TYPES };
-
-export const createMockEvent = (overrides: MockEventOverrides = {}): ExecutionCompletedEvent => {
+/** An event of any type, parsed by the generated schema, so fields another event type doesn't have are dropped */
+export const createMockEvent = (overrides: MockEventOverrides = {}): BrowsedEvent => {
     const { metadata: metadataOverrides, ...rest } = overrides;
-    return {
-        ...DEFAULT_EVENT,
-        ...rest,
-        metadata: { ...DEFAULT_EVENT.metadata, ...metadataOverrides },
-    } as ExecutionCompletedEvent;
+    const raw = { ...DEFAULT_EVENT, ...rest, metadata: { ...DEFAULT_EVENT.metadata, ...metadataOverrides } };
+    return zEventBrowseResponse.parse({ events: [raw], total: 1, skip: 0, limit: 1 }).events[0]!;
 };
 
-export const createMockEvents = (count: number): EventBrowseResponse['events'] =>
-    Array.from(
-        { length: count },
-        (_, i) =>
-            ({
-                ...createMockEvent({
-                    event_id: `evt-${i + 1}`,
-                    aggregate_id: `exec-${i + 1}`,
-                    metadata: {
-                        user_id: `user-${(i % 3) + 1}`,
-                        service_name: 'execution-service',
-                    },
-                }),
-                event_type: EVENT_TYPES[i % EVENT_TYPES.length],
-                timestamp: new Date(Date.now() - i * 60000).toISOString(),
-            }) as EventBrowseResponse['events'][number],
+const ALL_EVENT_TYPES = Object.values(EventType);
+
+export const createMockEvents = (count: number): BrowsedEvent[] =>
+    Array.from({ length: count }, (_, i) =>
+        createMockEvent({
+            event_id: `evt-${i + 1}`,
+            event_type: ALL_EVENT_TYPES[i % ALL_EVENT_TYPES.length],
+            aggregate_id: `exec-${i + 1}`,
+            timestamp: new Date(Date.now() - i * 60000).toISOString(),
+            metadata: {
+                user_id: `user-${(i % 3) + 1}`,
+                service_name: 'execution-service',
+            },
+        }),
     );
 
 export function createMockStats(overrides: Partial<EventStatsResponse> = {}): EventStatsResponse {
@@ -241,7 +280,7 @@ export function createMockStats(overrides: Partial<EventStatsResponse> = {}): Ev
 
 export function createMockEventDetail(event = createMockEvent()): EventDetailResponse {
     return {
-        event: event as EventDetailResponse['event'],
+        event,
         related_events: [
             { event_id: 'rel-1', event_type: 'execution_started', timestamp: '2024-01-15T10:29:00Z' },
             { event_id: 'rel-2', event_type: 'pod_created', timestamp: '2024-01-15T10:29:30Z' },
@@ -278,7 +317,7 @@ export function createMockUserOverview(): AdminUserOverview {
         },
         derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
         rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1, has_custom_limits: false },
-        recent_events: [createMockEvent() as AdminUserOverview['recent_events'][number]],
+        recent_events: [createMockEvent()],
     };
 }
 
@@ -303,17 +342,8 @@ export const createMockExecution = (overrides: Partial<AdminExecutionResponse> =
     ...overrides,
 });
 
-const EXECUTION_STATUSES: AdminExecutionResponse['status'][] = [
-    'queued',
-    'scheduled',
-    'running',
-    'completed',
-    'failed',
-    'timeout',
-    'cancelled',
-    'error',
-];
-const EXECUTION_PRIORITIES: AdminExecutionResponse['priority'][] = ['critical', 'high', 'normal', 'low', 'background'];
+const EXECUTION_STATUSES = Object.values(ExecutionStatus);
+const EXECUTION_PRIORITIES = Object.values(QueuePriority);
 
 export const createMockExecutions = (count: number): AdminExecutionResponse[] =>
     Array.from({ length: count }, (_, i) =>
@@ -354,14 +384,7 @@ export const createMockSaga = (overrides: Partial<SagaStatusResponse> = {}): Sag
     ...overrides,
 });
 
-const SAGA_STATES: SagaStatusResponse['state'][] = [
-    'created',
-    'running',
-    'completed',
-    'failed',
-    'compensating',
-    'timeout',
-];
+const SAGA_STATES = Object.values(SagaState);
 
 export const createMockSagas = (count: number): SagaStatusResponse[] =>
     Array.from({ length: count }, (_, i) =>
@@ -404,6 +427,55 @@ export const createMockUsers = (count: number): UserResponse[] =>
         }),
     );
 
+export const createMockExecutionResult = (overrides: Partial<ExecutionResult> = {}): ExecutionResult => ({
+    execution_id: 'exec-123',
+    status: 'completed',
+    stdout: null,
+    stderr: null,
+    lang: 'python',
+    lang_version: '3.11',
+    resource_usage: null,
+    exit_code: 0,
+    error_type: null,
+    priority: 'normal',
+    ...overrides,
+});
+
+export const createMockUserSettings = (overrides: Partial<UserSettings> = {}): UserSettings => ({
+    ...zUserSettings.parse({
+        user_id: 'user-1',
+        notifications: zNotificationSettingsInput.parse({}),
+        editor: zEditorSettingsInput.parse({}),
+        custom_settings: {},
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+    }),
+    ...overrides,
+});
+
+export const createMockSavedScript = (overrides: Partial<SavedScriptResponse> = {}): SavedScriptResponse => ({
+    script_id: 'script-1',
+    name: 'Script 1',
+    script: 'print("hello")',
+    lang: 'python',
+    lang_version: '3.14',
+    description: null,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+});
+
+export const createMockResourceLimits = (overrides: Partial<ResourceLimits> = {}): ResourceLimits => ({
+    cpu_limit: '1000m',
+    memory_limit: '128Mi',
+    cpu_request: '1000m',
+    memory_request: '128Mi',
+    execution_timeout: 300,
+    supported_runtimes: { python: { versions: ['3.14', '3.13', '3.12', '3.11'], file_ext: 'py' } },
+    language_limits: { python: { cpu_limit: '1000m', memory_limit: '128Mi', execution_timeout: 300 } },
+    ...overrides,
+});
+
 /**
  * Selects an option in a <select> element by value.
  *
@@ -419,3 +491,33 @@ export function selectOption(element: HTMLElement, value: string): void {
     option.selected = true;
     element.dispatchEvent(new Event('change', { bubbles: true }));
 }
+
+export const createMockReplayResponse = (overrides: Partial<EventReplayResponse> = {}): EventReplayResponse => ({
+    dry_run: false,
+    total_events: 5,
+    replay_id: 'replay-1',
+    session_id: 'session-1',
+    status: ReplayStatus.SCHEDULED,
+    events_preview: null,
+    ...overrides,
+});
+
+export const createMockReplayStatus = (
+    overrides: Partial<EventReplayStatusResponse> = {},
+): EventReplayStatusResponse => ({
+    session_id: 'session-1',
+    status: ReplayStatus.SCHEDULED,
+    total_events: 5,
+    replayed_events: 0,
+    failed_events: 0,
+    skipped_events: 0,
+    replay_id: 'replay-1',
+    created_at: '2026-01-01T00:00:00Z',
+    started_at: null,
+    completed_at: null,
+    errors: null,
+    estimated_completion: null,
+    execution_results: null,
+    progress_percentage: 0,
+    ...overrides,
+});

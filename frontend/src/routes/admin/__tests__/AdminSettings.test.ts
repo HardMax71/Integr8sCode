@@ -4,41 +4,25 @@ import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import AdminSettings from '#routes/admin/settings/+page.svelte';
 
-function createMockSystemSettings() {
-    return {
-        max_timeout_seconds: 60,
-        memory_limit: '512Mi',
-        cpu_limit: '2000m',
-        max_concurrent_executions: 10,
-        max_executions_per_user: 100,
-        password_min_length: 8,
-        session_timeout_minutes: 30,
-        max_login_attempts: 5,
-        lockout_duration_minutes: 15,
-        metrics_retention_days: 30,
-        log_level: 'INFO',
-        enable_tracing: true,
-        sampling_rate: 0.5,
-    };
-}
-
 import {
     getSystemSettingsApiV1AdminSettingsGet,
     updateSystemSettingsApiV1AdminSettingsPut,
     resetSystemSettingsApiV1AdminSettingsResetPost,
+    zSystemSettingsSchemaOutput,
 } from '#lib/api/index.ts';
+
+// The spec's defaults, with a few values changed so the form shows something to check
+function createMockSystemSettings() {
+    return zSystemSettingsSchemaOutput.parse({
+        max_timeout_seconds: 60,
+        session_timeout_minutes: 30,
+        sampling_rate: 0.5,
+    });
+}
 
 const mocks = vi.hoisted(() => ({
     mockConfirm: vi.fn(),
-    mockAuthStore: {
-        isAuthenticated: true,
-        username: 'adminuser',
-        userRole: 'admin',
-        verifyAuth: vi.fn(),
-    },
 }));
-
-vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
 describe('AdminSettings', () => {
     beforeEach(() => {
@@ -129,21 +113,20 @@ describe('AdminSettings', () => {
     describe('Reset', () => {
         it('calls confirm, resets on true, updates form, shows toast', async () => {
             mocks.mockConfirm.mockReturnValue(true);
-            const resetData = {
+            const resetData = zSystemSettingsSchemaOutput.parse({
                 max_timeout_seconds: 30,
                 memory_limit: '256Mi',
                 cpu_limit: '1000m',
                 max_concurrent_executions: 5,
                 max_executions_per_user: 50,
-                password_min_length: 6,
-                session_timeout_minutes: 60,
+                password_min_length: 10,
                 max_login_attempts: 3,
                 lockout_duration_minutes: 10,
                 metrics_retention_days: 7,
                 log_level: 'WARNING',
                 enable_tracing: false,
                 sampling_rate: 1.0,
-            };
+            });
             mockApi(resetSystemSettingsApiV1AdminSettingsResetPost).ok(resetData);
 
             await renderAdminSettings();

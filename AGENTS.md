@@ -47,7 +47,7 @@ frontend/
     ├── components/          # Reusable UI: admin/, editor/, plus shared top-level components
     ├── lib/api/             # Generated API client, never edited by hand (see Frontend: API Client)
     ├── lib/admin/           # Admin utilities: events/, rate-limits/, sagas/, stores/
-    ├── lib/editor/          # Execution state, languages, runtime helpers (newestVersion)
+    ├── lib/editor/          # Execution state, CodeMirror languages
     ├── lib/notifications/   # Notification SSE stream
     ├── lib/auth-guard.ts    # requireAuth and requireAdmin for the layout guards
     ├── lib/query-client.ts  # the one TanStack Query client, provided by the root layout
@@ -463,7 +463,7 @@ class ExecutionService:
 - `Settings.SUPPORTED_RUNTIMES` and `ExecutionRequest` validation both derive from `LANGUAGE_SPECS`. Removing a version makes new executions, retries and saved-script writes on it fail with 422; stored scripts still load
 - Per-language pod settings go in the spec's optional `pod` key as a `PodRuntimeConfig` (env, tmp_size, min_cpu, min_memory, min_timeout_seconds). `POD_RUNTIME_CONFIGS` exposes them and the pod builder raises limits to those minimums. Only Go sets one today
 - Scripts mount at `/scripts/main.<ext>`. Every language needs an `EXAMPLE_SCRIPTS` entry, and the Python example must parse on every offered version
-- The frontend picks the newest version with `newestVersion()` from `#lib/editor/runtimes.ts`, so it doesn't rely on API ordering
+- The API lists each language's versions newest first, so the frontend takes `versions[0]` as the newest
 
 ## Backend: Settings (TOML, secrets from env)
 
@@ -710,7 +710,7 @@ A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations w
 
 ## Frontend: Auth Store
 
-- Auth state lives in `#stores/auth.svelte.ts` and persists to `sessionStorage` under one key, `authState`, as a JSON blob (`isAuthenticated`, `username`, `userId`, `userRole`, `userEmail`, `csrfToken`, `timestamp`)
+- Auth state lives in `#stores/auth.svelte.ts`: `isAuthenticated`, `user` (the generated `UserResponse`, never a copy of its fields) and `csrfToken`. It persists to `sessionStorage` under one key, `authState`, as a JSON blob with a `timestamp`, checked against `zUserResponse` when it's read back
 - The login page's mutation passes the response to `authStore.startSession(login)`, which stores the session and loads the full profile; the header's logout mutation calls `authStore.clearAuth()`, which also empties the query cache
 - `verifyAuth()` reads the profile through `queryClient.query()` with a 30-second stale time, so checks share one answer and one request; on a network or server error it returns the last answer (offline-first)
 - `authStore.waitForInit()` awaits one-time initialization before checking auth
@@ -804,6 +804,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 - Tests sit next to the source in `__tests__/` directories
 - `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()` and clears the query cache before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
 - bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
+- Fixtures use the generated types and the factories in `#test/test-utils.ts` (`createMockUser`, `createMockEvent`, `createMockReplayStatus` and the rest), never a local copy of an API type or an `as any`; `mockApi(fn).ok(data)` takes the data type from `fn`'s generated return type, and `mockStreamEvents(fn, ...events)` feeds an SSE function
 - Components that run queries render with `renderWithQueryClient(Component, props)`; stores that build queries are created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state

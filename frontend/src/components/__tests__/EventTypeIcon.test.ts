@@ -1,58 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
+import { EventType } from '#lib/api/index.ts';
 import EventTypeIcon from '#components/EventTypeIcon.svelte';
+
+const iconOf = (eventType: EventType) =>
+    render(EventTypeIcon, { props: { eventType } }).container.querySelector('svg')?.innerHTML;
 
 describe('EventTypeIcon', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    describe('known event types', () => {
+    describe('event types with their own icon', () => {
         it.each([
-            'execution.requested',
-            'execution_requested',
-            'execution.started',
-            'execution_started',
-            'execution.completed',
-            'execution_completed',
-            'execution.failed',
-            'execution_failed',
-            'execution.timeout',
-            'execution_timeout',
-            'pod.created',
-            'pod_created',
-            'pod.running',
-            'pod_running',
-            'pod.succeeded',
-            'pod_succeeded',
-            'pod.failed',
-            'pod_failed',
-            'pod.terminated',
-            'pod_terminated',
-        ])('renders SVG for "%s"', (eventType) => {
-            const { container } = render(EventTypeIcon, { props: { eventType } });
-            const svg = container.querySelector('svg');
-            expect(svg).toBeInTheDocument();
-            expect(svg?.classList.contains('lucide-help-circle')).toBe(false);
+            EventType.EXECUTION_REQUESTED,
+            EventType.EXECUTION_STARTED,
+            EventType.EXECUTION_COMPLETED,
+            EventType.EXECUTION_FAILED,
+            EventType.EXECUTION_TIMEOUT,
+            EventType.POD_CREATED,
+            EventType.POD_RUNNING,
+            EventType.POD_SUCCEEDED,
+            EventType.POD_FAILED,
+            EventType.POD_TERMINATED,
+        ])('renders a specific icon for %s', (eventType) => {
+            expect(iconOf(eventType)).toBeDefined();
+            expect(iconOf(eventType)).not.toBe(iconOf(EventType.USER_SETTINGS_UPDATED));
         });
     });
 
-    describe('unknown event type', () => {
-        it('renders fallback icon for unknown type', () => {
-            const { container } = render(EventTypeIcon, { props: { eventType: 'unknown.event' } });
+    describe('other event types', () => {
+        it('renders the fallback icon', () => {
+            const { container } = render(EventTypeIcon, { props: { eventType: EventType.USER_SETTINGS_UPDATED } });
             expect(container.querySelector('svg')).toBeInTheDocument();
-        });
-
-        it('renders a different icon than known types', () => {
-            const { container: unknownContainer } = render(EventTypeIcon, {
-                props: { eventType: 'unknown.event' },
-            });
-            const { container: knownContainer } = render(EventTypeIcon, {
-                props: { eventType: 'execution.started' },
-            });
-            expect(unknownContainer.querySelector('svg')?.innerHTML).not.toBe(
-                knownContainer.querySelector('svg')?.innerHTML,
-            );
         });
     });
 
@@ -62,7 +42,7 @@ describe('EventTypeIcon', () => {
             { size: 32, expected: '32', desc: 'passes custom size' },
         ])('$desc', ({ size, expected }) => {
             const { container } = render(EventTypeIcon, {
-                props: { eventType: 'execution.started', ...(size ? { size } : {}) },
+                props: { eventType: EventType.EXECUTION_STARTED, ...(size ? { size } : {}) },
             });
             const svg = container.querySelector('svg');
             expect(svg).toHaveAttribute('width', expected);

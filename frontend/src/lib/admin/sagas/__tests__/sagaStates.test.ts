@@ -1,15 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { SagaState } from '#lib/api/index.ts';
 import { SAGA_STATES, getSagaStateInfo } from '#lib/admin/sagas/sagaStates.ts';
 
 describe('sagaStates', () => {
     describe('SAGA_STATES', () => {
-        it('has all expected states', () => {
-            expect(SAGA_STATES.created).toBeDefined();
-            expect(SAGA_STATES.running).toBeDefined();
-            expect(SAGA_STATES.compensating).toBeDefined();
-            expect(SAGA_STATES.completed).toBeDefined();
-            expect(SAGA_STATES.failed).toBeDefined();
-            expect(SAGA_STATES.timeout).toBeDefined();
+        it('covers every state the API sends', () => {
+            expect(Object.keys(SAGA_STATES).sort()).toEqual(Object.values(SagaState).sort());
         });
 
         it('each state has required properties', () => {
@@ -28,16 +24,7 @@ describe('sagaStates', () => {
         });
 
         it('returns info for all valid states', () => {
-            const states = [
-                'created',
-                'running',
-                'compensating',
-                'completed',
-                'failed',
-                'timeout',
-                'cancelled',
-            ] as const;
-            for (const state of states) {
+            for (const state of Object.values(SagaState)) {
                 const info = getSagaStateInfo(state);
                 expect(info.color).toBeTruthy();
             }

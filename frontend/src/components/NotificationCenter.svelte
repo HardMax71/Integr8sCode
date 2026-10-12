@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { type Component } from 'svelte';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { authStore } from '#stores/auth.svelte.ts';
     import { goto } from '$app/navigation';
@@ -9,9 +8,11 @@
         getNotificationsApiV1NotificationsGetQueryKey,
         markAllReadApiV1NotificationsMarkAllReadPostMutation,
         markNotificationReadApiV1NotificationsNotificationIdReadPutMutation,
+        NotificationStatus,
         type NotificationResponse,
     } from '#lib/api/index.ts';
-    import { Bell, CircleAlert, TriangleAlert, CircleCheck, Info } from '@lucide/svelte';
+    import { notificationIcon, SEVERITY_COLORS } from '#lib/notifications/display.ts';
+    import { Bell } from '@lucide/svelte';
     import Spinner from '#components/Spinner.svelte';
     import { Popover } from 'bits-ui';
     import { formatRelativeTime } from '#lib/formatters.ts';
@@ -19,21 +20,6 @@
     const AUTO_READ_DELAY_MS = 2000;
 
     let showDropdown = $state(false);
-
-    function getNotificationIcon(tags: string[] = []): Component {
-        const set = new Set(tags || []);
-        if (set.has('failed') || set.has('error') || set.has('security')) return CircleAlert;
-        if (set.has('timeout') || set.has('warning')) return TriangleAlert;
-        if (set.has('completed') || set.has('success')) return CircleCheck;
-        return Info;
-    }
-
-    const priorityColors = {
-        low: 'text-fg-muted dark:text-dark-fg-muted',
-        medium: 'text-blue-600 dark:text-blue-400',
-        high: 'text-orange-600 dark:text-orange-400',
-        urgent: 'text-red-600 dark:text-red-400',
-    };
 
     const queryClient = useQueryClient();
     const signedIn = $derived(authStore.isAuthenticated === true);
@@ -80,7 +66,7 @@
     });
 
     function markAsRead(notification: NotificationResponse): void {
-        if (notification.status === 'read') return;
+        if (notification.status === NotificationStatus.READ) return;
         markRead.mutate({ path: { notification_id: notification.notification_id } });
     }
 
@@ -155,17 +141,17 @@
                     <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">No notifications yet</div>
                 {:else}
                     {#each notifications as notification}
-                        {@const NotifIcon = getNotificationIcon(notification.tags)}
+                        {@const NotifIcon = notificationIcon(notification.tags)}
                         <button
                             type="button"
                             class="block w-full text-left p-4 border-b border-border-default/50 dark:border-dark-border-default hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover cursor-pointer transition-colors"
-                            class:bg-blue-50={notification.status !== 'read'}
-                            class:dark:bg-blue-900={notification.status !== 'read'}
+                            class:bg-blue-50={notification.status !== NotificationStatus.READ}
+                            class:dark:bg-blue-900={notification.status !== NotificationStatus.READ}
                             onclick={() => handleNotificationClick(notification)}
                             aria-label="View notification: {notification.subject}"
                         >
                             <span class="flex items-start space-x-3">
-                                <span class={`mt-1 ${priorityColors[notification.severity || 'medium']}`}>
+                                <span class={`mt-1 ${SEVERITY_COLORS[notification.severity]}`}>
                                     <NotifIcon class="w-5 h-5" />
                                 </span>
                                 <span class="flex-1 min-w-0">
@@ -179,7 +165,7 @@
                                         {formatRelativeTime(notification.created_at)}
                                     </span>
                                 </span>
-                                {#if notification.status !== 'read'}
+                                {#if notification.status !== NotificationStatus.READ}
                                     <span class="w-2 h-2 bg-blue-500 rounded-full mt-2"></span>
                                 {/if}
                             </span>

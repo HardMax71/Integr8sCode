@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { userPrefersMode } from 'mode-watcher';
-import { getUserSettingsApiV1UserSettingsGet } from '#lib/api/index.ts';
+import { getUserSettingsApiV1UserSettingsGet, Theme, zUserSettings } from '#lib/api/index.ts';
 import { mockApi } from '#test/test-utils.ts';
 import Layout from '#routes/+layout.svelte';
 
@@ -58,11 +58,21 @@ describe('root layout', () => {
     it('applies the theme saved in the user settings once signed in', async () => {
         mocks.initialize.mockResolvedValue(true);
         mocks.authStore.isAuthenticated = true;
-        userPrefersMode.current = 'light';
-        mockApi(getUserSettingsApiV1UserSettingsGet).ok({ theme: 'dark' });
+        userPrefersMode.current = Theme.LIGHT;
+        mockApi(getUserSettingsApiV1UserSettingsGet).ok(
+            zUserSettings.parse({
+                user_id: 'user-1',
+                theme: Theme.DARK,
+                notifications: {},
+                editor: {},
+                custom_settings: {},
+                created_at: '2024-01-15T10:30:00Z',
+                updated_at: '2024-01-15T10:30:00Z',
+            }),
+        );
         render(Layout, { props: { children } });
 
-        await waitFor(() => expect(userPrefersMode.current).toBe('dark'));
+        await waitFor(() => expect(userPrefersMode.current).toBe(Theme.DARK));
         await waitFor(() => expect(screen.getByText('page body')).toBeInTheDocument());
     });
 });

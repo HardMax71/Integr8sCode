@@ -16,7 +16,6 @@ from app.services.sse.redis_bus import SSERedisBus
 
 _exec_adapter = TypeAdapter(SSEExecutionEventData)
 _notif_adapter = TypeAdapter(DomainNotificationSSEPayload)
-_replay_adapter = TypeAdapter(DomainReplaySSEPayload)
 
 
 class SSEService:
@@ -75,20 +74,22 @@ class SSEService:
 
     async def create_replay_stream(
         self, initial_status: DomainReplaySSEPayload
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        """Return the replay event stream generator.
+    ) -> AsyncGenerator[DomainReplaySSEPayload, None]:
+        """Return the replay status stream: the initial status, then each change until a terminal one.
 
-        Caller (route) handles validation and initial DB fetch.
+        Caller (route) handles validation, the initial DB fetch and the wire format.
         """
         return self._replay_pipeline(initial_status)
 
-    async def _replay_pipeline(self, initial_status: DomainReplaySSEPayload) -> AsyncGenerator[dict[str, Any], None]:
+    async def _replay_pipeline(
+        self, initial_status: DomainReplaySSEPayload
+    ) -> AsyncGenerator[DomainReplaySSEPayload, None]:
         session_id = initial_status.session_id
-        yield {"data": _replay_adapter.dump_json(initial_status).decode()}
+        yield initial_status
         if initial_status.status.is_terminal:
             return
         async for status in self._bus.listen_replay(session_id):
             self._logger.info("SSE replay event", session_id=session_id, status=status.status)
-            yield {"data": _replay_adapter.dump_json(status).decode()}
+            yield status
             if status.status.is_terminal:
                 return

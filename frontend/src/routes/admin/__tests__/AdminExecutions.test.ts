@@ -46,7 +46,7 @@ describe('AdminExecutions', () => {
             has_more: false,
         });
         mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(createMockQueueStatus());
-        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(null);
+        mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(createMockExecution());
     });
 
     describe('initial loading', () => {
@@ -181,7 +181,9 @@ describe('AdminExecutions', () => {
     describe('priority update', () => {
         it('successful update shows success toast', async () => {
             const execs = [createMockExecution({ execution_id: 'e1', priority: 'normal' })];
-            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok({ ...execs[0], priority: 'high' });
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).ok(
+                createMockExecution({ execution_id: 'e1', priority: 'high' }),
+            );
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');

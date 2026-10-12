@@ -7,6 +7,8 @@ import {
     createMockEvents,
     createMockStats,
     createMockEventDetail,
+    createMockReplayResponse,
+    createMockReplayStatus,
     createMockUserOverview,
     user,
     selectOption,
@@ -21,6 +23,10 @@ import {
     replayEventsApiV1AdminEventsReplayPost,
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
+    EventType,
+    ReplayStatus,
+    type EventReplayResponse,
+    type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 
@@ -30,6 +36,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 import AdminEvents from '#routes/admin/events/+page.svelte';
+
+// The replay status stream sends these statuses, then the server closes it
+function mockReplayStream(...statuses: EventReplayStatusResponse[]): void {
+    vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).mockImplementation(async () => ({
+        stream: (async function* () {
+            yield* statuses;
+        })(),
+    }));
+}
 
 async function renderWithEvents(events = createMockEvents(5), stats = createMockStats()) {
     mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events, total: events.length, skip: 0, limit: 10 });
@@ -46,14 +61,8 @@ describe('AdminEvents', () => {
         mockWindowGlobals(mocks.windowOpen, mocks.windowConfirm);
         vi.clearAllMocks();
         mockApi(browseEventsApiV1AdminEventsBrowsePost).ok({ events: [], total: 0, skip: 0, limit: 10 });
-        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(null);
-        mockApi(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).ok({
-            session_id: 'test',
-            status: 'completed',
-            total_events: 0,
-            replayed_events: 0,
-            progress_percentage: 100,
-        });
+        mockApi(getEventStatsApiV1AdminEventsStatsGet).ok(createMockStats());
+        mockReplayStream();
         mocks.windowConfirm.mockReturnValue(true);
     });
 
@@ -79,14 +88,10 @@ describe('AdminEvents', () => {
             });
         });
 
-        it('handles API error on load events and shows toast', async () => {
-            const error = { message: 'Network error' };
-            vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockImplementation(async () => {
-                toast.error('Failed to load events');
-                return { data: null, error } as any;
-            });
+        it('shows the empty state when the events fail to load', async () => {
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).err({ detail: 'Network error' });
             renderWithQueryClient(AdminEvents);
-            await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load events'));
+            expect(await screen.findByText(/No events found/i)).toBeInTheDocument();
         });
 
         it('displays empty state when no events', async () => {
@@ -384,14 +389,16 @@ describe('AdminEvents', () => {
     describe('replay functionality', () => {
         it('shows replay preview on dry run', async () => {
             const events = [createMockEvent({ event_id: 'evt-replay-1' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                dry_run: true,
-                total_events: 1,
-                replay_id: '',
-                session_id: null,
-                status: 'preview',
-                events_preview: events,
-            });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(
+                createMockReplayResponse({
+                    dry_run: true,
+                    total_events: 1,
+                    replay_id: '',
+                    session_id: null,
+                    status: ReplayStatus.PREVIEW,
+                    events_preview: events,
+                }),
+            );
             await renderWithEvents(events);
 
             const [previewBtn] = screen.getAllByTitle('Preview replay');
@@ -409,14 +416,7 @@ describe('AdminEvents', () => {
 
         it('confirms before actual replay', async () => {
             const events = [createMockEvent({ event_id: 'evt-replay-2' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                dry_run: false,
-                total_events: 1,
-                replay_id: 'replay-1',
-                session_id: 'session-1',
-                status: 'scheduled',
-                events_preview: null,
-            });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse({ total_events: 1 }));
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
@@ -445,21 +445,17 @@ describe('AdminEvents', () => {
 
         it('shows replay progress when session is active', async () => {
             const events = [createMockEvent({ event_id: 'evt-progress' })];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                dry_run: false,
-                total_events: 5,
-                replay_id: 'replay-p',
-                session_id: 'session-progress',
-                status: 'scheduled',
-                events_preview: null,
-            });
-            mockApi(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).ok({
-                session_id: 'session-progress',
-                status: 'in_progress',
-                total_events: 5,
-                replayed_events: 2,
-                progress_percentage: 40,
-            });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(
+                createMockReplayResponse({ session_id: 'session-progress' }),
+            );
+            mockReplayStream(
+                createMockReplayStatus({
+                    session_id: 'session-progress',
+                    status: ReplayStatus.RUNNING,
+                    replayed_events: 2,
+                    progress_percentage: 40,
+                }),
+            );
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
@@ -474,7 +470,7 @@ describe('AdminEvents', () => {
     describe('delete event', () => {
         it('confirms before deleting', async () => {
             const events = [createMockEvent({ event_id: 'evt-delete-1' })];
-            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({ message: 'Event deleted', event_id: 'evt-1' });
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
@@ -492,7 +488,7 @@ describe('AdminEvents', () => {
 
         it('shows success toast after deletion', async () => {
             const events = [createMockEvent()];
-            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({});
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).ok({ message: 'Event deleted', event_id: 'evt-1' });
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
@@ -514,21 +510,16 @@ describe('AdminEvents', () => {
             expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).not.toHaveBeenCalled();
         });
 
-        it('handles delete error and shows toast', async () => {
-            const error = { message: 'Cannot delete' };
-            vi.mocked(deleteEventApiV1AdminEventsEventIdDelete).mockImplementation(async () => {
-                toast.error('Failed to delete event');
-                return { data: null, error } as any;
-            });
+        it('reports no success when the delete fails', async () => {
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).err({ detail: 'Cannot delete' });
             const events = [createMockEvent()];
             await renderWithEvents(events);
 
             const [deleteBtn] = screen.getAllByTitle('Delete');
             await user.click(deleteBtn!);
 
-            await waitFor(() => {
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete event');
-            });
+            await waitFor(() => expect(vi.mocked(deleteEventApiV1AdminEventsEventIdDelete)).toHaveBeenCalled());
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalledWith('Event deleted successfully');
         });
     });
 
@@ -627,27 +618,21 @@ describe('AdminEvents', () => {
             });
         });
 
-        it('handles user overview load error and shows toast', async () => {
-            const error = { message: 'Failed to load' };
+        it('shows no data in the overview when it fails to load', async () => {
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err({ detail: 'Failed to load' });
             const events = [createMockEvent({ metadata: { user_id: 'user-error' } })];
-            vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet).mockImplementation(async () => {
-                toast.error('Failed to load user overview');
-                return { data: null, error } as any;
-            });
             await renderWithEvents(events);
 
             const [userLink] = screen.getAllByText('user-error');
             await user.click(userLink!);
 
-            await waitFor(() => {
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load user overview');
-            });
+            expect(await screen.findByText('No data available')).toBeInTheDocument();
         });
     });
 
     describe('event type display', () => {
         it('shows correct color for completed events', async () => {
-            const events = [createMockEvent({ event_type: 'execution_completed' })];
+            const events = [createMockEvent({ event_type: EventType.EXECUTION_COMPLETED })];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_completed');
@@ -655,7 +640,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows correct color for failed events', async () => {
-            const events = [createMockEvent({ event_type: 'execution_failed' })];
+            const events = [createMockEvent({ event_type: EventType.EXECUTION_FAILED })];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_failed');
@@ -663,7 +648,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows correct color for started events', async () => {
-            const events = [createMockEvent({ event_type: 'execution_started' })];
+            const events = [createMockEvent({ event_type: EventType.EXECUTION_STARTED })];
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_started');
@@ -686,38 +671,29 @@ describe('AdminEvents', () => {
     });
 
     describe('error handling', () => {
-        it('handles event detail load error and shows toast', async () => {
-            const error = { message: 'Detail not found' };
-            vi.mocked(getEventDetailApiV1AdminEventsEventIdGet).mockImplementation(async () => {
-                toast.error('Failed to load event details');
-                return { data: null, error } as any;
-            });
+        it('opens no details when the event fails to load', async () => {
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ detail: 'Detail not found' });
             const events = [createMockEvent()];
             await renderWithEvents(events);
 
             const [eventRow] = screen.getAllByRole('button', { name: /View details for event/i });
             await user.click(eventRow!);
 
-            await waitFor(() => {
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to load event details');
-            });
+            await waitFor(() => expect(vi.mocked(getEventDetailApiV1AdminEventsEventIdGet)).toHaveBeenCalled());
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         });
 
-        it('handles replay error and shows toast', async () => {
-            const error = { message: 'Replay failed' };
-            vi.mocked(replayEventsApiV1AdminEventsReplayPost).mockImplementation(async () => {
-                toast.error('Failed to replay event');
-                return { data: null, error } as any;
-            });
+        it('starts no progress tracking when the replay fails', async () => {
+            mockApi(replayEventsApiV1AdminEventsReplayPost).err({ detail: 'Replay failed' });
             const events = [createMockEvent()];
             await renderWithEvents(events);
 
             const [replayBtn] = screen.getAllByTitle('Replay');
             await user.click(replayBtn!);
 
-            await waitFor(() => {
-                expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to replay event');
-            });
+            await waitFor(() => expect(vi.mocked(replayEventsApiV1AdminEventsReplayPost)).toHaveBeenCalled());
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
+            expect(vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet)).not.toHaveBeenCalled();
         });
     });
 });

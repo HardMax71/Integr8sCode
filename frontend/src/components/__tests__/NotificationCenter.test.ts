@@ -11,17 +11,13 @@ import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
     markNotificationReadApiV1NotificationsNotificationIdReadPut,
+    NotificationSeverity,
     type NotificationResponse,
 } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
         isAuthenticated: true as boolean | null,
-        username: 'testuser' as string | null,
-        userId: 'user-123' as string | null,
-        userRole: null as string | null,
-        userEmail: null as string | null,
-        csrfToken: null as string | null,
     },
     mockGoto: vi.fn(),
     mockStreamConnect: vi.fn(),
@@ -103,12 +99,16 @@ const iconTestCases = [
     { tags: [] as string[], iconClass: 'lucide-info', desc: 'info' },
 ];
 
-const priorityTestCases = [
-    { severity: 'low' as const, css: '.text-fg-muted' },
-    { severity: 'medium' as const, css: '.text-blue-600' },
-    { severity: 'high' as const, css: '.text-orange-600' },
-    { severity: 'urgent' as const, css: '.text-red-600' },
-];
+const SEVERITY_CSS: Record<NotificationSeverity, string> = {
+    low: '.text-fg-muted',
+    medium: '.text-blue-600',
+    high: '.text-orange-600',
+    urgent: '.text-red-600',
+};
+const priorityTestCases = Object.values(NotificationSeverity).map((severity) => ({
+    severity,
+    css: SEVERITY_CSS[severity],
+}));
 
 const timeTestCases = [
     { offsetMs: 0, expected: 'just now' },
@@ -144,14 +144,12 @@ describe('NotificationCenter', () => {
 
     beforeEach(() => {
         mocks.mockAuthStore.isAuthenticated = true;
-        mocks.mockAuthStore.username = 'testuser';
-        mocks.mockAuthStore.userId = 'user-123';
         setNotifications([]);
         mocks.mockGoto.mockReset();
         vi.mocked(getNotificationsApiV1NotificationsGet).mockClear();
         markRead.mockClear();
-        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok({});
-        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok({});
+        mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
+        mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
         mocks.mockStreamConnect.mockReset();
         mocks.mockStreamDisconnect.mockReset();
         mockNotificationPermission = 'default';

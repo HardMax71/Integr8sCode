@@ -10,6 +10,8 @@ import {
     streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
     client,
     ExportFormat,
+    ReplayStatus,
+    zExportEventsApiV1AdminEventsExportExportFormatGetQuery,
     type ExportEventsApiV1AdminEventsExportExportFormatGetData,
     type EventBrowseResponse,
     type EventFilter,
@@ -55,7 +57,7 @@ class EventsStore {
     }));
 
     stats = createQuery(() => ({
-        ...getEventStatsApiV1AdminEventsStatsGetOptions({ query: { hours: 24 } }),
+        ...getEventStatsApiV1AdminEventsStatsGetOptions(),
         refetchInterval: POLL_INTERVAL_MS,
     }));
 
@@ -126,25 +128,7 @@ class EventsStore {
         }
 
         toast.success(`Replay scheduled! Tracking progress...`);
-        const sessionId = response.session_id;
-        if (!sessionId) return;
-        this.activeReplaySession = {
-            session_id: sessionId,
-            status: 'scheduled',
-            total_events: response.total_events,
-            replayed_events: 0,
-            progress_percentage: 0,
-            failed_events: 0,
-            skipped_events: 0,
-            replay_id: response.replay_id,
-            created_at: new Date().toISOString(),
-            started_at: null,
-            completed_at: null,
-            errors: null,
-            estimated_completion: null,
-            execution_results: null,
-        };
-        this.connectReplayStream(sessionId);
+        if (response.session_id) this.connectReplayStream(response.session_id);
     }
 
     connectReplayStream(sessionId: string): void {
@@ -163,19 +147,14 @@ class EventsStore {
             sseMaxRetryAttempts: 3,
         });
 
+        // The server sends the whole session first and on every change, and closes the stream once it ends
         for await (const status of stream) {
-            if (signal.aborted || !this.activeReplaySession) return;
-            const pct = status.total_events > 0 ? Math.round((status.replayed_events / status.total_events) * 100) : 0;
-            this.activeReplaySession = { ...this.activeReplaySession, ...status, progress_percentage: pct };
-
-            if (status.status === 'completed') {
+            if (signal.aborted) return;
+            this.activeReplaySession = status;
+            if (status.status === ReplayStatus.COMPLETED) {
                 toast.success(`Replay completed! Processed ${status.replayed_events} events successfully.`);
-            } else if (status.status === 'failed') {
+            } else if (status.status === ReplayStatus.FAILED) {
                 toast.error(`Replay failed: ${status.errors?.[0]?.error || 'Unknown error'}`);
-            }
-            if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
-                this.disconnectReplayStream();
-                return;
             }
         }
     }
@@ -187,25 +166,22 @@ class EventsStore {
         }
     }
 
+    dismissReplay(): void {
+        this.disconnectReplayStream();
+        this.activeReplaySession = null;
+    }
+
     deleteEvent(eventId: string): void {
         if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
         this.#delete.mutate({ path: { event_id: eventId } });
     }
 
     exportEvents(format: ExportFormat = ExportFormat.CSV): void {
-        const { event_types, start_time, end_time, aggregate_id, user_id, service_name } = this.appliedFilters;
         // A plain navigation lets the browser stream a large export to disk instead of buffering it
         const url = client.buildUrl<ExportEventsApiV1AdminEventsExportExportFormatGetData>({
             url: '/api/v1/admin/events/export/{export_format}',
             path: { export_format: format },
-            query: {
-                event_types: event_types?.length ? event_types : undefined,
-                start_time: start_time ?? undefined,
-                end_time: end_time ?? undefined,
-                aggregate_id: aggregate_id || undefined,
-                user_id: user_id || undefined,
-                service_name: service_name || undefined,
-            },
+            query: zExportEventsApiV1AdminEventsExportExportFormatGetQuery.parse(this.appliedFilters),
         });
         window.open(url, '_blank');
         toast.info(`Starting ${format} export...`);

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import type { EventReplayStatusResponse } from '#lib/api/index.ts';
+    import type { EventReplayStatusResponse, ExecutionStatus } from '#lib/api/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
@@ -9,6 +9,18 @@
     }
 
     let { session, onClose }: Props = $props();
+
+    const pending = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+    const resultColors: Record<ExecutionStatus, string> = {
+        queued: pending,
+        scheduled: pending,
+        running: pending,
+        completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+        timeout: pending,
+        cancelled: pending,
+        error: pending,
+    };
 </script>
 
 {#if session}
@@ -71,13 +83,7 @@
                                 <div>
                                     <span class="font-mono text-xs text-neutral-500">{result.execution_id}</span>
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span
-                                            class="px-2 py-0.5 rounded text-xs {result.status === 'completed'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : result.status === 'failed'
-                                                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}"
-                                        >
+                                        <span class="px-2 py-0.5 rounded text-xs {resultColors[result.status]}">
                                             {result.status}
                                         </span>
                                         {#if result.resource_usage?.execution_time_wall_seconds}

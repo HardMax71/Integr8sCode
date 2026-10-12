@@ -1,9 +1,9 @@
 name: Release & Deploy
 
 on:
-  workflow_run:
-    workflows: ["Docker Scan & Promote"]
-    types: [completed]
+  schedule:
+    - cron: '0 23 * * *'
+      timezone: 'Europe/Berlin'
   workflow_dispatch:
     inputs:
       skip_deploy:
@@ -12,59 +12,28 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: release-deploy
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
 
 jobs:
   release:
     name: Create CalVer Release
-    if: >
-      (github.event_name == 'workflow_dispatch' && github.ref_name == 'main') ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
     outputs:
-      version: ${{ steps.calver.outputs.version }}
-      sha: ${{ steps.sha.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
-
-      - name: Determine SHA
-        id: sha
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SHA="${{ github.sha }}"
-          else
-            SHA="${{ github.event.workflow_run.head_sha }}"
-          fi
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "short-sha=${SHA::7}" >> $GITHUB_OUTPUT
-          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_OUTPUT
-
-      - name: Compute CalVer tag
-        id: calver
-        run: |
-          YEAR=$(date +%Y)
-          MONTH=$(date +%-m)
-          PATTERN="^${YEAR}\\.${MONTH}\\.[0-9]+$"
-          git fetch --tags
-
-          HIGHEST=$(git tag -l | grep -E "$PATTERN" | \
-            awk -F. '{print $3}' | sort -n | tail -1)
-
-          if [ -z "$HIGHEST" ]; then
-            PATCH=0
-          else
-            PATCH=$((HIGHEST + 1))
-          fi
-
-          VERSION="${YEAR}.${MONTH}.${PATCH}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
@@ -76,27 +45,75 @@ jobs:
       - name: Install crane
         uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b  # v0.7
 
+      # latest is the newest build that passed Stack Tests and the scan, which can be behind main's head
+      - name: Find the commit latest was built from
+        id: sha
+        run: |
+          IMG="$REGISTRY/${GITHUB_REPOSITORY_OWNER,,}/integr8scode/backend"
+          LATEST=$(crane digest "$IMG:latest")
+          for SHA in $(git rev-list -n 100 HEAD); do
+            if [ "$(crane digest "$IMG:sha-${SHA::7}" 2>/dev/null)" = "$LATEST" ]; then
+              echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+              echo "short-sha=${SHA::7}" >> "$GITHUB_OUTPUT"
+              echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::error::backend:latest matches none of the last 100 commits on main"
+          exit 1
+
+      - name: Pick the version
+        id: version
+        run: |
+          SHA="${{ steps.sha.outputs.sha }}"
+          git fetch --tags --force
+          RELEASED=$(git tag --points-at "$SHA" | grep -E '^[0-9]{4}\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          if [ -n "$RELEASED" ]; then
+            echo "version=$RELEASED" >> $GITHUB_OUTPUT
+            echo "new=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          YEAR=$(date +%Y)
+          MONTH=$(date +%-m)
+          PATTERN="^${YEAR}\.${MONTH}\.[0-9]+$"
+          HIGHEST=$(git tag -l | grep -E "$PATTERN" | \
+            awk -F. '{print $3}' | sort -n | tail -1)
+
+          if [ -z "$HIGHEST" ]; then
+            PATCH=0
+          else
+            PATCH=$((HIGHEST + 1))
+          fi
+
+          echo "version=${YEAR}.${MONTH}.${PATCH}" >> $GITHUB_OUTPUT
+          echo "new=true" >> $GITHUB_OUTPUT
+
       - name: Tag images with CalVer version
+        if: steps.version.outputs.new == 'true'
         run: |
           PREFIX="${GITHUB_REPOSITORY_OWNER,,}/integr8scode"
-          VERSION="${{ steps.calver.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="sha-${{ steps.sha.outputs.short-sha }}"
           for img in base backend frontend cert-generator; do
-            crane copy "$REGISTRY/$PREFIX/$img:latest" "$REGISTRY/$PREFIX/$img:$VERSION"
+            crane copy "$REGISTRY/$PREFIX/$img:$TAG" "$REGISTRY/$PREFIX/$img:$VERSION"
           done
 
       - name: Create Git tag
+        if: steps.version.outputs.new == 'true'
         run: |
-          VERSION="${{ steps.calver.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VERSION" -m "Release $VERSION"
+          git tag -a "$VERSION" "${{ steps.sha.outputs.sha }}" -m "Release $VERSION"
           git push origin "$VERSION"
 
       - name: Create GitHub Release
+        if: steps.version.outputs.new == 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
-          tag_name: ${{ steps.calver.outputs.version }}
-          name: ${{ steps.calver.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
           body: |
             **Commit**: `${{ steps.sha.outputs.short-sha }}`
@@ -104,15 +121,15 @@ jobs:
             ### Docker Images
 
             ```
-            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/backend:${{ steps.calver.outputs.version }}
-            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/frontend:${{ steps.calver.outputs.version }}
+            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/backend:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/${{ steps.sha.outputs.owner }}/integr8scode/frontend:${{ steps.version.outputs.version }}
             ```
 
   deploy:
     name: Deploy to Production
     needs: [release]
     if: >
-      (github.event_name == 'workflow_run') ||
+      (github.event_name == 'schedule' && needs.release.outputs.new == 'true') ||
       (github.event_name == 'workflow_dispatch' && !inputs.skip_deploy)
     runs-on: ubuntu-latest
     steps:
@@ -153,7 +170,9 @@ jobs:
             # Images the running stack doesn't use; old tags can be pulled from GHCR again
             docker image prune -af || true
 
-            git pull origin main
+            # The server runs the compose file and config of the release, not whatever main has since
+            git fetch --tags --force origin
+            git checkout --detach "$IMAGE_TAG"
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
@@ -189,7 +208,9 @@ jobs:
         run: |
           echo "## Release & Deploy" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.release.result }}" = "success" ]; then
+          if [ "${{ needs.release.outputs.new }}" = "false" ]; then
+            echo "- Nothing new since **${{ needs.release.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.release.result }}" = "success" ]; then
             echo "- Release **${{ needs.release.outputs.version }}** created" >> $GITHUB_STEP_SUMMARY
           else
             echo "- Release: **${{ needs.release.result }}**" >> $GITHUB_STEP_SUMMARY

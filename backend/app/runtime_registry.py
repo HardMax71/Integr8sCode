@@ -126,7 +126,7 @@ DEFAULT_LANG_VERSION = LANGUAGE_SPECS[DEFAULT_LANG]["versions"][0]
 
 # --8<-- [start:EXAMPLE_SCRIPTS]
 EXAMPLE_SCRIPTS: dict[str, str] = {
-    "python": """
+    "python": """\
 import itertools
 import platform
 
@@ -154,7 +154,7 @@ if hasattr(itertools, "batched"):
 else:
     print("itertools.batched() is not available on this version (needs Python 3.12+).")
 """,
-    "node": """
+    "node": """\
 console.log(`Hello from Node.js ${process.version}!`);
 
 // Promise.withResolvers() (Node.js 22+) works on every offered version.
@@ -169,7 +169,7 @@ if (typeof RegExp.escape === 'function') {
   console.log('RegExp.escape() is not available on this version (needs Node.js 24+).');
 }
 """,
-    "ruby": """
+    "ruby": """\
 puts "Hello from Ruby #{RUBY_VERSION}!"
 
 # Data objects (Ruby 3.2+) work on every offered version.
@@ -184,7 +184,7 @@ else
   puts "Array#fetch_values is not available on this version (needs Ruby 3.4+)."
 end
 """,
-    "bash": """
+    "bash": """\
 echo "Hello from Bash version $BASH_VERSION"
 echo "Bash major version: ${BASH_VERSINFO[0]}"
 echo "Bash minor version: ${BASH_VERSINFO[1]}"
@@ -202,7 +202,7 @@ else
     echo "The \\${ command; } substitution is not available in this Bash version (needs Bash 5.3+)."
 fi
 """,
-    "go": """
+    "go": """\
 package main
 
 import (

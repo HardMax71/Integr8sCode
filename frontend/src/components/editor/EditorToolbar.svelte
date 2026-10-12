@@ -1,14 +1,8 @@
 <script lang="ts">
     import { Lightbulb } from '@lucide/svelte';
     import { fieldTitle } from '#lib/formatters.ts';
-
-    interface Props {
-        name: string;
-        onexample: () => void;
-        onchange: (name: string) => void;
-    }
-
-    let { name, onexample, onchange }: Props = $props();
+    import { draft } from '#lib/editor/index.ts';
+    import LoadExample from '#components/editor/LoadExample.svelte';
 </script>
 
 <div
@@ -21,19 +15,13 @@
             type="text"
             class="form-input-bare"
             placeholder="Unnamed Script"
-            value={name}
-            oninput={(e) => onchange(e.currentTarget.value)}
+            bind:value={draft.current.name}
         />
     </div>
     <div class="flex items-center space-x-2">
-        <button
-            type="button"
-            class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5"
-            onclick={onexample}
-            title="Load an example script for the selected language"
-        >
+        <LoadExample class="btn btn-secondary-outline btn-sm inline-flex items-center space-x-1.5">
             <Lightbulb class="w-4 h-4" />
             <span class="hidden sm:inline">Example</span>
-        </button>
+        </LoadExample>
     </div>
 </div>

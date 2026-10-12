@@ -5562,11 +5562,18 @@
         "properties": {
           "font_size": {
             "type": "integer",
+            "maximum": 32.0,
+            "minimum": 8.0,
             "title": "Font Size",
             "default": 14
           },
           "tab_size": {
             "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ],
             "title": "Tab Size",
             "default": 4
           },
@@ -5594,11 +5601,18 @@
         "properties": {
           "font_size": {
             "type": "integer",
+            "maximum": 32.0,
+            "minimum": 8.0,
             "title": "Font Size",
             "default": 14
           },
           "tab_size": {
             "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ],
             "title": "Tab Size",
             "default": 4
           },

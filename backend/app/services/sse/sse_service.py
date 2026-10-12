@@ -59,6 +59,20 @@ class SSEService:
                 )
             ).decode()
         }
+        # The terminal events went out before this subscription, so a finished execution gets its result and closes
+        if execution.status.is_terminal:
+            result = await self._execution_repository.get_terminal_result(execution_id)
+            yield {
+                "data": _exec_adapter.dump_json(
+                    SSEExecutionEventData(
+                        event_type=EventType.RESULT_STORED,
+                        execution_id=execution_id,
+                        timestamp=execution.updated_at,
+                        result=result,
+                    )
+                ).decode()
+            }
+            return
         async for event in self._bus.listen_execution(execution_id):
             if event.event_type == EventType.RESULT_STORED:
                 result = await self._execution_repository.get_terminal_result(execution_id)

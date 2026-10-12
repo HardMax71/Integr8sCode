@@ -9,11 +9,14 @@ from app.domain.events import (
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
+    PodRunningEvent,
+    PodScheduledEvent,
     ResultFailedEvent,
     ResultStoredEvent,
 )
 from app.domain.execution import ExecutionNotFoundError, ExecutionResultDomain
 from app.events import PRODUCE_ERRORS, UnifiedProducer
+from app.infrastructure.kafka.topics import POD_EVENT_STATUS
 from app.runtime_registry import parse_quantity
 from app.services.runtime_settings import RuntimeSettingsLoader
 
@@ -34,6 +37,12 @@ class ResultProcessor:
         self._runtime_settings = runtime_settings
         self._metrics = execution_metrics
         self.logger = logger
+
+    async def handle_pod_progress(self, event: PodScheduledEvent | PodRunningEvent) -> None:
+        """Move the stored execution status forward when its pod is scheduled or starts running."""
+        status = POD_EVENT_STATUS[event.event_type]
+        if await self._execution_repo.advance_status(event.execution_id, status):
+            self.logger.info("Execution status advanced", execution_id=event.execution_id, status=status)
 
     async def handle_execution_completed(self, event: DomainEvent) -> None:
         """Handle execution completed event."""

@@ -1,6 +1,6 @@
 # Result processor
 
-The result processor writes the final state of every execution that reaches the k8s worker. The only other writer is the API, which marks an execution `error` when it can't publish `execution_requested`. It consumes `execution_completed`, `execution_failed` and `execution_timeout` with group id `result-processor`, one message per poll, and each handler runs behind a Redis idempotency key.
+The result processor writes the final state of every execution that reaches the k8s worker. The only other writer is the API, which marks an execution `error` when it can't publish `execution_requested`. It consumes `execution_completed`, `execution_failed` and `execution_timeout` with group id `result-processor`, one message per poll, and each handler runs behind a Redis idempotency key. It also consumes `pod_scheduled` and `pod_running`, and moves the stored status forward to `scheduled` or `running`; that update only applies from an earlier active status, so it never goes back and never overwrites a terminal one.
 
 ```mermaid
 graph LR

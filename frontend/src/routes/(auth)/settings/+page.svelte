@@ -11,6 +11,7 @@
         type UserSettingsUpdate,
         Theme,
         zEditorSettingsInput,
+        type EditorSettingsOutput,
         zNotificationSettingsInput,
         zUserSettings,
     } from '#lib/api/index.ts';
@@ -36,6 +37,8 @@
     ];
 
     const themes = Object.values(Theme);
+
+    const tabSizes: EditorSettingsOutput['tab_size'][] = [2, 4, 8];
 
     function toForm(data: UserSettings): SettingsForm {
         return {
@@ -236,8 +239,6 @@
                                     id="font-size"
                                     type="number"
                                     bind:value={formData.editor.font_size}
-                                    min="10"
-                                    max="24"
                                     class="form-input-standard"
                                 />
                             </div>
@@ -248,14 +249,13 @@
                                         >{fieldTitle('tab_size')}</span
                                     >
                                 </label>
-                                <input
+                                <select
                                     id="tab-size"
-                                    type="number"
                                     bind:value={formData.editor.tab_size}
-                                    min="2"
-                                    max="8"
-                                    class="form-input-standard"
-                                />
+                                    class="form-select-standard"
+                                >
+                                    {#each tabSizes as size (size)}<option value={size}>{size}</option>{/each}
+                                </select>
                             </div>
                         </div>
 

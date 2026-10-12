@@ -1,4 +1,5 @@
 import { createMutation } from '@tanstack/svelte-query';
+import { Context } from 'runed';
 import {
     createExecutionApiV1ExecutePostMutation,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
@@ -121,5 +122,8 @@ class ExecutionState {
 export function createExecutionState() {
     return new ExecutionState();
 }
+
+/** The page's execution, for the components that replace the script to clear its output */
+export const executionContext = new Context<ExecutionState>('execution');
 
 export type { ExecutionState };

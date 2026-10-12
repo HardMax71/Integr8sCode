@@ -124,6 +124,8 @@ def test_pod_runtime_configs_default_unless_a_language_needs_more() -> None:
 def test_every_language_has_an_example_script() -> None:
     assert set(EXAMPLE_SCRIPTS) == set(LANGUAGE_SPECS)
     assert all(script.strip() for script in EXAMPLE_SCRIPTS.values())
+    # The editor loads them as they are, so none may start with a blank line or indentation
+    assert all(script == script.lstrip() for script in EXAMPLE_SCRIPTS.values())
 
 
 @pytest.mark.parametrize("version", LANGUAGE_SPECS["python"]["versions"])

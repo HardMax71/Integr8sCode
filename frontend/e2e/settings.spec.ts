@@ -66,10 +66,9 @@ test.describe('Settings Editor Tab', () => {
   test('can change tab size', async ({ userPage }) => {
     await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'Editor' }).click();
-    const tabSizeInput = userPage.locator('#tab-size');
-    await tabSizeInput.fill('');
-    await tabSizeInput.fill('2');
-    await expect(tabSizeInput).toHaveValue('2');
+    const tabSize = userPage.locator('#tab-size');
+    await tabSize.selectOption('2');
+    await expect(tabSize).toHaveValue('2');
   });
 
   test('can toggle word wrap setting', async ({ userPage }) => {

@@ -114,17 +114,15 @@
         applySettings();
     });
 
-    export function setContent(newContent: string) {
-        if (!view) return;
-        view.dispatch({
-            changes: { from: 0, to: view.state.doc.length, insert: newContent },
-            selection: { anchor: 0 },
-        });
-    }
-
-    export function getView(): EditorView | null {
-        return view;
-    }
+    // A script replaced from outside (opened, uploaded, an example) goes into the editor
+    $effect(() => {
+        if (view && content !== view.state.doc.toString()) {
+            view.dispatch({
+                changes: { from: 0, to: view.state.doc.length, insert: content },
+                selection: { anchor: 0 },
+            });
+        }
+    });
 </script>
 
 <div bind:this={container} class="editor-wrapper h-full w-full"></div>

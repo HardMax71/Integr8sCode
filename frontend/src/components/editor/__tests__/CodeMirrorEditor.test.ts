@@ -143,6 +143,15 @@ describe('CodeMirrorEditor', () => {
         }
     });
 
+    it('puts content replaced from outside into the editor', async () => {
+        const { rerender } = renderEditor();
+        await waitFor(() => expect(mocks.editorViewConstructor).toHaveBeenCalled());
+        await rerender({ content: 'print(1)' });
+        expect(mocks.dispatchFn).toHaveBeenCalledWith(
+            expect.objectContaining({ changes: { from: 0, to: 0, insert: 'print(1)' } }),
+        );
+    });
+
     it('destroys EditorView on unmount', async () => {
         const { unmount } = renderEditor();
         await waitFor(() => expect(mocks.editorViewConstructor).toHaveBeenCalled());

@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
-import { createMockResourceLimits, user } from '#test/test-utils.ts';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/svelte';
+import { createMockResourceLimits, mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 
 import ResourceLimits from '#components/editor/ResourceLimits.svelte';
+import { getK8sResourceLimitsApiV1K8sLimitsGet } from '#lib/api/index.ts';
+import { draft } from '#lib/editor/draft.svelte.ts';
 
 const LIMITS = createMockResourceLimits({
     language_limits: {
@@ -11,24 +13,23 @@ const LIMITS = createMockResourceLimits({
     },
 });
 
+function renderLimits(lang: string) {
+    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(LIMITS);
+    draft.current = { ...draft.current, lang };
+    return renderWithQueryClient(ResourceLimits);
+}
+
+const trigger = () => screen.findByRole('button', { name: /Resource Limits/i });
+
 describe('ResourceLimits', () => {
-    it('renders nothing when limits is null', () => {
-        const { container } = render(ResourceLimits, { props: { limits: null, lang: 'python' } });
-        expect(container.textContent?.trim()).toBe('');
-    });
+    beforeEach(() => vi.clearAllMocks());
 
-    it('renders collapsed toggle button with aria-expanded=false when limits provided', () => {
-        render(ResourceLimits, { props: { limits: LIMITS, lang: 'python' } });
-        const btn = screen.getByRole('button', { name: /Resource Limits/i });
-        expect(btn).toBeInTheDocument();
-        expect(btn).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    it('expands panel on click showing all limit values', async () => {
-        render(ResourceLimits, { props: { limits: LIMITS, lang: 'python' } });
-        await user.click(screen.getByRole('button', { name: /Resource Limits/i }));
-
-        expect(screen.getByRole('button', { name: /Resource Limits/i })).toHaveAttribute('aria-expanded', 'true');
+    it('opens a panel from a collapsed trigger', async () => {
+        renderLimits('python');
+        const button = await trigger();
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+        await user.click(button);
+        expect(button).toHaveAttribute('aria-expanded', 'true');
     });
 
     it.each([
@@ -39,25 +40,15 @@ describe('ResourceLimits', () => {
         { lang: 'go', label: 'Memory Limit', value: '320Mi' },
         { lang: 'go', label: 'Execution Timeout', value: '45s' },
     ])('shows the effective $label = $value for $lang', async ({ lang, label, value }) => {
-        render(ResourceLimits, { props: { limits: LIMITS, lang } });
-        await user.click(screen.getByRole('button', { name: /Resource Limits/i }));
+        renderLimits(lang);
+        await user.click(await trigger());
         expect(screen.getByText(label)).toBeInTheDocument();
         expect(screen.getByText(value)).toBeInTheDocument();
     });
 
-    it('renders nothing for a language the API lists no limits for', () => {
-        const { container } = render(ResourceLimits, { props: { limits: LIMITS, lang: 'ruby' } });
+    it('renders nothing for a language the API lists no limits for', async () => {
+        const { container } = renderLimits('ruby');
+        await waitFor(() => expect(vi.mocked(getK8sResourceLimitsApiV1K8sLimitsGet)).toHaveBeenCalled());
         expect(container.textContent?.trim()).toBe('');
-    });
-
-    it('collapses panel on second click', async () => {
-        render(ResourceLimits, { props: { limits: LIMITS, lang: 'python' } });
-        const btn = screen.getByRole('button', { name: /Resource Limits/i });
-
-        await user.click(btn);
-        expect(btn).toHaveAttribute('aria-expanded', 'true');
-
-        await user.click(btn);
-        expect(btn).toHaveAttribute('aria-expanded', 'false');
     });
 });

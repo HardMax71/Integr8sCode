@@ -37,7 +37,7 @@ Group IDs are string literals in `app/events/handlers.py`. The `KAFKA_CONSUMER_G
 |-------|---------|--------|
 | `saga-orchestrator` | saga-orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
 | `k8s-worker` | k8s-worker | `create_pod_command`, `delete_pod_command` |
-| `result-processor` | result-processor | `execution_completed`, `execution_failed`, `execution_timeout` |
+| `result-processor` | result-processor | `execution_completed`, `execution_failed`, `execution_timeout`, `pod_scheduled`, `pod_running` |
 | `notification-service` | API | `execution_completed`, `execution_failed`, `execution_timeout` |
 | `sse-bridge-pool` | API | 17 types: every `execution_*` event except `execution_accepted`, all seven `pod_*` events, `result_stored` and `result_failed` |
 

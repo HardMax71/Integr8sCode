@@ -11,6 +11,8 @@ from app.domain.events import (
     ExecutionCompletedEvent,
     ExecutionFailedEvent,
     ExecutionTimeoutEvent,
+    PodRunningEvent,
+    PodScheduledEvent,
     ResourceUsageDomain,
 )
 from app.domain.execution import ExecutionNotFoundError
@@ -181,3 +183,24 @@ class TestHandleExecutionTimeout:
         assert result_arg.status == ExecutionStatus.TIMEOUT
         assert result_arg.exit_code == -1
         producer.produce.assert_awaited_once()
+
+
+class TestPodProgress:
+    """Pod events move the stored execution status forward."""
+
+    @pytest.mark.parametrize(
+        ("event", "status"),
+        [
+            (PodScheduledEvent(execution_id="e1", pod_name="p", metadata=_METADATA), ExecutionStatus.SCHEDULED),
+            (PodRunningEvent(execution_id="e1", pod_name="p", metadata=_METADATA), ExecutionStatus.RUNNING),
+        ],
+    )
+    async def test_advances_status(
+        self, execution_metrics: ExecutionMetrics, event: PodScheduledEvent | PodRunningEvent, status: ExecutionStatus
+    ) -> None:
+        repo = AsyncMock()
+        processor = _make_processor(execution_metrics, exec_repo=repo)
+
+        await processor.handle_pod_progress(event)
+
+        repo.advance_status.assert_awaited_once_with("e1", status)

@@ -149,11 +149,13 @@ jobs:
           MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
           MONGO_MONITOR_PASSWORD: ${{ secrets.MONGO_MONITOR_PASSWORD }}
           SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
+          DEFAULT_USER_PASSWORD: ${{ secrets.DEFAULT_USER_PASSWORD }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,MONGO_MONITOR_PASSWORD,SECRET_KEY
+          envs: IMAGE_TAG,GRAFANA_ADMIN_USER,GRAFANA_ADMIN_PASSWORD,MAILJET_API_KEY,MAILJET_SECRET_KEY,MAILJET_FROM_ADDRESS,MAILJET_HOST,GRAFANA_ALERT_RECIPIENTS,REDIS_PASSWORD,MONGO_USER,MONGO_PASSWORD,MONGO_MONITOR_PASSWORD,SECRET_KEY,ADMIN_USER_PASSWORD,DEFAULT_USER_PASSWORD
           command_timeout: 10m
           script: |
             set -e
@@ -163,6 +165,8 @@ jobs:
             : "${MONGO_PASSWORD:?the MONGO_PASSWORD secret is empty}"
             : "${MONGO_MONITOR_PASSWORD:?the MONGO_MONITOR_PASSWORD secret is empty}"
             : "${REDIS_PASSWORD:?the REDIS_PASSWORD secret is empty}"
+            : "${ADMIN_USER_PASSWORD:?the ADMIN_USER_PASSWORD secret is empty}"
+            : "${DEFAULT_USER_PASSWORD:?the DEFAULT_USER_PASSWORD secret is empty}"
             cd /opt/Integr8sCode
 
             # Images the running stack doesn't use; old tags can be pulled from GHCR again
@@ -179,6 +183,8 @@ jobs:
             export MONGO_PASSWORD="$MONGO_PASSWORD"
             export MONGO_MONITOR_PASSWORD="$MONGO_MONITOR_PASSWORD"
             export REDIS_PASSWORD="$REDIS_PASSWORD"
+            export ADMIN_USER_PASSWORD="$ADMIN_USER_PASSWORD"
+            export DEFAULT_USER_PASSWORD="$DEFAULT_USER_PASSWORD"
             export GRAFANA_ROOT_URL="https://grafana.integr8scode.cc/"
             export GRAFANA_ADMIN_USER="$GRAFANA_ADMIN_USER"
             export GRAFANA_ADMIN_PASSWORD="$GRAFANA_ADMIN_PASSWORD"

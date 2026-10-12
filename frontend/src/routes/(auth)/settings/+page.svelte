@@ -52,9 +52,6 @@
         'security_alerts',
     ] as const satisfies (keyof NotificationSettingsOutput)[];
 
-    const toggleClass =
-        'flex items-center justify-between cursor-pointer p-3 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors';
-
     const queryClient = useQueryClient();
     const settingsKey = getUserSettingsApiV1UserSettingsGetQueryKey();
 
@@ -297,7 +294,7 @@
                                 <Field {form} name="editor.{key}">
                                     <Control>
                                         {#snippet children({ props })}
-                                            <Label class={toggleClass}>
+                                            <Label class="settings-toggle">
                                                 <span
                                                     class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
                                                     >{fieldTitle(key)}</span
@@ -324,7 +321,7 @@
                                 <Field {form} name="notifications.{key}">
                                     <Control>
                                         {#snippet children({ props })}
-                                            <Label class={toggleClass}>
+                                            <Label class="settings-toggle">
                                                 <span
                                                     class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
                                                     >{fieldTitle(key)}</span

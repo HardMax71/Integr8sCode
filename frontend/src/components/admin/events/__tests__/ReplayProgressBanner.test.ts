@@ -181,9 +181,9 @@ describe('ReplayProgressBanner', () => {
         });
 
         it.each([
-            { status: ExecutionStatus.COMPLETED, expectedClass: 'bg-green-100' },
-            { status: ExecutionStatus.FAILED, expectedClass: 'bg-red-100' },
-            { status: ExecutionStatus.RUNNING, expectedClass: 'bg-yellow-100' },
+            { status: ExecutionStatus.COMPLETED, expectedClass: 'badge-success' },
+            { status: ExecutionStatus.FAILED, expectedClass: 'badge-danger' },
+            { status: ExecutionStatus.RUNNING, expectedClass: 'badge-info' },
         ])('status "$status" shows badge with $expectedClass', async ({ status, expectedClass }) => {
             const { container } = await renderBanner(
                 makeSession({

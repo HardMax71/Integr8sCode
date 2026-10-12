@@ -47,23 +47,21 @@ describe('OutputPanel', () => {
     });
 
     describe('result rendering', () => {
-        const BADGE_CLASSES: Record<ExecutionStatus, string | null> = {
-            queued: 'bg-yellow-50',
-            scheduled: null,
-            running: 'bg-blue-50',
-            completed: 'bg-green-50',
-            failed: 'bg-red-50',
-            timeout: null,
-            cancelled: null,
-            error: 'bg-red-50',
+        const BADGE_CLASSES: Record<ExecutionStatus, string> = {
+            queued: 'badge-neutral',
+            scheduled: 'badge-neutral',
+            running: 'badge-info',
+            completed: 'badge-success',
+            failed: 'badge-danger',
+            timeout: 'badge-warning',
+            cancelled: 'badge-neutral',
+            error: 'badge-danger',
         };
 
         it.each(Object.values(ExecutionStatus))('status "%s" shows its badge', async (status) => {
             renderIdle({ result: { ...fakeExecutionResult(), status } });
             const badge = await screen.findByText(status);
-            const expected = BADGE_CLASSES[status];
-            if (expected) expect(badge).toHaveClass(expected);
-            else expect(badge.className).not.toMatch(/bg-\w+-50/);
+            expect(badge).toHaveClass('badge', BADGE_CLASSES[status]);
             expect(within(badge).getByText('Status')).toBeInTheDocument();
         });
 
@@ -185,7 +183,7 @@ describe('OutputPanel', () => {
                 result: { ...fakeExecutionResult(), status: 'error' },
                 error: 'Something went wrong',
             });
-            expect(await screen.findByText('error')).toHaveClass('bg-red-50');
+            expect(await screen.findByText('error')).toHaveClass('badge-danger');
             expect(screen.queryByText('Execution Failed')).not.toBeInTheDocument();
         });
     });

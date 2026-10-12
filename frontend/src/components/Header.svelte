@@ -30,7 +30,6 @@
 
     let isMenuActive = $state(false);
     const desktop = new MediaQuery('min-width: 1024px');
-    let logoImgClass = 'h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110';
 
     function toggleMenu() {
         isMenuActive = !isMenuActive;
@@ -72,21 +71,6 @@
             isMenuActive = false;
         }
     });
-
-    const getLinkClasses = (isActive: boolean, isMobileLink = false) => {
-        const baseDesktop = 'text-sm font-medium transition-colors duration-200';
-        const baseMobile =
-            'block text-base font-medium transition-colors duration-200 px-3 py-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700';
-        const active = 'text-primary dark:text-primary-light bg-primary/10 dark:bg-primary/20';
-        const inactiveDesktop =
-            'text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default';
-        const inactiveMobile = 'text-fg-default dark:text-dark-fg-default';
-
-        const base = isMobileLink ? baseMobile : baseDesktop;
-        const inactive = isMobileLink ? inactiveMobile : inactiveDesktop;
-
-        return `${base} ${isActive ? active : inactive}`;
-    };
 </script>
 
 <header
@@ -96,7 +80,11 @@
         <nav class="flex items-center justify-between h-full">
             <div class="flex items-center shrink-0">
                 <a href="/" onclick={closeMenu} class="flex items-center space-x-2 group">
-                    <img src="/favicon.png" alt="Integr8sCode Logo" class={logoImgClass} />
+                    <img
+                        src="/favicon.png"
+                        alt="Integr8sCode Logo"
+                        class="h-8 max-h-8 w-auto transition-all duration-200 group-hover:scale-110"
+                    />
                     <span
                         class="font-semibold text-xl tracking-tight text-fg-default dark:text-dark-fg-default group-hover:text-primary dark:group-hover:text-primary-light transition-colors duration-200"
                     >

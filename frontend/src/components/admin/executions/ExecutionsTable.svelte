@@ -11,6 +11,7 @@
         type ExecutionStatus,
     } from '#lib/api/index.ts';
     import { formatTimestamp, truncate } from '#lib/formatters.ts';
+    import { EXECUTION_STATUS_BADGE } from '#lib/badges.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
     import Pagination from '#components/Pagination.svelte';
@@ -35,17 +36,6 @@
             ]);
         },
     }));
-
-    const statusColors: Record<ExecutionStatus, string> = {
-        queued: 'badge-info',
-        scheduled: 'badge-info',
-        running: 'badge-warning',
-        completed: 'badge-success',
-        failed: 'badge-danger',
-        timeout: 'badge-danger',
-        cancelled: 'badge-neutral',
-        error: 'badge-danger',
-    };
 
     const priorityOptions = Object.values(QueuePriority);
 
@@ -88,7 +78,7 @@
 </script>
 
 {#snippet statusCell(status: ExecutionStatus)}
-    <span class="badge {statusColors[status]}">{status}</span>
+    <span class="badge {EXECUTION_STATUS_BADGE[status]}">{status}</span>
 {/snippet}
 
 {#snippet priorityCell(execution: AdminExecutionResponse)}

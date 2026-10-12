@@ -56,6 +56,8 @@ Text types only. Images other than SVG and icons are already compressed.
 --8<-- "frontend/nginx.conf.template:sse_proxy"
 ```
 
+The backend's address goes through a variable and Docker's resolver, like Grafana's below, so nginx looks `backend` up again every 30 seconds. With a plain `proxy_pass https://backend:443`, nginx resolves it once at startup. A backend that comes back with a new IP, for example after a Docker restart, then gets 502 until the frontend restarts too.
+
 `proxy_ssl_verify off` is fine here because the backend sits on the internal compose network with a self-signed cert. Don't copy it to a proxy that leaves the host.
 
 The SSE location under `/api/v1/events/` speaks HTTP/1.1 with an empty `Connection` header, turns off buffering and caching, and raises both timeouts to 24 hours so long-lived streams aren't cut after the default 60 seconds. `proxy_buffering off` alone is enough to pass each event through as it arrives.

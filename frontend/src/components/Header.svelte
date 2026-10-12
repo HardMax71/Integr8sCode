@@ -152,7 +152,7 @@
                                                 {#if authStore.userRole === 'admin'}
                                                     <span
                                                         class="text-xs text-primary dark:text-primary-light font-medium ml-1"
-                                                        >(Admin)</span
+                                                        >{authStore.userRole}</span
                                                     >
                                                 {/if}
                                             </span>
@@ -228,13 +228,7 @@
                             <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">
                                 {authStore.username}
                             </div>
-                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
-                                {#if authStore.userRole === 'admin'}
-                                    Administrator
-                                {:else}
-                                    Logged in
-                                {/if}
-                            </div>
+                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{authStore.userRole}</div>
                         </div>
                         {#if authStore.userRole === 'admin'}
                             <a

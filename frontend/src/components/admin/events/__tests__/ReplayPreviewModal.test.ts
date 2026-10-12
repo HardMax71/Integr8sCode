@@ -68,22 +68,22 @@ describe('ReplayPreviewModal', () => {
 
     it('lists event previews with event_id, event_type, and aggregate_id', () => {
         renderModal();
-        expect(screen.getByText('Events to Replay:')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Events Preview' })).toBeInTheDocument();
         expect(screen.getByText('e1')).toBeInTheDocument();
         expect(screen.getByText('execution_requested')).toBeInTheDocument();
         expect(screen.getByText('e2')).toBeInTheDocument();
         expect(screen.getByText('execution_completed')).toBeInTheDocument();
-        expect(screen.getByText('Aggregate: exec-1')).toBeInTheDocument();
+        expect(screen.getByText('Aggregate Id', { selector: 'dt' }).nextElementSibling).toHaveTextContent('exec-1');
     });
 
     it('hides events preview section when events_preview is empty', () => {
         renderModal({ preview: makePreview({ events_preview: [] }) });
-        expect(screen.queryByText('Events to Replay:')).not.toBeInTheDocument();
+        expect(screen.queryByText('Events Preview')).not.toBeInTheDocument();
     });
 
     it('hides events preview section when events_preview is undefined', () => {
         renderModal({ preview: makePreview({ events_preview: undefined }) });
-        expect(screen.queryByText('Events to Replay:')).not.toBeInTheDocument();
+        expect(screen.queryByText('Events Preview')).not.toBeInTheDocument();
     });
 
     it('shows warning banner about replay consequences', () => {

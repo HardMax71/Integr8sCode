@@ -312,7 +312,7 @@ describe('EventsStore', () => {
                 expect.stringContaining('/api/v1/admin/events/export/csv'),
                 '_blank',
             );
-            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('CSV'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith('Starting csv export...');
         });
 
         it('opens export URL for JSON', () => {

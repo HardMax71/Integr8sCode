@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import type { ExecutionResult } from '#lib/api/index.ts';
@@ -69,18 +69,15 @@ describe('OutputPanel', () => {
             ['running', 'bg-blue-50'],
             ['queued', 'bg-yellow-50'],
         ] as const)('status "%s" shows badge with %s class', async (status, expectedClass) => {
-            const { container } = renderIdle({
-                result: makeResult({ status: status as ExecutionResult['status'] }),
-            });
-            await waitFor(() => {
-                expect(screen.getByText(`Status: ${status}`)).toBeInTheDocument();
-                expect(container.querySelector(`span.${expectedClass}`)).not.toBeNull();
-            });
+            renderIdle({ result: makeResult({ status: status as ExecutionResult['status'] }) });
+            const badge = await screen.findByText(status);
+            expect(badge).toHaveClass(expectedClass);
+            expect(within(badge).getByText('Status')).toBeInTheDocument();
         });
 
         it.each([
-            { field: 'stdout', heading: 'Output:', content: 'Hello World!' },
-            { field: 'stderr', heading: 'Errors:', content: 'NameError: x is not defined' },
+            { field: 'stdout', heading: 'Stdout', content: 'Hello World!' },
+            { field: 'stderr', heading: 'Stderr', content: 'NameError: x is not defined' },
         ])('shows $heading when $field present', async ({ field, heading, content }) => {
             renderIdle({ result: makeResult({ [field]: content }) });
             await waitFor(() => expect(screen.getByText(heading)).toBeInTheDocument());
@@ -88,9 +85,9 @@ describe('OutputPanel', () => {
 
         it('hides stdout and stderr sections when both null', async () => {
             renderIdle({ result: makeResult() });
-            await waitFor(() => expect(screen.getByText(/Status:/)).toBeInTheDocument());
-            expect(screen.queryByText('Output:')).not.toBeInTheDocument();
-            expect(screen.queryByText('Errors:')).not.toBeInTheDocument();
+            await waitFor(() => expect(screen.getByText('Status')).toBeInTheDocument());
+            expect(screen.queryByText('Stdout')).not.toBeInTheDocument();
+            expect(screen.queryByText('Stderr')).not.toBeInTheDocument();
         });
 
         it('shows execution ID copy button when execution_id present', async () => {
@@ -99,45 +96,37 @@ describe('OutputPanel', () => {
         });
     });
 
-    describe('resource usage computations', () => {
+    describe('resource usage', () => {
         it.each([
             {
-                label: 'normal CPU',
                 usage: {
                     cpu_time_jiffies: 50,
                     clk_tck_hertz: 100,
                     peak_memory_kb: 10240,
                     execution_time_wall_seconds: 2.345,
                 },
-                expectedCpu: '500.000 m',
-                expectedMem: '10.000 MiB',
-                expectedTime: '2.345 s',
+                shown: { 'Execution Time Wall Seconds': '2.345', 'Cpu Time Jiffies': '50', 'Peak Memory Kb': '10240' },
             },
             {
-                label: 'zero jiffies shows "< X m"',
                 usage: {
                     cpu_time_jiffies: 0,
                     clk_tck_hertz: 100,
                     peak_memory_kb: 2048,
                     execution_time_wall_seconds: 0.5,
                 },
-                expectedCpu: '< 10 m',
-                expectedMem: '2.000 MiB',
-                expectedTime: '0.500 s',
+                shown: { 'Execution Time Wall Seconds': '0.500', 'Cpu Time Jiffies': '0', 'Peak Memory Kb': '2048' },
             },
-        ])('$label', async ({ usage, expectedCpu, expectedMem, expectedTime }) => {
+        ])('shows each field in its own unit: $shown', async ({ usage, shown }) => {
             renderIdle({ result: makeResult({ resource_usage: usage }) });
-            await waitFor(() => {
-                expect(screen.getByText('Resource Usage:')).toBeInTheDocument();
-                expect(screen.getByText(expectedCpu)).toBeInTheDocument();
-                expect(screen.getByText(expectedMem)).toBeInTheDocument();
-                expect(screen.getByText(expectedTime)).toBeInTheDocument();
-            });
+            await waitFor(() => expect(screen.getByText('Resource Usage')).toBeInTheDocument());
+            for (const [label, value] of Object.entries(shown)) {
+                expect(screen.getByText(label).nextElementSibling?.textContent?.trim()).toBe(value);
+            }
         });
 
         it('hides resource usage when not present', () => {
             renderIdle({ result: makeResult() });
-            expect(screen.queryByText('Resource Usage:')).not.toBeInTheDocument();
+            expect(screen.queryByText('Resource Usage')).not.toBeInTheDocument();
         });
     });
 
@@ -196,7 +185,7 @@ describe('OutputPanel', () => {
                 result: makeResult({ stdout: 'data' }),
             });
             expect(screen.getByText('Running...')).toBeInTheDocument();
-            expect(screen.queryByText('Output:')).not.toBeInTheDocument();
+            expect(screen.queryByText('Stdout')).not.toBeInTheDocument();
         });
 
         it('result takes priority over error', async () => {
@@ -204,7 +193,7 @@ describe('OutputPanel', () => {
                 result: makeResult({ status: 'error' as ExecutionResult['status'] }),
                 error: 'Something went wrong',
             });
-            await waitFor(() => expect(screen.getByText(/Status: error/)).toBeInTheDocument());
+            expect(await screen.findByText('error')).toHaveClass('bg-red-50');
             expect(screen.queryByText('Execution Failed')).not.toBeInTheDocument();
         });
     });

@@ -14,8 +14,14 @@
     import { Funnel, Download, RefreshCw, X, ChevronRight, FileText, Code } from '@lucide/svelte';
     import { DropdownMenu } from 'bits-ui';
     import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
+    import { ExportFormat } from '#lib/api/index.ts';
 
     const store = createEventsStore();
+
+    const exportIcons: Record<ExportFormat, { icon: typeof FileText; color: string }> = {
+        [ExportFormat.CSV]: { icon: FileText, color: 'text-green-600 dark:text-green-400' },
+        [ExportFormat.JSON]: { icon: Code, color: 'text-blue-600 dark:text-blue-400' },
+    };
 
     // UI-only state
     let showFilters = $state(false);
@@ -71,12 +77,12 @@
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
                     <DropdownMenu.Content align="end" sideOffset={8} class="floating-panel w-48">
-                        <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents('csv')}>
-                            <FileText size={16} class="text-green-600 dark:text-green-400" />Export as CSV
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents('json')}>
-                            <Code size={16} class="text-blue-600 dark:text-blue-400" />Export as JSON
-                        </DropdownMenu.Item>
+                        {#each Object.values(ExportFormat) as format (format)}
+                            {@const Icon = exportIcons[format].icon}
+                            <DropdownMenu.Item class="floating-item" onSelect={() => store.exportEvents(format)}>
+                                <Icon size={16} class={exportIcons[format].color} />Export as {format}
+                            </DropdownMenu.Item>
+                        {/each}
                     </DropdownMenu.Content>
                 </DropdownMenu.Portal>
             </DropdownMenu.Root>

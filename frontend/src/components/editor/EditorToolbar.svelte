@@ -1,5 +1,6 @@
 <script lang="ts">
     import { Lightbulb } from '@lucide/svelte';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
         name: string;
@@ -14,7 +15,7 @@
     class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default shrink-0"
 >
     <div>
-        <label for="scriptNameInput" class="sr-only">Script Name</label>
+        <label for="scriptNameInput" class="sr-only">{fieldTitle('name')}</label>
         <input
             id="scriptNameInput"
             type="text"

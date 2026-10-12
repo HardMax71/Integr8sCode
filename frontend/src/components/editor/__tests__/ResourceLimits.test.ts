@@ -38,12 +38,12 @@ describe('ResourceLimits', () => {
     });
 
     it.each([
-        { lang: 'python', label: 'CPU Limit', value: '500m' },
+        { lang: 'python', label: 'Cpu Limit', value: '500m' },
         { lang: 'python', label: 'Memory Limit', value: '256Mi' },
-        { lang: 'python', label: 'Timeout', value: '30s' },
-        { lang: 'go', label: 'CPU Limit', value: '1000m' },
+        { lang: 'python', label: 'Execution Timeout', value: '30s' },
+        { lang: 'go', label: 'Cpu Limit', value: '1000m' },
         { lang: 'go', label: 'Memory Limit', value: '320Mi' },
-        { lang: 'go', label: 'Timeout', value: '45s' },
+        { lang: 'go', label: 'Execution Timeout', value: '45s' },
     ])('shows the effective $label = $value for $lang', async ({ lang, label, value }) => {
         render(ResourceLimits, { props: { limits: LIMITS, lang } });
         await user.click(screen.getByRole('button', { name: /Resource Limits/i }));

@@ -162,7 +162,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
             const headers = screen.getAllByRole('columnheader');
             const headerTexts = headers.map((h) => h.textContent?.trim());
-            expect(headerTexts).toEqual(['ID', 'User', 'Language', 'Status', 'Priority', 'Created']);
+            expect(headerTexts).toEqual(['Execution Id', 'User Id', 'Lang', 'Status', 'Priority', 'Created At']);
         });
 
         it('shows language info', async () => {

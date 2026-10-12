@@ -1,6 +1,7 @@
 <script lang="ts" generics="TData extends RowData">
     import { FlexRender, type RowData } from '@tanstack/svelte-table';
     import type { AppTable } from '#lib/data-table.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
@@ -37,7 +38,7 @@
                     <tr>
                         {#each group.headers as header (header.id)}
                             <th scope="col" class="{headerCell} {header.column.columnDef.meta?.class ?? ''}">
-                                {#if !header.isPlaceholder}<FlexRender {header} />{/if}
+                                {#if !header.isPlaceholder}{fieldTitle(header.column.id)}{/if}
                             </th>
                         {/each}
                     </tr>
@@ -61,10 +62,7 @@
                 <li class="p-4">
                     <dl class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
                         {#each row.getAllCells() as cell (cell.id)}
-                            {@const header = cell.column.columnDef.header}
-                            <dt class="text-fg-muted dark:text-dark-fg-muted">
-                                {typeof header === 'string' ? header : ''}
-                            </dt>
+                            <dt class="text-fg-muted dark:text-dark-fg-muted">{fieldTitle(cell.column.id)}</dt>
                             <dd class="min-w-0 wrap-anywhere text-fg-default dark:text-dark-fg-default">
                                 <FlexRender {cell} />
                             </dd>

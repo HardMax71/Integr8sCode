@@ -42,8 +42,8 @@ describe('AutoRefreshControl', () => {
         const checkbox = screen.getByRole('checkbox');
         if (checked) expect(checkbox).toBeChecked();
         else expect(checkbox).not.toBeChecked();
-        if (rateVisible) expect(screen.getByLabelText(/Every/)).toBeInTheDocument();
-        else expect(screen.queryByLabelText(/Every/)).not.toBeInTheDocument();
+        if (rateVisible) expect(screen.getByLabelText('Refresh every')).toBeInTheDocument();
+        else expect(screen.queryByLabelText('Refresh every')).not.toBeInTheDocument();
     });
 
     it.each([
@@ -65,7 +65,7 @@ describe('AutoRefreshControl', () => {
 
     it('rate selector has default options', () => {
         renderControl({ enabled: true });
-        const select = screen.getByLabelText(/Every/) as HTMLSelectElement;
+        const select = screen.getByLabelText('Refresh every') as HTMLSelectElement;
         const labels = Array.from(select.options).map((o) => o.text);
         expect(labels).toEqual(['5 seconds', '10 seconds', '30 seconds', '1 minute']);
     });

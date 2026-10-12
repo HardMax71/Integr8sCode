@@ -5,6 +5,7 @@
     import { Control, Field, FieldErrors, Label } from 'formsnap';
     import { loginApiV1AuthLoginPostMutation, zBodyLoginApiV1AuthLoginPost } from '#lib/api/index.ts';
     import { apiForm, filled } from '#lib/forms.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
@@ -54,22 +55,17 @@
     const { form: formData, constraints, enhance } = form;
 </script>
 
-{#snippet field(
-    name: 'username' | 'password',
-    label: string,
-    type: string,
-    autocomplete: HTMLInputElement['autocomplete'],
-)}
+{#snippet field(name: 'username' | 'password', type: string, autocomplete: HTMLInputElement['autocomplete'])}
     <Field {form} {name}>
         <Control id={name}>
             {#snippet children({ props })}
-                <Label class="sr-only">{label}</Label>
+                <Label class="sr-only">{fieldTitle(name)}</Label>
                 <input
                     {...props}
                     {...$constraints[name]}
                     {type}
                     {autocomplete}
-                    placeholder={label}
+                    placeholder={fieldTitle(name)}
                     bind:value={$formData[name]}
                     class="form-input-standard"
                 />
@@ -119,8 +115,8 @@
             {/if}
 
             <div class="space-y-2">
-                {@render field('username', 'Username', 'text', 'username')}
-                {@render field('password', 'Password', 'password', 'current-password')}
+                {@render field('username', 'text', 'username')}
+                {@render field('password', 'password', 'current-password')}
             </div>
 
             <div>

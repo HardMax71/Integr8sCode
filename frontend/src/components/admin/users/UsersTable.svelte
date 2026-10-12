@@ -2,7 +2,7 @@
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
     import { Pencil, Clock, Trash } from '@lucide/svelte';
     import type { UserResponse } from '#lib/api/index.ts';
-    import { formatTimestamp } from '#lib/formatters.ts';
+    import { formatBoolean, formatTimestamp } from '#lib/formatters.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
     import Pagination from '#components/Pagination.svelte';
@@ -21,19 +21,12 @@
 
     const column = columnHelper<UserResponse>();
     const columns = [
-        column.accessor('username', { header: 'Username', meta: { class: 'font-medium' } }),
-        column.accessor('email', { header: 'Email', cell: ({ getValue }) => getValue() || '-' }),
-        column.accessor('role', { header: 'Role', cell: ({ row }) => renderSnippet(roleCell, row.original) }),
-        column.accessor('created_at', { header: 'Created', cell: ({ getValue }) => formatTimestamp(getValue()) }),
-        column.accessor('is_active', {
-            header: 'Status',
-            cell: ({ row }) => renderSnippet(statusCell, row.original),
-        }),
-        column.display({
-            id: 'actions',
-            header: 'Actions',
-            cell: ({ row }) => renderSnippet(actionsCell, row.original),
-        }),
+        column.accessor('username', { meta: { class: 'font-medium' } }),
+        column.accessor('email', { cell: ({ getValue }) => getValue() || '-' }),
+        column.accessor('role', { cell: ({ row }) => renderSnippet(roleCell, row.original) }),
+        column.accessor('created_at', { cell: ({ getValue }) => formatTimestamp(getValue()) }),
+        column.accessor('is_active', { cell: ({ row }) => renderSnippet(statusCell, row.original) }),
+        column.display({ id: 'actions', cell: ({ row }) => renderSnippet(actionsCell, row.original) }),
     ];
 
     const table = createServerTable(columns, {
@@ -58,7 +51,7 @@
 
 {#snippet statusCell(user: UserResponse)}
     <span class="badge {user.is_active ? 'badge-success' : 'badge-danger'}">
-        {user.is_active ? 'Active' : 'Inactive'}
+        {formatBoolean(user.is_active)}
     </span>
 {/snippet}
 

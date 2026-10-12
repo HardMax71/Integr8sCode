@@ -1,5 +1,5 @@
 import type { core } from 'zod/mini';
-import { formatEnumLabel } from '#lib/formatters.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
 /**
  * Our wording for a rule from the API spec, without the field's name, for a form that shows it under the field.
@@ -41,7 +41,7 @@ export function firstIssue(error: core.$ZodError): string {
     const issue = error.issues[0];
     if (!issue) return 'Invalid input';
     const last = issue.path.at(-1);
-    const field = typeof last === 'string' ? formatEnumLabel(last) : 'Value';
+    const field = typeof last === 'string' ? fieldTitle(last) : 'Value';
     const message = issueMessage(issue as core.$ZodRawIssue);
     if (!message) return `${field}: ${issue.message}`;
     return message === 'Required'

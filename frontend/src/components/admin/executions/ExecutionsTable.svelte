@@ -32,31 +32,20 @@
     const column = columnHelper<AdminExecutionResponse>();
     const columns = [
         column.accessor('execution_id', {
-            header: 'ID',
             meta: { class: 'font-mono text-xs' },
             cell: ({ getValue }) => truncate(getValue(), 12),
         }),
         column.accessor('user_id', {
-            header: 'User',
             meta: { class: 'text-xs' },
             cell: ({ getValue }) => {
                 const userId = getValue();
                 return userId ? truncate(userId, 12) : '-';
             },
         }),
-        column.display({
-            id: 'language',
-            header: 'Language',
-            cell: ({ row }) => `${row.original.lang} ${row.original.lang_version}`,
-        }),
-        column.accessor('status', { header: 'Status', cell: ({ getValue }) => renderSnippet(statusCell, getValue()) }),
-        column.display({
-            id: 'priority',
-            header: 'Priority',
-            cell: ({ row }) => renderSnippet(priorityCell, row.original),
-        }),
+        column.accessor('lang', { cell: ({ row }) => `${row.original.lang} ${row.original.lang_version}` }),
+        column.accessor('status', { cell: ({ getValue }) => renderSnippet(statusCell, getValue()) }),
+        column.accessor('priority', { cell: ({ row }) => renderSnippet(priorityCell, row.original) }),
         column.accessor('created_at', {
-            header: 'Created',
             meta: { class: 'text-xs' },
             cell: ({ getValue }) => formatTimestamp(getValue()),
         }),

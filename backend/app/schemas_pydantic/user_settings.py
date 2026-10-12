@@ -50,7 +50,7 @@ class UserSettings(BaseModel):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     user_id: str
-    theme: Theme = Theme.AUTO
+    theme: Theme = Theme.SYSTEM
     timezone: str = "UTC"
     date_format: str = "YYYY-MM-DD"
     time_format: str = "24h"

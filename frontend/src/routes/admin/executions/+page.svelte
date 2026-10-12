@@ -5,7 +5,7 @@
     import { RefreshCw } from '@lucide/svelte';
     import { STATS_BG_COLORS, STATS_TEXT_COLORS } from '#lib/admin/constants.ts';
     import { createExecutionsStore } from '#lib/admin/stores/executionsStore.svelte.ts';
-    import { formatEnumLabel } from '#lib/formatters.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     const store = createExecutionsStore();
 
@@ -32,7 +32,7 @@
     {#if queueStatus}
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div class="card p-4 {STATS_BG_COLORS.blue}">
-                <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">Queue Depth</div>
+                <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">{fieldTitle('queue_depth')}</div>
                 <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
                     {queueStatus.queue_depth}
                 </div>
@@ -44,7 +44,7 @@
                 </div>
             </div>
             <div class="card p-4 {STATS_BG_COLORS.purple}">
-                <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">By Priority</div>
+                <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">{fieldTitle('by_priority')}</div>
                 <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
                     {#each Object.entries(queueStatus.by_priority) as [priority, count]}
                         <span class="mr-2">{priority}: {count}</span>
@@ -61,19 +61,20 @@
         <div class="p-4 flex flex-wrap gap-4 items-end">
             <div>
                 <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                    >Status</label
+                    >{fieldTitle('status')}</label
                 >
                 <select id="status-filter" bind:value={store.statusFilter} class="form-select-standard">
                     <option value="all">All</option>
                     {#each Object.values(ExecutionStatus) as status (status)}
-                        <option value={status}>{formatEnumLabel(status)}</option>
+                        <option value={status}>{status}</option>
                     {/each}
                 </select>
             </div>
             <div>
                 <label
                     for="priority-filter"
-                    class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">Priority</label
+                    class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                    >{fieldTitle('priority')}</label
                 >
                 <select id="priority-filter" bind:value={store.priorityFilter} class="form-select-standard">
                     <option value="all">All</option>
@@ -84,15 +85,9 @@
             </div>
             <div>
                 <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                    >User ID</label
+                    >{fieldTitle('user_id')}</label
                 >
-                <input
-                    id="user-search"
-                    type="text"
-                    bind:value={store.userSearch}
-                    placeholder="Filter by user ID"
-                    class="form-input-standard"
-                />
+                <input id="user-search" type="text" bind:value={store.userSearch} class="form-input-standard" />
             </div>
             <button type="button" onclick={() => store.resetFilters()} class="btn btn-secondary-outline text-sm"
                 >Reset</button

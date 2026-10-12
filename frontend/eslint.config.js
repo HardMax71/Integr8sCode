@@ -70,6 +70,23 @@ export default [
     },
   },
   {
+    // An API field has one name: its key, shown through fieldTitle
+    files: ['src/**/*.ts', 'src/**/*.svelte'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name=/^(accessor|display)$/] Property[key.name='header']",
+          message: 'DataTable titles a column by its id; name the column after its API key instead.',
+        },
+        {
+          selector: 'SvelteElement[name.name=/^([lL]abel|dt|th)$/] SvelteText[value=/\\w/]',
+          message: "Label an API field with {fieldTitle('key')}; hand-written text gives it a second name.",
+        },
+      ],
+    },
+  },
+  {
     ignores: [
       'public/',
       'node_modules/',

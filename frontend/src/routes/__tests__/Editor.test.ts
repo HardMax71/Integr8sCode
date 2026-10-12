@@ -156,7 +156,7 @@ describe('Editor', () => {
             await renderEditor();
             await waitForRuntimes();
 
-            await user.type(screen.getByLabelText('Script Name'), 'My New Script');
+            await user.type(screen.getByLabelText('Name'), 'My New Script');
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Save current script'));
 
@@ -480,7 +480,7 @@ describe('Editor', () => {
             const mockRevokeObjectURL = vi.fn();
             vi.stubGlobal('URL', { createObjectURL: mockCreateObjectURL, revokeObjectURL: mockRevokeObjectURL });
 
-            await user.type(screen.getByLabelText('Script Name'), 'my_script');
+            await user.type(screen.getByLabelText('Name'), 'my_script');
             await user.click(screen.getByRole('button', { name: 'Toggle Script Options' }));
             await user.click(screen.getByTitle('Download current script'));
 
@@ -497,7 +497,7 @@ describe('Editor', () => {
             await renderEditor();
             await waitForRuntimes();
 
-            await user.type(screen.getByLabelText('Script Name'), 'Persisted');
+            await user.type(screen.getByLabelText('Name'), 'Persisted');
 
             // Wait for debounced localStorage write (300ms)
             await vi.advanceTimersByTimeAsync(400);

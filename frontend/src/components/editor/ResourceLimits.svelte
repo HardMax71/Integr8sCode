@@ -2,6 +2,7 @@
     import { fly } from 'svelte/transition';
     import { MessageSquare, ChevronUp, ChevronDown, Cpu, MemoryStick, Clock } from '@lucide/svelte';
     import type { ResourceLimits as ResourceLimitsType } from '#lib/api/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
         limits: ResourceLimitsType | null;
@@ -34,7 +35,7 @@
                 <div class="space-y-4">
                     <div class="flex items-center justify-between text-sm">
                         <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
-                            <span class="mr-2"><Cpu class="w-4 h-4" /></span>CPU Limit
+                            <span class="mr-2"><Cpu class="w-4 h-4" /></span>{fieldTitle('cpu_limit')}
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
                             >{effective.cpu_limit}</span
@@ -42,7 +43,7 @@
                     </div>
                     <div class="flex items-center justify-between text-sm">
                         <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
-                            <span class="mr-2"><MemoryStick class="w-4 h-4" /></span>Memory Limit
+                            <span class="mr-2"><MemoryStick class="w-4 h-4" /></span>{fieldTitle('memory_limit')}
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
                             >{effective.memory_limit}</span
@@ -50,7 +51,7 @@
                     </div>
                     <div class="flex items-center justify-between text-sm">
                         <span class="text-fg-muted dark:text-dark-fg-muted inline-flex items-center">
-                            <span class="mr-2"><Clock class="w-4 h-4" /></span>Timeout
+                            <span class="mr-2"><Clock class="w-4 h-4" /></span>{fieldTitle('execution_timeout')}
                         </span>
                         <span class="font-semibold text-fg-default dark:text-dark-fg-default tabular-nums"
                             >{effective.execution_timeout}s</span

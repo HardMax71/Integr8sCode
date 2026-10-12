@@ -1,19 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
+import { SagaState } from '#lib/api/index.ts';
 import SagaFilters from '#components/admin/sagas/SagaFilters.svelte';
-
-vi.mock('#lib/admin/sagas/index.ts', () => ({
-    SAGA_STATES: {
-        created: { label: 'Created' },
-        running: { label: 'Running' },
-        completed: { label: 'Completed' },
-        failed: { label: 'Failed' },
-        compensating: { label: 'Compensating' },
-        timeout: { label: 'Timeout' },
-        cancelled: { label: 'Cancelled' },
-    },
-}));
 
 function renderFilters(overrides: Record<string, unknown> = {}) {
     const onClear = vi.fn();
@@ -32,7 +21,7 @@ function renderFilters(overrides: Record<string, unknown> = {}) {
 describe('SagaFilters', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it.each(['Search', 'State', 'Execution ID'])('renders %s filter input', (label) => {
+    it.each(['Search', 'State', 'Execution Id'])('renders %s filter input', (label) => {
         renderFilters();
         expect(screen.getByLabelText(label)).toBeInTheDocument();
     });
@@ -42,29 +31,16 @@ describe('SagaFilters', () => {
         expect(screen.getByText('Clear Filters')).toBeInTheDocument();
     });
 
-    it('state filter has All States option', () => {
+    it('state filter offers All, then every saga state as the API names it', () => {
         renderFilters();
         const select = screen.getByLabelText('State') as HTMLSelectElement;
-        expect(select.options[0]!.text).toBe('All States');
-    });
-
-    it('state filter has saga state options', () => {
-        renderFilters();
-        const select = screen.getByLabelText('State') as HTMLSelectElement;
-        const labels = Array.from(select.options).map((o) => o.text);
-        expect(labels).toContain('Running');
-        expect(labels).toContain('Completed');
-        expect(labels).toContain('Failed');
+        expect(Array.from(select.options).map((o) => o.text)).toEqual(['All', ...Object.values(SagaState)]);
+        expect(Array.from(select.options).map((o) => o.value)).toEqual(['', ...Object.values(SagaState)]);
     });
 
     it('calls onClear when Clear Filters is clicked', async () => {
         const { onClear } = renderFilters();
         await user.click(screen.getByText('Clear Filters'));
         expect(onClear).toHaveBeenCalledOnce();
-    });
-
-    it('search input has correct placeholder', () => {
-        renderFilters();
-        expect(screen.getByPlaceholderText('Search by ID, name, or error...')).toBeInTheDocument();
     });
 });

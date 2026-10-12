@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { EventDetailResponse } from '#lib/api/index.ts';
-    import { formatTimestamp } from '#lib/formatters.ts';
+    import { fieldTitle, formatTimestamp } from '#lib/formatters.ts';
     import { getEventTypeColor } from '#lib/admin/events/index.ts';
     import Modal from '#components/Modal.svelte';
     import EventTypeIcon from '#components/EventTypeIcon.svelte';
@@ -25,51 +25,34 @@
         <div class="space-y-4">
             <div>
                 <h4 class="font-semibold mb-2">Basic Information</h4>
-                <table class="w-full">
-                    <tbody>
-                        <tr class="border-b border-border-default dark:border-dark-border-default">
-                            <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event ID</td>
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default"
-                                >{eventData.event_id}</td
+                <dl
+                    class="grid grid-cols-[auto_1fr] text-fg-default dark:text-dark-fg-default *:px-4 *:py-2 *:border-b *:border-border-default dark:*:border-dark-border-default [&>dt]:font-semibold"
+                >
+                    <dt>{fieldTitle('event_id')}</dt>
+                    <dd class="font-mono text-sm">{eventData.event_id}</dd>
+                    <dt>{fieldTitle('event_type')}</dt>
+                    <dd>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="{getEventTypeColor(eventData.event_type)} shrink-0"
+                                title={eventData.event_type}
                             >
-                        </tr>
-                        <tr class="border-b border-border-default dark:border-dark-border-default">
-                            <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Event Type</td
-                            >
-                            <td class="px-4 py-2">
-                                <div class="flex items-center gap-2">
-                                    <span
-                                        class="{getEventTypeColor(eventData.event_type)} shrink-0"
-                                        title={eventData.event_type}
-                                    >
-                                        <EventTypeIcon eventType={eventData.event_type} />
-                                    </span>
-                                    <span class={getEventTypeColor(eventData.event_type)}>
-                                        {eventData.event_type}
-                                    </span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr class="border-b border-border-default dark:border-dark-border-default">
-                            <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default">Timestamp</td>
-                            <td class="px-4 py-2 text-sm text-fg-default dark:text-dark-fg-default"
-                                >{formatTimestamp(eventData.timestamp)}</td
-                            >
-                        </tr>
-                        <tr class="border-b border-border-default dark:border-dark-border-default">
-                            <td class="px-4 py-2 font-semibold text-fg-default dark:text-dark-fg-default"
-                                >Aggregate ID</td
-                            >
-                            <td class="px-4 py-2 font-mono text-sm text-fg-default dark:text-dark-fg-default"
-                                >{eventData.aggregate_id || '-'}</td
-                            >
-                        </tr>
-                    </tbody>
-                </table>
+                                <EventTypeIcon eventType={eventData.event_type} />
+                            </span>
+                            <span class={getEventTypeColor(eventData.event_type)}>
+                                {eventData.event_type}
+                            </span>
+                        </div>
+                    </dd>
+                    <dt>{fieldTitle('timestamp')}</dt>
+                    <dd class="text-sm">{formatTimestamp(eventData.timestamp)}</dd>
+                    <dt>{fieldTitle('aggregate_id')}</dt>
+                    <dd class="font-mono text-sm">{eventData.aggregate_id || '-'}</dd>
+                </dl>
             </div>
 
             <div>
-                <h4 class="font-semibold mb-2">Full Event Data</h4>
+                <h4 class="font-semibold mb-2">{fieldTitle('event')}</h4>
                 <pre
                     class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default max-h-96">{JSON.stringify(
                         eventData,
@@ -80,7 +63,7 @@
 
             {#if relatedEvents.length > 0}
                 <div>
-                    <h4 class="font-semibold mb-2">Related Events</h4>
+                    <h4 class="font-semibold mb-2">{fieldTitle('related_events')}</h4>
                     <div class="space-y-1">
                         {#each relatedEvents as related}
                             <button

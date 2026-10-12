@@ -10,11 +10,7 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 }));
 
 vi.mock('#lib/admin/sagas/index.ts', () => ({
-    getSagaStateInfo: vi.fn((state: string) => ({
-        label: state.charAt(0).toUpperCase() + state.slice(1),
-        color: 'badge-neutral',
-        bgColor: 'bg-neutral-50',
-    })),
+    getSagaStateInfo: vi.fn(() => ({ color: 'badge-neutral', bgColor: 'bg-neutral-50' })),
 }));
 
 vi.mock('#components/Spinner.svelte', async () => {
@@ -52,9 +48,16 @@ describe('SagasTable', () => {
         expect(screen.getByText('No sagas found')).toBeInTheDocument();
     });
 
-    it.each(['Saga', 'State', 'Progress', 'Started', 'Duration', 'Actions'])('renders %s table header', (header) => {
+    it('names each column by its API key', () => {
         renderTable({ sagas: [createMockSaga()], rowCount: 1 });
-        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
+        expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
+            'Saga Name',
+            'State',
+            'Progress',
+            'Created At',
+            'Duration',
+            'Actions',
+        ]);
     });
 
     it('renders one row per saga in desktop table', () => {
@@ -82,32 +85,31 @@ describe('SagasTable', () => {
 
     it('displays truncated saga_id', () => {
         renderTable({ sagas: [createMockSaga({ saga_id: 'abcdefghijklmno' })] });
-        // Desktop shows first 8 chars, mobile shows first 12 chars
-        const truncated = screen.getAllByText(/ID: abcdefgh/);
+        const truncated = screen.getAllByText('Saga Id abcdefgh...');
         expect(truncated.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('displays state badge via getSagaStateInfo', () => {
+    it('shows the raw state in the badge', () => {
         renderTable({ sagas: [createMockSaga({ state: 'running' })] });
-        const badges = screen.getAllByText('Running');
+        const badges = screen.getAllByText('running');
         expect(badges.length).toBeGreaterThanOrEqual(1);
     });
 
     it('shows retry count when > 0', () => {
         renderTable({ sagas: [createMockSaga({ retry_count: 3 })] });
-        const retries = screen.getAllByText(/3/);
+        const retries = screen.getAllByText('(Retry Count 3)');
         expect(retries.length).toBeGreaterThanOrEqual(1);
     });
 
     it('shows completed steps count', () => {
         renderTable({ sagas: [createMockSaga({ completed_steps: ['step1', 'step2'] })] });
-        const stepsText = screen.getAllByText(/2 steps/);
+        const stepsText = screen.getAllByText('Completed Steps 2');
         expect(stepsText.length).toBeGreaterThanOrEqual(1);
     });
 
     it('shows current step when present', () => {
         renderTable({ sagas: [createMockSaga({ current_step: 'create_pod' })] });
-        const currentSteps = screen.getAllByText(/create_pod/);
+        const currentSteps = screen.getAllByText('Current Step create_pod');
         expect(currentSteps.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -122,7 +124,7 @@ describe('SagasTable', () => {
     it('calls onViewExecution when the execution link is clicked', async () => {
         const saga = createMockSaga({ execution_id: 'exec-click' });
         const { onViewExecution } = renderTable({ sagas: [saga] });
-        await user.click(screen.getAllByRole('button', { name: /Execution: exec-cli/ })[0]!);
+        await user.click(screen.getAllByRole('button', { name: 'Execution Id exec-cli...' })[0]!);
         expect(onViewExecution).toHaveBeenCalledWith('exec-click');
     });
 });

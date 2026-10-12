@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
     EVENT_TYPES,
     getEventTypeColor,
-    getEventTypeLabel,
     hasActiveFilters,
     getActiveFilterCount,
     getActiveFilterSummary,
@@ -51,18 +50,6 @@ describe('eventTypes', () => {
         });
     });
 
-    describe('getEventTypeLabel', () => {
-        it.each([
-            ['execution_requested', ''],
-            ['execution_completed', 'execution_completed'],
-            ['pod_running', 'pod_running'],
-            ['single', 'single'],
-            ['a_b_c', 'a_b_c'],
-        ])('%s returns %s', (input, expected) => {
-            expect(getEventTypeLabel(input as import('#lib/api/index.ts').EventType)).toBe(expected);
-        });
-    });
-
     describe('hasActiveFilters', () => {
         it('returns false for empty filters', () => {
             expect(hasActiveFilters({})).toBe(false);
@@ -108,16 +95,15 @@ describe('eventTypes', () => {
         });
 
         it.each([
-            [{ event_types: ['a', 'b'] }, '2 event types'],
-            [{ event_types: ['a'] }, '1 event type'],
-            [{ search_text: 'test' }, 'search'],
-            [{ start_time: '2024-01-01' }, 'time range'],
-            [{ end_time: '2024-01-02' }, 'time range'],
-        ])('includes expected label', (override, expected) => {
-            expect(getActiveFilterSummary(withFilter(override as Partial<EventFilter>))).toContain(expected);
+            [{ event_types: ['a', 'b'] }, 'Event Types'],
+            [{ search_text: 'test' }, 'Search Text'],
+            [{ start_time: '2024-01-01' }, 'Start Time'],
+            [{ end_time: '2024-01-02' }, 'End Time'],
+        ])('names the active filter by its field title', (override, expected) => {
+            expect(getActiveFilterSummary(withFilter(override as Partial<EventFilter>))).toEqual([expected]);
         });
 
-        it('includes all active filter labels', () => {
+        it('names every active filter in order', () => {
             const summary = getActiveFilterSummary(
                 withFilter({
                     event_types: ['x' as import('#lib/api/index.ts').EventType],
@@ -128,9 +114,18 @@ describe('eventTypes', () => {
                     start_time: new Date(1),
                 }),
             );
-            ['1 event type', 'search', 'aggregate', 'user', 'service', 'time range'].forEach((label) =>
-                expect(summary).toContain(label),
-            );
+            expect(summary).toEqual([
+                'Event Types',
+                'Search Text',
+                'Aggregate Id',
+                'User Id',
+                'Service Name',
+                'Start Time',
+            ]);
+        });
+
+        it('skips an empty event type list', () => {
+            expect(getActiveFilterSummary({ event_types: [] })).toEqual([]);
         });
     });
 });

@@ -12666,7 +12666,7 @@
         "enum": [
           "light",
           "dark",
-          "auto"
+          "system"
         ],
         "title": "Theme",
         "description": "Available UI themes."
@@ -13356,7 +13356,7 @@
           },
           "theme": {
             "$ref": "#/components/schemas/Theme",
-            "default": "auto"
+            "default": "system"
           },
           "timezone": {
             "type": "string",

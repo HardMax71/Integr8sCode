@@ -1,10 +1,10 @@
 <script lang="ts">
     import { untrack } from 'svelte';
     import * as z from 'zod/mini';
-    import { Control, Field, FieldErrors, Label } from 'formsnap';
+    import { Control, Description, Field, FieldErrors, Label } from 'formsnap';
     import { UserRole, zUserCreate, type UserCreate, type UserResponse, type UserUpdate } from '#lib/api/index.ts';
     import { apiForm, filled, optionalText } from '#lib/forms.ts';
-    import { formatEnumLabel } from '#lib/formatters.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
 
@@ -66,21 +66,17 @@
 
 {#snippet textField(
     name: 'username' | 'email' | 'password',
-    label: string,
     type: string,
-    placeholder: string,
     autocomplete: HTMLInputElement['autocomplete'],
+    placeholder?: string,
 )}
     <Field {form} {name}>
         <Control id="user-form-{name}">
             {#snippet children({ props })}
                 <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1">
-                    {label}
+                    {fieldTitle(name)}
                     {#if name !== 'password' || !editing}
                         <span class="text-red-500">*</span>
-                    {/if}
-                    {#if name === 'password' && editing}
-                        <span class="text-xs text-neutral-500">(leave empty to keep current)</span>
                     {/if}
                 </Label>
                 <input
@@ -97,6 +93,11 @@
                 />
             {/snippet}
         </Control>
+        {#if name === 'password' && editing}
+            <Description class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
+                Leave empty to keep the current password
+            </Description>
+        {/if}
         <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
     </Field>
 {/snippet}
@@ -105,20 +106,14 @@
     {#snippet children()}
         <form method="post" use:enhance novalidate autocomplete="off">
             <div class="space-y-4">
-                {@render textField('username', 'Username', 'text', 'johndoe', 'username')}
-                {@render textField('email', 'Email', 'email', 'john@example.com', 'email')}
-                {@render textField(
-                    'password',
-                    'Password',
-                    'password',
-                    editing ? 'Enter new password' : 'Enter password',
-                    'new-password',
-                )}
+                {@render textField('username', 'text', 'username', 'johndoe')}
+                {@render textField('email', 'email', 'email', 'john@example.com')}
+                {@render textField('password', 'password', 'new-password')}
                 <Field {form} name="role">
                     <Control id="user-form-role">
                         {#snippet children({ props })}
                             <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                >Role</Label
+                                >{fieldTitle('role')}</Label
                             >
                             <select
                                 {...props}
@@ -127,7 +122,7 @@
                                 disabled={saving}
                             >
                                 {#each Object.values(UserRole) as option (option)}
-                                    <option value={option}>{formatEnumLabel(option)}</option>
+                                    <option value={option}>{option}</option>
                                 {/each}
                             </select>
                         {/snippet}
@@ -145,7 +140,7 @@
                                 />
                                 <Label
                                     class="text-sm font-medium text-fg-default dark:text-dark-fg-default cursor-pointer"
-                                    >Active User</Label
+                                    >{fieldTitle('is_active')}</Label
                                 >
                             </div>
                         {/snippet}

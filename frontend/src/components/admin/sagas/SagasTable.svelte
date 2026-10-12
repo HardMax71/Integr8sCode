@@ -1,7 +1,7 @@
 <script lang="ts">
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
     import type { SagaStatusResponse } from '#lib/api/index.ts';
-    import { formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
+    import { fieldTitle, formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
     import { getSagaStateInfo } from '#lib/admin/sagas/index.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
@@ -20,23 +20,17 @@
 
     const column = columnHelper<SagaStatusResponse>();
     const columns = [
-        column.display({ id: 'saga', header: 'Saga', cell: ({ row }) => renderSnippet(sagaCell, row.original) }),
-        column.display({ id: 'state', header: 'State', cell: ({ row }) => renderSnippet(stateCell, row.original) }),
-        column.display({
-            id: 'progress',
-            header: 'Progress',
-            cell: ({ row }) => renderSnippet(progressCell, row.original),
-        }),
-        column.accessor('created_at', { header: 'Started', cell: ({ getValue }) => formatTimestamp(getValue()) }),
+        column.accessor('saga_name', { cell: ({ row }) => renderSnippet(sagaCell, row.original) }),
+        column.accessor('state', { cell: ({ row }) => renderSnippet(stateCell, row.original) }),
+        column.display({ id: 'progress', cell: ({ row }) => renderSnippet(progressCell, row.original) }),
+        column.accessor('created_at', { cell: ({ getValue }) => formatTimestamp(getValue()) }),
         column.display({
             id: 'duration',
-            header: 'Duration',
             cell: ({ row }) =>
                 formatDurationBetween(row.original.created_at, row.original.completed_at || row.original.updated_at),
         }),
         column.display({
             id: 'actions',
-            header: 'Actions',
             meta: { class: 'text-center' },
             cell: ({ row }) => renderSnippet(actionsCell, row.original),
         }),
@@ -60,29 +54,30 @@
 
 {#snippet sagaCell(saga: SagaStatusResponse)}
     <div class="font-medium">{saga.saga_name}</div>
-    <div class="text-sm text-fg-muted">ID: {saga.saga_id.slice(0, 8)}...</div>
+    <div class="text-sm text-fg-muted">{fieldTitle('saga_id')} {saga.saga_id.slice(0, 8)}...</div>
     <button
         type="button"
         onclick={() => onViewExecution(saga.execution_id)}
         class="text-xs text-primary hover:text-primary-dark"
     >
-        Execution: {saga.execution_id.slice(0, 8)}...
+        {fieldTitle('execution_id')}
+        {saga.execution_id.slice(0, 8)}...
     </button>
 {/snippet}
 
 {#snippet stateCell(saga: SagaStatusResponse)}
     {@const stateInfo = getSagaStateInfo(saga.state)}
-    <span class="badge {stateInfo.color}">{stateInfo.label}</span>
+    <span class="badge {stateInfo.color}">{saga.state}</span>
     {#if saga.retry_count > 0}
-        <span class="ml-2 text-xs text-fg-muted">(Retry: {saga.retry_count})</span>
+        <span class="ml-2 text-xs text-fg-muted">({fieldTitle('retry_count')} {saga.retry_count})</span>
     {/if}
 {/snippet}
 
 {#snippet progressCell(saga: SagaStatusResponse)}
     <div class="text-sm">
-        <span class="text-fg-muted">{saga.completed_steps.length} steps</span>
+        <span class="text-fg-muted">{fieldTitle('completed_steps')} {saga.completed_steps.length}</span>
         {#if saga.current_step}
-            <div class="text-xs text-fg-muted mt-1 truncate">Current: {saga.current_step}</div>
+            <div class="text-xs text-fg-muted mt-1 truncate">{fieldTitle('current_step')} {saga.current_step}</div>
         {/if}
     </div>
 {/snippet}

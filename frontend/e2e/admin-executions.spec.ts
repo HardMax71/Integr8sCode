@@ -13,22 +13,22 @@ test.describe('Admin Executions', () => {
 
   test('shows filter controls', async ({ adminPage }) => {
     await adminPage.goto(PATH);
-    await expect(adminPage.getByLabel(/Status/i)).toBeVisible();
-    await expect(adminPage.getByLabel(/Priority/i)).toBeVisible();
-    await expect(adminPage.getByLabel(/User ID/i)).toBeVisible();
+    await expect(adminPage.getByLabel('Status', { exact: true })).toBeVisible();
+    await expect(adminPage.getByLabel('Priority', { exact: true })).toBeVisible();
+    await expect(adminPage.getByLabel('User Id', { exact: true })).toBeVisible();
   });
 
   test.describe('Filters', () => {
     test('status filter dropdown has expected options', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      const statusSelect = adminPage.getByLabel(/Status/i);
+      const statusSelect = adminPage.getByLabel('Status', { exact: true });
       await expect(statusSelect).toBeVisible();
       await expect(statusSelect.locator('option')).toHaveCount(9); // All + 8 statuses
     });
 
     test('priority filter dropdown has expected options', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      const prioritySelect = adminPage.getByLabel(/Priority/i);
+      const prioritySelect = adminPage.getByLabel('Priority', { exact: true });
       await expect(prioritySelect).toBeVisible();
       await expect(prioritySelect.locator('option')).toHaveCount(6); // All + 5 priorities
     });
@@ -40,9 +40,9 @@ test.describe('Admin Executions', () => {
       await expectTableOrEmptyState(adminPage, EMPTY_PATTERN);
     });
 
-    test('shows ID column when data exists', async ({ adminPage }) => {
+    test('shows Execution Id column when data exists', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expectTableColumn(adminPage, 'ID', EMPTY_PATTERN);
+      await expectTableColumn(adminPage, 'Execution Id', EMPTY_PATTERN);
     });
   });
 

@@ -101,7 +101,7 @@ describe('AdminEvents', () => {
                 createMockEvents(5),
                 createMockStats({ total_events: 150, error_rate: 2.5, avg_processing_time: 1.23 }),
             );
-            expect(screen.getByText(/Events \(Last 24h\)/i)).toBeInTheDocument();
+            expect(screen.getByText('Total Events')).toBeInTheDocument();
             expect(screen.getByText('150')).toBeInTheDocument();
             expect(screen.getByText('2.5%')).toBeInTheDocument();
             expect(screen.getByText('1.23s')).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe('AdminEvents', () => {
 
             await waitFor(() => {
                 expect(screen.getByText(/Filter Events/i)).toBeInTheDocument();
-                expect(screen.getByLabelText(/Event Types/i)).toBeInTheDocument();
+                expect(screen.getByLabelText('Event Types')).toBeInTheDocument();
             });
         });
 
@@ -182,10 +182,10 @@ describe('AdminEvents', () => {
             await user.click(screen.getByRole('button', { name: /Filters/i }));
 
             await waitFor(() => {
-                expect(screen.getByLabelText(/Search/i)).toBeInTheDocument();
-                expect(screen.getByLabelText(/Aggregate ID/i)).toBeInTheDocument();
-                expect(screen.getByLabelText(/User ID/i)).toBeInTheDocument();
-                expect(screen.getByLabelText(/Service/i)).toBeInTheDocument();
+                expect(screen.getByLabelText('Search Text')).toBeInTheDocument();
+                expect(screen.getByLabelText('Aggregate Id')).toBeInTheDocument();
+                expect(screen.getByLabelText('User Id')).toBeInTheDocument();
+                expect(screen.getByLabelText('Service Name')).toBeInTheDocument();
                 expect(screen.getByLabelText(/Start Time/i)).toBeInTheDocument();
                 expect(screen.getByLabelText(/End Time/i)).toBeInTheDocument();
             });
@@ -195,9 +195,9 @@ describe('AdminEvents', () => {
             await renderWithEvents();
 
             await user.click(screen.getByRole('button', { name: /Filters/i }));
-            await waitFor(() => expect(screen.getByLabelText(/Search/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByLabelText('Search Text')).toBeInTheDocument());
 
-            await user.type(screen.getByLabelText(/Search/i), 'test query');
+            await user.type(screen.getByLabelText('Search Text'), 'test query');
             vi.mocked(browseEventsApiV1AdminEventsBrowsePost).mockClear();
 
             await user.click(screen.getByRole('button', { name: /^Apply$/i }));
@@ -219,22 +219,22 @@ describe('AdminEvents', () => {
             await renderWithEvents();
 
             await user.click(screen.getByRole('button', { name: /Filters/i }));
-            await waitFor(() => expect(screen.getByLabelText(/Search/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByLabelText('Search Text')).toBeInTheDocument());
 
-            await user.type(screen.getByLabelText(/Search/i), 'test');
+            await user.type(screen.getByLabelText('Search Text'), 'test');
             await user.click(screen.getByRole('button', { name: /Clear All/i }));
 
-            expect(screen.getByLabelText(/Search/i)).toHaveValue('');
+            expect(screen.getByLabelText('Search Text')).toHaveValue('');
         });
 
         it('shows active filter count badge', async () => {
             await renderWithEvents();
 
             await user.click(screen.getByRole('button', { name: /Filters/i }));
-            await waitFor(() => expect(screen.getByLabelText(/Search/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByLabelText('Search Text')).toBeInTheDocument());
 
-            await user.type(screen.getByLabelText(/Search/i), 'test');
-            await user.type(screen.getByLabelText(/User ID/i), 'user-1');
+            await user.type(screen.getByLabelText('Search Text'), 'test');
+            await user.type(screen.getByLabelText('User Id'), 'user-1');
             await user.click(screen.getByRole('button', { name: /Apply/i }));
 
             // Close filters to see the badge, which counts the applied filters
@@ -540,8 +540,8 @@ describe('AdminEvents', () => {
             await user.click(exportBtn);
 
             await waitFor(() => {
-                expect(screen.getByText(/Export as CSV/i)).toBeInTheDocument();
-                expect(screen.getByText(/Export as JSON/i)).toBeInTheDocument();
+                expect(screen.getByText('Export as csv')).toBeInTheDocument();
+                expect(screen.getByText('Export as json')).toBeInTheDocument();
             });
         });
 
@@ -549,30 +549,30 @@ describe('AdminEvents', () => {
             await renderWithEvents();
 
             await user.click(screen.getByRole('button', { name: /Export/i }));
-            await waitFor(() => expect(screen.getByText(/Export as CSV/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText('Export as csv')).toBeInTheDocument());
 
-            await user.click(screen.getByText(/Export as CSV/i));
+            await user.click(screen.getByText('Export as csv'));
 
             expect(mocks.windowOpen).toHaveBeenCalledWith(
                 expect.stringContaining('/api/v1/admin/events/export/csv'),
                 '_blank',
             );
-            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting CSV export'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting csv export'));
         });
 
         it('exports as JSON', async () => {
             await renderWithEvents();
 
             await user.click(screen.getByRole('button', { name: /Export/i }));
-            await waitFor(() => expect(screen.getByText(/Export as JSON/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText('Export as json')).toBeInTheDocument());
 
-            await user.click(screen.getByText(/Export as JSON/i));
+            await user.click(screen.getByText('Export as json'));
 
             expect(mocks.windowOpen).toHaveBeenCalledWith(
                 expect.stringContaining('/api/v1/admin/events/export/json'),
                 '_blank',
             );
-            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting JSON export'));
+            expect(vi.mocked(toast.info)).toHaveBeenCalledWith(expect.stringContaining('Starting json export'));
         });
     });
 

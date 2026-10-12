@@ -28,10 +28,10 @@ describe('EventFilters', () => {
 
     it.each([
         { id: 'event-types-filter', label: 'Event Types' },
-        { id: 'search-filter', label: 'Search' },
-        { id: 'aggregate-filter', label: 'Aggregate ID' },
-        { id: 'user-filter', label: 'User ID' },
-        { id: 'service-filter', label: 'Service' },
+        { id: 'search-filter', label: 'Search Text' },
+        { id: 'aggregate-filter', label: 'Aggregate Id' },
+        { id: 'user-filter', label: 'User Id' },
+        { id: 'service-filter', label: 'Service Name' },
         { id: 'start-time-filter', label: 'Start Time' },
         { id: 'end-time-filter', label: 'End Time' },
     ])('renders "$label" filter with id=$id', ({ id, label }) => {
@@ -61,7 +61,7 @@ describe('EventFilters', () => {
 
     it('text inputs accept user input', async () => {
         renderFilters();
-        const searchInput = screen.getByLabelText('Search') as HTMLInputElement;
+        const searchInput = screen.getByLabelText('Search Text') as HTMLInputElement;
         await user.type(searchInput, 'test query');
         expect(searchInput.value).toBe('test query');
     });

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Check, X, Undo2 } from '@lucide/svelte';
     import type { SagaStatusResponse } from '#lib/api/index.ts';
-    import { formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
+    import { fieldTitle, formatTimestamp, formatDurationBetween } from '#lib/formatters.ts';
     import { getSagaStateInfo } from '#lib/admin/sagas/index.ts';
     import Modal from '#components/Modal.svelte';
 
@@ -31,15 +31,15 @@
                     <h3 class="font-semibold mb-3">Basic Information</h3>
                     <dl class="space-y-2 text-sm">
                         <div>
-                            <dt class="text-fg-muted">Saga ID</dt>
+                            <dt class="text-fg-muted">{fieldTitle('saga_id')}</dt>
                             <dd class="font-mono">{saga.saga_id}</dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">Saga Name</dt>
+                            <dt class="text-fg-muted">{fieldTitle('saga_name')}</dt>
                             <dd class="font-medium">{saga.saga_name}</dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">Execution ID</dt>
+                            <dt class="text-fg-muted">{fieldTitle('execution_id')}</dt>
                             <dd>
                                 <button
                                     type="button"
@@ -51,11 +51,11 @@
                             </dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">State</dt>
-                            <dd><span class="badge {stateInfo.color}">{stateInfo.label}</span></dd>
+                            <dt class="text-fg-muted">{fieldTitle('state')}</dt>
+                            <dd><span class="badge {stateInfo.color}">{saga.state}</span></dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">Retry Count</dt>
+                            <dt class="text-fg-muted">{fieldTitle('retry_count')}</dt>
                             <dd>{saga.retry_count}</dd>
                         </div>
                     </dl>
@@ -64,22 +64,22 @@
                     <h3 class="font-semibold mb-3">Timing Information</h3>
                     <dl class="space-y-2 text-sm">
                         <div>
-                            <dt class="text-fg-muted">Created At</dt>
+                            <dt class="text-fg-muted">{fieldTitle('created_at')}</dt>
                             <dd>{formatTimestamp(saga.created_at)}</dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">Updated At</dt>
+                            <dt class="text-fg-muted">{fieldTitle('updated_at')}</dt>
                             <dd>{formatTimestamp(saga.updated_at)}</dd>
                         </div>
                         <div>
-                            <dt class="text-fg-muted">Completed At</dt>
+                            <dt class="text-fg-muted">{fieldTitle('completed_at')}</dt>
                             <dd>{formatTimestamp(saga.completed_at)}</dd>
                         </div>
-                        <div>
-                            <dt class="text-fg-muted">Duration</dt>
-                            <dd>{formatDurationBetween(saga.created_at, saga.completed_at || saga.updated_at)}</dd>
-                        </div>
                     </dl>
+                    <p class="mt-2 text-sm">
+                        <span class="block text-fg-muted">Duration</span>
+                        {formatDurationBetween(saga.created_at, saga.completed_at || saga.updated_at)}
+                    </p>
                 </div>
             </div>
 
@@ -87,16 +87,16 @@
                 <h3 class="font-semibold mb-3">Execution Steps</h3>
 
                 {#if saga.current_step}
-                    <div class="mb-4 p-3 alert alert-info">
-                        <span class="font-medium">Current Step:</span>
-                        {saga.current_step}
-                    </div>
+                    <dl class="mb-4 p-3 alert alert-info">
+                        <dt class="font-medium">{fieldTitle('current_step')}</dt>
+                        <dd>{saga.current_step}</dd>
+                    </dl>
                 {/if}
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <h4 class="text-sm font-medium mb-2 text-green-600">
-                            Completed ({saga.completed_steps.length})
+                            {fieldTitle('completed_steps')} ({saga.completed_steps.length})
                         </h4>
                         {#if saga.completed_steps.length > 0}
                             <ul class="space-y-1">
@@ -112,7 +112,7 @@
                     </div>
                     <div>
                         <h4 class="text-sm font-medium mb-2 text-yellow-600">
-                            Compensated ({saga.compensated_steps.length})
+                            {fieldTitle('compensated_steps')} ({saga.compensated_steps.length})
                         </h4>
                         {#if saga.compensated_steps.length > 0}
                             <ul class="space-y-1">
@@ -131,7 +131,7 @@
 
             {#if saga.error_message}
                 <div class="mt-6">
-                    <h3 class="font-semibold mb-3 text-red-600">Error Information</h3>
+                    <h3 class="font-semibold mb-3 text-red-600">{fieldTitle('error_message')}</h3>
                     <div class="p-4 alert alert-danger">
                         <pre class="text-sm whitespace-pre-wrap">{saga.error_message}</pre>
                     </div>

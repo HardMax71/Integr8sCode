@@ -7,6 +7,7 @@
     import { Control, Field, FieldErrors, Label } from 'formsnap';
     import { registerApiV1AuthRegisterPostMutation, zUserCreate } from '#lib/api/index.ts';
     import { apiForm, filled } from '#lib/forms.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import { getErrorMessage } from '#lib/api-interceptors.ts';
     import Spinner from '#components/Spinner.svelte';
 
@@ -50,21 +51,19 @@
 {#snippet field(
     name: 'username' | 'email' | 'password' | 'confirm_password',
     id: string,
-    label: string,
     type: string,
     autocomplete: HTMLInputElement['autocomplete'],
-    placeholder: string,
 )}
     <Field {form} {name}>
         <Control {id}>
             {#snippet children({ props })}
-                <Label class="sr-only">{label}</Label>
+                <Label class="sr-only">{fieldTitle(name)}</Label>
                 <input
                     {...props}
                     {...$constraints[name]}
                     {type}
                     {autocomplete}
-                    {placeholder}
+                    placeholder={fieldTitle(name)}
                     bind:value={$formData[name]}
                     class="form-input-standard"
                 />
@@ -112,24 +111,10 @@
             {/if}
 
             <div class="space-y-2">
-                {@render field('username', 'username', 'Username', 'text', 'username', 'Username')}
-                {@render field('email', 'email', 'Email address', 'email', 'email', 'Email address')}
-                {@render field(
-                    'password',
-                    'password',
-                    'Password',
-                    'password',
-                    'new-password',
-                    'Password (min. 8 characters)',
-                )}
-                {@render field(
-                    'confirm_password',
-                    'confirm-password',
-                    'Confirm Password',
-                    'password',
-                    'new-password',
-                    'Confirm Password',
-                )}
+                {@render field('username', 'username', 'text', 'username')}
+                {@render field('email', 'email', 'email', 'email')}
+                {@render field('password', 'password', 'password', 'new-password')}
+                {@render field('confirm_password', 'confirm-password', 'password', 'new-password')}
             </div>
             <div>
                 <button

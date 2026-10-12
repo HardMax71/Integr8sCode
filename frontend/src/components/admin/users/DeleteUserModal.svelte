@@ -1,32 +1,25 @@
 <script lang="ts">
     import type { UserResponse } from '#lib/api/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
         open: boolean;
         user: UserResponse | null;
-        cascadeDelete: boolean;
+        cascade: boolean;
         deleting: boolean;
         onClose: () => void;
         onDelete: () => void;
         onCascadeChange?: (value: boolean) => void;
     }
 
-    let {
-        open,
-        user,
-        cascadeDelete = $bindable(false),
-        deleting,
-        onClose,
-        onDelete,
-        onCascadeChange,
-    }: Props = $props();
+    let { open, user, cascade = $bindable(false), deleting, onClose, onDelete, onCascadeChange }: Props = $props();
 
     function handleCascadeChange(e: Event): void {
         const target = e.target as HTMLInputElement;
-        cascadeDelete = target.checked;
-        onCascadeChange?.(cascadeDelete);
+        cascade = target.checked;
+        onCascadeChange?.(cascade);
     }
 </script>
 
@@ -40,16 +33,18 @@
                 <label class="flex items-center gap-2">
                     <input
                         type="checkbox"
-                        checked={cascadeDelete}
+                        checked={cascade}
                         onchange={handleCascadeChange}
+                        aria-describedby="cascade-description"
                         class="rounded border-border-default dark:border-dark-border-default"
                     />
-                    <span class="text-sm text-fg-default dark:text-dark-fg-default">
-                        Delete all user data (executions, scripts, etc.)
-                    </span>
+                    <span class="text-sm text-fg-default dark:text-dark-fg-default">{fieldTitle('cascade')}</span>
                 </label>
+                <p id="cascade-description" class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
+                    Also deletes the user's executions, scripts and other data
+                </p>
             </div>
-            {#if cascadeDelete}
+            {#if cascade}
                 <div class="mb-4 p-3 alert alert-warning">
                     <strong>Warning:</strong> This will permanently delete all data associated with this user.
                 </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
     import type { EventReplayStatusResponse } from '#lib/api/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
         session: EventReplayStatusResponse | null;
@@ -60,7 +61,9 @@
 
         {#if session.execution_results?.length}
             <div class="mt-4 border-t border-blue-200 dark:border-blue-800 pt-3">
-                <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Execution Results:</h4>
+                <h4 class="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    {fieldTitle('execution_results')}
+                </h4>
                 <div class="space-y-2">
                     {#each session.execution_results as result}
                         <div class="bg-surface-overlay dark:bg-dark-surface-overlay rounded p-2 text-sm">

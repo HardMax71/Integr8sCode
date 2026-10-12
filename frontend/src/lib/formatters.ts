@@ -127,11 +127,21 @@ export function truncate(str: string | null | undefined, maxLength = 50): string
 }
 
 /**
- * Turn a generated enum value into a label: `sliding_window` becomes "Sliding window".
- * @param value - Enum value from $lib/api
- * @returns Human-readable label
+ * The one way a boolean field reads in the UI.
+ * @param value - The field's value
+ * @returns "Yes" or "No"
  */
-export function formatEnumLabel(value: string): string {
-    const words = value.replaceAll('_', ' ').toLowerCase();
-    return words.charAt(0).toUpperCase() + words.slice(1);
+export function formatBoolean(value: boolean): string {
+    return value ? 'Yes' : 'No';
+}
+
+/**
+ * The one label for an API field: its key, titled the way Pydantic titles it in the spec (`created_at` is "Created At").
+ * @param key - The field's key in the API
+ * @returns The label
+ */
+export function fieldTitle(key: string): string {
+    return key
+        .replace(/[a-z]+/gi, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .replaceAll('_', ' ');
 }

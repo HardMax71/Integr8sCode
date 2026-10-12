@@ -90,9 +90,9 @@ describe('Settings', () => {
 
     describe('Tab switching', () => {
         it.each([
-            ['General', 'General Settings'],
-            ['Editor', 'Editor Settings'],
-            ['Notifications', 'Notification Settings'],
+            ['General', 'General'],
+            ['Editor', 'Editor'],
+            ['Notifications', 'Notifications'],
         ])('clicking "%s" tab shows "%s" heading', async (tabName, headingText) => {
             await renderSettings();
             await waitFor(() => {
@@ -106,20 +106,20 @@ describe('Settings', () => {
     });
 
     describe('Theme dropdown', () => {
-        it('picks "Dark" from the theme list, previews it and shows it as the choice', async () => {
+        it('picks "dark" from the theme list, previews it and shows it as the choice', async () => {
             mockApi(getUserSettingsApiV1UserSettingsGet).ok({ ...createMockSettings(), theme: 'light' });
             await renderSettings();
             await waitFor(() => {
-                expect(screen.getByText('General Settings')).toBeInTheDocument();
+                expect(screen.getByRole('heading', { name: 'General' })).toBeInTheDocument();
             });
 
             const themeSelect = screen.getByLabelText('Theme');
-            expect(themeSelect).toHaveTextContent('Light');
+            expect(themeSelect).toHaveTextContent('light');
             await user.click(themeSelect);
-            await user.click(await screen.findByRole('option', { name: 'Dark' }));
+            await user.click(await screen.findByRole('option', { name: 'dark' }));
 
             expect(mocks.mockSetTheme).toHaveBeenCalledWith('dark');
-            await waitFor(() => expect(themeSelect).toHaveTextContent('Dark'));
+            await waitFor(() => expect(themeSelect).toHaveTextContent('dark'));
         });
     });
 
@@ -148,7 +148,7 @@ describe('Settings', () => {
 
             await user.click(screen.getByRole('button', { name: 'Editor' }));
             await waitFor(() => {
-                expect(screen.getByRole('heading', { name: 'Editor Settings' })).toBeInTheDocument();
+                expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
             });
 
             const fontInput = screen.getByLabelText(/font size/i);

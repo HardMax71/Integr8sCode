@@ -17,13 +17,13 @@ const MockIcon = vi.hoisted(() => {
 
 vi.mock('#lib/admin/sagas/index.ts', () => ({
     SAGA_STATES: {
-        created: { label: 'Created', color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
-        running: { label: 'Running', color: 'badge-info', bgColor: 'bg-blue-50', icon: MockIcon },
-        compensating: { label: 'Compensating', color: 'badge-warning', bgColor: 'bg-yellow-50', icon: MockIcon },
-        completed: { label: 'Completed', color: 'badge-success', bgColor: 'bg-green-50', icon: MockIcon },
-        failed: { label: 'Failed', color: 'badge-danger', bgColor: 'bg-red-50', icon: MockIcon },
-        timeout: { label: 'Timeout', color: 'badge-warning', bgColor: 'bg-orange-50', icon: MockIcon },
-        cancelled: { label: 'Cancelled', color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
+        created: { color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
+        running: { color: 'badge-info', bgColor: 'bg-blue-50', icon: MockIcon },
+        compensating: { color: 'badge-warning', bgColor: 'bg-yellow-50', icon: MockIcon },
+        completed: { color: 'badge-success', bgColor: 'bg-green-50', icon: MockIcon },
+        failed: { color: 'badge-danger', bgColor: 'bg-red-50', icon: MockIcon },
+        timeout: { color: 'badge-warning', bgColor: 'bg-orange-50', icon: MockIcon },
+        cancelled: { color: 'badge-neutral', bgColor: 'bg-neutral-50', icon: MockIcon },
     },
 }));
 
@@ -34,16 +34,13 @@ function renderCards(sagas: SagaStatusResponse[] = []) {
 describe('SagaStatsCards', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it('renders a card for each saga state', () => {
-        renderCards();
-        expect(screen.getByText('Created')).toBeInTheDocument();
-        expect(screen.getByText('Running')).toBeInTheDocument();
-        expect(screen.getByText('Completed')).toBeInTheDocument();
-        expect(screen.getByText('Failed')).toBeInTheDocument();
-        expect(screen.getByText('Compensating')).toBeInTheDocument();
-        expect(screen.getByText('Timeout')).toBeInTheDocument();
-        expect(screen.getByText('Cancelled')).toBeInTheDocument();
-    });
+    it.each(['created', 'running', 'compensating', 'completed', 'failed', 'timeout', 'cancelled'])(
+        'titles a card with the raw state %s',
+        (state) => {
+            renderCards();
+            expect(screen.getByText(state)).toBeInTheDocument();
+        },
+    );
 
     it('shows zero counts when no sagas', () => {
         renderCards([]);

@@ -34,7 +34,7 @@ class TestGetUserSettings:
 
         assert isinstance(settings, DomainUserSettings)
         assert settings.user_id == user_id
-        assert settings.theme == Theme.AUTO  # Default theme
+        assert settings.theme == Theme.SYSTEM  # Default theme
         assert settings.editor is not None
         assert settings.notifications is not None
 
@@ -177,9 +177,9 @@ class TestUpdateTheme:
         await svc.update_theme(user_id, Theme.DARK)
 
         # Then back to auto
-        result = await svc.update_theme(user_id, Theme.AUTO)
+        result = await svc.update_theme(user_id, Theme.SYSTEM)
 
-        assert result.theme == Theme.AUTO
+        assert result.theme == Theme.SYSTEM
 
 
 class TestUpdateNotificationSettings:
@@ -389,7 +389,7 @@ class TestRestoreSettingsToPoint:
 
         # Capture initial default settings
         initial = await svc.get_user_settings(user_id)
-        assert initial.theme == Theme.AUTO, "Initial theme should be AUTO (default)"
+        assert initial.theme == Theme.SYSTEM, "Initial theme should be SYSTEM (default)"
 
         # Make changes that alter the settings
         await svc.update_theme(user_id, Theme.DARK)
@@ -426,7 +426,7 @@ class TestSettingsIntegration:
 
         # 1. Get default settings
         initial = await svc.get_user_settings(user_id)
-        assert initial.theme == Theme.AUTO
+        assert initial.theme == Theme.SYSTEM
 
         # 2. Update theme
         await svc.update_theme(user_id, Theme.DARK)

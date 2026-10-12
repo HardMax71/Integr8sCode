@@ -14,17 +14,19 @@ test.describe('Admin Sagas', () => {
   test.describe('Filtering', () => {
     test('shows search input', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expect(adminPage.locator('input[placeholder*="Search"], input[type="search"]').first()).toBeVisible();
+      await expect(adminPage.getByLabel('Search', { exact: true })).toBeVisible();
     });
 
     test('shows state filter dropdown', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      await expect(adminPage.locator('select, button').filter({ hasText: /All States|running|completed|failed/i }).first()).toBeVisible();
+      const stateSelect = adminPage.getByLabel('State', { exact: true });
+      await expect(stateSelect).toBeVisible();
+      await expect(stateSelect.locator('option')).toHaveText(['All', 'created', 'running', 'compensating', 'completed', 'failed', 'timeout', 'cancelled']);
     });
 
     test('can clear filters', async ({ adminPage }) => {
       await adminPage.goto(PATH);
-      const searchInput = adminPage.locator('input[placeholder*="Search"], input[type="search"]').first();
+      const searchInput = adminPage.getByLabel('Search', { exact: true });
       await searchInput.fill('test-filter');
       await adminPage.getByRole('button', { name: /Clear/i }).click();
       await expect(searchInput).toHaveValue('');

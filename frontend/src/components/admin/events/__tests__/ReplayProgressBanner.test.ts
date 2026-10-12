@@ -106,7 +106,7 @@ describe('ReplayProgressBanner', () => {
     describe('execution results', () => {
         it('hides execution results section when not present', () => {
             renderBanner(makeSession());
-            expect(screen.queryByText('Execution Results:')).not.toBeInTheDocument();
+            expect(screen.queryByText('Execution Results')).not.toBeInTheDocument();
         });
 
         it('shows execution results with status badges and execution_id', () => {
@@ -133,7 +133,7 @@ describe('ReplayProgressBanner', () => {
                     ],
                 }),
             );
-            expect(screen.getByText('Execution Results:')).toBeInTheDocument();
+            expect(screen.getByRole('heading', { name: 'Execution Results' })).toBeInTheDocument();
             expect(screen.getByText('exec-r1')).toBeInTheDocument();
             expect(screen.getByText('completed')).toBeInTheDocument();
             expect(screen.getByText('1.23s')).toBeInTheDocument();

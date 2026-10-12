@@ -27,7 +27,8 @@ test.describe('Admin Users', () => {
     await expect(adminPage.getByRole('columnheader', { name: 'Username' })).toBeVisible();
     await expect(adminPage.getByRole('columnheader', { name: 'Email' })).toBeVisible();
     await expect(adminPage.getByRole('columnheader', { name: 'Role' })).toBeVisible();
-    await expect(adminPage.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    await expect(adminPage.getByRole('columnheader', { name: 'Created At' })).toBeVisible();
+    await expect(adminPage.getByRole('columnheader', { name: 'Is Active' })).toBeVisible();
   });
 
   test('displays seeded users in table', async ({ adminPage }) => {
@@ -37,7 +38,7 @@ test.describe('Admin Users', () => {
 
   test('can search for users', async ({ adminPage }) => {
     await gotoAndWaitForUsers(adminPage);
-    const searchInput = adminPage.locator('input[placeholder*="Search"]').first();
+    const searchInput = adminPage.getByLabel('Search', { exact: true });
     await searchInput.fill('admin');
     await expect(adminPage.locator('td, [class*="card"]').filter({ hasText: 'admin' }).first()).toBeVisible();
   });

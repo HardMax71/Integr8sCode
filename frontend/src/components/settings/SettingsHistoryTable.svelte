@@ -18,20 +18,17 @@
     const column = columnHelper<SettingsHistoryEntry>();
     const columns = column.columns([
         column.accessor('timestamp', {
-            header: 'Date',
             meta: { class: 'w-36 whitespace-nowrap' },
             cell: ({ getValue }) => formatTimestamp(getValue()),
         }),
-        column.accessor('field', { header: 'Field', meta: { class: 'w-32' } }),
+        column.accessor('field', { meta: { class: 'w-32' } }),
         column.display({
             id: 'change',
-            header: 'Change',
             meta: { class: 'font-mono' },
             cell: ({ row }) => renderSnippet(changeCell, row.original),
         }),
         column.display({
-            id: 'restore',
-            header: 'Restore',
+            id: 'actions',
             meta: { class: 'w-20' },
             cell: ({ row }) => renderSnippet(restoreCell, row.original),
         }),

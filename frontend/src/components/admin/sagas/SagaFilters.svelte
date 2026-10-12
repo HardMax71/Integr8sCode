@@ -1,6 +1,8 @@
 <script lang="ts">
     import { X } from '@lucide/svelte';
-    import { SAGA_STATES, type SagaStateFilter } from '#lib/admin/sagas/index.ts';
+    import { SagaState } from '#lib/api/index.ts';
+    import type { SagaStateFilter } from '#lib/admin/sagas/index.ts';
+    import { fieldTitle } from '#lib/formatters.ts';
 
     interface Props {
         searchQuery: string;
@@ -19,33 +21,24 @@
 
 <div class="mb-6 flex flex-col lg:grid lg:grid-cols-4 gap-3">
     <div>
-        <label for="saga-search" class="block text-sm font-medium mb-2 text-fg-muted">Search</label>
-        <input
-            id="saga-search"
-            type="text"
-            bind:value={searchQuery}
-            placeholder="Search by ID, name, or error..."
-            class="form-input-standard"
-        />
+        <label for="saga-search" class="block text-sm font-medium mb-2 text-fg-muted">{fieldTitle('search')}</label>
+        <input id="saga-search" type="text" bind:value={searchQuery} class="form-input-standard" />
     </div>
     <div>
-        <label for="saga-state-filter" class="block text-sm font-medium mb-2 text-fg-muted">State</label>
+        <label for="saga-state-filter" class="block text-sm font-medium mb-2 text-fg-muted">{fieldTitle('state')}</label
+        >
         <select id="saga-state-filter" bind:value={stateFilter} class="form-select-standard">
-            <option value="">All States</option>
-            {#each Object.entries(SAGA_STATES) as [value, state]}
-                <option {value}>{state.label}</option>
+            <option value="">All</option>
+            {#each Object.values(SagaState) as state (state)}
+                <option value={state}>{state}</option>
             {/each}
         </select>
     </div>
     <div>
-        <label for="saga-execution-filter" class="block text-sm font-medium mb-2 text-fg-muted">Execution ID</label>
-        <input
-            id="saga-execution-filter"
-            type="text"
-            bind:value={executionIdFilter}
-            placeholder="Filter by execution ID..."
-            class="form-input-standard"
-        />
+        <label for="saga-execution-filter" class="block text-sm font-medium mb-2 text-fg-muted"
+            >{fieldTitle('execution_id')}</label
+        >
+        <input id="saga-execution-filter" type="text" bind:value={executionIdFilter} class="form-input-standard" />
     </div>
     <div>
         <span class="block text-sm font-medium mb-2 text-fg-muted">Actions</span>

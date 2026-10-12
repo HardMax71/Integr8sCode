@@ -89,7 +89,7 @@ test.describe('Editor Execution', () => {
   test('shows execution output on successful run', async ({ userPage }) => {
     await userPage.goto(PATH);
     const result = await runExampleAndExecute(userPage);
-    await expect(userPage.getByText('Output:', { exact: true }).first()).toBeVisible({ timeout: 5000 });
+    await expect(userPage.getByText('Stdout', { exact: true }).first()).toBeVisible({ timeout: 5000 });
     await expect(userPage.getByTestId('output-pre').first()).toContainText('Hello from a Python');
     expect(result.stdout ?? '').toContain('Hello from a Python');
   });
@@ -97,9 +97,10 @@ test.describe('Editor Execution', () => {
   test('shows resource usage after execution', async ({ userPage }) => {
     await userPage.goto(PATH);
     const result = await runExampleAndExecute(userPage);
-    await expect(userPage.getByText('Resource Usage:')).toBeVisible({ timeout: 5000 });
-    await expect(userPage.getByText(/CPU:/)).toBeVisible();
-    await expect(userPage.getByText(/Memory:/)).toBeVisible();
+    await expect(userPage.getByText('Resource Usage', { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(userPage.getByText('Execution Time Wall Seconds', { exact: true })).toBeVisible();
+    await expect(userPage.getByText('Cpu Time Jiffies', { exact: true })).toBeVisible();
+    await expect(userPage.getByText('Peak Memory Kb', { exact: true })).toBeVisible();
     expect(result.resource_usage).toBeTruthy();
   });
 

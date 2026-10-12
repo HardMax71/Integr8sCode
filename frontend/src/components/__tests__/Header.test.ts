@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
         verifyAuth: vi.fn(),
     },
     mockThemeStore: {
-        value: 'auto' as string,
+        value: 'system' as string,
     },
     mockToggleTheme: vi.fn(),
 }));
@@ -99,7 +99,7 @@ describe('Header', () => {
 
     beforeEach(() => {
         setAuth(false);
-        mocks.mockThemeStore.value = 'auto';
+        mocks.mockThemeStore.value = 'system';
         mocks.mockAuthStore.clearAuth.mockReset();
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
         mockApi(updateUserSettingsApiV1UserSettingsPut).ok({});
@@ -156,7 +156,7 @@ describe('Header', () => {
         it.each([
             { theme: 'light', iconClass: 'lucide-sun' },
             { theme: 'dark', iconClass: 'lucide-moon' },
-            { theme: 'auto', iconClass: 'lucide-monitor-cog' },
+            { theme: 'system', iconClass: 'lucide-monitor-cog' },
         ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
             mocks.mockThemeStore.value = theme;
             const { container } = renderWithQueryClient(Header);
@@ -215,13 +215,13 @@ describe('Header', () => {
 
     describe('admin user', () => {
         beforeEach(() => {
-            setAuth(true, 'admin', 'admin', 'admin@example.com');
+            setAuth(true, 'root', 'admin', 'root@example.com');
         });
 
-        it('shows the Admin indicator and an Admin entry linking to the admin panel', async () => {
+        it('shows the admin role and an Admin entry linking to the admin panel', async () => {
             await openUserDropdown();
             await waitFor(() => {
-                expect(screen.getByText('(Admin)')).toBeInTheDocument();
+                expect(screen.getByText('admin')).toBeInTheDocument();
             });
             expect(screen.getByRole('menuitem', { name: /^Admin$/ })).toHaveAttribute('href', '/admin/events');
         });
@@ -243,9 +243,9 @@ describe('Header', () => {
                 isAuth: true,
                 username: 'mobileuser',
                 role: 'user',
-                expectedContent: ['mobileuser', 'Settings', 'Logout'],
+                expectedContent: ['mobileuser', 'user', 'Settings', 'Logout'],
             },
-            { isAuth: true, username: 'admin', role: 'admin', expectedContent: ['Admin Panel', 'Administrator'] },
+            { isAuth: true, username: 'root', role: 'admin', expectedContent: ['root', 'admin', 'Admin Panel'] },
         ])('shows correct content for auth=$isAuth role=$role', async ({ isAuth, username, role, expectedContent }) => {
             setAuth(isAuth, username, role);
             await openMobileMenu();

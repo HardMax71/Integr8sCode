@@ -11,6 +11,7 @@
 #   ./deploy.sh test                # Run full test suite locally
 #   ./deploy.sh logs [service]      # View logs (dev mode)
 #   ./deploy.sh status              # Show status of running services
+#   ./deploy.sh backup [dir]        # Dump MongoDB, keep 14 days
 #   ./deploy.sh openapi [path]      # Generate OpenAPI spec from backend
 #   ./deploy.sh types               # Generate TypeScript types for frontend
 #
@@ -63,6 +64,7 @@ show_help() {
     echo "  test               Run full test suite"
     echo "  logs [service]     View logs (defaults to all services)"
     echo "  status             Show status of running services"
+    echo "  backup [dir]       Dump MongoDB to dir (default: /var/backups/mongo), keep 14 days"
     echo "  openapi [path]     Generate OpenAPI spec (default: docs/reference/openapi.json)"
     echo "  types              Generate TypeScript types for frontend from OpenAPI spec"
     echo "  help               Show this help message"
@@ -201,6 +203,20 @@ cmd_status() {
     docker compose ps 2>/dev/null || echo "  No docker-compose services running"
 }
 
+cmd_backup() {
+    local DIR="${1:-/var/backups/mongo}"
+    mkdir -p "$DIR"
+    if (( $(df --output=avail -k "$DIR" | tail -1) < 5 * 1024 * 1024 )); then
+        print_error "Less than 5G free in $DIR, no backup taken"
+        exit 1
+    fi
+    local OUT="$DIR/mongo-$(date +%F).archive.gz"
+    docker compose exec -T mongo sh -c 'mongodump --quiet -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --archive --gzip' > "$OUT.part"
+    mv "$OUT.part" "$OUT"
+    find "$DIR" -name 'mongo-*' -mtime +13 -delete
+    print_success "Backup written to $OUT ($(du -h "$OUT" | cut -f1))"
+}
+
 # =============================================================================
 # QUALITY CHECKS
 # =============================================================================
@@ -335,6 +351,9 @@ case "${1:-help}" in
         ;;
     status)
         cmd_status
+        ;;
+    backup)
+        cmd_backup "$2"
         ;;
     check)
         cmd_check

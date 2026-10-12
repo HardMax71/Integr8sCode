@@ -88,7 +88,6 @@ The deploy job runs `appleboy/ssh-action` against the production server. It's sk
 | Secret                                         | Used by                     | For                                         |
 |------------------------------------------------|-----------------------------|---------------------------------------------|
 | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` | Release & Deploy            | SSH to the production server                |
-| `DEPLOY_GHCR_TOKEN`                            | Release & Deploy            | PAT with `read:packages` for `docker login` |
 | `JWT_SECRET_KEY`                               | Release & Deploy            | the backend's `SECRET_KEY`                  |
 | `MONGO_USER`, `MONGO_PASSWORD`                 | Release & Deploy            | MongoDB root credentials                    |
 | `MONGO_MONITOR_PASSWORD`                       | Release & Deploy            | password of the collector's MongoDB user    |

@@ -175,7 +175,7 @@ describe('AdminExecutions', () => {
         it('shows status badge', async () => {
             const execs: AdminExecutionResponse[] = [{ ...fakeAdminExecutionResponse(), status: 'running' }];
             await renderWithExecutions(execs);
-            expect(within(executionsTable()).getByText('running')).toBeInTheDocument();
+            expect(within(executionsTable()).getByText('running')).toHaveClass('badge', 'badge-info');
         });
     });
 

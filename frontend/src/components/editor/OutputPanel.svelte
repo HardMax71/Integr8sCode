@@ -1,8 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import type { ExecutionResult, ExecutionStatus } from '#lib/api/index.ts';
+    import type { ExecutionResult } from '#lib/api/index.ts';
     import type { ExecutionPhase } from '#lib/editor/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
+    import { EXECUTION_STATUS_BADGE } from '#lib/badges.ts';
     import Spinner from '#components/Spinner.svelte';
     import { TriangleAlert, FileText, Copy } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
@@ -52,24 +53,6 @@
         }
     }
 
-    const GREEN = 'bg-green-50 text-green-700 ring-green-600 dark:bg-green-950 dark:text-green-300 dark:ring-green-500';
-    const RED = 'bg-red-50 text-red-700 ring-red-600 dark:bg-red-950 dark:text-red-300 dark:ring-red-500';
-    const BLUE = 'bg-blue-50 text-blue-700 ring-blue-600 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-500';
-    const YELLOW =
-        'bg-yellow-50 text-yellow-700 ring-yellow-600 dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-500';
-    const STATUS_CLASSES: Record<ExecutionStatus, string> = {
-        queued: YELLOW,
-        scheduled: '',
-        running: BLUE,
-        completed: GREEN,
-        failed: RED,
-        timeout: '',
-        cancelled: '',
-        error: RED,
-    };
-
-    const statusClasses = $derived(result ? STATUS_CLASSES[result.status] : '');
-
     const phaseLabel = $derived.by(() => {
         if (phase === 'starting') return 'Starting...';
         if (phase === 'queued') return 'Queued...';
@@ -109,9 +92,7 @@
         {:else if result && depsReady}
             <div class="space-y-5 animate-fly-in">
                 <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
-                    <span
-                        class="inline-flex items-center rounded-lg px-2 py-1 font-medium ring-1 ring-inset whitespace-nowrap {statusClasses}"
-                    >
+                    <span class="badge whitespace-nowrap {EXECUTION_STATUS_BADGE[result.status]}">
                         <span class="mr-1 opacity-75">{fieldTitle('status')}</span>{result.status}
                     </span>
 

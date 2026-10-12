@@ -1,5 +1,8 @@
 x-logging: &logging
   driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 x-backend-secrets: &backend-secrets
   SECRET_KEY: ${SECRET_KEY:-CHANGE_ME_min_32_chars_long_!!!!}

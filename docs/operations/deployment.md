@@ -178,7 +178,7 @@ Pruning before the pull and after the deploy keeps only the images the running s
 
 The images on GHCR are public, so the server pulls them without logging in. To set up the server and the repository secrets, see [Required secrets](cicd.md#required-secrets).
 
-Every service logs through Docker's `local` driver, set once as `x-logging` at the top of docker-compose.yaml, which keeps at most five compressed 20MB files per container. The default `json-file` driver never rotates, and its logs once filled the production disk.
+Every service logs through Docker's `local` driver with `max-size: 10m` and `max-file: 3`, set once as `x-logging` at the top of docker-compose.yaml, so a container keeps at most 30MB of compressed logs. The default `json-file` driver never rotates, and its logs once filled the production disk.
 
 `./deploy.sh backup` dumps MongoDB as a gzip archive into /var/backups/mongo (or the directory you pass), skips the run when less than 5G is free there, and deletes dumps older than 14 days. Production runs it every night from /etc/cron.d/integr8scode-backup:
 

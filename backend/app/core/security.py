@@ -1,19 +1,32 @@
 import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 import jwt
 from fastapi import Request
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
+from pydantic import TypeAdapter, ValidationError
 
 from app.core.metrics import SecurityMetrics
 from app.domain.user import CSRFValidationError, InvalidCredentialsError
 from app.settings import Settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
+
+
+class SubjectClaims(TypedDict):
+    sub: str
+
+
+class AccessTokenClaims(SubjectClaims):
+    user_id: str
+
+
+_subject_adapter = TypeAdapter(SubjectClaims)
+_claims_adapter = TypeAdapter(AccessTokenClaims)
 
 
 class SecurityService:
@@ -64,11 +77,29 @@ class SecurityService:
         except jwt.PyJWTError:
             self._security_metrics.record_token_validation_failure("invalid")
             raise InvalidCredentialsError() from None
-        username: str | None = payload.get("sub")
-        if username is None:
+        try:
+            claims = _subject_adapter.validate_python(payload)
+        except ValidationError:
             self._security_metrics.record_token_validation_failure("missing_subject")
-            raise InvalidCredentialsError()
-        return username
+            raise InvalidCredentialsError() from None
+        return claims["sub"]
+
+    def decode_user_id(self, token: str) -> str:
+        """Return the user id of a valid access token.
+
+        Args:
+            token: The JWT token string.
+
+        Raises:
+            InvalidCredentialsError: The token is invalid, expired or carries no user id.
+        """
+        try:
+            claims = _claims_adapter.validate_python(
+                jwt.decode(token, self.settings.SECRET_KEY, algorithms=[self.settings.ALGORITHM])
+            )
+        except jwt.PyJWTError, ValidationError:
+            raise InvalidCredentialsError() from None
+        return claims["user_id"]
 
     def generate_csrf_token(self, session_id: str) -> str:
         """Generate a signed CSRF token bound to the given session (access_token).

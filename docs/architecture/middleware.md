@@ -62,7 +62,7 @@ Then it wraps `receive` and counts bytes as they stream in, which catches chunke
 
 ## Rate limit
 
-`RateLimitMiddleware` checks each request against Redis, keyed by client IP, and adds `X-RateLimit-*` headers or answers 429. It skips these paths:
+`RateLimitMiddleware` checks each request against Redis, keyed by the user id from a valid access token or else by client IP, and adds `X-RateLimit-*` headers or answers 429. It skips these paths:
 
 ```python
 --8<-- "backend/app/core/middlewares/rate_limit.py:excluded_paths"

@@ -29,7 +29,7 @@ async def test_normalize_and_bypass_and_no_rule(scope: AsyncContainer) -> None:
     # bypass user is always allowed
     cfg = RateLimitConfig(default_rules=[], user_overrides={"u1": UserRateLimit(user_id="u1", bypass_rate_limit=True)})
     await svc.update_config(cfg)
-    res2 = await svc.check_rate_limit("u1", "/api/x", config=None)
+    res2 = await svc.check_rate_limit("u1", "/api/x")
     assert res2.allowed is True
 
     # no matching rule -> allowed
@@ -62,8 +62,8 @@ async def test_sliding_window_allowed_and_rejected(scope: AsyncContainer) -> Non
     assert rej.allowed is False and rej.retry_after is not None
 
     # Provided config with global_enabled False
-    cfg3 = RateLimitConfig(default_rules=[rule], global_enabled=False)
-    res_disabled = await svc.check_rate_limit("u", "/api/v1/x", config=cfg3)
+    await svc.update_config(RateLimitConfig(default_rules=[rule], global_enabled=False))
+    res_disabled = await svc.check_rate_limit("u", "/api/v1/x")
     assert res_disabled.allowed is True
 
 
@@ -118,18 +118,16 @@ async def test_config_update_and_user_helpers(scope: AsyncContainer) -> None:
     await svc.update_config(cfg)
     # _get_config from cache path
     got = await svc._get_config()
-    assert isinstance(got, RateLimitConfig)
+    assert got == cfg
 
     # Update user limit and read it back
-    lim = UserRateLimit(user_id="u1")
+    lim = UserRateLimit(user_id="u1", global_multiplier=2.0)
     await svc.update_user_rate_limit("u1", lim)
-    got_user = await svc.get_user_rate_limit("u1")
-    assert got_user is not None
+    assert await svc.get_user_rate_limit("u1") == lim
 
     # Reset and get usage stats via scan
     await svc.reset_user_limits("user")
-    stats = await svc.get_usage_stats("user")
-    assert isinstance(stats, dict)
+    assert await svc.get_usage_stats("user") == {}
 
 
 @pytest.mark.asyncio
@@ -148,9 +146,6 @@ async def test_ip_based_rate_limiting(scope: AsyncContainer) -> None:
     result = await svc.check_rate_limit("ip:192.168.1.1", "/api/test")
     assert result.allowed is True
 
-    # Verify metrics object has _requests counter for checks
-    assert hasattr(svc.metrics, "_requests")
-
 
 @pytest.mark.asyncio
 async def test_get_config_roundtrip(scope: AsyncContainer) -> None:
@@ -160,8 +155,7 @@ async def test_get_config_roundtrip(scope: AsyncContainer) -> None:
         default_rules=[RateLimitRule(endpoint_pattern=r"^/z", group=EndpointGroup.API, requests=1, window_seconds=1)]
     )
     await svc.update_config(cfg)
-    got = await svc._get_config()
-    assert isinstance(got, RateLimitConfig)
+    assert await svc._get_config() == cfg
 
 
 @pytest.mark.asyncio
@@ -247,10 +241,10 @@ async def test_token_bucket_invalid_data(scope: AsyncContainer) -> None:
 async def test_update_config_serialization_error(scope: AsyncContainer, monkeypatch: pytest.MonkeyPatch) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
 
-    async def failing_setex(key: str, ttl: int, value: str) -> None:  # noqa: ARG001
+    async def failing_set(key: str, value: str) -> None:  # noqa: ARG001
         raise ValueError("Serialization failed")
 
-    monkeypatch.setattr(svc.redis, "setex", failing_setex)
+    monkeypatch.setattr(svc.redis, "set", failing_set)
 
     cfg = RateLimitConfig(default_rules=[])
     with pytest.raises(ValueError):
@@ -258,10 +252,15 @@ async def test_update_config_serialization_error(scope: AsyncContainer, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_get_user_rate_limit_not_found(scope: AsyncContainer) -> None:
+async def test_user_without_override_gets_the_defaults(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    result = await svc.get_user_rate_limit("nonexistent")
-    assert result is None
+    limit = await svc.get_user_rate_limit("nonexistent")
+    assert (limit.user_id, limit.rules, limit.global_multiplier, limit.bypass_rate_limit) == (
+        "nonexistent",
+        [],
+        1.0,
+        False,
+    )
 
 
 @pytest.mark.asyncio
@@ -279,12 +278,12 @@ async def test_reset_user_limits_error(scope: AsyncContainer, monkeypatch: pytes
 @pytest.mark.asyncio
 async def test_get_usage_stats_with_keys(scope: AsyncContainer) -> None:
     svc: RateLimitService = await scope.get(RateLimitService)
-    user_id = "user"
+    user_id = f"user-{uuid4().hex[:8]}"
     index_key = f"{svc.prefix}index:{user_id}"
     sw_key = f"{svc.prefix}sw:{user_id}:/api:key1"
     await svc.redis.sadd(index_key, sw_key)
     stats = await svc.get_usage_stats(user_id)
-    assert isinstance(stats, dict)
+    assert list(stats) == ["/api:key1"]
 
 
 @pytest.mark.asyncio
@@ -298,13 +297,14 @@ async def test_check_rate_limit_with_user_override(scope: AsyncContainer) -> Non
         algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
     )
     user_override = UserRateLimit(user_id="special_user", global_multiplier=4.0)
-    cfg = RateLimitConfig(default_rules=[rule], user_overrides={"special_user": user_override})
+    svc.prefix = f"{svc.prefix}{uuid4().hex[:6]}:"
+    await svc.update_config(RateLimitConfig(default_rules=[rule], user_overrides={"special_user": user_override}))
 
     # Normal user: exceed after limit
     endpoint = "/api/test"
     allowed_count = 0
     for _ in range(5):
-        res = await svc.check_rate_limit("normal_user", endpoint, config=cfg)
+        res = await svc.check_rate_limit("normal_user", endpoint)
         allowed_count += 1 if res.allowed else 0
         await asyncio.sleep(0.05)
     assert allowed_count == int(rule.requests)  # Should be exactly 3
@@ -312,7 +312,7 @@ async def test_check_rate_limit_with_user_override(scope: AsyncContainer) -> Non
     # Special user: higher multiplier allows more requests
     allowed_count_special = 0
     for _ in range(6):
-        res = await svc.check_rate_limit("special_user", endpoint, config=cfg)
+        res = await svc.check_rate_limit("special_user", endpoint)
         allowed_count_special += 1 if res.allowed else 0
         await asyncio.sleep(0.05)
     assert allowed_count_special > allowed_count

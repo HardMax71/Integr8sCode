@@ -5,9 +5,9 @@ import { user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 
 import LanguageSelect from '#components/editor/LanguageSelect.svelte';
-import type { LanguageInfo } from '#lib/api/index.ts';
+import type { ResourceLimits } from '#lib/api/index.ts';
 
-const RUNTIMES: Record<string, LanguageInfo> = {
+const RUNTIMES: ResourceLimits['supported_runtimes'] = {
     python: { versions: ['3.14', '3.13', '3.12'], file_ext: 'py' },
     node: { versions: ['26', '24', '22'], file_ext: 'js' },
     go: { versions: ['1.27'], file_ext: 'go' },
@@ -47,9 +47,8 @@ describe('LanguageSelect', () => {
     });
 
     describe('dropped versions', () => {
-        it('switches to the newest offered version when the current one is no longer offered', async () => {
-            const runtimes = { ...RUNTIMES, python: { versions: ['3.12', '3.14', '3.13'], file_ext: 'py' } };
-            const { onselect } = renderSelect({ runtimes, version: '3.7' });
+        it('switches to the first offered version, the newest, when the current one is no longer offered', async () => {
+            const { onselect } = renderSelect({ version: '3.7' });
             await waitFor(() => {
                 expect(onselect).toHaveBeenCalledWith('python', '3.14');
             });

@@ -239,12 +239,7 @@ async def test_replay_stream_yields_initial_then_live() -> None:
 
     agen = await svc.create_replay_stream(initial)
 
-    # First item is the initial status
-    first = await agen.__anext__()
-    data = _decode(first)
-    assert data["session_id"] == "sess-1"
-    assert data["status"] == "running"
-    assert data["replayed_events"] == 0
+    assert await agen.__anext__() is initial
 
     # Push a live update
     await bus.push_replay(
@@ -261,8 +256,7 @@ async def test_replay_stream_yields_initial_then_live() -> None:
     )
 
     second = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
-    data2 = _decode(second)
-    assert data2["replayed_events"] == 3
+    assert second.replayed_events == 3
 
     # Push terminal status
     await bus.push_replay(
@@ -279,8 +273,7 @@ async def test_replay_stream_yields_initial_then_live() -> None:
     )
 
     third = await asyncio.wait_for(agen.__anext__(), timeout=2.0)
-    data3 = _decode(third)
-    assert data3["status"] == "completed"
+    assert third.status == ReplayStatus.COMPLETED
 
     with pytest.raises(StopAsyncIteration):
         await agen.__anext__()
@@ -305,9 +298,7 @@ async def test_replay_stream_terminal_initial_closes_immediately() -> None:
 
     agen = await svc.create_replay_stream(initial)
 
-    first = await agen.__anext__()
-    data = _decode(first)
-    assert data["status"] == "completed"
+    assert await agen.__anext__() is initial
 
     with pytest.raises(StopAsyncIteration):
         await agen.__anext__()

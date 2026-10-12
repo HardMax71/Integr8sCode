@@ -2,22 +2,32 @@ import { createMutation } from '@tanstack/svelte-query';
 import {
     createExecutionApiV1ExecutePostMutation,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
+    EventType,
+    ExecutionStatus,
     type ExecutionResponse,
     type ExecutionResult,
-    type ExecutionStatus,
-    type EventType,
     type SseControlEvent,
 } from '#lib/api/index.ts';
 import { getErrorMessage } from '#lib/api-interceptors.ts';
 
-export type ExecutionPhase = 'idle' | 'starting' | 'queued' | 'scheduled' | 'running';
+type ActiveStatus = Extract<ExecutionStatus, 'queued' | 'scheduled' | 'running'>;
 
-function isActivePhase(s: ExecutionStatus): s is 'queued' | 'scheduled' | 'running' {
-    return s === 'queued' || s === 'scheduled' || s === 'running';
-}
+export type ExecutionPhase = 'idle' | 'starting' | ActiveStatus;
 
-function isTerminalFailure(e: EventType | SseControlEvent): boolean {
-    return e === 'execution_failed' || e === 'execution_timeout' || e === 'result_failed';
+const ACTIVE_STATUSES: readonly ExecutionStatus[] = [
+    ExecutionStatus.QUEUED,
+    ExecutionStatus.SCHEDULED,
+    ExecutionStatus.RUNNING,
+];
+
+const FAILURE_EVENTS: readonly (EventType | SseControlEvent)[] = [
+    EventType.EXECUTION_FAILED,
+    EventType.EXECUTION_TIMEOUT,
+    EventType.RESULT_FAILED,
+];
+
+function isActivePhase(s: ExecutionStatus): s is ActiveStatus {
+    return ACTIVE_STATUSES.includes(s);
 }
 
 class ExecutionState {
@@ -67,7 +77,7 @@ class ExecutionState {
     async #follow(data: ExecutionResponse): Promise<void> {
         const controller = new AbortController();
         this.#controller = controller;
-        this.#phase = isActivePhase(data.status) ? data.status : 'queued';
+        this.#phase = isActivePhase(data.status) ? data.status : ExecutionStatus.QUEUED;
 
         const { stream } = await executionEventsApiV1EventsExecutionsExecutionIdGet({
             path: { execution_id: data.execution_id },
@@ -81,18 +91,18 @@ class ExecutionState {
                 this.#phase = ev.status;
             }
 
-            if (ev.event_type === 'result_stored') {
+            if (ev.event_type === EventType.RESULT_STORED) {
                 this.result = ev.result;
                 terminalReceived = true;
                 break;
             }
 
-            if (isTerminalFailure(ev.event_type)) {
+            if (FAILURE_EVENTS.includes(ev.event_type)) {
                 this.result = ev.result;
                 this.#streamError =
-                    ev.event_type === 'execution_timeout'
+                    ev.event_type === EventType.EXECUTION_TIMEOUT
                         ? 'Execution timed out.'
-                        : ev.event_type === 'result_failed'
+                        : ev.event_type === EventType.RESULT_FAILED
                           ? 'Failed to store execution results.'
                           : 'Execution failed.';
                 terminalReceived = true;

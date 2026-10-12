@@ -1,28 +1,34 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { proxy } from 'svelte/internal/client';
-import { user, createMockUser, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, createMockUser, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import RateLimitsModal from '#components/admin/users/RateLimitsModal.svelte';
+import {
+    getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet,
+    zRateLimitRuleRequest,
+    type RateLimitRuleResponse,
+    type UserRateLimitConfigResponse,
+    type UserRateLimitsResponse,
+} from '#lib/api/index.ts';
 
 vi.mock('#components/Spinner.svelte', async () => {
     const utils = await import('#test/test-utils.ts');
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-import { getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet } from '#lib/api/index.ts';
+const createConfig = (rules: RateLimitRuleResponse[] = []): UserRateLimitConfigResponse => ({
+    user_id: 'user-1',
+    bypass_rate_limit: false,
+    global_multiplier: 1,
+    notes: '',
+    rules,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+});
 
-vi.mock('#lib/admin/rate-limits/index.ts', () => ({
-    getGroupColor: vi.fn(() => 'badge-neutral'),
-    detectGroupFromEndpoint: vi.fn(() => 'general'),
-    createEmptyRule: vi.fn(() => ({
-        endpoint_pattern: '',
-        requests: 10,
-        window_seconds: 60,
-        group: 'general',
-        algorithm: 'sliding_window',
-        enabled: true,
-    })),
-}));
+const usage = (endpoint: string, remaining: number): UserRateLimitsResponse['current_usage'] => ({
+    [endpoint]: { algorithm: 'sliding_window', remaining },
+});
 
 function renderModal(overrides: Record<string, unknown> = {}) {
     const onClose = vi.fn();
@@ -31,15 +37,7 @@ function renderModal(overrides: Record<string, unknown> = {}) {
     const result = renderWithQueryClient(RateLimitsModal, {
         open: true,
         user: createMockUser({ username: 'alice' }),
-        config: proxy({
-            user_id: 'user-1',
-            bypass_rate_limit: false,
-            global_multiplier: 1.0,
-            notes: '',
-            rules: [],
-            created_at: '2024-01-01T00:00:00Z',
-            updated_at: '2024-01-01T00:00:00Z',
-        }),
+        config: proxy(createConfig()),
         usage: null,
         loading: false,
         saving: false,
@@ -54,20 +52,14 @@ function renderModal(overrides: Record<string, unknown> = {}) {
 describe('RateLimitsModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.mocked(getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet).mockResolvedValue({
-            data: [
-                {
-                    endpoint_pattern: '/api/v1/*',
-                    requests: 100,
-                    window_seconds: 60,
-                    group: 'api',
-                    algorithm: 'sliding_window',
-                    burst_multiplier: 1.5,
-                    priority: 0,
-                    enabled: true,
-                },
-            ],
-        } as any);
+        mockApi(getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet).ok([
+            zRateLimitRuleRequest.parse({
+                endpoint_pattern: '/api/v1/*',
+                group: 'api',
+                requests: 100,
+                window_seconds: 60,
+            }),
+        ]);
     });
 
     it('does not render content when open is false', () => {
@@ -122,36 +114,30 @@ describe('RateLimitsModal', () => {
 
     it('labels a user rule by its keys and shows the algorithm value', () => {
         renderModal({
-            config: proxy({
-                user_id: 'user-1',
-                bypass_rate_limit: false,
-                global_multiplier: 1.0,
-                notes: '',
-                rules: [
-                    {
+            config: proxy(
+                createConfig([
+                    zRateLimitRuleRequest.parse({
                         endpoint_pattern: '/api/v1/execute',
+                        group: 'execution',
                         requests: 5,
                         window_seconds: 30,
-                        group: 'execution',
                         algorithm: 'token_bucket',
-                        enabled: true,
-                    },
-                ],
-                created_at: '2024-01-01T00:00:00Z',
-                updated_at: '2024-01-01T00:00:00Z',
-            }),
+                    }),
+                ]),
+            ),
         });
         expect(screen.getByText('Rules')).toBeInTheDocument();
         expect(screen.getByLabelText('Endpoint Pattern')).toHaveValue('/api/v1/execute');
         expect(screen.getByLabelText('Requests')).toHaveValue(5);
         expect(screen.getByLabelText('Window Seconds')).toHaveValue(30);
+        expect(screen.getByRole('combobox', { name: 'Group' })).toHaveDisplayValue('execution');
         expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveDisplayValue('token_bucket');
         expect(screen.getByRole('checkbox', { name: 'Enabled' })).toBeChecked();
     });
 
     it('shows current usage section when usage data provided', () => {
         renderModal({
-            usage: { '/api/v1/execute': { algorithm: 'sliding_window', remaining: 50 } },
+            usage: usage('/api/v1/execute', 50),
         });
         expect(screen.getByText('Current Usage')).toBeInTheDocument();
         expect(screen.getByText('/api/v1/execute')).toBeInTheDocument();
@@ -165,7 +151,7 @@ describe('RateLimitsModal', () => {
 
     it('shows Reset All Counters when usage exists', () => {
         renderModal({
-            usage: { '/api/v1/test': { algorithm: 'sliding_window', remaining: 10 } },
+            usage: usage('/api/v1/test', 10),
         });
         expect(screen.getByText('Reset All Counters')).toBeInTheDocument();
     });
@@ -190,5 +176,23 @@ describe('RateLimitsModal', () => {
     it('disables Save button when saving', () => {
         renderModal({ saving: true });
         expect(screen.getByText('Saving...').closest('button')).toBeDisabled();
+    });
+
+    it('adds a rule from the spec defaults and lets the admin pick its group', async () => {
+        renderModal();
+        await user.click(screen.getByText('Add Rule'));
+        const group = screen.getByRole('combobox', { name: 'Group' });
+        expect(group).toHaveDisplayValue('api');
+        expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveDisplayValue(
+            zRateLimitRuleRequest.parse({ endpoint_pattern: '', group: 'api', requests: 1, window_seconds: 1 })
+                .algorithm,
+        );
+        await user.selectOptions(group, 'execution');
+        expect(group).toHaveDisplayValue('execution');
+    });
+
+    it('shows the effective requests once the multiplier changes', async () => {
+        renderModal({ config: proxy({ ...createConfig(), global_multiplier: 2 }) });
+        await waitFor(() => expect(screen.getByText('200')).toBeInTheDocument());
     });
 });

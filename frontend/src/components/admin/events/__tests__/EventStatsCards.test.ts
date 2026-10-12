@@ -47,9 +47,9 @@ describe('EventStatsCards', () => {
         expect(screen.getByText('3.46s')).toBeInTheDocument();
     });
 
-    it('shows "0s" when avg_processing_time is falsy', () => {
+    it('formats a zero avg_processing_time like any other', () => {
         renderCards(createMockStats({ avg_processing_time: 0 }));
-        expect(screen.getByText('0s')).toBeInTheDocument();
+        expect(screen.getByText('0.00s')).toBeInTheDocument();
     });
 
     it('shows active user count from top_users array length', () => {

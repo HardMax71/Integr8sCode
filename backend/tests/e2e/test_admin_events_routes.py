@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 
 import pytest
@@ -358,6 +359,7 @@ class TestStreamReplayStatus:
             assert source.response.status_code == 200
             first_event = await asyncio.wait_for(anext(aiter(source)), timeout=5.0)
 
+        assert "progress_percentage" in json.loads(first_event.data)
         status = EventReplayStatusResponse.model_validate_json(first_event.data)
         assert status.session_id == replay_result.session_id
         assert status.status in (

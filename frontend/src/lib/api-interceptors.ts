@@ -1,4 +1,5 @@
-import { client, type ValidationError } from '#lib/api/index.ts';
+import * as z from 'zod/mini';
+import { client, zErrorResponse, zHttpValidationError, type ValidationError } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { authStore } from '#stores/auth.svelte.ts';
@@ -20,11 +21,8 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 
-function isValidationErrorArray(value: unknown): value is ValidationError[] {
-    if (!Array.isArray(value) || value.length === 0) return false;
-    const first = value[0] as Record<string, unknown>;
-    return typeof first.msg === 'string' && Array.isArray(first.loc);
-}
+// FastAPI's own errors carry only `detail`, without the `type` our handler adds
+const zErrorDetail = z.pick(zErrorResponse, { detail: true });
 
 function formatValidationErrors(errors: ValidationError[]): string {
     return errors
@@ -41,11 +39,10 @@ export function getErrorMessage(err: unknown, fallback = 'An error occurred'): s
     if (err instanceof ApiError) return getErrorMessage(err.body, fallback);
     if (typeof err === 'string') return err;
 
-    if (typeof err === 'object' && 'detail' in err) {
-        const { detail } = err;
-        if (typeof detail === 'string') return detail;
-        if (isValidationErrorArray(detail)) return formatValidationErrors(detail);
-    }
+    const message = zErrorDetail.safeParse(err);
+    if (message.success) return message.data.detail;
+    const validation = zHttpValidationError.safeParse(err);
+    if (validation.success && validation.data.detail?.length) return formatValidationErrors(validation.data.detail);
 
     if (err instanceof Error) return err.message;
 

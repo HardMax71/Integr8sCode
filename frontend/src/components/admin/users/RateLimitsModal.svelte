@@ -3,13 +3,14 @@
     import { createQuery } from '@tanstack/svelte-query';
     import {
         getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions,
+        EndpointGroup,
         RateLimitAlgorithm,
+        zRateLimitUpdateRequest,
         type UserResponse,
         type UserRateLimitConfigResponse,
-        type RateLimitRuleResponse,
-        type EndpointUsageStats,
+        type UserRateLimitsResponse,
     } from '#lib/api/index.ts';
-    import { getGroupColor, detectGroupFromEndpoint, createEmptyRule } from '#lib/admin/rate-limits/index.ts';
+    import { getGroupColor, createEmptyRule } from '#lib/admin/rate-limits/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
     import Modal from '#components/Modal.svelte';
     import Spinner from '#components/Spinner.svelte';
@@ -18,7 +19,7 @@
         open: boolean;
         user: UserResponse | null;
         config: UserRateLimitConfigResponse | null;
-        usage: Record<string, EndpointUsageStats> | null;
+        usage: UserRateLimitsResponse['current_usage'] | null;
         loading: boolean;
         saving: boolean;
         onClose: () => void;
@@ -31,29 +32,21 @@
     const defaults = createQuery(() => getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetOptions());
     let defaultRules = $derived(defaults.data ?? []);
 
-    let defaultRulesWithEffective = $derived.by(() => {
-        const multiplier = config && config.global_multiplier > 0 ? config.global_multiplier : 1;
-        return defaultRules.map((rule) => ({
-            ...rule,
-            effective_requests: Math.floor(rule.requests * multiplier),
-        }));
-    });
+    const DEFAULT_MULTIPLIER = zRateLimitUpdateRequest.parse({}).global_multiplier;
+    let multiplied = $derived(config !== null && config.global_multiplier !== DEFAULT_MULTIPLIER);
 
-    function handleEndpointChange(rule: RateLimitRuleResponse): void {
-        if (rule.endpoint_pattern) {
-            rule.group = detectGroupFromEndpoint(rule.endpoint_pattern);
-        }
+    function effectiveRequests(requests: number): number {
+        return Math.floor(requests * (config?.global_multiplier ?? DEFAULT_MULTIPLIER));
     }
 
     function addNewRule(): void {
         if (!config) return;
-        if (!config.rules) config.rules = [];
         config.rules = [...config.rules, createEmptyRule()];
     }
 
     function removeRule(index: number): void {
-        if (!config?.rules) return;
-        config.rules = config.rules.filter((_: RateLimitRuleResponse, i: number) => i !== index);
+        if (!config) return;
+        config.rules = config.rules.filter((_, i) => i !== index);
     }
 </script>
 
@@ -94,7 +87,7 @@
                                 disabled={config.bypass_rate_limit}
                             />
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                                Multiplies all limits (1.0 = default, 2.0 = double)
+                                Multiplies all limits; {DEFAULT_MULTIPLIER} keeps them as they are
                             </p>
                         </div>
                         <div>
@@ -130,7 +123,7 @@
                             Default Global Rules
                         </h5>
                         <div class="space-y-2">
-                            {#each defaultRulesWithEffective as rule}
+                            {#each defaultRules as rule}
                                 <div
                                     class="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
                                 >
@@ -148,10 +141,10 @@
                                                 >{fieldTitle('requests')}</span
                                             >
                                             <p class="text-sm text-fg-default dark:text-dark-fg-default">
-                                                {#if config.global_multiplier !== 1.0}
+                                                {#if multiplied}
                                                     <span class="line-through text-neutral-400">{rule.requests}</span>
                                                     <span class="font-semibold text-blue-600 dark:text-blue-400"
-                                                        >{rule.effective_requests}</span
+                                                        >{effectiveRequests(rule.requests)}</span
                                                     >
                                                 {:else}
                                                     {rule.requests}
@@ -191,7 +184,7 @@
                     </div>
 
                     <!-- User-Specific Rules -->
-                    {#if config.rules && config.rules.length > 0}
+                    {#if config.rules.length > 0}
                         <div>
                             <h5 class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">
                                 {fieldTitle('rules')}
@@ -206,7 +199,6 @@
                                                 <input
                                                     type="text"
                                                     bind:value={rule.endpoint_pattern}
-                                                    oninput={() => handleEndpointChange(rule)}
                                                     aria-label={fieldTitle('endpoint_pattern')}
                                                     class="input input-sm w-full"
                                                     disabled={config.bypass_rate_limit}
@@ -231,19 +223,24 @@
                                                     disabled={config.bypass_rate_limit}
                                                 />
                                                 <span class="text-xs text-neutral-500">s</span>
-                                                {#if config.global_multiplier && config.global_multiplier !== 1.0}
+                                                {#if multiplied}
                                                     <span class="text-xs text-blue-600 dark:text-blue-400 ml-2">
-                                                        (→ {Math.floor(
-                                                            rule.requests * (config.global_multiplier ?? 1),
+                                                        (effective {effectiveRequests(
+                                                            rule.requests,
                                                         )}/{rule.window_seconds}s)
                                                     </span>
                                                 {/if}
                                             </div>
-                                            <span
-                                                class="inline-block px-2 py-1 text-xs rounded-full {getGroupColor(
-                                                    rule.group,
-                                                )}">{rule.group}</span
+                                            <select
+                                                bind:value={rule.group}
+                                                aria-label={fieldTitle('group')}
+                                                class="input input-sm"
+                                                disabled={config.bypass_rate_limit}
                                             >
+                                                {#each Object.values(EndpointGroup) as group (group)}
+                                                    <option value={group}>{group}</option>
+                                                {/each}
+                                            </select>
                                             <select
                                                 bind:value={rule.algorithm}
                                                 aria-label={fieldTitle('algorithm')}

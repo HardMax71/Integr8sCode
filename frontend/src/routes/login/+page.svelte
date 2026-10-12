@@ -49,7 +49,7 @@
     const form = apiForm(z.object({ username: filled(username), password: filled(password) }), {
         onSubmit: () => login.reset(),
         onUpdate: ({ form: submitted }) => {
-            if (submitted.valid) login.mutate({ body: { ...submitted.data, scope: '' } });
+            if (submitted.valid) login.mutate({ body: submitted.data });
         },
     });
     const { form: formData, constraints, enhance } = form;

@@ -115,7 +115,7 @@
 
     function restoreSettings(timestamp: string) {
         if (!confirm('Are you sure you want to restore settings to this point?')) return;
-        restore.mutate({ body: { timestamp, reason: 'User requested restore' } });
+        restore.mutate({ body: { timestamp } });
     }
 </script>
 

@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
-import { loginApiV1AuthLoginPost } from '#lib/api/index.ts';
+import { loginApiV1AuthLoginPost, UserRole, type LoginResponse } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 import Login from '#routes/login/+page.svelte';
 
@@ -11,15 +11,14 @@ const mocks = vi.hoisted(() => ({
     mockAuthStore: {
         startSession: vi.fn(),
         isAuthenticated: false,
-        username: null,
-        userRole: null,
+        user: null,
         verifyAuth: vi.fn(),
     },
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({ authStore: mocks.mockAuthStore }));
 
-const loginResponse = { message: 'ok', username: 'testuser', role: 'user', csrf_token: 'csrf' };
+const loginResponse: LoginResponse = { message: 'ok', username: 'testuser', role: UserRole.USER, csrf_token: 'csrf' };
 
 describe('Login', () => {
     beforeEach(() => {
@@ -70,7 +69,7 @@ describe('Login', () => {
 
         await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/editor'));
         expect(vi.mocked(loginApiV1AuthLoginPost)).toHaveBeenCalledWith(
-            expect.objectContaining({ body: { username: 'testuser', password: 'pass1234', scope: '' } }),
+            expect.objectContaining({ body: { username: 'testuser', password: 'pass1234' } }),
         );
         expect(mocks.mockAuthStore.startSession).toHaveBeenCalledWith(loginResponse);
         expect(toast.success).toHaveBeenCalledWith('Login successful! Welcome back.');

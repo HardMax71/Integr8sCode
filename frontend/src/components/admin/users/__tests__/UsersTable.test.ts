@@ -86,12 +86,6 @@ describe('UsersTable', () => {
         expect(texts.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('displays dash for missing email in desktop table', () => {
-        renderTable({ users: [createMockUser({ email: '' })] });
-        const dashes = screen.getAllByText('-');
-        expect(dashes.length).toBeGreaterThanOrEqual(1);
-    });
-
     it.each([
         ['Edit User', 'onEdit'],
         ['Manage Rate Limits', 'onRateLimits'],

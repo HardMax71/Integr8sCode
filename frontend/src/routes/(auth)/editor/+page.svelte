@@ -13,13 +13,16 @@
         updateSavedScriptApiV1ScriptsScriptIdPutMutation,
         deleteSavedScriptApiV1ScriptsScriptIdDeleteMutation,
         zEditorSettingsInput,
+        zExecutionRequest,
         type SavedScriptResponse,
     } from '#lib/api/index.ts';
+    import * as z from 'zod/mini';
+    import { firstIssue } from '#lib/validation.ts';
     import { ApiError } from '#lib/api-error.ts';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
     import { CirclePlay, Settings, Lightbulb } from '@lucide/svelte';
-    import { createExecutionState, newestVersion } from '#lib/editor/index.ts';
+    import { createExecutionState } from '#lib/editor/index.ts';
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -42,12 +45,14 @@
         }
     }
 
+    const RUNTIME_DEFAULTS = z.pick(zExecutionRequest, { lang: true, lang_version: true }).parse({});
+
     // Local persistent state
     let script = $state(loadFromStorage('script', "# Welcome to Integr8sCode!\n\nprint('Hello, Kubernetes!')"));
     let scriptName = $state(loadFromStorage('scriptName', ''));
     let currentScriptId = $state<string | null>(loadFromStorage('currentScriptId', null));
-    let selectedLang = $state(loadFromStorage('selectedLang', 'python'));
-    let selectedVersion = $state(loadFromStorage('selectedVersion', ''));
+    let selectedLang = $state(loadFromStorage('selectedLang', RUNTIME_DEFAULTS.lang));
+    let selectedVersion = $state(loadFromStorage('selectedVersion', RUNTIME_DEFAULTS.lang_version));
 
     // Persist to localStorage (debounced to avoid serializing on every keystroke)
     $effect(() => {
@@ -106,7 +111,7 @@
             const versions = lang ? (runtimes[lang]?.versions ?? []) : [];
             if (lang && (lang !== selectedLang || !versions.includes(selectedVersion))) {
                 selectedLang = lang;
-                selectedVersion = newestVersion(versions) ?? '';
+                selectedVersion = versions[0] ?? '';
             }
         });
     });
@@ -238,17 +243,9 @@
         URL.revokeObjectURL(url);
     }
 
-    const MAX_FILE_SIZE = 1024 * 1024; // 1MB
-
     function handleFileUpload(event: Event) {
         const file = (event.target as HTMLInputElement).files?.[0];
         if (!file) return;
-
-        if (file.size > MAX_FILE_SIZE) {
-            toast.error('File too large. Maximum size is 1MB.');
-            (event.target as HTMLInputElement).value = '';
-            return;
-        }
 
         const extToLang: Record<string, string> = {};
         for (const [lang, info] of Object.entries(supportedRuntimes)) extToLang[info.file_ext] = lang;
@@ -269,11 +266,16 @@
         const reader = new FileReader();
         reader.onload = (e) => {
             const text = e.target?.result as string;
+            const parsed = z.pick(zExecutionRequest, { script: true }).safeParse({ script: text });
+            if (!parsed.success) {
+                toast.error(firstIssue(parsed.error));
+                return;
+            }
             newScript();
             script = text;
             scriptName = file.name;
             selectedLang = detectedLang;
-            const newest = newestVersion(supportedRuntimes[detectedLang]?.versions ?? []);
+            const newest = supportedRuntimes[detectedLang]?.versions[0];
             if (newest) selectedVersion = newest;
             editorRef?.setContent(text);
             toast.info(`Loaded ${detectedLang} script from ${file.name}`);

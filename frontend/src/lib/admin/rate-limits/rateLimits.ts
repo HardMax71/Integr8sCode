@@ -18,25 +18,6 @@ export function getGroupColor(group: EndpointGroup): string {
     return GROUP_COLORS[group];
 }
 
-// Patterns to detect endpoint groups from URL patterns
-const ENDPOINT_GROUP_PATTERNS: Array<{ pattern: RegExp; group: EndpointGroup }> = [
-    { pattern: /\/execute/i, group: 'execution' },
-    { pattern: /\/admin\//i, group: 'admin' },
-    { pattern: /\/events\//i, group: 'sse' },
-    { pattern: /\/ws/i, group: 'websocket' },
-    { pattern: /\/auth\//i, group: 'auth' },
-    { pattern: /\/health/i, group: 'public' },
-];
-
-export function detectGroupFromEndpoint(endpoint: string): EndpointGroup {
-    // Strip regex anchors: leading ^, trailing $, and .* wildcards
-    const cleanEndpoint = endpoint.replace(/^\^/, '').replace(/\$$/, '').replaceAll('.*', '');
-    for (const { pattern, group } of ENDPOINT_GROUP_PATTERNS) {
-        if (pattern.test(cleanEndpoint)) return group;
-    }
-    return 'api';
-}
-
 // A new rule: the API's defaults, plus starting values for the fields the API requires
 export function createEmptyRule(): RateLimitRuleResponse {
     return zRateLimitRuleRequest.parse({

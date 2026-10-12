@@ -1,9 +1,10 @@
+import * as z from 'zod/mini';
 import {
     getCurrentUserProfileApiV1AuthMeGetOptions,
     getCurrentUserProfileApiV1AuthMeGetQueryKey,
+    zUserResponse,
     type LoginResponse,
     type UserResponse,
-    type UserRole,
 } from '#lib/api/index.ts';
 import { ApiError } from '#lib/api-error.ts';
 import { queryClient } from '#lib/query-client.ts';
@@ -12,35 +13,37 @@ import { logger } from '#lib/logger.ts';
 const log = logger.withTag('Auth');
 
 // --8<-- [start:AuthState]
-export interface AuthState {
-    isAuthenticated: boolean | null;
-    username: string | null;
-    userId: string | null;
-    userRole: UserRole | null;
-    userEmail: string | null;
-    csrfToken: string | null;
-    timestamp: number;
-}
+const zSession = z.object({
+    isAuthenticated: z.boolean(),
+    user: z.nullable(zUserResponse),
+    csrfToken: z.nullable(z.string()),
+    timestamp: z.number(),
+});
 // --8<-- [end:AuthState]
 
-export function getPersistedAuthState(): AuthState | null {
+type Session = z.infer<typeof zSession>;
+
+export function getPersistedAuthState(): Session | null {
     if (typeof window === 'undefined') return null;
     try {
         const data = sessionStorage.getItem('authState');
         if (!data) return null;
-        return JSON.parse(data) as AuthState;
+        const session = zSession.safeParse(JSON.parse(data));
+        if (session.success) return session.data;
+        sessionStorage.removeItem('authState');
+        return null;
     } catch {
         return null;
     }
 }
 
-function persistAuthState(state: Partial<AuthState> | null) {
+function persistAuthState(session: Omit<Session, 'timestamp'> | null) {
     if (typeof window === 'undefined') return;
-    if (!state || state.isAuthenticated === false) {
+    if (!session?.isAuthenticated) {
         sessionStorage.removeItem('authState');
         return;
     }
-    sessionStorage.setItem('authState', JSON.stringify({ ...state, timestamp: Date.now() }));
+    sessionStorage.setItem('authState', JSON.stringify({ ...session, timestamp: Date.now() }));
 }
 
 const persisted = getPersistedAuthState();
@@ -50,30 +53,21 @@ const STALE_AUTH_THRESHOLD = 5 * 60 * 1000;
 
 class AuthStore {
     isAuthenticated = $state<boolean | null>(persisted?.isAuthenticated ?? null);
-    username = $state<string | null>(persisted?.username ?? null);
-    userId = $state<string | null>(persisted?.userId ?? null);
-    userRole = $state<UserRole | null>(persisted?.userRole ?? null);
-    userEmail = $state<string | null>(persisted?.userEmail ?? null);
+    user = $state<UserResponse | null>(persisted?.user ?? null);
     csrfToken = $state<string | null>(persisted?.csrfToken ?? null);
 
     #initialized = false;
     #initPromise: Promise<boolean> | null = null;
 
-    restoreFrom(state: AuthState) {
+    restoreFrom(session: Session) {
         this.isAuthenticated = true;
-        this.username = state.username;
-        this.userId = state.userId;
-        this.userRole = state.userRole;
-        this.userEmail = state.userEmail;
-        this.csrfToken = state.csrfToken;
+        this.user = session.user;
+        this.csrfToken = session.csrfToken;
     }
 
     clearAuth() {
         this.isAuthenticated = false;
-        this.username = null;
-        this.userId = null;
-        this.userRole = null;
-        this.userEmail = null;
+        this.user = null;
         this.csrfToken = null;
         persistAuthState(null);
         // Nothing the previous user loaded may show to the next one
@@ -116,22 +110,10 @@ class AuthStore {
         return false;
     }
 
-    /** Takes over the session a successful login started, then loads the full profile. */
+    /** Takes over the session a successful login started and loads the user's profile before it resolves. */
     async startSession(login: LoginResponse): Promise<void> {
         this.isAuthenticated = true;
-        this.username = login.username;
-        this.userRole = login.role;
         this.csrfToken = login.csrf_token;
-        this.userId = null;
-        this.userEmail = null;
-        persistAuthState({
-            isAuthenticated: true,
-            username: login.username,
-            userRole: login.role,
-            csrfToken: login.csrf_token,
-            userId: null,
-            userEmail: null,
-        });
         await this.verifyAuth(true);
     }
 
@@ -160,19 +142,9 @@ class AuthStore {
         }
 
         this.isAuthenticated = true;
-        this.username = user.username;
-        this.userRole = user.role;
-        this.userId = user.user_id;
-        this.userEmail = user.email;
+        this.user = user;
         this.csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1] ?? null;
-        persistAuthState({
-            isAuthenticated: true,
-            username: user.username,
-            userRole: user.role,
-            csrfToken: this.csrfToken,
-            userId: user.user_id,
-            userEmail: user.email,
-        });
+        persistAuthState({ isAuthenticated: true, user, csrfToken: this.csrfToken });
         return true;
     }
 }

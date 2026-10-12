@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { createInQueryContext, createMockEvent, createMockStats, mockApi } from '#test/test-utils.ts';
+import {
+    createInQueryContext,
+    createMockEvent,
+    createMockEventDetail,
+    createMockStats,
+    createMockReplayResponse,
+    createMockReplayStatus,
+    createMockUserOverview,
+    mockApi,
+} from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import {
     browseEventsApiV1AdminEventsBrowsePost,
@@ -9,6 +18,9 @@ import {
     deleteEventApiV1AdminEventsEventIdDelete,
     getUserOverviewApiV1AdminUsersUserIdOverviewGet,
     streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
+    EventType,
+    ReplayStatus,
+    type EventReplayResponse,
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
@@ -16,11 +28,12 @@ import { createEventsStore } from '#lib/admin/stores/eventsStore.svelte.ts';
 const windowOpen = vi.fn();
 const windowConfirm = vi.fn();
 
-// Stands in for the generated SSE call: tests push status updates, and aborting ends the stream like the real client
+// Stands in for the generated SSE call: tests push statuses, and the server or an abort ends the stream
 function mockReplayStream() {
     const pending: EventReplayStatusResponse[] = [];
     let wake: (() => void) | null = null;
     let signal: AbortSignal | undefined;
+    let closed = false;
 
     async function* stream(): AsyncGenerator<EventReplayStatusResponse> {
         while (!signal?.aborted) {
@@ -29,26 +42,30 @@ function mockReplayStream() {
                 yield next;
                 continue;
             }
+            if (closed) return;
             await new Promise<void>((resolve) => (wake = resolve));
         }
     }
 
+    const notify = () => {
+        wake?.();
+        wake = null;
+    };
+
     vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet).mockImplementation(async (options) => {
         signal = options.signal ?? undefined;
-        signal?.addEventListener('abort', () => wake?.());
-        return { stream: stream() } as never;
+        signal?.addEventListener('abort', notify);
+        return { stream: stream() };
     });
 
     return {
-        push(status: Partial<EventReplayStatusResponse>): void {
-            pending.push({
-                session_id: 'session-1',
-                replay_id: 'replay-1',
-                errors: [],
-                ...status,
-            } as EventReplayStatusResponse);
-            wake?.();
-            wake = null;
+        push(status: EventReplayStatusResponse): void {
+            pending.push(status);
+            notify();
+        },
+        close(): void {
+            closed = true;
+            notify();
         },
         get signal(): AbortSignal | undefined {
             return signal;
@@ -107,9 +124,6 @@ describe('EventsStore', () => {
             await vi.waitFor(() => expect(store.events).toEqual(events));
             expect(store.totalEvents).toBe(1);
             await vi.waitFor(() => expect(store.stats.data).toEqual(stats));
-            expect(vi.mocked(getEventStatsApiV1AdminEventsStatsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({ query: { hours: 24 } }),
-            );
         });
 
         it('sends the page as skip and limit', async () => {
@@ -144,7 +158,7 @@ describe('EventsStore', () => {
 
     describe('openEventDetail', () => {
         it('loads the event into selectedEvent', async () => {
-            const detail = { event: createMockEvent(), related_events: [], timeline: [] };
+            const detail = createMockEventDetail();
             mockApi(getEventDetailApiV1AdminEventsEventIdGet).ok(detail);
 
             createStore();
@@ -169,10 +183,15 @@ describe('EventsStore', () => {
     describe('replayEvent', () => {
         it('performs dry run and sets replayPreview', async () => {
             const preview = [createMockEvent()];
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                total_events: 1,
-                events_preview: preview,
-            });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(
+                createMockReplayResponse({
+                    dry_run: true,
+                    total_events: 1,
+                    session_id: null,
+                    status: ReplayStatus.PREVIEW,
+                    events_preview: preview,
+                }),
+            );
 
             createStore();
             store.replayEvent('evt-1', true);
@@ -190,14 +209,10 @@ describe('EventsStore', () => {
             expect(windowConfirm).not.toHaveBeenCalled();
         });
 
-        it('confirms and starts SSE stream for actual replay', async () => {
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                total_events: 1,
-                session_id: 'session-1',
-                replay_id: 'replay-1',
-            });
+        it('confirms, then shows the session as the stream reports it', async () => {
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse());
 
-            mockReplayStream();
+            const replay = mockReplayStream();
             createStore();
             store.replayEvent('evt-1', false);
 
@@ -205,60 +220,72 @@ describe('EventsStore', () => {
             await vi.waitFor(() =>
                 expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay scheduled')),
             );
-            expect(store.activeReplaySession).toBeTruthy();
             expect(vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet)).toHaveBeenCalledWith(
                 expect.objectContaining({ path: { session_id: 'session-1' } }),
             );
+            expect(store.activeReplaySession).toBeNull();
+
+            const first = createMockReplayStatus();
+            replay.push(first);
+            await vi.waitFor(() => expect(store.activeReplaySession).toEqual(first));
         });
 
-        it('updates activeReplaySession from SSE messages', async () => {
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                total_events: 5,
-                session_id: 'session-1',
-                replay_id: 'replay-1',
-            });
+        it('replaces the session with each status the stream sends', async () => {
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse());
 
             const replay = mockReplayStream();
             createStore();
             store.replayEvent('evt-1', false);
-            await vi.waitFor(() => expect(store.activeReplaySession).toBeTruthy());
+            replay.push(createMockReplayStatus());
+            await vi.waitFor(() => expect(store.activeReplaySession).not.toBeNull());
 
-            replay.push({
-                status: 'running',
-                total_events: 5,
+            const running = createMockReplayStatus({
+                status: ReplayStatus.RUNNING,
                 replayed_events: 3,
-                failed_events: 0,
-                skipped_events: 0,
+                progress_percentage: 60,
             });
+            replay.push(running);
 
-            await vi.waitFor(() => expect(store.activeReplaySession?.replayed_events).toBe(3));
-            expect(store.activeReplaySession?.progress_percentage).toBe(60);
+            await vi.waitFor(() => expect(store.activeReplaySession).toEqual(running));
         });
 
-        it('disconnects SSE on terminal status', async () => {
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                total_events: 5,
-                session_id: 'session-1',
-                replay_id: 'replay-1',
-            });
+        it.each([
+            [ReplayStatus.COMPLETED, 'success', 'Replay completed! Processed 5 events successfully.'],
+            [ReplayStatus.FAILED, 'error', 'Replay failed: boom'],
+        ] as const)('reports %s when the stream ends with it', async (status, level, message) => {
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse());
 
             const replay = mockReplayStream();
             createStore();
             store.replayEvent('evt-1', false);
-            await vi.waitFor(() => expect(store.activeReplaySession).toBeTruthy());
-
-            replay.push({
-                status: 'completed',
-                total_events: 5,
+            const last = createMockReplayStatus({
+                status,
                 replayed_events: 5,
-                failed_events: 0,
-                skipped_events: 0,
+                progress_percentage: 100,
+                errors: [
+                    { event_id: 'evt-1', error: 'boom', error_type: 'RuntimeError', timestamp: '2026-01-01T00:00:00Z' },
+                ],
             });
+            replay.push(last);
+            replay.close();
 
-            await vi.waitFor(() =>
-                expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining('Replay completed')),
-            );
+            await vi.waitFor(() => expect(vi.mocked(toast[level])).toHaveBeenCalledWith(message));
+            expect(store.activeReplaySession).toEqual(last);
+        });
+
+        it('stops listening and hides the session when dismissed', async () => {
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse());
+
+            const replay = mockReplayStream();
+            createStore();
+            store.replayEvent('evt-1', false);
+            replay.push(createMockReplayStatus());
+            await vi.waitFor(() => expect(store.activeReplaySession).not.toBeNull());
+
+            store.dismissReplay();
+
             expect(replay.signal?.aborted).toBe(true);
+            expect(store.activeReplaySession).toBeNull();
         });
 
         it('does not replay if confirm is cancelled', async () => {
@@ -337,9 +364,20 @@ describe('EventsStore', () => {
             expect(url.searchParams.get('aggregate_id')).toBe('agg-1');
         });
 
+        it('leaves out the filters the export endpoint does not take', () => {
+            createStore();
+            store.filters = { user_id: 'user-1', search_text: 'boom' };
+            store.applyFilters();
+            store.exportEvents('csv');
+
+            const url = new URL(windowOpen.mock.calls[0]![0] as string, 'https://x');
+            expect(url.searchParams.get('user_id')).toBe('user-1');
+            expect(url.searchParams.has('search_text')).toBe(false);
+        });
+
         it('sends each event type as its own query parameter, as the API expects', () => {
             createStore();
-            store.filters = { event_types: ['execution_requested', 'pod_created'] };
+            store.filters = { event_types: [EventType.EXECUTION_REQUESTED, EventType.POD_CREATED] };
             store.applyFilters();
             store.exportEvents('csv');
 
@@ -353,7 +391,7 @@ describe('EventsStore', () => {
 
     describe('openUserOverview', () => {
         it('loads user overview', async () => {
-            const overview = { user: { user_id: 'user-1' }, stats: {}, derived_counts: {} };
+            const overview = createMockUserOverview();
             mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).ok(overview);
 
             createStore();
@@ -418,11 +456,7 @@ describe('EventsStore', () => {
 
     describe('cleanup', () => {
         it('cleans up SSE replay stream', async () => {
-            mockApi(replayEventsApiV1AdminEventsReplayPost).ok({
-                total_events: 1,
-                session_id: 'session-1',
-                replay_id: 'replay-1',
-            });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).ok(createMockReplayResponse());
 
             const replay = mockReplayStream();
             createStore();

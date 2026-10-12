@@ -46,7 +46,7 @@ A version that leaves the list stops working everywhere:
 - `POST /api/v1/executions/{execution_id}/retry` raises `RuntimeNotSupportedError`, which is a 422.
 - Creating or updating a saved script with it raises the same 422.
 
-The editor doesn't send one. On load it swaps a stored version that's gone for the newest offered version of that language (`newestVersion` in `frontend/src/lib/editor/runtimes.ts`), and if the language itself is gone it takes the first language the API returns. Opening a saved script with a dropped version makes the language picker switch to the newest version and say so in a toast.
+The editor doesn't send one. On load it swaps a stored version that's gone for the newest offered version of that language, the first one the API lists, and if the language itself is gone it takes the first language the API returns. Opening a saved script with a dropped version makes the language picker switch to the newest version and say so in a toast.
 
 ## Example scripts
 

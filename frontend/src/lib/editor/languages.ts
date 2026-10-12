@@ -15,5 +15,5 @@ const languageExtensions: Record<string, () => LanguageSupport | Extension> = {
 };
 
 export function getLanguageExtension(lang: string): LanguageSupport | Extension {
-    return languageExtensions[lang]?.() ?? python();
+    return languageExtensions[lang]?.() ?? [];
 }

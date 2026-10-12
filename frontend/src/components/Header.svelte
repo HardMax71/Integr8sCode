@@ -4,7 +4,9 @@
     import {
         getUserSettingsApiV1UserSettingsGetQueryKey,
         logoutApiV1AuthLogoutPostMutation,
-        updateUserSettingsApiV1UserSettingsPutMutation,
+        Theme,
+        updateThemeApiV1UserSettingsThemePutMutation,
+        UserRole,
     } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { themeStore, toggleTheme } from '#stores/theme.svelte.ts';
@@ -50,7 +52,7 @@
     }));
 
     const saveTheme = createMutation(() => ({
-        ...updateUserSettingsApiV1UserSettingsPutMutation(),
+        ...updateThemeApiV1UserSettingsThemePutMutation(),
         onSuccess: (data) => {
             queryClient.setQueryData(getUserSettingsApiV1UserSettingsGetQueryKey(), data);
         },
@@ -115,9 +117,9 @@
                     aria-label="Toggle theme"
                     class="btn btn-ghost btn-icon text-fg-muted dark:text-dark-fg-muted hover:text-fg-default dark:hover:text-dark-fg-default"
                 >
-                    {#if themeStore.value === 'light'}
+                    {#if themeStore.value === Theme.LIGHT}
                         <Sun class="w-5 h-5" />
-                    {:else if themeStore.value === 'dark'}
+                    {:else if themeStore.value === Theme.DARK}
                         <Moon class="w-5 h-5" />
                     {:else}
                         <MonitorCog class="w-5 h-5" />
@@ -133,7 +135,7 @@
                                 class="flex items-center space-x-2 btn btn-ghost btn-sm group"
                             >
                                 <User class="w-5 h-5" />
-                                <span class="hidden xl:inline font-medium">{authStore.username}</span>
+                                <span class="hidden xl:inline font-medium">{authStore.user?.username}</span>
                                 <ChevronDown
                                     class="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180"
                                 />
@@ -144,27 +146,27 @@
                                         <span
                                             class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0 text-xs font-semibold text-primary dark:text-primary-light"
                                         >
-                                            {authStore.username?.charAt(0).toUpperCase() ?? '?'}
+                                            {authStore.user?.username.charAt(0).toUpperCase() ?? '?'}
                                         </span>
                                         <span class="min-w-0">
                                             <span class="block text-sm font-medium truncate">
-                                                {authStore.username}
-                                                {#if authStore.userRole === 'admin'}
+                                                {authStore.user?.username}
+                                                {#if authStore.user?.role === UserRole.ADMIN}
                                                     <span
                                                         class="text-xs text-primary dark:text-primary-light font-medium ml-1"
-                                                        >{authStore.userRole}</span
+                                                        >{authStore.user?.role}</span
                                                     >
                                                 {/if}
                                             </span>
                                             <span class="block text-xs text-fg-muted dark:text-dark-fg-muted truncate"
-                                                >{authStore.userEmail || 'No email set'}</span
+                                                >{authStore.user?.email}</span
                                             >
                                         </span>
                                     </div>
                                     <DropdownMenu.Separator
                                         class="my-1 h-px bg-border-default dark:bg-dark-border-default"
                                     />
-                                    {#if authStore.userRole === 'admin'}
+                                    {#if authStore.user?.role === UserRole.ADMIN}
                                         <DropdownMenu.Item class="floating-item">
                                             {#snippet child({ props })}
                                                 <a href="/admin/events" {...props}><Settings class="w-4 h-4" />Admin</a>
@@ -226,11 +228,11 @@
                     {#if authStore.isAuthenticated}
                         <div class="px-3 py-2">
                             <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">
-                                {authStore.username}
+                                {authStore.user?.username}
                             </div>
-                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{authStore.userRole}</div>
+                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{authStore.user?.role}</div>
                         </div>
-                        {#if authStore.userRole === 'admin'}
+                        {#if authStore.user?.role === UserRole.ADMIN}
                             <a
                                 href="/admin/events"
                                 onclick={closeMenu}

@@ -16,35 +16,35 @@
         <div class="card p-4">
             <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('total_events')}</div>
             <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
-                {stats?.total_events?.toLocaleString() || '0'}
+                {stats.total_events.toLocaleString()}
             </div>
             <div class="text-xs text-fg-muted dark:text-dark-fg-muted">
-                of {totalEvents?.toLocaleString() || '0'} total
+                of {totalEvents.toLocaleString()} total
             </div>
         </div>
 
         <div class="card p-4">
             <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('error_rate')}</div>
             <div
-                class="text-2xl font-bold {stats?.error_rate > 0
+                class="text-2xl font-bold {stats.error_rate > 0
                     ? 'text-red-600 dark:text-red-400'
                     : 'text-green-600 dark:text-green-400'}"
             >
-                {stats?.error_rate || 0}%
+                {stats.error_rate}%
             </div>
         </div>
 
         <div class="card p-4">
             <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('avg_processing_time')}</div>
             <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
-                {stats?.avg_processing_time ? stats.avg_processing_time.toFixed(2) : '0'}s
+                {stats.avg_processing_time.toFixed(2)}s
             </div>
         </div>
 
         <div class="card p-4">
             <div class="text-sm text-fg-muted dark:text-dark-fg-muted mb-1">{fieldTitle('top_users')}</div>
             <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
-                {stats?.top_users?.length || 0}
+                {stats.top_users.length}
             </div>
         </div>
     </div>

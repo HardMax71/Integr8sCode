@@ -1,23 +1,27 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, suppressConsoleError, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
-import { logoutApiV1AuthLogoutPost, updateUserSettingsApiV1UserSettingsPut } from '#lib/api/index.ts';
+import { user, suppressConsoleError, mockApi, renderWithQueryClient, createMockUser } from '#test/test-utils.ts';
+import {
+    logoutApiV1AuthLogoutPost,
+    Theme,
+    updateThemeApiV1UserSettingsThemePut,
+    UserRole,
+    zUserSettings,
+    type UserResponse,
+} from '#lib/api/index.ts';
 
 import * as navigation from '$app/navigation';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
         isAuthenticated: false as boolean | null,
-        username: null as string | null,
-        userRole: null as string | null,
-        userEmail: null as string | null,
-        userId: null as string | null,
+        user: null as UserResponse | null,
         csrfToken: null as string | null,
         clearAuth: vi.fn(),
         verifyAuth: vi.fn(),
     },
     mockThemeStore: {
-        value: 'system' as string,
+        value: 'system' as Theme,
     },
     mockToggleTheme: vi.fn(),
 }));
@@ -49,17 +53,12 @@ vi.mock('#components/NotificationCenter.svelte', () => {
 
 import Header from '#components/Header.svelte';
 
-const setAuth = (
-    isAuth: boolean,
-    username: string | null = null,
-    role: string | null = null,
-    email: string | null = null,
-) => {
+const setAuth = (isAuth: boolean, signedIn: UserResponse | null = null) => {
     mocks.mockAuthStore.isAuthenticated = isAuth;
-    mocks.mockAuthStore.username = username;
-    mocks.mockAuthStore.userRole = role;
-    mocks.mockAuthStore.userEmail = email;
+    mocks.mockAuthStore.user = signedIn;
 };
+
+const ROOT = createMockUser({ username: 'root', role: UserRole.ADMIN, email: 'root@example.com' });
 
 /** A matchMedia whose answer the test can flip, firing the change listeners the way a resize would */
 function controllableDesktopQuery(initial: boolean): (matches: boolean) => void {
@@ -99,10 +98,20 @@ describe('Header', () => {
 
     beforeEach(() => {
         setAuth(false);
-        mocks.mockThemeStore.value = 'system';
+        mocks.mockThemeStore.value = Theme.SYSTEM;
         mocks.mockAuthStore.clearAuth.mockReset();
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
-        mockApi(updateUserSettingsApiV1UserSettingsPut).ok({});
+        mockApi(updateThemeApiV1UserSettingsThemePut).ok(
+            zUserSettings.parse({
+                user_id: 'user-1',
+                theme: Theme.DARK,
+                notifications: {},
+                editor: {},
+                custom_settings: {},
+                created_at: '2024-01-15T10:30:00Z',
+                updated_at: '2024-01-15T10:30:00Z',
+            }),
+        );
         mocks.mockToggleTheme.mockReset();
         vi.spyOn(navigation, 'goto');
         Object.defineProperty(window, 'matchMedia', {
@@ -136,27 +145,27 @@ describe('Header', () => {
             renderWithQueryClient(Header);
             await user.click(screen.getByTitle('Toggle theme'));
             expect(mocks.mockToggleTheme).toHaveBeenCalled();
-            expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).not.toHaveBeenCalled();
+            expect(vi.mocked(updateThemeApiV1UserSettingsThemePut)).not.toHaveBeenCalled();
         });
 
         it('saves the toggled theme to the user settings when signed in', async () => {
-            setAuth(true, 'testuser', 'user');
+            setAuth(true, createMockUser());
             mocks.mockToggleTheme.mockImplementation(() => {
-                mocks.mockThemeStore.value = 'dark';
+                mocks.mockThemeStore.value = Theme.DARK;
             });
             renderWithQueryClient(Header);
             await user.click(screen.getByTitle('Toggle theme'));
             await waitFor(() =>
-                expect(vi.mocked(updateUserSettingsApiV1UserSettingsPut)).toHaveBeenCalledWith(
-                    expect.objectContaining({ body: { theme: 'dark' } }),
+                expect(vi.mocked(updateThemeApiV1UserSettingsThemePut)).toHaveBeenCalledWith(
+                    expect.objectContaining({ body: { theme: Theme.DARK } }),
                 ),
             );
         });
 
         it.each([
-            { theme: 'light', iconClass: 'lucide-sun' },
-            { theme: 'dark', iconClass: 'lucide-moon' },
-            { theme: 'system', iconClass: 'lucide-monitor-cog' },
+            { theme: Theme.LIGHT, iconClass: 'lucide-sun' },
+            { theme: Theme.DARK, iconClass: 'lucide-moon' },
+            { theme: Theme.SYSTEM, iconClass: 'lucide-monitor-cog' },
         ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
             mocks.mockThemeStore.value = theme;
             const { container } = renderWithQueryClient(Header);
@@ -178,7 +187,7 @@ describe('Header', () => {
 
     describe('authenticated state', () => {
         beforeEach(() => {
-            setAuth(true, 'testuser', 'user', 'test@example.com');
+            setAuth(true, createMockUser());
         });
 
         it('shows username and opens dropdown with user info', async () => {
@@ -189,14 +198,6 @@ describe('Header', () => {
                 expect(screen.getByText('T')).toBeInTheDocument(); // initial
                 expect(screen.getByRole('menuitem', { name: /Settings/i })).toHaveAttribute('href', '/settings');
                 expect(screen.getByRole('menuitem', { name: /Logout/i })).toBeInTheDocument();
-            });
-        });
-
-        it('shows "No email set" when email is null', async () => {
-            mocks.mockAuthStore.userEmail = null;
-            await openUserDropdown();
-            await waitFor(() => {
-                expect(screen.getByText('No email set')).toBeInTheDocument();
             });
         });
 
@@ -215,13 +216,13 @@ describe('Header', () => {
 
     describe('admin user', () => {
         beforeEach(() => {
-            setAuth(true, 'root', 'admin', 'root@example.com');
+            setAuth(true, ROOT);
         });
 
         it('shows the admin role and an Admin entry linking to the admin panel', async () => {
             await openUserDropdown();
             await waitFor(() => {
-                expect(screen.getByText('admin')).toBeInTheDocument();
+                expect(screen.getByText(UserRole.ADMIN)).toBeInTheDocument();
             });
             expect(screen.getByRole('menuitem', { name: /^Admin$/ })).toHaveAttribute('href', '/admin/events');
         });
@@ -238,16 +239,15 @@ describe('Header', () => {
         });
 
         it.each([
-            { isAuth: false, username: null, role: null, expectedContent: ['Login', 'Register'] },
+            { isAuth: false, signedIn: null, expectedContent: ['Login', 'Register'] },
             {
                 isAuth: true,
-                username: 'mobileuser',
-                role: 'user',
-                expectedContent: ['mobileuser', 'user', 'Settings', 'Logout'],
+                signedIn: createMockUser({ username: 'mobileuser' }),
+                expectedContent: ['mobileuser', UserRole.USER, 'Settings', 'Logout'],
             },
-            { isAuth: true, username: 'root', role: 'admin', expectedContent: ['root', 'admin', 'Admin Panel'] },
-        ])('shows correct content for auth=$isAuth role=$role', async ({ isAuth, username, role, expectedContent }) => {
-            setAuth(isAuth, username, role);
+            { isAuth: true, signedIn: ROOT, expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'] },
+        ])('shows correct content for auth=$isAuth', async ({ isAuth, signedIn, expectedContent }) => {
+            setAuth(isAuth, signedIn);
             await openMobileMenu();
             await waitFor(() => {
                 const mobileMenu = screen.getByTestId('mobile-menu');
@@ -271,7 +271,7 @@ describe('Header', () => {
     describe('dropdown toggle behavior', () => {
         it('closes dropdown when clicking a menu item', async () => {
             const restoreConsole = suppressConsoleError();
-            setAuth(true, 'testuser', 'user');
+            setAuth(true, createMockUser());
             await openUserDropdown();
             await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
@@ -281,7 +281,7 @@ describe('Header', () => {
         });
 
         it('closes the dropdown on Escape', async () => {
-            setAuth(true, 'testuser', 'user');
+            setAuth(true, createMockUser());
             await openUserDropdown();
             await screen.findByRole('menuitem', { name: /Settings/i });
 
@@ -311,7 +311,7 @@ describe('Header', () => {
 
     describe('mobile menu logout', () => {
         it('calls logout and navigates from mobile menu', async () => {
-            setAuth(true, 'mobileuser', 'user');
+            setAuth(true, createMockUser({ username: 'mobileuser' }));
 
             await openMobileMenu();
             await waitFor(() => {

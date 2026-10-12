@@ -11,8 +11,7 @@
     let { limits, lang }: Props = $props();
 
     let show = $state(false);
-    // A response cached before the upgrade has no language_limits.
-    let effective = $derived(limits ? (limits.language_limits?.[lang] ?? limits) : null);
+    let effective = $derived(limits?.language_limits[lang] ?? null);
 </script>
 
 {#if effective}

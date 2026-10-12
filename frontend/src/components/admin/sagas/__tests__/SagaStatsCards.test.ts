@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { createMockSaga } from '#test/test-utils.ts';
-import type { SagaStatusResponse } from '#lib/api/index.ts';
+import { SagaState, type SagaStatusResponse } from '#lib/api/index.ts';
 import SagaStatsCards from '#components/admin/sagas/SagaStatsCards.svelte';
 
 const MockIcon = vi.hoisted(() => {
@@ -34,13 +34,10 @@ function renderCards(sagas: SagaStatusResponse[] = []) {
 describe('SagaStatsCards', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it.each(['created', 'running', 'compensating', 'completed', 'failed', 'timeout', 'cancelled'])(
-        'titles a card with the raw state %s',
-        (state) => {
-            renderCards();
-            expect(screen.getByText(state)).toBeInTheDocument();
-        },
-    );
+    it.each(Object.values(SagaState))('titles a card with the raw state %s', (state) => {
+        renderCards();
+        expect(screen.getByText(state)).toBeInTheDocument();
+    });
 
     it('shows zero counts when no sagas', () => {
         renderCards([]);

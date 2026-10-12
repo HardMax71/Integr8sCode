@@ -6,45 +6,40 @@ import {
     getActiveFilterCount,
     getActiveFilterSummary,
 } from '#lib/admin/events/eventTypes.ts';
-import type { EventFilter } from '#lib/api/index.ts';
+import { EventType, type EventFilter } from '#lib/api/index.ts';
 
-const withFilter = (override: Partial<EventFilter>): EventFilter => ({ ...override });
+const ALL_FILTERS: EventFilter = {
+    event_types: [EventType.EXECUTION_COMPLETED],
+    search_text: 'y',
+    aggregate_id: 'a',
+    user_id: 'u',
+    service_name: 's',
+    start_time: new Date(1).toISOString(),
+    end_time: new Date(2).toISOString(),
+};
 
 describe('eventTypes', () => {
     describe('EVENT_TYPES', () => {
-        const expectedEvents = [
-            'execution_requested',
-            'execution_started',
-            'execution_completed',
-            'execution_failed',
-            'execution_timeout',
-            'pod_created',
-            'pod_running',
-            'pod_succeeded',
-            'pod_failed',
-            'pod_terminated',
-        ];
-
-        it('contains all expected events', () => {
-            expectedEvents.forEach((e) => expect(EVENT_TYPES).toContain(e));
+        it('lists every generated event type', () => {
+            expect(EVENT_TYPES).toEqual(Object.values(EventType));
         });
     });
 
     describe('getEventTypeColor', () => {
         it.each([
-            ['execution_completed', 'text-green'],
-            ['pod_succeeded', 'text-green'],
-            ['execution_failed', 'text-red'],
-            ['execution_timeout', 'text-red'],
-            ['pod_failed', 'text-red'],
-            ['execution_started', 'text-blue'],
-            ['pod_running', 'text-blue'],
-            ['execution_requested', 'text-purple'],
-            ['pod_created', 'text-indigo'],
-            ['pod_terminated', 'text-orange'],
-            ['unknown_event', 'text-neutral'],
+            [EventType.EXECUTION_COMPLETED, 'text-green'],
+            [EventType.POD_SUCCEEDED, 'text-green'],
+            [EventType.EXECUTION_FAILED, 'text-red'],
+            [EventType.EXECUTION_TIMEOUT, 'text-red'],
+            [EventType.POD_FAILED, 'text-red'],
+            [EventType.EXECUTION_STARTED, 'text-blue'],
+            [EventType.POD_RUNNING, 'text-blue'],
+            [EventType.EXECUTION_REQUESTED, 'text-purple'],
+            [EventType.POD_CREATED, 'text-indigo'],
+            [EventType.POD_TERMINATED, 'text-orange'],
+            [EventType.USER_SETTINGS_UPDATED, 'text-neutral'],
         ])('%s returns %s', (eventType, expectedColor) => {
-            const color = getEventTypeColor(eventType as import('#lib/api/index.ts').EventType);
+            const color = getEventTypeColor(eventType);
             expect(color).toContain(expectedColor);
             expect(color).toContain('dark:');
         });
@@ -55,35 +50,16 @@ describe('eventTypes', () => {
             expect(hasActiveFilters({})).toBe(false);
         });
 
-        it.each([
-            ['event_types', { event_types: ['execution_completed'] }],
-            ['search_text', { search_text: 'test' }],
-            ['aggregate_id', { aggregate_id: 'exec-1' }],
-            ['user_id', { user_id: 'user-1' }],
-            ['service_name', { service_name: 'svc' }],
-            ['start_time', { start_time: '2024-01-01' }],
-            ['end_time', { end_time: '2024-01-02' }],
-        ])('returns true when %s has value', (_, override) => {
-            expect(hasActiveFilters(withFilter(override as Partial<EventFilter>))).toBe(true);
+        it.each(Object.entries(ALL_FILTERS))('returns true when %s has value', (key, value) => {
+            expect(hasActiveFilters({ [key]: value })).toBe(true);
         });
     });
 
     describe('getActiveFilterCount', () => {
         it.each([
             [{}, 0],
-            [withFilter({ event_types: ['x' as import('#lib/api/index.ts').EventType], search_text: 'y' }), 2],
-            [
-                withFilter({
-                    event_types: ['x' as import('#lib/api/index.ts').EventType],
-                    search_text: 'y',
-                    aggregate_id: 'a',
-                    user_id: 'u',
-                    service_name: 's',
-                    start_time: new Date(1).toISOString(),
-                    end_time: new Date(2).toISOString(),
-                }),
-                7,
-            ],
+            [{ event_types: [EventType.EXECUTION_COMPLETED], search_text: 'y' }, 2],
+            [ALL_FILTERS, 7],
         ])('returns correct count', (filters, expected) => {
             expect(getActiveFilterCount(filters)).toBe(expected);
         });
@@ -95,32 +71,23 @@ describe('eventTypes', () => {
         });
 
         it.each([
-            [{ event_types: ['a', 'b'] }, 'Event Types'],
+            [{ event_types: [EventType.EXECUTION_COMPLETED, EventType.EXECUTION_FAILED] }, 'Event Types'],
             [{ search_text: 'test' }, 'Search Text'],
-            [{ start_time: '2024-01-01' }, 'Start Time'],
-            [{ end_time: '2024-01-02' }, 'End Time'],
-        ])('names the active filter by its field title', (override, expected) => {
-            expect(getActiveFilterSummary(withFilter(override as Partial<EventFilter>))).toEqual([expected]);
+            [{ start_time: '2024-01-01T00:00:00Z' }, 'Start Time'],
+            [{ end_time: '2024-01-02T00:00:00Z' }, 'End Time'],
+        ])('names the active filter by its field title', (filters, expected) => {
+            expect(getActiveFilterSummary(filters)).toEqual([expected]);
         });
 
-        it('names every active filter in order', () => {
-            const summary = getActiveFilterSummary(
-                withFilter({
-                    event_types: ['x' as import('#lib/api/index.ts').EventType],
-                    search_text: 'y',
-                    aggregate_id: 'a',
-                    user_id: 'u',
-                    service_name: 's',
-                    start_time: new Date(1).toISOString(),
-                }),
-            );
-            expect(summary).toEqual([
+        it('names every active filter in the order of the EventFilter schema', () => {
+            expect(getActiveFilterSummary(ALL_FILTERS)).toEqual([
                 'Event Types',
-                'Search Text',
                 'Aggregate Id',
                 'User Id',
-                'Service Name',
                 'Start Time',
+                'End Time',
+                'Service Name',
+                'Search Text',
             ]);
         });
 

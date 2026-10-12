@@ -1,21 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '#test/test-utils.ts';
+import { createMockSavedScript, user } from '#test/test-utils.ts';
 
 import SavedScripts from '#components/editor/SavedScripts.svelte';
 import type { SavedScriptResponse } from '#lib/api/index.ts';
 
 function createScripts(count: number): SavedScriptResponse[] {
-    return Array.from({ length: count }, (_, i) => ({
-        script_id: `script-${i + 1}`,
-        name: `Script ${i + 1}`,
-        script: `print("hello ${i + 1}")`,
-        lang: 'python',
-        lang_version: '3.11',
-        description: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    }));
+    return Array.from({ length: count }, (_, i) =>
+        createMockSavedScript({
+            script_id: `script-${i + 1}`,
+            name: `Script ${i + 1}`,
+            script: `print("hello ${i + 1}")`,
+            lang_version: '3.11',
+        }),
+    );
 }
 
 function renderScripts(scripts: SavedScriptResponse[] = []) {

@@ -1,21 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { user } from '#test/test-utils.ts';
+import { createMockResourceLimits, user } from '#test/test-utils.ts';
 
 import ResourceLimits from '#components/editor/ResourceLimits.svelte';
 
-const LIMITS = {
-    cpu_limit: '500m',
-    memory_limit: '256Mi',
-    cpu_request: '100m',
-    memory_request: '64Mi',
-    execution_timeout: 30,
-    supported_runtimes: {},
+const LIMITS = createMockResourceLimits({
     language_limits: {
         python: { cpu_limit: '500m', memory_limit: '256Mi', execution_timeout: 30 },
         go: { cpu_limit: '1000m', memory_limit: '320Mi', execution_timeout: 45 },
     },
-};
+});
 
 describe('ResourceLimits', () => {
     it('renders nothing when limits is null', () => {
@@ -51,15 +45,9 @@ describe('ResourceLimits', () => {
         expect(screen.getByText(value)).toBeInTheDocument();
     });
 
-    it.each([
-        { name: 'a language without its own entry', limits: LIMITS },
-        { name: 'a response without language_limits', limits: { ...LIMITS, language_limits: undefined } },
-    ])('falls back to the global limits for $name', async ({ limits }) => {
-        render(ResourceLimits, { props: { limits: limits as typeof LIMITS, lang: 'ruby' } });
-        await user.click(screen.getByRole('button', { name: /Resource Limits/i }));
-        expect(screen.getByText('500m')).toBeInTheDocument();
-        expect(screen.getByText('256Mi')).toBeInTheDocument();
-        expect(screen.getByText('30s')).toBeInTheDocument();
+    it('renders nothing for a language the API lists no limits for', () => {
+        const { container } = render(ResourceLimits, { props: { limits: LIMITS, lang: 'ruby' } });
+        expect(container.textContent?.trim()).toBe('');
     });
 
     it('collapses panel on second click', async () => {

@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import { createMockUser } from '#test/test-utils.ts';
+import { UserRole, type UserResponse } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
-    mockAuthStore: { userRole: null as string | null },
+    mockAuthStore: { user: null as UserResponse | null },
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({
@@ -17,7 +19,7 @@ describe('Footer', () => {
     let originalDate: DateConstructor;
 
     beforeEach(() => {
-        mocks.mockAuthStore.userRole = null;
+        mocks.mockAuthStore.user = null;
         originalDate = globalThis.Date;
         const mockDate = class extends Date {
             constructor() {
@@ -80,7 +82,7 @@ describe('Footer', () => {
         });
 
         it('shows admins a Grafana link to the nginx redirect', () => {
-            mocks.mockAuthStore.userRole = 'admin';
+            mocks.mockAuthStore.user = createMockUser({ role: UserRole.ADMIN });
             render(Footer);
 
             const grafanaLink = screen.getByRole('link', { name: /Grafana/i });
@@ -89,8 +91,8 @@ describe('Footer', () => {
             expect(grafanaLink.getAttribute('rel')).toContain('noopener');
         });
 
-        it.each([null, 'user'])('hides the Grafana link for role %s', (role) => {
-            mocks.mockAuthStore.userRole = role;
+        it.each([null, UserRole.USER])('hides the Grafana link for role %s', (role) => {
+            mocks.mockAuthStore.user = role && createMockUser({ role });
             render(Footer);
 
             expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();

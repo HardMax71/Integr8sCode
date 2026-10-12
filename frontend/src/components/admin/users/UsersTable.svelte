@@ -1,7 +1,7 @@
 <script lang="ts">
     import { renderSnippet, type PaginationState } from '@tanstack/svelte-table';
     import { Pencil, Clock, Trash } from '@lucide/svelte';
-    import type { UserResponse } from '#lib/api/index.ts';
+    import { UserRole, type UserResponse } from '#lib/api/index.ts';
     import { formatBoolean, formatTimestamp } from '#lib/formatters.ts';
     import { columnHelper, createServerTable } from '#lib/data-table.ts';
     import DataTable from '#components/DataTable.svelte';
@@ -22,7 +22,7 @@
     const column = columnHelper<UserResponse>();
     const columns = [
         column.accessor('username', { meta: { class: 'font-medium' } }),
-        column.accessor('email', { cell: ({ getValue }) => getValue() || '-' }),
+        column.accessor('email', {}),
         column.accessor('role', { cell: ({ row }) => renderSnippet(roleCell, row.original) }),
         column.accessor('created_at', { cell: ({ getValue }) => formatTimestamp(getValue()) }),
         column.accessor('is_active', { cell: ({ row }) => renderSnippet(statusCell, row.original) }),
@@ -46,7 +46,7 @@
 </script>
 
 {#snippet roleCell(user: UserResponse)}
-    <span class="badge {user.role === 'admin' ? 'badge-info' : 'badge-neutral'}">{user.role}</span>
+    <span class="badge {user.role === UserRole.ADMIN ? 'badge-info' : 'badge-neutral'}">{user.role}</span>
 {/snippet}
 
 {#snippet statusCell(user: UserResponse)}

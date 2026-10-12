@@ -25,7 +25,7 @@ describe('AdminSagas', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockApi(listSagasApiV1SagasGet).ok({ sagas: [], total: 0, skip: 0, limit: 10, has_more: false });
-        mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(undefined);
+        mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(createMockSaga());
     });
 
     describe('initial loading', () => {

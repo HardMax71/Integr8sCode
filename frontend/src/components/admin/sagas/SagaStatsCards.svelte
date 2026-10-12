@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { SagaStatusResponse } from '#lib/api/index.ts';
+    import { SagaState, type SagaStatusResponse } from '#lib/api/index.ts';
     import { SAGA_STATES } from '#lib/admin/sagas/index.ts';
 
     interface Props {
@@ -8,13 +8,14 @@
 
     let { sagas }: Props = $props();
 
-    function getCount(state: string): number {
+    function getCount(state: SagaState): number {
         return sagas.filter((s) => s.state === state).length;
     }
 </script>
 
 <div class="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3">
-    {#each Object.entries(SAGA_STATES) as [state, info]}
+    {#each Object.values(SagaState) as state (state)}
+        {@const info = SAGA_STATES[state]}
         {@const count = getCount(state)}
         {@const IconComponent = info.icon}
         <div class="card hover:shadow-lg transition-all duration-200 {info.bgColor}">

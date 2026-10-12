@@ -1,27 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/svelte';
-import { user } from '#test/test-utils.ts';
+import { createMockExecutionResult, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
-import type { ExecutionResult } from '#lib/api/index.ts';
+import { ExecutionStatus, type ExecutionResult } from '#lib/api/index.ts';
 import type { ExecutionPhase } from '#lib/editor/index.ts';
 
 import OutputPanel from '#components/editor/OutputPanel.svelte';
 
-function makeResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
-    return {
-        execution_id: 'exec-123',
-        status: 'completed',
-        stdout: null,
-        stderr: null,
-        lang: 'python',
-        lang_version: '3.11',
-        resource_usage: null,
-        exit_code: 0,
-        error_type: null,
-        priority: 'normal',
-        ...overrides,
-    };
-}
+const makeResult = createMockExecutionResult;
 
 type IdleProps = { phase: ExecutionPhase; result: ExecutionResult | null; error: string | null };
 
@@ -62,16 +48,23 @@ describe('OutputPanel', () => {
     });
 
     describe('result rendering', () => {
-        it.each([
-            ['completed', 'bg-green-50'],
-            ['error', 'bg-red-50'],
-            ['failed', 'bg-red-50'],
-            ['running', 'bg-blue-50'],
-            ['queued', 'bg-yellow-50'],
-        ] as const)('status "%s" shows badge with %s class', async (status, expectedClass) => {
-            renderIdle({ result: makeResult({ status: status as ExecutionResult['status'] }) });
+        const BADGE_CLASSES: Record<ExecutionStatus, string | null> = {
+            queued: 'bg-yellow-50',
+            scheduled: null,
+            running: 'bg-blue-50',
+            completed: 'bg-green-50',
+            failed: 'bg-red-50',
+            timeout: null,
+            cancelled: null,
+            error: 'bg-red-50',
+        };
+
+        it.each(Object.values(ExecutionStatus))('status "%s" shows its badge', async (status) => {
+            renderIdle({ result: makeResult({ status }) });
             const badge = await screen.findByText(status);
-            expect(badge).toHaveClass(expectedClass);
+            const expected = BADGE_CLASSES[status];
+            if (expected) expect(badge).toHaveClass(expected);
+            else expect(badge.className).not.toMatch(/bg-\w+-50/);
             expect(within(badge).getByText('Status')).toBeInTheDocument();
         });
 
@@ -190,7 +183,7 @@ describe('OutputPanel', () => {
 
         it('result takes priority over error', async () => {
             renderIdle({
-                result: makeResult({ status: 'error' as ExecutionResult['status'] }),
+                result: makeResult({ status: 'error' }),
                 error: 'Something went wrong',
             });
             expect(await screen.findByText('error')).toHaveClass('bg-red-50');

@@ -7,15 +7,8 @@ describe('getLanguageExtension', () => {
         expect(ext).toBeDefined();
     });
 
-    it('returns python extension for unknown language', () => {
-        const fallback = getLanguageExtension('unknown-lang');
-        const python = getLanguageExtension('python');
-        expect(typeof fallback).toBe(typeof python);
-    });
-
-    it('returns python extension for empty string', () => {
-        const ext = getLanguageExtension('');
-        expect(ext).toBeDefined();
+    it.each(['unknown-lang', ''])('returns no extension for "%s"', (lang) => {
+        expect(getLanguageExtension(lang)).toEqual([]);
     });
 
     it('returns distinct extensions for different languages', () => {

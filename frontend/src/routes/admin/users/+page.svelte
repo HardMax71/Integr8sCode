@@ -10,6 +10,7 @@
         getUserRateLimitsApiV1AdminRateLimitsUserIdGetQueryKey,
         updateUserRateLimitsApiV1AdminRateLimitsUserIdPutMutation,
         resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostMutation,
+        zRateLimitUpdateRequest,
         type UserResponse,
         type UserRateLimitConfigResponse,
     } from '#lib/api/index.ts';
@@ -105,12 +106,10 @@
                 : structuredClone(
                       loaded ?? {
                           user_id: user.user_id,
-                          rules: [],
-                          global_multiplier: 1.0,
-                          bypass_rate_limit: false,
-                          notes: '',
+                          notes: null,
                           created_at: null,
                           updated_at: null,
+                          ...zRateLimitUpdateRequest.parse({}),
                       },
                   ),
         );
@@ -159,7 +158,7 @@
         if (!rateLimitUser || !rateLimitConfig) return;
         saveRateLimitsMutation.mutate({
             path: { user_id: rateLimitUser.user_id },
-            body: $state.snapshot(rateLimitConfig),
+            body: zRateLimitUpdateRequest.parse($state.snapshot(rateLimitConfig)),
         });
     }
 

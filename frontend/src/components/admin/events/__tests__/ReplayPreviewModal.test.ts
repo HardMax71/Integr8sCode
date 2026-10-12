@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
+import { EventType } from '#lib/api/index.ts';
 
 import ReplayPreviewModal from '#components/admin/events/ReplayPreviewModal.svelte';
 import type { ReplayPreview } from '#lib/admin/stores/eventsStore.svelte.ts';
@@ -10,10 +11,10 @@ function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
         eventId: 'evt-replay-1',
         total_events: 3,
         events_preview: [
-            { event_id: 'e1', event_type: 'execution_requested', timestamp: '2024-01-15T10:00:00Z' },
+            { event_id: 'e1', event_type: EventType.EXECUTION_REQUESTED, timestamp: '2024-01-15T10:00:00Z' },
             {
                 event_id: 'e2',
-                event_type: 'execution_completed',
+                event_type: EventType.EXECUTION_COMPLETED,
                 timestamp: '2024-01-15T10:01:00Z',
                 aggregate_id: 'exec-1',
             },
@@ -27,8 +28,7 @@ function renderModal(overrides: Partial<{ preview: ReplayPreview | null; open: b
     const onConfirm = vi.fn();
     const preview = ('preview' in overrides ? overrides.preview : makePreview()) ?? null;
     const open = overrides.open ?? true;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = render(ReplayPreviewModal, { props: { preview: preview as any, open, onClose, onConfirm } });
+    const result = render(ReplayPreviewModal, { props: { preview, open, onClose, onConfirm } });
     return { ...result, onClose, onConfirm };
 }
 

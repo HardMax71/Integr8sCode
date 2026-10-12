@@ -17,7 +17,7 @@ function validPayload(overrides: Partial<NotificationResponse> = {}): Notificati
         subject: 'Test',
         body: 'Hello',
         action_url: '/action',
-        created_at: new Date('2025-01-01T00:00:00Z'),
+        created_at: '2025-01-01T00:00:00Z',
         read_at: null,
         severity: 'medium',
         tags: ['tag1'],

@@ -151,7 +151,7 @@ export function createMockNotification(overrides: Partial<NotificationResponse> 
         status: 'delivered',
         severity: 'medium',
         tags: [],
-        created_at: new Date(),
+        created_at: new Date().toISOString(),
         action_url: '',
         read_at: null,
         ...overrides,
@@ -186,7 +186,7 @@ export const DEFAULT_EVENT: ExecutionCompletedEvent = {
     event_id: 'evt-1',
     event_type: 'execution_completed',
     event_version: '1',
-    timestamp: new Date('2024-01-15T10:30:00Z'),
+    timestamp: '2024-01-15T10:30:00Z',
     aggregate_id: 'exec-456',
     metadata: {
         service_name: 'test-service',
@@ -223,7 +223,7 @@ export const createMockEvents = (count: number): EventBrowseResponse['events'] =
                     },
                 }),
                 event_type: EVENT_TYPES[i % EVENT_TYPES.length],
-                timestamp: new Date(Date.now() - i * 60000),
+                timestamp: new Date(Date.now() - i * 60000).toISOString(),
             }) as EventBrowseResponse['events'][number],
     );
 
@@ -243,8 +243,8 @@ export function createMockEventDetail(event = createMockEvent()): EventDetailRes
     return {
         event: event as EventDetailResponse['event'],
         related_events: [
-            { event_id: 'rel-1', event_type: 'execution_started', timestamp: new Date('2024-01-15T10:29:00Z') },
-            { event_id: 'rel-2', event_type: 'pod_created', timestamp: new Date('2024-01-15T10:29:30Z') },
+            { event_id: 'rel-1', event_type: 'execution_started', timestamp: '2024-01-15T10:29:00Z' },
+            { event_id: 'rel-2', event_type: 'pod_created', timestamp: '2024-01-15T10:29:30Z' },
         ],
         timeline: [],
     };
@@ -259,8 +259,8 @@ export function createMockUserOverview(): AdminUserOverview {
             role: 'user',
             is_active: true,
             is_superuser: false,
-            created_at: new Date('2024-01-01T00:00:00Z'),
-            updated_at: new Date('2024-01-01T00:00:00Z'),
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
             bypass_rate_limit: null,
             global_multiplier: null,
             has_custom_limits: null,
@@ -294,8 +294,8 @@ export const DEFAULT_EXECUTION: AdminExecutionResponse = {
     stderr: null,
     exit_code: null,
     error_type: null,
-    created_at: new Date('2024-01-15T10:30:00Z'),
-    updated_at: new Date('2024-01-15T10:30:00Z'),
+    created_at: '2024-01-15T10:30:00Z',
+    updated_at: '2024-01-15T10:30:00Z',
 };
 
 export const createMockExecution = (overrides: Partial<AdminExecutionResponse> = {}): AdminExecutionResponse => ({
@@ -322,7 +322,7 @@ export const createMockExecutions = (count: number): AdminExecutionResponse[] =>
             status: EXECUTION_STATUSES[i % EXECUTION_STATUSES.length],
             priority: EXECUTION_PRIORITIES[i % EXECUTION_PRIORITIES.length],
             user_id: `user-${(i % 3) + 1}`,
-            created_at: new Date(Date.now() - i * 60000),
+            created_at: new Date(Date.now() - i * 60000).toISOString(),
         }),
     );
 
@@ -344,8 +344,8 @@ export const DEFAULT_SAGA: SagaStatusResponse = {
     compensated_steps: [],
     retry_count: 0,
     error_message: null,
-    created_at: new Date('2024-01-15T10:30:00Z'),
-    updated_at: new Date('2024-01-15T10:31:00Z'),
+    created_at: '2024-01-15T10:30:00Z',
+    updated_at: '2024-01-15T10:31:00Z',
     completed_at: null,
 };
 
@@ -369,8 +369,8 @@ export const createMockSagas = (count: number): SagaStatusResponse[] =>
             saga_id: `saga-${i + 1}`,
             execution_id: `exec-${i + 1}`,
             state: SAGA_STATES[i % SAGA_STATES.length],
-            created_at: new Date(Date.now() - i * 60000),
-            updated_at: new Date(Date.now() - i * 30000),
+            created_at: new Date(Date.now() - i * 60000).toISOString(),
+            updated_at: new Date(Date.now() - i * 30000).toISOString(),
         }),
     );
 
@@ -381,8 +381,8 @@ export const DEFAULT_USER: UserResponse = {
     role: 'user',
     is_active: true,
     is_superuser: false,
-    created_at: new Date('2024-01-15T10:30:00Z'),
-    updated_at: new Date('2024-01-15T10:30:00Z'),
+    created_at: '2024-01-15T10:30:00Z',
+    updated_at: '2024-01-15T10:30:00Z',
     bypass_rate_limit: false,
     global_multiplier: 1.0,
     has_custom_limits: false,

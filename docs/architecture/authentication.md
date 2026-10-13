@@ -85,13 +85,13 @@ The password check order matters: a deactivated account with a wrong password ge
 
 ## Frontend
 
-`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session: whether it's signed in, the user as the generated `UserResponse`, and the CSRF token. It mirrors them to sessionStorage under `authState` and checks the stored blob against this schema when it reads it back:
+`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session, which is either signed out or signed in with the user (the generated `UserResponse`) and the CSRF token, so a signed-in session never lacks its user. It mirrors a signed-in session to sessionStorage under `authState` and checks the stored blob against this schema when it reads it back:
 
 ```typescript
 --8<-- "frontend/src/stores/auth.svelte.ts:AuthState"
 ```
 
-The login page's mutation hands the response to `authStore.startSession()`, which takes the CSRF token from the body. `verifyAuth()` fetches `/api/v1/auth/me` through the TanStack query client and rereads the token from the `csrf_token` cookie. The query has a 30 second stale time, so answers within that window are shared unless the caller passes `forceRefresh = true`.
+The login page's mutation hands the response to `authStore.startSession()`, which signs in once the profile has loaded, with the CSRF token from the body. If that profile check fails, the session stays signed out. `verifyAuth()` fetches `/api/v1/auth/me` through the TanStack query client and rereads the token from the `csrf_token` cookie. The query has a 30 second stale time, so answers within that window are shared unless the caller passes `forceRefresh = true`.
 
 The request interceptor in `frontend/src/lib/api-interceptors.ts` adds the header to every non-GET call:
 
@@ -105,7 +105,7 @@ The query client's error handler turns status codes into toasts. On a 401 it cle
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ErrorResponse` with status 0, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
+`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ErrorResponse` with status 0, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone. On startup, initialization tells it to answer true for a saved session younger than five minutes, so that one survives an unreachable server.
 
 ## Endpoints
 

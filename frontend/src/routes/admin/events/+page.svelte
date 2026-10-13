@@ -38,10 +38,14 @@
     let filters = $state<EventFilter>({});
     let applied = $state<EventFilter>({});
     let showFilters = $state(false);
-    let selectedEventId = $state<string | null>(null);
-    let overviewUserId = $state<string | null>(null);
-    let replayPreview = $state<ReplayPreview | null>(null);
-    let replaySessionId = $state<string | null>(null);
+    // One dialog at a time; the replay banner shows beside it while a replay runs
+    let dialog = $state<
+        | { kind: 'closed' }
+        | { kind: 'details'; eventId: string }
+        | { kind: 'overview'; userId: string }
+        | { kind: 'preview'; preview: ReplayPreview }
+    >({ kind: 'closed' });
+    let replaySessionId = $state('');
 
     // Applied filters go back to the first page, since the old one may not exist under them
     let pageSize = $state(10);
@@ -89,9 +93,9 @@
                 onSuccess: ({ total_events, events_preview, session_id }) => {
                     if (!dryRun) {
                         toast.success('Replay scheduled! Tracking progress...');
-                        replaySessionId = session_id ?? null;
+                        replaySessionId = session_id ?? '';
                     } else if (events_preview?.length) {
-                        replayPreview = { eventId, total_events, events_preview };
+                        dialog = { kind: 'preview', preview: { eventId, total_events, events_preview } };
                     } else {
                         toast.info(`Dry run: ${total_events} events would be replayed`);
                     }
@@ -184,7 +188,7 @@
     </div>
 
     {#if replaySessionId}
-        <ReplayProgressBanner sessionId={replaySessionId} onClose={() => (replaySessionId = null)} />
+        <ReplayProgressBanner sessionId={replaySessionId} onClose={() => (replaySessionId = '')} />
     {/if}
 
     <EventStatsCards stats={stats.data ?? null} totalEvents={list.data?.total ?? 0} />
@@ -233,37 +237,35 @@
                     }
                 }
                 loading={list.isPending}
-                onViewDetails={(id) => (selectedEventId = id)}
+                onViewDetails={(eventId) => (dialog = { kind: 'details', eventId })}
                 onPreviewReplay={(id) => replayEvent(id, true)}
                 onReplay={(id) => replayEvent(id, false)}
                 onDelete={deleteEvent}
-                onViewUser={(id) => (overviewUserId = id || null)}
+                onViewUser={(userId) => {
+                    if (userId) dialog = { kind: 'overview', userId };
+                }}
             />
         </div>
     </div>
 </div>
 
 <!-- Modals -->
-{#if selectedEventId}
+{#if dialog.kind === 'details'}
     <EventDetailsModal
-        eventId={selectedEventId}
-        onClose={() => (selectedEventId = null)}
+        eventId={dialog.eventId}
+        onClose={() => (dialog = { kind: 'closed' })}
         onReplay={(id) => {
-            selectedEventId = null;
+            dialog = { kind: 'closed' };
             replayEvent(id, false);
         }}
-        onViewRelated={(id) => (selectedEventId = id)}
+        onViewRelated={(eventId) => (dialog = { kind: 'details', eventId })}
     />
-{/if}
-
-{#if replayPreview}
+{:else if dialog.kind === 'preview'}
     <ReplayPreviewModal
-        preview={replayPreview}
-        onClose={() => (replayPreview = null)}
+        preview={dialog.preview}
+        onClose={() => (dialog = { kind: 'closed' })}
         onConfirm={(id) => replayEvent(id, false)}
     />
-{/if}
-
-{#if overviewUserId}
-    <UserOverviewModal userId={overviewUserId} onClose={() => (overviewUserId = null)} />
+{:else if dialog.kind === 'overview'}
+    <UserOverviewModal userId={dialog.userId} onClose={() => (dialog = { kind: 'closed' })} />
 {/if}

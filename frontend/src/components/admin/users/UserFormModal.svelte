@@ -17,11 +17,11 @@
     import Spinner from '#components/Spinner.svelte';
 
     interface Props {
-        editingUser: UserResponse | null;
+        mode: { kind: 'create' } | { kind: 'edit'; user: UserResponse };
         onClose: () => void;
     }
 
-    let { editingUser, onClose }: Props = $props();
+    let { mode, onClose }: Props = $props();
 
     const queryClient = useQueryClient();
     const onSaved = () => {
@@ -32,8 +32,9 @@
     const update = createMutation(() => ({ ...updateUserApiV1AdminUsersUserIdPutMutation(), onSuccess: onSaved }));
     const saving = $derived(create.isPending || update.isPending);
 
-    // The page mounts the dialog per open, so the user it edits never changes
-    const editing = untrack(() => editingUser);
+    // The page mounts the dialog per open, so what it creates or edits never changes
+    const opened = untrack(() => mode);
+    const editing = opened.kind === 'edit';
 
     const { username, email, password, role, is_active } = zUserCreate.shape;
     // An edited user may keep the current password; a new one needs one
@@ -51,12 +52,12 @@
             onUpdate: ({ form: submitted }) => {
                 if (!submitted.valid) return;
                 const data = submitted.data;
-                if (!editing) {
+                if (opened.kind === 'create') {
                     create.mutate({ body: data });
                     return;
                 }
                 update.mutate({
-                    path: { user_id: editing.user_id },
+                    path: { user_id: opened.user.user_id },
                     body: {
                         username: data.username,
                         email: data.email,
@@ -67,13 +68,13 @@
                 });
             },
         },
-        editing
+        opened.kind === 'edit'
             ? {
-                  username: editing.username,
-                  email: editing.email,
+                  username: opened.user.username,
+                  email: opened.user.email,
                   password: '',
-                  role: editing.role,
-                  is_active: editing.is_active,
+                  role: opened.user.role,
+                  is_active: opened.user.is_active,
               }
             : undefined,
     );

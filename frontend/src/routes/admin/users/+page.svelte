@@ -12,11 +12,14 @@
     } from '#components/admin/users/index.ts';
     import type { UserListFilters } from '#components/admin/users/UserFilters.svelte';
 
-    // The user each modal is open for; the user form also opens for a new user
-    let showUserModal = $state(false);
-    let editingUser = $state<UserResponse | null>(null);
-    let userToDelete = $state<UserResponse | null>(null);
-    let rateLimitUser = $state<UserResponse | null>(null);
+    // One dialog at a time, with the user it's open for
+    let dialog = $state<
+        | { kind: 'closed' }
+        | { kind: 'create' }
+        | { kind: 'edit'; user: UserResponse }
+        | { kind: 'delete'; user: UserResponse }
+        | { kind: 'rateLimits'; user: UserResponse }
+    >({ kind: 'closed' });
 
     const noFilters = (): UserListFilters => ({
         search: null,
@@ -50,11 +53,6 @@
     let users = $derived(usersQuery.data?.users ?? []);
     let totalUsers = $derived(usersQuery.data?.total ?? 0);
     let hasFiltersActive = $derived(Object.values(filters).some((value) => value !== null && value !== ''));
-
-    function openUserModal(user: UserResponse | null): void {
-        editingUser = user;
-        showUserModal = true;
-    }
 </script>
 
 <div class="container mx-auto px-2 sm:px-4 pb-8">
@@ -63,7 +61,7 @@
         <div class="flex gap-2 w-full sm:w-auto">
             <button
                 type="button"
-                onclick={() => openUserModal(null)}
+                onclick={() => (dialog = { kind: 'create' })}
                 class="btn btn-primary flex items-center gap-2 flex-1 sm:flex-initial justify-center"
             >
                 <Plus class="w-4 h-4" />Create User
@@ -98,22 +96,18 @@
                     }
                 }
                 loading={usersQuery.isPending}
-                onEdit={openUserModal}
-                onRateLimits={(user) => (rateLimitUser = user)}
-                onDelete={(user) => (userToDelete = user)}
+                onEdit={(user) => (dialog = { kind: 'edit', user })}
+                onRateLimits={(user) => (dialog = { kind: 'rateLimits', user })}
+                onDelete={(user) => (dialog = { kind: 'delete', user })}
             />
         </div>
     </div>
 </div>
 
-{#if userToDelete}
-    <DeleteUserModal user={userToDelete} onClose={() => (userToDelete = null)} />
-{/if}
-
-{#if rateLimitUser}
-    <RateLimitsModal user={rateLimitUser} onClose={() => (rateLimitUser = null)} />
-{/if}
-
-{#if showUserModal}
-    <UserFormModal {editingUser} onClose={() => (showUserModal = false)} />
+{#if dialog.kind === 'delete'}
+    <DeleteUserModal user={dialog.user} onClose={() => (dialog = { kind: 'closed' })} />
+{:else if dialog.kind === 'rateLimits'}
+    <RateLimitsModal user={dialog.user} onClose={() => (dialog = { kind: 'closed' })} />
+{:else if dialog.kind !== 'closed'}
+    <UserFormModal mode={dialog} onClose={() => (dialog = { kind: 'closed' })} />
 {/if}

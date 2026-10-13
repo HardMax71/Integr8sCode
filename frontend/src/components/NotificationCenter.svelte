@@ -23,7 +23,7 @@
     let showDropdown = $state(false);
 
     const queryClient = useQueryClient();
-    const signedIn = $derived(authStore.isAuthenticated === true);
+    const signedIn = $derived(authStore.session.status === 'signed-in');
 
     const list = createQuery(() => ({
         ...getNotificationsApiV1NotificationsGetOptions({ query: { limit: 20 } }),

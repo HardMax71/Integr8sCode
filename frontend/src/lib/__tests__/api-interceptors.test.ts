@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ErrorResponse } from '#lib/api/index.ts';
+import type { Session } from '#stores/auth.svelte.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 
 describe('initializeApiInterceptors and showApiError', () => {
     let mockErrorUse: ReturnType<typeof vi.fn>;
@@ -8,7 +10,7 @@ describe('initializeApiInterceptors and showApiError', () => {
     let mockSetQueryErrorHandler: ReturnType<typeof vi.fn>;
     let mockToast: Record<string, ReturnType<typeof vi.fn>>;
     let mockGoto: ReturnType<typeof vi.fn>;
-    let mockAuthStore: { isAuthenticated: boolean; csrfToken: string | null; clearAuth: ReturnType<typeof vi.fn> };
+    let mockAuthStore: { session: Session; clearAuth: ReturnType<typeof vi.fn> };
     let errorInterceptor: (
         error: unknown,
         response: Response | undefined,
@@ -27,7 +29,10 @@ describe('initializeApiInterceptors and showApiError', () => {
         mockSetQueryErrorHandler = vi.fn();
         mockToast = { error: vi.fn(), warning: vi.fn() };
         mockGoto = vi.fn();
-        mockAuthStore = { isAuthenticated: true, csrfToken: 'csrf-123', clearAuth: vi.fn() };
+        mockAuthStore = {
+            session: { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf-123' },
+            clearAuth: vi.fn(),
+        };
 
         vi.doMock('#lib/api/index.ts', async (importOriginal) => ({
             ...(await importOriginal<typeof import('#lib/api/index.ts')>()),
@@ -127,7 +132,7 @@ describe('initializeApiInterceptors and showApiError', () => {
         });
 
         it('just clears auth on a 401 when nobody was signed in', () => {
-            mockAuthStore.isAuthenticated = false;
+            mockAuthStore.session = { status: 'signed-out' };
             at('/editor');
             mod.showApiError(failure(401), false);
             expect(mockAuthStore.clearAuth).toHaveBeenCalled();
@@ -191,8 +196,8 @@ describe('initializeApiInterceptors and showApiError', () => {
             expect(result.headers.get('X-CSRF-Token')).toBeNull();
         });
 
-        it('skips header when no CSRF token available', () => {
-            mockAuthStore.csrfToken = null;
+        it('skips header when signed out', () => {
+            mockAuthStore.session = { status: 'signed-out' };
             const request = new Request('https://test/api', { method: 'POST' });
             const result = requestInterceptor(request, {});
             expect(result.headers.get('X-CSRF-Token')).toBeNull();

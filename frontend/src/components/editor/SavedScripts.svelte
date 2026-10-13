@@ -15,7 +15,7 @@
 
     const queryClient = useQueryClient();
     const execution = executionContext.get();
-    const signedIn = $derived(authStore.isAuthenticated === true);
+    const signedIn = $derived(authStore.session.status === 'signed-in');
     const list = createQuery(() => ({ ...listSavedScriptsApiV1ScriptsGetOptions(), enabled: signedIn }));
     const scripts = $derived(list.data?.scripts ?? []);
 

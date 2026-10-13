@@ -57,7 +57,7 @@
 
     const settingsQuery = createQuery(() => ({
         ...getUserSettingsApiV1UserSettingsGetOptions(),
-        enabled: authStore.isAuthenticated === true,
+        enabled: authStore.session.status === 'signed-in',
     }));
 
     const historyQuery = createQuery(() => ({
@@ -142,7 +142,7 @@
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
-        {#if settingsQuery.isPending && authStore.isAuthenticated}
+        {#if settingsQuery.isPending && authStore.session.status === 'signed-in'}
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>

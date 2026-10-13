@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
-import { fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeUserSettings, fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 import Settings from '#routes/(auth)/settings/+page.svelte';
@@ -36,12 +36,13 @@ import {
     type SettingsHistoryEntry,
     type UserSettings,
 } from '#lib/api/index.ts';
+import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
     mockSetTheme: vi.fn(),
     mockConfirm: vi.fn(),
     mockAuthStore: {
-        isAuthenticated: true,
+        session: { status: 'signed-out' } as Session,
     },
 }));
 
@@ -54,7 +55,7 @@ describe('Settings', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.stubGlobal('confirm', mocks.mockConfirm);
-        mocks.mockAuthStore.isAuthenticated = true;
+        mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
         mockApi(getUserSettingsApiV1UserSettingsGet).ok(createMockSettings());
         mockApi(updateUserSettingsApiV1UserSettingsPut).ok(createMockSettings());
     });
@@ -77,7 +78,7 @@ describe('Settings', () => {
         });
 
         it('does not call API when unauthenticated', async () => {
-            mocks.mockAuthStore.isAuthenticated = false;
+            mocks.mockAuthStore.session = { status: 'signed-out' };
             await renderSettings();
             expect(vi.mocked(getUserSettingsApiV1UserSettingsGet)).not.toHaveBeenCalled();
         });

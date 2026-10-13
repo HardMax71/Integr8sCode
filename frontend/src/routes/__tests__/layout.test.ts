@@ -3,16 +3,18 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { userPrefersMode } from 'mode-watcher';
 import { getUserSettingsApiV1UserSettingsGet, Theme, zUserSettings } from '#lib/api/index.ts';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { mockApi } from '#test/test-utils.ts';
 import Layout from '#routes/+layout.svelte';
+import type { Session } from '#stores/auth.svelte.ts';
 
-const mocks = vi.hoisted(() => ({ initialize: vi.fn(), authStore: { isAuthenticated: false as boolean } }));
+const mocks = vi.hoisted(() => ({ initialize: vi.fn(), authStore: { session: { status: 'signed-out' } as Session } }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({
     authStore: {
         initialize: mocks.initialize,
-        get isAuthenticated() {
-            return mocks.authStore.isAuthenticated;
+        get session() {
+            return mocks.authStore.session;
         },
     },
 }));
@@ -37,7 +39,7 @@ const children = createRawSnippet(() => ({ render: () => '<p>page body</p>' }));
 describe('root layout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.authStore.isAuthenticated = false;
+        mocks.authStore.session = { status: 'signed-out' };
     });
 
     it('shows the page once the auth check finishes', async () => {
@@ -57,7 +59,7 @@ describe('root layout', () => {
 
     it('applies the theme saved in the user settings once signed in', async () => {
         mocks.initialize.mockResolvedValue(true);
-        mocks.authStore.isAuthenticated = true;
+        mocks.authStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
         userPrefersMode.current = Theme.LIGHT;
         mockApi(getUserSettingsApiV1UserSettingsGet).ok(
             zUserSettings.parse({

@@ -25,7 +25,7 @@ The query client in `src/lib/query-client.ts` retries a query twice when the err
 
 Clearing auth also empties the query cache, so nothing the previous user loaded shows to the next one.
 
-The request interceptor adds `X-CSRF-Token` from `authStore.csrfToken` to every non-GET request.
+The request interceptor adds `X-CSRF-Token` from the signed-in session to every non-GET request.
 
 ## Forms that show their own errors
 

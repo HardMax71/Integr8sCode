@@ -24,7 +24,7 @@
     const settings = createQuery(
         () => ({
             ...getUserSettingsApiV1UserSettingsGetOptions(),
-            enabled: authStore.isAuthenticated === true,
+            enabled: authStore.session.status === 'signed-in',
         }),
         () => queryClient,
     );

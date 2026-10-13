@@ -26,7 +26,7 @@
     const limits = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
     const settings = createQuery(() => ({
         ...getUserSettingsApiV1UserSettingsGetOptions(),
-        enabled: authStore.isAuthenticated === true,
+        enabled: authStore.session.status === 'signed-in',
     }));
     const runtimesAvailable = $derived(Object.keys(limits.data?.supported_runtimes ?? {}).length > 0);
     const execution = executionContext.set(createExecutionState());

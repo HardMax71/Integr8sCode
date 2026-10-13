@@ -24,7 +24,7 @@ type Failure = 'unauthorized' | 'server' | 'network';
 
 function persistedState(overrides: Record<string, unknown> = {}) {
     return JSON.stringify({
-        isAuthenticated: true,
+        status: 'signed-in',
         user: PROFILE_RESPONSE,
         csrfToken: 'csrf-token',
         timestamp: Date.now(),
@@ -73,8 +73,7 @@ describe('auth store', () => {
     describe('initial state', () => {
         it('starts signed out with nothing persisted', async () => {
             const { authStore } = await load();
-            expect(authStore.isAuthenticated).toBe(null);
-            expect(authStore.user).toBe(null);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
         });
 
         it('restores auth state from sessionStorage', async () => {
@@ -82,9 +81,7 @@ describe('auth store', () => {
 
             const { authStore } = await load();
 
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.user).toEqual(PROFILE_RESPONSE);
-            expect(authStore.csrfToken).toBe('test-token');
+            expect(authStore.session).toEqual({ status: 'signed-in', user: PROFILE_RESPONSE, csrfToken: 'test-token' });
         });
 
         it('drops a persisted state that is not a valid session', async () => {
@@ -92,8 +89,7 @@ describe('auth store', () => {
 
             const { authStore } = await load();
 
-            expect(authStore.isAuthenticated).toBe(null);
-            expect(authStore.user).toBe(null);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorageData['authState']).toBeUndefined();
         });
     });
@@ -106,10 +102,13 @@ describe('auth store', () => {
             await authStore.startSession(LOGIN_RESPONSE);
 
             expect(mockGetProfileApi).toHaveBeenCalledTimes(1);
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.user).toEqual(PROFILE_RESPONSE);
+            expect(authStore.session).toEqual({
+                status: 'signed-in',
+                user: PROFILE_RESPONSE,
+                csrfToken: 'new-csrf-token',
+            });
             expect(JSON.parse(sessionStorageData['authState']!)).toMatchObject({
-                isAuthenticated: true,
+                status: 'signed-in',
                 user: PROFILE_RESPONSE,
             });
         });
@@ -120,20 +119,18 @@ describe('auth store', () => {
 
             await authStore.startSession(LOGIN_RESPONSE);
 
-            expect(authStore.isAuthenticated).toBe(false);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorageData['authState']).toBeUndefined();
         });
 
-        it('keeps the session from the login response when the profile check hits a network error', async () => {
+        it('stays signed out when the profile check hits a network error, since a session needs the user', async () => {
             const restoreConsole = suppressConsoleWarn();
             const { authStore, fail } = await load();
             mockGetProfileApi.mockRejectedValue(fail('network'));
 
             await authStore.startSession(LOGIN_RESPONSE);
 
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.csrfToken).toBe('new-csrf-token');
-            expect(authStore.user).toBe(null);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             restoreConsole();
         });
     });
@@ -147,8 +144,7 @@ describe('auth store', () => {
 
             authStore.clearAuth();
 
-            expect(authStore.isAuthenticated).toBe(false);
-            expect(authStore.user).toBe(null);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
             expect(queryClient.getQueryCache().getAll()).toEqual([]);
         });
@@ -160,7 +156,7 @@ describe('auth store', () => {
             const { authStore } = await load();
 
             expect(await authStore.verifyAuth(true)).toBe(true);
-            expect(authStore.user).toEqual(PROFILE_RESPONSE);
+            expect(authStore.session).toMatchObject({ status: 'signed-in', user: PROFILE_RESPONSE });
         });
 
         it('returns false and clears state on a 401', async () => {
@@ -168,7 +164,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
             expect(await authStore.verifyAuth(true)).toBe(false);
-            expect(authStore.isAuthenticated).toBe(false);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorage.removeItem).toHaveBeenCalledWith('authState');
         });
 
@@ -209,8 +205,7 @@ describe('auth store', () => {
                 mockGetProfileApi.mockRejectedValue(fail(failure));
 
                 expect(await authStore.verifyAuth(true)).toBe(true);
-                expect(authStore.isAuthenticated).toBe(true);
-                expect(authStore.user).toEqual(PROFILE_RESPONSE);
+                expect(authStore.session).toMatchObject({ status: 'signed-in', user: PROFILE_RESPONSE });
                 expect(sessionStorage.removeItem).not.toHaveBeenCalled();
                 restoreConsole();
             },
@@ -222,7 +217,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockRejectedValue(fail('network'));
 
             expect(await authStore.verifyAuth(true)).toBe(false);
-            expect(authStore.isAuthenticated).toBe(null);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorage.removeItem).not.toHaveBeenCalled();
             restoreConsole();
         });
@@ -241,7 +236,7 @@ describe('auth store', () => {
             const { authStore } = await load();
 
             expect(await authStore.initialize()).toBe(true);
-            expect(authStore.isAuthenticated).toBe(true);
+            expect(authStore.session.status).toBe('signed-in');
         });
 
         it('only initializes once, even when called concurrently', async () => {
@@ -262,8 +257,7 @@ describe('auth store', () => {
             const { authStore } = await load();
 
             expect(await authStore.initialize()).toBe(true);
-            expect(authStore.isAuthenticated).toBe(true);
-            expect(authStore.user?.role).toBe(UserRole.ADMIN);
+            expect(authStore.session).toMatchObject({ status: 'signed-in', user: { role: UserRole.ADMIN } });
         });
 
         it('clears auth when persisted auth verification gets a 401', async () => {
@@ -272,7 +266,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockRejectedValue(fail('unauthorized'));
 
             expect(await authStore.initialize()).toBe(false);
-            expect(authStore.isAuthenticated).toBe(false);
+            expect(authStore.session).toEqual({ status: 'signed-out' });
             expect(sessionStorageData['authState']).toBeUndefined();
         });
 
@@ -286,7 +280,7 @@ describe('auth store', () => {
             mockGetProfileApi.mockRejectedValue(fail('network'));
 
             expect(await authStore.initialize()).toBe(kept);
-            expect(authStore.isAuthenticated).toBe(kept);
+            expect(authStore.session.status).toBe(kept ? 'signed-in' : 'signed-out');
             expect(sessionStorageData['authState'] !== undefined).toBe(kept);
             restoreConsole();
         });

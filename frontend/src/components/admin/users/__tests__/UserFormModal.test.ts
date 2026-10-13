@@ -14,9 +14,9 @@ vi.mock('#components/Spinner.svelte', async () => {
     return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
 });
 
-function renderModal(editingUser: UserResponse | null = null) {
+function renderModal(mode: { kind: 'create' } | { kind: 'edit'; user: UserResponse } = { kind: 'create' }) {
     const onClose = vi.fn();
-    renderWithQueryClient(UserFormModal, { editingUser, onClose });
+    renderWithQueryClient(UserFormModal, { mode, onClose });
     return { onClose };
 }
 
@@ -45,10 +45,10 @@ describe('UserFormModal', () => {
     });
 
     it.each([
-        ['creating', null, 'Create New User', 'Create User', false],
-        ['editing', 'mock', 'Edit User', 'Update User', true],
-    ] as const)('when %s: title, button and password hint', (_label, editingUser, title, buttonText, showsHint) => {
-        renderModal(editingUser === 'mock' ? fakeUserResponse() : null);
+        ['creating', 'create', 'Create New User', 'Create User', false],
+        ['editing', 'edit', 'Edit User', 'Update User', true],
+    ] as const)('when %s: title, button and password hint', (_label, kind, title, buttonText, showsHint) => {
+        renderModal(kind === 'edit' ? { kind, user: fakeUserResponse() } : { kind });
         expect(screen.getByRole('dialog', { name: title })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: buttonText })).toBeInTheDocument();
         if (showsHint)
@@ -113,7 +113,7 @@ describe('UserFormModal', () => {
 
     it('edits a user without sending the password when it stays empty, then closes', async () => {
         const editingUser = { ...fakeUserResponse(), user_id: 'u-7', username: 'alice', email: 'alice@example.com' };
-        const { onClose } = renderModal(editingUser);
+        const { onClose } = renderModal({ kind: 'edit', user: editingUser });
         expect(field(/Username/)).toHaveValue('alice');
 
         await fill({ username: 'alice2' });
@@ -136,7 +136,10 @@ describe('UserFormModal', () => {
     });
 
     it('sends a new password when one is typed', async () => {
-        renderModal({ ...fakeUserResponse(), user_id: 'u-8', username: 'bob', email: 'bob@example.com' });
+        renderModal({
+            kind: 'edit',
+            user: { ...fakeUserResponse(), user_id: 'u-8', username: 'bob', email: 'bob@example.com' },
+        });
         await fill({ password: 'newpassword' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
@@ -151,7 +154,7 @@ describe('UserFormModal', () => {
     });
 
     it('keeps requiring an email when editing, since every user has one', async () => {
-        renderModal(fakeUserResponse());
+        renderModal({ kind: 'edit', user: fakeUserResponse() });
         await fill({ email: '' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
@@ -160,7 +163,7 @@ describe('UserFormModal', () => {
     });
 
     it('still checks a new password against the API rule when editing', async () => {
-        renderModal(fakeUserResponse());
+        renderModal({ kind: 'edit', user: fakeUserResponse() });
         await fill({ password: 'short' });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 

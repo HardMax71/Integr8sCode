@@ -8,16 +8,13 @@ import {
     updateThemeApiV1UserSettingsThemePut,
     UserRole,
     zUserSettings,
-    type UserResponse,
 } from '#lib/api/index.ts';
 
 import * as navigation from '$app/navigation';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
-        isAuthenticated: false as boolean | null,
-        user: null as UserResponse | null,
-        csrfToken: null as string | null,
+        session: { status: 'signed-out' } as Session,
         clearAuth: vi.fn(),
         verifyAuth: vi.fn(),
     },
@@ -53,11 +50,7 @@ vi.mock('#components/NotificationCenter.svelte', () => {
 });
 
 import Header from '#components/Header.svelte';
-
-const setAuth = (isAuth: boolean, signedIn: UserResponse | null = null) => {
-    mocks.mockAuthStore.isAuthenticated = isAuth;
-    mocks.mockAuthStore.user = signedIn;
-};
+import type { Session } from '#stores/auth.svelte.ts';
 
 const ROOT = { ...fakeUserResponse(), username: 'root', role: UserRole.ADMIN, email: 'root@example.com' };
 
@@ -98,7 +91,7 @@ describe('Header', () => {
     };
 
     beforeEach(() => {
-        setAuth(false);
+        mocks.mockAuthStore.session = { status: 'signed-out' };
         mocks.mockThemeStore.value = Theme.SYSTEM;
         mocks.mockAuthStore.clearAuth.mockReset();
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
@@ -150,7 +143,7 @@ describe('Header', () => {
         });
 
         it('saves the toggled theme to the user settings when signed in', async () => {
-            setAuth(true, fakeUserResponse());
+            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
             mocks.mockToggleTheme.mockImplementation(() => {
                 mocks.mockThemeStore.value = Theme.DARK;
             });
@@ -188,12 +181,16 @@ describe('Header', () => {
 
     describe('authenticated state', () => {
         beforeEach(() => {
-            setAuth(true, {
-                ...fakeUserResponse(),
-                username: 'testuser',
-                email: 'test@example.com',
-                role: UserRole.USER,
-            });
+            mocks.mockAuthStore.session = {
+                status: 'signed-in',
+                user: {
+                    ...fakeUserResponse(),
+                    username: 'testuser',
+                    email: 'test@example.com',
+                    role: UserRole.USER,
+                },
+                csrfToken: 'csrf',
+            };
         });
 
         it('shows username and opens dropdown with user info', async () => {
@@ -222,7 +219,7 @@ describe('Header', () => {
 
     describe('admin user', () => {
         beforeEach(() => {
-            setAuth(true, ROOT);
+            mocks.mockAuthStore.session = { status: 'signed-in', user: ROOT, csrfToken: 'csrf' };
         });
 
         it('shows the admin role and an Admin entry linking to the admin panel', async () => {
@@ -245,15 +242,21 @@ describe('Header', () => {
         });
 
         it.each([
-            { isAuth: false, signedIn: null, expectedContent: ['Login', 'Register'] },
+            { session: { status: 'signed-out' } as Session, expectedContent: ['Login', 'Register'] },
             {
-                isAuth: true,
-                signedIn: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
+                session: {
+                    status: 'signed-in',
+                    user: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
+                    csrfToken: 'csrf',
+                } as Session,
                 expectedContent: ['mobileuser', UserRole.USER, 'Settings', 'Logout'],
             },
-            { isAuth: true, signedIn: ROOT, expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'] },
-        ])('shows correct content for auth=$isAuth', async ({ isAuth, signedIn, expectedContent }) => {
-            setAuth(isAuth, signedIn);
+            {
+                session: { status: 'signed-in', user: ROOT, csrfToken: 'csrf' } as Session,
+                expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'],
+            },
+        ])('shows correct content when $session.status', async ({ session, expectedContent }) => {
+            mocks.mockAuthStore.session = session;
             await openMobileMenu();
             await waitFor(() => {
                 const mobileMenu = screen.getByTestId('mobile-menu');
@@ -277,7 +280,7 @@ describe('Header', () => {
     describe('dropdown toggle behavior', () => {
         it('closes dropdown when clicking a menu item', async () => {
             const restoreConsole = suppressConsoleError();
-            setAuth(true, fakeUserResponse());
+            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
             await openUserDropdown();
             await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
@@ -287,7 +290,7 @@ describe('Header', () => {
         });
 
         it('closes the dropdown on Escape', async () => {
-            setAuth(true, fakeUserResponse());
+            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
             await openUserDropdown();
             await screen.findByRole('menuitem', { name: /Settings/i });
 
@@ -317,7 +320,11 @@ describe('Header', () => {
 
     describe('mobile menu logout', () => {
         it('calls logout and navigates from mobile menu', async () => {
-            setAuth(true, { ...fakeUserResponse(), username: 'mobileuser' });
+            mocks.mockAuthStore.session = {
+                status: 'signed-in',
+                user: { ...fakeUserResponse(), username: 'mobileuser' },
+                csrfToken: 'csrf',
+            };
 
             await openMobileMenu();
             await waitFor(() => {

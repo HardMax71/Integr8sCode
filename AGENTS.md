@@ -599,14 +599,14 @@ The API process consumes too: `sse-bridge-pool` and `notification-service` are r
 Use `.svelte.ts` files with ES6 classes (not plain objects):
 
 ```typescript
-// stores/auth.svelte.ts
-class AuthStore {
-    isAuthenticated = $state<boolean | null>(null);
-    username = $state<string | null>(null);
-    csrfToken = $state<string | null>(null);
+// stores/auth.svelte.ts: one union instead of nullable fields, so a signed-in session always has its user
+type Session = { status: 'signed-out' } | { status: 'signed-in'; user: UserResponse; csrfToken: string };
 
-    async login(username: string, password: string): Promise<boolean> { ... }
-    async logout(): Promise<void> { ... }
+class AuthStore {
+    session = $state<Session>({ status: 'signed-out' });
+
+    async startSession(login: LoginResponse): Promise<void> { ... }
+    clearAuth(): void { ... }
 }
 export const authStore = new AuthStore();
 ```
@@ -705,14 +705,14 @@ The generated client throws the API's error body, the generated `ErrorResponse`,
 | Other 4xx | Toast error with the response `detail` |
 | 0 (no response) | Toast error "Network error. Check your connection." |
 
-A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `mutation.error.detail` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
+A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `mutation.error.detail` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from the signed-in session.
 
 **Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). Two kinds of catch are fine: the auth store's `verifyAuth`, which tells a 401 from a network error, and `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
 
 ## Frontend: Auth Store
 
-- Auth state lives in `#stores/auth.svelte.ts`: `isAuthenticated`, `user` (the generated `UserResponse`, never a copy of its fields) and `csrfToken`. It persists to `sessionStorage` under one key, `authState`, as a JSON blob with a `timestamp`, checked against `zUserResponse` when it's read back
-- The login page's mutation passes the response to `authStore.startSession(login)`, which stores the session and loads the full profile; the header's logout mutation calls `authStore.clearAuth()`, which also empties the query cache
+- Auth state lives in `#stores/auth.svelte.ts` as one `session`: `{ status: 'signed-out' }` or `{ status: 'signed-in', user, csrfToken }`, with `user` the generated `UserResponse`. Check `authStore.session.status === 'signed-in'`; inside that `{#if}`, take `{@const user = authStore.session.user}` when the markup reads it in snippets, since TypeScript doesn't carry the narrowing into them. A signed-in session persists to `sessionStorage` under one key, `authState`, as a JSON blob with a `timestamp`, checked against `zUserResponse` when it's read back
+- The login page's mutation passes the response to `authStore.startSession(login)`, which signs in once the full profile has loaded, with the CSRF token from the response; the header's logout mutation calls `authStore.clearAuth()`, which also empties the query cache
 - `verifyAuth()` reads the profile through `queryClient.query()` with a 30-second stale time, so checks share one answer and one request; on a network or server error it returns the last answer (offline-first)
 - `authStore.waitForInit()` awaits one-time initialization before checking auth
 

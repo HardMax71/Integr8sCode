@@ -61,7 +61,7 @@
 
     function handleToggleTheme() {
         toggleTheme();
-        if (authStore.isAuthenticated) saveTheme.mutate({ body: { theme: themeStore.value } });
+        if (authStore.session.status === 'signed-in') saveTheme.mutate({ body: { theme: themeStore.value } });
     }
 
     function handleLogout() {
@@ -111,7 +111,8 @@
                 </button>
 
                 <div class="hidden lg:flex items-center space-x-3">
-                    {#if authStore.isAuthenticated}
+                    {#if authStore.session.status === 'signed-in'}
+                        {@const user = authStore.session.user}
                         <NotificationCenter />
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger
@@ -119,7 +120,7 @@
                                 class="flex items-center space-x-2 btn btn-ghost btn-sm group"
                             >
                                 <User class="w-5 h-5" />
-                                <span class="hidden xl:inline font-medium">{authStore.user?.username}</span>
+                                <span class="hidden xl:inline font-medium">{user.username}</span>
                                 <ChevronDown
                                     class="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180"
                                 />
@@ -130,27 +131,27 @@
                                         <span
                                             class="w-7 h-7 rounded-full bg-primary/20 dark:bg-primary/30 flex items-center justify-center shrink-0 text-xs font-semibold text-primary dark:text-primary-light"
                                         >
-                                            {authStore.user?.username.charAt(0).toUpperCase() ?? '?'}
+                                            {user.username.charAt(0).toUpperCase()}
                                         </span>
                                         <span class="min-w-0">
                                             <span class="block text-sm font-medium truncate">
-                                                {authStore.user?.username}
-                                                {#if authStore.user?.role === UserRole.ADMIN}
+                                                {user.username}
+                                                {#if user.role === UserRole.ADMIN}
                                                     <span
                                                         class="text-xs text-primary dark:text-primary-light font-medium ml-1"
-                                                        >{authStore.user?.role}</span
+                                                        >{user.role}</span
                                                     >
                                                 {/if}
                                             </span>
                                             <span class="block text-xs text-fg-muted dark:text-dark-fg-muted truncate"
-                                                >{authStore.user?.email}</span
+                                                >{user.email}</span
                                             >
                                         </span>
                                     </div>
                                     <DropdownMenu.Separator
                                         class="my-1 h-px bg-border-default dark:bg-dark-border-default"
                                     />
-                                    {#if authStore.user?.role === UserRole.ADMIN}
+                                    {#if user.role === UserRole.ADMIN}
                                         <DropdownMenu.Item class="floating-item">
                                             {#snippet child({ props })}
                                                 <a href={resolve('/admin/events')} {...props}
@@ -219,14 +220,15 @@
         >
             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
                 <div class="pt-3 mt-2 border-t border-border-default dark:border-dark-border-default">
-                    {#if authStore.isAuthenticated}
+                    {#if authStore.session.status === 'signed-in'}
+                        {@const user = authStore.session.user}
                         <div class="px-3 py-2">
                             <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">
-                                {authStore.user?.username}
+                                {user.username}
                             </div>
-                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{authStore.user?.role}</div>
+                            <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{user.role}</div>
                         </div>
-                        {#if authStore.user?.role === UserRole.ADMIN}
+                        {#if user.role === UserRole.ADMIN}
                             <a
                                 href={resolve('/admin/events')}
                                 onclick={closeMenu}

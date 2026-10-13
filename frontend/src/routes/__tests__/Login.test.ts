@@ -7,12 +7,12 @@ import { match } from '$app/paths';
 import { loginApiV1AuthLoginPost, UserRole, type LoginResponse } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 import Login from '#routes/login/+page.svelte';
+import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
         startSession: vi.fn(),
-        isAuthenticated: false,
-        user: null,
+        session: { status: 'signed-out' } as Session,
         verifyAuth: vi.fn(),
     },
 }));

@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
 
     const themeFn = vi.fn((obj: unknown) => ({ theme: obj }));
     const lineNumbersFn = vi.fn(() => 'lineNumbers-ext');
-    const getLanguageExtensionFn = vi.fn((lang: string) => `lang-ext-${lang}`);
+    const loadLanguageFn = vi.fn(async (lang: string) => `lang-ext-${lang}`);
 
     return {
         dark: false,
@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => {
         editorViewConstructor,
         themeFn,
         lineNumbersFn,
-        getLanguageExtensionFn,
+        loadLanguageFn,
     };
 });
 
@@ -93,7 +93,7 @@ vi.mock('#stores/theme.svelte.ts', () => ({
         },
     },
 }));
-vi.mock('#lib/editor/languages.ts', () => ({ getLanguageExtension: mocks.getLanguageExtensionFn }));
+vi.mock('#lib/editor/languages.ts', () => ({ loadLanguage: mocks.loadLanguageFn }));
 
 import CodeMirrorEditor from '#components/editor/CodeMirrorEditor.svelte';
 
@@ -191,10 +191,26 @@ describe('CodeMirrorEditor', () => {
             });
         });
 
-        it('passes correct language extension for lang prop', async () => {
+        it('loads the mode for the lang prop and puts it into the editor', async () => {
             renderEditor({ lang: 'go' });
             await waitFor(() => {
-                expect(mocks.getLanguageExtensionFn).toHaveBeenCalledWith('go');
+                expect(mocks.dispatchFn).toHaveBeenCalledWith({ effects: { type: 'reconfigure', ext: 'lang-ext-go' } });
+            });
+            expect(mocks.loadLanguageFn).toHaveBeenCalledWith('go');
+        });
+
+        it('keeps the newer language when an older load finishes last', async () => {
+            let finishPython: (ext: string) => void = () => {};
+            mocks.loadLanguageFn.mockImplementationOnce(() => new Promise<string>((done) => (finishPython = done)));
+            const { rerender } = renderEditor({ lang: 'python' });
+            await rerender({ lang: 'go' });
+            await waitFor(() => {
+                expect(mocks.dispatchFn).toHaveBeenCalledWith({ effects: { type: 'reconfigure', ext: 'lang-ext-go' } });
+            });
+            finishPython('lang-ext-python');
+            await Promise.resolve();
+            expect(mocks.dispatchFn).not.toHaveBeenCalledWith({
+                effects: { type: 'reconfigure', ext: 'lang-ext-python' },
             });
         });
     });

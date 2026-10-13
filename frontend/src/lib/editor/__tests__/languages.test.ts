@@ -1,19 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { getLanguageExtension } from '#lib/editor/languages.ts';
+import { loadLanguage } from '#lib/editor/languages.ts';
 
-describe('getLanguageExtension', () => {
-    it.each(['python', 'node', 'go', 'ruby', 'bash'])('returns an extension for "%s"', (lang) => {
-        const ext = getLanguageExtension(lang);
-        expect(ext).toBeDefined();
+describe('loadLanguage', () => {
+    it.each(['python', 'node', 'go', 'ruby', 'bash'])('loads a mode for "%s"', async (lang) => {
+        expect(await loadLanguage(lang)).not.toEqual([]);
     });
 
-    it.each(['unknown-lang', ''])('returns no extension for "%s"', (lang) => {
-        expect(getLanguageExtension(lang)).toEqual([]);
+    it.each(['unknown-lang', ''])('gives "%s" plain text', async (lang) => {
+        expect(await loadLanguage(lang)).toEqual([]);
     });
 
-    it('returns distinct extensions for different languages', () => {
-        const py = getLanguageExtension('python');
-        const js = getLanguageExtension('node');
+    it('loads distinct modes for different languages', async () => {
+        const [py, js] = await Promise.all([loadLanguage('python'), loadLanguage('node')]);
         expect(py).not.toBe(js);
     });
 });

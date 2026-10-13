@@ -8,7 +8,7 @@
     import { oneDark } from '@codemirror/theme-one-dark';
     import { githubLight } from '@uiw/codemirror-theme-github';
     import { themeStore } from '#stores/theme.svelte.ts';
-    import { getLanguageExtension } from '#lib/editor/languages.ts';
+    import { loadLanguage } from '#lib/editor/languages.ts';
     import type { EditorSettingsOutput } from '#lib/api/index.ts';
 
     interface Props {
@@ -46,7 +46,7 @@
             EditorState.allowMultipleSelections.of(true),
             tabSizeCompartment.of(EditorState.tabSize.of(settings.tab_size)),
             keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
-            languageCompartment.of(getLanguageExtension(lang)),
+            languageCompartment.of([]),
             lineWrappingCompartment.of(settings.word_wrap ? EditorView.lineWrapping : []),
             fontSizeCompartment.of(EditorView.theme({ '.cm-content': { fontSize: `${settings.font_size}px` } })),
             EditorView.theme({
@@ -103,10 +103,15 @@
         }
     });
 
+    // A language switched while its mode still loads drops the older load
     $effect(() => {
-        if (view) {
-            view.dispatch({ effects: languageCompartment.reconfigure(getLanguageExtension(lang)) });
-        }
+        let current = true;
+        void loadLanguage(lang).then((extension) => {
+            if (current) view?.dispatch({ effects: languageCompartment.reconfigure(extension) });
+        });
+        return () => {
+            current = false;
+        };
     });
 
     $effect(() => {

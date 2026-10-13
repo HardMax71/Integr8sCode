@@ -62,7 +62,7 @@ The editor doesn't send one. On load it swaps a stored version that's gone for t
 
 1. Add an entry to `LANGUAGE_SPECS` with versions newest first, and a `pod` config if the defaults aren't enough.
 2. Add a script to `EXAMPLE_SCRIPTS` that runs on every listed version.
-3. Map the language to a CodeMirror mode in `frontend/src/lib/editor/languages.ts`. Without it the editor highlights the code as Python.
+3. Add a loader for the language's CodeMirror mode in `frontend/src/lib/editor/languages.ts`. It's a dynamic `import()`, so the mode loads only when someone picks the language. Without one the editor shows plain text.
 
 Request validation, `SUPPORTED_RUNTIMES`, the version picker, file upload by extension and the image pre-puller all derive from the registry.
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { suppressConsoleWarn } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
-import { UserRole, type LoginResponse, type UserResponse } from '#lib/api/index.ts';
+import { UserRole, type ErrorResponse, type LoginResponse, type UserResponse } from '#lib/api/index.ts';
 
 const mockGetProfileApi = vi.fn();
 
@@ -53,17 +53,16 @@ describe('auth store', () => {
         vi.clearAllMocks();
     });
 
-    // A fresh store per test, with the ApiError class and query client from the same module graph
+    // A fresh store per test, with the query client from the same module graph
     async function load() {
-        const [{ authStore }, { ApiError }, { queryClient }] = await Promise.all([
+        const [{ authStore }, { queryClient }] = await Promise.all([
             import('#stores/auth.svelte.ts'),
-            import('#lib/api-error.ts'),
             import('#lib/query-client.ts'),
         ]);
-        const fail = (failure: Failure) =>
+        const fail = (failure: Failure): ErrorResponse =>
             failure === 'network'
-                ? new ApiError(undefined, new TypeError('Failed to fetch'))
-                : new ApiError(failure === 'unauthorized' ? 401 : 500, { detail: failure });
+                ? { status: 0, detail: 'Network error. Check your connection.' }
+                : { status: failure === 'unauthorized' ? 401 : 500, detail: failure };
         return { authStore, queryClient, fail };
     }
 

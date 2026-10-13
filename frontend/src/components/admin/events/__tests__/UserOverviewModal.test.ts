@@ -8,7 +8,6 @@ import {
     fakeExecutionCompletedEvent,
     fakeUserResponse,
 } from '#lib/api/@faker-js/faker.gen.ts';
-import { ApiError } from '#lib/api-error.ts';
 
 import UserOverviewModal from '#components/admin/events/UserOverviewModal.svelte';
 
@@ -61,7 +60,7 @@ describe('UserOverviewModal', () => {
     });
 
     it('shows "No data available" when the overview fails to load', async () => {
-        mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err(new ApiError(404, { detail: 'Not found' }));
+        mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err({ status: 404, detail: 'Not found' });
         renderWithQueryClient(UserOverviewModal, { userId: 'user-1', onClose: vi.fn() });
         expect(await screen.findByText('No data available')).toBeInTheDocument();
     });

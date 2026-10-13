@@ -767,20 +767,22 @@ export type Environment = typeof Environment[keyof typeof Environment];
 
 /**
  * ErrorResponse
+ *
+ * Every error the API returns: the `status` and `detail` members of RFC 9457 problem details.
  */
 export type ErrorResponse = {
+    /**
+     * Status
+     *
+     * HTTP status code
+     */
+    status: number;
     /**
      * Detail
      *
      * Human-readable error message
      */
     detail: string;
-    /**
-     * Type
-     *
-     * Error type identifier
-     */
-    type: string | null;
 };
 
 /**
@@ -1913,16 +1915,6 @@ export const ExportFormat = { CSV: 'csv', JSON: 'json' } as const;
  * Supported export file formats.
  */
 export type ExportFormat = typeof ExportFormat[keyof typeof ExportFormat];
-
-/**
- * HTTPValidationError
- */
-export type HttpValidationError = {
-    /**
-     * Detail
-     */
-    detail?: Array<ValidationError>;
-};
 
 /**
  * HourlyEventCount
@@ -5602,34 +5594,6 @@ export type UserUpdatedEvent = {
 };
 
 /**
- * ValidationError
- */
-export type ValidationError = {
-    /**
-     * Location
-     */
-    loc: Array<string | number>;
-    /**
-     * Message
-     */
-    msg: string;
-    /**
-     * Error Type
-     */
-    type: string;
-    /**
-     * Input
-     */
-    input?: unknown;
-    /**
-     * Context
-     */
-    ctx?: {
-        [key: string]: unknown;
-    };
-};
-
-/**
  * EventReplayStatusResponse
  *
  * Response model for replay status
@@ -5745,13 +5709,13 @@ export type LoginApiV1AuthLoginPostErrors = {
      */
     403: ErrorResponse;
     /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
      * Account temporarily locked
      */
     423: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type LoginApiV1AuthLoginPostError = LoginApiV1AuthLoginPostErrors[keyof LoginApiV1AuthLoginPostErrors];
@@ -5780,7 +5744,11 @@ export type RegisterApiV1AuthRegisterPostErrors = {
     /**
      * Password below the configured minimum length, or invalid request body
      */
-    422: ErrorResponse | HttpValidationError;
+    422: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type RegisterApiV1AuthRegisterPostError = RegisterApiV1AuthRegisterPostErrors[keyof RegisterApiV1AuthRegisterPostErrors];
@@ -5806,6 +5774,10 @@ export type GetCurrentUserProfileApiV1AuthMeGetErrors = {
      * Not authenticated or session invalid
      */
     401: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type GetCurrentUserProfileApiV1AuthMeGetError = GetCurrentUserProfileApiV1AuthMeGetErrors[keyof GetCurrentUserProfileApiV1AuthMeGetErrors];
@@ -5831,6 +5803,10 @@ export type LogoutApiV1AuthLogoutPostErrors = {
      * CSRF token missing or invalid
      */
     403: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type LogoutApiV1AuthLogoutPostError = LogoutApiV1AuthLogoutPostErrors[keyof LogoutApiV1AuthLogoutPostErrors];
@@ -5863,10 +5839,6 @@ export type CreateExecutionApiV1ExecutePostErrors = {
      */
     409: ErrorResponse;
     /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-    /**
      * Rate limited, or too many executions queued or running
      */
     429: ErrorResponse;
@@ -5874,6 +5846,10 @@ export type CreateExecutionApiV1ExecutePostErrors = {
      * Script execution failed
      */
     500: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type CreateExecutionApiV1ExecutePostError = CreateExecutionApiV1ExecutePostErrors[keyof CreateExecutionApiV1ExecutePostErrors];
@@ -5909,9 +5885,9 @@ export type GetResultApiV1ExecutionsExecutionIdResultGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetResultApiV1ExecutionsExecutionIdResultGetError = GetResultApiV1ExecutionsExecutionIdResultGetErrors[keyof GetResultApiV1ExecutionsExecutionIdResultGetErrors];
@@ -5951,9 +5927,9 @@ export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CancelExecutionApiV1ExecutionsExecutionIdCancelPostError = CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors[keyof CancelExecutionApiV1ExecutionsExecutionIdCancelPostErrors];
@@ -6000,6 +5976,10 @@ export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors = {
      * Rate limited, or too many executions queued or running
      */
     429: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type RetryExecutionApiV1ExecutionsExecutionIdRetryPostError = RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors[keyof RetryExecutionApiV1ExecutionsExecutionIdRetryPostErrors];
@@ -6046,9 +6026,9 @@ export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetError = GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors[keyof GetExecutionEventsApiV1ExecutionsExecutionIdEventsGetErrors];
@@ -6106,9 +6086,9 @@ export type GetUserExecutionsApiV1UserExecutionsGetData = {
 
 export type GetUserExecutionsApiV1UserExecutionsGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetUserExecutionsApiV1UserExecutionsGetError = GetUserExecutionsApiV1UserExecutionsGetErrors[keyof GetUserExecutionsApiV1UserExecutionsGetErrors];
@@ -6129,6 +6109,15 @@ export type GetExampleScriptsApiV1ExampleScriptsGetData = {
     url: '/api/v1/example-scripts';
 };
 
+export type GetExampleScriptsApiV1ExampleScriptsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetExampleScriptsApiV1ExampleScriptsGetError = GetExampleScriptsApiV1ExampleScriptsGetErrors[keyof GetExampleScriptsApiV1ExampleScriptsGetErrors];
+
 export type GetExampleScriptsApiV1ExampleScriptsGetResponses = {
     /**
      * Successful Response
@@ -6144,6 +6133,15 @@ export type GetK8sResourceLimitsApiV1K8sLimitsGetData = {
     query?: never;
     url: '/api/v1/k8s-limits';
 };
+
+export type GetK8sResourceLimitsApiV1K8sLimitsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetK8sResourceLimitsApiV1K8sLimitsGetError = GetK8sResourceLimitsApiV1K8sLimitsGetErrors[keyof GetK8sResourceLimitsApiV1K8sLimitsGetErrors];
 
 export type GetK8sResourceLimitsApiV1K8sLimitsGetResponses = {
     /**
@@ -6168,9 +6166,9 @@ export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteData = {
 
 export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type DeleteExecutionApiV1ExecutionsExecutionIdDeleteError = DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors[keyof DeleteExecutionApiV1ExecutionsExecutionIdDeleteErrors];
@@ -6190,6 +6188,15 @@ export type ListSavedScriptsApiV1ScriptsGetData = {
     query?: never;
     url: '/api/v1/scripts';
 };
+
+export type ListSavedScriptsApiV1ScriptsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type ListSavedScriptsApiV1ScriptsGetError = ListSavedScriptsApiV1ScriptsGetErrors[keyof ListSavedScriptsApiV1ScriptsGetErrors];
 
 export type ListSavedScriptsApiV1ScriptsGetResponses = {
     /**
@@ -6211,7 +6218,11 @@ export type CreateSavedScriptApiV1ScriptsPostErrors = {
     /**
      * Language version is not offered, or invalid request body
      */
-    422: ErrorResponse | HttpValidationError;
+    422: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type CreateSavedScriptApiV1ScriptsPostError = CreateSavedScriptApiV1ScriptsPostErrors[keyof CreateSavedScriptApiV1ScriptsPostErrors];
@@ -6243,9 +6254,9 @@ export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type DeleteSavedScriptApiV1ScriptsScriptIdDeleteError = DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors[keyof DeleteSavedScriptApiV1ScriptsScriptIdDeleteErrors];
@@ -6277,9 +6288,9 @@ export type GetSavedScriptApiV1ScriptsScriptIdGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetSavedScriptApiV1ScriptsScriptIdGetError = GetSavedScriptApiV1ScriptsScriptIdGetErrors[keyof GetSavedScriptApiV1ScriptsScriptIdGetErrors];
@@ -6313,7 +6324,11 @@ export type UpdateSavedScriptApiV1ScriptsScriptIdPutErrors = {
     /**
      * Language version is not offered, or invalid request body
      */
-    422: ErrorResponse | HttpValidationError;
+    422: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type UpdateSavedScriptApiV1ScriptsScriptIdPutError = UpdateSavedScriptApiV1ScriptsScriptIdPutErrors[keyof UpdateSavedScriptApiV1ScriptsScriptIdPutErrors];
@@ -6347,9 +6362,9 @@ export type ListReplaySessionsApiV1ReplaySessionsGetData = {
 
 export type ListReplaySessionsApiV1ReplaySessionsGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ListReplaySessionsApiV1ReplaySessionsGetError = ListReplaySessionsApiV1ReplaySessionsGetErrors[keyof ListReplaySessionsApiV1ReplaySessionsGetErrors];
@@ -6374,9 +6389,9 @@ export type CreateReplaySessionApiV1ReplaySessionsPostData = {
 
 export type CreateReplaySessionApiV1ReplaySessionsPostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CreateReplaySessionApiV1ReplaySessionsPostError = CreateReplaySessionApiV1ReplaySessionsPostErrors[keyof CreateReplaySessionApiV1ReplaySessionsPostErrors];
@@ -6404,9 +6419,9 @@ export type StartReplaySessionApiV1ReplaySessionsSessionIdStartPostData = {
 
 export type StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type StartReplaySessionApiV1ReplaySessionsSessionIdStartPostError = StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors[keyof StartReplaySessionApiV1ReplaySessionsSessionIdStartPostErrors];
@@ -6434,9 +6449,9 @@ export type PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostData = {
 
 export type PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostError = PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors[keyof PauseReplaySessionApiV1ReplaySessionsSessionIdPausePostErrors];
@@ -6464,9 +6479,9 @@ export type ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostData = {
 
 export type ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostError = ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors[keyof ResumeReplaySessionApiV1ReplaySessionsSessionIdResumePostErrors];
@@ -6494,9 +6509,9 @@ export type CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostData = {
 
 export type CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostError = CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors[keyof CancelReplaySessionApiV1ReplaySessionsSessionIdCancelPostErrors];
@@ -6524,9 +6539,9 @@ export type GetReplaySessionApiV1ReplaySessionsSessionIdGetData = {
 
 export type GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetReplaySessionApiV1ReplaySessionsSessionIdGetError = GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors[keyof GetReplaySessionApiV1ReplaySessionsSessionIdGetErrors];
@@ -6556,9 +6571,9 @@ export type CleanupOldSessionsApiV1ReplayCleanupPostData = {
 
 export type CleanupOldSessionsApiV1ReplayCleanupPostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CleanupOldSessionsApiV1ReplayCleanupPostError = CleanupOldSessionsApiV1ReplayCleanupPostErrors[keyof CleanupOldSessionsApiV1ReplayCleanupPostErrors];
@@ -6579,6 +6594,15 @@ export type LivenessApiV1HealthLiveGetData = {
     url: '/api/v1/health/live';
 };
 
+export type LivenessApiV1HealthLiveGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type LivenessApiV1HealthLiveGetError = LivenessApiV1HealthLiveGetErrors[keyof LivenessApiV1HealthLiveGetErrors];
+
 export type LivenessApiV1HealthLiveGetResponses = {
     /**
      * Successful Response
@@ -6594,6 +6618,15 @@ export type NotificationStreamApiV1EventsNotificationsStreamGetData = {
     query?: never;
     url: '/api/v1/events/notifications/stream';
 };
+
+export type NotificationStreamApiV1EventsNotificationsStreamGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type NotificationStreamApiV1EventsNotificationsStreamGetError = NotificationStreamApiV1EventsNotificationsStreamGetErrors[keyof NotificationStreamApiV1EventsNotificationsStreamGetErrors];
 
 export type NotificationStreamApiV1EventsNotificationsStreamGetResponses = {
     /**
@@ -6618,9 +6651,9 @@ export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetData = {
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ExecutionEventsApiV1EventsExecutionsExecutionIdGetError = ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors[keyof ExecutionEventsApiV1EventsExecutionsExecutionIdGetErrors];
@@ -6643,9 +6676,9 @@ export type BrowseEventsApiV1AdminEventsBrowsePostData = {
 
 export type BrowseEventsApiV1AdminEventsBrowsePostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type BrowseEventsApiV1AdminEventsBrowsePostError = BrowseEventsApiV1AdminEventsBrowsePostErrors[keyof BrowseEventsApiV1AdminEventsBrowsePostErrors];
@@ -6675,9 +6708,9 @@ export type GetEventStatsApiV1AdminEventsStatsGetData = {
 
 export type GetEventStatsApiV1AdminEventsStatsGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetEventStatsApiV1AdminEventsStatsGetError = GetEventStatsApiV1AdminEventsStatsGetErrors[keyof GetEventStatsApiV1AdminEventsStatsGetErrors];
@@ -6743,9 +6776,9 @@ export type ExportEventsApiV1AdminEventsExportExportFormatGetData = {
 
 export type ExportEventsApiV1AdminEventsExportExportFormatGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ExportEventsApiV1AdminEventsExportExportFormatGetError = ExportEventsApiV1AdminEventsExportExportFormatGetErrors[keyof ExportEventsApiV1AdminEventsExportExportFormatGetErrors];
@@ -6775,9 +6808,9 @@ export type DeleteEventApiV1AdminEventsEventIdDeleteErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type DeleteEventApiV1AdminEventsEventIdDeleteError = DeleteEventApiV1AdminEventsEventIdDeleteErrors[keyof DeleteEventApiV1AdminEventsEventIdDeleteErrors];
@@ -6809,9 +6842,9 @@ export type GetEventDetailApiV1AdminEventsEventIdGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetEventDetailApiV1AdminEventsEventIdGetError = GetEventDetailApiV1AdminEventsEventIdGetErrors[keyof GetEventDetailApiV1AdminEventsEventIdGetErrors];
@@ -6841,6 +6874,10 @@ export type ReplayEventsApiV1AdminEventsReplayPostErrors = {
      * Empty filter or too many events to replay
      */
     422: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type ReplayEventsApiV1AdminEventsReplayPostError = ReplayEventsApiV1AdminEventsReplayPostErrors[keyof ReplayEventsApiV1AdminEventsReplayPostErrors];
@@ -6868,13 +6905,9 @@ export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetData = {
 
 export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors = {
     /**
-     * Replay session not found
+     * Error
      */
-    404: ErrorResponse;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetError = StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors[keyof StreamReplayStatusApiV1AdminEventsReplaySessionIdStatusGetErrors];
@@ -6922,9 +6955,9 @@ export type ListExecutionsApiV1AdminExecutionsGetErrors = {
      */
     403: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ListExecutionsApiV1AdminExecutionsGetError = ListExecutionsApiV1AdminExecutionsGetErrors[keyof ListExecutionsApiV1AdminExecutionsGetErrors];
@@ -6960,9 +6993,9 @@ export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutError = UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors[keyof UpdatePriorityApiV1AdminExecutionsExecutionIdPriorityPutErrors];
@@ -6988,6 +7021,10 @@ export type GetQueueStatusApiV1AdminExecutionsQueueGetErrors = {
      * Forbidden
      */
     403: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type GetQueueStatusApiV1AdminExecutionsQueueGetError = GetQueueStatusApiV1AdminExecutionsQueueGetErrors[keyof GetQueueStatusApiV1AdminExecutionsQueueGetErrors];
@@ -7007,6 +7044,15 @@ export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetData = {
     query?: never;
     url: '/api/v1/admin/rate-limits/defaults';
 };
+
+export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetError = GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors[keyof GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetErrors];
 
 export type GetDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGetResponses = {
     /**
@@ -7033,9 +7079,9 @@ export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetData = {
 
 export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetUserRateLimitsApiV1AdminRateLimitsUserIdGetError = GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors[keyof GetUserRateLimitsApiV1AdminRateLimitsUserIdGetErrors];
@@ -7063,9 +7109,9 @@ export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutData = {
 
 export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutError = UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors[keyof UpdateUserRateLimitsApiV1AdminRateLimitsUserIdPutErrors];
@@ -7093,9 +7139,9 @@ export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostData = {
 
 export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostError = ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors[keyof ResetUserRateLimitsApiV1AdminRateLimitsUserIdResetPostErrors];
@@ -7121,6 +7167,10 @@ export type GetSystemSettingsApiV1AdminSettingsGetErrors = {
      * Failed to load system settings
      */
     500: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type GetSystemSettingsApiV1AdminSettingsGetError = GetSystemSettingsApiV1AdminSettingsGetErrors[keyof GetSystemSettingsApiV1AdminSettingsGetErrors];
@@ -7154,6 +7204,10 @@ export type UpdateSystemSettingsApiV1AdminSettingsPutErrors = {
      * Failed to save settings
      */
     500: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type UpdateSystemSettingsApiV1AdminSettingsPutError = UpdateSystemSettingsApiV1AdminSettingsPutErrors[keyof UpdateSystemSettingsApiV1AdminSettingsPutErrors];
@@ -7179,6 +7233,10 @@ export type ResetSystemSettingsApiV1AdminSettingsResetPostErrors = {
      * Failed to reset settings
      */
     500: ErrorResponse;
+    /**
+     * Error
+     */
+    default: ErrorResponse;
 };
 
 export type ResetSystemSettingsApiV1AdminSettingsResetPostError = ResetSystemSettingsApiV1AdminSettingsResetPostErrors[keyof ResetSystemSettingsApiV1AdminSettingsResetPostErrors];
@@ -7246,9 +7304,9 @@ export type ListUsersApiV1AdminUsersGetData = {
 
 export type ListUsersApiV1AdminUsersGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ListUsersApiV1AdminUsersGetError = ListUsersApiV1AdminUsersGetErrors[keyof ListUsersApiV1AdminUsersGetErrors];
@@ -7275,9 +7333,9 @@ export type CreateUserApiV1AdminUsersPostErrors = {
      */
     409: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CreateUserApiV1AdminUsersPostError = CreateUserApiV1AdminUsersPostErrors[keyof CreateUserApiV1AdminUsersPostErrors];
@@ -7320,9 +7378,9 @@ export type DeleteUserApiV1AdminUsersUserIdDeleteErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type DeleteUserApiV1AdminUsersUserIdDeleteError = DeleteUserApiV1AdminUsersUserIdDeleteErrors[keyof DeleteUserApiV1AdminUsersUserIdDeleteErrors];
@@ -7354,9 +7412,9 @@ export type GetUserApiV1AdminUsersUserIdGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetUserApiV1AdminUsersUserIdGetError = GetUserApiV1AdminUsersUserIdGetErrors[keyof GetUserApiV1AdminUsersUserIdGetErrors];
@@ -7392,9 +7450,9 @@ export type UpdateUserApiV1AdminUsersUserIdPutErrors = {
      */
     409: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateUserApiV1AdminUsersUserIdPutError = UpdateUserApiV1AdminUsersUserIdPutErrors[keyof UpdateUserApiV1AdminUsersUserIdPutErrors];
@@ -7426,9 +7484,9 @@ export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetUserOverviewApiV1AdminUsersUserIdOverviewGetError = GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors[keyof GetUserOverviewApiV1AdminUsersUserIdOverviewGetErrors];
@@ -7460,9 +7518,9 @@ export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostError = ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors[keyof ResetUserPasswordApiV1AdminUsersUserIdResetPasswordPostErrors];
@@ -7494,9 +7552,9 @@ export type UnlockUserApiV1AdminUsersUserIdUnlockPostErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UnlockUserApiV1AdminUsersUserIdUnlockPostError = UnlockUserApiV1AdminUsersUserIdUnlockPostErrors[keyof UnlockUserApiV1AdminUsersUserIdUnlockPostErrors];
@@ -7517,6 +7575,15 @@ export type GetUserSettingsApiV1UserSettingsGetData = {
     url: '/api/v1/user/settings/';
 };
 
+export type GetUserSettingsApiV1UserSettingsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetUserSettingsApiV1UserSettingsGetError = GetUserSettingsApiV1UserSettingsGetErrors[keyof GetUserSettingsApiV1UserSettingsGetErrors];
+
 export type GetUserSettingsApiV1UserSettingsGetResponses = {
     /**
      * Successful Response
@@ -7535,9 +7602,9 @@ export type UpdateUserSettingsApiV1UserSettingsPutData = {
 
 export type UpdateUserSettingsApiV1UserSettingsPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateUserSettingsApiV1UserSettingsPutError = UpdateUserSettingsApiV1UserSettingsPutErrors[keyof UpdateUserSettingsApiV1UserSettingsPutErrors];
@@ -7560,9 +7627,9 @@ export type UpdateThemeApiV1UserSettingsThemePutData = {
 
 export type UpdateThemeApiV1UserSettingsThemePutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateThemeApiV1UserSettingsThemePutError = UpdateThemeApiV1UserSettingsThemePutErrors[keyof UpdateThemeApiV1UserSettingsThemePutErrors];
@@ -7585,9 +7652,9 @@ export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutData = {
 
 export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateNotificationSettingsApiV1UserSettingsNotificationsPutError = UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors[keyof UpdateNotificationSettingsApiV1UserSettingsNotificationsPutErrors];
@@ -7610,9 +7677,9 @@ export type UpdateEditorSettingsApiV1UserSettingsEditorPutData = {
 
 export type UpdateEditorSettingsApiV1UserSettingsEditorPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateEditorSettingsApiV1UserSettingsEditorPutError = UpdateEditorSettingsApiV1UserSettingsEditorPutErrors[keyof UpdateEditorSettingsApiV1UserSettingsEditorPutErrors];
@@ -7642,9 +7709,9 @@ export type GetSettingsHistoryApiV1UserSettingsHistoryGetData = {
 
 export type GetSettingsHistoryApiV1UserSettingsHistoryGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetSettingsHistoryApiV1UserSettingsHistoryGetError = GetSettingsHistoryApiV1UserSettingsHistoryGetErrors[keyof GetSettingsHistoryApiV1UserSettingsHistoryGetErrors];
@@ -7667,9 +7734,9 @@ export type RestoreSettingsApiV1UserSettingsRestorePostData = {
 
 export type RestoreSettingsApiV1UserSettingsRestorePostErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type RestoreSettingsApiV1UserSettingsRestorePostError = RestoreSettingsApiV1UserSettingsRestorePostErrors[keyof RestoreSettingsApiV1UserSettingsRestorePostErrors];
@@ -7702,9 +7769,9 @@ export type UpdateCustomSettingApiV1UserSettingsCustomKeyPutData = {
 
 export type UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateCustomSettingApiV1UserSettingsCustomKeyPutError = UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors[keyof UpdateCustomSettingApiV1UserSettingsCustomKeyPutErrors];
@@ -7758,9 +7825,9 @@ export type GetNotificationsApiV1NotificationsGetData = {
 
 export type GetNotificationsApiV1NotificationsGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetNotificationsApiV1NotificationsGetError = GetNotificationsApiV1NotificationsGetErrors[keyof GetNotificationsApiV1NotificationsGetErrors];
@@ -7788,9 +7855,9 @@ export type MarkNotificationReadApiV1NotificationsNotificationIdReadPutData = {
 
 export type MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type MarkNotificationReadApiV1NotificationsNotificationIdReadPutError = MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors[keyof MarkNotificationReadApiV1NotificationsNotificationIdReadPutErrors];
@@ -7811,6 +7878,15 @@ export type MarkAllReadApiV1NotificationsMarkAllReadPostData = {
     url: '/api/v1/notifications/mark-all-read';
 };
 
+export type MarkAllReadApiV1NotificationsMarkAllReadPostErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type MarkAllReadApiV1NotificationsMarkAllReadPostError = MarkAllReadApiV1NotificationsMarkAllReadPostErrors[keyof MarkAllReadApiV1NotificationsMarkAllReadPostErrors];
+
 export type MarkAllReadApiV1NotificationsMarkAllReadPostResponses = {
     /**
      * Successful Response
@@ -7826,6 +7902,15 @@ export type GetSubscriptionsApiV1NotificationsSubscriptionsGetData = {
     query?: never;
     url: '/api/v1/notifications/subscriptions';
 };
+
+export type GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetSubscriptionsApiV1NotificationsSubscriptionsGetError = GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors[keyof GetSubscriptionsApiV1NotificationsSubscriptionsGetErrors];
 
 export type GetSubscriptionsApiV1NotificationsSubscriptionsGetResponses = {
     /**
@@ -7847,9 +7932,9 @@ export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutData = {
 
 export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutError = UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors[keyof UpdateSubscriptionApiV1NotificationsSubscriptionsChannelPutErrors];
@@ -7869,6 +7954,15 @@ export type GetUnreadCountApiV1NotificationsUnreadCountGetData = {
     query?: never;
     url: '/api/v1/notifications/unread-count';
 };
+
+export type GetUnreadCountApiV1NotificationsUnreadCountGetErrors = {
+    /**
+     * Error
+     */
+    default: ErrorResponse;
+};
+
+export type GetUnreadCountApiV1NotificationsUnreadCountGetError = GetUnreadCountApiV1NotificationsUnreadCountGetErrors[keyof GetUnreadCountApiV1NotificationsUnreadCountGetErrors];
 
 export type GetUnreadCountApiV1NotificationsUnreadCountGetResponses = {
     /**
@@ -7893,9 +7987,9 @@ export type DeleteNotificationApiV1NotificationsNotificationIdDeleteData = {
 
 export type DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type DeleteNotificationApiV1NotificationsNotificationIdDeleteError = DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors[keyof DeleteNotificationApiV1NotificationsNotificationIdDeleteErrors];
@@ -7931,9 +8025,9 @@ export type GetSagaStatusApiV1SagasSagaIdGetErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetSagaStatusApiV1SagasSagaIdGetError = GetSagaStatusApiV1SagasSagaIdGetErrors[keyof GetSagaStatusApiV1SagasSagaIdGetErrors];
@@ -7980,9 +8074,9 @@ export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors = {
      */
     403: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type GetExecutionSagasApiV1SagasExecutionExecutionIdGetError = GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors[keyof GetExecutionSagasApiV1SagasExecutionExecutionIdGetErrors];
@@ -8032,9 +8126,9 @@ export type ListSagasApiV1SagasGetData = {
 
 export type ListSagasApiV1SagasGetErrors = {
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type ListSagasApiV1SagasGetError = ListSagasApiV1SagasGetErrors[keyof ListSagasApiV1SagasGetErrors];
@@ -8074,9 +8168,9 @@ export type CancelSagaApiV1SagasSagaIdCancelPostErrors = {
      */
     404: ErrorResponse;
     /**
-     * Validation Error
+     * Error
      */
-    422: HttpValidationError;
+    default: ErrorResponse;
 };
 
 export type CancelSagaApiV1SagasSagaIdCancelPostError = CancelSagaApiV1SagasSagaIdCancelPostErrors[keyof CancelSagaApiV1SagasSagaIdCancelPostErrors];

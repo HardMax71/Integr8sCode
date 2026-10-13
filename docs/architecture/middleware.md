@@ -51,14 +51,14 @@ Two kinds of response never pass through it: a CORS preflight, which `CORSMiddle
 It checks two things. A `Content-Length` above the limit is rejected with 413 before the body is read:
 
 ```json
-{"detail": "Request too large. Maximum size is 10.0MB"}
+{"status": 413, "detail": "Request too large. Maximum size is 10.0MB"}
 ```
 
 Then it wraps `receive` and counts bytes as they stream in, which catches chunked uploads that send no `Content-Length`. Reading stops as soon as the count passes the limit, with an `HTTPException` that the app answers as 413 with the same body. It has to be that exception: FastAPI turns anything else raised while it reads a body into a 400.
 
 ## CSRF
 
-`CSRFMiddleware` enforces the double-submit check on state-changing `/api/` requests from logged-in browsers. It gets `SecurityService` from the Dishka container and answers 403 with `{"detail": "CSRF validation failed", "type": "CSRFValidationError"}` on failure. The rules and exemptions are on the [Authentication](authentication.md#csrf) page.
+`CSRFMiddleware` enforces the double-submit check on state-changing `/api/` requests from logged-in browsers. It gets `SecurityService` from the Dishka container and answers 403 with `{"status": 403, "detail": "CSRF validation failed"}` on failure. The rules and exemptions are on the [Authentication](authentication.md#csrf) page.
 
 ## Rate limit
 

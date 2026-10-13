@@ -9,7 +9,6 @@
     import { registerApiV1AuthRegisterPostMutation, zUserCreate } from '#lib/api/index.ts';
     import { apiForm, filled } from '#lib/forms.ts';
     import { fieldTitle } from '#lib/formatters.ts';
-    import { getErrorMessage } from '#lib/api-interceptors.ts';
     import Spinner from '#components/Spinner.svelte';
 
     const zRegister = z
@@ -44,9 +43,7 @@
     const { form: formData, constraints, enhance } = form;
 
     let loading = $derived(register.isPending);
-    let error = $derived(
-        register.error ? getErrorMessage(register.error, 'Registration failed. Please try again.') : null,
-    );
+    const error = $derived(register.error?.detail);
 </script>
 
 {#snippet field(

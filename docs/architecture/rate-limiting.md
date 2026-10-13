@@ -79,10 +79,10 @@ Allowed requests that go through the check get three headers. Requests where no 
 | `X-RateLimit-Reset` | Unix timestamp of the window end |
 | `Retry-After` | seconds to wait, on 429 only (60 if unknown) |
 
-A rejected request gets 429 with this body:
+A rejected request gets 429 with the API's error body, and `Retry-After` and `X-RateLimit-Reset` say when to try again:
 
 ```json
-{"detail": "Rate limit exceeded", "retry_after": 45, "reset_at": "2026-01-15T10:30:00+00:00"}
+{"status": 429, "detail": "Rate limit exceeded"}
 ```
 
 The service also counts `rate_limit.requests.total`, `rate_limit.allowed.total`, `rate_limit.rejected.total` and `rate_limit.bypass.total`, labelled with the path after IDs are replaced by `*`. The `algorithm` label on `rate_limit.requests.total` also takes `bypassed`, `no_limit` and `redis_error`.

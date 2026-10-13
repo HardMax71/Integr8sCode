@@ -10,7 +10,6 @@
         updateSavedScriptApiV1ScriptsScriptIdPutMutation,
         zExecutionRequest,
     } from '#lib/api/index.ts';
-    import { ApiError } from '#lib/api-error.ts';
     import { firstIssue } from '#lib/validation.ts';
     import { authStore } from '#stores/auth.svelte.ts';
     import { draft, executionContext, newScript, pickRuntime } from '#lib/editor/index.ts';
@@ -64,7 +63,7 @@
             {
                 // Deleted elsewhere, so save it as a new script
                 onError: (err) => {
-                    if (err instanceof ApiError && err.status === 404) create.mutate({ body });
+                    if (err.status === 404) create.mutate({ body });
                 },
             },
         );

@@ -133,10 +133,7 @@ async def replay_events(
 @router.get(
     "/replay/{session_id}/status",
     response_class=SSEResponse,
-    responses={
-        200: {"model": EventReplayStatusResponse},
-        404: {"model": ErrorResponse, "description": "Replay session not found"},
-    },
+    responses={200: {"model": EventReplayStatusResponse}},
 )
 async def stream_replay_status(
     session_id: str,

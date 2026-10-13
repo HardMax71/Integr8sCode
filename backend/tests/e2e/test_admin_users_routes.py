@@ -288,7 +288,7 @@ class TestGetUser:
         """Get nonexistent user returns 404."""
         response = await test_admin.get("/api/v1/admin/users/nonexistent-user-id")
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_get_user_forbidden_for_regular_user(self, test_user: AsyncClient, test_admin: AsyncClient) -> None:
@@ -327,7 +327,7 @@ class TestGetUserOverview:
         """Get overview for nonexistent user returns 404."""
         response = await test_admin.get("/api/v1/admin/users/nonexistent-user-id/overview")
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_get_user_overview_forbidden_for_regular_user(
@@ -382,7 +382,7 @@ class TestUpdateUser:
         response = await test_admin.put(f"/api/v1/admin/users/{target.user_id}", json={field: getattr(taken, field)})
 
         assert response.status_code == 409
-        assert response.json() == {"detail": f"{field.capitalize()} already exists", "type": "ConflictError"}
+        assert response.json() == {"detail": f"{field.capitalize()} already exists", "status": 409}
 
     @pytest.mark.asyncio
     async def test_update_user_role(self, test_admin: AsyncClient) -> None:
@@ -430,7 +430,7 @@ class TestUpdateUser:
             json={"username": "test"},
         )
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_update_user_forbidden_for_regular_user(
@@ -495,7 +495,7 @@ class TestDeleteUser:
         """Delete nonexistent user returns 404."""
         response = await test_admin.delete("/api/v1/admin/users/nonexistent-user-id")
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_delete_self_forbidden(self, test_admin: AsyncClient) -> None:
@@ -507,7 +507,7 @@ class TestDeleteUser:
         # Try to delete self
         response = await test_admin.delete(f"/api/v1/admin/users/{admin_user_id}")
         assert response.status_code == 400
-        assert response.json() == {"detail": "Cannot delete your own account", "type": "SelfDeletionError"}
+        assert response.json() == {"detail": "Cannot delete your own account", "status": 400}
 
     @pytest.mark.asyncio
     async def test_delete_user_forbidden_for_regular_user(
@@ -571,7 +571,7 @@ class TestResetPassword:
             json=PasswordResetRequest(new_password="newpassword456").model_dump(),
         )
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_reset_password_forbidden_for_regular_user(
@@ -757,7 +757,7 @@ class TestUnlockUser:
         """Unlock nonexistent user returns 404."""
         response = await test_admin.post("/api/v1/admin/users/nonexistent-user-id/unlock")
         assert response.status_code == 404
-        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "type": "UserNotFoundError"}
+        assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_unlock_user_forbidden_for_regular_user(

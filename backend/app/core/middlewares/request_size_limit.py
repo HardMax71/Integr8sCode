@@ -2,6 +2,8 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.schemas_pydantic.common import ErrorResponse
+
 
 # --8<-- [start:RequestSizeLimitMiddleware]
 class RequestSizeLimitMiddleware:
@@ -30,7 +32,7 @@ class RequestSizeLimitMiddleware:
         content_length_header = headers.get(b"content-length")
 
         if content_length_header and int(content_length_header) > max_size:
-            response = JSONResponse(status_code=413, content={"detail": detail})
+            response = JSONResponse(ErrorResponse(status=413, detail=detail).model_dump(), status_code=413)
             await response(scope, receive, send)
             return
 

@@ -59,7 +59,7 @@ Passwords are hashed with bcrypt through pwdlib's `BcryptHasher`. `BCRYPT_ROUNDS
 
 The check is skipped for GET, HEAD and OPTIONS, for paths outside `/api/`, and for requests with no `access_token` cookie, since a forged request without one has no session to act on: routes that need a user answer 401, and logout, which has no auth dependency, only deletes cookies. Only two paths are exempt by name: `/api/v1/auth/login` and `/api/v1/auth/register`. Logout is not one of them. So every POST, PUT, PATCH and DELETE from a logged-in browser needs an `X-CSRF-Token` header that equals the `csrf_token` cookie (compared in constant time) and carries a valid signature for the current `access_token`.
 
-The token has the form `{nonce}.{hmac}`, where the HMAC is SHA-256 over `nonce:access_token` keyed with `SECRET_KEY`. A token issued for one session fails against another. Any failure returns 403 with `{"detail": "CSRF validation failed", "type": "CSRFValidationError"}` and adds to `csrf.validation.failures.total` with the reason (`missing_header`, `token_mismatch` or `invalid_signature`).
+The token has the form `{nonce}.{hmac}`, where the HMAC is SHA-256 over `nonce:access_token` keyed with `SECRET_KEY`. A token issued for one session fails against another. Any failure returns 403 with `{"status": 403, "detail": "CSRF validation failed"}` and adds to `csrf.validation.failures.total` with the reason (`missing_header`, `token_mismatch` or `invalid_signature`).
 
 ## Login lockout
 
@@ -105,7 +105,7 @@ The query client's error handler turns status codes into toasts. On a 401 it cle
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ApiError` without a status, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
+`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ErrorResponse` with status 0, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone, and on startup a saved session younger than five minutes survives that.
 
 ## Endpoints
 

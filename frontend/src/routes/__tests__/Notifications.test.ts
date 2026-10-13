@@ -181,7 +181,7 @@ describe('Notifications', () => {
         });
 
         it('shows no success toast when the call fails', async () => {
-            mockApi(markAllReadApiV1NotificationsMarkAllReadPost).err({ detail: 'boom' });
+            mockApi(markAllReadApiV1NotificationsMarkAllReadPost).err({ status: 500, detail: 'boom' });
             setNotifications(
                 Array.from({ length: 2 }, (_, i) => ({ ...fakeNotificationResponse(), notification_id: `n-${i}` })),
                 1,
@@ -210,7 +210,7 @@ describe('Notifications', () => {
         });
 
         it('shows no success toast when the delete fails', async () => {
-            mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).err({ detail: 'boom' });
+            mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).err({ status: 500, detail: 'boom' });
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'del-fail' }]);
 
             renderNotifications();

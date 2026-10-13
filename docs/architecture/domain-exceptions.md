@@ -76,13 +76,13 @@ Subclasses that carry context take it in the constructor and keep it as attribut
 
 ## Handler
 
-`configure_exception_handlers` in `app/core/exceptions/handlers.py` registers one handler for `DomainError`:
+`configure_exception_handlers` in `app/core/exceptions/handlers.py` registers the handlers that answer every error with the same `ErrorResponse`, a `DomainError` among them:
 
 ```python
 --8<-- "backend/app/core/exceptions/handlers.py:configure_exception_handlers"
 ```
 
-The body matches `ErrorResponse(detail, type)` from `app/schemas_pydantic/common.py`. `type` is the class name, so a client can tell `ExecutionNotFoundError` from `SagaNotFoundError` even though both are 404. Routes list the errors their services raise in `responses={...}` so they show up in the OpenAPI spec. The 401 and 403 from the `current_user` and `admin_user` dependencies mostly aren't listed, so the spec leaves them out.
+The body is `ErrorResponse(status, detail)` from `app/schemas_pydantic/common.py`, the `status` and `detail` members of RFC 9457 problem details. The same body comes back for FastAPI's own `HTTPException`s, for request validation errors (`detail` lists `field: message` pairs joined by `; `), for anything unexpected (a 500 with "Internal server error"; Starlette re-raises it afterwards, so the server still logs the traceback) and from the rate-limit, CSRF and request-size middlewares. `create_app` declares it as every route's `default` response, which also keeps FastAPI from documenting its own `HTTPValidationError`. Routes list the errors their services raise in `responses={...}` so they show up in the OpenAPI spec. The 401 and 403 from the `current_user` and `admin_user` dependencies mostly aren't listed, so the spec leaves them out.
 
 ## Where exceptions are raised
 

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeResourceLimits, fakeSavedScriptResponse, fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
-import { ApiError } from '#lib/api-error.ts';
 import { toast } from 'svelte-sonner';
 import Editor from '#routes/(auth)/editor/+page.svelte';
 import { draft } from '#lib/editor/draft.svelte.ts';
@@ -174,9 +173,7 @@ describe('Editor', () => {
                     },
                 ],
             });
-            vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut).mockRejectedValue(
-                new ApiError(404, { detail: 'Not found' }),
-            );
+            vi.mocked(updateSavedScriptApiV1ScriptsScriptIdPut).mockRejectedValue({ status: 404, detail: 'Not found' });
             mockApi(createSavedScriptApiV1ScriptsPost).ok({ ...fakeSavedScriptResponse(), script_id: 'fallback-1' });
 
             await renderEditor();

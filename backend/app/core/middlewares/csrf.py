@@ -6,6 +6,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.security import SecurityService
 from app.domain.user import CSRFValidationError
+from app.schemas_pydantic.common import ErrorResponse
 
 logger = structlog.get_logger()
 
@@ -49,7 +50,6 @@ class CSRFMiddleware:
                 reason=str(e),
             )
             response = JSONResponse(
-                status_code=403,
-                content={"detail": "CSRF validation failed", "type": type(e).__name__},
+                ErrorResponse(status=403, detail="CSRF validation failed").model_dump(), status_code=403
             )
             await response(scope, receive, send)

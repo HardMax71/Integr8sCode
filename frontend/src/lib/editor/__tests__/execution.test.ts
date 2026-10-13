@@ -131,7 +131,7 @@ describe('createExecutionState', () => {
 
     describe('execute → API error', () => {
         it('shows the API error when the execution fails to start, and opens no stream', async () => {
-            mockApi(createExecutionApiV1ExecutePost).err({ detail: 'rate limited' });
+            mockApi(createExecutionApiV1ExecutePost).err({ status: 429, detail: 'rate limited' });
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
@@ -139,18 +139,6 @@ describe('createExecutionState', () => {
             await vi.waitFor(() => expect(s.error).toBe('rate limited'));
             expect(s.phase).toBe('idle');
             expect(mockSseFn).not.toHaveBeenCalled();
-        });
-
-        it.each([
-            ['an error without a message', 'nope', 'nope'],
-            ['an empty error', {}, 'Failed to start execution.'],
-        ])('falls back to a generic message for %s', async (_label, error, expected) => {
-            mockApi(createExecutionApiV1ExecutePost).err(error);
-
-            const s = createState();
-            await s.execute('x', 'python', '3.12');
-
-            await vi.waitFor(() => expect(s.error).toBe(expected));
         });
 
         it('is "starting" while the request is in flight', async () => {
@@ -174,7 +162,7 @@ describe('createExecutionState', () => {
 
     describe('reset', () => {
         it('clears all state', async () => {
-            mockApi(createExecutionApiV1ExecutePost).err({ detail: 'fail' });
+            mockApi(createExecutionApiV1ExecutePost).err({ status: 500, detail: 'fail' });
 
             const s = createState();
             await s.execute('x', 'python', '3.12');

@@ -265,7 +265,7 @@ class TestExecutionRetry:
 
         assert retry_response.status_code == 400
         body = retry_response.json()
-        assert body["type"] == "ExecutionNotRetryableError"
+        assert body["status"] == 400
         assert body["detail"].startswith("Cannot retry execution in ")
 
     @pytest.mark.asyncio
@@ -283,7 +283,7 @@ class TestExecutionRetry:
         assert retry_response.status_code == 403
         assert retry_response.json() == {
             "detail": f"Access denied to execution '{original.execution_id}'",
-            "type": "ExecutionAccessDeniedError",
+            "status": 403,
         }
 
 
@@ -334,7 +334,7 @@ class TestExecutionEvents:
         assert events_response.status_code == 403
         assert events_response.json() == {
             "detail": f"Access denied to execution '{exec_response.execution_id}'",
-            "type": "ExecutionAccessDeniedError",
+            "status": 403,
         }
 
 

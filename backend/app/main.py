@@ -69,6 +69,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=openapi_url,
         docs_url=docs_url,
         redoc_url=redoc_url,
+        # Every error is an ErrorResponse, so FastAPI documents no HTTPValidationError of its own; named by schema
+        # rather than model, so stream routes keep application/json for it instead of text/event-stream
+        responses={
+            "default": {
+                "description": "Error",
+                "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}},
+            }
+        },
     )
 
     # Store settings on app state for lifespan access

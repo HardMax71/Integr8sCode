@@ -88,17 +88,8 @@ async def login(
     responses={
         409: {"model": ErrorResponse, "description": "Username or email already registered"},
         422: {
+            "model": ErrorResponse,
             "description": "Password below the configured minimum length, or invalid request body",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "anyOf": [
-                            {"$ref": "#/components/schemas/ErrorResponse"},
-                            {"$ref": "#/components/schemas/HTTPValidationError"},
-                        ]
-                    }
-                }
-            },
         },
     },
 )

@@ -107,7 +107,7 @@ describe('Login', () => {
     });
 
     it('shows the API error inline and opts out of the global toasts', async () => {
-        mockApi(loginApiV1AuthLoginPost).err({ detail: 'Invalid credentials' });
+        mockApi(loginApiV1AuthLoginPost).err({ status: 401, detail: 'Invalid credentials' });
 
         await submit('bad', 'bad');
 

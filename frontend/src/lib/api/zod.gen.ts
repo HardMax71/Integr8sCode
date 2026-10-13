@@ -170,10 +170,12 @@ export const zEnvironment = z.enum([
 
 /**
  * ErrorResponse
+ *
+ * Every error the API returns: the `status` and `detail` members of RFC 9457 problem details.
  */
 export const zErrorResponse = z.object({
-    detail: z.string(),
-    type: z.nullable(z.string())
+    status: z.int(),
+    detail: z.string()
 });
 
 /**
@@ -2638,24 +2640,6 @@ export const zEventDetailResponse = z.object({
     ]),
     related_events: z.array(zEventSummary),
     timeline: z.array(zEventSummary)
-});
-
-/**
- * ValidationError
- */
-export const zValidationError = z.object({
-    loc: z.array(z.union([z.string(), z.int()])),
-    msg: z.string(),
-    type: z.string(),
-    input: z.optional(z.unknown()),
-    ctx: z.optional(z.record(z.string(), z.unknown()))
-});
-
-/**
- * HTTPValidationError
- */
-export const zHttpValidationError = z.object({
-    detail: z.optional(z.array(zValidationError))
 });
 
 /**

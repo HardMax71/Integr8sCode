@@ -93,7 +93,7 @@ describe('Register', () => {
     });
 
     it('shows the API error inline and opts out of the global toasts', async () => {
-        mockApi(registerApiV1AuthRegisterPost).err({ detail: 'Username taken' });
+        mockApi(registerApiV1AuthRegisterPost).err({ status: 409, detail: 'Username taken' });
 
         await renderRegister();
         await user.type(screen.getByPlaceholderText('Username'), 'taken');

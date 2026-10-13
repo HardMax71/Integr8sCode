@@ -1,7 +1,7 @@
 import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
-import { logger } from '#lib/logger.ts';
+import { getLogger } from '@logtape/logtape';
 
-const log = logger.withTag('NotificationStream');
+const log = getLogger(['integr8scode', 'notifications']);
 
 type NotificationCallback = (data: NotificationResponse) => void;
 
@@ -10,15 +10,19 @@ class NotificationStream {
 
     connect(onNotification: NotificationCallback): void {
         this.disconnect();
-        this.#abortController = new AbortController();
-        void this.#start(onNotification).catch((err: unknown) => {
-            log.error('Connection failed:', err);
+        const controller = new AbortController();
+        this.#abortController = controller;
+        void this.#start(onNotification, controller.signal).catch((err: unknown) => {
+            log.error('Notification stream stopped: {error}', { error: err });
         });
     }
 
-    async #start(onNotification: NotificationCallback): Promise<void> {
+    async #start(onNotification: NotificationCallback, signal: AbortSignal): Promise<void> {
         const { stream } = await notificationStreamApiV1EventsNotificationsStreamGet({
-            signal: this.#abortController!.signal,
+            signal,
+            onSseError: (error) => {
+                if (!signal.aborted) log.warning('Notification stream lost its connection: {error}', { error });
+            },
             sseMaxRetryAttempts: 3,
             sseDefaultRetryDelay: 5000,
             sseMaxRetryDelay: 20000,

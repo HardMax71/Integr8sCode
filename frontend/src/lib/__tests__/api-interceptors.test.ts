@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ErrorResponse } from '#lib/api/index.ts';
 import type { Session } from '#stores/auth.svelte.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { captureLogs } from '#test/test-utils.ts';
 
 describe('initializeApiInterceptors and showApiError', () => {
     let mockErrorUse: ReturnType<typeof vi.fn>;
@@ -55,7 +56,6 @@ describe('initializeApiInterceptors and showApiError', () => {
 
         errorInterceptor = mockErrorUse.mock.calls[0]![0];
         requestInterceptor = mockRequestUse.mock.calls[0]![0];
-        vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     function at(pathname: string, search = '') {
@@ -100,6 +100,22 @@ describe('initializeApiInterceptors and showApiError', () => {
                 status: 0,
                 detail: 'Network error. Check your connection.',
             });
+        });
+
+        it.each([
+            ['debug', 404, { status: 404, detail: 'Not found' }, { status: 404 } as Response],
+            ['error', 502, '<html>502 Bad Gateway</html>', { status: 502 } as Response],
+            ['error', 0, new TypeError('Failed to fetch'), undefined],
+        ] as const)('logs at %s level a request that failed with %i', (level, status, body, response) => {
+            const records = captureLogs();
+            const failure = errorInterceptor(body, response, request, {}) as ErrorResponse;
+            expect(records).toEqual([
+                expect.objectContaining({
+                    level,
+                    category: ['integr8scode', 'api'],
+                    message: ['', 'GET', ' ', 'https://test/api', ' failed with ', status, ': ', failure.detail, ''],
+                }),
+            ]);
         });
     });
 

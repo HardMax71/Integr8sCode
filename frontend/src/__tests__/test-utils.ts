@@ -2,7 +2,8 @@
  * Shared test utilities for Vitest tests.
  */
 
-import { vi, type Mock } from 'vitest';
+import { onTestFinished, vi, type Mock } from 'vitest';
+import { configureSync, resetSync, type LogRecord } from '@logtape/logtape';
 import type { Component } from 'svelte';
 import { render, type RenderResult } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -94,22 +95,21 @@ export const user: UserEventInstance = userEvent.setup({
     pointerEventsCheck: 0,
 });
 
-/**
- * Suppresses console.error for the duration of a test.
- * Returns a function to restore the original behavior.
- */
-export function suppressConsoleError(): () => void {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    return () => spy.mockRestore();
-}
-
-/**
- * Suppresses console.warn for the duration of a test.
- * Returns a function to restore the original behavior.
- */
-export function suppressConsoleWarn(): () => void {
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    return () => spy.mockRestore();
+/** Collects every record the app logs until the test ends; without this, LogTape drops them. */
+export function captureLogs(): LogRecord[] {
+    const records: LogRecord[] = [];
+    configureSync({
+        reset: true,
+        sinks: { memory: (record) => records.push(record) },
+        loggers: [
+            { category: 'integr8scode', sinks: ['memory'] },
+            { category: ['logtape', 'meta'], lowestLevel: 'warning', sinks: [] },
+        ],
+    });
+    onTestFinished(() => {
+        resetSync();
+    });
+    return records;
 }
 
 /**

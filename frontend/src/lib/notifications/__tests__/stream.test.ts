@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { notificationStreamApiV1EventsNotificationsStreamGet, type NotificationResponse } from '#lib/api/index.ts';
 import { notificationStream } from '#lib/notifications/stream.svelte.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
-import { mockStreamEvents } from '#test/test-utils.ts';
+import { captureLogs, mockStreamEvents } from '#test/test-utils.ts';
 
 type StreamOptions = NonNullable<Parameters<typeof notificationStreamApiV1EventsNotificationsStreamGet>[0]>;
 
@@ -97,6 +97,26 @@ describe('NotificationStream', () => {
 
         expect(firstSignal.aborted).toBe(true);
         expect(mockSseFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('logs a lost connection, but not the abort of its own disconnect', async () => {
+        const records = captureLogs();
+        mockOpenStream();
+        notificationStream.connect(callback);
+        await tick();
+        const error = new TypeError('Failed to fetch');
+
+        options(0).onSseError!(error);
+        notificationStream.disconnect();
+        options(0).onSseError!(new DOMException('The operation was aborted.', 'AbortError'));
+
+        expect(records).toEqual([
+            expect.objectContaining({
+                level: 'warning',
+                category: ['integr8scode', 'notifications'],
+                message: ['Notification stream lost its connection: ', error, ''],
+            }),
+        ]);
     });
 
     it('configures SSE retry options', async () => {

@@ -71,3 +71,7 @@ That keeps fields queryable, and it stops log injection. If user input goes into
 ## OTLP export
 
 `setup_log_exporter` adds an OTel `LoggingHandler` to the root logger, with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter` pointed at `OTEL_EXPORTER_OTLP_ENDPOINT`. It's a no-op when that setting is empty. The backend calls it in `create_app` and each worker right after `setup_logger`. See [Loki](loki.md) for the rest of the path.
+
+## Frontend
+
+The browser logs through [LogTape](https://logtape.org), configured once in `init` in `frontend/src/hooks.client.ts`. Lines go to the browser console only, under the `integr8scode` category plus an area (`api`, `auth`, `editor`, `notifications`, `replay`, `app`), from `debug` up in dev and from `warning` up in a production build. Values travel as properties named by `{placeholders}` in the message, the same rule as the backend's keyword arguments, and ESLint's `no-console` keeps every other way of logging out of `src/`. Nothing ships these lines to the backend or Loki yet.

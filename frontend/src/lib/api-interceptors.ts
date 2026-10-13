@@ -4,9 +4,9 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { authStore } from '#stores/auth.svelte.ts';
 import { setQueryErrorHandler } from '#lib/query-client.ts';
-import { logger } from '#lib/logger.ts';
+import { getLogger } from '@logtape/logtape';
 
-const log = logger.withTag('API');
+const log = getLogger(['integr8scode', 'api']);
 
 let isHandling401 = false;
 
@@ -72,12 +72,18 @@ export function initializeApiInterceptors(): void {
 
     // A body that isn't an ErrorResponse, like a proxy's error page, or no response at all becomes one
     client.interceptors.error.use((error, response, request, opts) => {
-        log.error('API Error', { status: response?.status, url: request?.url ?? opts.url, error });
         const problem = zErrorResponse.safeParse(error);
-        if (problem.success) return problem.data;
-        return response
-            ? { status: response.status, detail: `HTTP ${response.status}` }
-            : { status: 0, detail: 'Network error. Check your connection.' };
+        const failure: ErrorResponse = problem.success
+            ? problem.data
+            : response
+              ? { status: response.status, detail: `HTTP ${response.status}` }
+              : { status: 0, detail: 'Network error. Check your connection.' };
+        // A 4xx is the API answering as designed, and the user sees it in a toast or the form
+        const line = { method: request?.method ?? opts.method, url: request?.url ?? opts.url, ...failure };
+        if (failure.status === 0 || failure.status >= 500)
+            log.error('{method} {url} failed with {status}: {detail}', line);
+        else log.debug('{method} {url} failed with {status}: {detail}', line);
+        return failure;
     });
 
     // --8<-- [start:csrf_injection]

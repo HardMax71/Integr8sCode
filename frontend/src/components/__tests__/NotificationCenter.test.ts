@@ -168,9 +168,6 @@ describe('NotificationCenter', () => {
         mocks.mockStreamDisconnect.mockReset();
         mockNotificationPermission = 'default';
         mockRequestPermission.mockReset().mockResolvedValue('granted');
-        vi.spyOn(console, 'log').mockImplementation(() => {});
-        vi.spyOn(console, 'debug').mockImplementation(() => {});
-        vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {

@@ -5,7 +5,7 @@ import {
     type SseExecutionEventSchema,
 } from '#lib/api/index.ts';
 import { createExecutionState } from '#lib/editor/execution.svelte.ts';
-import { createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
+import { captureLogs, createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
 import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 
 const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
@@ -116,7 +116,8 @@ describe('createExecutionState', () => {
     });
 
     describe('execute → stream ends without terminal event', () => {
-        it('sets connection lost error', async () => {
+        it('sets connection lost error and logs which execution lost its stream', async () => {
+            const records = captureLogs();
             mockStarted();
 
             mockSseEvents(event({ event_type: 'status', status: 'running' }));
@@ -126,6 +127,31 @@ describe('createExecutionState', () => {
 
             expect(s.error).toBe('Connection to server lost.');
             expect(s.result).toBeNull();
+            expect(records).toEqual([
+                expect.objectContaining({
+                    level: 'warning',
+                    category: ['integr8scode', 'editor'],
+                    message: ['Event stream for execution ', 'exec-1', ' ended before its result'],
+                }),
+            ]);
+        });
+
+        it('logs each lost connection while the stream retries', async () => {
+            const records = captureLogs();
+            mockStarted();
+            mockSseEvents(event({ event_type: 'result_stored', result: RESULT }));
+            const s = createState();
+            await s.execute('x', 'python', '3.12');
+            const error = new TypeError('Failed to fetch');
+
+            mockSseFn.mock.calls[0]![0]!.onSseError!(error);
+
+            expect(records).toEqual([
+                expect.objectContaining({
+                    level: 'warning',
+                    message: ['Event stream for execution ', 'exec-1', ' lost its connection: ', error, ''],
+                }),
+            ]);
         });
     });
 

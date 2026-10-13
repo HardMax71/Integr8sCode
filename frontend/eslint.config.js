@@ -68,6 +68,11 @@ export default [
     },
   },
   {
+    // Logs go through LogTape: getLogger(['integr8scode', area]), configured once in hooks.client.ts
+    files: ['src/**/*.ts', 'src/**/*.svelte'],
+    rules: { 'no-console': 'error' },
+  },
+  {
     // An API field has one name: its key, shown through fieldTitle
     files: ['src/**/*.ts', 'src/**/*.svelte'],
     rules: {

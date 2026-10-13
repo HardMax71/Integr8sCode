@@ -6,7 +6,7 @@
         streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet,
         type EventReplayStatusResponse,
     } from '#lib/api/index.ts';
-    import { logger } from '#lib/logger.ts';
+    import { getLogger } from '@logtape/logtape';
     import { fieldTitle } from '#lib/formatters.ts';
     import { EXECUTION_STATUS_BADGE } from '#lib/badges.ts';
 
@@ -17,14 +17,15 @@
 
     let { sessionId, onClose }: Props = $props();
 
-    const log = logger.withTag('ReplayProgressBanner');
+    const log = getLogger(['integr8scode', 'replay']);
     let session = $state<EventReplayStatusResponse | null>(null);
 
     // Follows the session while the banner is open; closing it aborts the stream
     $effect(() => {
         const controller = new AbortController();
         follow(sessionId, controller.signal).catch((err: unknown) => {
-            if (!controller.signal.aborted) log.warn('Replay status stream failed:', err);
+            if (!controller.signal.aborted)
+                log.error('Status stream for replay {sessionId} stopped: {error}', { sessionId, error: err });
         });
         return () => controller.abort();
     });
@@ -33,6 +34,13 @@
         const { stream } = await streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet({
             path: { session_id: id },
             signal,
+            onSseError: (error) => {
+                if (!signal.aborted)
+                    log.warning('Status stream for replay {sessionId} lost its connection: {error}', {
+                        sessionId: id,
+                        error,
+                    });
+            },
             sseMaxRetryAttempts: 3,
         });
         // The server sends the whole session first and on every change, and closes the stream once it ends

@@ -1,12 +1,11 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
-    import type { Snippet } from 'svelte';
     import { page } from '$app/state';
     import { ShieldCheck } from '@lucide/svelte';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { ADMIN_ROUTES } from '#lib/admin/constants.ts';
+    import type { LayoutProps } from './$types';
 
-    let { children }: { children: Snippet } = $props();
+    let { data, children }: LayoutProps = $props();
 
     const path = $derived(page.url.pathname);
 
@@ -49,16 +48,14 @@
                 {/each}
             </nav>
 
-            {#if authStore.session.status === 'signed-in'}
-                <div
-                    class="hidden lg:block mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
-                >
-                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
-                    <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">
-                        {authStore.session.user.username}
-                    </p>
-                </div>
-            {/if}
+            <div
+                class="hidden lg:block mt-8 p-4 bg-bg-alt dark:bg-dark-bg-alt rounded-lg border border-border-default dark:border-dark-border-default"
+            >
+                <p class="text-sm text-fg-muted dark:text-dark-fg-muted">Logged in as:</p>
+                <p class="font-semibold truncate text-fg-default dark:text-dark-fg-default">
+                    {data.user.username}
+                </p>
+            </div>
         </div>
     </aside>
 

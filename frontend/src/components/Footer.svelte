@@ -2,7 +2,7 @@
     import { resolve } from '$app/paths';
     import { Icon, Send, type LucideIconData } from '@lucide/svelte';
     import { UserRole } from '#lib/api/index.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
+    import { page } from '$app/state';
 
     // Lucide 1.0 dropped its brand icons, so this is the GitHub mark it used to ship, drawn by its Icon.
     const github: LucideIconData = {
@@ -62,7 +62,7 @@
                         Tools & Info
                     </h3>
                     <ul class="space-y-3 text-sm">
-                        {#if authStore.session.status === 'signed-in' && authStore.session.user.role === UserRole.ADMIN}
+                        {#if page.data.user?.role === UserRole.ADMIN}
                             <li>
                                 <a
                                     href="/grafana"

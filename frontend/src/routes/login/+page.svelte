@@ -1,43 +1,31 @@
 <script lang="ts">
     import { match, resolve } from '$app/paths';
     import { goto } from '$app/navigation';
+    import { page } from '$app/state';
     import { createMutation } from '@tanstack/svelte-query';
     import * as z from 'zod/mini';
     import { Control, Field, FieldErrors, Label } from 'formsnap';
     import { loginApiV1AuthLoginPostMutation, zBodyLoginApiV1AuthLoginPost } from '#lib/api/index.ts';
     import { apiForm, filled } from '#lib/forms.ts';
     import { fieldTitle } from '#lib/formatters.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
-    import { onMount } from 'svelte';
 
     const login = createMutation(() => ({
         ...loginApiV1AuthLoginPostMutation(),
         meta: { inlineErrors: true },
-        onSuccess: async (data) => {
-            await authStore.startSession(data);
+        onSuccess: async () => {
             toast.success('Login successful! Welcome back.');
-
-            // match() only knows this app's pages, so a crafted path can't send the user off-site
-            const route = await match(sessionStorage.getItem('redirectAfterLogin') ?? resolve('/(auth)/editor'));
-            sessionStorage.removeItem('redirectAfterLogin');
-            void goto(resolve(route?.id ?? '/(auth)/editor'));
+            // match() only knows this app's pages, so a crafted redirect can't send the user off-site
+            const route = await match(page.url.searchParams.get('redirect') ?? resolve('/(auth)/editor'));
+            // refreshAll reruns the root layout's load, which reads the new session
+            await goto(resolve(route?.id ?? '/(auth)/editor'), { refreshAll: true });
         },
     }));
 
     let loading = $derived(login.isPending);
     const error = $derived(login.error?.detail);
-
-    onMount(() => {
-        // Check for authentication message from redirect
-        const authMessage = sessionStorage.getItem('authMessage');
-        if (authMessage) {
-            toast.info(authMessage);
-            sessionStorage.removeItem('authMessage');
-        }
-    });
 
     const { username, password } = zBodyLoginApiV1AuthLoginPost.shape;
     const form = apiForm(z.object({ username: filled(username), password: filled(password) }), {

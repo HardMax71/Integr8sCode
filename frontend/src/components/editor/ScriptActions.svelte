@@ -11,7 +11,6 @@
         zExecutionRequest,
     } from '#lib/api/index.ts';
     import { firstIssue } from '#lib/validation.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { draft, executionContext, newScript, pickRuntime } from '#lib/editor/index.ts';
 
     const queryClient = useQueryClient();
@@ -133,16 +132,14 @@
         >
             <Upload class="w-4 h-4" /><span>Upload</span>
         </button>
-        {#if authStore.session.status === 'signed-in'}
-            <button
-                type="button"
-                class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
-                onclick={save}
-                title="Save current script"
-            >
-                <Save class="w-4 h-4" /><span>Save</span>
-            </button>
-        {/if}
+        <button
+            type="button"
+            class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"
+            onclick={save}
+            title="Save current script"
+        >
+            <Save class="w-4 h-4" /><span>Save</span>
+        </button>
         <button
             type="button"
             class="btn btn-secondary-outline btn-sm inline-flex items-center justify-center space-x-1"

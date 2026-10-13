@@ -13,19 +13,6 @@ import {
 import * as navigation from '$app/navigation';
 import { setMode, userPrefersMode } from 'mode-watcher';
 
-const mocks = vi.hoisted(() => ({
-    mockAuthStore: {
-        session: { status: 'signed-out' } as Session,
-        clearAuth: vi.fn(),
-        verifyAuth: vi.fn(),
-    },
-}));
-
-vi.mock('#stores/auth.svelte.ts', () => ({
-    get authStore() {
-        return mocks.mockAuthStore;
-    },
-}));
 vi.mock('#components/NotificationCenter.svelte', () => {
     const M = function () {
         return {};
@@ -39,7 +26,8 @@ vi.mock('#components/NotificationCenter.svelte', () => {
 });
 
 import Header from '#components/Header.svelte';
-import type { Session } from '#stores/auth.svelte.ts';
+import { page } from '#test/page.svelte.ts';
+import { queryClient } from '#lib/query-client.ts';
 
 const ROOT = { ...fakeUserResponse(), username: 'root', role: UserRole.ADMIN, email: 'root@example.com' };
 
@@ -80,9 +68,7 @@ describe('Header', () => {
     };
 
     beforeEach(() => {
-        mocks.mockAuthStore.session = { status: 'signed-out' };
         setMode(Theme.SYSTEM);
-        mocks.mockAuthStore.clearAuth.mockReset();
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
         mockApi(updateThemeApiV1UserSettingsThemePut).ok(
             zUserSettings.parse({
@@ -136,7 +122,7 @@ describe('Header', () => {
         });
 
         it('saves the toggled theme to the user settings when signed in', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
+            page.data.user = fakeUserResponse();
             setMode(Theme.LIGHT);
             renderWithQueryClient(Header);
             await user.click(screen.getByTitle('Toggle theme'));
@@ -167,20 +153,17 @@ describe('Header', () => {
             expect(screen.getByRole('link', { name: /^Login$/i })).toHaveAttribute('href', '/login');
             expect(screen.getByRole('link', { name: /^Register$/i })).toHaveAttribute('href', '/register');
             expect(screen.queryByText('Settings')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('notification-center')).not.toBeInTheDocument();
         });
     });
 
     describe('authenticated state', () => {
         beforeEach(() => {
-            mocks.mockAuthStore.session = {
-                status: 'signed-in',
-                user: {
-                    ...fakeUserResponse(),
-                    username: 'testuser',
-                    email: 'test@example.com',
-                    role: UserRole.USER,
-                },
-                csrfToken: 'csrf',
+            page.data.user = {
+                ...fakeUserResponse(),
+                username: 'testuser',
+                email: 'test@example.com',
+                role: UserRole.USER,
             };
         });
 
@@ -198,19 +181,20 @@ describe('Header', () => {
         it.each([
             ['succeeds', () => mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' })],
             ['fails', () => mockApi(logoutApiV1AuthLogoutPost).err({ status: 500, detail: 'Server error' })],
-        ])('logout ends the session and goes to /login when the call %s', async (_label, arrange) => {
+        ])('logout empties the query cache and reloads into /login when the call %s', async (_label, arrange) => {
             arrange();
             await openUserDropdown();
+            queryClient.setQueryData(['left-behind'], 'previous user data');
             await user.click(await screen.findByRole('menuitem', { name: /Logout/i }));
-            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
+            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login', { refreshAll: true }));
             expect(vi.mocked(logoutApiV1AuthLogoutPost)).toHaveBeenCalled();
-            expect(mocks.mockAuthStore.clearAuth).toHaveBeenCalled();
+            expect(queryClient.getQueryData(['left-behind'])).toBeUndefined();
         });
     });
 
     describe('admin user', () => {
         beforeEach(() => {
-            mocks.mockAuthStore.session = { status: 'signed-in', user: ROOT, csrfToken: 'csrf' };
+            page.data.user = ROOT;
         });
 
         it('shows the admin role and an Admin entry linking to the admin panel', async () => {
@@ -233,21 +217,15 @@ describe('Header', () => {
         });
 
         it.each([
-            { session: { status: 'signed-out' } as Session, expectedContent: ['Login', 'Register'] },
+            { label: 'signed out', signedIn: null, expectedContent: ['Login', 'Register'] },
             {
-                session: {
-                    status: 'signed-in',
-                    user: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
-                    csrfToken: 'csrf',
-                } as Session,
+                label: 'a user',
+                signedIn: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
                 expectedContent: ['mobileuser', UserRole.USER, 'Settings', 'Logout'],
             },
-            {
-                session: { status: 'signed-in', user: ROOT, csrfToken: 'csrf' } as Session,
-                expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'],
-            },
-        ])('shows correct content when $session.status', async ({ session, expectedContent }) => {
-            mocks.mockAuthStore.session = session;
+            { label: 'an admin', signedIn: ROOT, expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'] },
+        ])('shows correct content for $label', async ({ signedIn, expectedContent }) => {
+            page.data.user = signedIn;
             await openMobileMenu();
             await waitFor(() => {
                 const mobileMenu = screen.getByTestId('mobile-menu');
@@ -270,7 +248,7 @@ describe('Header', () => {
 
     describe('dropdown toggle behavior', () => {
         it('closes dropdown when clicking a menu item', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
+            page.data.user = fakeUserResponse();
             await openUserDropdown();
             await user.click(await screen.findByRole('menuitem', { name: /Settings/i }));
             await waitFor(() => {
@@ -279,7 +257,7 @@ describe('Header', () => {
         });
 
         it('closes the dropdown on Escape', async () => {
-            mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
+            page.data.user = fakeUserResponse();
             await openUserDropdown();
             await screen.findByRole('menuitem', { name: /Settings/i });
 
@@ -309,11 +287,7 @@ describe('Header', () => {
 
     describe('mobile menu logout', () => {
         it('calls logout and navigates from mobile menu', async () => {
-            mocks.mockAuthStore.session = {
-                status: 'signed-in',
-                user: { ...fakeUserResponse(), username: 'mobileuser' },
-                csrfToken: 'csrf',
-            };
+            page.data.user = { ...fakeUserResponse(), username: 'mobileuser' };
 
             await openMobileMenu();
             await waitFor(() => {
@@ -324,8 +298,7 @@ describe('Header', () => {
             const logoutButton = screen.getByRole('button', { name: /Logout/i });
             await user.click(logoutButton);
 
-            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
-            expect(mocks.mockAuthStore.clearAuth).toHaveBeenCalled();
+            await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login', { refreshAll: true }));
         });
     });
 });

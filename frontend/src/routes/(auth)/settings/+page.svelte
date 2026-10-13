@@ -18,7 +18,6 @@
         zUserSettings,
     } from '#lib/api/index.ts';
     import { apiForm } from '#lib/forms.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { setMode } from 'mode-watcher';
     import { toast } from 'svelte-sonner';
     import Spinner from '#components/Spinner.svelte';
@@ -55,10 +54,7 @@
     const queryClient = useQueryClient();
     const settingsKey = getUserSettingsApiV1UserSettingsGetQueryKey();
 
-    const settingsQuery = createQuery(() => ({
-        ...getUserSettingsApiV1UserSettingsGetOptions(),
-        enabled: authStore.session.status === 'signed-in',
-    }));
+    const settingsQuery = createQuery(() => getUserSettingsApiV1UserSettingsGetOptions());
 
     const historyQuery = createQuery(() => ({
         ...getSettingsHistoryApiV1UserSettingsHistoryGetOptions({ query: { limit: 10 } }),
@@ -142,7 +138,7 @@
 
 <div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
-        {#if settingsQuery.isPending && authStore.session.status === 'signed-in'}
+        {#if settingsQuery.isPending}
             <div class="flex justify-center items-center h-64">
                 <Spinner size="xlarge" />
             </div>

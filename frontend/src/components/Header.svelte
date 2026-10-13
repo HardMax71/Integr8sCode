@@ -1,6 +1,7 @@
 <script lang="ts">
     import { resolve } from '$app/paths';
     import { goto } from '$app/navigation';
+    import { page } from '$app/state';
     import { createMutation, useQueryClient } from '@tanstack/svelte-query';
     import {
         getUserSettingsApiV1UserSettingsGetQueryKey,
@@ -9,7 +10,6 @@
         updateThemeApiV1UserSettingsThemePutMutation,
         UserRole,
     } from '#lib/api/index.ts';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { setMode, userPrefersMode } from 'mode-watcher';
     import { fade } from 'svelte/transition';
     import { MediaQuery } from 'svelte/reactivity';
@@ -46,9 +46,10 @@
     const logout = createMutation(() => ({
         ...logoutApiV1AuthLogoutPostMutation(),
         onSettled: () => {
-            authStore.clearAuth();
+            // Nothing the previous user loaded may show to the next one
+            queryClient.clear();
             closeMenu();
-            void goto(resolve('/login'));
+            void goto(resolve('/login'), { refreshAll: true });
         },
     }));
 
@@ -63,7 +64,7 @@
         const themes = Object.values(Theme);
         const next = themes[(themes.indexOf(userPrefersMode.current) + 1) % themes.length]!;
         setMode(next);
-        if (authStore.session.status === 'signed-in') saveTheme.mutate({ body: { theme: next } });
+        if (page.data.user) saveTheme.mutate({ body: { theme: next } });
     }
 
     function handleLogout() {
@@ -113,8 +114,8 @@
                 </button>
 
                 <div class="hidden lg:flex items-center space-x-3">
-                    {#if authStore.session.status === 'signed-in'}
-                        {@const user = authStore.session.user}
+                    {#if page.data.user}
+                        {@const user = page.data.user}
                         <NotificationCenter />
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger
@@ -222,8 +223,8 @@
         >
             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
                 <div class="pt-3 mt-2 border-t border-border-default dark:border-dark-border-default">
-                    {#if authStore.session.status === 'signed-in'}
-                        {@const user = authStore.session.user}
+                    {#if page.data.user}
+                        {@const user = page.data.user}
                         <div class="px-3 py-2">
                             <div class="text-sm font-medium text-fg-default dark:text-dark-fg-default">
                                 {user.username}

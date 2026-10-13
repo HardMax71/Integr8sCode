@@ -16,7 +16,7 @@ type ErrorHandler = (error: ErrorResponse, inlineErrors: boolean) => void;
 
 let handleError: ErrorHandler = () => {};
 
-/** api-interceptors.ts sets the handler at startup, since it imports the auth store, which imports this module. */
+/** api-interceptors.ts sets the handler at startup, since it imports this module for the cache a 401 clears. */
 export function setQueryErrorHandler(handler: ErrorHandler): void {
     handleError = handler;
 }

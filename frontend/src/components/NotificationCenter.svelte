@@ -1,7 +1,6 @@
 <script lang="ts">
     import { match, resolve } from '$app/paths';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-    import { authStore } from '#stores/auth.svelte.ts';
     import { goto } from '$app/navigation';
     import { notificationStream } from '#lib/notifications/stream.svelte.ts';
     import {
@@ -23,12 +22,7 @@
     let showDropdown = $state(false);
 
     const queryClient = useQueryClient();
-    const signedIn = $derived(authStore.session.status === 'signed-in');
-
-    const list = createQuery(() => ({
-        ...getNotificationsApiV1NotificationsGetOptions({ query: { limit: 20 } }),
-        enabled: signedIn,
-    }));
+    const list = createQuery(() => getNotificationsApiV1NotificationsGetOptions({ query: { limit: 20 } }));
     let notifications = $derived(list.data?.notifications ?? []);
     let unreadCount = $derived(list.data?.unread_count ?? 0);
 
@@ -50,7 +44,6 @@
     }));
 
     $effect(() => {
-        if (!signedIn) return;
         notificationStream.connect(() => void refreshNotifications());
         return () => {
             notificationStream.disconnect();
@@ -135,7 +128,7 @@
             </div>
 
             <div class="max-h-96 overflow-y-auto">
-                {#if list.isPending && signedIn}
+                {#if list.isPending}
                     <div class="p-8 text-center">
                         <Spinner size="small" />
                     </div>

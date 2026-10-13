@@ -1,14 +1,11 @@
 import { client, zErrorResponse, type ErrorResponse } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
-import { goto } from '$app/navigation';
-import { resolve } from '$app/paths';
-import { authStore } from '#stores/auth.svelte.ts';
-import { setQueryErrorHandler } from '#lib/query-client.ts';
+import { refreshAll } from '$app/navigation';
+import { page } from '$app/state';
+import { queryClient, setQueryErrorHandler } from '#lib/query-client.ts';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['integr8scode', 'api']);
-
-let isHandling401 = false;
 
 const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warning' }> = {
     403: { message: 'Access denied.', type: 'error' },
@@ -20,26 +17,17 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
 
+// --8<-- [start:error_handling]
+/** A signed-in user's 401 means the session expired; the reloaded layout data then sends a guarded page to /login */
 function handle401(): void {
-    const wasAuthenticated = authStore.session.status === 'signed-in';
-    if (wasAuthenticated && !isHandling401) {
-        isHandling401 = true;
-        const currentPath = window.location.pathname + window.location.search;
-        toast.warning('Session expired. Please log in again.');
-        authStore.clearAuth();
-        if (currentPath !== '/login' && currentPath !== '/register') {
-            sessionStorage.setItem('redirectAfterLogin', currentPath);
-        }
-        void goto(resolve('/login'));
-        setTimeout(() => {
-            isHandling401 = false;
-        }, 1000);
-    } else {
-        authStore.clearAuth();
-    }
+    if (!page.data.user) return;
+    // The id keeps the 401s of one page's parallel requests to one toast
+    toast.warning('Session expired. Please log in again.', { id: 'session-expired' });
+    // Nothing the previous user loaded may show to the next one
+    queryClient.clear();
+    void refreshAll();
 }
 
-// --8<-- [start:error_handling]
 /**
  * Shows a failed query or mutation; the query client calls it once a query has used up its retries.
  * @param inlineErrors - The form shows 401s, network errors and other 4xx itself
@@ -87,10 +75,10 @@ export function initializeApiInterceptors(): void {
     });
 
     // --8<-- [start:csrf_injection]
-    client.interceptors.request.use((request, _opts) => {
-        if (request.method !== 'GET' && authStore.session.status === 'signed-in' && authStore.session.csrfToken) {
-            request.headers.set('X-CSRF-Token', authStore.session.csrfToken);
-        }
+    // The double-submit pattern: the header echoes the readable csrf_token cookie that login set
+    client.interceptors.request.use((request) => {
+        const csrfToken = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)?.[1];
+        if (request.method !== 'GET' && csrfToken) request.headers.set('X-CSRF-Token', csrfToken);
         return request;
     });
     // --8<-- [end:csrf_injection]

@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
-import { requireAdmin, requireAuth } from '#lib/auth-guard.ts';
-import { ssr } from '#routes/+layout.ts';
+import { toast } from 'svelte-sonner';
+import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { getCurrentUserProfileApiV1AuthMeGet, UserRole } from '#lib/api/index.ts';
+import { mockApi } from '#test/test-utils.ts';
+import { load as rootLoad, ssr } from '#routes/+layout.ts';
 import { load as authGroupLoad } from '#routes/(auth)/+layout.ts';
 import { load as adminLoad } from '#routes/admin/+layout.ts';
 import { load as adminIndexLoad } from '#routes/admin/+page.ts';
 
-vi.mock('#lib/auth-guard.ts', () => ({ requireAuth: vi.fn(), requireAdmin: vi.fn() }));
-
-const url = new URL('https://localhost/editor');
+const url = new URL('https://localhost/editor?tab=1');
+const TO_LOGIN = { status: 307, location: '/login?redirect=%2Feditor%3Ftab%3D1' };
+const ADMIN = { ...fakeUserResponse(), role: UserRole.ADMIN };
 
 describe('route files', () => {
     beforeEach(() => {
@@ -19,14 +22,57 @@ describe('route files', () => {
         expect(ssr).toBe(false);
     });
 
-    it('guards the (auth) group with requireAuth', async () => {
-        await authGroupLoad({ url } as Parameters<typeof authGroupLoad>[0]);
-        expect(vi.mocked(requireAuth)).toHaveBeenCalledWith(url);
+    describe('root layout load', () => {
+        it('gives every page the signed-in user', async () => {
+            mockApi(getCurrentUserProfileApiV1AuthMeGet).ok(ADMIN);
+            await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).resolves.toEqual({ user: ADMIN });
+        });
+
+        it.each([
+            ['a 401', 401, 'Not authenticated'],
+            ['no answer', 0, 'Network error. Check your connection.'],
+        ])('gives every page no user after %s, without throwing', async (_label, status, detail) => {
+            mockApi(getCurrentUserProfileApiV1AuthMeGet).err({ status, detail });
+            await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).resolves.toEqual({ user: null });
+        });
     });
 
-    it('guards the admin pages with requireAdmin', async () => {
-        await adminLoad({ url } as Parameters<typeof adminLoad>[0]);
-        expect(vi.mocked(requireAdmin)).toHaveBeenCalledWith(url);
+    describe('(auth) group guard', () => {
+        it('sends a visitor to /login with the page to come back to', async () => {
+            const event = { url, parent: () => Promise.resolve({ user: null }) };
+            await expect(authGroupLoad(event as Parameters<typeof authGroupLoad>[0])).rejects.toMatchObject(TO_LOGIN);
+        });
+
+        it('lets a signed-in user through', async () => {
+            const user = fakeUserResponse();
+            const event = { url, parent: () => Promise.resolve({ user }) };
+            await expect(authGroupLoad(event as Parameters<typeof authGroupLoad>[0])).resolves.toEqual({ user });
+        });
+    });
+
+    describe('admin guard', () => {
+        it('sends a visitor to /login with the page to come back to', async () => {
+            const event = { url, parent: () => Promise.resolve({ user: null }) };
+            await expect(adminLoad(event as Parameters<typeof adminLoad>[0])).rejects.toMatchObject(TO_LOGIN);
+            expect(toast.error).not.toHaveBeenCalled();
+        });
+
+        it('sends a signed-in non-admin home with a toast', async () => {
+            const event = {
+                url,
+                parent: () => Promise.resolve({ user: { ...fakeUserResponse(), role: UserRole.USER } }),
+            };
+            await expect(adminLoad(event as Parameters<typeof adminLoad>[0])).rejects.toMatchObject({
+                status: 307,
+                location: '/',
+            });
+            expect(toast.error).toHaveBeenCalledWith('Admin access required');
+        });
+
+        it('lets an admin through', async () => {
+            const event = { url, parent: () => Promise.resolve({ user: ADMIN }) };
+            await expect(adminLoad(event as Parameters<typeof adminLoad>[0])).resolves.toEqual({ user: ADMIN });
+        });
     });
 
     it('sends /admin to the event browser', () => {

@@ -85,27 +85,21 @@ The password check order matters: a deactivated account with a wrong password ge
 
 ## Frontend
 
-`authStore` in `frontend/src/stores/auth.svelte.ts` holds the session, which is either signed out or signed in with the user (the generated `UserResponse`) and the CSRF token, so a signed-in session never lacks its user. It mirrors a signed-in session to sessionStorage under `authState` and checks the stored blob against this schema when it reads it back:
+The frontend keeps no session of its own. The root layout's load asks `/api/v1/auth/me` before any page renders, and every page gets the answer as `page.data.user`: the generated `UserResponse`, or `null` when the cookie is missing or rejected. The `(auth)` and admin layouts guard their pages from it ([Routing](../frontend/routing.md)). After login and logout the app navigates with `refreshAll`, so the load asks again.
 
-```typescript
---8<-- "frontend/src/stores/auth.svelte.ts:AuthState"
-```
-
-The login page's mutation hands the response to `authStore.startSession()`, which signs in once the profile has loaded, with the CSRF token from the body. If that profile check fails, the session stays signed out. `verifyAuth()` fetches `/api/v1/auth/me` through the TanStack query client and rereads the token from the `csrf_token` cookie. The query has a 30 second stale time, so answers within that window are shared unless the caller passes `forceRefresh = true`.
-
-The request interceptor in `frontend/src/lib/api-interceptors.ts` adds the header to every non-GET call:
+The request interceptor in `frontend/src/lib/api-interceptors.ts` copies the `csrf_token` cookie into the header of every non-GET call:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:csrf_injection"
 ```
 
-The query client's error handler turns status codes into toasts. On a 401 it clears the store and the query cache, unless the request came from the login or register form. If the user was logged in, it also shows "Session expired. Please log in again.", saves the current path in `redirectAfterLogin` and sends the user to `/login`:
+The query client's error handler turns status codes into toasts. A 401 while someone is signed in, outside the login and register forms, shows "Session expired. Please log in again.", empties the query cache and reloads the layout data, so a protected page's guard sends the user to `/login` with the page to come back to:
 
 ```typescript
 --8<-- "frontend/src/lib/api-interceptors.ts:error_handling"
 ```
 
-`verifyAuth()` clears the session only when `/auth/me` answers 401. A network failure arrives as an `ErrorResponse` with status 0, and on that or any other error the store keeps the profile query's last answer. With nothing cached it returns false but leaves the session alone. On startup, initialization tells it to answer true for a saved session younger than five minutes, so that one survives an unreachable server.
+A network failure at startup reads as signed out too, since the load can't tell it from a missing session, so a protected page sends the user to `/login`.
 
 ## Endpoints
 

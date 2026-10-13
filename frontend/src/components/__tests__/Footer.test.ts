@@ -3,24 +3,13 @@ import { render, screen } from '@testing-library/svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole } from '#lib/api/index.ts';
 
-const mocks = vi.hoisted(() => ({
-    mockAuthStore: { session: { status: 'signed-out' } as Session },
-}));
-
-vi.mock('#stores/auth.svelte.ts', () => ({
-    get authStore() {
-        return mocks.mockAuthStore;
-    },
-}));
-
 import Footer from '#components/Footer.svelte';
-import type { Session } from '#stores/auth.svelte.ts';
+import { page } from '#test/page.svelte.ts';
 
 describe('Footer', () => {
     let originalDate: DateConstructor;
 
     beforeEach(() => {
-        mocks.mockAuthStore.session = { status: 'signed-out' };
         originalDate = globalThis.Date;
         const mockDate = class extends Date {
             constructor() {
@@ -83,11 +72,7 @@ describe('Footer', () => {
         });
 
         it('shows admins a Grafana link to the nginx redirect', () => {
-            mocks.mockAuthStore.session = {
-                status: 'signed-in',
-                user: { ...fakeUserResponse(), role: UserRole.ADMIN },
-                csrfToken: 'csrf',
-            };
+            page.data.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
             render(Footer);
 
             const grafanaLink = screen.getByRole('link', { name: /Grafana/i });
@@ -97,10 +82,10 @@ describe('Footer', () => {
         });
 
         it.each([
-            { status: 'signed-out' },
-            { status: 'signed-in', user: { ...fakeUserResponse(), role: UserRole.USER }, csrfToken: 'csrf' },
-        ] as Session[])('hides the Grafana link when $status as a regular user', (session) => {
-            mocks.mockAuthStore.session = session;
+            ['signed out', null],
+            ['signed in as a regular user', { ...fakeUserResponse(), role: UserRole.USER }],
+        ])('hides the Grafana link when %s', (_label, signedIn) => {
+            page.data.user = signedIn;
             render(Footer);
 
             expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();

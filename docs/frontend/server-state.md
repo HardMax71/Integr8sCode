@@ -1,6 +1,6 @@
 # Frontend server state
 
-Every page loads and changes data through [TanStack Query](https://tanstack.com/query/latest/docs/framework/svelte/overview) v6, so none of them keeps its own loading flags, polling loops, caches or retries. The only direct SDK calls left are the three SSE streams: execution events, notifications and replay status.
+Every page loads and changes data through [TanStack Query](https://tanstack.com/query/latest/docs/framework/svelte/overview) v6, so none of them keeps its own loading flags, polling loops, caches or retries. The only direct SDK calls left are the three SSE streams (execution events, notifications and replay status) and the root layout's session check.
 
 The hey-api `@tanstack/svelte-query` plugin generates the options, so there's nothing to write by hand. For each GET operation it emits `xxxOptions(options)`, a query key plus a query function for `createQuery`, and `xxxQueryKey(options)`, the key alone. For each write it emits `xxxMutation()`, the mutation function for `createMutation`. They live in `src/lib/api/@tanstack/svelte-query.gen.ts` and the index re-exports them. The functions call the SDK with `throwOnError: true`, so a failed request rejects and the query ends up in its error state. Browsing events is a read sent as POST, since its filter is a body, so a `getKind` hook in `openapi-ts.config.ts` tells the plugin to treat it as a query.
 
@@ -51,7 +51,7 @@ The form keeps its own copy, so edits never touch the cached response. When a re
 
 ## Session and user settings
 
-The auth store isn't a component, so it uses the client directly. `verifyAuth()` asks `queryClient.query()` for the profile with a 30 second stale time, which replaces the store's own cache: checks within 30 seconds share one answer, and checks made at the same time share one request. `clearAuth()` empties the cache. Login and logout are mutations in the login page and the header.
+Who is signed in comes from the root layout's load, not from a query: it asks `/auth/me` once and every page reads the user as `page.data.user` ([Routing](routing.md)). It calls the generated function without `throwOnError`, since a 401 there means nobody is signed in, which is no error for the cache handlers to show. Login and logout are mutations in the login page and the header. Both navigate with `refreshAll`, which runs that load again, and logout and an expired session empty the query cache first.
 
 User settings are one query, `getUserSettingsApiV1UserSettingsGetOptions()`, read wherever they're needed. The root layout applies the saved theme from it, the editor takes its editor settings from it, and the settings page's form starts from it. Saving or restoring puts the response into that query with `setQueryData`, so every reader sees the new settings at once. The header's theme toggle saves the theme the same way.
 

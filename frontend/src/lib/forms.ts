@@ -19,7 +19,7 @@ export function apiForm<S extends ZodValidationSchema>(
     return superForm(initial ? defaults(initial, adapter) : defaults(adapter), {
         SPA: true,
         dataType: 'json',
-        // No form action and no load function, so nothing to apply or rerun
+        // No form action to apply, and a save has no reason to rerun the session check in the root load
         applyAction: false,
         invalidateAll: false,
         resetForm: false,

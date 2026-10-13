@@ -3,29 +3,29 @@
  <h1 align="center"><b>Integr8sCode</b></h1>
 </p>
 <p align="center">
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ruff.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/ruff.yml?branch=main&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Ruff%20Linting&label=ruff&logo=python&logoColor=white" alt="Ruff Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/mypy.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/mypy.yml?branch=main&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Mypy%20Type%20Checking&label=mypy&logo=python&logoColor=white" alt="Mypy Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/security.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/security.yml?branch=main&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Security%20Scanning&label=security&logo=shieldsdotio&logoColor=white" alt="Security Scan Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/grimp.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/grimp.yml?branch=main&label=dead%20code&logo=python&logoColor=white" alt="Dead Code Check" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Grimp%20Orphan%20Module%20Check&label=dead%20code&logo=python&logoColor=white" alt="Dead Code Check" />
   </a>
   <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/docker.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/docker.yml?branch=main&label=docker&logo=docker&logoColor=white" alt="Docker Scan Status" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/stack-tests.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/stack-tests.yml?branch=main&label=backend&logo=python&logoColor=white" alt="Backend Tests" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Backend%20Unit%20Tests&label=backend&logo=python&logoColor=white" alt="Backend Tests" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/stack-tests.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/stack-tests.yml?branch=main&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Frontend%20Unit%20Tests&label=frontend&logo=svelte&logoColor=white" alt="Frontend Tests" />
   </a>
-  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/frontend-ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/HardMax71/Integr8sCode/frontend-ci.yml?branch=main&label=lint&logo=eslint&logoColor=white" alt="Frontend Lint" />
+  <a href="https://github.com/HardMax71/Integr8sCode/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/check-runs/HardMax71/Integr8sCode/main?nameFilter=Frontend%20Lint%20%26%20Type%20Check&label=lint&logo=eslint&logoColor=white" alt="Frontend Lint" />
   </a>
 </p>
 <p align="center">

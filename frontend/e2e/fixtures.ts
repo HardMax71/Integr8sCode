@@ -1,315 +1,130 @@
-import { test as base, expect, type Page, type BrowserContext } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import {
+    test as base,
+    expect,
+    type APIRequest,
+    type APIRequestContext,
+    type BrowserContextOptions,
+    type Dialog,
+    type Page,
+    type TestInfo,
+} from '@playwright/test';
 import { attachCoverageReport } from 'monocart-reporter';
-import { ADMIN_ROUTES, type AdminPath } from '../src/lib/admin/constants';
-import type { ExecutionResult } from '../src/lib/api';
+import type {
+    ExecutionRequest,
+    ExecutionResponse,
+    LoginResponse,
+    UserCreate,
+    UserResponse,
+} from '#lib/api/types.gen.ts';
 
+/** The admin that seed_users.py creates, with the password it reads from the same variable */
+const ADMIN = { username: 'admin', password: process.env.ADMIN_USER_PASSWORD ?? 'admin123' };
 
-export const TEST_USERS = {
-  user: { username: 'user', password: 'user123' },
-  admin: { username: 'admin', password: 'admin123' },
-} as const;
+export interface Account {
+    user_id: string;
+    username: string;
+    email: string;
+    password: string;
+}
 
-export const TIMEOUTS = {
-  toast: 5_000,
-  navigation: 10_000,
-  adminTable: 15_000,
-  executionStart: 5_000,
-  executionComplete: 45_000,
-  executionStatus: 10_000,
-  coverageLoad: 2_000,
-} as const;
+/** What a browser context or an API client needs to act as a signed-in user */
+interface Session {
+    storageState: Exclude<BrowserContextOptions['storageState'], string | undefined>;
+    csrfToken: string;
+}
 
-// Worker-scoped fixtures: authenticate ONCE per worker, reuse context for all tests
-type WorkerFixtures = {
-  userContext: BrowserContext;
-  adminContext: BrowserContext;
-};
+interface WorkerFixtures {
+    account: Account;
+    userSession: Session;
+    adminSession: Session;
+}
 
-type TestFixtures = {
-  userPage: Page;
-  adminPage: Page;
-  page: Page;
-};
+interface TestFixtures {
+    userPage: Page;
+    adminPage: Page;
+    api: APIRequestContext;
+    execution: ExecutionResponse;
+}
 
-async function _performLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: 'Code Editor' })).toBeVisible({ timeout: TIMEOUTS.navigation });
+/** Registers a new account, so no two workers ever share a user's settings, scripts or notifications */
+async function register(request: APIRequest, baseURL: string | undefined): Promise<Account> {
+    await using api = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
+    const username = `e2e-${randomUUID()}`;
+    const body: UserCreate = { username, email: `${username}@example.com`, password: randomUUID() };
+    const response = await api.post('/api/v1/auth/register', { data: body });
+    await expect(response).toBeOK();
+    const user = (await response.json()) as UserResponse;
+    return { user_id: user.user_id, username, email: body.email, password: body.password };
+}
+
+/** Logs in through the API and keeps the cookies it sets */
+async function logIn(
+    request: APIRequest,
+    baseURL: string | undefined,
+    credentials: { username: string; password: string },
+): Promise<Session> {
+    await using api = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
+    const response = await api.post('/api/v1/auth/login', { form: credentials });
+    await expect(response).toBeOK();
+    const { csrf_token } = (await response.json()) as LoginResponse;
+    return { storageState: await api.storageState(), csrfToken: csrf_token };
+}
+
+/** Hands the page to the test and attaches the JS coverage it collected for the monocart reporter */
+async function useWithCoverage(page: Page, use: (page: Page) => Promise<void>, testInfo: TestInfo): Promise<void> {
+    await page.coverage.startJSCoverage({ resetOnNavigation: false });
+    await use(page);
+    await attachCoverageReport(await page.coverage.stopJSCoverage(), testInfo);
+}
+
+/** A route handler that never answers, so a test can look at the UI while the request is pending */
+export function holdRequest(): void {}
+
+/** Accepts the next confirm() the page shows */
+export function acceptDialog(dialog: Dialog): Promise<void> {
+    return dialog.accept();
 }
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({
-  // Override default page fixture to collect coverage
-  page: async ({ page }, use, testInfo) => {
-    await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    try {
-      await use(page);
-    } finally {
-      if (!page.isClosed()) {
-        const coverage = await page.coverage.stopJSCoverage();
-        await attachCoverageReport(coverage, testInfo);
-      }
-    }
-  },
+    account: [
+        async ({ playwright }, use, { project }) => use(await register(playwright.request, project.use.baseURL)),
+        { scope: 'worker' },
+    ],
+    userSession: [
+        async ({ playwright, account }, use, { project }) =>
+            use(await logIn(playwright.request, project.use.baseURL, account)),
+        { scope: 'worker' },
+    ],
+    adminSession: [
+        async ({ playwright }, use, { project }) => use(await logIn(playwright.request, project.use.baseURL, ADMIN)),
+        { scope: 'worker' },
+    ],
 
-  // Worker-scoped: one login per worker, shared across all tests in that worker
-  userContext: [async ({ browser }, use) => {
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
-    const page = await context.newPage();
-    await _performLogin(page, TEST_USERS.user.username, TEST_USERS.user.password);
-    await page.close();
-    await use(context);
-    await context.close();
-  }, { scope: 'worker' }],
+    // Every page is a fresh context: a guest's `page`, or one that starts with the worker's session cookies
+    page: async ({ page }, use, testInfo) => useWithCoverage(page, use, testInfo),
+    userPage: async ({ browser, userSession }, use, testInfo) => {
+        await using context = await browser.newContext({ storageState: userSession.storageState });
+        await useWithCoverage(await context.newPage(), use, testInfo);
+    },
+    adminPage: async ({ browser, adminSession }, use, testInfo) => {
+        await using context = await browser.newContext({ storageState: adminSession.storageState });
+        await useWithCoverage(await context.newPage(), use, testInfo);
+    },
 
-  adminContext: [async ({ browser }, use) => {
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
-    const page = await context.newPage();
-    await _performLogin(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
-    await page.close();
-    await use(context);
-    await context.close();
-  }, { scope: 'worker' }],
-
-  // Test-scoped: new page per test, but reuses authenticated context
-  userPage: async ({ userContext }, use, testInfo) => {
-    const page = await userContext.newPage();
-    await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    try {
-      await use(page);
-    } finally {
-      if (!page.isClosed()) {
-        const coverage = await page.coverage.stopJSCoverage();
-        await attachCoverageReport(coverage, testInfo);
-        await page.close();
-      }
-    }
-  },
-
-  adminPage: async ({ adminContext }, use, testInfo) => {
-    const page = await adminContext.newPage();
-    await page.coverage.startJSCoverage({ resetOnNavigation: false });
-    try {
-      await use(page);
-    } finally {
-      if (!page.isClosed()) {
-        const coverage = await page.coverage.stopJSCoverage();
-        await attachCoverageReport(coverage, testInfo);
-        await page.close();
-      }
-    }
-  },
+    api: async ({ playwright, userSession }, use) => {
+        await using api = await playwright.request.newContext({
+            storageState: userSession.storageState,
+            extraHTTPHeaders: { 'X-CSRF-Token': userSession.csrfToken },
+        });
+        await use(api);
+    },
+    execution: async ({ api }, use) => {
+        const body: ExecutionRequest = { script: `print("${randomUUID()}")` };
+        const response = await api.post('/api/v1/execute', { data: body });
+        await expect(response).toBeOK();
+        await use((await response.json()) as ExecutionResponse);
+    },
 });
 
-// Helper functions using the default page (for tests that don't need pre-auth)
-export async function loginAsUser(page: Page): Promise<void> {
-  await _performLogin(page, TEST_USERS.user.username, TEST_USERS.user.password);
-}
-
-export async function loginAsAdmin(page: Page): Promise<void> {
-  await _performLogin(page, TEST_USERS.admin.username, TEST_USERS.admin.password);
-}
-
-export async function clearSession(page: Page): Promise<void> {
-  await page.context().clearCookies();
-  const url = page.url();
-  // Navigate to root first if on about:blank so we can access storage
-  if (!url || url === 'about:blank') {
-    await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
-  }
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-}
-
-export function getAdminRoute(path: AdminPath) {
-  const route = ADMIN_ROUTES.find(r => r.path === path);
-  if (!route) throw new Error(`Unknown admin path: ${path}`);
-  return route;
-}
-
-export async function navigateToAdminPage(page: Page, path: AdminPath): Promise<void> {
-  const route = getAdminRoute(path);
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: route.pageHeading })).toBeVisible();
-}
-
-export async function expectAdminSidebar(page: Page): Promise<void> {
-  await expect(page.getByText('Admin Panel')).toBeVisible({ timeout: TIMEOUTS.navigation });
-  for (const route of ADMIN_ROUTES) {
-    await expect(page.getByRole('link', { name: route.sidebarLabel })).toBeVisible();
-  }
-}
-
-export async function expectActiveNavLink(page: Page, linkName: string): Promise<void> {
-  await expect(page.getByRole('link', { name: linkName })).toHaveClass(/bg-primary/);
-}
-
-export async function expectToastVisible(page: Page, timeout = TIMEOUTS.toast): Promise<void> {
-  // svelte-sonner uses data-sonner-toast attribute
-  await expect(page.locator('[data-sonner-toast]').first()).toBeVisible({ timeout });
-}
-
-export async function expectRedirectToLogin(page: Page): Promise<void> {
-  await expect(page).toHaveURL(/\/login/);
-}
-
-export async function expectRedirectToHome(page: Page): Promise<void> {
-  await expect(page).toHaveURL('/');
-}
-
-export async function expectTableOrEmptyState(
-  page: Page,
-  emptyTextPattern: RegExp,
-  timeout = TIMEOUTS.navigation
-): Promise<boolean> {
-  const tableRow = page.locator('table tbody tr').first();
-  const emptyState = page.getByText(emptyTextPattern).first();
-  await expect(tableRow.or(emptyState).first()).toBeVisible({ timeout });
-  return await tableRow.isVisible().catch(() => false);
-}
-
-export async function expectTableColumn(page: Page, columnName: string, emptyPattern: RegExp): Promise<void> {
-  const hasTable = await expectTableOrEmptyState(page, emptyPattern);
-  if (hasTable) {
-    await expect(page.getByRole('columnheader', { name: columnName })).toBeVisible();
-  }
-}
-
-const TERMINAL_EXEC_STATUSES = new Set(['completed', 'failed', 'timeout', 'cancelled', 'error']);
-
-async function waitForExecutionResult(page: Page, executionId: string, timeoutMs = TIMEOUTS.executionComplete): Promise<ExecutionResult> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const response = await page.request.get(`/api/v1/executions/${executionId}/result`);
-
-    if (response.status() === 404) {
-      await page.waitForTimeout(500);
-      continue;
-    }
-
-    expect(response.ok(), `Unexpected status ${response.status()} for execution result`).toBeTruthy();
-    const result = await response.json() as ExecutionResult;
-
-    if (TERMINAL_EXEC_STATUSES.has(result.status)) {
-      return result;
-    }
-
-    await page.waitForTimeout(500);
-  }
-
-  throw new Error(`Execution ${executionId} did not reach terminal state within ${timeoutMs}ms`);
-}
-
-export async function runExampleAndExecute(page: Page): Promise<ExecutionResult> {
-  await page.getByRole('button', { name: 'Example', exact: true }).click();
-  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: TIMEOUTS.coverageLoad });
-
-  const executeResponsePromise = page.waitForResponse((response) =>
-    response.request().method() === 'POST' && response.url().includes('/api/v1/execute')
-  );
-
-  await page.getByRole('button', { name: /Run Script/i }).click();
-  const executeResponse = await executeResponsePromise;
-  expect(executeResponse.ok(), `Execute request failed with status ${executeResponse.status()}`).toBeTruthy();
-  const executeBody = await executeResponse.json() as { execution_id: string; status: string };
-  expect(executeBody.execution_id).toBeTruthy();
-
-  await expect(page.getByRole('button', { name: /Executing/i })).toBeVisible({ timeout: TIMEOUTS.executionStart });
-  const success = page.getByText('Status', { exact: true }).first();
-  const failure = page.getByText('Execution Failed');
-  // K8s pod creation + execution can take 20-30s in CI
-  await expect(success.or(failure).first()).toBeVisible({ timeout: TIMEOUTS.executionComplete });
-  await expect(page.getByText(/Status\s*completed/i).first()).toBeVisible({ timeout: TIMEOUTS.executionStatus });
-
-  const result = await waitForExecutionResult(page, executeBody.execution_id);
-  expect(result.status).toBe('completed');
-  return result;
-}
-
-export async function loadExampleScript(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Example', exact: true }).click();
-  await expect(page.locator('.cm-content')).not.toBeEmpty({ timeout: 3000 });
-}
-
-export async function openScriptOptions(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Toggle Script Options' }).click();
-}
-
-export async function saveScriptAs(page: Page, name: string): Promise<void> {
-  await loadExampleScript(page);
-  await page.locator('#scriptNameInput').fill(name);
-  await openScriptOptions(page);
-  await page.locator('button[title="Save current script"]').click();
-  await expectToastVisible(page);
-}
-
-export async function expandSavedScripts(page: Page): Promise<void> {
-  const toggle = page.getByRole('button', { name: /Show Saved Scripts/i });
-  await toggle.click();
-}
-
-export async function expectAuthRequired(page: Page, path: string): Promise<void> {
-  await clearSession(page);
-  await page.goto(path);
-  await expectRedirectToLogin(page);
-}
-
-export async function navigateToPage(page: Page, path: string, headingName: string, headingLevel: 1 | 2 = 1): Promise<void> {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: headingName, level: headingLevel })).toBeVisible();
-}
-
-export function describeAuthRequired(testFn: typeof base, path: string): void {
-  testFn.describe('Access Control', () => {
-    testFn('redirects to login when not authenticated', async ({ page }) => {
-      await expectAuthRequired(page, path);
-    });
-  });
-}
-
-export function describeAdminAccessControl(testFn: typeof base, path: AdminPath): void {
-  testFn.describe('Access Control', () => {
-    testFn('redirects non-admin users to home', async ({ userPage }) => {
-      const adminCalls: string[] = [];
-      userPage.on('request', (req) => {
-        if (req.url().includes('/api/v1/admin/')) adminCalls.push(req.url());
-      });
-      await userPage.goto(path);
-      await expectRedirectToHome(userPage);
-      await expect(userPage.getByText('Admin access required')).toBeVisible();
-      expect(adminCalls).toEqual([]);
-    });
-
-    testFn('redirects unauthenticated users to login', async ({ page }) => {
-      await clearSession(page);
-      await page.goto(path);
-      await expectRedirectToLogin(page);
-    });
-  });
-}
-
-export function describeAdminCommonTests(testFn: typeof base, path: AdminPath): void {
-  const route = getAdminRoute(path);
-
-  testFn('displays page with header', async ({ adminPage }) => {
-    await adminPage.goto(path);
-    await expect(adminPage.getByRole('heading', { name: route.pageHeading })).toBeVisible({ timeout: TIMEOUTS.navigation });
-  });
-
-  testFn('shows admin sidebar navigation', async ({ adminPage }) => {
-    await adminPage.goto(path);
-    await expectAdminSidebar(adminPage);
-  });
-
-  testFn('nav link is active in sidebar', async ({ adminPage }) => {
-    await adminPage.goto(path);
-    await expectActiveNavLink(adminPage, route.sidebarLabel);
-  });
-}
-
-export { expect, ADMIN_ROUTES, type AdminPath, type Page };
+export { expect };

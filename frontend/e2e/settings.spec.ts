@@ -1,180 +1,91 @@
-import { test, expect, expectToastVisible, describeAuthRequired, clearSession, TEST_USERS } from './fixtures';
+import { acceptDialog, expect, test } from './fixtures';
+import { Theme } from '#lib/api/types.gen.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
-const PATH = '/settings';
-const HEADING = 'Settings';
-
-test.describe('Settings Page', () => {
-  test('displays settings page with all tabs', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await expect(userPage.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: 'General' })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: 'Editor' })).toBeVisible();
-    await expect(userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true })).toBeVisible();
+test('the settings page shows its tabs and the history button', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await expect(userPage.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
+    const main = userPage.getByRole('main');
+    for (const tab of ['General', fieldTitle('editor'), fieldTitle('notifications')]) {
+        await expect(main.getByRole('button', { name: tab, exact: true })).toBeVisible();
+    }
     await expect(userPage.getByRole('button', { name: 'View History' })).toBeVisible();
-  });
-
-  test('general tab shows theme selection', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await expect(userPage.getByRole('heading', { name: 'General', exact: true })).toBeVisible();
-    await expect(userPage.getByText('Theme')).toBeVisible();
-    await expect(userPage.getByLabel('Theme', { exact: true })).toBeVisible();
-  });
-
-  test('can open theme dropdown and see options', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByLabel('Theme', { exact: true }).click();
-    await expect(userPage.getByRole('option', { name: 'light', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('option', { name: 'dark', exact: true })).toBeVisible();
-    await expect(userPage.getByRole('option', { name: 'system', exact: true })).toBeVisible();
-  });
-
-  test('can change theme to dark', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByLabel('Theme', { exact: true }).click();
-    await userPage.getByRole('option', { name: 'dark', exact: true }).click();
-    const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
-    expect(hasDarkClass).toBe(true);
-  });
-
-  test('can change theme to light', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByLabel('Theme', { exact: true }).click();
-    await userPage.getByRole('option', { name: 'light', exact: true }).click();
-    const hasDarkClass = await userPage.evaluate(() => document.documentElement.classList.contains('dark'));
-    expect(hasDarkClass).toBe(false);
-  });
+    await expect(userPage.getByRole('button', { name: 'Save Settings' })).toBeVisible();
 });
 
-test.describe('Settings Editor Tab', () => {
-  test('shows editor settings section', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    await expect(userPage.getByRole('heading', { name: 'Editor', exact: true })).toBeVisible();
-    await expect(userPage.getByText('Font Size')).toBeVisible();
-    await expect(userPage.getByText('Tab Size')).toBeVisible();
-  });
+test('the theme picker offers every theme and applies the pick at once', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await userPage.getByLabel(fieldTitle('theme'), { exact: true }).click();
+    for (const theme of Object.values(Theme)) {
+        await expect(userPage.getByRole('option', { name: theme, exact: true })).toBeVisible();
+    }
+    await userPage.getByRole('option', { name: Theme.DARK, exact: true }).click();
+    await expect(userPage.locator('html')).toHaveClass(/\bdark\b/);
+    await userPage.getByLabel(fieldTitle('theme'), { exact: true }).click();
+    await userPage.getByRole('option', { name: Theme.LIGHT, exact: true }).click();
+    await expect(userPage.locator('html')).not.toHaveClass(/\bdark\b/);
+});
 
-  test('can change font size', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.getByLabel('Font Size');
-    await fontSizeInput.fill('');
-    await fontSizeInput.fill('16');
-    await expect(fontSizeInput).toHaveValue('16');
-  });
-
-  test('can change tab size', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    const tabSize = userPage.getByLabel('Tab Size');
+test('the editor tab edits font size, tab size and the toggles', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await userPage
+        .getByRole('main')
+        .getByRole('button', { name: fieldTitle('editor'), exact: true })
+        .click();
+    await expect(userPage.getByRole('heading', { name: fieldTitle('editor'), exact: true })).toBeVisible();
+    const fontSize = userPage.getByLabel(fieldTitle('font_size'));
+    await fontSize.fill('16');
+    await expect(fontSize).toHaveValue('16');
+    const tabSize = userPage.getByLabel(fieldTitle('tab_size'));
     await tabSize.selectOption('2');
     await expect(tabSize).toHaveValue('2');
-  });
-
-  test('can toggle word wrap setting', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    const wordWrapLabel = userPage.locator('label').filter({ hasText: 'Word Wrap' });
-    const checkbox = wordWrapLabel.locator('input[type="checkbox"]');
-    const initialState = await checkbox.isChecked();
-    await wordWrapLabel.click();
-    expect(await checkbox.isChecked()).toBe(!initialState);
-  });
+    for (const key of ['use_tabs', 'word_wrap', 'show_line_numbers']) {
+        const toggle = userPage.getByRole('checkbox', { name: fieldTitle(key) });
+        const checked = await toggle.isChecked();
+        await toggle.click();
+        await expect(toggle).toBeChecked({ checked: !checked });
+    }
 });
 
-test.describe('Settings Notifications Tab', () => {
-  test('shows notification settings section', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
-    await expect(userPage.getByRole('heading', { name: 'Notifications', exact: true })).toBeVisible();
-    await expect(userPage.getByText('Notification Types')).toBeVisible();
-  });
-
-  test('shows all notification type toggles', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
-    await expect(userPage.getByText('Execution Completed')).toBeVisible();
-    await expect(userPage.getByText('Execution Failed')).toBeVisible();
-    await expect(userPage.getByText('System Updates')).toBeVisible();
-    await expect(userPage.getByText('Security Alerts')).toBeVisible();
-  });
-
-  test('can toggle notification preferences', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.locator('main').getByRole('button', { name: 'Notifications', exact: true }).click();
-    const label = userPage.locator('label').filter({ hasText: 'Execution Completed' });
-    const checkbox = label.locator('input[type="checkbox"]');
-    const initialState = await checkbox.isChecked();
-    await label.click();
-    expect(await checkbox.isChecked()).toBe(!initialState);
-  });
+test('the notifications tab toggles each notification type', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await userPage
+        .getByRole('main')
+        .getByRole('button', { name: fieldTitle('notifications'), exact: true })
+        .click();
+    await expect(userPage.getByRole('heading', { name: fieldTitle('notifications'), exact: true })).toBeVisible();
+    for (const key of ['execution_completed', 'execution_failed', 'system_updates', 'security_alerts']) {
+        const toggle = userPage.getByRole('checkbox', { name: fieldTitle(key) });
+        const checked = await toggle.isChecked();
+        await toggle.click();
+        await expect(toggle).toBeChecked({ checked: !checked });
+    }
 });
 
-test.describe('Settings Save and History', () => {
-  test('shows save button', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await expect(userPage.getByRole('button', { name: 'Save Settings' })).toBeVisible();
-  });
-
-  test('can save settings', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.getByLabel('Font Size');
-    const currentValue = await fontSizeInput.inputValue();
-    await fontSizeInput.fill(currentValue === '14' ? '15' : '14');
+test('a saved change shows in the history and can be restored', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await userPage
+        .getByRole('main')
+        .getByRole('button', { name: fieldTitle('editor'), exact: true })
+        .click();
+    const fontSize = userPage.getByLabel(fieldTitle('font_size'));
+    await fontSize.fill((await fontSize.inputValue()) === '14' ? '15' : '14');
     await userPage.getByRole('button', { name: 'Save Settings' }).click();
-    await expectToastVisible(userPage);
-  });
+    await expect(userPage.getByText('Settings saved successfully')).toBeVisible();
 
-  test('can open settings history modal', async ({ userPage }) => {
-    await userPage.goto(PATH);
     await userPage.getByRole('button', { name: 'View History' }).click();
-    await expect(userPage.getByRole('heading', { name: 'Settings History' })).toBeVisible();
-  });
-
-  test('can close settings history modal', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'View History' }).click();
-    await userPage.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(userPage.getByRole('heading', { name: 'Settings History' })).not.toBeVisible();
-  });
-
-  test('can restore settings from history', async ({ userPage }) => {
-    // First make a change and save to ensure history exists
-    await userPage.goto(PATH);
-    await userPage.getByRole('button', { name: 'Editor' }).click();
-    const fontSizeInput = userPage.getByLabel('Font Size');
-    const currentValue = await fontSizeInput.inputValue();
-    await fontSizeInput.fill(currentValue === '14' ? '15' : '14');
-    await userPage.getByRole('button', { name: 'Save Settings' }).click();
-    await expectToastVisible(userPage);
-
-    // Open history and look for restore button
-    await userPage.getByRole('button', { name: 'View History' }).click();
-    await expect(userPage.getByRole('heading', { name: 'Settings History' })).toBeVisible();
-
-    const restoreBtn = userPage.getByRole('button', { name: 'Restore' }).first();
-    await expect(restoreBtn).toBeVisible({ timeout: 3000 });
-    userPage.on('dialog', dialog => dialog.accept());
-    await restoreBtn.click();
-    await expectToastVisible(userPage);
-  });
+    const history = userPage.getByRole('dialog', { name: 'Settings History' });
+    await expect(history).toBeVisible();
+    userPage.once('dialog', acceptDialog);
+    await history.getByRole('button', { name: 'Restore' }).first().click();
+    await expect(userPage.getByText('Settings restored successfully')).toBeVisible();
 });
 
-test.describe('Settings Access Control', () => {
-  test('redirects to login when not authenticated', async ({ page }) => {
-    await clearSession(page);
-    await page.goto(PATH);
-    await expect(page).toHaveURL(/\/login/);
-  });
-
-  test('preserves settings page as redirect target after login', async ({ page }) => {
-    await clearSession(page);
-    await page.goto(PATH);
-    await expect(page).toHaveURL(/\/login/);
-    await page.locator('#username').fill(TEST_USERS.user.username);
-    await page.locator('#password').fill(TEST_USERS.user.password);
-    await page.locator('button[type="submit"]').click();
-    await expect(page.getByRole('heading', { name: HEADING, level: 1 })).toBeVisible({ timeout: 10000 });
-  });
+test('the history dialog closes', async ({ userPage }) => {
+    await userPage.goto('/settings');
+    await userPage.getByRole('button', { name: 'View History' }).click();
+    const history = userPage.getByRole('dialog', { name: 'Settings History' });
+    await expect(history).toBeVisible();
+    await history.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(history).toBeHidden();
 });

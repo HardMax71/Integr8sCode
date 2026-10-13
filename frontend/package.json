@@ -19,8 +19,8 @@
         "test:e2e:deps": "playwright install-deps chromium",
         "test:e2e:browsers": "playwright install chromium",
         "stylelint": "stylelint \"src/**/*.css\"",
-        "format": "prettier --write \"src/**/*.{ts,svelte,json}\"",
-        "format:check": "prettier --check \"src/**/*.{ts,svelte,json}\""
+        "format": "prettier --write \"{src,e2e}/**/*.{ts,svelte,json}\"",
+        "format:check": "prettier --check \"{src,e2e}/**/*.{ts,svelte,json}\""
     },
     "imports": {
         "#lib/*": "./src/lib/*",

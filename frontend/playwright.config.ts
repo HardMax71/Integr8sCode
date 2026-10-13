@@ -6,10 +6,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? 2 : undefined,
-  timeout: 10000,  // 10s max per test
+  timeout: 10_000,
   expect: {
-    timeout: 3000,  // 3s for assertions
+    timeout: 3_000,
   },
   reporter: [
     ...(process.env.CI ? [['list'] as const, ['html'] as const, ['github'] as const] : [['list'] as const]),
@@ -38,12 +39,5 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: process.env.CI ? undefined : {
-    command: 'npm run dev',
-    url: 'https://localhost:5001',
-    reuseExistingServer: true,
-    ignoreHTTPSErrors: true,
-    timeout: 120000,
-  },
 });
 // --8<-- [end:config]

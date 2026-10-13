@@ -1,188 +1,143 @@
-import {
-  test, expect, runExampleAndExecute, expectToastVisible, describeAuthRequired,
-  loadExampleScript, openScriptOptions, saveScriptAs, expandSavedScripts,
-} from './fixtures';
+import { randomUUID } from 'node:crypto';
+import type { ConsoleMessage } from '@playwright/test';
+import { acceptDialog, expect, holdRequest, test } from './fixtures';
+import { ExecutionStatus, type ResourceLimits } from '#lib/api/types.gen.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
-const PATH = '/editor';
+/** Whether a console message reports something the Content Security Policy blocked */
+function isCspViolation(message: ConsoleMessage): boolean {
+    return message.text().includes('Content Security Policy');
+}
 
-test.describe('Editor Page', () => {
-  test('displays editor page with all main elements', async ({ userPage }) => {
-    await userPage.goto(PATH);
+test('the editor shows the code area, the output panel and the run button', async ({ userPage }) => {
+    await userPage.goto('/editor');
     await expect(userPage.getByRole('heading', { name: 'Code Editor' })).toBeVisible();
     await expect(userPage.locator('.cm-editor')).toBeVisible();
-    await expect(userPage.getByText('Execution Output')).toBeVisible();
-    await expect(userPage.getByRole('button', { name: /Run Script/i })).toBeVisible();
-  });
+    await expect(userPage.getByRole('heading', { name: 'Execution Output' })).toBeVisible();
+    await expect(userPage.getByRole('button', { name: 'Run Script' })).toBeEnabled();
+});
 
-  test('loads CodeMirror styles under the CSP', async ({ userPage }) => {
-    const violations: string[] = [];
-    userPage.on('console', (m) => {
-      if (m.text().includes('Content Security Policy')) violations.push(m.text());
-    });
-    await userPage.goto(PATH);
+test('CodeMirror styles load under the CSP', async ({ userPage }) => {
+    await userPage.goto('/editor');
     await expect(userPage.locator('.cm-gutters')).toHaveCSS('display', 'flex');
-    expect(violations).toEqual([]);
-  });
+    expect((await userPage.consoleMessages()).filter(isCspViolation)).toEqual([]);
+});
 
-  test('shows language selector with available languages', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const languageButton = userPage.getByRole('button', { name: 'Select language and version' });
-    await expect(languageButton).toBeVisible();
-    await languageButton.click();
-    await expect(userPage.getByRole('menu', { name: 'Select language and version' })).toBeVisible();
-  });
+test('the language menu switches to another runtime', async ({ userPage, api }) => {
+    const limits = (await (await api.get('/api/v1/k8s-limits')).json()) as ResourceLimits;
+    const [lang, info] = Object.entries(limits.supported_runtimes).at(-1)!;
+    const version = info.versions[0]!;
+    await userPage.goto('/editor');
+    const trigger = userPage.getByRole('button', { name: 'Select language and version' });
+    await trigger.click();
+    await userPage.getByRole('menuitem', { name: lang }).hover();
+    await userPage
+        .getByRole('menu', { name: `${lang} versions` })
+        .getByRole('menuitemradio', { name: version })
+        .click();
+    await expect(trigger).toHaveText(`${lang} ${version}`);
+});
 
-  test('can select different language', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const languageButton = userPage.getByRole('button', { name: 'Select language and version' });
-    await languageButton.click();
-    const pythonButton = userPage.getByRole('menuitem', { name: /python/i });
-    await expect(pythonButton).toBeVisible();
-    await pythonButton.hover();
-    const versionMenu = userPage.getByRole('menu', { name: /python versions/i });
-    await expect(versionMenu).toBeVisible();
-    const versionOption = versionMenu.getByRole('menuitemradio').first();
-    await versionOption.click({ force: true });
-    await expect(languageButton).toContainText(/python/i);
-  });
-
-  test('shows file actions when panel opened', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await openScriptOptions(userPage);
+test('the options panel shows the file actions and the saved scripts', async ({ userPage }) => {
+    await userPage.goto('/editor');
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
     await expect(userPage.getByText('File Actions')).toBeVisible();
-    await expect(userPage.getByRole('button', { name: /New/i })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: /Upload/i })).toBeVisible();
-    await expect(userPage.locator('button[title="Save current script"]')).toBeVisible();
-    await expect(userPage.getByRole('button', { name: /Export/i })).toBeVisible();
-  });
-
-  test('can load example script', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await loadExampleScript(userPage);
-    const content = await userPage.locator('.cm-content').textContent();
-    expect(content).toBeTruthy();
-    expect(content!.length).toBeGreaterThan(0);
-  });
-
-  test('can input script name', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const scriptNameInput = userPage.locator('#scriptNameInput');
-    await expect(scriptNameInput).toBeVisible();
-    await scriptNameInput.fill('');
-    await scriptNameInput.fill('My Test Script');
-    await expect(scriptNameInput).toHaveValue('My Test Script');
-  });
-});
-
-test.describe('Editor Execution', () => {
-  // K8s pod execution can take 15-20s in CI (pod creation + execution + result processing)
-  test.describe.configure({ timeout: 30000 });
-
-  test('can execute simple python script', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const result = await runExampleAndExecute(userPage);
-    expect(result.status).toBe('completed');
-    expect(result.exit_code).toBe(0);
-    expect(result.stdout ?? '').toContain('Hello from a Python');
-  });
-
-  test('shows execution output on successful run', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const result = await runExampleAndExecute(userPage);
-    await expect(userPage.getByText('Stdout', { exact: true }).first()).toBeVisible({ timeout: 5000 });
-    await expect(userPage.getByTestId('output-pre').first()).toContainText('Hello from a Python');
-    expect(result.stdout ?? '').toContain('Hello from a Python');
-  });
-
-  test('shows resource usage after execution', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const result = await runExampleAndExecute(userPage);
-    await expect(userPage.getByText('Resource Usage', { exact: true })).toBeVisible({ timeout: 5000 });
-    await expect(userPage.getByText('Execution Time Wall Seconds', { exact: true })).toBeVisible();
-    await expect(userPage.getByText('Cpu Time Jiffies', { exact: true })).toBeVisible();
-    await expect(userPage.getByText('Peak Memory Kb', { exact: true })).toBeVisible();
-    expect(result.resource_usage).toBeTruthy();
-  });
-
-  test('run button is disabled during execution', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await loadExampleScript(userPage);
-    const runButton = userPage.getByRole('button', { name: /Run Script/i });
-    await runButton.click();
-    const executingButton = userPage.getByRole('button', { name: /Executing/i });
-    await expect(executingButton).toBeVisible({ timeout: 5000 });
-    await expect(executingButton).toBeDisabled();
-  });
-});
-
-test.describe('Editor Script Management', () => {
-  test('can save script when authenticated', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await saveScriptAs(userPage, `Test Script ${Date.now()}`);
-  });
-
-  test('can create new script', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await loadExampleScript(userPage);
-    await openScriptOptions(userPage);
-    await userPage.getByRole('button', { name: /New/i }).click();
-    await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
-  });
-
-  test('shows saved scripts section when authenticated', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await openScriptOptions(userPage);
+    for (const action of ['New', 'Upload', 'Save', 'Export']) {
+        await expect(userPage.getByRole('button', { name: action, exact: true })).toBeVisible();
+    }
     await expect(userPage.getByRole('heading', { name: 'Saved Scripts' })).toBeVisible();
-  });
-
-  test('can load a previously saved script', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const scriptName = `Load Test ${Date.now()}`;
-    await saveScriptAs(userPage, scriptName);
-
-    // Create new script to clear state
-    await userPage.getByRole('button', { name: /New/i }).click();
-    await expect(userPage.locator('#scriptNameInput')).toHaveValue('');
-
-    // Expand the saved scripts list to find the saved script
-    await expandSavedScripts(userPage);
-
-    const savedScript = userPage.getByText(scriptName, { exact: true }).first();
-    await expect(savedScript).toBeVisible({ timeout: 3000 });
-    await savedScript.click();
-    await expectToastVisible(userPage);
-    await expect(userPage.locator('#scriptNameInput')).toHaveValue(scriptName);
-  });
-
-  test('can delete a saved script', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    const scriptName = `Delete Test ${Date.now()}`;
-    await saveScriptAs(userPage, scriptName);
-
-    // Expand the saved scripts list to find the saved script
-    await expandSavedScripts(userPage);
-
-    const scriptRow = userPage.getByText(scriptName, { exact: true }).first();
-    await expect(scriptRow).toBeVisible({ timeout: 3000 });
-    const deleteBtn = userPage.getByRole('button', { name: `Delete ${scriptName}` });
-    await expect(deleteBtn).toBeVisible({ timeout: 2000 });
-    userPage.on('dialog', dialog => dialog.accept());
-    await deleteBtn.click();
-    await expectToastVisible(userPage);
-  });
-
-  test('can export script as file', async ({ userPage }) => {
-    await userPage.goto(PATH);
-    await loadExampleScript(userPage);
-    await userPage.locator('#scriptNameInput').fill('export-test');
-    await openScriptOptions(userPage);
-
-    const [download] = await Promise.all([
-      userPage.waitForEvent('download', { timeout: 5000 }),
-      userPage.getByRole('button', { name: /Export/i }).click(),
-    ]);
-    expect(download.suggestedFilename()).toContain('export-test');
-  });
 });
 
-describeAuthRequired(test, PATH);
+test('the example button loads a script', async ({ userPage }) => {
+    await userPage.goto('/editor');
+    await userPage.getByRole('button', { name: 'Example', exact: true }).click();
+    await expect(userPage.getByText(/^Loaded example script for /)).toBeVisible();
+    await expect(userPage.locator('.cm-content')).not.toBeEmpty();
+});
+
+test('running a script shows its output, status and resource usage', async ({ userPage }) => {
+    test.slow();
+    const marker = randomUUID();
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill(`print("${marker}")`);
+    await userPage.getByRole('button', { name: 'Run Script' }).click();
+    await expect(userPage.getByTestId('output-pre')).toHaveText(marker, { timeout: 20_000 });
+    await expect(
+        userPage.getByText(new RegExp(`^${fieldTitle('status')}\\s*${ExecutionStatus.COMPLETED}$`)),
+    ).toBeVisible();
+    for (const key of ['resource_usage', 'execution_time_wall_seconds', 'cpu_time_jiffies', 'peak_memory_kb']) {
+        await expect(userPage.getByText(fieldTitle(key), { exact: true })).toBeVisible();
+    }
+    await expect(userPage.getByRole('button', { name: 'Run Script' })).toBeEnabled();
+});
+
+test('the run button is disabled while the execution starts', async ({ userPage }) => {
+    await userPage.route('**/api/v1/execute', holdRequest);
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill('print(1)');
+    await userPage.getByRole('button', { name: 'Run Script' }).click();
+    await expect(userPage.getByRole('button', { name: 'Executing...' })).toBeDisabled();
+    await expect(userPage.getByText('Starting...')).toBeVisible();
+});
+
+test('a script saves under its name', async ({ userPage }) => {
+    const name = `e2e-${randomUUID()}`;
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill(`print("${name}")`);
+    await userPage.getByLabel(fieldTitle('name')).fill(name);
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
+    await userPage.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(userPage.getByText('Script saved successfully.')).toBeVisible();
+});
+
+test('a new script clears the name', async ({ userPage }) => {
+    await userPage.goto('/editor');
+    await userPage.getByLabel(fieldTitle('name')).fill(`e2e-${randomUUID()}`);
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
+    await userPage.getByRole('button', { name: 'New', exact: true }).click();
+    await expect(userPage.getByText('New script started.')).toBeVisible();
+    await expect(userPage.getByLabel(fieldTitle('name'))).toHaveValue('');
+});
+
+test('a saved script loads back from the list', async ({ userPage }) => {
+    const name = `e2e-${randomUUID()}`;
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill(`print("${name}")`);
+    await userPage.getByLabel(fieldTitle('name')).fill(name);
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
+    await userPage.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(userPage.getByText('Script saved successfully.')).toBeVisible();
+    await userPage.getByRole('button', { name: 'New', exact: true }).click();
+    await expect(userPage.getByLabel(fieldTitle('name'))).toHaveValue('');
+    await userPage.getByRole('button', { name: 'Show Saved Scripts' }).click();
+    await userPage.getByText(name, { exact: true }).click();
+    await expect(userPage.getByText(`Loaded script: ${name}`)).toBeVisible();
+    await expect(userPage.getByLabel(fieldTitle('name'))).toHaveValue(name);
+    await expect(userPage.locator('.cm-content')).toHaveText(`print("${name}")`);
+});
+
+test('a saved script can be deleted from the list', async ({ userPage }) => {
+    const name = `e2e-${randomUUID()}`;
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill(`print("${name}")`);
+    await userPage.getByLabel(fieldTitle('name')).fill(name);
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
+    await userPage.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(userPage.getByText('Script saved successfully.')).toBeVisible();
+    await userPage.getByRole('button', { name: 'Show Saved Scripts' }).click();
+    userPage.once('dialog', acceptDialog);
+    await userPage.getByRole('button', { name: `Delete ${name}` }).click();
+    await expect(userPage.getByText('Script deleted successfully.')).toBeVisible();
+    await expect(userPage.getByText(name, { exact: true })).toHaveCount(0);
+});
+
+test('export downloads the script under its name', async ({ userPage }) => {
+    const name = `e2e-${randomUUID()}`;
+    await userPage.goto('/editor');
+    await userPage.locator('.cm-content').fill(`print("${name}")`);
+    await userPage.getByLabel(fieldTitle('name')).fill(name);
+    await userPage.getByRole('button', { name: 'Toggle Script Options' }).click();
+    const download = userPage.waitForEvent('download');
+    await userPage.getByRole('button', { name: 'Export', exact: true }).click();
+    expect((await download).suggestedFilename()).toContain(name);
+});

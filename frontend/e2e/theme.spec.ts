@@ -1,54 +1,30 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from './fixtures';
 
-async function hasDarkTheme(page: import('@playwright/test').Page): Promise<boolean> {
-  return page.evaluate(() => document.documentElement.classList.contains('dark'));
-}
-
-test.describe('Theme', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.removeItem('app-theme'));
-  });
-
-  test('auto theme follows system light preference', async ({ page }) => {
+test('without a stored choice the theme follows a light system preference', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
-    expect(await hasDarkTheme(page)).toBe(false);
-  });
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+});
 
-  test('auto theme follows system dark preference', async ({ page }) => {
+test('without a stored choice the theme follows a dark system preference', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
-    expect(await hasDarkTheme(page)).toBe(true);
-  });
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+});
 
-  test('explicit dark theme overrides system preference', async ({ page }) => {
+test('the toggle overrides the system preference and the choice survives navigation and reload', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/login');
+    const toggle = page.getByRole('button', { name: 'Toggle theme' });
+    // The toggle goes from system to light, then to dark
+    await toggle.click();
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.setItem('app-theme', 'dark'));
+    await toggle.click();
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await page.getByRole('link', { name: 'create a new account' }).click();
+    await expect(page).toHaveURL(/\/register/);
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await page.reload();
-    await page.waitForLoadState('networkidle');
-    expect(await hasDarkTheme(page)).toBe(true);
-  });
-
-  test('explicit light theme overrides system preference', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.setItem('app-theme', 'light'));
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-    expect(await hasDarkTheme(page)).toBe(false);
-  });
-
-  test('theme persists across page navigation', async ({ page }) => {
-    await page.goto('/login');
-    await page.evaluate(() => localStorage.setItem('app-theme', 'dark'));
-    await page.goto('/register');
-    await page.waitForLoadState('networkidle');
-    const storedTheme = await page.evaluate(() => localStorage.getItem('app-theme'));
-    expect(storedTheme).toBe('dark');
-    expect(await hasDarkTheme(page)).toBe(true);
-  });
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
 });

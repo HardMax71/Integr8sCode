@@ -821,10 +821,11 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded
 
 ### E2E (Playwright)
-- Chromium only, base URL `https://localhost:5001`, `ignoreHTTPSErrors: true` (self-signed certs), `timeout: 10000`, `expect.timeout: 3000`
-- Run through npm scripts: `npm run test:e2e:deps` and `npm run test:e2e:browsers` once, then `npm run test:e2e`. Outside CI the config starts `npm run dev` unless a server is already up
-- Users are seeded by the `user-seed` compose service (`scripts/seed_users.py`) on every `./deploy.sh dev`; rerun it with `docker compose run --rm user-seed`
-- Log in by username: `user` / `user123` and `admin` / `admin123` (`frontend/e2e/fixtures.ts`). The seeded emails are user@integr8scode.com and admin@integr8scode.com
+- Chromium only, base URL `https://localhost:5001`, `ignoreHTTPSErrors: true` (self-signed certs), `timeout: 10_000`, `expect.timeout: 3_000`, `test.slow()` for a test that waits for a pod. In CI one retry, and `failOnFlakyTests` fails a test that passed only on retry
+- Run through npm scripts: `npm run test:e2e:deps` and `npm run test:e2e:browsers` once, then `npm run test:e2e` against the compose stack on :5001 (`npm run dev` can't reach the API from the host)
+- `frontend/e2e/fixtures.ts` registers one account per worker through the API and signs in the seeded `admin` (password from `ADMIN_USER_PASSWORD`, default `admin123`). Each test gets a fresh context: `page` (guest), `userPage` or `adminPage`; `api` is a client signed in as the worker's user and `execution` starts an execution through it
+- Specs are flat `test()` calls with no `describe` wrappers or helpers defined inside functions. Assert with retrying `expect`, never `waitForTimeout` or a polling loop; hold a request with `page.route(url, holdRequest)` to see a loading state. Labels come from `fieldTitle` and option lists from the generated enums and schemas
+- Users are seeded by the `user-seed` compose service (`scripts/seed_users.py`) on every `./deploy.sh dev`; rerun it with `docker compose run --rm user-seed`. For manual checks log in as `user` / `user123` or `admin` / `admin123`
 
 ## CI Gates (All Must Pass)
 

@@ -50,7 +50,7 @@ The orchestrator consumes `execution_requested`, `execution_completed`, `executi
 
 | File | Purpose |
 |------|---------|
-| [`run_saga_orchestrator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_saga_orchestrator.py) | Entry point and APScheduler jobs |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Entry point and APScheduler jobs |
 | [`saga_orchestrator.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saga/saga_orchestrator.py) | Queueing, step loop, compensation, timeouts |
 | [`execution_saga.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/saga/execution_saga.py) | Steps and compensations |
 | [`execution_queue.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/execution_queue.py) | Redis priority queue |

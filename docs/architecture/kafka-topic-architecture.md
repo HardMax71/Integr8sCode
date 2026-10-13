@@ -31,17 +31,17 @@ When the producer first publishes them, execution, pod, command, result and saga
 
 ## Consumer groups
 
-Group IDs are string literals in `app/events/handlers.py`. The `KAFKA_CONSUMER_GROUP_ID` setting in the per-worker TOML files isn't read anywhere ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
+Group IDs are string literals in `app/events/handlers.py`. The `KAFKA_CONSUMER_GROUP_ID` setting in config.toml isn't read anywhere ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)).
 
 | Group | Runs in | Topics |
 |-------|---------|--------|
-| `saga-orchestrator` | saga-orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
-| `k8s-worker` | k8s-worker | `create_pod_command`, `delete_pod_command` |
-| `result-processor` | result-processor | `execution_completed`, `execution_failed`, `execution_timeout`, `pod_scheduled`, `pod_running` |
+| `saga-orchestrator` | worker | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` |
+| `k8s-worker` | worker | `create_pod_command`, `delete_pod_command` |
+| `result-processor` | worker | `execution_completed`, `execution_failed`, `execution_timeout`, `pod_scheduled`, `pod_running` |
 | `notification-service` | API | `execution_completed`, `execution_failed`, `execution_timeout` |
 | `sse-bridge-pool` | API | 17 types: every `execution_*` event except `execution_accepted`, all seven `pod_*` events, `result_stored` and `result_failed` |
 
-Kafka delivers each message to every group that subscribes to the topic, so one `execution_completed` reaches the saga orchestrator, the result processor, the notification service and the SSE bridge. The pod monitor, event-replay and dlq-processor containers only publish.
+Kafka delivers each message to every group that subscribes to the topic, so one `execution_completed` reaches the saga orchestrator, the result processor, the notification service and the SSE bridge. The worker's three groups each get their own copy even though they share a process. The pod monitor and the DLQ job only publish.
 
 Most subscribers use `AckPolicy.ACK`, which commits the offset after the handler returns, even when it raised. The SSE bridge uses `ACK_FIRST` and starts from the latest offset, since a browser only cares about events from now on. The result processor reads one record per poll and starts from the earliest offset.
 
@@ -81,11 +81,11 @@ graph LR
 
 `EventReplayService` reads stored events that match a filter from MongoDB in batches and publishes them again through `UnifiedProducer`, so each one goes back to the topic of its own type. The event store ignores the duplicate `event_id`, so a replay doesn't double the stored history. A session can also write events to a file instead, or go nowhere for a dry test, and the admin can pause, resume or cancel it.
 
-The service runs inside the API process, and a session's live state is kept in that process's memory. With more than one Gunicorn worker, a follow-up call for a session can land in a process that doesn't know it and get a 404. The `target_topics` field of a replay request is accepted and stored but never used. See [Event Replay](../components/workers/event_replay.md).
+The service runs inside the API process, and a session's live state is kept in that process's memory. With more than one Gunicorn worker, a follow-up call for a session can land in a process that doesn't know it and get a 404. The `target_topics` field of a replay request is accepted and stored but never used. See [Event Replay](../components/event-replay.md).
 
 ## Dead letters
 
-The DLQ is a MongoDB collection, `dlq_messages`, not a Kafka topic. `DLQManager.handle_message` stores a failed message there and schedules a retry by the event type's category: execution and command events get 5 retries with exponential backoff from 30 seconds, pod events 3 retries from 60 seconds, result events 3 immediate retries, and everything else 4 retries from 60 seconds. The dlq-processor republishes due messages to their original topic every 10 seconds and publishes `dlq_message_retried`.
+The DLQ is a MongoDB collection, `dlq_messages`, not a Kafka topic. `DLQManager.handle_message` stores a failed message there and schedules a retry by the event type's category: execution and command events get 5 retries with exponential backoff from 30 seconds, pod events 3 retries from 60 seconds, result events 3 immediate retries, and everything else 4 retries from 60 seconds. The worker's DLQ job republishes due messages to their original topic every 10 seconds and publishes `dlq_message_retried`.
 
 `DeadLetterMiddleware` on the k8s worker, result processor, saga orchestrator and notification routers calls `handle_message` when a handler raises. A retry goes back to the original topic with a header naming the failed consumer group, and every other group skips it. See [Dead Letter Queue](../components/dead-letter-queue.md).
 

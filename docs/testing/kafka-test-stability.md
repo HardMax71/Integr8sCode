@@ -4,7 +4,7 @@ Most of what used to make Kafka tests flaky is gone. What's left is how long con
 
 ## No producer to manage
 
-`UnifiedProducer` is a store-then-publish outbox. It writes the event to MongoDB, then publishes through `KafkaEventTransport`, which calls `broker.publish()`. If the publish fails, it marks the stored event as failed to publish and re-raises. It has no Kafka client of its own and nothing to start or stop. The one `KafkaBroker` per process (aiokafka 0.14 under FastStream 0.7.7) is started by `dishka_lifespan` in the API and by FastStream's app runner in the workers.
+`UnifiedProducer` is a store-then-publish outbox. It writes the event to MongoDB, then publishes through `KafkaEventTransport`, which calls `broker.publish()`. If the publish fails, it marks the stored event as failed to publish and re-raises. It has no Kafka client of its own and nothing to start or stop. The one `KafkaBroker` per process (aiokafka 0.14 under FastStream 0.7.7) is started by `dishka_lifespan` in the API and by FastStream's app runner in the worker.
 
 Unit tests don't touch Kafka. The E2E suite runs inside the backend container, and its session-scoped `app` fixture enters the real lifespan. So each xdist worker starts one broker with the SSE and notification subscribers, and stops it when the session ends.
 

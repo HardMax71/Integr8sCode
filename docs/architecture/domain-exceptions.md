@@ -100,7 +100,7 @@ return script
 
 The route just calls the service and returns the schema. It has no `None` check and no `HTTPException`.
 
-Kafka handlers in the workers raise the same exceptions, for example `ExecutionNotFoundError` in the result processor. No HTTP mapping applies there: the error goes up to FastStream, whose telemetry middleware records it under `error_type` on `messaging_process_duration_seconds`.
+Kafka handlers in the worker raise the same exceptions, for example `ExecutionNotFoundError` in the result processor. No HTTP mapping applies there: the error goes up to FastStream, whose telemetry middleware records it under `error_type` on `messaging_process_duration_seconds`.
 
 ## Testing
 

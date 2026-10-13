@@ -65,63 +65,8 @@ def create_app_container(settings: Settings) -> AsyncContainer:
     )
 
 
-def create_result_processor_container(settings: Settings) -> AsyncContainer:
-    """Create a minimal DI container for the ResultProcessor worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
-        RuntimeSettingsProvider(),
-        ResultProcessorProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_k8s_worker_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the KubernetesWorker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
-        KubernetesProvider(),
-        K8sWorkerProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_pod_monitor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the PodMonitor worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
-        KafkaServicesProvider(),
-        KubernetesProvider(),
-        PodMonitorProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the SagaOrchestrator worker."""
+def create_worker_container(settings: Settings) -> AsyncContainer:
+    """Create the DI container for the worker process."""
     return make_async_container(
         SettingsProvider(),
         LoggingProvider(),
@@ -134,40 +79,11 @@ def create_saga_orchestrator_container(settings: Settings) -> AsyncContainer:
         DLQProvider(),
         ExecutionQueueProvider(),
         RuntimeSettingsProvider(),
+        KafkaServicesProvider(),
+        KubernetesProvider(),
+        K8sWorkerProvider(),
+        PodMonitorProvider(),
+        ResultProcessorProvider(),
         SagaOrchestratorProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_event_replay_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the EventReplay worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
-        SSEProvider(),
-        EventReplayProvider(),
-        context={Settings: settings},
-    )
-
-
-def create_dlq_processor_container(settings: Settings) -> AsyncContainer:
-    """Create DI container for the DLQ processor worker."""
-    return make_async_container(
-        SettingsProvider(),
-        LoggingProvider(),
-        BrokerProvider(),
-        RedisProvider(),
-        CoreServicesProvider(),
-        MetricsProvider(),
-        RepositoryProvider(),
-        MessagingProvider(),
-        DLQProvider(),
         context={Settings: settings},
     )

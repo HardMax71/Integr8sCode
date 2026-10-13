@@ -1,17 +1,17 @@
 # Log aggregation (Loki)
 
-Loki stores the logs of the backend and all six workers so you can query them in Grafana across processes and time. It runs only with the `observability` compose profile. Without it, logs stay on container stderr for `docker compose logs`.
+Loki stores the logs of the backend and the worker so you can query them in Grafana across processes and time. It runs only with the `observability` compose profile. Without it, logs stay on container stderr for `docker compose logs`.
 
 ```mermaid
 flowchart LR
-    Proc["backend and workers"] -->|"OTLP gRPC"| Collector["OTel Collector :4317"]
+    Proc["backend and worker"] -->|"OTLP gRPC"| Collector["OTel Collector :4317"]
     Collector -->|"otlp_http/loki"| Loki["Loki :3100/otlp"]
     Loki --> Grafana
 ```
 
 ## Export from Python
 
-`setup_log_exporter` in [`app/core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) builds an OTel `LoggerProvider` with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter`, then adds a `LoggingHandler` to the root logger. The handler carries the same `RedactingFilter` as the stderr handler, so only redacted text leaves the process. The backend calls it in `create_app`, and each worker calls it right after `setup_logger` in its `main()`.
+`setup_log_exporter` in [`app/core/logging.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) builds an OTel `LoggerProvider` with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter`, then adds a `LoggingHandler` to the root logger. The handler carries the same `RedactingFilter` as the stderr handler, so only redacted text leaves the process. The backend calls it in `create_app`, and the worker calls it right after `setup_logger` in its `main()`.
 
 The only switch is `OTEL_EXPORTER_OTLP_ENDPOINT`: empty means no export. config.toml sets it to `http://otel-collector:4317`; config.test.toml leaves it unset.
 
@@ -37,7 +37,7 @@ The container has a 256m memory limit, keeps data in the `loki_data` volume and 
 
 Two things don't work as intended today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)).
 
-Every process logs as `service_name="integr8scode-backend"`. The per-worker `config.<worker>.toml` files only override `TRACING_SERVICE_NAME`, not `SERVICE_NAME`, and the collector's `resource` processor copies from a `service_name` attribute that doesn't exist. So the API and all six workers share one `service_name` label (Loki tells their streams apart by `service_instance_id`), and a selector such as `{service_name="integr8scode-saga-orchestrator"}` returns nothing.
+Every process logs as `service_name="integr8scode-backend"`. `config.worker.toml` only overrides `TRACING_SERVICE_NAME`, not `SERVICE_NAME`, and the collector's `resource` processor copies from a `service_name` attribute that doesn't exist. So the API and the worker share one `service_name` label (Loki tells their streams apart by `service_instance_id`), and a selector such as `{service_name="integr8scode-worker"}` returns nothing.
 
 The Loki datasource has a derived field that should link `trace_id` to Jaeger, but its regex is `"trace_id":"(\w+)"` and structlog writes `"trace_id": "..."` with a space after the colon. The link never appears.
 

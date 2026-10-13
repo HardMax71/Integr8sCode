@@ -50,7 +50,7 @@ Executor pods also carry the label `kueue.x-k8s.io/queue-name: executor-queue`, 
 
 | File | Purpose |
 |------|---------|
-| [`run_k8s_worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_k8s_worker.py) | Entry point |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Entry point, startup setup |
 | [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/worker.py) | Command handlers, namespace policy, pre-puller |
 | [`pod_builder.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/k8s_worker/pod_builder.py) | ConfigMap and pod spec |
 | [`runtime_registry.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/runtime_registry.py) | Languages, images, per-language pod settings |

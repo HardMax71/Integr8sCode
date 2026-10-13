@@ -35,10 +35,7 @@
           - backend/app/services/result_processor/**
           - backend/app/runtime_registry.py
           - backend/app/scripts/**
-          - backend/workers/run_k8s_worker.py
-          - backend/workers/run_pod_monitor.py
-          - backend/workers/run_result_processor.py
-          - backend/workers/run_saga_orchestrator.py
+          - backend/app/worker.py
 
 "area: events":
   - changed-files:
@@ -50,8 +47,6 @@
           - backend/app/services/idempotency/**
           - backend/app/services/event_replay/**
           - backend/app/services/event_service.py
-          - backend/workers/run_dlq_processor.py
-          - backend/workers/run_event_replay.py
 
 "area: realtime":
   - changed-files:

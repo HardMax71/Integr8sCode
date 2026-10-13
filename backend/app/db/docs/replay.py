@@ -81,4 +81,5 @@ class ReplaySessionDocument(Document):
         indexes = [
             IndexModel([("status", 1)]),
             IndexModel([("replay_id", 1)]),
+            IndexModel([("completed_at", 1)], expireAfterSeconds=48 * 3600),
         ]

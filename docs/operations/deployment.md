@@ -1,6 +1,6 @@
 # Deployment
 
-Everything runs from one docker-compose.yaml: the backend, the frontend, six workers, MongoDB, Redis, Kafka and the optional observability stack. The workers reuse the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and workers reach it through a kubeconfig that the cert-generator container writes.
+Everything runs from one docker-compose.yaml: the backend, the frontend, the worker, MongoDB, Redis, Kafka and the optional observability stack. The worker reuses the backend image with a different `command:`, so there is one application image to build. Kubernetes only runs the executor pods; the backend and the worker reach it through a kubeconfig that the cert-generator container writes.
 
 `backend/Dockerfile.base` is a two-stage build on `python:3.14-slim`. The builder stage runs `uv sync --locked --no-dev --no-install-project --no-build`, and the final stage copies only the virtualenv plus a few runtime libraries. `backend/Dockerfile` adds the application code on top and starts gunicorn with uvicorn workers on port 443. The frontend image builds the Svelte app with `node:26-alpine` and serves it from `nginx:1.31-alpine`, see [Nginx configuration](nginx-configuration.md).
 
@@ -22,7 +22,7 @@ Everything runs from one docker-compose.yaml: the backend, the frontend, six wor
 ./deploy.sh dev --debug          # all of the above plus Kafdrop
 ```
 
-The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the six workers. A few one-shot containers run first and exit: `shared-ca` prepares the shared CA volume, `cert-generator` writes TLS certs and `backend/kubeconfig.yaml`, and `user-seed` creates the default accounts. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
+The core stack is MongoDB, Redis, Kafka (KRaft, no ZooKeeper), the backend, the frontend and the worker. A few one-shot containers run first and exit: `shared-ca` prepares the shared CA volume, `cert-generator` writes TLS certs and `backend/kubeconfig.yaml`, and `user-seed` creates the default accounts. Kafka creates topics on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE`). Topic names are the event types themselves, such as `execution_requested`, with no prefix.
 
 | Service            | URL                     | Needs                         |
 |--------------------|-------------------------|-------------------------------|
@@ -45,7 +45,7 @@ The seed job creates `user` / `user123` and `admin` / `admin123`, and every run 
 DEFAULT_USER_PASSWORD=mypass ADMIN_USER_PASSWORD=myadmin ./deploy.sh dev
 ```
 
-There's no hot reload. Gunicorn runs without `--reload` and the frontend is an nginx production build. The backend and workers bind-mount `backend/app` and `backend/workers`, so a Python change needs `docker compose restart backend` (and the affected workers). A frontend change needs `docker compose up -d --build frontend`.
+There's no hot reload. Gunicorn runs without `--reload` and the frontend is an nginx production build. The backend and the worker bind-mount `backend/app`, so a Python change needs `docker compose restart backend worker`. A frontend change needs `docker compose up -d --build frontend`.
 
 Data lives in named volumes:
 
@@ -67,7 +67,7 @@ Data lives in named volumes:
 | Grafana          | `curl localhost:3000/api/health`                                            |
 | Victoria Metrics | `wget http://127.0.0.1:8428/-/healthy`                                      |
 
-Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, Kafdrop and the workers have no healthcheck either.
+Loki has none because its image is distroless and has no shell, so Grafana and the collector wait for `service_started`. Jaeger, the OTel Collector, Kafdrop and the worker have no healthcheck either.
 
 ## Memory limits
 
@@ -80,7 +80,7 @@ Every long-running service except Kafdrop has a `mem_limit`.
 | Kafka                | 1280m       | `-Xms256m -Xmx1g`                                           |
 | Backend              | 768m        | `WEB_CONCURRENCY` gunicorn workers (default 2)              |
 | Frontend             | 128m        |                                                             |
-| Each of six workers  | 160m        |                                                             |
+| Worker               | 256m        | idles near 150 MiB                                          |
 | Grafana              | 512m        | Grafana 13 idles near 300 MiB                               |
 | Jaeger               | 256m        | in-memory storage                                           |
 | Loki                 | 256m        |                                                             |
@@ -125,7 +125,7 @@ docker compose exec mongo sh -c 'mongosh -u "$MONGO_INITDB_ROOT_USERNAME" -p "$M
 |-----------------------|------------------------------------|-------------------------------------------------------------|
 | Unknown topic errors  | Kafka not ready yet                | `docker compose logs kafka`                                 |
 | MongoDB auth errors   | Volume created with other credentials | `MONGO_USER`/`MONGO_PASSWORD` must match what the volume was initialized with |
-| Workers can't reach k8s | Stale kubeconfig after the cluster was reinstalled or its API address changed | `docker compose restart cert-generator`, then restart the workers |
+| Worker can't reach k8s | Stale kubeconfig after the cluster was reinstalled or its API address changed | `docker compose restart cert-generator`, then restart the worker |
 
 List topics from inside the broker:
 
@@ -145,16 +145,16 @@ sudo systemctl stop k3s
 sudo rm -rf /var/lib/rancher/k3s/server/db/ /var/lib/rancher/k3s/server/tls/
 sudo systemctl start k3s
 
-# regenerate the kubeconfig and reconnect the workers
+# regenerate the kubeconfig and reconnect the worker
 docker compose restart cert-generator
-docker compose restart k8s-worker pod-monitor
+docker compose restart worker
 ```
 
 The cluster comes back empty, so Kueue and the `integr8scode` namespace are recreated by cert-generator on that restart. With NordVPN, `nordvpn set lan-discovery enabled` keeps the host reachable from containers. See [k3s#277](https://github.com/k3s-io/k3s/issues/277) and the [k3s certificate docs](https://docs.k3s.io/cli/certificate).
 
 ### k3s certificates expired
 
-k3s issues its certificates for a year and renews them only when it starts. On a server that runs longer than that without a restart, kubectl and the workers fail with `x509: certificate has expired`, and `sudo systemctl restart k3s` fixes it. If k3s then hangs in `activating` and its journal repeats `dynamiclistener [::]:6443: failed to update cert with connection local address: EOF`, the cached serving certificate in /var/lib/rancher/k3s/server/tls/dynamic-cert.json is empty, which happens when the disk fills up. Move that file aside and start k3s again; it writes a new one.
+k3s issues its certificates for a year and renews them only when it starts. On a server that runs longer than that without a restart, kubectl and the worker fail with `x509: certificate has expired`, and `sudo systemctl restart k3s` fixes it. If k3s then hangs in `activating` and its journal repeats `dynamiclistener [::]:6443: failed to update cert with connection local address: EOF`, the cached serving certificate in /var/lib/rancher/k3s/server/tls/dynamic-cert.json is empty, which happens when the disk fills up. Move that file aside and start k3s again; it writes a new one.
 
 ## Pre-built images
 

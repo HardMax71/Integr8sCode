@@ -1,6 +1,6 @@
 # Service lifecycle
 
-Services don't manage their own lifecycle. They get their dependencies through Dishka constructors and expose plain async methods, with no `start()`, `stop()` or background task of their own. Whatever needs starting and stopping is owned by the process entry point: the FastAPI lifespan in `app/core/dishka_lifespan.py` for the API, and `backend/workers/run_*.py` for each worker.
+Services don't manage their own lifecycle. They get their dependencies through Dishka constructors and expose plain async methods, with no `start()`, `stop()` or background task of their own. Whatever needs starting and stopping is owned by the process entry point: the FastAPI lifespan in `app/core/dishka_lifespan.py` for the API, and `app/worker.py` for the worker.
 
 That leaves a short list of things with a lifecycle. The Kafka broker needs `start()` and `stop()`. APScheduler instances need `start()` and `shutdown()`. The Redis client and the Kubernetes `ApiClient` are async generator providers in `app/core/providers.py`, so `container.close()` runs their teardown (`aclose()` and `close()`). The one service that breaks the rule is `EventReplayService`, which creates an `AsyncIOScheduler` per replay session in `start_session` and shuts it down when the session finishes or is cancelled.
 
@@ -20,27 +20,27 @@ On shutdown it stops the scheduler, then the broker, then closes the container. 
 
 gunicorn runs the API with `WEB_CONCURRENCY` workers (2 by default), and each one runs its own lifespan. That means each has its own broker connection, its own notification scheduler and its own in-memory replay sessions.
 
-## Workers
+## Worker process
 
-All six workers follow the same shape. Each loads `Settings(override_path="config.<worker>.toml")`, sets up logging, runs `init_beanie`, builds its own container with `create_<worker>_container`, registers its subscribers if it has any, calls `setup_dishka`, and then blocks on `FastStream(broker, on_startup=[...], after_shutdown=[container.close]).run()`.
+`app/worker.py` loads `Settings(override_path="config.worker.toml")`, sets up logging, runs `init_beanie`, builds its container with `create_worker_container`, registers the k8s worker, result processor and saga routers, calls `setup_dishka`, and then blocks on `FastStream(broker, on_startup=[start], on_shutdown=[stop_scheduler], after_shutdown=[container.close]).run()`.
 
-FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_startup` hooks after. The same goes for shutdown: `on_shutdown` runs before `broker.stop()` and `after_shutdown` after it. Startup work happens before the broker connects. A worker with a scheduler stops it in `on_shutdown`, and every worker closes its container in `after_shutdown`, so Redis and the Kubernetes client stay open until the broker has drained its handlers.
+FastStream 0.7 runs `on_startup` hooks before it starts the broker and `after_startup` hooks after. The same goes for shutdown: `on_shutdown` runs before `broker.stop()` and `after_shutdown` after it. So the startup work happens before the broker connects, the scheduler stops before the broker drains, and the container closes last, which keeps Redis and the Kubernetes client open until the handlers are done.
 
-| Worker | Subscribers | Startup work | Shutdown |
-|--------|-------------|--------------|----------|
-| k8s-worker | `create_pod_command`, `delete_pod_command` | `ensure_namespace_security()` and `ensure_image_pre_puller_daemonset()` | `container.close` |
-| pod-monitor | none | APScheduler runs the watch cycle every 5s | scheduler, then container |
-| result-processor | `execution_completed`, `execution_failed`, `execution_timeout` | none | `container.close` |
-| saga-orchestrator | `execution_requested`, plus completed, failed, timeout and cancelled | APScheduler runs `check_timeouts` every 30s and `try_schedule_from_queue` every 10s | scheduler, then container |
-| dlq-processor | none | APScheduler runs `process_monitoring_cycle` every 10s | scheduler, then container |
-| event-replay | none | APScheduler runs `cleanup_old_sessions(older_than_hours=48)` every 6 hours | scheduler, then container |
+`start` calls `ensure_namespace_security()` and `ensure_image_pre_puller_daemonset()`, then schedules four APScheduler jobs, each with `max_instances=1`:
 
-The pod monitor's watch cycle calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error that ends the cycle is counted in the watch error and reconnect metrics. An error while handling one pod event is caught inside `PodMonitor` and counted as a watch error only, and the watch carries on.
+| Job | Interval | Calls |
+|-----|----------|-------|
+| `pod_monitor_watch` | 5s | the watch cycle around `PodMonitor.watch_pod_events()` |
+| `saga_try_schedule` | 10s | `SagaOrchestrator.try_schedule_from_queue` |
+| `saga_check_timeouts` | 30s | `SagaOrchestrator.check_timeouts` |
+| `dlq_monitor_retries` | 10s | `DLQManager.process_monitoring_cycle` |
 
-Replay sessions are created and driven through the API's replay routes, so they live in the API process. The event-replay worker never holds a session in memory, and its cleanup job only deletes terminal sessions older than 48 hours from MongoDB.
+The watch cycle calls `watch_pod_events()`. On a 410 from the API server it resets the resource version so the next cycle starts a fresh watch, and every error that ends the cycle is counted in the watch error and reconnect metrics. An error while handling one pod event is caught inside `PodMonitor` and counted as a watch error only, and the watch carries on.
+
+Replay sessions are created and driven through the API's replay routes, so they live in the API process. MongoDB deletes finished sessions 48 hours after they complete, through a TTL index on `completed_at`.
 
 ## Adding a service or worker
 
 A new service is a plain class with constructor dependencies and async methods. If it needs periodic work, add an APScheduler job in the entry point that owns it and keep the service unaware of scheduling.
 
-A new worker copies one of the `run_*.py` files. Give it a `config.<worker>.toml`, a container factory in `app/core/container.py`, and a router factory in `app/events/handlers.py` if it consumes events. Include the router and call `setup_dishka` before `app.run()`. Stop schedulers in `on_shutdown` and close the container in `after_shutdown`, so nothing the handlers use closes before the broker stops.
+New background work goes into the worker rather than a new process. A consumer gets a router factory in `app/events/handlers.py` with its own `group_id`, included next to the others in `app/worker.py`, and its provider joins `create_worker_container`. A periodic job is one more `add_job` in `start`.

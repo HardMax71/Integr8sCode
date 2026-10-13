@@ -18,13 +18,13 @@ class RuntimeConfig(NamedTuple):
 class PodRuntimeConfig:
     env: dict[str, str] = field(default_factory=dict)
     tmp_size: str = "10Mi"
-    min_cpu: str | None = None
-    min_memory: str | None = None
-    min_timeout_seconds: int | None = None
+    min_cpu: str = "0"
+    min_memory: str = "0"
+    min_timeout_seconds: int = 0
 
     def timeout_for(self, configured: int) -> int:
         """The pod's deadline: the configured timeout, raised to this language's minimum."""
-        return max(configured, self.min_timeout_seconds or 0)
+        return max(configured, self.min_timeout_seconds)
 
 
 _QUANTITY = re.compile(r"(\d+(?:\.\d+)?)([KMGT]i|[mkMGT])?")
@@ -54,11 +54,9 @@ def parse_quantity(value: str) -> Decimal:
     return Decimal(match[1]) * _QUANTITY_SCALE[match[2]]
 
 
-def at_least(configured: str, minimum: str | None) -> str:
-    """Return the larger of a configured quantity and an optional minimum."""
-    if minimum is None or parse_quantity(configured) >= parse_quantity(minimum):
-        return configured
-    return minimum
+def at_least(configured: str, minimum: str) -> str:
+    """Return the larger of a configured quantity and a minimum."""
+    return configured if parse_quantity(configured) >= parse_quantity(minimum) else minimum
 
 
 # --8<-- [start:LanguageSpec]

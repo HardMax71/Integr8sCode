@@ -55,7 +55,7 @@ class RuntimeSettingsLoader:
         return LanguageLimitsDomain(
             cpu_limit=at_least(effective.cpu_limit or self._settings.K8S_POD_CPU_LIMIT, pod_config.min_cpu),
             memory_limit=at_least(effective.memory_limit or self._settings.K8S_POD_MEMORY_LIMIT, pod_config.min_memory),
-            execution_timeout=max(effective.max_timeout_seconds, pod_config.min_timeout_seconds or 0),
+            execution_timeout=pod_config.timeout_for(effective.max_timeout_seconds),
         )
 
     def invalidate_cache(self) -> None:

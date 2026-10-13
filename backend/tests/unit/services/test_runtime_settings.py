@@ -165,14 +165,14 @@ def test_parse_quantity_rejects_unsupported_formats(quantity: str) -> None:
 @pytest.mark.parametrize(
     ("configured", "minimum", "expected"),
     [
-        ("128Mi", None, "128Mi"),
+        ("128Mi", "0", "128Mi"),
         ("128Mi", "320Mi", "320Mi"),
         ("1Gi", "320Mi", "1Gi"),
         ("500m", "1", "1"),
         ("2000m", "1000m", "2000m"),
     ],
 )
-def test_at_least(configured: str, minimum: str | None, expected: str) -> None:
+def test_at_least(configured: str, minimum: str, expected: str) -> None:
     assert at_least(configured, minimum) == expected
 
 
@@ -211,7 +211,6 @@ async def test_language_limits(admin: SystemSettings, language: str, expected: L
 
 async def test_language_limits_raise_go_to_its_minimums() -> None:
     go = POD_RUNTIME_CONFIGS["go"]
-    assert go.min_cpu and go.min_memory and go.min_timeout_seconds
     loader, _ = _make_loader(
         repo_return=SystemSettings(cpu_limit="500m", memory_limit="128Mi", max_timeout_seconds=5)
     )

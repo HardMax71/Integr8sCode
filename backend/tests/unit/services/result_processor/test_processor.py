@@ -117,7 +117,7 @@ class TestHandleExecutionCompleted:
         ("lang", "peak_memory_kb", "expected_percent"),
         [
             ("python", 64 * 1024, 50.0),
-            ("go", int(parse_quantity(POD_RUNTIME_CONFIGS["go"].min_memory or "0")) // 2048, 50.0),
+            ("go", int(parse_quantity(POD_RUNTIME_CONFIGS["go"].min_memory)) // 2048, 50.0),
         ],
     )
     async def test_memory_percent_uses_effective_language_limit(

@@ -349,40 +349,17 @@ class EventReplayService:
             self.logger.error("No target file path specified")
             return False
 
-        max_attempts = config.retry_attempts if config.retry_failed else 1
-
-        def _log_retry(state: RetryCallState) -> None:
-            self.logger.error(
-                "Failed to replay event",
-                attempt=state.attempt_number,
-                max_attempts=max_attempts,
-                error=str(state.outcome.exception() if state.outcome else None),
-            )
-
         retrying = AsyncRetrying(
             retry=retry_if_exception_type(_DISPATCH_ERRORS),
-            stop=stop_after_attempt(max_attempts),
+            stop=stop_after_attempt(config.retry_attempts if config.retry_failed else 1),
             wait=wait_exponential(max=10),
-            before_sleep=_log_retry,
+            before_sleep=self._log_replay_retry,
             reraise=True,
         )
 
-        async def _dispatch() -> None:
-            match config.target:
-                case ReplayTarget.KAFKA:
-                    if not config.preserve_timestamps:
-                        event.timestamp = datetime.now(timezone.utc)
-                    await self._producer.produce(event_to_produce=event, key=event.aggregate_id or event.event_id)
-                case ReplayTarget.FILE:
-                    await self._write_event_to_file(event, config.target_file_path)  # type: ignore[arg-type]
-                case ReplayTarget.TEST:
-                    pass
-                case _:
-                    raise ValueError(f"Unknown replay target: {config.target}")
-
         success = False
         try:
-            await retrying(_dispatch)
+            await retrying(self._dispatch, event, config)
             success = True
         except _DISPATCH_ERRORS:
             return False
@@ -390,6 +367,29 @@ class EventReplayService:
             # Unexpected errors still propagate to _dispatch_next, but count against the target first
             self._metrics.record_replay_by_target(config.target, success=success)
         return True
+
+    def _log_replay_retry(self, state: RetryCallState) -> None:
+        """Log a failed replay attempt; the retried call's arguments are the event and the session's config."""
+        config: ReplayConfig = state.args[1]
+        self.logger.error(
+            "Failed to replay event",
+            attempt=state.attempt_number,
+            max_attempts=config.retry_attempts if config.retry_failed else 1,
+            error=str(state.outcome.exception() if state.outcome else None),
+        )
+
+    async def _dispatch(self, event: DomainEvent, config: ReplayConfig) -> None:
+        match config.target:
+            case ReplayTarget.KAFKA:
+                if not config.preserve_timestamps:
+                    event.timestamp = datetime.now(timezone.utc)
+                await self._producer.produce(event_to_produce=event, key=event.aggregate_id or event.event_id)
+            case ReplayTarget.FILE:
+                await self._write_event_to_file(event, config.target_file_path)  # type: ignore[arg-type]
+            case ReplayTarget.TEST:
+                pass
+            case _:
+                raise ValueError(f"Unknown replay target: {config.target}")
 
     async def _write_event_to_file(self, event: DomainEvent, file_path: str) -> None:
         if file_path not in self._file_locks:

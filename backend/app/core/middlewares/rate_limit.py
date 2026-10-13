@@ -69,16 +69,7 @@ class RateLimitMiddleware:
             await response(scope, receive, send)
             return
 
-        # Add rate limit headers to response
-        async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                headers = MutableHeaders(scope=message)
-                headers["X-RateLimit-Limit"] = str(status.limit)
-                headers["X-RateLimit-Remaining"] = str(status.remaining)
-                headers["X-RateLimit-Reset"] = str(int(status.reset_at.timestamp()))
-            await send(message)
-
-        await self.app(scope, receive, send_wrapper)
+        await self.app(scope, receive, _RateLimitHeadersSend(send, status))
 
     # --8<-- [start:extract_user_id]
     @staticmethod
@@ -106,3 +97,19 @@ class RateLimitMiddleware:
         return JSONResponse(
             ErrorResponse(status=429, detail="Rate limit exceeded").model_dump(), status_code=429, headers=headers
         )
+
+
+class _RateLimitHeadersSend:
+    """One allowed request's ASGI send, adding where it stands against its limit when the response starts."""
+
+    def __init__(self, send: Send, status: RateLimitStatus) -> None:
+        self.send = send
+        self.status = status
+
+    async def __call__(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = MutableHeaders(scope=message)
+            headers["X-RateLimit-Limit"] = str(self.status.limit)
+            headers["X-RateLimit-Remaining"] = str(self.status.remaining)
+            headers["X-RateLimit-Reset"] = str(int(self.status.reset_at.timestamp()))
+        await self.send(message)

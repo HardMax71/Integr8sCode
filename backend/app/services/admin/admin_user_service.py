@@ -1,5 +1,4 @@
 import math
-from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import structlog
@@ -14,7 +13,6 @@ from app.domain.rate_limit import (
     RateLimitUpdateResult,
     UserRateLimit,
     UserRateLimitsResult,
-    UserRateLimitSummary,
     UserRateLimitUpdate,
 )
 from app.domain.user import (
@@ -70,13 +68,15 @@ class AdminUserService:
         exec_stats = await self._executions.get_execution_stats(user_id=user_id, time_range=(start, now))
         by_status = exec_stats.get("by_status", {}) or {}
 
-        def _count(status: ExecutionStatus) -> int:
-            return int(by_status.get(status, 0) or 0)
-
-        succeeded = _count(ExecutionStatus.COMPLETED)
-        failed = _count(ExecutionStatus.FAILED)
-        timeout = _count(ExecutionStatus.TIMEOUT)
-        cancelled = _count(ExecutionStatus.CANCELLED)
+        succeeded, failed, timeout, cancelled = (
+            int(by_status.get(status, 0) or 0)
+            for status in (
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.TIMEOUT,
+                ExecutionStatus.CANCELLED,
+            )
+        )
         derived = DerivedCountsDomain(
             succeeded=succeeded,
             failed=failed,
@@ -171,21 +171,21 @@ class AdminUserService:
         Returns:
             The ids to keep, or None to keep everyone, and the ids to drop.
         """
-        filters: list[tuple[bool | None, Callable[[UserRateLimitSummary], bool]]] = [
-            (bypass_rate_limit, lambda s: s.bypass_rate_limit),
-            (has_custom_limits, lambda s: s.has_custom_limits),
-            (custom_multiplier, lambda s: not math.isclose(s.global_multiplier, 1.0)),
-        ]
-        if all(wanted is None for wanted, _ in filters):
+        filters = (bypass_rate_limit, has_custom_limits, custom_multiplier)
+        if all(wanted is None for wanted in filters):
             return None, set()
 
         summaries = await self._rate_limits.get_override_summaries()
+        differing = (
+            {s.user_id for s in summaries if s.bypass_rate_limit},
+            {s.user_id for s in summaries if s.has_custom_limits},
+            {s.user_id for s in summaries if not math.isclose(s.global_multiplier, 1.0)},
+        )
         keep: set[str] | None = None
         drop: set[str] = set()
-        for wanted, differs in filters:
+        for wanted, matching in zip(filters, differing, strict=True):
             if wanted is None:
                 continue
-            matching = {s.user_id for s in summaries if differs(s)}
             if wanted:
                 keep = matching if keep is None else keep & matching
             else:

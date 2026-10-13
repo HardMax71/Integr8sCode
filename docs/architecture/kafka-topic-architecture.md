@@ -9,14 +9,10 @@ await self._transport.publish(event_to_produce, event_to_produce.event_type, key
 That line in `UnifiedProducer.produce` is the whole routing layer. Subscribers name the same enum member:
 
 ```python
-@broker.subscriber(
-    EventType.EXECUTION_REQUESTED,
-    group_id="saga-orchestrator",
-    ack_policy=AckPolicy.ACK,
-)
-async def on_execution_requested(
-    body: ExecutionRequestedEvent,
-    ...
+async def start_saga(body: ExecutionRequestedEvent, saga: FromDishka[SagaOrchestrator]) -> None:
+    await saga.handle_execution_requested(body)
+
+router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")(start_saga)
 ```
 
 Each handler gets exactly one typed model. Nobody decodes a message only to drop it because the type doesn't match.

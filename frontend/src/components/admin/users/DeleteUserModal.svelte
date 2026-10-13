@@ -29,7 +29,7 @@
 </script>
 
 <Modal open title="Delete User" {onClose} size="sm">
-    <p class="mb-4 text-fg-default dark:text-dark-fg-default">
+    <p class="mb-4 text-fg">
         Are you sure you want to delete user <strong>{user.username}</strong>?
     </p>
     <div class="mb-4">
@@ -38,11 +38,11 @@
                 type="checkbox"
                 bind:checked={cascade}
                 aria-describedby="cascade-description"
-                class="rounded border-border-default dark:border-dark-border-default"
+                class="rounded border-border"
             />
-            <span class="text-sm text-fg-default dark:text-dark-fg-default">{fieldTitle('cascade')}</span>
+            <span class="text-sm text-fg">{fieldTitle('cascade')}</span>
         </label>
-        <p id="cascade-description" class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted">
+        <p id="cascade-description" class="mt-1 text-xs text-fg-muted">
             Also deletes the user's executions, scripts and other data
         </p>
     </div>

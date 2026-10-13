@@ -136,7 +136,7 @@
     />
 </svelte:head>
 
-<div class="min-h-screen bg-bg-default dark:bg-dark-bg-default">
+<div class="min-h-screen bg-page">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 max-w-4xl">
         {#if settingsQuery.isPending}
             <div class="flex justify-center items-center h-64">
@@ -145,9 +145,7 @@
         {:else}
             <div class="hero-animate-fly-in" style="--fly-y: -20px; --fly-delay: 100ms;">
                 <div class="flex justify-between items-center mb-8">
-                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-fg-default dark:text-dark-fg-default">
-                        Settings
-                    </h1>
+                    <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-fg">Settings</h1>
 
                     <button type="button" onclick={() => (showHistory = true)} class="btn btn-secondary-outline btn-sm">
                         View History
@@ -155,20 +153,14 @@
                 </div>
             </div>
 
-            <div class="flex space-x-1 mb-6 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
+            <div class="flex space-x-1 mb-6 bg-muted p-1 rounded-lg">
                 {#each tabs as tab (tab.id)}
                     <button
                         type="button"
-                        class="flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200"
-                        class:bg-white={activeTab === tab.id}
-                        class:dark:bg-neutral-700={activeTab === tab.id}
-                        class:shadow-xs={activeTab === tab.id}
-                        class:text-primary={activeTab === tab.id}
-                        class:dark:text-primary-light={activeTab === tab.id}
-                        class:text-fg-muted={activeTab !== tab.id}
-                        class:dark:text-dark-fg-muted={activeTab !== tab.id}
-                        class:hover:text-fg-default={activeTab !== tab.id}
-                        class:dark:hover:text-dark-fg-default={activeTab !== tab.id}
+                        class={[
+                            'flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors',
+                            activeTab === tab.id ? 'bg-surface shadow-xs text-accent' : 'text-fg-muted hover:text-fg',
+                        ]}
                         onclick={() => (activeTab = tab.id)}
                     >
                         {tab.label}
@@ -179,15 +171,12 @@
             <form method="post" use:enhance novalidate class="card">
                 <div class="p-6">
                     {#if activeTab === 'general'}
-                        <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">General</h2>
+                        <h2 class="text-xl font-semibold text-fg mb-4">General</h2>
 
                         <Field {form} name="theme">
                             <Control>
                                 {#snippet children({ props })}
-                                    <Label
-                                        class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                        >{fieldTitle('theme')}</Label
-                                    >
+                                    <Label class="block mb-2 text-sm font-medium text-fg">{fieldTitle('theme')}</Label>
                                     <Select.Root
                                         type="single"
                                         value={$formData.theme}
@@ -204,7 +193,7 @@
                                         >
                                             <span class="truncate">{$formData.theme}</span>
                                             <ChevronDown
-                                                class="w-5 h-5 ml-2 shrink-0 text-fg-muted dark:text-dark-fg-muted transition-transform group-data-[state=open]:-rotate-180"
+                                                class="w-5 h-5 ml-2 shrink-0 text-fg-muted transition-transform group-data-[state=open]:-rotate-180"
                                             />
                                         </Select.Trigger>
                                         <Select.Portal>
@@ -221,9 +210,7 @@
                                                         >
                                                             {#snippet children({ selected })}
                                                                 {theme}
-                                                                {#if selected}<Check
-                                                                        class="w-4 h-4 text-primary"
-                                                                    />{/if}
+                                                                {#if selected}<Check class="w-4 h-4 text-accent" />{/if}
                                                             {/snippet}
                                                         </Select.Item>
                                                     {/each}
@@ -235,7 +222,7 @@
                             </Control>
                         </Field>
                     {:else if activeTab === 'editor'}
-                        <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                        <h2 class="text-xl font-semibold text-fg mb-4">
                             {fieldTitle('editor')}
                         </h2>
 
@@ -244,8 +231,7 @@
                                 <Control>
                                     {#snippet children({ props })}
                                         <div class="flex-1 min-w-[100px]">
-                                            <Label
-                                                class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                            <Label class="block mb-2 text-sm font-medium text-fg"
                                                 >{fieldTitle('font_size')}</Label
                                             >
                                             <input
@@ -255,7 +241,7 @@
                                                 bind:value={$formData.editor.font_size}
                                                 class="form-input-standard"
                                             />
-                                            <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+                                            <FieldErrors class="mt-1 text-sm text-danger" />
                                         </div>
                                     {/snippet}
                                 </Control>
@@ -265,8 +251,7 @@
                                 <Control>
                                     {#snippet children({ props })}
                                         <div class="flex-1 min-w-[100px]">
-                                            <Label
-                                                class="block mb-2 text-sm font-medium text-fg-default dark:text-dark-fg-default"
+                                            <Label class="block mb-2 text-sm font-medium text-fg"
                                                 >{fieldTitle('tab_size')}</Label
                                             >
                                             <select
@@ -283,7 +268,7 @@
                             </Field>
                         </div>
 
-                        <div class="my-6 border-t border-border-default dark:border-dark-border-default"></div>
+                        <div class="my-6 border-t border-border"></div>
 
                         <div class="space-y-3">
                             {#each editorToggles as key (key)}
@@ -291,10 +276,7 @@
                                     <Control>
                                         {#snippet children({ props })}
                                             <Label class="settings-toggle">
-                                                <span
-                                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                                    >{fieldTitle(key)}</span
-                                                >
+                                                <span class="text-sm font-medium text-fg">{fieldTitle(key)}</span>
                                                 <input
                                                     {...props}
                                                     type="checkbox"
@@ -307,7 +289,7 @@
                             {/each}
                         </div>
                     {:else if activeTab === 'notifications'}
-                        <h2 class="text-xl font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+                        <h2 class="text-xl font-semibold text-fg mb-4">
                             {fieldTitle('notifications')}
                         </h2>
 
@@ -318,10 +300,7 @@
                                     <Control>
                                         {#snippet children({ props })}
                                             <Label class="settings-toggle">
-                                                <span
-                                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                                                    >{fieldTitle(key)}</span
-                                                >
+                                                <span class="text-sm font-medium text-fg">{fieldTitle(key)}</span>
                                                 <input
                                                     {...props}
                                                     type="checkbox"

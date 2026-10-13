@@ -76,7 +76,7 @@
         onclick={() => onViewDetails(event.event_id)}
         aria-label="View details for event {event.event_id.slice(0, 8)}"
     >
-        <div class="text-xs text-fg-muted dark:text-dark-fg-muted">{formatDateOnly(event.timestamp)}</div>
+        <div class="text-xs text-fg-muted">{formatDateOnly(event.timestamp)}</div>
         <div class="text-sm">{formatTimeOnly(event.timestamp)}</div>
     </button>
 {/snippet}
@@ -95,7 +95,7 @@
         <Tooltip.Portal>
             <Tooltip.Content side="bottom" align="start" sideOffset={6} class="tooltip-content">
                 <div class="font-medium">{event.event_type}</div>
-                <div class="text-neutral-400 text-[10px] font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
+                <div class="text-fg-subtle text-[10px] font-mono mt-0.5">{event.event_id.slice(0, 8)}...</div>
             </Tooltip.Content>
         </Tooltip.Portal>
     </Tooltip.Root>
@@ -106,14 +106,14 @@
         {@const userId = event.metadata.user_id}
         <button
             type="button"
-            class="text-blue-600 dark:text-blue-400 hover:underline text-left font-mono text-xs truncate"
+            class="text-info hover:underline text-left font-mono text-xs truncate"
             title="View user overview"
             onclick={() => onViewUser(userId)}
         >
             {userId}
         </button>
     {:else}
-        <span class="text-fg-muted dark:text-dark-fg-muted">-</span>
+        <span class="text-fg-muted">-</span>
     {/if}
 {/snippet}
 
@@ -126,7 +126,7 @@
         <button
             type="button"
             onclick={() => onPreviewReplay(event.event_id)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded"
+            class="p-1 hover:bg-muted rounded"
             title="Preview replay"
             aria-label="Preview replay"
         >
@@ -135,7 +135,7 @@
         <button
             type="button"
             onclick={() => onReplay(event.event_id)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 dark:text-blue-400"
+            class="p-1 hover:bg-muted rounded text-info"
             title="Replay"
             aria-label="Replay"
         >
@@ -144,7 +144,7 @@
         <button
             type="button"
             onclick={() => onDelete(event.event_id)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 dark:text-red-400"
+            class="p-1 hover:bg-muted rounded text-danger"
             title="Delete"
             aria-label="Delete"
         >

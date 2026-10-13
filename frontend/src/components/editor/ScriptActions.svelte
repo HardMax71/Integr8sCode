@@ -114,7 +114,7 @@
 <input type="file" accept={extensions.join(',')} bind:this={fileInput} class="hidden" onchange={upload} />
 
 <div class="space-y-3">
-    <h4 class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted uppercase tracking-wider">File Actions</h4>
+    <h4 class="text-xs font-medium text-fg-muted uppercase tracking-wider">File Actions</h4>
     <div class="grid grid-cols-2 gap-2">
         <button
             type="button"

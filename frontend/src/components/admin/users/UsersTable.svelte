@@ -60,7 +60,7 @@
         <button
             type="button"
             onclick={() => onEdit(user)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+            class="p-1 hover:bg-muted rounded text-success hover:text-success"
             title="Edit User"
             aria-label="Edit User"
         >
@@ -69,7 +69,7 @@
         <button
             type="button"
             onclick={() => onRateLimits(user)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            class="p-1 hover:bg-muted rounded text-info hover:text-info"
             title="Manage Rate Limits"
             aria-label="Manage Rate Limits"
         >
@@ -78,7 +78,7 @@
         <button
             type="button"
             onclick={() => onDelete(user)}
-            class="p-1 hover:bg-interactive-hover dark:hover:bg-dark-interactive-hover rounded text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+            class="p-1 hover:bg-muted rounded text-danger hover:text-danger"
             title="Delete User"
             aria-label="Delete User"
         >

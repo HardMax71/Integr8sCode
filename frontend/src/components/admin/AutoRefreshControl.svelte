@@ -41,11 +41,9 @@
                 bind:checked={enabled}
                 onchange={() => onEnabledChange?.(enabled)}
                 aria-label="Auto-refresh"
-                class="w-4 h-4 rounded border-border-default text-primary focus:ring-primary"
+                class="w-4 h-4 rounded border-border text-accent focus:ring-primary"
             />
-            <span aria-hidden="true" class="text-sm font-medium text-fg-default dark:text-dark-fg-default"
-                >Auto-refresh</span
-            >
+            <span aria-hidden="true" class="text-sm font-medium text-fg">Auto-refresh</span>
         </div>
 
         {#if enabled}

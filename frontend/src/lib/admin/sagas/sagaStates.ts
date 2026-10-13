@@ -13,37 +13,37 @@ export interface SagaStateConfig {
 export const SAGA_STATES: Record<SagaState, SagaStateConfig> = {
     created: {
         color: 'badge-neutral',
-        bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
+        bgColor: 'bg-muted',
         icon: Plus,
     },
     running: {
         color: 'badge-info',
-        bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+        bgColor: 'bg-info-soft',
         icon: Loader,
     },
     compensating: {
         color: 'badge-warning',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+        bgColor: 'bg-warning-soft',
         icon: TriangleAlert,
     },
     completed: {
         color: 'badge-success',
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        bgColor: 'bg-success-soft',
         icon: CircleCheckBig,
     },
     failed: {
         color: 'badge-danger',
-        bgColor: 'bg-red-50 dark:bg-red-900/20',
+        bgColor: 'bg-danger-soft',
         icon: CircleX,
     },
     timeout: {
         color: 'badge-warning',
-        bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+        bgColor: 'bg-orange-soft',
         icon: Clock,
     },
     cancelled: {
         color: 'badge-neutral',
-        bgColor: 'bg-neutral-50 dark:bg-neutral-900/20',
+        bgColor: 'bg-muted',
         icon: CircleX,
     },
 };

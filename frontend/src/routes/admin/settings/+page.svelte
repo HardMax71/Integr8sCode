@@ -64,9 +64,7 @@
         <Control>
             {#snippet children({ props })}
                 <div>
-                    <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                        >{fieldTitle(name)}</Label
-                    >
+                    <Label class="block text-sm font-medium text-fg-muted mb-1">{fieldTitle(name)}</Label>
                     {#if name === 'log_level'}
                         <select {...props} bind:value={$formData.log_level} class="form-select-standard">
                             {#each Object.values(LogLevel) as level (level)}
@@ -88,7 +86,7 @@
                             class="form-input-standard"
                         />
                     {/if}
-                    <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+                    <FieldErrors class="mt-1 text-sm text-danger" />
                 </div>
             {/snippet}
         </Control>
@@ -97,12 +95,12 @@
 
 <div class="container mx-auto px-4 pb-8">
     <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">System Settings</h1>
+        <h1 class="text-3xl font-bold text-fg">System Settings</h1>
     </div>
 
     <div class="card">
         <div class="p-6">
-            <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">Configuration</h3>
+            <h3 class="text-lg font-semibold text-fg mb-4">Configuration</h3>
 
             {#if settingsQuery.isPending}
                 <div class="flex justify-center items-center h-64">
@@ -111,9 +109,7 @@
             {:else}
                 <form method="post" use:enhance novalidate class="space-y-6">
                     <div>
-                        <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">
-                            Execution Limits
-                        </h4>
+                        <h4 class="text-md font-semibold text-fg mb-3">Execution Limits</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {@render setting('max_timeout_seconds')}
                             {@render setting('memory_limit', 'text')}
@@ -124,9 +120,7 @@
                     </div>
 
                     <div>
-                        <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">
-                            Security Settings
-                        </h4>
+                        <h4 class="text-md font-semibold text-fg mb-3">Security Settings</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {@render setting('password_min_length')}
                             {@render setting('session_timeout_minutes')}
@@ -136,9 +130,7 @@
                     </div>
 
                     <div>
-                        <h4 class="text-md font-semibold text-fg-default dark:text-dark-fg-default mb-3">
-                            Monitoring Settings
-                        </h4>
+                        <h4 class="text-md font-semibold text-fg mb-3">Monitoring Settings</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {@render setting('metrics_retention_days')}
                             {@render setting('log_level')}
@@ -147,9 +139,7 @@
                         </div>
                     </div>
 
-                    <div
-                        class="flex justify-end gap-3 pt-4 border-t border-border-default dark:border-dark-border-default"
-                    >
+                    <div class="flex justify-end gap-3 pt-4 border-t border-border">
                         <button type="button" onclick={resetSettings} class="btn btn-ghost" disabled={busy}>
                             {reset.isPending ? 'Resetting...' : 'Reset to Defaults'}
                         </button>

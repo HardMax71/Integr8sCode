@@ -54,15 +54,11 @@
 
 <div class="editor-grid-container space-y-4 md:space-y-0 md:gap-6" in:fade={{ duration: 300 }}>
     <div class="editor-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 class="text-xl sm:text-2xl font-semibold text-fg-default dark:text-dark-fg-default whitespace-nowrap">
-            Code Editor
-        </h2>
+        <h2 class="text-xl sm:text-2xl font-semibold text-fg whitespace-nowrap">Code Editor</h2>
         <ResourceLimits />
     </div>
 
-    <div
-        class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border-default dark:border-dark-border-default"
-    >
+    <div class="editor-main-code flex flex-col rounded-lg overflow-hidden shadow-md border border-border">
         <EditorToolbar />
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
@@ -74,8 +70,8 @@
                 <div
                     class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none"
                 >
-                    <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default">Editor is Empty</h3>
-                    <p class="text-sm text-fg-muted dark:text-dark-fg-muted mt-1 mb-4">
+                    <h3 class="text-lg font-semibold text-fg">Editor is Empty</h3>
+                    <p class="text-sm text-fg-muted mt-1 mb-4">
                         Start typing, upload a file, or use an example to begin.
                     </p>
                     <LoadExample class="btn btn-primary inline-flex items-center space-x-2 pointer-events-auto">
@@ -120,13 +116,13 @@
 
             {#if showOptions}
                 <div
-                    class="p-4 bg-bg-alt dark:bg-dark-bg-alt border border-border-default dark:border-dark-border-default rounded-lg flex space-x-4"
+                    class="p-4 bg-surface border border-border rounded-lg flex space-x-4"
                     transition:slide={{ duration: 300, easing: (t) => 1 - Math.pow(1 - t, 3) }}
                 >
                     <div class="w-1/2">
                         <ScriptActions />
                     </div>
-                    <div class="border-l border-border-default dark:border-dark-border-default"></div>
+                    <div class="border-l border-border"></div>
                     <div class="w-1/2">
                         <SavedScripts />
                     </div>

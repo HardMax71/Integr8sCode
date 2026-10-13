@@ -31,8 +31,8 @@ describe('EventStatsCards', () => {
     });
 
     it.each([
-        { error_rate: 5, expectedText: '5%', expectedClass: 'text-red-600' },
-        { error_rate: 0, expectedText: '0%', expectedClass: 'text-green-600' },
+        { error_rate: 5, expectedText: '5%', expectedClass: 'text-danger' },
+        { error_rate: 0, expectedText: '0%', expectedClass: 'text-success' },
     ])(
         'error rate $error_rate shows "$expectedText" with $expectedClass',
         ({ error_rate, expectedText, expectedClass }) => {

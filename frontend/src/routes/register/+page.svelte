@@ -67,7 +67,7 @@
                 />
             {/snippet}
         </Control>
-        <FieldErrors class="mt-1 text-sm text-red-600 dark:text-red-400" />
+        <FieldErrors class="mt-1 text-sm text-danger" />
     </Field>
 {/snippet}
 
@@ -82,11 +82,9 @@
 <div class="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" in:fade>
     <div class="max-w-md w-full space-y-8">
         <div class="text-center">
-            <h2 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Create a new account</h2>
-            <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
-                Or <a
-                    href={resolve('/login')}
-                    class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary"
+            <h2 class="text-3xl font-bold text-fg">Create a new account</h2>
+            <p class="mt-2 text-sm text-fg-muted">
+                Or <a href={resolve('/login')} class="font-medium text-accent hover:text-accent"
                     >sign in to your existing account</a
                 >
             </p>
@@ -96,11 +94,11 @@
             method="post"
             use:enhance
             novalidate
-            class="mt-8 space-y-6 bg-bg-alt dark:bg-dark-bg-alt p-8 rounded-lg shadow-md border border-border-default dark:border-dark-border-default"
+            class="mt-8 space-y-6 bg-surface p-8 rounded-lg shadow-md border border-border"
         >
             {#if error}
                 <p
-                    class="mt-0 text-sm text-red-600 dark:text-red-400 text-center"
+                    class="mt-0 text-sm text-danger text-center"
                     data-testid="error-message"
                     in:fly={{ y: -10, duration: 200 }}
                 >
@@ -122,7 +120,7 @@
                 >
                     {#if loading}
                         <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                            <Spinner size="small" className="text-blue-300" />
+                            <Spinner size="small" className="text-info" />
                         </span>
                         Registering...
                     {:else}

@@ -11,7 +11,7 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 }));
 
 vi.mock('#lib/admin/sagas/index.ts', () => ({
-    getSagaStateInfo: vi.fn(() => ({ color: 'badge-neutral', bgColor: 'bg-neutral-50' })),
+    getSagaStateInfo: vi.fn(() => ({ color: 'badge-neutral', bgColor: 'bg-muted' })),
 }));
 
 vi.mock('#components/Spinner.svelte', async () => {

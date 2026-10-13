@@ -96,9 +96,9 @@ const iconTestCases = [
 
 const SEVERITY_CSS: Record<NotificationSeverity, string> = {
     low: '.text-fg-muted',
-    medium: '.text-blue-600',
-    high: '.text-orange-600',
-    urgent: '.text-red-600',
+    medium: '.text-info',
+    high: '.text-orange',
+    urgent: '.text-danger',
 };
 const priorityTestCases = Object.values(NotificationSeverity).map((severity) => ({
     severity,
@@ -174,7 +174,7 @@ describe('NotificationCenter', () => {
 
         it('shows no badge when no unread notifications', () => {
             const { container } = renderWithQueryClient(NotificationCenter);
-            expect(container.querySelector('.bg-red-500')).not.toBeInTheDocument();
+            expect(container.querySelector('.bg-danger-solid')).not.toBeInTheDocument();
         });
 
         it.each(badgeTestCases)('shows badge "$expected" for $count unread', async ({ count, expected }) => {
@@ -183,7 +183,7 @@ describe('NotificationCenter', () => {
             );
             const { container } = renderWithQueryClient(NotificationCenter);
             await waitFor(() => {
-                expect(container.querySelector('.bg-red-500')?.textContent).toBe(expected);
+                expect(container.querySelector('.bg-danger-solid')?.textContent).toBe(expected);
             });
         });
     });
@@ -220,7 +220,7 @@ describe('NotificationCenter', () => {
             await waitFor(() => {
                 expect(screen.getByText('Build Completed')).toBeInTheDocument();
                 expect(screen.getByText('Build Failed')).toBeInTheDocument();
-                expect(container.querySelector('.bg-blue-500.rounded-full')).toBeInTheDocument();
+                expect(container.querySelector('.bg-accent.rounded-full')).toBeInTheDocument();
             });
         });
     });

@@ -31,7 +31,7 @@
             <div>
                 <h4 class="font-semibold mb-2">Basic Information</h4>
                 <dl
-                    class="grid grid-cols-[auto_1fr] text-fg-default dark:text-dark-fg-default *:px-4 *:py-2 *:border-b *:border-border-default dark:*:border-dark-border-default [&>dt]:font-semibold"
+                    class="grid grid-cols-[auto_1fr] text-fg *:px-4 *:py-2 *:border-b *:border-border [&>dt]:font-semibold"
                 >
                     <dt>{fieldTitle('event_id')}</dt>
                     <dd class="font-mono text-sm">{eventData.event_id}</dd>
@@ -58,8 +58,7 @@
 
             <div>
                 <h4 class="font-semibold mb-2">{fieldTitle('event')}</h4>
-                <pre
-                    class="bg-neutral-100 dark:bg-neutral-800 p-3 rounded overflow-auto text-sm font-mono text-fg-default dark:text-dark-fg-default max-h-96">{JSON.stringify(
+                <pre class="bg-muted p-3 rounded overflow-auto text-sm font-mono text-fg max-h-96">{JSON.stringify(
                         eventData,
                         null,
                         2,
@@ -74,12 +73,12 @@
                             <button
                                 type="button"
                                 onclick={() => onViewRelated(related.event_id)}
-                                class="flex justify-between items-center w-full p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                                class="flex justify-between items-center w-full p-2 bg-muted rounded hover:bg-fg/10 transition-colors"
                             >
                                 <span class={getEventTypeColor(related.event_type)}>
                                     {related.event_type}
                                 </span>
-                                <span class="text-sm text-fg-muted dark:text-dark-fg-muted">
+                                <span class="text-sm text-fg-muted">
                                     {formatTimestamp(related.timestamp)}
                                 </span>
                             </button>

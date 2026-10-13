@@ -25,7 +25,7 @@
                         <p class="text-[10px] sm:text-xs text-fg-muted uppercase tracking-wide mb-0.5 truncate">
                             {state}
                         </p>
-                        <p class="text-base sm:text-lg lg:text-xl font-bold text-fg-default dark:text-dark-fg-default">
+                        <p class="text-base sm:text-lg lg:text-xl font-bold text-fg">
                             {count}
                         </p>
                     </div>

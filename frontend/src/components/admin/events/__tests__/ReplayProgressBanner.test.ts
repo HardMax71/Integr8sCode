@@ -100,14 +100,14 @@ describe('ReplayProgressBanner', () => {
 
     it('renders progress bar with correct width', async () => {
         const { container } = await renderBanner(makeSession({ progress_percentage: 75 }));
-        const bar = container.querySelector('.bg-blue-600');
+        const bar = container.querySelector('.bg-info');
         expect(bar).not.toBeNull();
         expect(bar?.getAttribute('style')).toContain('width: 75%');
     });
 
     it('clamps progress bar width to 100%', async () => {
         const { container } = await renderBanner(makeSession({ progress_percentage: 150 }));
-        const bar = container.querySelector('.bg-blue-600');
+        const bar = container.querySelector('.bg-info');
         expect(bar?.getAttribute('style')).toContain('width: 100%');
     });
 

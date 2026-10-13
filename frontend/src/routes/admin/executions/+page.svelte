@@ -53,7 +53,7 @@
 
 <div class="container mx-auto px-2 sm:px-4 pb-8">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-fg-default dark:text-dark-fg-default">Execution Management</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-fg">Execution Management</h1>
         <button
             type="button"
             onclick={refresh}
@@ -70,23 +70,23 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div class="card p-4 {STATS_BG_COLORS.blue}">
                 <div class="text-sm {STATS_TEXT_COLORS.blue} font-medium">{fieldTitle('queue_depth')}</div>
-                <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                <div class="text-2xl font-bold text-fg">
                     {queueStatus.queue_depth}
                 </div>
             </div>
             <div class="card p-4 {STATS_BG_COLORS.green}">
                 <div class="text-sm {STATS_TEXT_COLORS.green} font-medium">Active</div>
-                <div class="text-2xl font-bold text-fg-default dark:text-dark-fg-default">
+                <div class="text-2xl font-bold text-fg">
                     {queueStatus.active_count} / {queueStatus.max_concurrent}
                 </div>
             </div>
             <div class="card p-4 {STATS_BG_COLORS.purple}">
                 <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">{fieldTitle('by_priority')}</div>
-                <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
+                <div class="text-sm text-fg mt-1">
                     {#each Object.entries(queueStatus.by_priority) as [priority, count] (priority)}
                         <span class="mr-2">{priority}: {count}</span>
                     {:else}
-                        <span class="text-fg-muted dark:text-dark-fg-muted">Empty</span>
+                        <span class="text-fg-muted">Empty</span>
                     {/each}
                 </div>
             </div>
@@ -97,7 +97,7 @@
     <div class="card mb-6">
         <div class="p-4 flex flex-wrap gap-4 items-end">
             <div>
-                <label for="status-filter" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                <label for="status-filter" class="block text-sm font-medium text-fg-muted mb-1"
                     >{fieldTitle('status')}</label
                 >
                 <select id="status-filter" bind:value={filters.status} class="form-select-standard">
@@ -108,9 +108,7 @@
                 </select>
             </div>
             <div>
-                <label
-                    for="priority-filter"
-                    class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                <label for="priority-filter" class="block text-sm font-medium text-fg-muted mb-1"
                     >{fieldTitle('priority')}</label
                 >
                 <select id="priority-filter" bind:value={filters.priority} class="form-select-standard">
@@ -121,7 +119,7 @@
                 </select>
             </div>
             <div>
-                <label for="user-search" class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                <label for="user-search" class="block text-sm font-medium text-fg-muted mb-1"
                     >{fieldTitle('user_id')}</label
                 >
                 <input id="user-search" type="text" bind:value={filters.user_id} class="form-input-standard" />
@@ -135,7 +133,7 @@
     <!-- Table -->
     <div class="card">
         <div class="p-3 sm:p-6">
-            <h3 class="text-lg font-semibold text-fg-default dark:text-dark-fg-default mb-4">
+            <h3 class="text-lg font-semibold text-fg mb-4">
                 Executions ({total})
             </h3>
 

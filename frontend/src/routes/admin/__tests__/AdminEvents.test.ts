@@ -117,13 +117,13 @@ describe('AdminEvents', () => {
         it('shows error rate in red when > 0', async () => {
             await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 5 });
             const errorRateElement = screen.getByText('5%');
-            expect(errorRateElement).toHaveClass('text-red-600');
+            expect(errorRateElement).toHaveClass('text-danger');
         });
 
         it('shows error rate in green when 0', async () => {
             await renderWithEvents([fakeExecutionCompletedEvent()], { ...fakeEventStatsResponse(), error_rate: 0 });
             const errorRateElement = screen.getByText('0%');
-            expect(errorRateElement).toHaveClass('text-green-600');
+            expect(errorRateElement).toHaveClass('text-success');
         });
     });
 
@@ -683,7 +683,7 @@ describe('AdminEvents', () => {
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_completed');
-            expect(icon).toHaveClass('text-green-600');
+            expect(icon).toHaveClass('text-success');
         });
 
         it('shows correct color for failed events', async () => {
@@ -691,7 +691,7 @@ describe('AdminEvents', () => {
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_failed');
-            expect(icon).toHaveClass('text-red-600');
+            expect(icon).toHaveClass('text-danger');
         });
 
         it('shows correct color for started events', async () => {
@@ -699,7 +699,7 @@ describe('AdminEvents', () => {
             await renderWithEvents(events);
             const [icon] = screen.getAllByTestId('event-type-icon');
             expect(icon).toHaveAttribute('data-event-type', 'execution_started');
-            expect(icon).toHaveClass('text-blue-600');
+            expect(icon).toHaveClass('text-info');
         });
     });
 

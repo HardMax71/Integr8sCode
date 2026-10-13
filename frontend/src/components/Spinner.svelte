@@ -17,10 +17,10 @@
     };
 
     const colorClasses: Record<string, string> = {
-        primary: 'text-primary dark:text-primary-light',
+        primary: 'text-accent',
         white: 'text-white',
         current: 'text-current',
-        muted: 'text-fg-subtle dark:text-dark-fg-subtle',
+        muted: 'text-fg-subtle',
     };
 
     let sizeClass = $derived(sizeClasses[size] || sizeClasses.medium);

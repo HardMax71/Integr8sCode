@@ -4,16 +4,10 @@ import { getGroupColor } from '#lib/admin/rate-limits/rateLimits.ts';
 
 describe('rateLimits', () => {
     describe('getGroupColor', () => {
-        it.each(Object.values(EndpointGroup))('returns a dark-mode color string for %s', (group) => {
-            const color = getGroupColor(group);
-            expect(color).toBeDefined();
-            expect(color).toContain('dark:');
-        });
-
         it.each([
-            [EndpointGroup.EXECUTION, 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'],
-            [EndpointGroup.ADMIN, 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'],
-            [EndpointGroup.API, 'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200'],
+            [EndpointGroup.EXECUTION, 'bg-purple-soft text-purple'],
+            [EndpointGroup.ADMIN, 'bg-danger-soft text-danger'],
+            [EndpointGroup.API, 'bg-muted text-fg'],
         ])('returns correct color for %s', (group, expected) => {
             expect(getGroupColor(group)).toBe(expected);
         });

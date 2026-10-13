@@ -44,10 +44,10 @@
 </script>
 
 {#snippet changeCell(item: SettingsHistoryEntry)}
-    <div class="flex flex-wrap items-center gap-1 text-fg-muted dark:text-dark-fg-muted">
-        <span class="text-red-600 dark:text-red-400 break-all">{show(item.old_value)}</span>
+    <div class="flex flex-wrap items-center gap-1 text-fg-muted">
+        <span class="text-danger break-all">{show(item.old_value)}</span>
         <span class="mx-1">→</span>
-        <span class="text-green-600 dark:text-green-400 break-all">{show(item.new_value)}</span>
+        <span class="text-success break-all">{show(item.new_value)}</span>
     </div>
 {/snippet}
 

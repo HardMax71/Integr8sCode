@@ -5,9 +5,7 @@
     import LoadExample from '#components/editor/LoadExample.svelte';
 </script>
 
-<div
-    class="editor-toolbar flex items-center justify-between px-3 py-1 bg-bg-default dark:bg-dark-bg-default border-b border-border-default dark:border-dark-border-default shrink-0"
->
+<div class="editor-toolbar flex items-center justify-between px-3 py-1 bg-page border-b border-border shrink-0">
     <div>
         <label for="scriptNameInput" class="sr-only">{fieldTitle('name')}</label>
         <input

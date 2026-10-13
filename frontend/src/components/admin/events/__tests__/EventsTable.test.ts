@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, within } from '@testing-library/svelte';
 import { renderWithQueryClient, user } from '#test/test-utils.ts';
 import type { EventBrowseResponse } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import {
     fakeEventMetadata,
     fakeExecutionCompletedEvent,
@@ -34,25 +35,21 @@ function renderTable(
 }
 
 describe('EventsTable', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('shows empty state when no events', () => {
         renderTable([]);
         expect(screen.getByText('No events found')).toBeInTheDocument();
     });
 
-    it.each(['Timestamp', 'Event Type', 'User Id', 'Service Name', 'Actions'])('renders the %s header', (header) => {
+    it.each(['timestamp', 'event_type', 'user_id', 'service_name', 'actions'])('renders the %s header', (key) => {
         renderTable();
-        expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: fieldTitle(key) })).toBeInTheDocument();
     });
 
     it('renders one row per event in desktop table', () => {
         const events = Array.from({ length: 4 }, () => fakeExecutionCompletedEvent());
-        const { container } = renderTable(events);
-        const rows = container.querySelectorAll('tbody tr');
-        expect(rows).toHaveLength(4);
+        renderTable(events);
+        const rows = within(screen.getByRole('table', { name: 'Events' })).getAllByRole('row');
+        expect(rows).toHaveLength(events.length + 1);
     });
 
     it('renders a card for each event for narrow screens', () => {
@@ -71,12 +68,9 @@ describe('EventsTable', () => {
     it('displays formatted timestamp in table rows', () => {
         const event = { ...fakeExecutionCompletedEvent(), timestamp: '2024-06-15T14:30:00Z' };
         renderTable([event]);
-        const date = new Date('2024-06-15T14:30:00Z');
-        const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-        const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
         const table = within(screen.getByRole('table', { name: 'Events' }));
-        expect(table.getByText(date.toLocaleDateString(undefined, dateOpts))).toBeInTheDocument();
-        expect(table.getByText(date.toLocaleTimeString(undefined, timeOpts))).toBeInTheDocument();
+        expect(table.getByText('Jun 15, 2024')).toBeInTheDocument();
+        expect(table.getByText('02:30:00 PM')).toBeInTheDocument();
     });
 
     it('shows user_id as clickable link when present', () => {
@@ -150,9 +144,11 @@ describe('EventsTable', () => {
         expect(screen.queryByText('abcdefgh...')).not.toBeInTheDocument();
 
         const trigger = screen.getAllByRole('button', { name: 'execution_requested' })[0]!;
-        while (document.activeElement !== trigger) await user.tab();
+        await user.tab();
+        await user.tab();
+        expect(trigger).toHaveFocus();
 
-        const tooltip = (await screen.findByText('abcdefgh...')).closest('[data-tooltip-content]');
-        expect(tooltip).toHaveTextContent('execution_requested');
+        expect(await screen.findByText('abcdefgh...')).toBeInTheDocument();
+        expect(screen.getByText('execution_requested')).toBeInTheDocument();
     });
 });

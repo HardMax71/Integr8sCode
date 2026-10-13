@@ -7,6 +7,7 @@ import {
     getActiveFilterSummary,
 } from '#lib/admin/events/eventTypes.ts';
 import { EventType, type EventFilter } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
 const ALL_FILTERS: EventFilter = {
     event_types: [EventType.EXECUTION_COMPLETED],
@@ -78,15 +79,11 @@ describe('eventTypes', () => {
         });
 
         it('names every active filter in the order of the EventFilter schema', () => {
-            expect(getActiveFilterSummary(ALL_FILTERS)).toEqual([
-                'Event Types',
-                'Aggregate Id',
-                'User Id',
-                'Start Time',
-                'End Time',
-                'Service Name',
-                'Search Text',
-            ]);
+            expect(getActiveFilterSummary(ALL_FILTERS)).toEqual(
+                ['event_types', 'aggregate_id', 'user_id', 'start_time', 'end_time', 'service_name', 'search_text'].map(
+                    fieldTitle,
+                ),
+            );
         });
 
         it('skips an empty event type list', () => {

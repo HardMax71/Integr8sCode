@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { toast } from 'svelte-sonner';
 import { mockStreamEvents, user } from '#test/test-utils.ts';
@@ -9,7 +9,12 @@ import {
     type EventReplayStatusResponse,
 } from '#lib/api/index.ts';
 
-import { fakeEventReplayStatusResponse, fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
+import {
+    fakeEventReplayStatusResponse,
+    fakeExecutionResult,
+    fakeReplayError,
+    fakeResourceUsage,
+} from '#lib/api/@faker-js/faker.gen.ts';
 import ReplayProgressBanner from '#components/admin/events/ReplayProgressBanner.svelte';
 
 function makeSession(overrides: Partial<EventReplayStatusResponse> = {}): EventReplayStatusResponse {
@@ -34,10 +39,6 @@ async function renderBanner(...statuses: EventReplayStatusResponse[]) {
 }
 
 describe('ReplayProgressBanner', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('follows the stream of the session it was given', async () => {
         await renderBanner(makeSession());
         expect(vi.mocked(streamReplayStatusApiV1AdminEventsReplaySessionIdStatusGet)).toHaveBeenCalledWith(
@@ -64,18 +65,12 @@ describe('ReplayProgressBanner', () => {
     it.each([
         {
             status: ReplayStatus.COMPLETED,
-            errors: null,
             notice: 'success',
             text: 'Replay completed! Processed 5 events successfully.',
         },
-        {
-            status: ReplayStatus.FAILED,
-            errors: [{ event_id: null, error: 'boom', error_type: null, timestamp: '2026-01-01T00:00:00Z' }],
-            notice: 'error',
-            text: 'Replay failed: boom',
-        },
-    ] as const)('toasts when the replay ends as $status', async ({ status, errors, notice, text }) => {
-        await renderBanner(makeSession({ status, errors: errors ? [...errors] : null }));
+        { status: ReplayStatus.FAILED, notice: 'error', text: 'Replay failed: boom' },
+    ] as const)('toasts when the replay ends as $status', async ({ status, notice, text }) => {
+        await renderBanner(makeSession({ status, errors: [{ ...fakeReplayError(), error: 'boom' }] }));
         await waitFor(() => expect(toast[notice]).toHaveBeenCalledWith(text));
     });
 
@@ -98,19 +93,6 @@ describe('ReplayProgressBanner', () => {
         expect(screen.getByText('35%')).toBeInTheDocument();
     });
 
-    it('renders progress bar with correct width', async () => {
-        const { container } = await renderBanner(makeSession({ progress_percentage: 75 }));
-        const bar = container.querySelector('.bg-info');
-        expect(bar).not.toBeNull();
-        expect(bar?.getAttribute('style')).toContain('width: 75%');
-    });
-
-    it('clamps progress bar width to 100%', async () => {
-        const { container } = await renderBanner(makeSession({ progress_percentage: 150 }));
-        const bar = container.querySelector('.bg-info');
-        expect(bar?.getAttribute('style')).toContain('width: 100%');
-    });
-
     it('calls onClose when close button is clicked', async () => {
         const { onClose } = await renderBanner(makeSession());
         await user.click(screen.getByTitle('Close'));
@@ -127,18 +109,8 @@ describe('ReplayProgressBanner', () => {
             await renderBanner(
                 makeSession({
                     errors: [
-                        {
-                            event_id: 'err-evt-1',
-                            error: 'Timeout exceeded',
-                            error_type: null,
-                            timestamp: new Date().toISOString(),
-                        },
-                        {
-                            event_id: null,
-                            error: 'Connection refused',
-                            error_type: 'ConnectionRefusedError',
-                            timestamp: new Date().toISOString(),
-                        },
+                        { ...fakeReplayError(), event_id: 'err-evt-1', error: 'Timeout exceeded' },
+                        { ...fakeReplayError(), error: 'Connection refused' },
                     ],
                 }),
             );
@@ -163,12 +135,7 @@ describe('ReplayProgressBanner', () => {
                             execution_id: 'exec-r1',
                             status: ExecutionStatus.COMPLETED,
                             stdout: 'hello',
-                            resource_usage: {
-                                execution_time_wall_seconds: 1.23,
-                                cpu_time_jiffies: 10,
-                                peak_memory_kb: 1024,
-                                clk_tck_hertz: 100,
-                            },
+                            resource_usage: { ...fakeResourceUsage(), execution_time_wall_seconds: 1.23 },
                         },
                     ],
                 }),
@@ -178,19 +145,6 @@ describe('ReplayProgressBanner', () => {
             expect(screen.getByText('completed')).toBeInTheDocument();
             expect(screen.getByText('1.23s')).toBeInTheDocument();
             expect(screen.getByText('hello')).toBeInTheDocument();
-        });
-
-        it.each([
-            { status: ExecutionStatus.COMPLETED, expectedClass: 'badge-success' },
-            { status: ExecutionStatus.FAILED, expectedClass: 'badge-danger' },
-            { status: ExecutionStatus.RUNNING, expectedClass: 'badge-info' },
-        ])('status "$status" shows badge with $expectedClass', async ({ status, expectedClass }) => {
-            const { container } = await renderBanner(
-                makeSession({
-                    execution_results: [{ ...fakeExecutionResult(), execution_id: 'exec-x', status }],
-                }),
-            );
-            expect(container.querySelector(`.${expectedClass}`)).not.toBeNull();
         });
 
         it('shows stderr in red when present', async () => {

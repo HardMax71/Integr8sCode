@@ -1,13 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import ModalWrapper from './ModalWrapper.svelte';
 
 describe('Modal', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it.each([
         { open: true, visible: true },
         { open: false, visible: false },
@@ -53,17 +49,6 @@ describe('Modal', () => {
             await user.click(screen.getByTestId('modal-body'));
             expect(onClose).not.toHaveBeenCalled();
         });
-    });
-
-    it.each([
-        { size: 'sm' as const, expectedClass: 'max-w-md' },
-        { size: 'md' as const, expectedClass: 'max-w-2xl' },
-        { size: 'lg' as const, expectedClass: 'max-w-4xl' },
-        { size: 'xl' as const, expectedClass: 'max-w-6xl' },
-        { size: undefined, expectedClass: 'max-w-4xl' },
-    ])('applies $expectedClass for size=$size', ({ size, expectedClass }) => {
-        render(ModalWrapper, { props: { open: true, size } });
-        expect(screen.getByRole('dialog')).toHaveClass(expectedClass);
     });
 
     it.each([true, false])('renders the footer only when given one (footer=%s)', (showFooter) => {

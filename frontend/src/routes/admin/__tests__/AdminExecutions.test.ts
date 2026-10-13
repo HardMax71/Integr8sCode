@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
-import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeAdminExecutionResponse, fakeQueueStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     listExecutionsApiV1AdminExecutionsGet,
@@ -8,6 +8,8 @@ import {
     getQueueStatusApiV1AdminExecutionsQueueGet,
     type AdminExecutionResponse,
 } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
+import { queryClient } from '#lib/query-client.ts';
 import { toast } from 'svelte-sonner';
 
 import AdminExecutions from '#routes/admin/executions/+page.svelte';
@@ -26,7 +28,7 @@ async function renderWithExecutions(
     mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(queueStatus);
 
     const result = renderWithQueryClient(AdminExecutions);
-    await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
+    await screen.findByRole('table', { name: 'Executions' });
     return result;
 }
 
@@ -34,7 +36,6 @@ const executionsTable = () => screen.getByRole('table', { name: 'Executions' });
 
 describe('AdminExecutions', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(listExecutionsApiV1AdminExecutionsGet).ok({
             executions: [],
             total: 0,
@@ -56,8 +57,8 @@ describe('AdminExecutions', () => {
         });
 
         it('displays empty state when no executions', async () => {
-            await renderWithExecutions([]);
-            expect(screen.getByText(/no executions found/i)).toBeInTheDocument();
+            renderWithQueryClient(AdminExecutions);
+            expect(await screen.findByText(/no executions found/i)).toBeInTheDocument();
         });
 
         it('displays execution data in table', async () => {
@@ -71,19 +72,24 @@ describe('AdminExecutions', () => {
 
     describe('queue status cards', () => {
         it('displays queue depth and active count', async () => {
-            await renderWithExecutions([], {
+            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok({
                 ...fakeQueueStatusResponse(),
                 queue_depth: 7,
                 active_count: 3,
                 max_concurrent: 10,
             });
-            expect(screen.getByText('7')).toBeInTheDocument();
+            renderWithQueryClient(AdminExecutions);
+            expect(await screen.findByText('7')).toBeInTheDocument();
             expect(screen.getByText('3 / 10')).toBeInTheDocument();
         });
 
         it('displays by-priority breakdown', async () => {
-            await renderWithExecutions([], { ...fakeQueueStatusResponse(), by_priority: { high: 2, normal: 5 } });
-            expect(screen.getByText(/high: 2/)).toBeInTheDocument();
+            mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok({
+                ...fakeQueueStatusResponse(),
+                by_priority: { high: 2, normal: 5 },
+            });
+            renderWithQueryClient(AdminExecutions);
+            expect(await screen.findByText(/high: 2/)).toBeInTheDocument();
             expect(screen.getByText(/normal: 5/)).toBeInTheDocument();
         });
     });
@@ -94,7 +100,7 @@ describe('AdminExecutions', () => {
             vi.clearAllMocks();
 
             const statusSelect = screen.getByLabelText(/status/i);
-            selectOption(statusSelect, 'running');
+            await user.selectOptions(statusSelect, 'running');
 
             await waitFor(() => {
                 expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
@@ -109,8 +115,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions();
             vi.clearAllMocks();
 
-            const prioritySelect = screen.getByLabelText('Priority');
-            selectOption(prioritySelect!, 'high');
+            await user.selectOptions(screen.getByLabelText('Priority'), 'high');
 
             await waitFor(() => {
                 expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalledWith(
@@ -140,8 +145,7 @@ describe('AdminExecutions', () => {
         it('reset button clears all filters', async () => {
             await renderWithExecutions();
 
-            const statusSelect = screen.getByLabelText(/status/i);
-            selectOption(statusSelect, 'running');
+            await user.selectOptions(screen.getByLabelText(/status/i), 'running');
 
             vi.clearAllMocks();
             const resetButton = screen.getByRole('button', { name: /reset/i });
@@ -163,7 +167,9 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
             const headers = screen.getAllByRole('columnheader');
             const headerTexts = headers.map((h) => h.textContent?.trim());
-            expect(headerTexts).toEqual(['Execution Id', 'User Id', 'Lang', 'Status', 'Priority', 'Created At']);
+            expect(headerTexts).toEqual(
+                ['execution_id', 'user_id', 'lang', 'status', 'priority', 'created_at'].map(fieldTitle),
+            );
         });
 
         it('shows language info', async () => {
@@ -192,7 +198,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            selectOption(prioritySelect!, 'high');
+            await user.selectOptions(prioritySelect!, 'high');
 
             await waitFor(() => {
                 expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith(
@@ -216,7 +222,7 @@ describe('AdminExecutions', () => {
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');
-            selectOption(prioritySelect!, 'critical');
+            await user.selectOptions(prioritySelect!, 'critical');
 
             await waitFor(() => {
                 expect(vi.mocked(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut)).toHaveBeenCalledWith(
@@ -226,13 +232,15 @@ describe('AdminExecutions', () => {
                     }),
                 );
             });
-            expect(vi.mocked(toast.success)).not.toHaveBeenCalledWith(expect.anything());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
         });
     });
 
     describe('auto-refresh', () => {
         it('auto-refreshes at 5s interval', async () => {
             await renderWithExecutions();
+            vi.setTimerTickMode('manual');
             const initialCalls = vi.mocked(listExecutionsApiV1AdminExecutionsGet).mock.calls.length;
 
             await vi.advanceTimersByTimeAsync(5000);
@@ -269,9 +277,7 @@ describe('AdminExecutions', () => {
             mockApi(getQueueStatusApiV1AdminExecutionsQueueGet).ok(fakeQueueStatusResponse());
 
             renderWithQueryClient(AdminExecutions);
-            await waitFor(() => expect(vi.mocked(listExecutionsApiV1AdminExecutionsGet)).toHaveBeenCalled());
-
-            expect(screen.getByText(/showing/i)).toBeInTheDocument();
+            expect(await screen.findByText(/showing/i)).toBeInTheDocument();
         });
     });
 });

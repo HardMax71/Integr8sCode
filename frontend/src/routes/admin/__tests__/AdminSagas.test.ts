@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { user, selectOption, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
+import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeSagaStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { listSagasApiV1SagasGet, getSagaStatusApiV1SagasSagaIdGet, type SagaStatusResponse } from '#lib/api/index.ts';
 
@@ -11,13 +11,12 @@ async function renderWithSagas(sagas = Array.from({ length: 5 }, () => fakeSagaS
     mockApi(listSagasApiV1SagasGet).ok({ sagas, total: sagas.length, skip: 0, limit: 10, has_more: false });
 
     const result = renderWithQueryClient(AdminSagas);
-    await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
+    await screen.findByRole('table', { name: 'Sagas' });
     return result;
 }
 
 describe('AdminSagas', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(listSagasApiV1SagasGet).ok({ sagas: [], total: 0, skip: 0, limit: 10, has_more: false });
         mockApi(getSagaStatusApiV1SagasSagaIdGet).ok(fakeSagaStatusResponse());
     });
@@ -36,8 +35,8 @@ describe('AdminSagas', () => {
         });
 
         it('displays empty state when no sagas', async () => {
-            await renderWithSagas([]);
-            expect(screen.getByText(/no sagas found/i)).toBeInTheDocument();
+            renderWithQueryClient(AdminSagas);
+            expect(await screen.findByText(/no sagas found/i)).toBeInTheDocument();
         });
     });
 
@@ -87,17 +86,15 @@ describe('AdminSagas', () => {
                 { ...fakeSagaStatusResponse(), saga_id: 's3', state: 'failed' },
             ];
             await renderWithSagas(sagas);
-            const completedCard = screen
-                .getAllByText('completed')
-                .map((el) => el.closest('.card'))
-                .find((card): card is HTMLElement => card instanceof HTMLElement);
-            expect(within(completedCard!).getByText('2')).toBeInTheDocument();
+            const terms = screen.getAllByRole('term').map((term) => term.textContent);
+            expect(screen.getAllByRole('definition')[terms.indexOf('completed')]).toHaveTextContent('2');
         });
     });
 
     describe('auto-refresh', () => {
         it('auto-refreshes at specified interval', async () => {
             await renderWithSagas();
+            vi.setTimerTickMode('manual');
             expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledTimes(1);
 
             await vi.advanceTimersByTimeAsync(5000);
@@ -136,7 +133,7 @@ describe('AdminSagas', () => {
             vi.clearAllMocks();
 
             const stateSelect = screen.getByLabelText(/state/i);
-            selectOption(stateSelect, 'running');
+            await user.selectOptions(stateSelect, 'running');
 
             await waitFor(() => {
                 expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
@@ -190,7 +187,7 @@ describe('AdminSagas', () => {
             await renderWithSagas();
 
             const stateSelect = screen.getByLabelText(/state/i);
-            selectOption(stateSelect, 'failed');
+            await user.selectOptions(stateSelect, 'failed');
 
             vi.clearAllMocks();
             const clearButton = screen.getByRole('button', { name: /clear filters/i });
@@ -341,9 +338,7 @@ describe('AdminSagas', () => {
             mockApi(listSagasApiV1SagasGet).ok({ sagas, total: 25, skip: 0, limit: 10, has_more: true });
 
             renderWithQueryClient(AdminSagas);
-            await waitFor(() => expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalled());
-
-            expect(screen.getByText(/showing/i)).toBeInTheDocument();
+            expect(await screen.findByText(/showing/i)).toBeInTheDocument();
         });
 
         it('changes page size', async () => {
@@ -355,7 +350,7 @@ describe('AdminSagas', () => {
 
             vi.clearAllMocks();
             const pageSizeSelect = screen.getByDisplayValue('10 / page');
-            selectOption(pageSizeSelect, '25');
+            await user.selectOptions(pageSizeSelect, '25');
 
             await waitFor(() => {
                 expect(vi.mocked(listSagasApiV1SagasGet)).toHaveBeenCalledWith(
@@ -370,6 +365,7 @@ describe('AdminSagas', () => {
     describe('refresh rate control', () => {
         it('polls at initial refresh rate', async () => {
             await renderWithSagas();
+            vi.setTimerTickMode('manual');
 
             vi.clearAllMocks();
             await vi.advanceTimersByTimeAsync(5000);

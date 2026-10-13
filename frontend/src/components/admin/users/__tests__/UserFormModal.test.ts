@@ -1,18 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
+import * as z from 'zod/mini';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     createUserApiV1AdminUsersPost,
     updateUserApiV1AdminUsersUserIdPut,
+    zUserCreate,
     type UserResponse,
 } from '#lib/api/index.ts';
 import UserFormModal from '#components/admin/users/UserFormModal.svelte';
 
-vi.mock('#components/Spinner.svelte', async () => {
-    const utils = await import('#test/test-utils.ts');
-    return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
-});
+const defaultRole = zUserCreate.shape.role.parse(undefined);
+const defaultIsActive = zUserCreate.shape.is_active.parse(undefined);
+const passwordMinLength = z.toJSONSchema(zUserCreate.shape.password).minLength!;
+const shortPassword = 'x'.repeat(passwordMinLength - 1);
 
 function renderModal(mode: { kind: 'create' } | { kind: 'edit'; user: UserResponse } = { kind: 'create' }) {
     const onClose = vi.fn();
@@ -39,7 +41,6 @@ async function fill(values: { username?: string; email?: string; password?: stri
 
 describe('UserFormModal', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(createUserApiV1AdminUsersPost).ok(fakeUserResponse());
         mockApi(updateUserApiV1AdminUsersUserIdPut).ok(fakeUserResponse());
     });
@@ -63,8 +64,8 @@ describe('UserFormModal', () => {
 
     it('starts a new user from the API defaults', () => {
         renderModal();
-        expect(field('Role')).toHaveValue('user');
-        expect(field('Is Active')).toBeChecked();
+        expect(field('Role')).toHaveValue(defaultRole);
+        expect((field('Is Active') as HTMLInputElement).checked).toBe(defaultIsActive);
     });
 
     it('creates a user with what was typed, then closes', async () => {
@@ -79,8 +80,8 @@ describe('UserFormModal', () => {
                         username: 'newuser',
                         email: 'new@example.com',
                         password: 'password123',
-                        role: 'user',
-                        is_active: true,
+                        role: defaultRole,
+                        is_active: defaultIsActive,
                     },
                 }),
             ),
@@ -98,9 +99,9 @@ describe('UserFormModal', () => {
         ],
         [
             'a short password',
-            { username: 'u', email: 'a@b.co', password: 'short' },
+            { username: 'u', email: 'a@b.co', password: shortPassword },
             /Password/,
-            'Must be at least 8 characters',
+            `Must be at least ${passwordMinLength} characters`,
         ],
     ])('refuses to create with %s', async (_name, values, label, message) => {
         renderModal();
@@ -164,12 +165,12 @@ describe('UserFormModal', () => {
 
     it('still checks a new password against the API rule when editing', async () => {
         renderModal({ kind: 'edit', user: fakeUserResponse() });
-        await fill({ password: 'short' });
+        await fill({ password: shortPassword });
         await user.click(screen.getByRole('button', { name: 'Update User' }));
 
         await waitFor(() =>
             expect(field(/Password/)).toHaveAccessibleDescription(
-                'Leave empty to keep the current password Must be at least 8 characters',
+                `Leave empty to keep the current password Must be at least ${passwordMinLength} characters`,
             ),
         );
         expect(updateUser()).not.toHaveBeenCalled();
@@ -181,7 +182,7 @@ describe('UserFormModal', () => {
         await fill({ username: 'newuser', email: 'new@example.com', password: 'password123' });
         await user.click(screen.getByRole('button', { name: 'Create User' }));
 
-        expect((await screen.findByText('Saving...')).closest('button')).toBeDisabled();
+        expect(await screen.findByRole('button', { name: /Saving/ })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
         expect(field(/Username/)).toBeDisabled();
     });

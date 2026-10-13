@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import { EventType } from '#lib/api/index.ts';
+import { fakeEventSummary } from '#lib/api/@faker-js/faker.gen.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 
 import ReplayPreviewModal from '#components/admin/events/ReplayPreviewModal.svelte';
 import type { ReplayPreview } from '#components/admin/events/ReplayPreviewModal.svelte';
@@ -11,11 +13,11 @@ function makePreview(overrides: Partial<ReplayPreview> = {}): ReplayPreview {
         eventId: 'evt-replay-1',
         total_events: 3,
         events_preview: [
-            { event_id: 'e1', event_type: EventType.EXECUTION_REQUESTED, timestamp: '2024-01-15T10:00:00Z' },
+            { ...fakeEventSummary(), event_id: 'e1', event_type: EventType.EXECUTION_REQUESTED, aggregate_id: null },
             {
+                ...fakeEventSummary(),
                 event_id: 'e2',
                 event_type: EventType.EXECUTION_COMPLETED,
-                timestamp: '2024-01-15T10:01:00Z',
                 aggregate_id: 'exec-1',
             },
         ],
@@ -31,10 +33,6 @@ function renderModal(preview: ReplayPreview = makePreview()) {
 }
 
 describe('ReplayPreviewModal', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('shows modal title and description when open', () => {
         renderModal();
         expect(screen.getByText('Replay Preview')).toBeInTheDocument();
@@ -61,7 +59,8 @@ describe('ReplayPreviewModal', () => {
         expect(screen.getByText('execution_requested')).toBeInTheDocument();
         expect(screen.getByText('e2')).toBeInTheDocument();
         expect(screen.getByText('execution_completed')).toBeInTheDocument();
-        expect(screen.getByText('Aggregate Id', { selector: 'dt' }).nextElementSibling).toHaveTextContent('exec-1');
+        expect(screen.getByRole('term')).toHaveTextContent(fieldTitle('aggregate_id'));
+        expect(screen.getByRole('definition')).toHaveTextContent('exec-1');
     });
 
     it('hides events preview section when events_preview is empty', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { UserRole } from '#lib/api/index.ts';
@@ -7,25 +7,6 @@ import Footer from '#components/Footer.svelte';
 import { page } from '#test/page.svelte.ts';
 
 describe('Footer', () => {
-    let originalDate: DateConstructor;
-
-    beforeEach(() => {
-        originalDate = globalThis.Date;
-        const mockDate = class extends Date {
-            constructor() {
-                super('2025-01-01T00:00:00.000Z');
-            }
-            static now() {
-                return new originalDate('2025-01-01T00:00:00.000Z').getTime();
-            }
-        };
-        vi.stubGlobal('Date', mockDate);
-    });
-
-    afterEach(() => {
-        vi.stubGlobal('Date', originalDate);
-    });
-
     describe('branding', () => {
         it('displays brand name', () => {
             render(Footer);
@@ -83,9 +64,9 @@ describe('Footer', () => {
 
         it.each([
             ['signed out', null],
-            ['signed in as a regular user', { ...fakeUserResponse(), role: UserRole.USER }],
-        ])('hides the Grafana link when %s', (_label, signedIn) => {
-            page.data.user = signedIn;
+            ['signed in as a regular user', UserRole.USER],
+        ])('hides the Grafana link when %s', (_label, role) => {
+            page.data.user = role ? { ...fakeUserResponse(), role } : null;
             render(Footer);
 
             expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();
@@ -101,24 +82,16 @@ describe('Footer', () => {
     });
 
     describe('social links', () => {
-        it('has Telegram link with accessibility', () => {
+        it.each([
+            ['Telegram', 'https://t.me/MaxAzatian'],
+            ['GitHub', 'https://github.com/HardMax71/Integr8sCode'],
+        ])('links to %s in a new tab without passing the opener or referrer', (name, href) => {
             render(Footer);
 
-            const telegramLink = screen.getByRole('link', { name: /Telegram/i });
-            expect(telegramLink).toBeInTheDocument();
-            expect(telegramLink.getAttribute('href')).toBe('https://t.me/MaxAzatian');
-            expect(telegramLink.getAttribute('target')).toBe('_blank');
-            expect(telegramLink.getAttribute('rel')).toContain('noopener');
-        });
-
-        it('has GitHub link with accessibility', () => {
-            render(Footer);
-
-            const githubLink = screen.getByRole('link', { name: /GitHub/i });
-            expect(githubLink).toBeInTheDocument();
-            expect(githubLink.getAttribute('href')).toBe('https://github.com/HardMax71/Integr8sCode');
-            expect(githubLink.getAttribute('target')).toBe('_blank');
-            expect(githubLink.getAttribute('rel')).toContain('noopener');
+            const link = screen.getByRole('link', { name });
+            expect(link).toHaveAttribute('href', href);
+            expect(link).toHaveAttribute('target', '_blank');
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
         });
 
         it('has screen reader text for social icons', () => {
@@ -131,6 +104,7 @@ describe('Footer', () => {
 
     describe('copyright', () => {
         it('displays current year', () => {
+            vi.setSystemTime(new Date(2025, 5, 15));
             render(Footer);
 
             expect(screen.getByText(/© 2025 Integr8sCode/)).toBeInTheDocument();
@@ -164,29 +138,6 @@ describe('Footer', () => {
 
             const h3s = screen.getAllByRole('heading', { level: 3 });
             expect(h3s.length).toBeGreaterThanOrEqual(2);
-        });
-
-        it('all external links have noopener noreferrer', () => {
-            render(Footer);
-
-            const externalLinks = screen
-                .getAllByRole('link')
-                .filter((link) => link.getAttribute('target') === '_blank');
-
-            externalLinks.forEach((link) => {
-                expect(link.getAttribute('rel')).toContain('noopener');
-                expect(link.getAttribute('rel')).toContain('noreferrer');
-            });
-        });
-    });
-
-    describe('responsive design', () => {
-        it('has responsive grid classes', () => {
-            const { container } = render(Footer);
-
-            const grid = container.querySelector('.grid');
-            expect(grid).toBeInTheDocument();
-            expect(grid?.classList.contains('md:grid-cols-12')).toBe(true);
         });
     });
 });

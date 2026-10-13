@@ -4,32 +4,30 @@ import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import { match } from '$app/paths';
-import { loginApiV1AuthLoginPost, UserRole, type LoginResponse } from '#lib/api/index.ts';
+import { loginApiV1AuthLoginPost } from '#lib/api/index.ts';
+import { fakeLoginResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { page } from '#test/page.svelte.ts';
 import Login from '#routes/login/+page.svelte';
 
-const loginResponse: LoginResponse = { message: 'ok', username: 'testuser', role: UserRole.USER, csrf_token: 'csrf' };
+async function submit(username = 'testuser', password = 'pass1234'): Promise<void> {
+    renderWithQueryClient(Login);
+    await user.type(screen.getByLabelText('Username'), username);
+    await user.type(screen.getByLabelText('Password'), password);
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+}
 
 describe('Login', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         page.url = new URL('https://localhost/login');
-        mockApi(loginApiV1AuthLoginPost).ok(loginResponse);
+        mockApi(loginApiV1AuthLoginPost).ok(fakeLoginResponse());
     });
-
-    async function submit(username = 'testuser', password = 'pass1234') {
-        renderWithQueryClient(Login);
-        await user.type(screen.getByPlaceholderText('Username'), username);
-        await user.type(screen.getByPlaceholderText('Password'), password);
-        await user.click(screen.getByRole('button', { name: /sign in/i }));
-    }
 
     it('renders sign-in form with heading, inputs, button, and register link', () => {
         renderWithQueryClient(Login);
         expect(screen.getByRole('heading', { name: /sign in to your account/i })).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+        expect(screen.getByLabelText('Username')).toBeInTheDocument();
+        expect(screen.getByLabelText('Password')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /create a new account/i })).toHaveAttribute('href', '/register');
     });
@@ -39,7 +37,7 @@ describe('Login', () => {
         await user.click(screen.getByRole('button', { name: /sign in/i }));
 
         for (const field of ['Username', 'Password']) {
-            const input = screen.getByPlaceholderText(field);
+            const input = screen.getByLabelText(field);
             await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'));
             expect(input).toHaveAccessibleDescription('Required');
         }

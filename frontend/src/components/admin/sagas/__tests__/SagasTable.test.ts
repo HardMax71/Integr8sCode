@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import { fakeSagaStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import SagasTable from '#components/admin/sagas/SagasTable.svelte';
 
@@ -13,11 +14,6 @@ vi.mock('#lib/formatters.ts', async (importOriginal) => ({
 vi.mock('#lib/admin/sagas/index.ts', () => ({
     getSagaStateInfo: vi.fn(() => ({ color: 'badge-neutral', bgColor: 'bg-muted' })),
 }));
-
-vi.mock('#components/Spinner.svelte', async () => {
-    const utils = await import('#test/test-utils.ts');
-    return { default: utils.createMockNamedComponents({ default: '<span data-testid="spinner">...</span>' }).default };
-});
 
 function renderTable(props: Record<string, unknown> = {}) {
     const onViewDetails = vi.fn();
@@ -37,8 +33,6 @@ function renderTable(props: Record<string, unknown> = {}) {
 }
 
 describe('SagasTable', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it('shows loading state when loading with no sagas', () => {
         renderTable({ loading: true, sagas: [] });
         expect(screen.getByText('Loading sagas...')).toBeInTheDocument();
@@ -51,21 +45,16 @@ describe('SagasTable', () => {
 
     it('names each column by its API key', () => {
         renderTable({ sagas: [fakeSagaStatusResponse()], rowCount: 1 });
-        expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
-            'Saga Name',
-            'State',
-            'Progress',
-            'Created At',
-            'Duration',
-            'Actions',
-        ]);
+        expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual(
+            ['saga_name', 'state', 'progress', 'created_at', 'duration', 'actions'].map(fieldTitle),
+        );
     });
 
     it('renders one row per saga in desktop table', () => {
         const sagas = Array.from({ length: 4 }, () => fakeSagaStatusResponse());
-        const { container } = renderTable({ sagas });
-        const rows = container.querySelectorAll('tbody tr');
-        expect(rows).toHaveLength(4);
+        renderTable({ sagas });
+        const rows = within(screen.getByRole('table', { name: 'Sagas' })).getAllByRole('row');
+        expect(rows).toHaveLength(sagas.length + 1);
     });
 
     it('renders a card for each saga for narrow screens', () => {

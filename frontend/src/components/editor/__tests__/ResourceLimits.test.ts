@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeResourceLimits } from '#lib/api/@faker-js/faker.gen.ts';
@@ -7,21 +7,19 @@ import ResourceLimits from '#components/editor/ResourceLimits.svelte';
 import { getK8sResourceLimitsApiV1K8sLimitsGet } from '#lib/api/index.ts';
 import { draft } from '#lib/editor/draft.svelte.ts';
 
-const LIMITS = {
-    ...fakeResourceLimits(),
-    supported_runtimes: {
-        python: { versions: ['3.14'], file_ext: 'py' },
-        go: { versions: ['1.27'], file_ext: 'go' },
-        ruby: { versions: ['3.4'], file_ext: 'rb' },
-    },
-    language_limits: {
-        python: { cpu_limit: '500m', memory_limit: '256Mi', execution_timeout: 30 },
-        go: { cpu_limit: '1000m', memory_limit: '320Mi', execution_timeout: 45 },
-    },
-};
-
 function renderLimits(lang: string) {
-    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok(LIMITS);
+    mockApi(getK8sResourceLimitsApiV1K8sLimitsGet).ok({
+        ...fakeResourceLimits(),
+        supported_runtimes: {
+            python: { versions: ['3.14'], file_ext: 'py' },
+            go: { versions: ['1.27'], file_ext: 'go' },
+            ruby: { versions: ['3.4'], file_ext: 'rb' },
+        },
+        language_limits: {
+            python: { cpu_limit: '500m', memory_limit: '256Mi', execution_timeout: 30 },
+            go: { cpu_limit: '1000m', memory_limit: '320Mi', execution_timeout: 45 },
+        },
+    });
     draft.current = { ...draft.current, lang };
     return renderWithQueryClient(ResourceLimits);
 }
@@ -29,8 +27,6 @@ function renderLimits(lang: string) {
 const trigger = () => screen.findByRole('button', { name: /Resource Limits/i });
 
 describe('ResourceLimits', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it('opens a panel from a collapsed trigger', async () => {
         renderLimits('python');
         const button = await trigger();

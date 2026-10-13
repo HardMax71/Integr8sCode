@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 
+// Worker threads take the zone from the process, so test.env would come too late
+process.env.TZ = 'UTC';
+
 // --8<-- [start:config]
 export default defineConfig({
   plugins: [
@@ -14,6 +17,9 @@ export default defineConfig({
     isolate: true,
     css: false,
     testTimeout: 10_000,
+    mockReset: true,
+    restoreMocks: true,
+    unstubGlobals: true,
     environment: 'happy-dom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts}'],

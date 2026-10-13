@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { user } from '#test/test-utils.ts';
 import { SagaState } from '#lib/api/index.ts';
@@ -13,8 +13,6 @@ function renderFilters() {
 }
 
 describe('SagaFilters', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it.each(['Search', 'State', 'Execution Id'])('renders %s filter input', (label) => {
         renderFilters();
         expect(screen.getByLabelText(label)).toBeInTheDocument();

@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeSagaStatusResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { getSagaStatusApiV1SagasSagaIdGet, type SagaStatusResponse } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import SagaDetailsModal from '#components/admin/sagas/SagaDetailsModal.svelte';
 
 vi.mock('#lib/formatters.ts', async (importOriginal) => ({
@@ -25,8 +26,6 @@ async function renderModal(saga: SagaStatusResponse = fakeSagaStatusResponse()) 
 }
 
 describe('SagaDetailsModal', () => {
-    beforeEach(() => vi.clearAllMocks());
-
     it('loads the saga by its id', async () => {
         await renderModal({ ...fakeSagaStatusResponse(), saga_id: 'saga-7' });
         await waitFor(() =>
@@ -52,17 +51,17 @@ describe('SagaDetailsModal', () => {
     );
 
     it.each([
-        'Saga Id',
-        'Saga Name',
-        'Execution Id',
-        'State',
-        'Retry Count',
-        'Created At',
-        'Updated At',
-        'Completed At',
-    ])('labels the %s field by its API name', async (title) => {
+        'saga_id',
+        'saga_name',
+        'execution_id',
+        'state',
+        'retry_count',
+        'created_at',
+        'updated_at',
+        'completed_at',
+    ])('labels the %s field by its API name', async (key) => {
         await renderModal();
-        expect(screen.getByText(title, { selector: 'dt' })).toBeInTheDocument();
+        expect(screen.getByText(fieldTitle(key), { selector: 'dt' })).toBeInTheDocument();
     });
 
     it('displays saga ID', async () => {

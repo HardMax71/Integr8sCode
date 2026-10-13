@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient, user } from '#test/test-utils.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
+import { queryClient } from '#lib/query-client.ts';
 import {
     deleteNotificationApiV1NotificationsNotificationIdDelete,
     getNotificationsApiV1NotificationsGet,
@@ -27,26 +28,21 @@ function setNotifications(notifications: NotificationResponse[], unreadCount = 0
 
 describe('Notifications', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         setNotifications([]);
         mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
         mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
         mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).ok({ message: 'Notification deleted' });
     });
 
-    function renderNotifications() {
-        return renderWithQueryClient(Notifications);
-    }
-
     it('loads the latest 100 notifications on mount', async () => {
-        renderNotifications();
+        renderWithQueryClient(Notifications);
         await waitFor(() => {
             expect(getNotifications).toHaveBeenCalledWith(expect.objectContaining({ query: { limit: 100 } }));
         });
     });
 
     it('shows empty state when no notifications', async () => {
-        renderNotifications();
+        renderWithQueryClient(Notifications);
         await waitFor(() => {
             expect(screen.getByText('No notifications yet')).toBeInTheDocument();
         });
@@ -70,7 +66,7 @@ describe('Notifications', () => {
                 1,
             );
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await waitFor(() => {
                 expect(screen.getByText('Execution Complete')).toBeInTheDocument();
             });
@@ -83,7 +79,7 @@ describe('Notifications', () => {
         it('shows the read status as is', async () => {
             setNotifications([{ ...fakeNotificationResponse(), status: 'read' }]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await waitFor(() => {
                 expect(screen.getByText('read')).toBeInTheDocument();
             });
@@ -93,7 +89,7 @@ describe('Notifications', () => {
             const tags = ['tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7', 'tag8'];
             setNotifications([{ ...fakeNotificationResponse(), tags }]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await waitFor(() => {
                 expect(screen.getByText('tag1')).toBeInTheDocument();
             });
@@ -109,11 +105,12 @@ describe('Notifications', () => {
             [5 * 60 * 60 * 1000, '5h ago'],
             [2 * 24 * 60 * 60 * 1000, '2d ago'],
         ])('formats %dms ago as "%s"', async (msAgo, expected) => {
+            vi.setSystemTime(new Date(2026, 0, 15, 12));
             setNotifications([
                 { ...fakeNotificationResponse(), created_at: new Date(Date.now() - msAgo).toISOString() },
             ]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await waitFor(() => {
                 expect(screen.getByText(expected)).toBeInTheDocument();
             });
@@ -124,7 +121,7 @@ describe('Notifications', () => {
         it('marks the clicked unread notification as read and refetches', async () => {
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'n-42', status: 'delivered' }], 1);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await user.click(await screen.findByTitle('Mark as read'));
             await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
             expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'n-42' } }));
@@ -140,7 +137,7 @@ describe('Notifications', () => {
                 },
             ]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await screen.findByText('Test Notification');
             expect(screen.queryByTitle('Mark as read')).not.toBeInTheDocument();
             await user.click(screen.getByText('Test Notification'));
@@ -150,7 +147,7 @@ describe('Notifications', () => {
         it('marks a notification as read from the keyboard', async () => {
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'n-key', status: 'delivered' }], 1);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             (await screen.findByTitle('Mark as read')).focus();
             await user.keyboard('{Enter}');
             await waitFor(() =>
@@ -161,7 +158,7 @@ describe('Notifications', () => {
 
     describe('Mark all as read', () => {
         it('button only visible when unreadCount > 0 and notifications exist', async () => {
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await screen.findByText('No notifications yet');
             expect(screen.queryByRole('button', { name: /mark all as read/i })).not.toBeInTheDocument();
         });
@@ -172,7 +169,7 @@ describe('Notifications', () => {
                 2,
             );
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('All notifications marked as read');
@@ -187,9 +184,10 @@ describe('Notifications', () => {
                 1,
             );
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await user.click(await screen.findByRole('button', { name: /mark all as read/i }));
-            await waitFor(() => expect(markAllRead).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(markAllRead).toHaveBeenCalled();
             expect(toast.success).not.toHaveBeenCalled();
         });
     });
@@ -198,7 +196,7 @@ describe('Notifications', () => {
         it('deletes by id, shows success toast and refetches', async () => {
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'del-1' }]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
             await waitFor(() => {
                 expect(toast.success).toHaveBeenCalledWith('Notification deleted');
@@ -213,9 +211,10 @@ describe('Notifications', () => {
             mockApi(deleteNotificationApiV1NotificationsNotificationIdDelete).err({ status: 500, detail: 'boom' });
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'del-fail' }]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await user.click(await screen.findByRole('button', { name: 'Delete notification' }));
-            await waitFor(() => expect(deleteNotification).toHaveBeenCalled());
+            await waitFor(() => expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+            expect(deleteNotification).toHaveBeenCalled();
             expect(toast.success).not.toHaveBeenCalled();
         });
 
@@ -225,7 +224,7 @@ describe('Notifications', () => {
             );
             setNotifications([{ ...fakeNotificationResponse(), notification_id: 'dbl-1' }]);
 
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             const deleteBtn = await screen.findByRole('button', { name: 'Delete notification' });
             await user.click(deleteBtn);
             await waitFor(() => expect(deleteBtn).toBeDisabled());
@@ -236,7 +235,7 @@ describe('Notifications', () => {
 
     describe('Filter', () => {
         it('applies tag filters on button click', async () => {
-            renderNotifications();
+            renderWithQueryClient(Notifications);
             await screen.findByText('No notifications yet');
 
             await user.type(screen.getByLabelText('Include Tags'), 'exec,completed');

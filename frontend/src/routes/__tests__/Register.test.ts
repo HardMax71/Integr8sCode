@@ -1,26 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
+import * as z from 'zod/mini';
 import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { toast } from 'svelte-sonner';
 import * as navigation from '$app/navigation';
 import Register from '#routes/register/+page.svelte';
 
-import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
+import { registerApiV1AuthRegisterPost, zUserCreate } from '#lib/api/index.ts';
 import { queryClient } from '#lib/query-client.ts';
 
 describe('Register', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(registerApiV1AuthRegisterPost).ok(fakeUserResponse());
     });
 
-    function renderRegister() {
-        return renderWithQueryClient(Register);
-    }
-
     it('renders form with 4 inputs, submit button, and login link', async () => {
-        await renderRegister();
+        renderWithQueryClient(Register);
         expect(screen.getByRole('heading', { name: /create a new account/i })).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Username')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
@@ -46,10 +42,10 @@ describe('Register', () => {
             password: 'short',
             confirmPassword: 'short',
             field: 'Password',
-            expectedError: 'Must be at least 8 characters',
+            expectedError: `Must be at least ${z.toJSONSchema(zUserCreate.shape.password).minLength} characters`,
         },
     ])('shows $name under the field and sends nothing', async ({ password, confirmPassword, field, expectedError }) => {
-        await renderRegister();
+        renderWithQueryClient(Register);
         await user.type(screen.getByPlaceholderText('Username'), 'testuser');
         await user.type(screen.getByPlaceholderText('Email'), 'test@email.com');
         await user.type(screen.getByPlaceholderText('Password'), password);
@@ -65,7 +61,7 @@ describe('Register', () => {
     });
 
     it('marks an invalid email with the reason', async () => {
-        await renderRegister();
+        renderWithQueryClient(Register);
         await user.type(screen.getByPlaceholderText('Email'), 'not-an-email');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -74,28 +70,26 @@ describe('Register', () => {
     });
 
     it('calls API with correct payload, shows toast, and redirects on success', async () => {
-        await renderRegister();
+        renderWithQueryClient(Register);
         await user.type(screen.getByPlaceholderText('Username'), 'newuser');
         await user.type(screen.getByPlaceholderText('Email'), 'new@email.com');
         await user.type(screen.getByPlaceholderText('Password'), 'securepass');
         await user.type(screen.getByPlaceholderText('Confirm Password'), 'securepass');
         await user.click(screen.getByRole('button', { name: /create account/i }));
 
-        await waitFor(() => {
-            expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
-                }),
-            );
-        });
+        await waitFor(() => expect(navigation.goto).toHaveBeenCalledWith('/login'));
+        expect(vi.mocked(registerApiV1AuthRegisterPost)).toHaveBeenCalledWith(
+            expect.objectContaining({
+                body: { username: 'newuser', email: 'new@email.com', password: 'securepass' },
+            }),
+        );
         expect(toast.success).toHaveBeenCalledWith('Registration successful! Please log in.');
-        expect(navigation.goto).toHaveBeenCalledWith('/login');
     });
 
     it('shows the API error inline and opts out of the global toasts', async () => {
         mockApi(registerApiV1AuthRegisterPost).err({ status: 409, detail: 'Username taken' });
 
-        await renderRegister();
+        renderWithQueryClient(Register);
         await user.type(screen.getByPlaceholderText('Username'), 'taken');
         await user.type(screen.getByPlaceholderText('Email'), 'e@m.com');
         await user.type(screen.getByPlaceholderText('Password'), 'password123');
@@ -119,7 +113,7 @@ describe('Register', () => {
                 }),
         );
 
-        await renderRegister();
+        renderWithQueryClient(Register);
         await user.type(screen.getByPlaceholderText('Username'), 'user');
         await user.type(screen.getByPlaceholderText('Email'), 'e@m.com');
         await user.type(screen.getByPlaceholderText('Password'), 'password123');
@@ -138,7 +132,7 @@ describe('Register', () => {
     });
 
     it('sets the page title', async () => {
-        await renderRegister();
+        renderWithQueryClient(Register);
         await waitFor(() => expect(document.title).toBe('Register - Integr8sCode'));
     });
 });

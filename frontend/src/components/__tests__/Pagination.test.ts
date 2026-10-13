@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
-import { user, selectOption } from '#test/test-utils.ts';
+import { user } from '#test/test-utils.ts';
 import TableHarness from './TableHarness.svelte';
 
 const things = (count: number) => Array.from({ length: count }, (_, i) => ({ id: `t${i}`, name: `thing ${i}` }));
@@ -38,8 +38,8 @@ describe('Pagination', () => {
 
     it('shows the page out of the page count', () => {
         renderPage(25, 1);
-        expect(screen.getByText('2', { selector: '.pagination-text span' })).toBeInTheDocument();
-        expect(screen.getByText('3', { selector: '.pagination-text span' })).toBeInTheDocument();
+        expect(screen.getByText('2')).toBeInTheDocument();
+        expect(screen.getByText('3')).toBeInTheDocument();
     });
 
     it.each([
@@ -64,7 +64,7 @@ describe('Pagination', () => {
 
     it('keeps the top row in view when the page size changes', async () => {
         renderPage(60, 3);
-        selectOption(screen.getByRole('combobox', { name: 'Items per page' }), '25');
+        await user.selectOptions(screen.getByRole('combobox', { name: 'Items per page' }), '25');
         await waitFor(() => expect(state()).toBe('1/25'));
     });
 });

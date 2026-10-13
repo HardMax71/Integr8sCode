@@ -4,6 +4,10 @@ import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import { captureLogs } from '#test/test-utils.ts';
 import { page } from '#test/page.svelte.ts';
 
+function failure(status: number, detail = 'some error'): ErrorResponse {
+    return { status, detail };
+}
+
 describe('initializeApiInterceptors and showApiError', () => {
     let mockErrorUse: ReturnType<typeof vi.fn>;
     let mockRequestUse: ReturnType<typeof vi.fn>;
@@ -114,7 +118,6 @@ describe('initializeApiInterceptors and showApiError', () => {
     });
 
     describe('showApiError', () => {
-        const failure = (status: number, detail = 'some error'): ErrorResponse => ({ status, detail });
         const network = failure(0, 'Network error. Check your connection.');
 
         it('shows the network error toast when there was no response', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     createExecutionApiV1ExecutePost,
     executionEventsApiV1EventsExecutionsExecutionIdGet,
@@ -8,10 +8,7 @@ import { createExecutionState } from '#lib/editor/execution.svelte.ts';
 import { captureLogs, createInQueryContext, mockApi, mockStreamEvents } from '#test/test-utils.ts';
 import { fakeExecutionResult } from '#lib/api/@faker-js/faker.gen.ts';
 
-const mockCreateExecution = vi.mocked(createExecutionApiV1ExecutePost);
 const mockSseFn = vi.mocked(executionEventsApiV1EventsExecutionsExecutionIdGet);
-
-const RESULT = { ...fakeExecutionResult(), execution_id: 'exec-1', stdout: 'hello', stderr: '', lang_version: '3.12' };
 
 const event = (
     fields: Partial<SseExecutionEventSchema> & Pick<SseExecutionEventSchema, 'event_type'>,
@@ -37,11 +34,6 @@ function mockSseEvents(...events: SseExecutionEventSchema[]) {
 }
 
 describe('createExecutionState', () => {
-    beforeEach(() => {
-        mockCreateExecution.mockReset();
-        mockSseFn.mockReset();
-    });
-
     describe('initial state', () => {
         it.each([
             ['phase', 'idle'],
@@ -56,17 +48,18 @@ describe('createExecutionState', () => {
 
     describe('execute → stream result_stored', () => {
         it('yields result from SSE stream', async () => {
+            const result = fakeExecutionResult();
             mockStarted();
 
             mockSseEvents(
                 event({ event_type: 'status', status: 'running' }),
-                event({ event_type: 'result_stored', result: RESULT }),
+                event({ event_type: 'result_stored', result }),
             );
 
             const s = createState();
             await s.execute('print("hi")', 'python', '3.12');
 
-            expect(s.result).toEqual(RESULT);
+            expect(s.result).toEqual(result);
             expect(s.phase).toBe('idle');
             expect(s.error).toBeNull();
         });
@@ -103,14 +96,15 @@ describe('createExecutionState', () => {
         });
 
         it('uses result from terminal failure event when available', async () => {
+            const result = fakeExecutionResult();
             mockStarted();
 
-            mockSseEvents(event({ event_type: 'execution_failed', result: RESULT }));
+            mockSseEvents(event({ event_type: 'execution_failed', result }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
 
-            expect(s.result).toEqual(RESULT);
+            expect(s.result).toEqual(result);
             expect(s.error).toBe('Execution failed.');
         });
     });
@@ -139,7 +133,7 @@ describe('createExecutionState', () => {
         it('logs each lost connection while the stream retries', async () => {
             const records = captureLogs();
             mockStarted();
-            mockSseEvents(event({ event_type: 'result_stored', result: RESULT }));
+            mockSseEvents(event({ event_type: 'result_stored', result: fakeExecutionResult() }));
             const s = createState();
             await s.execute('x', 'python', '3.12');
             const error = new TypeError('Failed to fetch');
@@ -203,16 +197,17 @@ describe('createExecutionState', () => {
 
     describe('malformed SSE data', () => {
         it('skips non-object events and continues', async () => {
+            const result = fakeExecutionResult();
             mockStarted();
 
             // The generated client yields the raw text when an event isn't JSON
             const broken = '{broken' as unknown as SseExecutionEventSchema;
-            mockSseEvents(broken, event({ event_type: 'result_stored', result: RESULT }));
+            mockSseEvents(broken, event({ event_type: 'result_stored', result }));
 
             const s = createState();
             await s.execute('x', 'python', '3.12');
 
-            expect(s.result).toEqual(RESULT);
+            expect(s.result).toEqual(result);
         });
     });
 });

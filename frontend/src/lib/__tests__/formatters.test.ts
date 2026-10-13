@@ -12,25 +12,13 @@ import {
     formatBoolean,
 } from '#lib/formatters.ts';
 
-const LOCALE_OPTS_DATETIME: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-};
-const LOCALE_OPTS_DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-const LOCALE_OPTS_TIME: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
-
 describe('formatTimestamp', () => {
     it.each([null, undefined, 'garbage'])('returns N/A for %j', (input) => {
         expect(formatTimestamp(input)).toBe('N/A');
     });
 
     it('formats the date and time in the browser locale', () => {
-        const iso = '2025-01-15T14:30:00Z';
-        expect(formatTimestamp(iso)).toBe(new Date(iso).toLocaleString(undefined, LOCALE_OPTS_DATETIME));
+        expect(formatTimestamp('2025-01-15T14:30:00Z')).toBe('Jan 15, 2025, 02:30:00 PM');
     });
 });
 
@@ -40,8 +28,7 @@ describe('formatDateOnly', () => {
     });
 
     it('formats the date in the browser locale', () => {
-        const iso = '2025-01-15T14:30:00Z';
-        expect(formatDateOnly(iso)).toBe(new Date(iso).toLocaleDateString(undefined, LOCALE_OPTS_DATE));
+        expect(formatDateOnly('2025-01-15T14:30:00Z')).toBe('Jan 15, 2025');
     });
 });
 
@@ -51,8 +38,7 @@ describe('formatTimeOnly', () => {
     });
 
     it('formats the time in the browser locale', () => {
-        const date = new Date(2025, 0, 15, 9, 5);
-        expect(formatTimeOnly(date.toISOString())).toBe(date.toLocaleTimeString(undefined, LOCALE_OPTS_TIME));
+        expect(formatTimeOnly('2025-01-15T09:05:00Z')).toBe('09:05:00 AM');
     });
 });
 
@@ -107,14 +93,11 @@ describe('formatRelativeTime', () => {
     });
 
     it('returns formatted date for >7 days ago', () => {
-        const result = formatRelativeTime(new Date(2025, 6, 1).toISOString());
-        expect(result).not.toMatch(/ago$/);
-        expect(result).not.toBe('N/A');
+        expect(formatRelativeTime(new Date(2025, 6, 1).toISOString())).toBe('Jul 1, 2025');
     });
 
     it('returns formatted date for future dates', () => {
-        const result = formatRelativeTime(new Date(2025, 6, 20).toISOString());
-        expect(result).not.toMatch(/ago$/);
+        expect(formatRelativeTime(new Date(2025, 6, 20).toISOString())).toBe('Jul 20, 2025');
     });
 
     it.each([null, 'not-valid'])('returns N/A for %j', (input) => {
@@ -144,7 +127,7 @@ describe('truncate', () => {
 });
 
 describe('fieldTitle', () => {
-    const spec = JSON.parse(readFileSync('../docs/reference/openapi.json', 'utf8')) as {
+    const spec = JSON.parse(readFileSync(`${import.meta.dirname}/../../../../docs/reference/openapi.json`, 'utf8')) as {
         components: { schemas: Record<string, { properties?: Record<string, { title?: string }> }> };
     };
     // FastAPI's own validation error model titles its fields ("msg" is "Message")

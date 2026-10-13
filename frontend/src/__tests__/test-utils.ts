@@ -2,7 +2,7 @@
  * Shared test utilities for Vitest tests.
  */
 
-import { onTestFinished, vi, type Mock } from 'vitest';
+import { onTestFinished, vi } from 'vitest';
 import { configureSync, resetSync, type LogRecord } from '@logtape/logtape';
 import type { Component } from 'svelte';
 import { render, type RenderResult } from '@testing-library/svelte';
@@ -28,44 +28,52 @@ type ApiData<F> = F extends (...args: any[]) => Promise<infer R>
  * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects with an
  * ErrorResponse when the call passes `throwOnError`, which the generated query and mutation options always do.
  */
-export function mockApi<F extends (...args: any[]) => any>(fn: F) {
-    const mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
-    return {
-        ok(data: ApiData<F>) {
-            mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
-        },
-        /** Answers each call from its options, such as a list filtered by the query */
-        respond(handler: (...args: Parameters<F>) => ApiData<F>) {
-            mock.mockImplementation(async (...args: Parameters<F>) => ({
-                data: handler(...args),
-                error: undefined,
-                request: _r,
-                response: _s,
-            }));
-        },
-        err(error: ErrorResponse) {
-            mock.mockImplementation((options?: { throwOnError?: boolean }) =>
-                options?.throwOnError
-                    ? Promise.reject(error)
-                    : Promise.resolve({ data: undefined, error, request: _r, response: _s }),
-            );
-        },
-        mock,
-    };
+class ApiMock<F extends (...args: any[]) => any> {
+    readonly mock: ReturnType<typeof vi.fn>;
+
+    constructor(fn: F) {
+        this.mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
+    }
+
+    ok(data: ApiData<F>): void {
+        this.mock.mockResolvedValue({ data, error: undefined, request: _r, response: _s });
+    }
+
+    /** Answers each call from its options, such as a list filtered by the query */
+    respond(handler: (...args: Parameters<F>) => ApiData<F>): void {
+        this.mock.mockImplementation(async (...args: Parameters<F>) => ({
+            data: handler(...args),
+            error: undefined,
+            request: _r,
+            response: _s,
+        }));
+    }
+
+    err(error: ErrorResponse): void {
+        this.mock.mockImplementation((options?: { throwOnError?: boolean }) =>
+            options?.throwOnError
+                ? Promise.reject(error)
+                : Promise.resolve({ data: undefined, error, request: _r, response: _s }),
+        );
+    }
+}
+
+export function mockApi<F extends (...args: any[]) => any>(fn: F): ApiMock<F> {
+    return new ApiMock(fn);
 }
 
 type StreamEvent<F> = F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<infer E, any, any> }> ? E : never;
 
-/** Makes a generated SSE function yield these events, then end the stream. */
+async function* streamOf<E>(events: E[]): AsyncGenerator<E> {
+    yield* events;
+}
+
+/** Makes a generated SSE function yield these events, then end the stream, on every call. */
 export function mockStreamEvents<F extends (...args: any[]) => Promise<{ stream: AsyncGenerator<any, any, any> }>>(
     fn: F,
     ...events: StreamEvent<F>[]
 ): void {
-    vi.mocked(fn).mockResolvedValue({
-        stream: (async function* () {
-            yield* events;
-        })(),
-    } as Awaited<ReturnType<F>>);
+    vi.mocked(fn).mockImplementation(() => Promise.resolve({ stream: streamOf(events) }) as ReturnType<F>);
 }
 
 /**
@@ -110,46 +118,4 @@ export function captureLogs(): LogRecord[] {
         resetSync();
     });
     return records;
-}
-
-/**
- * Creates a mock module with named Svelte 5 component exports.
- * Each component has proper $$ structure for Svelte 5 compatibility.
- *
- * @param components - Record mapping export names to HTML strings
- */
-export function createMockNamedComponents(components: Record<string, string>): Record<string, unknown> {
-    const module: Record<string, unknown> = {};
-    for (const [name, html] of Object.entries(components)) {
-        const Mock = function () {
-            return {};
-        } as unknown as {
-            new (): object;
-            render: () => { html: string; css: { code: string; map: null }; head: string };
-        };
-        Mock.render = () => ({ html, css: { code: '', map: null }, head: '' });
-        module[name] = Mock;
-    }
-    return module;
-}
-
-export function mockWindowGlobals(openMock: Mock, confirmMock: Mock): void {
-    vi.stubGlobal('open', openMock);
-    vi.stubGlobal('confirm', confirmMock);
-}
-
-/**
- * Selects an option in a <select> element by value.
- *
- * Works with Svelte's bind:value in both jsdom and happy-dom.
- * Svelte reads the :checked option on change — not select.value —
- * so we must mark the <option> as selected before dispatching.
- */
-export function selectOption(element: HTMLElement, value: string): void {
-    const option = Array.from(element.querySelectorAll('option')).find((o) => o.value === value);
-    if (!option) {
-        throw new Error(`No <option value="${value}"> found`);
-    }
-    option.selected = true;
-    element.dispatchEvent(new Event('change', { bubbles: true }));
 }

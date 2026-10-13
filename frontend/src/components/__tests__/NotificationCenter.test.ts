@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/svelte';
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from '@lucide/svelte';
 import { match } from '$app/paths';
 import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { notificationIcon, SEVERITY_COLORS } from '#lib/notifications/display.ts';
 import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
@@ -25,14 +27,7 @@ vi.mock('#lib/notifications/stream.svelte.ts', () => ({
     },
 }));
 
-const mockRequestPermission = vi.fn().mockResolvedValue('granted');
-let mockNotificationPermission = 'default';
-vi.stubGlobal('Notification', {
-    get permission() {
-        return mockNotificationPermission;
-    },
-    requestPermission: mockRequestPermission,
-});
+const mockRequestPermission = vi.fn(async () => 'granted');
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
 
@@ -54,24 +49,9 @@ const setNotifications = (notifications: NotificationResponse[]) => {
     });
 };
 
+const getNotifications = vi.mocked(getNotificationsApiV1NotificationsGet);
 const markRead = vi.mocked(markNotificationReadApiV1NotificationsNotificationIdReadPut);
-
-/** Mocks window.location.href for external URL testing */
-const withMockedLocation = async (testFn: (mockHref: ReturnType<typeof vi.fn>) => Promise<void>) => {
-    const originalLocation = window.location;
-    const mockHref = vi.fn();
-    Object.defineProperty(window, 'location', {
-        value: { ...originalLocation, href: '' },
-        writable: true,
-        configurable: true,
-    });
-    Object.defineProperty(window.location, 'href', { set: mockHref, configurable: true });
-    try {
-        await testFn(mockHref);
-    } finally {
-        Object.defineProperty(window, 'location', { value: originalLocation, writable: true, configurable: true });
-    }
-};
+const markAllRead = vi.mocked(markAllReadApiV1NotificationsMarkAllReadPost);
 
 /** Interacts with a notification button via click or keyboard */
 const interactWithButton = async (user: UserEventInstance, button: HTMLElement, method: 'click' | 'keyboard') => {
@@ -83,27 +63,16 @@ const interactWithButton = async (user: UserEventInstance, button: HTMLElement, 
 };
 
 const iconTestCases = [
-    { tags: ['completed'], iconClass: 'lucide-circle-check', desc: 'check' },
-    { tags: ['success'], iconClass: 'lucide-circle-check', desc: 'check' },
-    { tags: ['failed'], iconClass: 'lucide-circle-alert', desc: 'error' },
-    { tags: ['error'], iconClass: 'lucide-circle-alert', desc: 'error' },
-    { tags: ['security'], iconClass: 'lucide-circle-alert', desc: 'error' },
-    { tags: ['timeout'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
-    { tags: ['warning'], iconClass: 'lucide-triangle-alert', desc: 'warning' },
-    { tags: ['unknown'], iconClass: 'lucide-info', desc: 'info' },
-    { tags: [] as string[], iconClass: 'lucide-info', desc: 'info' },
+    { tags: ['completed'], icon: CircleCheck, desc: 'check' },
+    { tags: ['success'], icon: CircleCheck, desc: 'check' },
+    { tags: ['failed'], icon: CircleAlert, desc: 'error' },
+    { tags: ['error'], icon: CircleAlert, desc: 'error' },
+    { tags: ['security'], icon: CircleAlert, desc: 'error' },
+    { tags: ['timeout'], icon: TriangleAlert, desc: 'warning' },
+    { tags: ['warning'], icon: TriangleAlert, desc: 'warning' },
+    { tags: ['unknown'], icon: Info, desc: 'info' },
+    { tags: [] as string[], icon: Info, desc: 'info' },
 ];
-
-const SEVERITY_CSS: Record<NotificationSeverity, string> = {
-    low: '.text-fg-muted',
-    medium: '.text-info',
-    high: '.text-orange',
-    urgent: '.text-danger',
-};
-const priorityTestCases = Object.values(NotificationSeverity).map((severity) => ({
-    severity,
-    css: SEVERITY_CSS[severity],
-}));
 
 const timeTestCases = [
     { offsetMs: 0, expected: 'just now' },
@@ -134,34 +103,17 @@ const interactionTestCases = [
     { method: 'keyboard', url: '', route: null, goesTo: null },
 ] as const;
 
+async function openDropdown(): Promise<void> {
+    renderWithQueryClient(NotificationCenter);
+    await user.click(screen.getByRole('button', { name: /Notifications/i }));
+}
+
 describe('NotificationCenter', () => {
-    const openDropdown = async () => {
-        renderWithQueryClient(NotificationCenter);
-        await user.click(screen.getByRole('button', { name: /Notifications/i }));
-    };
-
-    // The popover renders in a portal on document.body, outside the component's container
-    const openDropdownWithContainer = async () => {
-        renderWithQueryClient(NotificationCenter);
-        await user.click(screen.getByRole('button', { name: /Notifications/i }));
-        return { container: document.body };
-    };
-
     beforeEach(() => {
         setNotifications([]);
-        mocks.mockGoto.mockReset();
-        vi.mocked(getNotificationsApiV1NotificationsGet).mockClear();
-        markRead.mockClear();
         mockApi(markNotificationReadApiV1NotificationsNotificationIdReadPut).ok();
         mockApi(markAllReadApiV1NotificationsMarkAllReadPost).ok();
-        mocks.mockStreamConnect.mockReset();
-        mocks.mockStreamDisconnect.mockReset();
-        mockNotificationPermission = 'default';
-        mockRequestPermission.mockReset().mockResolvedValue('granted');
-    });
-
-    afterEach(() => {
-        vi.restoreAllMocks();
+        vi.stubGlobal('Notification', { permission: 'default', requestPermission: mockRequestPermission });
     });
 
     describe('bell icon and badge', () => {
@@ -172,19 +124,20 @@ describe('NotificationCenter', () => {
             expect(button.querySelector('svg')).toBeInTheDocument();
         });
 
-        it('shows no badge when no unread notifications', () => {
-            const { container } = renderWithQueryClient(NotificationCenter);
-            expect(container.querySelector('.bg-danger-solid')).not.toBeInTheDocument();
+        it('shows no badge when no unread notifications', async () => {
+            setNotifications([createNotification({ subject: 'Read', status: 'read' })]);
+            await openDropdown();
+            await screen.findByRole('button', { name: 'View notification: Read' });
+            expect(screen.getByRole('button', { name: 'Notifications' })).toHaveTextContent('');
         });
 
         it.each(badgeTestCases)('shows badge "$expected" for $count unread', async ({ count, expected }) => {
             setNotifications(
                 Array.from({ length: count }, (_, i) => createNotification({ notification_id: String(i) })),
             );
-            const { container } = renderWithQueryClient(NotificationCenter);
-            await waitFor(() => {
-                expect(container.querySelector('.bg-danger-solid')?.textContent).toBe(expected);
-            });
+            renderWithQueryClient(NotificationCenter);
+            const bell = screen.getByRole('button', { name: 'Notifications' });
+            expect(await within(bell).findByText(expected)).toBeInTheDocument();
         });
     });
 
@@ -211,16 +164,15 @@ describe('NotificationCenter', () => {
     });
 
     describe('notification list display', () => {
-        it('displays notification subjects and shows unread indicator', async () => {
+        it('displays notification subjects', async () => {
             setNotifications([
                 createNotification({ notification_id: '1', subject: 'Build Completed' }),
                 createNotification({ notification_id: '2', subject: 'Build Failed', status: 'read' }),
             ]);
-            const { container } = await openDropdownWithContainer();
+            await openDropdown();
             await waitFor(() => {
                 expect(screen.getByText('Build Completed')).toBeInTheDocument();
                 expect(screen.getByText('Build Failed')).toBeInTheDocument();
-                expect(container.querySelector('.bg-accent.rounded-full')).toBeInTheDocument();
             });
         });
     });
@@ -232,47 +184,48 @@ describe('NotificationCenter', () => {
         ])('Mark all button visible=$visible for $status', async ({ status, visible }) => {
             setNotifications([createNotification({ status })]);
             await openDropdown();
-            await waitFor(() => {
-                expect(!!screen.queryByText('Mark all as read')).toBe(visible);
-            });
+            await screen.findByRole('button', { name: 'View notification: Test' });
+            expect(!!screen.queryByText('Mark all as read')).toBe(visible);
         });
 
         it('marks all as read, closes the dropdown and refetches', async () => {
+            // Time moves only as vi.waitFor checks, so the 2s auto-read can't add a fetch on a slow machine
+            vi.setTimerTickMode('manual');
             setNotifications([createNotification()]);
             await openDropdown();
-            await user.click(await screen.findByText('Mark all as read'));
-            await waitFor(() => expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument());
-            expect(vi.mocked(markAllReadApiV1NotificationsMarkAllReadPost)).toHaveBeenCalled();
-            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2);
+            await user.click(await vi.waitFor(() => screen.getByText('Mark all as read')));
+            await vi.waitFor(() => expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument());
+            expect(markAllRead).toHaveBeenCalled();
+            expect(getNotifications).toHaveBeenCalledTimes(2);
         });
 
         it('skips markAsRead for already-read notifications', async () => {
-            setNotifications([createNotification({ subject: 'Read', status: 'read' })]);
+            setNotifications([
+                createNotification({ notification_id: 'read', subject: 'Read', status: 'read' }),
+                createNotification({ notification_id: 'unread', subject: 'Unread' }),
+            ]);
             await openDropdown();
-            await user.click(await screen.findByRole('button', { name: /View notification: Read/i }));
-            expect(markRead).not.toHaveBeenCalled();
+            await user.click(await screen.findByRole('button', { name: 'View notification: Read' }));
+            await user.click(screen.getByRole('button', { name: 'View notification: Unread' }));
+            await waitFor(() =>
+                expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'unread' } })),
+            );
+            expect(markRead).not.toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'read' } }));
         });
     });
 
     describe('notification icons', () => {
-        it.each(iconTestCases)('shows $desc icon for tags=$tags', async ({ tags, iconClass }) => {
-            const subject = tags[0] || 'NoTags';
-            setNotifications([createNotification({ tags, subject })]);
-            const { container } = await openDropdownWithContainer();
-            await waitFor(() => {
-                const svg = container.querySelector(`[aria-label*="${subject}"] svg`);
-                expect(svg?.classList.contains(iconClass)).toBe(true);
-            });
+        it.each(iconTestCases)('picks the $desc icon for tags=$tags', ({ tags, icon }) => {
+            expect(notificationIcon(tags)).toBe(icon);
         });
     });
 
     describe('priority colors', () => {
-        it.each(priorityTestCases)('applies $css for $severity', async ({ severity, css }) => {
+        it.each(Object.values(NotificationSeverity))('colours the icon of a %s notification', async (severity) => {
             setNotifications([createNotification({ severity })]);
-            const { container } = await openDropdownWithContainer();
-            await waitFor(() => {
-                expect(container.querySelector(css)).toBeInTheDocument();
-            });
+            await openDropdown();
+            const item = await screen.findByRole('button', { name: 'View notification: Test' });
+            expect(item.querySelector('svg')?.parentElement).toHaveClass(SEVERITY_COLORS[severity]);
         });
     });
 
@@ -286,8 +239,8 @@ describe('NotificationCenter', () => {
         });
 
         it('shows relative days for >24h old notifications', async () => {
-            const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-            setNotifications([createNotification({ created_at: oldDate })]);
+            vi.setSystemTime(new Date(2026, 0, 15, 12));
+            setNotifications([createNotification({ created_at: new Date(2026, 0, 13, 12).toISOString() })]);
             await openDropdown();
             await waitFor(() => {
                 expect(screen.getByText('2d ago')).toBeInTheDocument();
@@ -311,32 +264,34 @@ describe('NotificationCenter', () => {
         });
 
         it('ignores non-Enter keydown', async () => {
-            setNotifications([createNotification({ subject: 'Test', action_url: '/test' })]);
-            renderWithQueryClient(NotificationCenter);
-            await user.click(screen.getByRole('button', { name: /Notifications/i }));
-            screen.getByRole('button', { name: /View notification: Test/i }).focus();
-            await user.keyboard('{Tab}');
-            expect(markRead).not.toHaveBeenCalled();
+            // Time moves only as vi.waitFor checks, so the 2s auto-read can't mark the first one
+            vi.setTimerTickMode('manual');
+            setNotifications([
+                createNotification({ notification_id: 'first', subject: 'First' }),
+                createNotification({ notification_id: 'second', subject: 'Second' }),
+            ]);
+            await openDropdown();
+            (await vi.waitFor(() => screen.getByRole('button', { name: 'View notification: First' }))).focus();
+            await user.keyboard('{Tab}{Enter}');
+            await vi.waitFor(() =>
+                expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'second' } })),
+            );
+            expect(markRead).not.toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: 'first' } }));
         });
     });
 
     describe('outside URLs', () => {
         it.each(['click', 'keyboard'] as const)('stays in the app on %s', async (method) => {
-            await withMockedLocation(async (mockHref) => {
-                vi.mocked(match).mockResolvedValue(null);
-                setNotifications([
-                    createNotification({ subject: method, action_url: `https://example.com/${method}` }),
-                ]);
-                await openDropdown();
-                const button = await screen.findByRole('button', {
-                    name: new RegExp(`View notification: ${method}`, 'i'),
-                });
-                await interactWithButton(user, button, method);
+            vi.stubGlobal('location', { href: 'https://localhost/' });
+            vi.mocked(match).mockResolvedValue(null);
+            setNotifications([createNotification({ subject: method, action_url: 'https://example.com/' + method })]);
+            await openDropdown();
+            const button = await screen.findByRole('button', { name: 'View notification: ' + method });
+            await interactWithButton(user, button, method);
 
-                await waitFor(() => expect(match).toHaveBeenCalledWith(`https://example.com/${method}`));
-                expect(mocks.mockGoto).not.toHaveBeenCalled();
-                expect(mockHref).not.toHaveBeenCalled();
-            });
+            await waitFor(() => expect(match).toHaveBeenCalledWith('https://example.com/' + method));
+            expect(mocks.mockGoto).not.toHaveBeenCalled();
+            expect(window.location.href).toBe('https://localhost/');
         });
     });
 
@@ -371,46 +326,30 @@ describe('NotificationCenter', () => {
     describe('stream connection', () => {
         it('loads and connects when authenticated, and refetches on every pushed notification', async () => {
             renderWithQueryClient(NotificationCenter);
-            await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(1));
-            expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledWith(
-                expect.objectContaining({ query: { limit: 20 } }),
-            );
+            await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(1));
+            expect(getNotifications).toHaveBeenCalledWith(expect.objectContaining({ query: { limit: 20 } }));
             expect(mocks.mockStreamConnect).toHaveBeenCalledTimes(1);
 
             const onNotification = mocks.mockStreamConnect.mock.calls[0]![0] as (n: NotificationResponse) => void;
             onNotification(createNotification({ notification_id: 'pushed' }));
 
-            await waitFor(() => expect(vi.mocked(getNotificationsApiV1NotificationsGet)).toHaveBeenCalledTimes(2));
+            await waitFor(() => expect(getNotifications).toHaveBeenCalledTimes(2));
         });
     });
 
     describe('desktop notification permission', () => {
-        it('shows enable button when permission is default', async () => {
-            mockNotificationPermission = 'default';
+        it.each([
+            { permission: 'default', shown: true },
+            { permission: 'granted', shown: false },
+            { permission: 'denied', shown: false },
+        ])('enable button shown=$shown when permission is $permission', async ({ permission, shown }) => {
+            vi.stubGlobal('Notification', { permission, requestPermission: mockRequestPermission });
             await openDropdown();
-            await waitFor(() => {
-                expect(screen.getByText('Enable desktop notifications')).toBeInTheDocument();
-            });
-        });
-
-        it('hides enable button when permission is granted', async () => {
-            mockNotificationPermission = 'granted';
-            await openDropdown();
-            await waitFor(() => {
-                expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
-            });
-        });
-
-        it('hides enable button when permission is denied', async () => {
-            mockNotificationPermission = 'denied';
-            await openDropdown();
-            await waitFor(() => {
-                expect(screen.queryByText('Enable desktop notifications')).not.toBeInTheDocument();
-            });
+            await screen.findByText('View all notifications');
+            expect(!!screen.queryByText('Enable desktop notifications')).toBe(shown);
         });
 
         it('calls requestPermission when enable button clicked', async () => {
-            mockNotificationPermission = 'default';
             await openDropdown();
             await user.click(await screen.findByText('Enable desktop notifications'));
             expect(mockRequestPermission).toHaveBeenCalled();

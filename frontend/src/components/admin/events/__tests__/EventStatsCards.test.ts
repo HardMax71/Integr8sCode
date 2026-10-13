@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import type { EventStatsResponse } from '#lib/api/index.ts';
-import { fakeEventStatsResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeEventStatsResponse, fakeUserEventCount } from '#lib/api/@faker-js/faker.gen.ts';
 
 import EventStatsCards from '#components/admin/events/EventStatsCards.svelte';
 
@@ -54,14 +54,7 @@ describe('EventStatsCards', () => {
     });
 
     it('shows active user count from top_users array length', () => {
-        renderCards({
-            ...fakeEventStatsResponse(),
-            top_users: [
-                { user_id: 'u1', event_count: 10 },
-                { user_id: 'u2', event_count: 5 },
-                { user_id: 'u3', event_count: 2 },
-            ],
-        });
+        renderCards({ ...fakeEventStatsResponse(), top_users: Array.from({ length: 3 }, () => fakeUserEventCount()) });
         expect(screen.getByText('3')).toBeInTheDocument();
     });
 });

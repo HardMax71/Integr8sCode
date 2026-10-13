@@ -1,11 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 import { vi, beforeEach } from 'vitest';
-import { cleanup } from '@testing-library/svelte';
 import { faker } from '@faker-js/faker';
 import { queryClient } from '#lib/query-client.ts';
 import { page } from '#test/page.svelte.ts';
-
-vi.useFakeTimers({ shouldAdvanceTime: true });
 
 // SDK calls become mocks, both through the index and through the generated query options, which import
 // sdk.gen directly; enums, Zod schemas, the client and the query options themselves stay real
@@ -46,39 +43,6 @@ vi.mock('#lib/api-interceptors.ts', async (importOriginal) => ({
     initializeApiInterceptors: vi.fn(),
 }));
 
-vi.stubGlobal(
-    'matchMedia',
-    vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-    })),
-);
-
-// Classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
-vi.stubGlobal(
-    'ResizeObserver',
-    class {
-        observe = vi.fn();
-        unobserve = vi.fn();
-        disconnect = vi.fn();
-    },
-);
-
-vi.stubGlobal(
-    'IntersectionObserver',
-    class {
-        observe = vi.fn();
-        unobserve = vi.fn();
-        disconnect = vi.fn();
-    },
-);
-
 // Polyfill :checked for <option> elements (happy-dom doesn't support it).
 // Svelte's bind_select_value reads select.querySelector(':checked') on change events,
 // so without this polyfill bind:value never updates in tests.
@@ -103,56 +67,78 @@ vi.stubGlobal(
     } as typeof origQSA;
 }
 
-Element.prototype.animate = vi.fn().mockImplementation(() => {
-    const mock = {
-        _onfinish: null as (() => void) | null,
-        get onfinish() {
-            return this._onfinish;
-        },
-        set onfinish(fn: (() => void) | null) {
-            this._onfinish = fn;
-            if (fn) queueMicrotask(fn);
-        },
-        cancel: vi.fn(),
-        finish: vi.fn(),
-        pause: vi.fn(),
-        play: vi.fn(),
-        reverse: vi.fn(),
-        commitStyles: vi.fn(),
-        persist: vi.fn(),
-        currentTime: 0,
-        playbackRate: 1,
-        pending: false,
-        playState: 'running' as AnimationPlayState,
-        replaceState: 'active' as AnimationReplaceState,
-        startTime: 0,
-        timeline: null,
-        id: '',
-        effect: null,
+class FakeAnimation {
+    _onfinish: (() => void) | null = null;
+    get onfinish(): (() => void) | null {
+        return this._onfinish;
+    }
+    set onfinish(fn: (() => void) | null) {
+        this._onfinish = fn;
+        if (fn) queueMicrotask(fn);
+    }
+    cancel = vi.fn();
+    finish = vi.fn();
+    pause = vi.fn();
+    play = vi.fn();
+    reverse = vi.fn();
+    commitStyles = vi.fn();
+    persist = vi.fn();
+    currentTime = 0;
+    playbackRate = 1;
+    pending = false;
+    playState: AnimationPlayState = 'running';
+    replaceState: AnimationReplaceState = 'active';
+    startTime = 0;
+    timeline = null;
+    id = '';
+    effect = null;
+    addEventListener = vi.fn();
+    removeEventListener = vi.fn();
+    dispatchEvent = vi.fn(() => true);
+    updatePlaybackRate = vi.fn();
+    get finished(): Promise<FakeAnimation> {
+        return Promise.resolve(this);
+    }
+    get ready(): Promise<FakeAnimation> {
+        return Promise.resolve(this);
+    }
+    oncancel = null;
+    onremove = null;
+}
+
+Element.prototype.animate = vi.fn(() => new FakeAnimation() as unknown as Animation);
+
+// A class, since floating-ui (behind the bits-ui menus and popovers) constructs observers with `new`
+class NoopObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+}
+
+function unmatchedQuery(query: string): MediaQueryList {
+    return {
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(() => true),
-        updatePlaybackRate: vi.fn(),
-        get finished() {
-            return Promise.resolve(this as unknown as Animation);
-        },
-        get ready() {
-            return Promise.resolve(this as unknown as Animation);
-        },
-        oncancel: null,
-        onremove: null,
+        dispatchEvent: vi.fn(),
     };
-    return mock as unknown as Animation;
-});
+}
 
 // The generated fakes use the shared faker instance, so a fixed seed and date give each test the same fixtures every run
 faker.setDefaultRefDate('2026-01-01T00:00:00Z');
 faker.seed(1);
 
-// Reset storage, DOM, the query cache and the fakes between every test
+// The config undoes every vi.stubGlobal before each test, so the stubs are set here, after it
 beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal('matchMedia', vi.fn(unmatchedQuery));
+    vi.stubGlobal('ResizeObserver', NoopObserver);
+    vi.stubGlobal('IntersectionObserver', NoopObserver);
     localStorage.clear();
-    cleanup();
     page.url = new URL('https://localhost/');
     page.data = { user: null };
     queryClient.clear();

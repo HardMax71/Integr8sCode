@@ -26,6 +26,10 @@ const mocks = vi.hoisted(() => {
     const themeFn = vi.fn((obj: unknown) => ({ theme: obj }));
     const lineNumbersFn = vi.fn(() => 'lineNumbers-ext');
     const loadLanguageFn = vi.fn(async (lang: string) => `lang-ext-${lang}`);
+    const compartment = {
+        of: vi.fn((ext: unknown) => ext),
+        reconfigure: vi.fn((ext: unknown) => ({ type: 'reconfigure', ext })),
+    };
 
     return {
         mockView,
@@ -36,6 +40,7 @@ const mocks = vi.hoisted(() => {
         themeFn,
         lineNumbersFn,
         loadLanguageFn,
+        compartment,
     };
 });
 
@@ -46,24 +51,16 @@ Object.assign(mocks.editorViewConstructor, {
     cspNonce: { of: vi.fn((v: string) => ({ cspNonce: v })) },
 });
 
-vi.mock('@codemirror/state', () => {
-    class MockCompartment {
-        of(ext: unknown) {
-            return ext;
-        }
-        reconfigure(ext: unknown) {
-            return { type: 'reconfigure', ext };
-        }
-    }
-    return {
-        Compartment: MockCompartment,
-        EditorState: {
-            create: mocks.editorStateCreate,
-            allowMultipleSelections: { of: vi.fn((v: boolean) => ({ allowMultiple: v })) },
-            tabSize: { of: vi.fn((v: number) => ({ tabSize: v })) },
-        },
-    };
-});
+vi.mock('@codemirror/state', () => ({
+    Compartment: vi.fn(function () {
+        return mocks.compartment;
+    }),
+    EditorState: {
+        create: mocks.editorStateCreate,
+        allowMultipleSelections: { of: vi.fn((v: boolean) => ({ allowMultiple: v })) },
+        tabSize: { of: vi.fn((v: number) => ({ tabSize: v })) },
+    },
+}));
 
 vi.mock('@codemirror/view', () => ({
     EditorView: mocks.editorViewConstructor,
@@ -101,7 +98,6 @@ function renderEditor(overrides: Partial<{ content: string; lang: string; settin
 describe('CodeMirrorEditor', () => {
     beforeEach(() => {
         setMode(Theme.LIGHT);
-        vi.clearAllMocks();
     });
 
     it('renders wrapper with h-full and w-full classes', () => {
@@ -193,14 +189,14 @@ describe('CodeMirrorEditor', () => {
         });
 
         it('keeps the newer language when an older load finishes last', async () => {
-            let finishPython: (ext: string) => void = () => {};
-            mocks.loadLanguageFn.mockImplementationOnce(() => new Promise<string>((done) => (finishPython = done)));
+            const python = Promise.withResolvers<string>();
+            mocks.loadLanguageFn.mockReturnValueOnce(python.promise);
             const { rerender } = renderEditor({ lang: 'python' });
             await rerender({ lang: 'go' });
             await waitFor(() => {
                 expect(mocks.dispatchFn).toHaveBeenCalledWith({ effects: { type: 'reconfigure', ext: 'lang-ext-go' } });
             });
-            finishPython('lang-ext-python');
+            python.resolve('lang-ext-python');
             await Promise.resolve();
             expect(mocks.dispatchFn).not.toHaveBeenCalledWith({
                 effects: { type: 'reconfigure', ext: 'lang-ext-python' },

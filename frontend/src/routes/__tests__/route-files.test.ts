@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { isRedirect } from '@sveltejs/kit';
 import { toast } from 'svelte-sonner';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
@@ -11,21 +11,17 @@ import { load as adminIndexLoad } from '#routes/admin/+page.ts';
 
 const url = new URL('https://localhost/editor?tab=1');
 const TO_LOGIN = { status: 307, location: '/login?redirect=%2Feditor%3Ftab%3D1' };
-const ADMIN = { ...fakeUserResponse(), role: UserRole.ADMIN };
 
 describe('route files', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('renders every page in the browser only', () => {
         expect(ssr).toBe(false);
     });
 
     describe('root layout load', () => {
         it('gives every page the signed-in user', async () => {
-            mockApi(getCurrentUserProfileApiV1AuthMeGet).ok(ADMIN);
-            await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).resolves.toEqual({ user: ADMIN });
+            const user = fakeUserResponse();
+            mockApi(getCurrentUserProfileApiV1AuthMeGet).ok(user);
+            await expect(rootLoad({} as Parameters<typeof rootLoad>[0])).resolves.toEqual({ user });
         });
 
         it.each([
@@ -70,8 +66,9 @@ describe('route files', () => {
         });
 
         it('lets an admin through', async () => {
-            const event = { url, parent: () => Promise.resolve({ user: ADMIN }) };
-            await expect(adminLoad(event as Parameters<typeof adminLoad>[0])).resolves.toEqual({ user: ADMIN });
+            const user = { ...fakeUserResponse(), role: UserRole.ADMIN };
+            const event = { url, parent: () => Promise.resolve({ user }) };
+            await expect(adminLoad(event as Parameters<typeof adminLoad>[0])).resolves.toEqual({ user });
         });
     });
 

@@ -38,23 +38,23 @@ E2E specs live in `frontend/e2e/`, not under `src/`.
 --8<-- "frontend/vitest.config.ts:config"
 ```
 
-Coverage excludes the generated client in `src/lib/api/` and fails below the thresholds above.
+Coverage excludes the generated client in `src/lib/api/` and fails below the thresholds above. Before each test the config resets every mock to the implementation it was created with, restores spies and undoes `vi.stubGlobal`, and the run's time zone is pinned to UTC, so a test sets up only what it needs and cleans up nothing.
 
 [vitest.setup.ts](https://github.com/HardMax71/Integr8sCode/blob/main/frontend/vitest.setup.ts) runs before every test file and sets up global mocks, so most tests don't mock these themselves:
 
-- fake timers with `shouldAdvanceTime: true`
+- a fresh fake clock for each test, with `shouldAdvanceTime: true`, so a test can set the time or the tick mode without putting it back
 - `#lib/api/sdk.gen.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas, the client and the TanStack options stay real; mocking sdk.gen rather than the index means the generated query options, which import it directly, call the mocks too. A test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so the rest stays available
 - `#lib/api-interceptors.ts` with a no-op `initializeApiInterceptors`, so no test gets the toast handler unless it sets one; `showApiError` stays real
 - `svelte-sonner`'s `toast`, `goto` from `$app/navigation`, and `match` from `$app/paths`, which needs the router of a started app; a test sets the route it returns with `vi.mocked(match).mockResolvedValue(...)`, and `resolve` stays real. `page` from `$app/state`, replaced by the stand-in above while the module's other exports stay real
-- `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
+- `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as one no-op class, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`; the setup stubs them in its `beforeEach`, after the config has undone the last test's stubs
 - `Element.prototype.animate`, which Svelte transitions call
 - a `:checked` polyfill for `<select>`, since happy-dom lacks it and `bind:value` depends on it
-- `localStorage` cleared, `cleanup()` run, the `page` stand-in reset, the query cache cleared and faker seeded before each test
+- `localStorage` cleared, the `page` stand-in reset, the query cache cleared and faker seeded before each test; Testing Library unmounts what a test rendered by itself
 
 ## Writing a test
 
 ```typescript
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { mockApi } from '#test/test-utils.ts';
 import { registerApiV1AuthRegisterPost } from '#lib/api/index.ts';
@@ -62,7 +62,6 @@ import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import Register from '#routes/register/+page.svelte';
 
 beforeEach(() => {
-    vi.clearAllMocks();
     mockApi(registerApiV1AuthRegisterPost).ok(fakeUserResponse());
 });
 

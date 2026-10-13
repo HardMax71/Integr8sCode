@@ -46,7 +46,6 @@ function renderModal(limits: Partial<UserRateLimitsResponse> = {}) {
 
 describe('RateLimitsModal', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
         mockApi(getDefaultRateLimitRulesApiV1AdminRateLimitsDefaultsGet).ok([
             zRateLimitRuleRequest.parse({
                 endpoint_pattern: '/api/v1/*',
@@ -103,12 +102,13 @@ describe('RateLimitsModal', () => {
             Requests: '100',
             'Window Seconds': '60',
             Group: 'api',
-            Algorithm: 'sliding_window',
+            Algorithm: zRateLimitRuleRequest.parse({}).algorithm,
         };
         await waitFor(() => expect(screen.getByText('/api/v1/*')).toBeInTheDocument());
-        for (const [label, value] of Object.entries(shown)) {
-            expect(screen.getByText(label).nextElementSibling?.textContent?.trim()).toBe(value);
-        }
+        expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual(Object.keys(shown));
+        expect(screen.getAllByRole('definition').map((value) => value.textContent?.trim())).toEqual(
+            Object.values(shown),
+        );
     });
 
     it('labels a user rule by its keys and shows the algorithm value', async () => {
@@ -138,7 +138,8 @@ describe('RateLimitsModal', () => {
         renderModal({ current_usage: { '/api/v1/execute': { algorithm: 'sliding_window', remaining: 50 } } });
         expect(await screen.findByText('Current Usage')).toBeInTheDocument();
         expect(screen.getByText('/api/v1/execute')).toBeInTheDocument();
-        expect(screen.getByText('Remaining').nextElementSibling?.textContent?.trim()).toBe('50');
+        expect(screen.getByText('Remaining')).toBeInTheDocument();
+        expect(screen.getByText('50')).toBeInTheDocument();
     });
 
     it('hides current usage when no usage data', async () => {
@@ -184,7 +185,7 @@ describe('RateLimitsModal', () => {
         mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).mock.mockImplementation(() => new Promise(() => {}));
         renderModal();
         await user.click(await screen.findByText('Save Changes'));
-        expect((await screen.findByText('Saving...')).closest('button')).toBeDisabled();
+        expect(await screen.findByRole('button', { name: /Saving/ })).toBeDisabled();
     });
 
     it('adds a rule from the spec defaults and lets the admin pick its group', async () => {

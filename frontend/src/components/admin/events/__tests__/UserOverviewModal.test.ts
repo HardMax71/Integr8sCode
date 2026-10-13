@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/svelte';
 import { mockApi, renderWithQueryClient } from '#test/test-utils.ts';
 import { getUserOverviewApiV1AdminUsersUserIdOverviewGet, type AdminUserOverview } from '#lib/api/index.ts';
+import { fieldTitle } from '#lib/formatters.ts';
 import {
     fakeAdminUserOverview,
+    fakeDerivedCounts,
     fakeEventStatistics,
+    fakeRateLimitSummary,
     fakeExecutionCompletedEvent,
     fakeUserResponse,
 } from '#lib/api/@faker-js/faker.gen.ts';
@@ -23,8 +26,13 @@ async function renderModal(
             is_superuser: false,
         },
         stats: { ...fakeEventStatistics(), total_events: 100 },
-        derived_counts: { succeeded: 80, failed: 10, timeout: 5, cancelled: 5, terminal_total: 100 },
-        rate_limit_summary: { bypass_rate_limit: false, global_multiplier: 1, has_custom_limits: false },
+        derived_counts: { ...fakeDerivedCounts(), succeeded: 80, failed: 10, terminal_total: 100 },
+        rate_limit_summary: {
+            ...fakeRateLimitSummary(),
+            bypass_rate_limit: false,
+            global_multiplier: 1,
+            has_custom_limits: false,
+        },
         recent_events: [fakeExecutionCompletedEvent()],
     },
 ) {
@@ -35,15 +43,7 @@ async function renderModal(
     return { ...result, onClose };
 }
 
-function detail(term: string): Element | null {
-    return screen.getByText(term, { selector: 'dt' }).nextElementSibling;
-}
-
 describe('UserOverviewModal', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
     it('loads the overview of the given user', async () => {
         await renderModal();
         expect(vi.mocked(getUserOverviewApiV1AdminUsersUserIdOverviewGet)).toHaveBeenCalledWith(
@@ -71,16 +71,36 @@ describe('UserOverviewModal', () => {
             expect(screen.getByRole('heading', { name: 'User' })).toBeInTheDocument();
         });
 
-        it.each([
-            { term: 'User Id', value: 'user-1' },
-            { term: 'Username', value: 'testuser' },
-            { term: 'Email', value: 'test@example.com' },
-            { term: 'Role', value: 'user' },
-            { term: 'Is Active', value: 'Yes' },
-            { term: 'Is Superuser', value: 'No' },
-        ])('shows $term as $value', async ({ term, value }) => {
+        it('lists each field next to its value', async () => {
             await renderModal();
-            expect(detail(term)).toHaveTextContent(value);
+            expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual(
+                [
+                    'user_id',
+                    'username',
+                    'email',
+                    'role',
+                    'is_active',
+                    'is_superuser',
+                    'bypass_rate_limit',
+                    'global_multiplier',
+                    'has_custom_limits',
+                    'terminal_total',
+                    'total_events',
+                ].map(fieldTitle),
+            );
+            expect(screen.getAllByRole('definition').map((definition) => definition.textContent)).toEqual([
+                'user-1',
+                'testuser',
+                'test@example.com',
+                'user',
+                'Yes',
+                'No',
+                'No',
+                '1',
+                'No',
+                '100',
+                '100',
+            ]);
         });
     });
 
@@ -89,18 +109,12 @@ describe('UserOverviewModal', () => {
             await renderModal();
             expect(screen.getByRole('heading', { name: 'Derived Counts' })).toBeInTheDocument();
             expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
-            expect(screen.getByText('Succeeded')).toBeInTheDocument();
+            expect(screen.getByText(fieldTitle('succeeded'))).toBeInTheDocument();
             expect(screen.getByText('80')).toBeInTheDocument();
-            expect(screen.getByText('Failed')).toBeInTheDocument();
+            expect(screen.getByText(fieldTitle('failed'))).toBeInTheDocument();
             expect(screen.getByText('10')).toBeInTheDocument();
-            expect(screen.getByText('Timeout')).toBeInTheDocument();
-            expect(screen.getByText('Cancelled')).toBeInTheDocument();
-        });
-
-        it('shows terminal total and total events labels', async () => {
-            await renderModal();
-            expect(detail('Terminal Total')).toHaveTextContent('100');
-            expect(detail('Total Events')).toHaveTextContent('100');
+            expect(screen.getByText(fieldTitle('timeout'))).toBeInTheDocument();
+            expect(screen.getByText(fieldTitle('cancelled'))).toBeInTheDocument();
         });
     });
 
@@ -108,9 +122,6 @@ describe('UserOverviewModal', () => {
         it('shows rate limit section with values', async () => {
             await renderModal();
             expect(screen.getByRole('heading', { name: 'Rate Limit Summary' })).toBeInTheDocument();
-            expect(detail('Bypass Rate Limit')).toHaveTextContent('No');
-            expect(detail('Global Multiplier')).toHaveTextContent('1');
-            expect(detail('Has Custom Limits')).toHaveTextContent('No');
         });
     });
 

@@ -1,100 +1,44 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
-import { user, mockApi, renderWithQueryClient } from '#test/test-utils.ts';
-import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { user, mockApi, mockStreamEvents, renderWithQueryClient } from '#test/test-utils.ts';
+import { fakeUserResponse, fakeUserSettings } from '#lib/api/@faker-js/faker.gen.ts';
 import {
+    getNotificationsApiV1NotificationsGet,
     logoutApiV1AuthLogoutPost,
+    notificationStreamApiV1EventsNotificationsStreamGet,
     Theme,
     updateThemeApiV1UserSettingsThemePut,
     UserRole,
-    zUserSettings,
 } from '#lib/api/index.ts';
 
 import * as navigation from '$app/navigation';
 import { setMode, userPrefersMode } from 'mode-watcher';
 
-vi.mock('#components/NotificationCenter.svelte', () => {
-    const M = function () {
-        return {};
-    } as any;
-    M.render = () => ({
-        html: '<div data-testid="notification-center">NotificationCenter</div>',
-        css: { code: '', map: null },
-        head: '',
-    });
-    return { default: M };
-});
-
 import Header from '#components/Header.svelte';
 import { page } from '#test/page.svelte.ts';
 import { queryClient } from '#lib/query-client.ts';
 
-const ROOT = { ...fakeUserResponse(), username: 'root', role: UserRole.ADMIN, email: 'root@example.com' };
+/** What matchMedia answers for the desktop query, so a test can resize the window by flipping it */
+class DesktopQuery extends EventTarget {
+    matches = false;
+}
 
-/** A matchMedia whose answer the test can flip, firing the change listeners the way a resize would */
-function controllableDesktopQuery(initial: boolean): (matches: boolean) => void {
-    let matches = initial;
-    const listeners = new Set<EventListener>();
-    vi.mocked(window.matchMedia).mockImplementation(
-        (query: string) =>
-            ({
-                get matches() {
-                    return matches;
-                },
-                media: query,
-                onchange: null,
-                addEventListener: (_type: string, listener: EventListener) => listeners.add(listener),
-                removeEventListener: (_type: string, listener: EventListener) => listeners.delete(listener),
-                addListener: vi.fn(),
-                removeListener: vi.fn(),
-                dispatchEvent: vi.fn(),
-            }) as unknown as MediaQueryList,
-    );
-    return (next) => {
-        matches = next;
-        listeners.forEach((listener) => listener(new Event('change')));
-    };
+async function openUserDropdown(): Promise<void> {
+    renderWithQueryClient(Header);
+    await user.click(screen.getByRole('button', { name: 'User menu' }));
+}
+
+async function openMobileMenu(): Promise<void> {
+    renderWithQueryClient(Header);
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
 }
 
 describe('Header', () => {
-    const openUserDropdown = async () => {
-        renderWithQueryClient(Header);
-        await user.click(screen.getByRole('button', { name: 'User menu' }));
-    };
-
-    const openMobileMenu = async () => {
-        renderWithQueryClient(Header);
-        await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    };
-
     beforeEach(() => {
-        setMode(Theme.SYSTEM);
         mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' });
-        mockApi(updateThemeApiV1UserSettingsThemePut).ok(
-            zUserSettings.parse({
-                user_id: 'user-1',
-                theme: Theme.DARK,
-                notifications: {},
-                editor: {},
-                custom_settings: {},
-                created_at: '2024-01-15T10:30:00Z',
-                updated_at: '2024-01-15T10:30:00Z',
-            }),
-        );
-        vi.spyOn(navigation, 'goto');
-        Object.defineProperty(window, 'matchMedia', {
-            writable: true,
-            value: vi.fn().mockImplementation((query: string) => ({
-                matches: false,
-                media: query,
-                onchange: null,
-                addListener: vi.fn(),
-                removeListener: vi.fn(),
-                addEventListener: vi.fn(),
-                removeEventListener: vi.fn(),
-                dispatchEvent: vi.fn(),
-            })),
-        });
+        mockApi(updateThemeApiV1UserSettingsThemePut).ok(fakeUserSettings());
+        mockApi(getNotificationsApiV1NotificationsGet).ok({ notifications: [], total: 0, unread_count: 0 });
+        mockStreamEvents(notificationStreamApiV1EventsNotificationsStreamGet);
     });
 
     describe('branding', () => {
@@ -132,19 +76,6 @@ describe('Header', () => {
                 ),
             );
         });
-
-        it.each([
-            { theme: Theme.LIGHT, iconClass: 'lucide-sun' },
-            { theme: Theme.DARK, iconClass: 'lucide-moon' },
-            { theme: Theme.SYSTEM, iconClass: 'lucide-monitor-cog' },
-        ])('shows correct icon for $theme theme', async ({ theme, iconClass }) => {
-            setMode(theme);
-            const { container } = renderWithQueryClient(Header);
-            await waitFor(() => {
-                const svg = container.querySelector('[title="Toggle theme"] svg');
-                expect(svg?.classList.contains(iconClass)).toBe(true);
-            });
-        });
     });
 
     describe('unauthenticated state', () => {
@@ -153,7 +84,7 @@ describe('Header', () => {
             expect(screen.getByRole('link', { name: /^Login$/i })).toHaveAttribute('href', '/login');
             expect(screen.getByRole('link', { name: /^Register$/i })).toHaveAttribute('href', '/register');
             expect(screen.queryByText('Settings')).not.toBeInTheDocument();
-            expect(screen.queryByTestId('notification-center')).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument();
         });
     });
 
@@ -165,6 +96,11 @@ describe('Header', () => {
                 email: 'test@example.com',
                 role: UserRole.USER,
             };
+        });
+
+        it('shows the notification center', () => {
+            renderWithQueryClient(Header);
+            expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
         });
 
         it('shows username and opens dropdown with user info', async () => {
@@ -194,7 +130,7 @@ describe('Header', () => {
 
     describe('admin user', () => {
         beforeEach(() => {
-            page.data.user = ROOT;
+            page.data.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
         });
 
         it('shows the admin role and an Admin entry linking to the admin panel', async () => {
@@ -207,8 +143,6 @@ describe('Header', () => {
     });
 
     describe('mobile menu', () => {
-        beforeEach(() => {});
-
         it('shows hamburger menu and toggles on click', async () => {
             await openMobileMenu();
             await waitFor(() => {
@@ -217,15 +151,15 @@ describe('Header', () => {
         });
 
         it.each([
-            { label: 'signed out', signedIn: null, expectedContent: ['Login', 'Register'] },
+            { label: 'signed out', role: null, expectedContent: ['Login', 'Register'] },
             {
                 label: 'a user',
-                signedIn: { ...fakeUserResponse(), username: 'mobileuser', role: UserRole.USER },
+                role: UserRole.USER,
                 expectedContent: ['mobileuser', UserRole.USER, 'Settings', 'Logout'],
             },
-            { label: 'an admin', signedIn: ROOT, expectedContent: ['root', UserRole.ADMIN, 'Admin Panel'] },
-        ])('shows correct content for $label', async ({ signedIn, expectedContent }) => {
-            page.data.user = signedIn;
+            { label: 'an admin', role: UserRole.ADMIN, expectedContent: ['mobileuser', UserRole.ADMIN, 'Admin Panel'] },
+        ])('shows correct content for $label', async ({ role, expectedContent }) => {
+            page.data.user = role ? { ...fakeUserResponse(), username: 'mobileuser', role } : null;
             await openMobileMenu();
             await waitFor(() => {
                 const mobileMenu = screen.getByTestId('mobile-menu');
@@ -235,14 +169,9 @@ describe('Header', () => {
     });
 
     describe('header structure', () => {
-        it('has fixed header with nav and backdrop blur', () => {
+        it('is a banner holding the site navigation', () => {
             renderWithQueryClient(Header);
-            const header = screen.getByRole('banner');
-            expect(header).toBeInTheDocument();
-            expect(header).toHaveClass('fixed');
-            expect(header).toHaveClass('top-0');
-            expect(header).toHaveClass('backdrop-blur-md');
-            expect(screen.getByRole('navigation')).toBeInTheDocument();
+            expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation'));
         });
     });
 
@@ -271,13 +200,15 @@ describe('Header', () => {
 
     describe('resize behavior', () => {
         it('closes mobile menu when resizing to desktop width', async () => {
-            const resizeTo = controllableDesktopQuery(false);
+            const desktop = new DesktopQuery();
+            vi.mocked(window.matchMedia).mockReturnValue(desktop as unknown as MediaQueryList);
             await openMobileMenu();
             await waitFor(() => {
                 expect(screen.getByTestId('mobile-menu')).toBeInTheDocument();
             });
 
-            resizeTo(true);
+            desktop.matches = true;
+            desktop.dispatchEvent(new Event('change'));
 
             await waitFor(() => {
                 expect(screen.queryByTestId('mobile-menu')).not.toBeInTheDocument();

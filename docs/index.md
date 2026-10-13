@@ -27,7 +27,7 @@ Then open [https://localhost:5001](https://localhost:5001) and log in as `user` 
 
 Every script runs in its own pod: non-root, read-only root filesystem, no capabilities, no service account token, and a NetworkPolicy that blocks all traffic in and out wherever the cluster's network plugin enforces it. CPU, memory and timeout limits are system-wide admin settings, and a language can raise them for its own pods. Status updates and the result reach the browser over Server-Sent Events.
 
-The API and six workers talk through Kafka, one topic per event type. Every event is also stored in MongoDB for 30 days, where admins can browse and replay it.
+The API and the worker talk through Kafka, one topic per event type. Every event is also stored in MongoDB for 30 days, where admins can browse and replay it.
 
 ## Documentation
 

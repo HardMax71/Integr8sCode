@@ -2,8 +2,8 @@
 """Detect orphan modules in the app package using grimp.
 
 An orphan module is one that no other module within the package imports.
-Entry points are whitelisted since they are invoked directly by gunicorn
-or worker runner scripts, not imported by sibling modules.
+Entry points are whitelisted since gunicorn and `python -m` run them directly,
+not through an import from a sibling module.
 
 Usage:
     uv run python -m scripts.check_orphan_modules
@@ -18,6 +18,7 @@ import grimp
 ENTRY_POINTS: frozenset[str] = frozenset(
     {
         "app.main",
+        "app.worker",
     }
 )
 

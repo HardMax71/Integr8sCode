@@ -125,7 +125,6 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
-      - ./backend/workers:/app/workers
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests:ro
       - ./backend/certs:/app/certs:ro
@@ -350,13 +349,13 @@ services:
       - app-network
     restart: "no"  # Run once and exit
 
-  # Event-driven workers
-  k8s-worker:
+  # Kafka consumers, the pod watch and the scheduled jobs
+  worker:
     logging: *logging
     image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: k8s-worker
-    mem_limit: 160m
-    command: ["python", "workers/run_k8s_worker.py"]
+    container_name: worker
+    mem_limit: 256m
+    command: ["python", "-m", "app.worker"]
     depends_on:
       user-seed:
         condition: service_completed_successfully
@@ -368,90 +367,13 @@ services:
       <<: *backend-secrets
     volumes:
       - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
       - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
       - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.k8s-worker.toml:/app/config.k8s-worker.toml:ro
+      - ./backend/config.worker.toml:/app/config.worker.toml:ro
     networks:
       - app-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-
-  pod-monitor:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: pod-monitor
-    mem_limit: 160m
-    command: ["python", "workers/run_pod_monitor.py"]
-    depends_on:
-      user-seed:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-    environment:
-      <<: *backend-secrets
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.pod-monitor.toml:/app/config.pod-monitor.toml:ro
-    networks:
-      - app-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-
-  result-processor:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: result-processor
-    mem_limit: 160m
-    command: ["python", "workers/run_result_processor.py"]
-    depends_on:
-      user-seed:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-    environment:
-      <<: *backend-secrets
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/kubeconfig.yaml:/app/kubeconfig.yaml:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.result-processor.toml:/app/config.result-processor.toml:ro
-    networks:
-      - app-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-
-  saga-orchestrator:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: saga-orchestrator
-    mem_limit: 160m
-    command: ["python", "workers/run_saga_orchestrator.py"]
-    depends_on:
-      user-seed:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-    environment:
-      <<: *backend-secrets
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.saga-orchestrator.toml:/app/config.saga-orchestrator.toml:ro
-    networks:
-      - app-network
     restart: unless-stopped
 
   # Distributed tracing with Jaeger
@@ -491,56 +413,6 @@ services:
     mem_limit: 256m
     restart: unless-stopped
     # Distroless image with no shell, so no healthcheck
-
-  # Event replay service
-  event-replay:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: event-replay
-    mem_limit: 160m
-    command: ["python", "workers/run_event_replay.py"]
-    depends_on:
-      user-seed:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-    environment:
-      <<: *backend-secrets
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.event-replay.toml:/app/config.event-replay.toml:ro
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  # DLQ Processor Service
-  dlq-processor:
-    logging: *logging
-    image: ghcr.io/hardmax71/integr8scode/backend:${IMAGE_TAG:-latest}
-    container_name: dlq-processor
-    mem_limit: 160m
-    command: ["python", "workers/run_dlq_processor.py"]
-    depends_on:
-      user-seed:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_started
-    environment:
-      <<: *backend-secrets
-    volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/workers:/app/workers:ro
-      - ./backend/config.toml:/app/config.toml:ro
-      - ./backend/config.dlq-processor.toml:/app/config.dlq-processor.toml:ro
-    networks:
-      - app-network
-    restart: unless-stopped
 
   # Monitoring Stack
   # Victoria Metrics - Time series database

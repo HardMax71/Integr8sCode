@@ -24,14 +24,14 @@ class Settings(BaseModel):
     Non-secret config comes from TOML files; secrets come from env vars with dev defaults.
 
     Load order (each layer overrides the previous):
-        1. config_path    — base settings (committed to git)
-        2. override_path  — per-worker service overrides (TRACING_SERVICE_NAME, etc.)
+        1. config_path: base settings (committed to git)
+        2. override_path: the worker's overrides (TRACING_SERVICE_NAME)
         3. Environment variables for secrets: SECRET_KEY, MONGO_USER, MONGO_PASSWORD, REDIS_PASSWORD
 
     Usage:
         Settings()                                                       # config.toml + env vars
         Settings(config_path="config.test.toml")                         # test config + env vars
-        Settings(override_path="config.saga-orchestrator.toml")           # base + worker + env vars
+        Settings(override_path="config.worker.toml")                     # base + worker + env vars
     """
 
     model_config = ConfigDict(extra="forbid")

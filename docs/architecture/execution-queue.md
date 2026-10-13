@@ -57,7 +57,7 @@ These events trigger a pass:
 | `execution_completed`, `execution_failed`, `execution_timeout` | mark the saga terminal, `release`, `release_user_slot` |
 | `execution_cancelled` | `remove` from every queue key, mark the saga cancelled, `release`, `release_user_slot` |
 
-`release` is a `ZREM` on the running set plus deleting the event key, and `release_user_slot` looks up the owner and removes the id from that user's set, so both are safe on an id that holds nothing. On top of the events, the worker runs `try_schedule_from_queue` every 10 seconds through APScheduler (`run_saga_orchestrator.py`), which catches up after a restart or a lost event.
+`release` is a `ZREM` on the running set plus deleting the event key, and `release_user_slot` looks up the owner and removes the id from that user's set, so both are safe on an id that holds nothing. On top of the events, the worker runs `try_schedule_from_queue` every 10 seconds through APScheduler (`app/worker.py`), which catches up after a restart or a lost event.
 
 ## Admin endpoints
 

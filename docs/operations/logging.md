@@ -13,7 +13,7 @@ flowchart LR
 
 ## Setup
 
-[`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) configures structlog and the root logger. The backend calls it in `create_app`, the DI container calls it for the logger it injects, and each worker calls it at the top of `main()`.
+[`setup_logger`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/core/logging.py) configures structlog and the root logger. The backend calls it in `create_app`, the DI container calls it for the logger it injects, and the worker calls it at the top of `main()`.
 
 ```python
 --8<-- "backend/app/core/logging.py:setup_logger"
@@ -70,7 +70,7 @@ That keeps fields queryable, and it stops log injection. If user input goes into
 
 ## OTLP export
 
-`setup_log_exporter` adds an OTel `LoggingHandler` to the root logger, with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter` pointed at `OTEL_EXPORTER_OTLP_ENDPOINT`. It's a no-op when that setting is empty. The backend calls it in `create_app` and each worker right after `setup_logger`. See [Loki](loki.md) for the rest of the path.
+`setup_log_exporter` adds an OTel `LoggingHandler` to the root logger, with a `BatchLogRecordProcessor` and a gRPC `OTLPLogExporter` pointed at `OTEL_EXPORTER_OTLP_ENDPOINT`. It's a no-op when that setting is empty. The backend calls it in `create_app` and the worker right after `setup_logger`. See [Loki](loki.md) for the rest of the path.
 
 ## Frontend
 

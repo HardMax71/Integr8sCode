@@ -1,6 +1,6 @@
 # Metrics Reference
 
-Only the backend (API) process exports metrics today. It pushes them over OTLP to the OpenTelemetry Collector every 60 seconds, and the collector writes them to VictoriaMetrics. The six workers record into the same metric classes but never install a meter provider, so their numbers never leave the process ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). Every table below says which process records a metric, so you can tell which panels stay empty until that lands.
+Only the backend (API) process exports metrics today. It pushes them over OTLP to the OpenTelemetry Collector every 60 seconds, and the collector writes them to VictoriaMetrics. The worker records into the same metric classes but never installs a meter provider, so their numbers never leave the process ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). Every table below says which process records a metric, so you can tell which panels stay empty until that lands.
 
 ## Export path
 
@@ -10,10 +10,10 @@ flowchart LR
     Receivers["host_metrics, mongodb, kafka_metrics receivers"] --> Collector
     Collector -->|"prometheus remote write"| VM["VictoriaMetrics"]
     VM --> Grafana
-    Workers["k8s-worker, pod-monitor, result-processor, saga-orchestrator, event-replay, dlq-processor"] -.->|"no meter provider, issue 289"| Dropped["no-op"]
+    Worker["worker"] -.->|"no meter provider, issue 289"| Dropped["no-op"]
 ```
 
-`create_app` calls `setup_metrics` (`app/core/middlewares/metrics.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, which is why a worker that skips `setup_metrics` records into nothing:
+`create_app` calls `setup_metrics` (`app/core/middlewares/metrics.py`) once. It installs a global `MeterProvider` whose `PeriodicExportingMetricReader` exports every 60 000 ms through an OTLP gRPC exporter. The exporter targets `OTEL_EXPORTER_OTLP_ENDPOINT`, which `config.toml` sets to `http://otel-collector:4317`. Without an endpoint it returns early and the no-op provider stays. Each metrics class takes its meter from the global provider when DI builds it, which is why the worker, which skips `setup_metrics`, records into nothing:
 
 ```python
 --8<-- "backend/app/core/metrics/base.py:init"
@@ -56,20 +56,20 @@ Gauges listed as "in process" are up-down counters the process keeps itself. The
 
 | Metric | Type | Labels | Recorded in |
 |--------|------|--------|-------------|
-| `script_executions_total` | counter | status, lang_and_version | `ExecutionService.execute_script` in backend (queued, error); `ResultProcessor` in result-processor (completed, failed, timeout) |
+| `script_executions_total` | counter | status, lang_and_version | `ExecutionService.execute_script` in backend (queued, error); `ResultProcessor` in worker (completed, failed, timeout) |
 | `script_submission_duration_seconds` | histogram | lang_and_version | `ExecutionService.execute_script` in backend: persisting the execution and publishing the request |
-| `script_errors_total` | counter | error_type | `ExecutionService` in backend when the publish fails; `ResultProcessor` in result-processor |
-| `script_execution_duration_seconds` | histogram | lang_and_version | `ResultProcessor` in result-processor: wall time from the pod's resource usage, or the timeout for timed out runs |
-| `script_memory_usage_MiB` | histogram | lang_and_version | `ResultProcessor` in result-processor: peak memory |
-| `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in result-processor: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
-| `queue_depth` | gauge, in process | none | `ExecutionQueueService` in saga-orchestrator: enqueued minus scheduled |
-| `queue_active` | gauge, in process | none | `ExecutionQueueService` in saga-orchestrator: scheduled minus released |
-| `queue_enqueue_total` | counter | none | `ExecutionQueueService.enqueue` in saga-orchestrator |
-| `queue_schedule_total` | counter | none | `ExecutionQueueService.try_schedule` in saga-orchestrator |
-| `queue_wait_time_seconds` | histogram | priority | `ExecutionQueueService.try_schedule` in saga-orchestrator: enqueue to schedule |
-| `queue_event_data_lost_total` | counter | none | `ExecutionQueueService.try_schedule` in saga-orchestrator, when the queued event expired in Redis |
+| `script_errors_total` | counter | error_type | `ExecutionService` in backend when the publish fails; `ResultProcessor` in worker |
+| `script_execution_duration_seconds` | histogram | lang_and_version | `ResultProcessor` in worker: wall time from the pod's resource usage, or the timeout for timed out runs |
+| `script_memory_usage_MiB` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory |
+| `script_memory_utilization_percent` | histogram | lang_and_version | `ResultProcessor` in worker: peak memory over the effective memory limit for the language (admin setting or TOML, raised to the language minimum) |
+| `queue_depth` | gauge, in process | none | `ExecutionQueueService` in worker: enqueued minus scheduled |
+| `queue_active` | gauge, in process | none | `ExecutionQueueService` in worker: scheduled minus released |
+| `queue_enqueue_total` | counter | none | `ExecutionQueueService.enqueue` in worker |
+| `queue_schedule_total` | counter | none | `ExecutionQueueService.try_schedule` in worker |
+| `queue_wait_time_seconds` | histogram | priority | `ExecutionQueueService.try_schedule` in worker: enqueue to schedule |
+| `queue_event_data_lost_total` | counter | none | `ExecutionQueueService.try_schedule` in worker, when the queued event expired in Redis |
 
-The queue itself lives in Redis, so after a saga-orchestrator restart `queue_depth` and `queue_active` read zero while work is still queued.
+The queue itself lives in Redis, so after a worker restart `queue_depth` and `queue_active` read zero while work is still queued.
 
 ### Events and idempotency
 
@@ -84,7 +84,7 @@ The queue itself lives in Redis, so after a saga-orchestrator restart `queue_dep
 | `idempotency_processing_duration_seconds` | histogram | event_type, status | `IdempotencyManager`: reserving the key to marking it completed or failed |
 | `idempotency_keys_active` | gauge, observed at export | none | `IdempotencyMetrics` scans `idempotency:*` in Redis |
 
-Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. `event_category` equals `event_type` for the current event names. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the k8s-worker, result-processor and saga-orchestrator consumers.
+Every Kafka publish also shows up in `messaging_publish_messages_message_total`; a publish that fails is marked on the stored event and not counted here. `event_category` equals `event_type` for the current event names. A handler that raises has no counter of its own: it's a `messaging_process_duration_seconds` sample with an `error_type` label, in the FastStream families below. `IdempotencyManager` runs in backend for `Idempotency-Key` requests and in the worker's k8s worker, result processor and saga orchestrator consumers.
 
 ### Server-sent events (backend)
 
@@ -102,17 +102,17 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 | Metric | Type | Labels | Recorded in |
 |--------|------|--------|-------------|
-| `pod_creations_total` | counter | status: success, failed; language | `KubernetesWorker` in k8s-worker |
-| `pod_creation_duration_seconds` | histogram | language | `KubernetesWorker` in k8s-worker: ConfigMap, pod and `PodCreated` publish, successful creations only |
-| `pod_creations_active` | gauge, in process | none | `KubernetesWorker` in k8s-worker |
-| `configmaps_created_total` | counter | status: success, already_exists, failed | `KubernetesWorker` in k8s-worker |
-| `pods_by_phase` | gauge | phase | `PodMonitor` in pod-monitor: executor pods seen through LIST and watch; a relist rebuilds it |
-| `pod_lifetime_seconds` | histogram | final_phase, language | `PodMonitor` in pod-monitor: pod creation to the terminal event, recorded when the monitor deletes the pod |
-| `pod_monitor_events_total` | counter | event_type, pod_phase | `PodMonitor` in pod-monitor: each application event it publishes |
-| `pod_monitor_processing_duration_seconds` | histogram | event_type: ADDED, MODIFIED, DELETED | `PodMonitor` in pod-monitor: mapping and publishing one watch event |
-| `pod_monitor_reconciliations_total` | counter | none | `PodMonitor` in pod-monitor: each full LIST, on start and after 410 Gone |
-| `pod_monitor_watch_errors_total` | counter | error_type: resource_version_expired, api_error, unexpected, processing_error | `PodMonitor` and `workers/run_pod_monitor.py` in pod-monitor |
-| `pod_monitor_watch_reconnects_total` | counter | none | `workers/run_pod_monitor.py` in pod-monitor, after a failed watch cycle |
+| `pod_creations_total` | counter | status: success, failed; language | `KubernetesWorker` in worker |
+| `pod_creation_duration_seconds` | histogram | language | `KubernetesWorker` in worker: ConfigMap, pod and `PodCreated` publish, successful creations only |
+| `pod_creations_active` | gauge, in process | none | `KubernetesWorker` in worker |
+| `configmaps_created_total` | counter | status: success, already_exists, failed | `KubernetesWorker` in worker |
+| `pods_by_phase` | gauge | phase | `PodMonitor` in worker: executor pods seen through LIST and watch; a relist rebuilds it |
+| `pod_lifetime_seconds` | histogram | final_phase, language | `PodMonitor` in worker: pod creation to the terminal event, recorded when the monitor deletes the pod |
+| `pod_monitor_events_total` | counter | event_type, pod_phase | `PodMonitor` in worker: each application event it publishes |
+| `pod_monitor_processing_duration_seconds` | histogram | event_type: ADDED, MODIFIED, DELETED | `PodMonitor` in worker: mapping and publishing one watch event |
+| `pod_monitor_reconciliations_total` | counter | none | `PodMonitor` in worker: each full LIST, on start and after 410 Gone |
+| `pod_monitor_watch_errors_total` | counter | error_type: resource_version_expired, api_error, unexpected, processing_error | `PodMonitor` and `app/worker.py` in worker |
+| `pod_monitor_watch_reconnects_total` | counter | none | `app/worker.py` in worker, after a failed watch cycle |
 
 ### Notifications (backend)
 
@@ -133,7 +133,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 
 ### Event replay (backend)
 
-`EventReplayService`. The replay routes drive it inside backend. The event-replay worker only runs session cleanup against its own session map, which stays empty.
+`EventReplayService`. The replay routes drive it inside backend. A TTL index in MongoDB drops finished sessions, so nothing outside the API touches them.
 
 | Metric | Type | Labels | Notes |
 |--------|------|--------|-------|
@@ -180,7 +180,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `rate_limit_rejected_total` | counter | endpoint, group | |
 | `rate_limit_bypass_total` | counter | endpoint | users with `bypass_rate_limit` |
 
-### Dead letter queue (dlq-processor)
+### Dead letter queue (worker)
 
 `DLQManager`, driven by APScheduler every 10 seconds.
 
@@ -194,7 +194,7 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `dlq_message_age_seconds` | histogram | none | `handle_message` |
 | `dlq_processing_errors_total` | counter | original_topic, event_type, error_type | nothing records it |
 
-`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s-worker, result-processor and saga-orchestrator. Only backend's numbers leave the process until workers export ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
+`handle_message` runs wherever a router's `DeadLetterMiddleware` catches a failure: backend for notifications, and the k8s worker, result processor and saga orchestrator groups in the worker. Only backend's numbers leave the process until the worker exports ([#289](https://github.com/HardMax71/Integr8sCode/issues/289)). `dlq_processing_errors_total` was only recorded by a batch retry method that had no callers and is gone, so it stays empty.
 
 ## FastStream messaging families
 
@@ -251,4 +251,4 @@ sum by (reason) (rate(token_validation_failures_total[5m]))
 sum(rate(mongodb_cache_operations_total{type="hit"}[5m])) / sum(rate(mongodb_cache_operations_total[5m]))
 ```
 
-Once workers export, `sum(pods_by_phase{phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.
+Once the worker exports, `sum(pods_by_phase{phase="Pending"})` shows executor pods waiting for a node or a Kueue slot.

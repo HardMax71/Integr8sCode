@@ -41,6 +41,6 @@ After publishing `execution_completed`, `execution_failed` or `execution_timeout
 
 | File | Purpose |
 |------|---------|
-| [`run_pod_monitor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_pod_monitor.py) | Entry point, watch scheduling, 410 handling |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Entry point, watch scheduling, 410 handling |
 | [`monitor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/pod_monitor/monitor.py) | List-then-watch and pod deletion |
 | [`event_mapper.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/pod_monitor/event_mapper.py) | Phase mapping and log parsing |

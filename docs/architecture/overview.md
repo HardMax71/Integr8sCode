@@ -10,7 +10,7 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
 -   :material-cog-outline:{ .lg .middle } **[Services](services-overview.md)**
 
-    What lives in `backend/app/services/` and what each worker consumes and publishes
+    What lives in `backend/app/services/` and what each part of the worker consumes and publishes
 
 -   :material-transit-connection-variant:{ .lg .middle } **[Kafka Topics](kafka-topic-architecture.md)**
 
@@ -20,9 +20,9 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
     How Kafka events reach the browser through Redis pub/sub
 
--   :material-robot-industrial-outline:{ .lg .middle } **[Workers](../components/workers/index.md)**
+-   :material-robot-industrial-outline:{ .lg .middle } **[Worker](../components/workers/index.md)**
 
-    The six background processes that run next to the API
+    The one background process that runs next to the API
 
 </div>
 
@@ -32,7 +32,7 @@ Integr8sCode runs user scripts in Python, Node.js, Ruby, Bash or Go, each in its
 
 The browser loads the SPA from the frontend container, an nginx on port 5001 that also proxies `/api` to the backend over HTTPS. The backend runs FastAPI under Gunicorn with Uvicorn workers and serves both REST and SSE. Kafka runs in KRaft mode and creates topics on first use, so there is no topic setup step. Events travel as JSON that FastStream serializes from the Pydantic models.
 
-Every worker is a separate container built from the same backend image with a different command. The k8s-worker creates pods through the Kubernetes API, the pod-monitor watches them, the result-processor writes results to MongoDB, and the saga-orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. The dlq-processor and event-replay containers round it out.
+The worker is one more container from the same backend image, running `python -m app.worker`. Inside it, the k8s worker creates pods through the Kubernetes API, the pod monitor watches them, the result processor writes results to MongoDB, and the saga orchestrator schedules executions with a Redis-backed queue and tracks sagas in MongoDB. A DLQ job retries failed events every 10 seconds.
 
 The observability profile adds an OpenTelemetry Collector that ships traces to Jaeger, metrics to VictoriaMetrics and logs to Loki, with Grafana on top of all three. Kafdrop is under the debug profile. The cert-generator creates TLS certificates for the frontend and backend from a shared CA, and it also prepares the cluster: it creates the `integr8scode` namespace, installs Kueue, sets up a service account with RBAC and writes the kubeconfig the backend containers use.
 
@@ -149,7 +149,7 @@ Notifications use the same bus on `sse:notif:{user_id}` through `GET /api/v1/eve
 
 ## Kafka, sagas and replay
 
-Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/workers/event_replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
+Kafka carries all asynchronous work, with [one topic per event type](kafka-topic-architecture.md). [Sagas](../components/workers/saga_orchestrator.md) run the execution steps and publish compensating commands when a step fails. The [replay system](../components/event-replay.md) lets admins re-publish stored events. A failed handler's event goes to the [dead letter queue](../components/dead-letter-queue.md) and is retried for the consumer group that failed.
 
 ## Notifications
 
@@ -167,4 +167,4 @@ graph TD
 
 ## API surface
 
-The public surface is the REST and SSE endpoints under `/api/v1/`. MongoDB, Redis, Kafka, the Kubernetes API and the workers stay internal. The frontend talks to the backend with fetch and EventSource and [cookie-based auth](authentication.md). The [admin routes](../operations/admin-api.md) under `/api/v1/admin/` and the replay routes under `/api/v1/replay/` require the admin role. The OpenAPI schema and the Swagger UI are served only when `DEVELOPMENT_MODE` is on. See the [API Reference](../reference/api-reference.md) for the full list.
+The public surface is the REST and SSE endpoints under `/api/v1/`. MongoDB, Redis, Kafka, the Kubernetes API and the worker stay internal. The frontend talks to the backend with fetch and EventSource and [cookie-based auth](authentication.md). The [admin routes](../operations/admin-api.md) under `/api/v1/admin/` and the replay routes under `/api/v1/replay/` require the admin role. The OpenAPI schema and the Swagger UI are served only when `DEVELOPMENT_MODE` is on. See the [API Reference](../reference/api-reference.md) for the full list.

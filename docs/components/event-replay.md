@@ -1,6 +1,6 @@
 # Event replay
 
-Replays don't run in this worker. They run inside the API process, in `EventReplayService`, and the event replay worker only cleans up after them: every 6 hours it calls `cleanup_old_sessions(older_than_hours=48)`, which deletes finished replay sessions older than 48 hours from the `replay_sessions` collection.
+Replays run inside the API process, in `EventReplayService`. MongoDB cleans up after them: a TTL index on `completed_at` drops a finished session from the `replay_sessions` collection 48 hours after it ends, and `POST /api/v1/replay/cleanup` removes finished sessions past a given age on demand.
 
 ```mermaid
 graph LR
@@ -8,7 +8,7 @@ graph LR
     API -->|read| Mongo[(events)]
     API -->|re-produce| Kafka[(Kafka)]
     API -->|progress| Redis["sse:replay:{session_id}"]
-    Worker[event-replay worker] -->|every 6h| Sessions[(replay_sessions)]
+    API -->|sessions| Sessions[(replay_sessions)]
 ```
 
 ## Starting a replay
@@ -29,7 +29,7 @@ Session state lives in a dict in the API process and is mirrored to `replay_sess
 
 | File | Purpose |
 |------|---------|
-| [`run_event_replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_event_replay.py) | Worker: the cleanup job |
+| [`db/docs/replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/replay.py) | `replay_sessions` document and its TTL index |
 | [`replay_service.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/services/event_replay/replay_service.py) | Sessions, dispatch, targets |
 | [`replay.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/replay.py) | `/api/v1/replay` routes |
 | [`events.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/api/routes/admin/events.py) | `/api/v1/admin/events/replay` routes |

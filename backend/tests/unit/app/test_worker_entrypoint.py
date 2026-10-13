@@ -1,4 +1,3 @@
-import importlib
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from types import SimpleNamespace
 from typing import Any
@@ -7,27 +6,17 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import structlog
 
+from app import worker as module
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
 _Hook = Callable[[], Awaitable[None]]
 
-WORKERS = {
-    "run_dlq_processor": ("create_dlq_processor_container", True),
-    "run_event_replay": ("create_event_replay_container", True),
-    "run_k8s_worker": ("create_k8s_worker_container", False),
-    "run_pod_monitor": ("create_pod_monitor_container", True),
-    "run_result_processor": ("create_result_processor_container", False),
-    "run_saga_orchestrator": ("create_saga_orchestrator_container", True),
-}
 
-
-@pytest.mark.parametrize(("worker", "factory", "has_scheduler"), [(w, f, s) for w, (f, s) in WORKERS.items()])
 async def test_container_closes_after_the_broker_stops(
-    monkeypatch: pytest.MonkeyPatch, test_settings: Settings, worker: str, factory: str, has_scheduler: bool
+    monkeypatch: pytest.MonkeyPatch, test_settings: Settings
 ) -> None:
-    module = importlib.import_module(f"workers.{worker}")
     order: list[str] = []
 
     class FakeFastStream:
@@ -66,17 +55,12 @@ async def test_container_closes_after_the_broker_stops(
     monkeypatch.setattr(module, "setup_log_exporter", MagicMock())
     monkeypatch.setattr(module, "AsyncMongoClient", MagicMock())
     monkeypatch.setattr(module, "init_beanie", AsyncMock())
-    monkeypatch.setattr(module, factory, lambda _settings: container)
+    monkeypatch.setattr(module, "create_worker_container", lambda _settings: container)
     monkeypatch.setattr(module, "setup_dishka", MagicMock())
     monkeypatch.setattr(module, "FastStream", FakeFastStream)
-    for name in dir(module):
-        if name.startswith("register_"):
-            monkeypatch.setattr(module, name, MagicMock())
-    if has_scheduler:
-        monkeypatch.setattr(module, "AsyncIOScheduler", lambda: scheduler)
+    monkeypatch.setattr(module, "AsyncIOScheduler", lambda: scheduler)
 
     module.main()
     await runs[0]
 
-    expected = ["broker.stop", "container.close"]
-    assert order == (["scheduler.shutdown", *expected] if has_scheduler else expected)
+    assert order == ["scheduler.shutdown", "broker.stop", "container.close"]

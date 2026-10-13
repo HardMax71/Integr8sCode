@@ -12,7 +12,7 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --bind-addres
 
 CI also passes `--disable-network-policy` to dodge the iptables race under [Troubleshooting](#troubleshooting). Leave it out here: without the policy controller, k3s doesn't enforce the NetworkPolicy that cuts executor pods off the network.
 
-On startup the `cert-generator` container looks for the cluster through `~/.kube` and `/etc/rancher/k3s`. When it finds one, it creates the `integr8scode` namespace, installs Kueue, sets up a service account and writes `backend/kubeconfig.yaml` for the workers. When it can't connect, it logs "Cannot connect to Kubernetes cluster" and skips all of that. The rest of the stack still starts and you can log in, but the k8s worker and pod monitor have no kubeconfig, so scripts stay queued forever.
+On startup the `cert-generator` container looks for the cluster through `~/.kube` and `/etc/rancher/k3s`. When it finds one, it creates the `integr8scode` namespace, installs Kueue, sets up a service account and writes `backend/kubeconfig.yaml` for the workers. When it can't connect, it logs "Cannot connect to Kubernetes cluster" and skips all of that. The rest of the stack still starts and you can log in, but the worker has no kubeconfig and keeps restarting, so scripts stay queued forever.
 
 ## Start the stack
 
@@ -66,7 +66,7 @@ Kafdrop, Grafana and Jaeger aren't part of the default stack. `./deploy.sh dev -
 
 ## Troubleshooting
 
-If scripts stay queued, check `docker compose logs cert-generator` for the connection error above, then `docker compose logs k8s-worker pod-monitor`. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
+If scripts stay queued, check `docker compose logs cert-generator` for the connection error above, then `docker compose logs worker`. A k3s that stopped after a VPN or IP change is covered in [Deployment](operations/deployment.md).
 
 If every service times out talking to mongo or kafka right after k3s started or restarted, k3s's policy sync probably wiped Docker's iptables rules ([kube-router#1248](https://github.com/cloudnativelabs/kube-router/issues/1248)). `docker compose down` followed by `./deploy.sh dev` recreates the network and its rules.
 

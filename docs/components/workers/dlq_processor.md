@@ -1,6 +1,6 @@
 # DLQ processor
 
-The DLQ processor has no Kafka subscriber. It retries the failed events that the other workers' routers save to the `dlq_messages` collection. [Dead letter queue](../dead-letter-queue.md) covers how they get there.
+The DLQ processor has no Kafka subscriber. It retries the failed events that the consumer routers, in the worker and the API, save to the `dlq_messages` collection. [Dead letter queue](../dead-letter-queue.md) covers how they get there.
 
 ```mermaid
 graph LR
@@ -18,5 +18,5 @@ Retry policies are hardcoded in `app/dlq/models.py`, and the `DLQ_*` settings ar
 
 | File | Purpose |
 |------|---------|
-| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py) | Entry point and APScheduler job |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Entry point and APScheduler job |
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py) | `process_due_retries`, `retry_message` |

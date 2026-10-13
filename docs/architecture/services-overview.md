@@ -1,6 +1,6 @@
 # Services overview
 
-This page maps `backend/app/services/` and the workers that run outside the API. Read it for a mental model before you open the code.
+This page maps `backend/app/services/` and the worker that runs outside the API. Read it for a mental model before you open the code.
 
 ## The API's services
 
@@ -22,21 +22,20 @@ Route handlers get these from Dishka. They hold the business logic, talk to Mong
 | `idempotency/` | `IdempotencyManager` and its Redis repository. See [Idempotency](idempotency.md). |
 | `runtime_settings.py` | `RuntimeSettingsLoader`, which reads the admin-set system settings from MongoDB, falls back to the TOML values and caches the result for 60 seconds. |
 | `admin/` | Admin services for users, executions, events and system settings. |
-| `k8s_worker/`, `pod_monitor/`, `result_processor/` | The services behind the workers of the same name. |
+| `k8s_worker/`, `pod_monitor/`, `result_processor/` | The services behind the worker's parts of the same name. |
 
 The API process is a Kafka consumer too. Its lifespan registers two subscriber groups: `sse-bridge-pool` copies 17 execution, pod and result event types into Redis for SSE, and `notification-service` turns `execution_completed`, `execution_failed` and `execution_timeout` into notifications.
 
-## Workers
+## Worker
 
-Each worker runs in its own container from the same backend image as the API, with a different command, for example `python workers/run_k8s_worker.py`. The entry points live in `backend/workers/`. Every subscriber is registered in `app/events/handlers.py`.
+The worker runs in its own container from the same backend image as the API, with the command `python -m app.worker`. Its entry point is `app/worker.py`, and every subscriber is registered in `app/events/handlers.py`.
 
-| Worker | Consumes | Publishes |
+| Part | Consumes | Publishes |
 |--------|----------|-----------|
 | Saga orchestrator | `execution_requested`, `execution_completed`, `execution_failed`, `execution_timeout`, `execution_cancelled` | `create_pod_command`, `delete_pod_command`, `saga_started`, `saga_cancelled` |
 | K8s worker | `create_pod_command`, `delete_pod_command` | `pod_created`, or `execution_failed` when pod creation fails |
 | Pod monitor | nothing, it watches the Kubernetes API | `pod_scheduled`, `pod_running`, `pod_terminated`, `execution_completed`, `execution_failed`, `execution_timeout` |
 | Result processor | `execution_completed`, `execution_failed`, `execution_timeout` | `result_stored`, or `result_failed` when storing fails |
-| Event replay | nothing | nothing, it only cleans up old sessions |
 | DLQ processor | nothing | retried events and `dlq_message_retried` |
 
 The saga orchestrator puts each request into the execution queue and runs the saga once a slot is free. The saga steps are `validate_execution`, `allocate_resources` and `create_pod`; the last one publishes the pod command. If a step fails, the compensations of the steps that already ran go in reverse order: `delete_pod` publishes `delete_pod_command` and `release_resources` frees the allocation. Terminal execution events mark the saga done and release the queue slot. `execution_cancelled` takes a queued request out of the queue and marks the saga cancelled, but it doesn't delete a pod that is already running. Two APScheduler jobs run next to the consumers: `check_timeouts` every 30 seconds and `try_schedule_from_queue` every 10 seconds.
@@ -47,7 +46,7 @@ The pod monitor lists and then watches pods labelled `app=integr8s,component=exe
 
 The result processor writes the final status, output and resource usage to MongoDB and records execution metrics. It doesn't touch Kubernetes.
 
-The event-replay container only runs `cleanup_old_sessions` every 6 hours. Replay sessions themselves run inside the API process, which owns the `EventReplayService` the admin routes use.
+Replay sessions run inside the API process, which owns the `EventReplayService` the admin routes use. MongoDB drops finished sessions 48 hours after they complete.
 
 The DLQ processor runs `process_monitoring_cycle` every 10 seconds, which republishes due messages from the `dlq_messages` collection to their original topic for the consumer group that failed on them. The k8s worker, result processor, saga orchestrator and notification routers save their failed events there. See [Dead Letter Queue](../components/dead-letter-queue.md).
 

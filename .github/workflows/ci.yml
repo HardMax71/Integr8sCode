@@ -566,9 +566,7 @@ jobs:
         run: |
           mkdir -p logs
           docker compose logs --timestamps > logs/docker-compose.log 2>&1
-          for svc in backend mongo redis kafka \
-                     k8s-worker pod-monitor result-processor \
-                     saga-orchestrator event-replay dlq-processor; do
+          for svc in backend worker mongo redis kafka; do
             docker compose logs --timestamps "$svc" > "logs/$svc.log" 2>&1 || true
           done
           kubectl get events --sort-by='.metadata.creationTimestamp' -A > logs/k8s-events.log 2>&1 || true

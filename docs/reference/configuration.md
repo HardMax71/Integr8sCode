@@ -3,13 +3,13 @@
 The backend reads its non-secret configuration from TOML files, not from environment variables. `Settings` in `app/settings.py` builds it in this order, each layer overriding the one before:
 
 1. `config.toml`, the base file committed to git
-2. an optional per-worker override such as `config.saga-orchestrator.toml`
+2. an optional override, `config.worker.toml` for the worker
 3. four secrets from the environment: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD` and `REDIS_PASSWORD`
 
 ```python
 Settings()                                              # config.toml + secrets
 Settings(config_path="config.test.toml")                # tests
-Settings(override_path="config.saga-orchestrator.toml") # a worker
+Settings(override_path="config.worker.toml")            # the worker
 ```
 
 `Settings` uses `extra="forbid"`, so a key that isn't a field below stops the process at startup. `OTEL_SERVICE_NAME`, `OTEL_SERVICE_VERSION` and `OTEL_RESOURCE_ATTRIBUTES` are not fields: put them in TOML and nothing starts.
@@ -115,7 +115,7 @@ A language can raise its own pod's limits above the system settings. Go gets at 
 |-----|-------|--------|--------------|
 | `OTLP_TRACES_ENDPOINT` | `http://jaeger:4317` | config.toml | OTLP gRPC endpoint for traces; empty turns export off (the default is empty) |
 | `TRACING_SAMPLING_RATE` | `1.0` | config.toml | Fraction of traces kept, 0.0 to 1.0 (the default is 0.1) |
-| `TRACING_SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on spans; each worker override sets its own |
+| `TRACING_SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on spans; `config.worker.toml` sets `integr8scode-worker` |
 | `TRACING_SERVICE_VERSION` | `1.0.0` | config.toml | `service.version` on spans |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | config.toml | OTLP endpoint for metrics and logs; unset turns both off |
 | `SERVICE_NAME` | `integr8scode-backend` | config.toml | `service.name` on metrics and logs, Kafka client id, event metadata |
@@ -186,20 +186,9 @@ These have no entry in `config.toml`, so the `Settings` default applies.
 
 `APP_URL` (`https://localhost` in config.toml) is unused too. `CORS_ORIGINS` is the list in config.toml, which replaces the `Settings` default list.
 
-## Worker overrides
+## Worker override
 
-Each worker loads a small override next to `config.toml`:
-
-| File | Worker |
-|------|--------|
-| `config.k8s-worker.toml` | K8s worker |
-| `config.pod-monitor.toml` | Pod monitor |
-| `config.result-processor.toml` | Result processor |
-| `config.saga-orchestrator.toml` | Saga orchestrator |
-| `config.event-replay.toml` | Event replay |
-| `config.dlq-processor.toml` | DLQ processor |
-
-Each sets `TRACING_SERVICE_NAME` and `KAFKA_CONSUMER_GROUP_ID` to the worker's name. Only the first one has an effect.
+The worker loads `config.worker.toml` next to `config.toml`. It sets one key, `TRACING_SERVICE_NAME = "integr8scode-worker"`, so Jaeger shows the worker apart from the API.
 
 ## Test configuration
 

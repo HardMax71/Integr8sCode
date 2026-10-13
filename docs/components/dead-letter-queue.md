@@ -1,6 +1,6 @@
 # Dead letter queue
 
-When a Kafka handler raises, its event goes to the dead letter queue, and the dlq-processor later sends it back to the one consumer group that failed. The queue is the `dlq_messages` MongoDB collection, not a Kafka topic. FastStream has no dead letter queue for Kafka, so two small middlewares in `app/events/middlewares.py` connect the subscribers to it.
+When a Kafka handler raises, its event goes to the dead letter queue, and the worker's DLQ job later sends it back to the one consumer group that failed. The queue is the `dlq_messages` MongoDB collection, not a Kafka topic. FastStream has no dead letter queue for Kafka, so two small middlewares in `app/events/middlewares.py` connect the subscribers to it.
 
 ## What happens to a failed event
 
@@ -51,4 +51,4 @@ The `DLQ_*` keys in config.toml (`DLQ_RETRY_MAX_ATTEMPTS`, `DLQ_RETRY_BASE_DELAY
 | [`manager.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/manager.py) | Intake, retry, discard |
 | [`models.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/dlq/models.py) | Statuses, retry policies and the two headers |
 | [`dlq.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/db/docs/dlq.py) | `dlq_messages` document and indexes |
-| [`run_dlq_processor.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/workers/run_dlq_processor.py) | Worker entry point |
+| [`worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py) | Worker entry point, schedules the retry job |

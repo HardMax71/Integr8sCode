@@ -9,22 +9,26 @@ from faststream.kafka import KafkaBroker
 from kubernetes_asyncio.client.rest import ApiException
 from pymongo import AsyncMongoClient
 
-from app.core.container import create_pod_monitor_container
+from app.core.container import create_worker_container
 from app.core.logging import setup_log_exporter, setup_logger
 from app.core.metrics import KubernetesMetrics
 from app.db.docs import ALL_DOCUMENTS
+from app.dlq.manager import DLQManager
+from app.events.handlers import k8s_worker_router, result_processor_router, saga_router
+from app.services.k8s_worker import KubernetesWorker
 from app.services.pod_monitor import ErrorType, PodMonitor
+from app.services.saga import SagaOrchestrator
 from app.settings import Settings
 
 
 def main() -> None:
-    """Main entry point for pod monitor worker"""
-    settings = Settings(override_path="config.pod-monitor.toml")
+    """Run everything outside the API: the Kafka consumers, the pod watch and the scheduled jobs."""
+    settings = Settings(override_path="config.worker.toml")
 
     logger = setup_logger(settings.LOG_LEVEL)
     setup_log_exporter(settings, logger)
 
-    logger.info("Starting PodMonitor worker...")
+    logger.info("Starting worker...")
 
     async def run() -> None:
         # Initialize Beanie with tz_aware client (so MongoDB returns aware datetimes)
@@ -35,22 +39,24 @@ def main() -> None:
         )
         logger.info("MongoDB initialized via Beanie")
 
-        # Create DI container
-        container = create_pod_monitor_container(settings)
-
-        # Get broker from DI (PodMonitor publishes events through UnifiedProducer)
+        container = create_worker_container(settings)
         broker: KafkaBroker = await container.get(KafkaBroker)
 
-        # Set up DI integration (no subscribers for pod monitor - it only publishes)
+        # Include the subscribers, then set up DI integration
+        broker.include_routers(k8s_worker_router(), result_processor_router(), saga_router())
         setup_dishka(container, broker=broker, auto_inject=True)
 
         scheduler = AsyncIOScheduler()
 
-        async def init_monitor() -> None:
+        async def start() -> None:
+            k8s_worker = await container.get(KubernetesWorker)
+            await k8s_worker.ensure_namespace_security()
+            await k8s_worker.ensure_image_pre_puller_daemonset()
+
             monitor = await container.get(PodMonitor)
             kubernetes_metrics = await container.get(KubernetesMetrics)
 
-            async def _watch_cycle() -> None:
+            async def watch_pods() -> None:
                 error_type: ErrorType | None = None
                 try:
                     await monitor.watch_pod_events()
@@ -70,28 +76,33 @@ def main() -> None:
                     kubernetes_metrics.record_pod_monitor_watch_error(error_type)
                     kubernetes_metrics.increment_pod_monitor_watch_reconnects()
 
-            scheduler.add_job(
-                _watch_cycle,
-                trigger="interval",
-                seconds=5,
-                id="pod_monitor_watch",
-                max_instances=1,
-                misfire_grace_time=60,
+            orchestrator = await container.get(SagaOrchestrator)
+            dlq_manager = await container.get(DLQManager)
+
+            jobs = (
+                ("pod_monitor_watch", watch_pods, 5, 60),
+                ("saga_try_schedule", orchestrator.try_schedule_from_queue, 10, 30),
+                ("saga_check_timeouts", orchestrator.check_timeouts, 30, 60),
+                ("dlq_monitor_retries", dlq_manager.process_monitoring_cycle, 10, 60),
             )
+            for job_id, job, seconds, grace in jobs:
+                scheduler.add_job(
+                    job, trigger="interval", seconds=seconds, id=job_id, max_instances=1, misfire_grace_time=grace
+                )
             scheduler.start()
-            logger.info("PodMonitor initialized (APScheduler interval=5s)")
+            logger.info("Worker started", jobs=[job_id for job_id, *_ in jobs])
 
         async def stop_scheduler() -> None:
             scheduler.shutdown(wait=False)
 
         app = FastStream(
             broker,
-            on_startup=[init_monitor],
+            on_startup=[start],
             on_shutdown=[stop_scheduler],
             after_shutdown=[container.close],
         )
         await app.run()
-        logger.info("PodMonitor shutdown complete")
+        logger.info("Worker shutdown complete")
 
     asyncio.run(run())
 

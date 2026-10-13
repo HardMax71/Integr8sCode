@@ -1,6 +1,6 @@
 # Integr8sCode: Agent Instructions
 
-Platform for running scripts online in isolated Kubernetes pods. Users write Python, Node.js, Ruby, Bash or Go in a Svelte 5 frontend, the FastAPI backend publishes the request to Kafka, and workers run it in its own pod.
+Platform for running scripts online in isolated Kubernetes pods. Users write Python, Node.js, Ruby, Bash or Go in a Svelte 5 frontend, the FastAPI backend publishes the request to Kafka, and the worker runs it in its own pod.
 
 ## Tech Stack
 
@@ -9,7 +9,7 @@ Platform for running scripts online in isolated Kubernetes pods. Users write Pyt
 | Frontend | Svelte 5 (runes), SvelteKit 3 (adapter-static SPA) on Vite 8, TanStack Query 6, TanStack Table 9, bits-ui 2, superforms 3 with formsnap, mode-watcher, TypeScript 6 strict, TailwindCSS 4, Node 26 |
 | Backend | FastAPI, Dishka DI, Beanie ODM (MongoDB), Python 3.14 (backend/.python-version), async throughout, httpx2 for HTTP |
 | Events | Kafka (KRaft, no ZooKeeper) + FastStream (Pydantic JSON) |
-| Workers | k8s_worker, pod_monitor, result_processor, saga_orchestrator, dlq_processor, event_replay |
+| Worker | one process (`app/worker.py`): k8s worker, pod monitor, result processor, saga orchestrator, DLQ retries |
 | Infra | MongoDB 9, Redis 8; optional Grafana, Jaeger, Victoria Metrics, Loki, OTel Collector (`--observability`) and Kafdrop (`--debug`) |
 | Runtimes | Python 3.11 to 3.14, Node 22/24/26, Ruby 3.3/3.4/4.0, Bash 5.3, Go 1.26/1.27 (app/runtime_registry.py) |
 
@@ -30,9 +30,9 @@ backend/
 │   ├── services/            # Business services, constructor-injected via Dishka
 │   ├── scripts/             # entrypoint.sh mounted into executor pods
 │   ├── main.py              # create_app()
+│   ├── worker.py            # the worker process: Kafka consumers, pod watch, scheduled jobs
 │   ├── runtime_registry.py  # Languages, versions, images, per-language pod settings
 │   └── settings.py          # Settings: TOML plus secrets from env
-├── workers/                 # run_<worker>.py entry points, one per worker
 ├── scripts/                 # check_orphan_modules.py, seed_users.py
 └── tests/                   # unit/, e2e/, contract/, load/
 
@@ -218,7 +218,7 @@ Rules:
 - Use `raise SpecificError(...) from original_exc` to preserve exception chains
 - Never catch `Exception` broadly; catch specific exception types (the two allowed cases follow)
 
-A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` and `DeadLetterMiddleware` in `app/events/middlewares.py` release the idempotency key and save the event to the DLQ, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`workers/run_pod_monitor.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
+A catch-all is allowed in two cases only. The first records or logs, then re-raises: `UnifiedProducer.produce` in `app/events/core/producer.py` marks the event as failed to publish, `IdempotencyMiddleware` and `DeadLetterMiddleware` in `app/events/middlewares.py` release the idempotency key and save the event to the DLQ, and `ExecutionService` marks the execution as errored before raising `InfrastructureError`. The second is a loop or batch boundary that must survive one bad item: the saga orchestrator's queue loop (`try_schedule_from_queue`), saga step execution and its compensation loop, the pod monitor's watch cycle (`app/worker.py`) and per-event processing, k8s worker pod creation (publishes a pod-creation-failed event instead), notification delivery and the scheduled-notification batch, DLQ batch retry and per-event replay. A new catch-all needs the same justification and must log or record the error; never swallow it silently.
 
 ```python
 # Repository: returns None for reads; raises only on write constraints
@@ -314,10 +314,10 @@ class MyProvider(Provider):
 ```
 
 - All providers live in one file, `app/core/providers.py`
-- Container factories live in `app/core/container.py`, one per process: `create_app_container`, `create_k8s_worker_container`, `create_pod_monitor_container`, `create_result_processor_container`, `create_saga_orchestrator_container`, `create_event_replay_container`, `create_dlq_processor_container`
+- Container factories live in `app/core/container.py`, one per process: `create_app_container` and `create_worker_container`
 - `FromDishka[ServiceType]` injects into route handlers (`dishka.integrations.fastapi`) and Kafka subscribers (`dishka_faststream`)
 - `@inject` decorator when needed outside routes (e.g. the `admin_user` dependency)
-- `setup_dishka(container, broker=broker, auto_inject=True)` from `dishka_faststream` runs **after** subscriber registration and **before** the broker starts, in workers and in the API lifespan
+- `setup_dishka(container, broker=broker, auto_inject=True)` from `dishka_faststream` runs **after** subscriber registration and **before** the broker starts, in the worker and in the API lifespan
 - Never instantiate services directly; always use DI
 
 ## Backend: Domain Models (Stdlib Dataclasses)
@@ -475,13 +475,13 @@ settings: FromDishka[Settings]
 
 Config load order (each overrides the previous):
 1. `config.toml`: base settings (committed)
-2. `config.<worker>.toml`: per-worker overrides (optional)
+2. `config.worker.toml`: the worker's override (optional)
 3. Secrets: `SECRET_KEY`, `MONGO_USER`, `MONGO_PASSWORD`, `REDIS_PASSWORD`. Each one is read from the env var first, then the TOML value, then a dev default, so a missing secret never raises. Production must set all four: the deploy workflow stops when one of their GitHub secrets is empty, since compose would otherwise fall back to the public defaults. `MONGODB_URL` is built from the Mongo values
 
 ```python
 Settings()                                               # config.toml + secrets
 Settings(config_path="config.test.toml")                 # tests + secrets
-Settings(override_path="config.saga-orchestrator.toml")  # worker + secrets
+Settings(override_path="config.worker.toml")             # worker + secrets
 ```
 
 `Settings` uses `model_config = ConfigDict(extra="forbid")`, so unknown keys are errors.
@@ -533,27 +533,28 @@ def saga_router() -> KafkaRouter:
 - String literal `group_id` per consumer group
 - One topic per subscriber, no filtering inside handlers. The one exception is the API's `sse-bridge-pool` subscriber, which takes the 17 execution, result and pod event types in one handler and forwards them to Redis for SSE
 - Consumers that must not run a handler twice put `idempotent(strategy, ttl_seconds=...)` from `app/events/middlewares.py` on their router
-- Consumers whose failures should be retried put `DeadLetterMiddleware` first on their router. It saves the failed event to the DLQ with the consumer group, and the dlq-processor republishes it with headers that `RetryTargetMiddleware` (on every broker) uses to skip it in the other groups. The SSE bridge has none, since a late SSE push is worse than a missed one
+- Consumers whose failures should be retried put `DeadLetterMiddleware` first on their router. It saves the failed event to the DLQ with the consumer group, and the worker's DLQ job republishes it with headers that `RetryTargetMiddleware` (on every broker) uses to skip it in the other groups. The SSE bridge has none, since a late SSE push is worse than a missed one
 - Don't wrap handlers to count failures: FastStream's `KafkaTelemetryMiddleware` already records them under `error_type` on `messaging_process_duration_seconds`
 
-### Worker Pattern
-Each `backend/workers/run_<worker>.py` follows the same order:
+### Worker Process
+Everything outside the API runs in one process, `python -m app.worker` (`backend/app/worker.py`), in this order:
 
-1. `Settings(override_path="config.<worker>.toml")`
+1. `Settings(override_path="config.worker.toml")`
 2. `init_beanie()` on a tz-aware `AsyncMongoClient`, before the container exists
-3. `create_<worker>_container(settings)`
-4. Get `KafkaBroker` from the container and `broker.include_router(<worker>_router())` if the worker consumes
+3. `create_worker_container(settings)`
+4. Get `KafkaBroker` from the container and `broker.include_routers(k8s_worker_router(), result_processor_router(), saga_router())`
 5. `setup_dishka(container, broker=broker, auto_inject=True)`
 6. `FastStream(broker, on_startup=[...], on_shutdown=[...]).run()`; APScheduler jobs start in `on_startup`
 
-| Worker | Purpose |
-|--------|---------|
-| k8s_worker | Consumes create/delete pod commands, creates executor pods and ConfigMaps, applies the executor NetworkPolicy |
+| Part | Purpose |
+|------|---------|
+| k8s_worker | Consumes create/delete pod commands, creates executor pods and ConfigMaps, applies the executor NetworkPolicy on startup |
 | pod_monitor | Watches executor pods (watch cycle every 5s) and publishes pod and execution events; no subscribers |
 | result_processor | Consumes completed, failed and timeout events, stores results, publishes result_stored or result_failed; moves the stored status to scheduled or running on pod_scheduled and pod_running |
 | saga_orchestrator | Runs execution sagas, schedules the queue every 10s, checks saga timeouts every 30s |
 | dlq_processor | APScheduler only (no Kafka consumer), retries due DLQ rows every 10s for the consumer group that failed |
-| event_replay | APScheduler only, cleans up replay sessions older than 48h every 6h; replays themselves run in the API |
+
+Each consumer keeps its own `group_id`, so sharing a process doesn't change what Kafka delivers to it. New background work goes into this process: a router in `app/events/handlers.py` included next to the others, or one more APScheduler job. Run one worker replica: the pod watch and the jobs would run once per replica. Replays run in the API, and a TTL index on `completed_at` drops finished replay sessions after 48 hours.
 
 The API process consumes too: `sse-bridge-pool` and `notification-service` are registered in `app/core/dishka_lifespan.py`.
 
@@ -850,7 +851,7 @@ git status --porcelain -- docs/reference/openapi.json frontend/src/lib/api
 
 On GitHub every check above is a job of `.github/workflows/ci.yml` that runs only when its files changed (`dorny/paths-filter`), and `All checks pass` (`re-actors/alls-green`) is the one required check on `main`, with no bypass for anyone. A new CI job goes into that job's `needs` and `allowed-skips`. Open a PR with auto-merge on (`gh pr merge --auto --squash`); a stack from `gh stack` lands with `gh stack merge` once every PR in it passes, since auto-merge doesn't cover stacks yet.
 
-CI also runs the backend E2E suite and Playwright against a k3s stack, plus bandit and image scans. The grimp check (`backend/scripts/check_orphan_modules.py`) fails on any module in `app` that no other module imports. It skips `app.main`, the only whitelisted entry point, and `__init__.py` files that hold nothing but a docstring.
+CI also runs the backend E2E suite and Playwright against a k3s stack, plus bandit and image scans. The grimp check (`backend/scripts/check_orphan_modules.py`) fails on any module in `app` that no other module imports. It skips the two entry points, `app.main` and `app.worker`, and `__init__.py` files that hold nothing but a docstring.
 
 ## Security Constraints
 

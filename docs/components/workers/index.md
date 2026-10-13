@@ -1,8 +1,8 @@
-# Workers
+# Worker
 
-Six background processes sit next to the API, each in its own container built from the backend image. Four of them carry an execution from request to stored result. The other two run scheduled jobs: the DLQ processor polls for dead-lettered messages to retry (nothing writes any yet), and the event replay worker prunes old replay sessions.
+One background process runs next to the API: `python -m app.worker`, in the `worker` container built from the backend image. Four parts of it carry an execution from request to stored result, and a fifth retries dead-lettered events. They share one broker connection and one Dishka container, but each consumer keeps its own Kafka consumer group, so every part still gets every event it subscribes to.
 
-Workers talk to each other only through Kafka, one topic per event type, and the event names on the arrows below travel as those topics. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
+The parts talk to each other only through Kafka, one topic per event type, even inside the one process. The event names on the arrows below travel as those topics. MongoDB holds the durable state and Redis holds the execution queue and idempotency keys.
 
 ```mermaid
 graph LR
@@ -17,29 +17,32 @@ graph LR
     Result --> Mongo[(MongoDB)]
 ```
 
-| Worker | What it does | Entry point |
-|--------|--------------|-------------|
-| [Saga orchestrator](saga_orchestrator.md) | Queues executions, runs the execution saga, sends pod commands | `run_saga_orchestrator.py` |
-| [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod | `run_k8s_worker.py` |
-| [Pod monitor](pod_monitor.md) | Watches executor pods and publishes pod and execution events | `run_pod_monitor.py` |
-| [Result processor](result_processor.md) | Writes the result onto the execution document | `run_result_processor.py` |
-| [Event replay](event_replay.md) | Deletes replay sessions older than 48 hours, every 6 hours | `run_event_replay.py` |
-| [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | `run_dlq_processor.py` |
+| Part | What it does | How it runs |
+|------|--------------|-------------|
+| [Saga orchestrator](saga_orchestrator.md) | Queues executions, runs the execution saga, sends pod commands | `saga-orchestrator` group; `try_schedule_from_queue` every 10s, `check_timeouts` every 30s |
+| [K8s worker](k8s_worker.md) | Creates the script ConfigMap and the executor pod | `k8s-worker` group |
+| [Pod monitor](pod_monitor.md) | Watches executor pods and publishes pod and execution events | watch cycle every 5s |
+| [Result processor](result_processor.md) | Writes the result onto the execution document | `result-processor` group |
+| [DLQ processor](dlq_processor.md) | Republishes DLQ rows whose retry time has come | job every 10s |
 
-All entry points live in [`backend/workers/`](https://github.com/HardMax71/Integr8sCode/tree/main/backend/workers). Each one loads `config.toml` plus its own `config.<worker>.toml` override, initializes Beanie, builds its Dishka container, registers its Kafka subscribers if it has any, and starts the FastStream app.
+The entry point is [`backend/app/worker.py`](https://github.com/HardMax71/Integr8sCode/blob/main/backend/app/worker.py). It loads `config.toml` plus the `config.worker.toml` override, initializes Beanie, builds the container with `create_worker_container`, registers the three routers and starts the FastStream app. On startup it applies the executor NetworkPolicy and the image pre-puller DaemonSet, then starts the scheduler.
+
+Replays run in the API, not here. See [Event replay](../event-replay.md).
 
 ## Running locally
 
-`./deploy.sh dev` starts all six. To debug one from your shell, stop its container and run it with uv from `backend/`:
+`./deploy.sh dev` starts it. To debug it from your shell, stop the container and run it with uv from `backend/`:
 
 ```bash
-docker compose stop saga-orchestrator
+docker compose stop worker
 cd backend
-uv run python -m workers.run_saga_orchestrator
+uv run python -m app.worker
 ```
 
-The worker reads the same `config.toml` as the containers, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. The k8s worker and pod monitor also read the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml`, a path that exists only inside the containers. To run either one from the shell, set `KUBERNETES_CONFIG_PATH` in its `config.<worker>.toml` to a kubeconfig the host can use, such as `~/.kube/config`.
+The worker reads the same `config.toml` as the container, so it connects to the compose hostnames `mongo`, `redis` and `kafka`. Map those to `127.0.0.1` in `/etc/hosts`, since compose publishes their ports on localhost. It also reads the kubeconfig from `KUBERNETES_CONFIG_PATH`, which is `/app/kubeconfig.yaml`, a path that exists only inside the container. Set it in `config.worker.toml` to a kubeconfig the host can use, such as `~/.kube/config`.
 
 ## Scaling
 
-Compose runs one container of each worker, with fixed container names. The pod monitor has to stay at one replica: it keeps the last seen phase of each pod in memory, and a second replica would watch the same pods and publish every event twice. The k8s worker and result processor consume through Kafka consumer groups and guard each handler with a Redis idempotency key, so extra replicas would split the partitions between them. The saga orchestrator keeps saga state in MongoDB and the queue in Redis, so both survive a restart, but nothing resumes a saga that was halfway through its steps when the process died.
+Compose runs one worker, and it has to stay at one. The pod monitor keeps the last seen phase of each pod in memory, so a second replica would watch the same pods and publish every event twice, and the scheduled jobs would run once per replica. The consumers alone would scale, since they go through consumer groups and guard each handler with a Redis idempotency key. The saga orchestrator keeps saga state in MongoDB and the queue in Redis, so both survive a restart, but nothing resumes a saga that was halfway through its steps when the process died.
+
+A crash in any part restarts the whole container (`restart: unless-stopped`), and the consumers pick up from their committed offsets.

@@ -3,7 +3,6 @@ FROM base
 
 # Copy application files and configuration
 COPY ./app /app/app
-COPY ./workers /app/workers
 COPY ./scripts /app/scripts
 COPY config.toml /app/config.toml
 COPY openssl.cnf /app/openssl.cnf

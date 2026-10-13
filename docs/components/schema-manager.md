@@ -1,20 +1,21 @@
 # MongoDB indexes and TTLs
 
-There's no schema manager or migration step. Each Beanie document declares its own indexes, either as `Indexed(...)` fields or in `Settings.indexes`, and every process creates them at startup: the API in its lifespan and each worker in its entry point call `init_beanie` with `ALL_DOCUMENTS` from `app/db/docs/__init__.py`. Beanie sends every declared index to `create_indexes` on each boot, which MongoDB treats as a no-op for an index that already exists with the same spec. Repositories never create indexes.
+There's no schema manager or migration step. Each Beanie document declares its own indexes, either as `Indexed(...)` fields or in `Settings.indexes`, and every process creates them at startup: the API in its lifespan and the worker in its entry point call `init_beanie` with `ALL_DOCUMENTS` from `app/db/docs/__init__.py`. Beanie sends every declared index to `create_indexes` on each boot, which MongoDB treats as a no-op for an index that already exists with the same spec. Repositories never create indexes.
 
 Beanie runs with index dropping off, so an index removed from a document stays in the database until someone drops it. Changing the options of an existing index makes MongoDB reject the create, and the process fails at startup. Drop the old index in mongosh first, then restart.
 
 ## TTLs
 
-Three collections expire documents on their own:
+Four collections expire documents on their own:
 
 | Collection | Expires |
 |------------|---------|
 | `events` | at `ttl_expires_at`, which `EventDocument` sets to 30 days after the event is created |
 | `notifications` | 30 days after `created_at` |
 | `dlq_messages` | 7 days after `created_at` |
+| `replay_sessions` | 48 hours after `completed_at`; a session that hasn't finished has none and stays |
 
-The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions`, `sagas` and `resource_allocations`. The event replay worker deletes finished `replay_sessions` older than 48 hours.
+The 30 days for events is hardcoded in the document. `EVENT_RETENTION_DAYS` in config.toml is never read ([#293](https://github.com/HardMax71/Integr8sCode/issues/293)). Everything else stays until something deletes it. That includes `executions`, `sagas` and `resource_allocations`.
 
 ## Unique indexes the code relies on
 

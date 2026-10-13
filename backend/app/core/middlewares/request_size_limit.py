@@ -36,16 +36,23 @@ class RequestSizeLimitMiddleware:
             await response(scope, receive, send)
             return
 
-        bytes_received = 0
+        await self.app(scope, _SizeLimitedReceive(receive, max_size, detail), send)
 
-        async def receive_wrapper() -> Message:
-            nonlocal bytes_received
-            message = await receive()
-            if message["type"] == "http.request":
-                bytes_received += len(message.get("body", b""))
-                if bytes_received > max_size:
-                    # FastAPI turns any other exception raised while reading the body into a 400
-                    raise HTTPException(status_code=413, detail=detail)
-            return message
 
-        await self.app(scope, receive_wrapper, send)
+class _SizeLimitedReceive:
+    """One request's ASGI receive, counting the body as it streams and failing once it passes the limit."""
+
+    def __init__(self, receive: Receive, max_size: int, detail: str) -> None:
+        self.receive = receive
+        self.max_size = max_size
+        self.detail = detail
+        self.received = 0
+
+    async def __call__(self) -> Message:
+        message = await self.receive()
+        if message["type"] == "http.request":
+            self.received += len(message.get("body", b""))
+            if self.received > self.max_size:
+                # FastAPI turns any other exception raised while reading the body into a 400
+                raise HTTPException(status_code=413, detail=self.detail)
+        return message

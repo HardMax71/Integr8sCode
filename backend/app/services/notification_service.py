@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -251,15 +252,11 @@ class NotificationService:
         if not users:
             return {"total_users": 0, "created": 0, "failed": 0, "throttled": 0}
 
-        sem = asyncio.Semaphore(20)
-
-        async def worker(uid: str) -> str:
-            async with sem:
-                return await self._create_system_for_user(uid, cfg, title, base_context, tags or ["system"])
-
-        results = (
-            [await worker(u) for u in users] if len(users) <= 20 else await asyncio.gather(*(worker(u) for u in users))
-        )
+        results: list[str] = []
+        for batch in itertools.batched(users, 20, strict=False):
+            results += await asyncio.gather(
+                *(self._create_system_for_user(uid, cfg, title, base_context, tags or ["system"]) for uid in batch)
+            )
 
         created = sum(1 for r in results if r == "created")
         throttled = sum(1 for r in results if r == "throttled")
@@ -615,6 +612,20 @@ class NotificationService:
 
     # --8<-- [end:should_skip_notification]
 
+    def _log_delivery_retry(self, state: RetryCallState) -> None:
+        """Log a failed delivery attempt and count the retry; the retried call's first argument is the notification."""
+        notification: DomainNotification = state.args[0]
+        self.logger.warning(
+            "Delivery attempt failed",
+            notification_id=str(notification.notification_id),
+            attempt=state.attempt_number,
+            max_attempts=notification.max_retries,
+            error=str(state.outcome.exception() if state.outcome else None),
+        )
+        self.metrics.record_notification_retry(
+            notification.tags[0] if notification.tags else "unknown", notification.channel
+        )
+
     async def _deliver_notification(self, notification: DomainNotification) -> bool:
         """Deliver notification through configured channel with inline retry.
 
@@ -665,20 +676,10 @@ class NotificationService:
         start_time = asyncio.get_running_loop().time()
         notification_type = notification.tags[0] if notification.tags else "unknown"
 
-        def _on_retry(state: RetryCallState) -> None:
-            self.logger.warning(
-                "Delivery attempt failed",
-                notification_id=str(notification.notification_id),
-                attempt=state.attempt_number,
-                max_attempts=notification.max_retries,
-                error=str(state.outcome.exception() if state.outcome else None),
-            )
-            self.metrics.record_notification_retry(notification_type, notification.channel)
-
         retrying = AsyncRetrying(
             stop=stop_after_attempt(notification.max_retries),
             wait=self._retry_wait,
-            before_sleep=_on_retry,
+            before_sleep=self._log_delivery_retry,
             reraise=True,
         )
 

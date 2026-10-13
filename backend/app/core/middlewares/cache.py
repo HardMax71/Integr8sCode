@@ -32,21 +32,7 @@ class CacheControlMiddleware:
             await self.app(scope, receive, send)
             return
 
-        async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                # Only add cache headers for successful responses
-                status_code = message.get("status", 200)
-                if status_code == 200:
-                    headers = MutableHeaders(scope=message)
-                    headers["Cache-Control"] = cache_control
-
-                    # Add ETag support for better caching
-                    if "public" in cache_control:
-                        headers["Vary"] = "Accept-Encoding"
-
-            await send(message)
-
-        await self.app(scope, receive, send_wrapper)
+        await self.app(scope, receive, _CacheHeadersSend(send, cache_control))
 
     def _get_cache_policy(self, path: str) -> str | None:
         # Exact match first
@@ -59,3 +45,19 @@ class CacheControlMiddleware:
                 return cache_control
 
         return None
+
+
+class _CacheHeadersSend:
+    """One GET response's ASGI send, adding the path's cache policy when the response is a 200."""
+
+    def __init__(self, send: Send, cache_control: str) -> None:
+        self.send = send
+        self.cache_control = cache_control
+
+    async def __call__(self, message: Message) -> None:
+        if message["type"] == "http.response.start" and message.get("status", 200) == 200:
+            headers = MutableHeaders(scope=message)
+            headers["Cache-Control"] = self.cache_control
+            if "public" in self.cache_control:
+                headers["Vary"] = "Accept-Encoding"
+        await self.send(message)

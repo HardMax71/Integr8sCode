@@ -69,36 +69,22 @@ class MetricsMiddleware:
         if content_length:
             self.request_size.record(int(content_length), {"method": method, "path": path_template})
 
-        # Time the request
         start_time = time.time()
-        status_code = 500  # Default to error if not set
-        response_content_length = None
-
-        async def send_wrapper(message: Message) -> None:
-            nonlocal status_code, response_content_length
-
-            if message["type"] == "http.response.start":
-                status_code = message["status"]
-                response_headers = dict(message.get("headers", []))
-                content_length_header = response_headers.get(b"content-length")
-                if content_length_header:
-                    response_content_length = int(content_length_header)
-
-            await send(message)
-
+        response = _ResponseRecorder(send)
         raised = True
         try:
-            await self.app(scope, receive, send_wrapper)
+            await self.app(scope, receive, response)
             raised = False
         finally:
             duration = time.time() - start_time
-            labels = {"method": method, "path": path_template, "status": "500" if raised else str(status_code)}
+            labels = {"method": method, "path": path_template, "status": "500" if raised else str(response.status)}
 
             self.request_counter.add(1, labels)
             self.request_duration.record(duration, labels)
 
-            if response_content_length is not None:
-                self.response_size.record(response_content_length, labels)
+            response_content_length = response.headers.get(b"content-length")
+            if response_content_length:
+                self.response_size.record(int(response_content_length), labels)
 
             self.active_requests.add(-1, {"method": method, "path": path_template})
 
@@ -120,6 +106,22 @@ class MetricsMiddleware:
         return path
 
     # --8<-- [end:path_template]
+
+
+class _ResponseRecorder:
+    """One request's ASGI send, keeping the status and headers its response starts with."""
+
+    def __init__(self, send: Send) -> None:
+        self.send = send
+        # A response that never starts counts as a server error
+        self.status = 500
+        self.headers: dict[bytes, bytes] = {}
+
+    async def __call__(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            self.status = message["status"]
+            self.headers = dict(message.get("headers", []))
+        await self.send(message)
 
 
 def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
@@ -164,50 +166,51 @@ def setup_metrics(settings: Settings, logger: structlog.stdlib.BoundLogger) -> N
 
 
 # --8<-- [start:system_metrics]
-def create_system_metrics() -> None:
-    """Create system metrics collectors."""
-    meter = metrics.get_meter(__name__)
+def _observe_memory(_: CallbackOptions) -> list[Observation]:
+    """Get current memory usage."""
+    memory = psutil.virtual_memory()
+    return [
+        Observation(memory.used, {"type": "used"}),
+        Observation(memory.available, {"type": "available"}),
+        Observation(memory.percent, {"type": "percent"}),
+    ]
 
-    # Process for system metrics
-    current_process = psutil.Process(os.getpid())
 
-    # Memory usage
-    def get_memory_usage(_: CallbackOptions) -> list[Observation]:
-        """Get current memory usage."""
-        memory = psutil.virtual_memory()
-        return [
-            Observation(memory.used, {"type": "used"}),
-            Observation(memory.available, {"type": "available"}),
-            Observation(memory.percent, {"type": "percent"}),
-        ]
+def _observe_cpu(_: CallbackOptions) -> list[Observation]:
+    """Get current CPU usage."""
+    return [Observation(psutil.cpu_percent(interval=None))]
 
-    meter.create_observable_gauge(
-        name="system_memory_bytes", callbacks=[get_memory_usage], description="System memory usage", unit="bytes"
-    )
 
-    # CPU usage
-    def get_cpu_usage(_: CallbackOptions) -> list[Observation]:
-        """Get current CPU usage."""
-        cpu_percent = psutil.cpu_percent(interval=None)
-        return [Observation(cpu_percent)]
+class _ProcessObserver:
+    """Reports this process's metrics; it keeps one psutil.Process, since cpu_percent measures from its last call."""
 
-    meter.create_observable_gauge(
-        name="system_cpu_percent", callbacks=[get_cpu_usage], description="System CPU usage percentage", unit="percent"
-    )
+    def __init__(self) -> None:
+        self.process = psutil.Process(os.getpid())
 
-    # Process metrics
-    def get_process_metrics(_: CallbackOptions) -> list[Observation]:
-        """Get current process metrics."""
-        mem = current_process.memory_info()
+    def observe(self, _: CallbackOptions) -> list[Observation]:
+        mem = self.process.memory_info()
         return [
             Observation(mem.rss, {"type": "rss"}),
             Observation(mem.vms, {"type": "vms"}),
-            Observation(current_process.cpu_percent(), {"type": "cpu"}),
-            Observation(current_process.num_threads(), {"type": "threads"}),
+            Observation(self.process.cpu_percent(), {"type": "cpu"}),
+            Observation(self.process.num_threads(), {"type": "threads"}),
         ]
 
+
+def create_system_metrics() -> None:
+    """Create system metrics collectors."""
+    meter = metrics.get_meter(__name__)
     meter.create_observable_gauge(
-        name="process_metrics", callbacks=[get_process_metrics], description="Process-level metrics", unit="mixed"
+        name="system_memory_bytes", callbacks=[_observe_memory], description="System memory usage", unit="bytes"
+    )
+    meter.create_observable_gauge(
+        name="system_cpu_percent", callbacks=[_observe_cpu], description="System CPU usage percentage", unit="percent"
+    )
+    meter.create_observable_gauge(
+        name="process_metrics",
+        callbacks=[_ProcessObserver().observe],
+        description="Process-level metrics",
+        unit="mixed",
     )
 
 

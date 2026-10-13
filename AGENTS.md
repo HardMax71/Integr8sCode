@@ -157,6 +157,7 @@ from collections.abc import Callable, Mapping, Sequence, Iterable, Iterator, Awa
 - Docstrings: Google style (Args/Returns/Raises)
 - **Never** use banner/separator comments (`# ---`, `# ===`, `# ***`)
 - Use classes, blank lines, and docstrings to organize code
+- No function or class defined inside a function, in app code or tests. A callback is a module-level function or a bound method; one that must carry per-call state (an ASGI `send` wrapper, a gauge holding a `psutil.Process`) is a small module-level class. A tenacity callback reads the retried call's arguments from `RetryCallState.args` instead of closing over them
 
 ### Enums
 Always inherit from `StringEnum` (`app.core.utils`):
@@ -513,19 +514,19 @@ await self.producer.produce(event_to_produce=event, key=execution_id)
 ```
 
 ### Consumers
-Subscribers live in `app/events/handlers.py`, one `<worker>_router()` factory per consumer that returns a `KafkaRouter`. The router carries the ack policy and middlewares; the handler takes the body and the service and does nothing else.
+Subscribers live in `app/events/handlers.py`, one `<worker>_router()` factory per consumer that returns a `KafkaRouter`. The router carries the ack policy and middlewares; the handler is a module-level function that takes the body and the service and does nothing else, and the factory registers it by calling the subscriber decorator directly.
 
 ```python
+async def start_saga(body: ExecutionRequestedEvent, saga: FromDishka[SagaOrchestrator]) -> None:
+    await saga.handle_execution_requested(body)
+
+
 def saga_router() -> KafkaRouter:
     router = KafkaRouter(
         ack_policy=AckPolicy.ACK,
         middlewares=(DeadLetterMiddleware, idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=3600)),
     )
-
-    @router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")
-    async def on_execution_requested(body: ExecutionRequestedEvent, saga: FromDishka[SagaOrchestrator]) -> None:
-        await saga.handle_execution_requested(body)
-
+    router.subscriber(EventType.EXECUTION_REQUESTED, group_id="saga-orchestrator")(start_saga)
     return router
 ```
 

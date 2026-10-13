@@ -20,9 +20,7 @@ const loaders: Record<string, () => Promise<Extension>> = {
     },
 };
 
-const plainText = (): Promise<Extension> => Promise.resolve([]);
-
 /** Loads a language's editor mode on first use, so the editor chunk carries none of them */
 export function loadLanguage(lang: string): Promise<Extension> {
-    return (loaders[lang] ?? plainText)();
+    return loaders[lang]?.() ?? Promise.resolve([]);
 }

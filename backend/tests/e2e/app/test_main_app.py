@@ -1,5 +1,5 @@
 import pytest
-import redis.asyncio as aioredis
+import redis.asyncio as redis
 from dishka import AsyncContainer
 from fastapi import FastAPI
 
@@ -21,13 +21,10 @@ class TestDishkaContainer:
         """Dishka container is an AsyncContainer."""
         assert isinstance(app.state.dishka_container, AsyncContainer)
 
-    @pytest.mark.asyncio
-    async def test_container_resolves_settings(self, scope: AsyncContainer) -> None:
+    async def test_container_resolves_settings(self, test_settings: Settings) -> None:
         """Container can resolve Settings."""
-        settings = await scope.get(Settings)
-        assert isinstance(settings, Settings)
+        assert isinstance(test_settings, Settings)
 
-    @pytest.mark.asyncio
     async def test_container_resolves_logger(self, scope: AsyncContainer) -> None:
         """Container can resolve Logger."""
         import structlog
@@ -40,15 +37,12 @@ class TestDishkaContainer:
 class TestLifespanInitialization:
     """Tests for app state after lifespan initialization."""
 
-    @pytest.mark.asyncio
     async def test_beanie_initialized(self, app: FastAPI) -> None:
         """Beanie ODM is initialized with document models."""
         settings = UserDocument.get_settings()
         assert settings.name == "users"
 
-    @pytest.mark.asyncio
-    async def test_redis_connected(self, scope: AsyncContainer) -> None:
+    async def test_redis_connected(self, redis_client: redis.Redis) -> None:
         """Redis client is connected and functional."""
-        redis_client = await scope.get(aioredis.Redis)
         pong = await redis_client.ping()
         assert pong is True

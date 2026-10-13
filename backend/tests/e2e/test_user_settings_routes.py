@@ -18,7 +18,6 @@ pytestmark = [pytest.mark.e2e]
 class TestGetUserSettings:
     """Tests for GET /api/v1/user/settings/."""
 
-    @pytest.mark.asyncio
     async def test_get_user_settings(self, test_user: AsyncClient) -> None:
         """Get current user settings."""
         response = await test_user.get("/api/v1/user/settings/")
@@ -30,7 +29,6 @@ class TestGetUserSettings:
         assert settings.timezone
         assert settings.editor is not None
 
-    @pytest.mark.asyncio
     async def test_get_user_settings_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/user/settings/")
@@ -40,7 +38,6 @@ class TestGetUserSettings:
 class TestUpdateUserSettings:
     """Tests for PUT /api/v1/user/settings/."""
 
-    @pytest.mark.asyncio
     async def test_update_user_settings_full(self, test_user: AsyncClient) -> None:
         """Update all user settings."""
         request = UserSettingsUpdate(
@@ -70,7 +67,6 @@ class TestUpdateUserSettings:
         assert settings.theme == Theme.DARK
         assert settings.timezone == "America/New_York"
 
-    @pytest.mark.asyncio
     async def test_update_user_settings_partial(self, test_user: AsyncClient) -> None:
         """Update only some settings."""
         request = UserSettingsUpdate(theme=Theme.LIGHT)
@@ -87,7 +83,6 @@ class TestUpdateUserSettings:
 class TestUpdateTheme:
     """Tests for PUT /api/v1/user/settings/theme."""
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("theme", list(Theme), ids=str)
     async def test_update_theme(self, test_user: AsyncClient, theme: Theme) -> None:
         """Update theme to each valid value."""
@@ -105,7 +100,6 @@ class TestUpdateTheme:
 class TestUpdateNotificationSettings:
     """Tests for PUT /api/v1/user/settings/notifications."""
 
-    @pytest.mark.asyncio
     async def test_update_notification_settings(self, test_user: AsyncClient) -> None:
         """Update notification settings."""
         request = NotificationSettings(
@@ -130,7 +124,6 @@ class TestUpdateNotificationSettings:
 class TestUpdateEditorSettings:
     """Tests for PUT /api/v1/user/settings/editor."""
 
-    @pytest.mark.asyncio
     async def test_update_editor_settings(self, test_user: AsyncClient) -> None:
         """Update editor settings."""
         request = EditorSettings(
@@ -150,7 +143,6 @@ class TestUpdateEditorSettings:
         assert settings.editor.font_size == 16
         assert settings.editor.word_wrap is True
 
-    @pytest.mark.asyncio
     async def test_update_editor_settings_partial(self, test_user: AsyncClient) -> None:
         """Update only some editor settings."""
         response = await test_user.put(
@@ -166,7 +158,6 @@ class TestUpdateEditorSettings:
 class TestSettingsHistory:
     """Tests for GET /api/v1/user/settings/history."""
 
-    @pytest.mark.asyncio
     async def test_get_settings_history(self, test_user: AsyncClient) -> None:
         """Get settings change history."""
         # Make a change first to ensure history exists
@@ -187,7 +178,6 @@ class TestSettingsHistory:
         assert history.limit == 10
         assert len(history.history) >= 1
 
-    @pytest.mark.asyncio
     async def test_get_settings_history_default_limit(self, test_user: AsyncClient) -> None:
         """History uses default limit."""
         response = await test_user.get("/api/v1/user/settings/history")
@@ -199,7 +189,6 @@ class TestSettingsHistory:
 class TestRestoreSettings:
     """Tests for POST /api/v1/user/settings/restore."""
 
-    @pytest.mark.asyncio
     async def test_restore_settings(self, test_user: AsyncClient) -> None:
         """Restore settings to a previous point."""
         # Make a change first to ensure history exists
@@ -232,7 +221,6 @@ class TestRestoreSettings:
 class TestCustomSettings:
     """Tests for PUT /api/v1/user/settings/custom/{key}."""
 
-    @pytest.mark.asyncio
     async def test_update_custom_setting(self, test_user: AsyncClient) -> None:
         """Update a custom setting."""
         response = await test_user.put(
@@ -244,7 +232,6 @@ class TestCustomSettings:
         settings = UserSettings.model_validate(response.json())
         assert "my_preference" in settings.custom_settings
 
-    @pytest.mark.asyncio
     async def test_update_multiple_custom_settings(self, test_user: AsyncClient) -> None:
         """Update multiple custom settings."""
         # First setting

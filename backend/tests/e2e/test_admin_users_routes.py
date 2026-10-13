@@ -19,7 +19,7 @@ from app.schemas_pydantic.user import (
     UserUpdate,
 )
 
-pytestmark = [pytest.mark.e2e, pytest.mark.admin]
+pytestmark = [pytest.mark.e2e]
 
 
 def make_user_create(prefix: str, role: UserRole = UserRole.USER) -> UserCreate:
@@ -36,7 +36,6 @@ def make_user_create(prefix: str, role: UserRole = UserRole.USER) -> UserCreate:
 class TestListUsers:
     """Tests for GET /api/v1/admin/users/."""
 
-    @pytest.mark.asyncio
     async def test_list_users(self, test_admin: AsyncClient) -> None:
         """Admin can list all users."""
         response = await test_admin.get("/api/v1/admin/users/")
@@ -48,7 +47,6 @@ class TestListUsers:
         assert result.offset == 0
         assert result.limit == 100  # default
 
-    @pytest.mark.asyncio
     async def test_list_users_with_pagination(self, test_admin: AsyncClient) -> None:
         """Pagination parameters work correctly."""
         response = await test_admin.get(
@@ -61,7 +59,6 @@ class TestListUsers:
         assert result.limit == 10
         assert result.offset == 0
 
-    @pytest.mark.asyncio
     async def test_list_users_with_search(self, test_admin: AsyncClient) -> None:
         """Search filter works correctly."""
         response = await test_admin.get(
@@ -72,7 +69,6 @@ class TestListUsers:
         assert response.status_code == 200
         UserListResponse.model_validate(response.json())
 
-    @pytest.mark.asyncio
     async def test_list_users_with_role_filter(self, test_admin: AsyncClient) -> None:
         """Role filter works correctly."""
         response = await test_admin.get(
@@ -83,10 +79,9 @@ class TestListUsers:
         assert response.status_code == 200
         result = UserListResponse.model_validate(response.json())
 
-        for user in result.users:
-            assert user.role == UserRole.USER
+        assert result.users
+        assert {user.role for user in result.users} == {UserRole.USER}
 
-    @pytest.mark.asyncio
     async def test_list_users_pages_on_the_server(self, test_admin: AsyncClient) -> None:
         """The total counts every match, and offset reaches the users past the first page."""
         prefix = f"page_{uuid.uuid4().hex[:6]}"
@@ -105,7 +100,6 @@ class TestListUsers:
         assert (first.total, len(first.users), rest.total, len(rest.users)) == (3, 2, 3, 1)
         assert {u.username for u in first.users + rest.users} == names
 
-    @pytest.mark.asyncio
     async def test_list_users_by_active_status(self, test_admin: AsyncClient) -> None:
         """is_active keeps only active or only disabled users."""
         request = make_user_create("inactive")
@@ -123,7 +117,6 @@ class TestListUsers:
         assert await matches(False) == [user_id]
         assert await matches(True) == []
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("limits", "params", "listed"),
         [
@@ -152,13 +145,11 @@ class TestListUsers:
         assert [u.user_id for u in result.users] == ([user_id] if listed else [])
         assert result.total == (1 if listed else 0)
 
-    @pytest.mark.asyncio
     async def test_list_users_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot list users."""
         response = await test_user.get("/api/v1/admin/users/")
         assert response.status_code == 403
 
-    @pytest.mark.asyncio
     async def test_list_users_unauthenticated(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
         response = await client.get("/api/v1/admin/users/")
@@ -168,7 +159,6 @@ class TestListUsers:
 class TestCreateUser:
     """Tests for POST /api/v1/admin/users/."""
 
-    @pytest.mark.asyncio
     async def test_create_user(self, test_admin: AsyncClient) -> None:
         """Admin can create a new user."""
         request = make_user_create("newuser")
@@ -188,7 +178,6 @@ class TestCreateUser:
         assert "password" not in raw_data
         assert "hashed_password" not in raw_data
 
-    @pytest.mark.asyncio
     async def test_create_admin_user(self, test_admin: AsyncClient) -> None:
         """Admin can create another admin user."""
         request = make_user_create("newadmin", role=UserRole.ADMIN)
@@ -198,7 +187,6 @@ class TestCreateUser:
         user = UserResponse.model_validate(response.json())
         assert user.role == UserRole.ADMIN
 
-    @pytest.mark.asyncio
     async def test_create_user_duplicate_username(self, test_admin: AsyncClient) -> None:
         """Cannot create user with duplicate username."""
         uid = uuid.uuid4().hex[:8]
@@ -232,7 +220,6 @@ class TestCreateUser:
 
         assert response.status_code == 409
 
-    @pytest.mark.asyncio
     async def test_create_user_invalid_password(self, test_admin: AsyncClient) -> None:
         """Cannot create user with too short password."""
         response = await test_admin.post(
@@ -247,7 +234,6 @@ class TestCreateUser:
 
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_create_user_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
         """Regular user cannot create users."""
         response = await test_user.post(
@@ -265,7 +251,6 @@ class TestCreateUser:
 class TestGetUser:
     """Tests for GET /api/v1/admin/users/{user_id}."""
 
-    @pytest.mark.asyncio
     async def test_get_user(self, test_admin: AsyncClient) -> None:
         """Admin can get a specific user."""
         # Create user first
@@ -283,14 +268,12 @@ class TestGetUser:
         assert user.username == request.username
         assert user.email == request.email
 
-    @pytest.mark.asyncio
     async def test_get_user_not_found(self, test_admin: AsyncClient) -> None:
         """Get nonexistent user returns 404."""
         response = await test_admin.get("/api/v1/admin/users/nonexistent-user-id")
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_get_user_forbidden_for_regular_user(self, test_user: AsyncClient, test_admin: AsyncClient) -> None:
         """Regular user cannot get user details."""
         # Create user as admin first
@@ -306,7 +289,6 @@ class TestGetUser:
 class TestGetUserOverview:
     """Tests for GET /api/v1/admin/users/{user_id}/overview."""
 
-    @pytest.mark.asyncio
     async def test_get_user_overview(self, test_admin: AsyncClient) -> None:
         """Admin can get user overview."""
         # Create user first
@@ -322,14 +304,12 @@ class TestGetUserOverview:
 
         assert overview.user.user_id == user_id
 
-    @pytest.mark.asyncio
     async def test_get_user_overview_not_found(self, test_admin: AsyncClient) -> None:
         """Get overview for nonexistent user returns 404."""
         response = await test_admin.get("/api/v1/admin/users/nonexistent-user-id/overview")
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_get_user_overview_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -347,7 +327,6 @@ class TestGetUserOverview:
 class TestUpdateUser:
     """Tests for PUT /api/v1/admin/users/{user_id}."""
 
-    @pytest.mark.asyncio
     async def test_update_user_username(self, test_admin: AsyncClient) -> None:
         """Admin can update user's username."""
         # Create user
@@ -368,7 +347,6 @@ class TestUpdateUser:
         assert updated.username == new_username
         assert updated.updated_at > user.updated_at
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("field", ["username", "email"])
     async def test_update_user_to_taken_value_conflicts(self, test_admin: AsyncClient, field: str) -> None:
         """Renaming a user to another user's username or email is a 409, not a 500."""
@@ -384,7 +362,6 @@ class TestUpdateUser:
         assert response.status_code == 409
         assert response.json() == {"detail": f"{field.capitalize()} already exists", "status": 409}
 
-    @pytest.mark.asyncio
     async def test_update_user_role(self, test_admin: AsyncClient) -> None:
         """Admin can update user's role."""
         # Create user
@@ -403,7 +380,6 @@ class TestUpdateUser:
         updated = UserResponse.model_validate(response.json())
         assert updated.role == UserRole.ADMIN
 
-    @pytest.mark.asyncio
     async def test_update_user_deactivate(self, test_admin: AsyncClient) -> None:
         """Admin can deactivate a user."""
         # Create user
@@ -422,7 +398,6 @@ class TestUpdateUser:
         updated = UserResponse.model_validate(response.json())
         assert updated.is_active is False
 
-    @pytest.mark.asyncio
     async def test_update_user_not_found(self, test_admin: AsyncClient) -> None:
         """Update nonexistent user returns 404."""
         response = await test_admin.put(
@@ -432,7 +407,6 @@ class TestUpdateUser:
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_update_user_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -453,7 +427,6 @@ class TestUpdateUser:
 class TestDeleteUser:
     """Tests for DELETE /api/v1/admin/users/{user_id}."""
 
-    @pytest.mark.asyncio
     async def test_delete_user(self, test_admin: AsyncClient) -> None:
         """Admin can delete a user."""
         # Create user
@@ -472,7 +445,6 @@ class TestDeleteUser:
         get_response = await test_admin.get(f"/api/v1/admin/users/{user_id}")
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_delete_user_cascade(self, test_admin: AsyncClient) -> None:
         """Delete user with cascade option."""
         # Create user
@@ -490,14 +462,12 @@ class TestDeleteUser:
         result = DeleteUserResponse.model_validate(response.json())
         assert result.user_deleted is True
 
-    @pytest.mark.asyncio
     async def test_delete_user_not_found(self, test_admin: AsyncClient) -> None:
         """Delete nonexistent user returns 404."""
         response = await test_admin.delete("/api/v1/admin/users/nonexistent-user-id")
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_delete_self_forbidden(self, test_admin: AsyncClient) -> None:
         """Admin cannot delete their own account."""
         # Get admin's own user_id
@@ -509,7 +479,6 @@ class TestDeleteUser:
         assert response.status_code == 400
         assert response.json() == {"detail": "Cannot delete your own account", "status": 400}
 
-    @pytest.mark.asyncio
     async def test_delete_user_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -527,7 +496,6 @@ class TestDeleteUser:
 class TestResetPassword:
     """Tests for POST /api/v1/admin/users/{user_id}/reset-password."""
 
-    @pytest.mark.asyncio
     async def test_reset_password(self, test_admin: AsyncClient) -> None:
         """Admin can reset user's password."""
         # Create user
@@ -547,7 +515,6 @@ class TestResetPassword:
         assert "reset" in result.message.lower()
         assert user_id in result.message
 
-    @pytest.mark.asyncio
     async def test_reset_password_short_password(self, test_admin: AsyncClient) -> None:
         """Cannot reset to password shorter than 8 chars."""
         # Create user
@@ -563,7 +530,6 @@ class TestResetPassword:
 
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_reset_password_user_not_found(self, test_admin: AsyncClient) -> None:
         """Reset password for nonexistent user returns 404."""
         response = await test_admin.post(
@@ -573,7 +539,6 @@ class TestResetPassword:
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_reset_password_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -594,7 +559,6 @@ class TestResetPassword:
 class TestGetUserRateLimits:
     """Tests for GET /api/v1/admin/rate-limits/{user_id}."""
 
-    @pytest.mark.asyncio
     async def test_get_user_rate_limits(self, test_admin: AsyncClient) -> None:
         """Admin can get user's rate limits."""
         # Create user
@@ -611,7 +575,6 @@ class TestGetUserRateLimits:
         assert result.user_id == user_id
         assert result.current_usage == {}
 
-    @pytest.mark.asyncio
     async def test_get_user_rate_limits_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -629,7 +592,6 @@ class TestGetUserRateLimits:
 class TestUpdateUserRateLimits:
     """Tests for PUT /api/v1/admin/rate-limits/{user_id}."""
 
-    @pytest.mark.asyncio
     async def test_update_user_rate_limits(self, test_admin: AsyncClient) -> None:
         """Admin can update user's rate limits."""
         # Create user
@@ -656,7 +618,6 @@ class TestUpdateUserRateLimits:
         assert result.config is not None
         assert result.config.global_multiplier == 1.5
 
-    @pytest.mark.asyncio
     async def test_update_user_rate_limits_bypass(self, test_admin: AsyncClient) -> None:
         """Admin can enable rate limit bypass for user."""
         # Create user
@@ -679,7 +640,6 @@ class TestUpdateUserRateLimits:
         result = RateLimitUpdateResponse.model_validate(response.json())
         assert result.config.bypass_rate_limit is True
 
-    @pytest.mark.asyncio
     async def test_update_user_rate_limits_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -704,7 +664,6 @@ class TestUpdateUserRateLimits:
 class TestResetUserRateLimits:
     """Tests for POST /api/v1/admin/rate-limits/{user_id}/reset."""
 
-    @pytest.mark.asyncio
     async def test_reset_user_rate_limits(self, test_admin: AsyncClient) -> None:
         """Admin can reset user's rate limits."""
         # Create user
@@ -720,7 +679,6 @@ class TestResetUserRateLimits:
         assert "reset" in result.message.lower()
         assert user_id in result.message
 
-    @pytest.mark.asyncio
     async def test_reset_user_rate_limits_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:
@@ -738,7 +696,6 @@ class TestResetUserRateLimits:
 class TestUnlockUser:
     """Tests for POST /api/v1/admin/users/{user_id}/unlock."""
 
-    @pytest.mark.asyncio
     async def test_unlock_user(self, test_admin: AsyncClient) -> None:
         """Admin can unlock a user account."""
         request = make_user_create("locked")
@@ -752,14 +709,12 @@ class TestUnlockUser:
         assert result.user_id == user_id
         assert "unlocked" in result.message.lower()
 
-    @pytest.mark.asyncio
     async def test_unlock_user_not_found(self, test_admin: AsyncClient) -> None:
         """Unlock nonexistent user returns 404."""
         response = await test_admin.post("/api/v1/admin/users/nonexistent-user-id/unlock")
         assert response.status_code == 404
         assert response.json() == {"detail": "User 'nonexistent-user-id' not found", "status": 404}
 
-    @pytest.mark.asyncio
     async def test_unlock_user_forbidden_for_regular_user(
         self, test_user: AsyncClient, test_admin: AsyncClient
     ) -> None:

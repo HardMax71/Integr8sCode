@@ -1,107 +1,69 @@
-import asyncio
-import json
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 import structlog
-from aiokafka import AIOKafkaConsumer
-from dishka import AsyncContainer
 from faststream.kafka import KafkaBroker
 
 from app.core.metrics import DLQMetrics
+from app.db.docs import DLQMessageDocument
 from app.db.repositories import DLQRepository
 from app.dlq.manager import DLQManager
-from app.dlq.models import DLQMessage
+from app.dlq.models import DLQMessage, DLQMessageStatus
 from app.domain.enums import EventType
-from app.domain.events import DLQMessageReceivedEvent, DomainEventAdapter
+from app.domain.events import DLQMessageReceivedEvent, ExecutionRequestedEvent
 from app.settings import Settings
 from tests.conftest import make_execution_requested_event
 
-# xdist_group: DLQ tests share a Kafka consumer group. When running in parallel,
-# different workers' managers consume each other's messages and apply wrong policies.
-# Serial execution ensures each test's manager processes only its own messages.
-pytestmark = [pytest.mark.e2e, pytest.mark.kafka, pytest.mark.mongodb, pytest.mark.xdist_group("dlq")]
-
-_test_logger = structlog.get_logger("test.dlq.manager")
+pytestmark = [pytest.mark.e2e]
 
 
-@pytest.mark.asyncio
-async def test_dlq_manager_persists_and_emits_event(scope: AsyncContainer, test_settings: Settings) -> None:
-    """Test that DLQ manager persists messages and emits DLQMessageReceivedEvent."""
-    dlq_metrics: DLQMetrics = await scope.get(DLQMetrics)
+@pytest.fixture
+async def failed_event() -> AsyncIterator[ExecutionRequestedEvent]:
+    """The event the test dead-letters; its row goes when the test ends, so the worker's retry job never sees it."""
+    event = make_execution_requested_event(execution_id=f"exec-dlq-{uuid.uuid4().hex[:8]}")
+    yield event
+    await DLQMessageDocument.find({"event.event_id": event.event_id}).delete()
 
-    ev = make_execution_requested_event(execution_id=f"exec-dlq-persist-{uuid.uuid4().hex[:8]}")
 
-    # Future resolves when DLQMessageReceivedEvent is consumed
-    received_future: asyncio.Future[DLQMessageReceivedEvent] = asyncio.get_running_loop().create_future()
-
-    # Create consumer for DLQ events topic
-    dlq_events_topic = EventType.DLQ_MESSAGE_RECEIVED
-    events_consumer = AIOKafkaConsumer(
-        dlq_events_topic,
-        bootstrap_servers=test_settings.KAFKA_BOOTSTRAP_SERVERS,
-        group_id=f"test-dlq-events.{uuid.uuid4().hex[:6]}",
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
+async def test_dlq_manager_stores_the_message_and_announces_it(
+    test_settings: Settings,
+    dlq_metrics: DLQMetrics,
+    dlq_repository: DLQRepository,
+    failed_event: ExecutionRequestedEvent,
+) -> None:
+    broker = AsyncMock(spec=KafkaBroker)
+    manager = DLQManager(
+        settings=test_settings,
+        broker=broker,
+        logger=structlog.get_logger("test.dlq.manager"),
+        dlq_metrics=dlq_metrics,
+        repository=dlq_repository,
     )
 
-    async def consume_dlq_events() -> None:
-        """Consume DLQ events and set future when our event is received."""
-        async for msg in events_consumer:
-            try:
-                payload = json.loads(msg.value.decode())
-                event = DomainEventAdapter.validate_python(payload)
-                if (
-                    isinstance(event, DLQMessageReceivedEvent)
-                    and event.dlq_event_id == ev.event_id
-                    and not received_future.done()
-                ):
-                    received_future.set_result(event)
-                    return
-            except Exception as e:
-                _test_logger.debug(f"Error deserializing DLQ event: {e}")
-
-    # Create and start a broker for the manager (lifecycle managed by test)
-    broker = KafkaBroker(
-        test_settings.KAFKA_BOOTSTRAP_SERVERS,
-    )
-    await asyncio.gather(broker.start(), events_consumer.start())
-    consume_task = asyncio.create_task(consume_dlq_events())
-
-    try:
-        repository = DLQRepository(_test_logger)
-        manager = DLQManager(
-            settings=test_settings,
-            broker=broker,
-            logger=_test_logger,
-            dlq_metrics=dlq_metrics,
-            repository=repository,
-        )
-
-        # Build a DLQMessage directly and call handle_message (no internal consumer loop)
-        dlq_msg = DLQMessage(
-            event=ev,
+    await manager.handle_message(
+        DLQMessage(
+            event=failed_event,
             original_topic=EventType.EXECUTION_REQUESTED,
-            consumer_group="saga-orchestrator",
+            consumer_group=f"test-group-{uuid.uuid4().hex[:8]}",
             error="handler failed",
             retry_count=0,
             failed_at=datetime.now(timezone.utc),
             producer_id="tests",
         )
+    )
 
-        await manager.handle_message(dlq_msg)
-
-        # Await the DLQMessageReceivedEvent — true async, no polling
-        received = await asyncio.wait_for(received_future, timeout=5.0)
-        assert received.dlq_event_id == ev.event_id
-        assert received.event_type == EventType.DLQ_MESSAGE_RECEIVED
-        assert received.original_event_type == EventType.EXECUTION_REQUESTED
-        assert received.error == "handler failed"
-    finally:
-        consume_task.cancel()
-        try:
-            await consume_task
-        except asyncio.CancelledError:
-            pass
-        await asyncio.gather(events_consumer.stop(), broker.stop())
+    stored = await DLQMessageDocument.find_one({"event.event_id": failed_event.event_id})
+    assert stored is not None
+    assert stored.status == DLQMessageStatus.SCHEDULED
+    broker.publish.assert_awaited_once()
+    announced = broker.publish.call_args.args[0]
+    assert isinstance(announced, DLQMessageReceivedEvent)
+    assert (announced.dlq_event_id, announced.original_event_type, announced.error) == (
+        failed_event.event_id,
+        EventType.EXECUTION_REQUESTED,
+        "handler failed",
+    )
+    assert broker.publish.call_args.kwargs == {"topic": EventType.DLQ_MESSAGE_RECEIVED}

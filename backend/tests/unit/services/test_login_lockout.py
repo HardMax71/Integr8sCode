@@ -29,7 +29,6 @@ def _make_service(
     return service, redis_mock
 
 
-@pytest.mark.asyncio
 async def test_check_locked_returns_false_when_not_locked() -> None:
     service, redis_mock = _make_service()
     redis_mock.exists.return_value = 0
@@ -38,7 +37,6 @@ async def test_check_locked_returns_false_when_not_locked() -> None:
     redis_mock.exists.assert_called_once_with("login_lockout:locked:alice")
 
 
-@pytest.mark.asyncio
 async def test_check_locked_returns_true_when_locked() -> None:
     service, redis_mock = _make_service()
     redis_mock.exists.return_value = 1
@@ -46,7 +44,6 @@ async def test_check_locked_returns_true_when_locked() -> None:
     assert await service.check_locked("alice") is True
 
 
-@pytest.mark.asyncio
 async def test_record_first_attempt_sets_ttl() -> None:
     service, redis_mock = _make_service(lockout_duration_minutes=10)
     redis_mock.incr.return_value = 1
@@ -58,7 +55,6 @@ async def test_record_first_attempt_sets_ttl() -> None:
     redis_mock.expire.assert_called_once_with("login_lockout:attempts:alice", 600)
 
 
-@pytest.mark.asyncio
 async def test_subsequent_attempt_refreshes_ttl() -> None:
     service, redis_mock = _make_service(lockout_duration_minutes=15)
     redis_mock.incr.return_value = 3
@@ -68,7 +64,6 @@ async def test_subsequent_attempt_refreshes_ttl() -> None:
     redis_mock.expire.assert_called_once_with("login_lockout:attempts:alice", 900)
 
 
-@pytest.mark.asyncio
 async def test_locks_account_at_max_attempts() -> None:
     service, redis_mock = _make_service(max_login_attempts=3, lockout_duration_minutes=10)
     redis_mock.incr.return_value = 3
@@ -79,7 +74,6 @@ async def test_locks_account_at_max_attempts() -> None:
     redis_mock.set.assert_called_once_with("login_lockout:locked:alice", "1", ex=600)
 
 
-@pytest.mark.asyncio
 async def test_locks_account_when_exceeding_max_attempts() -> None:
     service, redis_mock = _make_service(max_login_attempts=3)
     redis_mock.incr.return_value = 5
@@ -89,7 +83,6 @@ async def test_locks_account_when_exceeding_max_attempts() -> None:
     assert locked is True
 
 
-@pytest.mark.asyncio
 async def test_does_not_lock_below_max_attempts() -> None:
     service, redis_mock = _make_service(max_login_attempts=5)
     redis_mock.incr.return_value = 4
@@ -100,7 +93,6 @@ async def test_does_not_lock_below_max_attempts() -> None:
     redis_mock.set.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_clear_attempts_deletes_both_keys() -> None:
     service, redis_mock = _make_service()
 
@@ -112,7 +104,6 @@ async def test_clear_attempts_deletes_both_keys() -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_unlock_user_delegates_to_clear_attempts() -> None:
     service, redis_mock = _make_service()
 
@@ -124,7 +115,6 @@ async def test_unlock_user_delegates_to_clear_attempts() -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_lockout_ttl_derived_from_runtime_settings() -> None:
     service, redis_mock = _make_service(lockout_duration_minutes=30, max_login_attempts=3)
     redis_mock.incr.return_value = 3

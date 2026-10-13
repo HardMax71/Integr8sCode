@@ -27,7 +27,6 @@ def _make_service(
     return service, repo, runtime
 
 
-@pytest.mark.asyncio
 async def test_get_delegates_to_runtime_loader() -> None:
     expected = SystemSettings(max_timeout_seconds=42)
     service, repo, runtime = _make_service(repo_return=expected)
@@ -39,7 +38,6 @@ async def test_get_delegates_to_runtime_loader() -> None:
     assert result.max_timeout_seconds == 42
 
 
-@pytest.mark.asyncio
 async def test_update_calls_repo_and_invalidates_cache() -> None:
     new_settings = SystemSettings(max_timeout_seconds=600)
     service, repo, runtime = _make_service()
@@ -52,7 +50,6 @@ async def test_update_calls_repo_and_invalidates_cache() -> None:
     assert result.max_timeout_seconds == 600
 
 
-@pytest.mark.asyncio
 async def test_reset_calls_repo_invalidates_cache_and_reloads() -> None:
     defaults = SystemSettings()
     service, repo, runtime = _make_service()
@@ -67,7 +64,6 @@ async def test_reset_calls_repo_invalidates_cache_and_reloads() -> None:
     assert result.max_timeout_seconds == defaults.max_timeout_seconds
 
 
-@pytest.mark.asyncio
 async def test_update_invalidates_before_returning() -> None:
     """Cache invalidation happens so subsequent reads see updated values."""
     service, repo, runtime = _make_service()

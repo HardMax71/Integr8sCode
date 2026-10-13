@@ -1,28 +1,52 @@
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx2
 import pytest
-import redis.asyncio as redis
+import structlog
+from beanie.operators import In
+from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx2 import AsyncClient
-from pydantic import TypeAdapter
 from starlette.types import ASGIApp, Message
 
+from app.core.metrics import DLQMetrics, ExecutionMetrics, RateLimitMetrics
+from app.core.security import SecurityService
+from app.db.docs import EventDocument, NotificationDocument
 from app.db.docs.saga import SagaDocument
-from app.domain.enums import EventType, UserRole
-from app.domain.sse import SSEExecutionEventData
-from app.infrastructure.kafka.topics import RESULT_TYPES
+from app.db.repositories import (
+    AdminEventsRepository,
+    AdminSettingsRepository,
+    DLQRepository,
+    EventRepository,
+    ExecutionRepository,
+    NotificationRepository,
+    SagaRepository,
+    SavedScriptRepository,
+)
+from app.domain.enums import EventType, ExecutionStatus, NotificationStatus, UserRole
+from app.domain.execution import DomainExecutionCreate
+from app.events import UnifiedProducer
+from app.runtime_registry import DEFAULT_LANG
 from app.schemas_pydantic.execution import ExecutionRequest, ExecutionResponse
 from app.schemas_pydantic.notification import NotificationListResponse, NotificationResponse
 from app.schemas_pydantic.saga import SagaStatusResponse
 from app.schemas_pydantic.saved_script import SavedScriptCreateRequest
 from app.schemas_pydantic.user import UserCreate
-
-_sse_adapter = TypeAdapter(SSEExecutionEventData)
+from app.services.admin import AdminUserService
+from app.services.event_replay import EventReplayService
+from app.services.event_service import EventService
+from app.services.execution_service import ExecutionService
+from app.services.idempotency import IdempotencyManager
+from app.services.notification_service import NotificationService
+from app.services.runtime_settings import RuntimeSettingsLoader
+from app.services.saga import SagaService
+from app.services.saved_script_service import SavedScriptService
+from app.services.sse import SSERedisBus
+from app.services.user_settings_service import UserSettingsService
 
 
 class _QueuedBody(httpx2.AsyncByteStream):
@@ -118,84 +142,142 @@ def streaming_client(app: FastAPI, user: AsyncClient) -> AsyncClient:
     )
 
 
-async def wait_for_sse_event(
-    redis_client: redis.Redis,
-    execution_id: str,
-    predicate: Callable[[SSEExecutionEventData], bool],
-    *,
-    timeout: float = 15.0,
-) -> SSEExecutionEventData:
-    """Subscribe to execution's Redis SSE channel and await matching event.
+async def wait_for_event(execution_id: str, *event_types: EventType, timeout: float = 30.0) -> None:
+    """Wait until the events collection holds one of ``event_types`` for the execution.
 
-    The SSE bridge publishes all execution lifecycle events to
-    sse:exec:{execution_id}. Pure event-driven — no polling.
+    The producer stores every event before it publishes it, so an event that happened before the wait began counts.
     """
-    channel = f"sse:exec:{execution_id}"
     async with asyncio.timeout(timeout):
-        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
-            await pubsub.subscribe(channel)
-            async for message in pubsub.listen():
-                event = _sse_adapter.validate_json(message["data"])
-                if predicate(event):
-                    return event
-    raise AssertionError("unreachable")
+        while not await EventDocument.find_one(
+            EventDocument.execution_id == execution_id, In(EventDocument.event_type, list(event_types))
+        ):
+            await asyncio.sleep(0.2)
 
 
-async def wait_for_result(
-    redis_client: redis.Redis,
-    execution_id: str,
-    *,
-    timeout: float = 30.0,
-) -> SSEExecutionEventData:
-    """Wait for RESULT_STORED or RESULT_FAILED."""
-    return await wait_for_sse_event(
-        redis_client,
-        execution_id,
-        lambda e: e.event_type in RESULT_TYPES,
-        timeout=timeout,
-    )
+@pytest.fixture
+async def notification_service(scope: AsyncContainer) -> NotificationService:
+    return await scope.get(NotificationService)
 
 
-async def wait_for_pod_created(
-    redis_client: redis.Redis,
-    execution_id: str,
-    *,
-    timeout: float = 15.0,
-) -> SSEExecutionEventData:
-    """Wait for POD_CREATED — implies saga started + command dispatched."""
-    return await wait_for_sse_event(
-        redis_client,
-        execution_id,
-        lambda e: e.event_type == EventType.POD_CREATED,
-        timeout=timeout,
-    )
+@pytest.fixture
+async def user_settings_service(scope: AsyncContainer) -> UserSettingsService:
+    return await scope.get(UserSettingsService)
 
 
-async def wait_for_notification(
-    redis_client: redis.Redis,
-    user_id: str,
-    *,
-    timeout: float = 30.0,
-) -> None:
-    """Wait for a notification on the user's SSE channel.
+@pytest.fixture
+async def execution_service(scope: AsyncContainer) -> ExecutionService:
+    return await scope.get(ExecutionService)
 
-    The notification service publishes to sse:notif:{user_id} only after
-    persisting to MongoDB, so receiving a message is a correct readiness
-    signal — unlike RESULT_STORED which comes from an independent consumer
-    group with no ordering guarantee.
-    """
-    channel = f"sse:notif:{user_id}"
-    async with asyncio.timeout(timeout):
-        async with redis_client.pubsub(ignore_subscribe_messages=True) as pubsub:
-            await pubsub.subscribe(channel)
-            async for _message in pubsub.listen():
-                return  # first message = notification persisted
+
+@pytest.fixture
+async def saved_script_service(scope: AsyncContainer) -> SavedScriptService:
+    return await scope.get(SavedScriptService)
+
+
+@pytest.fixture
+async def saga_service(scope: AsyncContainer) -> SagaService:
+    return await scope.get(SagaService)
+
+
+@pytest.fixture
+async def event_replay_service(scope: AsyncContainer) -> EventReplayService:
+    return await scope.get(EventReplayService)
+
+
+@pytest.fixture
+async def idempotency_manager(scope: AsyncContainer) -> IdempotencyManager:
+    return await scope.get(IdempotencyManager)
+
+
+@pytest.fixture
+async def event_service(scope: AsyncContainer) -> EventService:
+    return await scope.get(EventService)
+
+
+@pytest.fixture
+async def admin_user_service(scope: AsyncContainer) -> AdminUserService:
+    return await scope.get(AdminUserService)
+
+
+@pytest.fixture
+async def sse_redis_bus(scope: AsyncContainer) -> SSERedisBus:
+    return await scope.get(SSERedisBus)
+
+
+@pytest.fixture
+async def runtime_settings_loader(scope: AsyncContainer) -> RuntimeSettingsLoader:
+    return await scope.get(RuntimeSettingsLoader)
+
+
+@pytest.fixture
+async def security_service(scope: AsyncContainer) -> SecurityService:
+    return await scope.get(SecurityService)
+
+
+@pytest.fixture
+async def unified_producer(scope: AsyncContainer) -> UnifiedProducer:
+    return await scope.get(UnifiedProducer)
+
+
+@pytest.fixture
+async def execution_repository(scope: AsyncContainer) -> ExecutionRepository:
+    return await scope.get(ExecutionRepository)
+
+
+@pytest.fixture
+async def saga_repository(scope: AsyncContainer) -> SagaRepository:
+    return await scope.get(SagaRepository)
+
+
+@pytest.fixture
+async def event_repository(scope: AsyncContainer) -> EventRepository:
+    return await scope.get(EventRepository)
+
+
+@pytest.fixture
+async def dlq_repository(scope: AsyncContainer) -> DLQRepository:
+    return await scope.get(DLQRepository)
+
+
+@pytest.fixture
+async def saved_script_repository(scope: AsyncContainer) -> SavedScriptRepository:
+    return await scope.get(SavedScriptRepository)
+
+
+@pytest.fixture
+async def notification_repository(scope: AsyncContainer) -> NotificationRepository:
+    return await scope.get(NotificationRepository)
+
+
+@pytest.fixture
+async def admin_settings_repository(scope: AsyncContainer) -> AdminSettingsRepository:
+    return await scope.get(AdminSettingsRepository)
+
+
+@pytest.fixture
+async def admin_events_repository(scope: AsyncContainer) -> AdminEventsRepository:
+    return await scope.get(AdminEventsRepository)
+
+
+@pytest.fixture
+async def execution_metrics(scope: AsyncContainer) -> ExecutionMetrics:
+    return await scope.get(ExecutionMetrics)
+
+
+@pytest.fixture
+async def dlq_metrics(scope: AsyncContainer) -> DLQMetrics:
+    return await scope.get(DLQMetrics)
+
+
+@pytest.fixture
+async def rate_limit_metrics(scope: AsyncContainer) -> RateLimitMetrics:
+    return await scope.get(RateLimitMetrics)
 
 
 @pytest.fixture
 def exec_request() -> ExecutionRequest:
     """Simple python print execution."""
-    return ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
+    return ExecutionRequest(script="print('test')")
 
 
 @pytest.fixture
@@ -203,8 +285,6 @@ def long_running_execution_request() -> ExecutionRequest:
     """30 second sleep execution."""
     return ExecutionRequest(
         script="import time; time.sleep(30); print('done')",
-        lang="python",
-        lang_version="3.11",
     )
 
 
@@ -213,8 +293,6 @@ def error_execution_request() -> ExecutionRequest:
     """Execution that raises an error."""
     return ExecutionRequest(
         script="raise ValueError('test error')",
-        lang="python",
-        lang_version="3.11",
     )
 
 
@@ -249,8 +327,6 @@ def new_script_request() -> SavedScriptCreateRequest:
     return SavedScriptCreateRequest(
         name=f"Script {uid}",
         script="print('hello')",
-        lang="python",
-        lang_version="3.11",
     )
 
 
@@ -264,48 +340,45 @@ async def create_execution(
     return ExecutionResponse.model_validate(resp.json())
 
 
-async def create_execution_with_saga(
-    client: AsyncClient,
-    redis_client: redis.Redis,
-    request: ExecutionRequest,
-) -> tuple[ExecutionResponse, SagaStatusResponse]:
-    """Create execution, wait for POD_CREATED, return (execution, saga).
+async def store_execution(
+    client: AsyncClient, *, status: ExecutionStatus = ExecutionStatus.COMPLETED, lang: str = DEFAULT_LANG
+) -> str:
+    """Insert an execution owned by the client's user straight into MongoDB, for tests that need the row, not a pod."""
+    me = await client.get("/api/v1/auth/me")
+    repo = ExecutionRepository(structlog.get_logger("tests"))
+    created = await repo.create_execution(
+        DomainExecutionCreate(script="print('stored')", user_id=me.json()["user_id"], status=status, lang=lang)
+    )
+    return created.execution_id
 
-    POD_CREATED implies the saga orchestrator persisted the document and
-    dispatched the create-pod command.
-    """
+
+async def create_execution_with_saga(
+    client: AsyncClient, request: ExecutionRequest
+) -> tuple[ExecutionResponse, SagaStatusResponse]:
+    """Create an execution and wait for POD_CREATED, which comes after the saga is stored and sends its command."""
     execution = await create_execution(client, request)
-    await wait_for_pod_created(redis_client, execution.execution_id)
+    await wait_for_event(execution.execution_id, EventType.POD_CREATED)
 
     doc = await SagaDocument.find_one(SagaDocument.execution_id == execution.execution_id)
-    assert doc is not None, f"No saga document for {execution.execution_id} despite POD_CREATED received"
-
-    saga = SagaStatusResponse.model_validate(doc, from_attributes=True)
-    return execution, saga
+    assert doc is not None, f"No saga document for {execution.execution_id} despite POD_CREATED"
+    return execution, SagaStatusResponse.model_validate(doc, from_attributes=True)
 
 
 async def create_execution_with_notification(
-    client: AsyncClient,
-    redis_client: redis.Redis,
-    request: ExecutionRequest,
-    *,
-    timeout: float = 30.0,
+    client: AsyncClient, request: ExecutionRequest
 ) -> tuple[ExecutionResponse, NotificationResponse]:
-    """Create execution, wait for notification delivery, return (execution, notification).
-
-    Fetches user_id from /auth/me, waits on sse:notif:{user_id} (correct
-    signal — notification service publishes after MongoDB persist), then
-    queries the notification list.
-    """
-    me_resp = await client.get("/api/v1/auth/me")
-    assert me_resp.status_code == 200
-    user_id = me_resp.json()["user_id"]
-
+    """Create an execution and wait until its notification is delivered, so later status changes don't race it."""
     execution = await create_execution(client, request)
-    await wait_for_notification(redis_client, user_id, timeout=timeout)
+    async with asyncio.timeout(30.0):
+        while not (
+            doc := await NotificationDocument.find_one(
+                In(NotificationDocument.tags, [f"exec:{execution.execution_id}"]),
+                NotificationDocument.status == NotificationStatus.DELIVERED,
+            )
+        ):
+            await asyncio.sleep(0.2)
 
-    resp = await client.get("/api/v1/notifications", params={"limit": 10})
+    resp = await client.get("/api/v1/notifications", params={"limit": 100})
     assert resp.status_code == 200
-    result = NotificationListResponse.model_validate(resp.json())
-    assert result.notifications, "No notification after SSE delivery"
-    return execution, result.notifications[0]
+    notifications = NotificationListResponse.model_validate(resp.json()).notifications
+    return execution, next(n for n in notifications if n.notification_id == doc.notification_id)

@@ -69,7 +69,6 @@ class _FakeRedis:
         return self._pubsub
 
 
-@pytest.mark.asyncio
 async def test_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
     metrics = MagicMock(spec=ConnectionMetrics)
@@ -110,7 +109,6 @@ async def test_publish_and_subscribe_round_trip() -> None:
         metrics.record_sse_message_sent.assert_called_with("executions", EventType.EXECUTION_COMPLETED)
 
 
-@pytest.mark.asyncio
 async def test_notifications_channels() -> None:
     r = _FakeRedis()
     metrics = MagicMock(spec=ConnectionMetrics)
@@ -141,7 +139,6 @@ async def test_notifications_channels() -> None:
         metrics.record_sse_message_sent.assert_called_once_with("notifications", "notification")
 
 
-@pytest.mark.asyncio
 async def test_replay_publish_and_subscribe_round_trip() -> None:
     r = _FakeRedis()
     metrics = MagicMock(spec=ConnectionMetrics)
@@ -171,4 +168,3 @@ async def test_replay_publish_and_subscribe_round_trip() -> None:
         assert got.status == ReplayStatus.RUNNING
         assert got.replayed_events == 3
         metrics.record_sse_message_sent.assert_called_once_with("replay", "replay_status")
-

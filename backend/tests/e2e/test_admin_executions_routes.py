@@ -2,7 +2,6 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from dishka import AsyncContainer
 from httpx2 import AsyncClient
 
 from app.db.repositories import ExecutionRepository
@@ -14,28 +13,24 @@ from app.schemas_pydantic.admin_executions import (
     QueueStatusResponse,
 )
 
-pytestmark = [pytest.mark.e2e, pytest.mark.admin]
+pytestmark = [pytest.mark.e2e]
 
 
 @pytest_asyncio.fixture
-async def stored_execution(scope: AsyncContainer) -> DomainExecution:
+async def stored_execution(execution_repository: ExecutionRepository) -> DomainExecution:
     """Insert a test execution directly into DB."""
-    repo = await scope.get(ExecutionRepository)
     create_data = DomainExecutionCreate(
         script="print('hello')",
         user_id=f"test-user-{uuid.uuid4().hex[:8]}",
-        lang="python",
-        lang_version="3.11",
         status=ExecutionStatus.QUEUED,
         priority=QueuePriority.NORMAL,
     )
-    return await repo.create_execution(create_data)
+    return await execution_repository.create_execution(create_data)
 
 
 class TestListExecutions:
     """Tests for GET /api/v1/admin/executions/."""
 
-    @pytest.mark.asyncio
     async def test_list_executions(
         self,
         test_admin: AsyncClient,
@@ -50,7 +45,6 @@ class TestListExecutions:
         assert result.limit == 50
         assert result.skip == 0
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_status_filter(
         self,
         test_admin: AsyncClient,
@@ -68,7 +62,6 @@ class TestListExecutions:
         for e in result.executions:
             assert e.status == ExecutionStatus.QUEUED
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_priority_filter(
         self,
         test_admin: AsyncClient,
@@ -86,7 +79,6 @@ class TestListExecutions:
         for e in result.executions:
             assert e.priority == QueuePriority.NORMAL
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_user_id_filter(
         self,
         test_admin: AsyncClient,
@@ -104,7 +96,6 @@ class TestListExecutions:
         for e in result.executions:
             assert e.user_id == stored_execution.user_id
 
-    @pytest.mark.asyncio
     async def test_list_executions_pagination(
         self,
         test_admin: AsyncClient,
@@ -122,7 +113,6 @@ class TestListExecutions:
         assert result.skip == 0
         assert len(result.executions) <= 5
 
-    @pytest.mark.asyncio
     async def test_list_executions_forbidden_for_regular_user(
         self,
         test_user: AsyncClient,
@@ -131,7 +121,6 @@ class TestListExecutions:
         response = await test_user.get("/api/v1/admin/executions/")
         assert response.status_code == 403
 
-    @pytest.mark.asyncio
     async def test_list_executions_unauthenticated(
         self,
         client: AsyncClient,
@@ -144,7 +133,6 @@ class TestListExecutions:
 class TestUpdatePriority:
     """Tests for PUT /api/v1/admin/executions/{execution_id}/priority."""
 
-    @pytest.mark.asyncio
     async def test_update_priority(
         self,
         test_admin: AsyncClient,
@@ -161,7 +149,6 @@ class TestUpdatePriority:
         assert result.execution_id == stored_execution.execution_id
         assert result.priority == QueuePriority.HIGH
 
-    @pytest.mark.asyncio
     async def test_update_priority_not_found(
         self,
         test_admin: AsyncClient,
@@ -173,7 +160,6 @@ class TestUpdatePriority:
         )
         assert response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_update_priority_invalid_priority(
         self,
         test_admin: AsyncClient,
@@ -186,7 +172,6 @@ class TestUpdatePriority:
         )
         assert response.status_code == 422
 
-    @pytest.mark.asyncio
     async def test_update_priority_forbidden_for_regular_user(
         self,
         test_user: AsyncClient,
@@ -198,7 +183,6 @@ class TestUpdatePriority:
         )
         assert response.status_code == 403
 
-    @pytest.mark.asyncio
     async def test_update_priority_unauthenticated(
         self,
         client: AsyncClient,
@@ -214,7 +198,6 @@ class TestUpdatePriority:
 class TestGetQueueStatus:
     """Tests for GET /api/v1/admin/executions/queue."""
 
-    @pytest.mark.asyncio
     async def test_get_queue_status(self, test_admin: AsyncClient) -> None:
         """Admin can get queue status."""
         response = await test_admin.get("/api/v1/admin/executions/queue")
@@ -226,7 +209,6 @@ class TestGetQueueStatus:
         assert result.max_concurrent >= 1
         assert isinstance(result.by_priority, dict)
 
-    @pytest.mark.asyncio
     async def test_get_queue_status_forbidden_for_regular_user(
         self,
         test_user: AsyncClient,
@@ -235,7 +217,6 @@ class TestGetQueueStatus:
         response = await test_user.get("/api/v1/admin/executions/queue")
         assert response.status_code == 403
 
-    @pytest.mark.asyncio
     async def test_get_queue_status_unauthenticated(
         self,
         client: AsyncClient,

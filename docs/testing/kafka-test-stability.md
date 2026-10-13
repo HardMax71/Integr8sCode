@@ -25,4 +25,4 @@ config.test.toml also lowers `KAFKA_SESSION_TIMEOUT_MS` to 6000 and `KAFKA_HEART
 
 ## Shared consumer groups
 
-Group ids are literals in handlers.py, so every xdist worker joins the same groups. Tests that depend on a group's messages, such as the DLQ tests, carry an `xdist_group` marker. With `--dist=loadgroup` from pyproject.toml, all tests in one group run on one worker, one after another.
+Group ids are literals in handlers.py, so every xdist process's API joins the same `sse-bridge-pool` and `notification-service` groups, and Kafka hands each message to one of them. No test waits for a message to reach its own process. Tests wait on what the producer stored instead: `wait_for_event` in tests/e2e/conftest.py polls the events collection, which the producer writes before it publishes, and notification tests poll the delivered notification. The DLQ manager test checks the row it stores and the event it hands to a mocked broker, so it needs no consumer of its own.

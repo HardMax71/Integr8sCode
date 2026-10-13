@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as redis
 import structlog
-from pydantic import TypeAdapter
+from pydantic import Json, TypeAdapter
 
 from app.core.metrics import RateLimitMetrics
 from app.domain.rate_limit import (
@@ -24,6 +24,8 @@ from app.domain.rate_limit import (
 from app.settings import Settings
 
 _config_adapter = TypeAdapter(RateLimitConfig)
+_user_limit_adapter = TypeAdapter(UserRateLimit)
+_overrides_adapter = TypeAdapter(dict[str, Json[UserRateLimit]])
 _keys_adapter = TypeAdapter(set[str])
 
 
@@ -266,6 +268,8 @@ return {allowed, tostring(tokens)}
         config_data = await self.redis.get(config_key)
 
         config = _config_adapter.validate_json(config_data) if config_data else RateLimitConfig.get_default_config()
+        overrides = await self.redis.hgetall(f"{self.prefix}user_overrides")
+        config.user_overrides |= _overrides_adapter.validate_python(overrides)
         self._prepare_config(config)
         return config
 
@@ -274,9 +278,8 @@ return {allowed, tostring(tokens)}
         await self.redis.set(config_key, _config_adapter.dump_json(config))
 
     async def update_user_rate_limit(self, user_id: str, user_limit: UserRateLimit) -> None:
-        config = await self._get_config()
-        config.user_overrides[str(user_id)] = user_limit
-        await self.update_config(config)
+        """Store the override in its own hash field, so concurrent updates for different users can't undo each other."""
+        await self.redis.hset(f"{self.prefix}user_overrides", user_id, _user_limit_adapter.dump_json(user_limit))
 
     async def get_user_rate_limit(self, user_id: str) -> UserRateLimit:
         """The user's override, or the neutral defaults when there is none."""

@@ -57,7 +57,6 @@ def test_pending_keys_match_priority_order() -> None:
         assert priority in key
 
 
-@pytest.mark.asyncio
 async def test_enqueue(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     event = make_execution_requested_event(execution_id="e1")
     position = await queue_service.enqueue(event)
@@ -65,13 +64,11 @@ async def test_enqueue(queue_service: ExecutionQueueService, mock_redis: AsyncMo
     mock_redis.pipeline.assert_called()
 
 
-@pytest.mark.asyncio
 async def test_try_schedule_empty(queue_service: ExecutionQueueService) -> None:
     result = await queue_service.try_schedule(5)
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     event = make_execution_requested_event(execution_id="e1")
     event_json = event.model_dump_json()
@@ -106,7 +103,6 @@ async def test_try_schedule_returns_event(queue_service: ExecutionQueueService, 
     assert [c.kwargs for c in calls] == [{"xx": True}, {"xx": True}]
 
 
-@pytest.mark.asyncio
 async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     """When the event JSON has expired from Redis, try_schedule frees the running slot and returns None."""
     script = AsyncMock(return_value=[b"e-gone", str(time.time()).encode(), 2])
@@ -121,13 +117,11 @@ async def test_try_schedule_event_data_expired(queue_service: ExecutionQueueServ
     mock_redis.get.assert_any_await(_owner_key("e-gone"))
 
 
-@pytest.mark.asyncio
 async def test_release(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     await queue_service.release("e1")
     mock_redis.pipeline.assert_called()
 
 
-@pytest.mark.asyncio
 async def test_update_priority_existing(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     script = AsyncMock(return_value=1)
     mock_redis.register_script = MagicMock(return_value=script)
@@ -137,7 +131,6 @@ async def test_update_priority_existing(queue_service: ExecutionQueueService, mo
     script.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_update_priority_missing(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     script = AsyncMock(return_value=0)
     mock_redis.register_script = MagicMock(return_value=script)
@@ -146,7 +139,6 @@ async def test_update_priority_missing(queue_service: ExecutionQueueService, moc
     assert result is False
 
 
-@pytest.mark.asyncio
 async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     # 5 ZREM results + 1 DELETE (event) + 1 DELETE (retry) + 1 SREM
@@ -156,7 +148,6 @@ async def test_remove(queue_service: ExecutionQueueService, mock_redis: AsyncMoc
     assert result is True
 
 
-@pytest.mark.asyncio
 async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     pipe.execute = AsyncMock(return_value=[0, 0, 0, 0, 0, 0, 0, 0])
@@ -165,7 +156,6 @@ async def test_remove_not_found(queue_service: ExecutionQueueService, mock_redis
     assert result is False
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("method", "results", "released"),
     [
@@ -187,7 +177,6 @@ async def test_active_count_drops_only_when_an_execution_leaves_the_active_set(
     assert metrics.record_release.called is released
 
 
-@pytest.mark.asyncio
 async def test_get_queue_status(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     # 5 ZCARD results (one per priority) + 1 SCARD
@@ -197,7 +186,6 @@ async def test_get_queue_status(queue_service: ExecutionQueueService, mock_redis
     assert status == {"queue_depth": 7, "active_count": 2}
 
 
-@pytest.mark.asyncio
 async def test_get_pending_by_priority(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     pipe = MagicMock()
     # ZCARD per priority: critical=0, high=2, normal=3, low=0, background=1
@@ -212,7 +200,6 @@ async def test_get_pending_by_priority(queue_service: ExecutionQueueService, moc
     assert QueuePriority.LOW not in counts
 
 
-@pytest.mark.asyncio
 async def test_increment_retry_count(queue_service: ExecutionQueueService, mock_redis: AsyncMock) -> None:
     mock_redis.incr = AsyncMock(return_value=1)
     mock_redis.expire = AsyncMock(return_value=True)
@@ -224,7 +211,6 @@ async def test_increment_retry_count(queue_service: ExecutionQueueService, mock_
     mock_redis.expire.assert_awaited_once()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(("script_result", "expected"), [(1, True), (0, False)])
 async def test_reserve_user_slot(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock, script_result: int, expected: bool
@@ -240,7 +226,6 @@ async def test_reserve_user_slot(
     assert ttl == _EVENT_TTL
 
 
-@pytest.mark.asyncio
 async def test_release_user_slot_removes_the_owners_entry(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock
 ) -> None:
@@ -253,7 +238,6 @@ async def test_release_user_slot_removes_the_owners_entry(
     pipe.delete.assert_called_once_with(_owner_key("e1"))
 
 
-@pytest.mark.asyncio
 async def test_release_user_slot_without_an_owner_is_a_no_op(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock
 ) -> None:
@@ -264,7 +248,6 @@ async def test_release_user_slot_without_an_owner_is_a_no_op(
     mock_redis.pipeline.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_release_user_slot_survives_a_redis_error(
     queue_service: ExecutionQueueService, mock_redis: AsyncMock
 ) -> None:

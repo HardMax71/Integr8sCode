@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from dishka import AsyncContainer
 
 from app.db import ExecutionRepository
 from app.domain.enums import EventType, ExecutionStatus, UserRole
@@ -13,10 +12,11 @@ from app.domain.execution.exceptions import (
     ExecutionNotRetryableError,
 )
 from app.domain.user import User
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION
 from app.services.event_service import EventService
 from app.services.execution_service import ExecutionService
 
-pytestmark = [pytest.mark.e2e, pytest.mark.mongodb]
+pytestmark = [pytest.mark.e2e]
 
 
 def _user(user_id: str, role: UserRole = UserRole.USER) -> User:
@@ -34,9 +34,8 @@ def _user(user_id: str, role: UserRole = UserRole.USER) -> User:
     )
 
 
-async def _stored_execution(scope: AsyncContainer, status: ExecutionStatus) -> tuple[str, str]:
+async def _stored_execution(repo: ExecutionRepository, status: ExecutionStatus) -> tuple[str, str]:
     """Insert an execution directly, so no worker picks it up and its status stays put."""
-    repo: ExecutionRepository = await scope.get(ExecutionRepository)
     owner_id = f"test_user_{uuid.uuid4().hex[:8]}"
     created = await repo.create_execution(
         DomainExecutionCreate(script="print('stored')", user_id=owner_id, status=status)
@@ -44,14 +43,21 @@ async def _stored_execution(scope: AsyncContainer, status: ExecutionStatus) -> t
     return created.execution_id, owner_id
 
 
+async def _stored_executions(repo: ExecutionRepository, count: int) -> tuple[str, set[str]]:
+    """Insert ``count`` queued executions for a fresh user; returns the user id and the execution ids."""
+    user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+    created = [
+        await repo.create_execution(DomainExecutionCreate(script=f"print({i})", user_id=user_id)) for i in range(count)
+    ]
+    return user_id, {e.execution_id for e in created}
+
+
 class TestGetResourceLimits:
     """Tests for get_k8s_resource_limits method."""
 
-    @pytest.mark.asyncio
-    async def test_get_k8s_resource_limits(self, scope: AsyncContainer) -> None:
+    async def test_get_k8s_resource_limits(self, execution_service: ExecutionService) -> None:
         """Get K8s resource limits returns valid configuration."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        limits = await svc.get_k8s_resource_limits()
+        limits = await execution_service.get_k8s_resource_limits()
 
         assert isinstance(limits, ResourceLimitsDomain)
         assert limits.cpu_limit is not None
@@ -66,11 +72,9 @@ class TestGetResourceLimits:
 class TestGetExampleScripts:
     """Tests for get_example_scripts method."""
 
-    @pytest.mark.asyncio
-    async def test_get_example_scripts(self, scope: AsyncContainer) -> None:
+    async def test_get_example_scripts(self, execution_service: ExecutionService) -> None:
         """Get example scripts returns dictionary with python."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        examples = await svc.get_example_scripts()
+        examples = await execution_service.get_example_scripts()
 
         assert isinstance(examples, dict)
         assert "python" in examples
@@ -81,39 +85,30 @@ class TestGetExampleScripts:
 class TestExecuteScript:
     """Tests for execute_script method."""
 
-    @pytest.mark.asyncio
-    async def test_execute_simple_script(self, scope: AsyncContainer) -> None:
+    async def test_execute_simple_script(self, execution_service: ExecutionService) -> None:
         """Execute simple script creates execution and returns response."""
-        svc: ExecutionService = await scope.get(ExecutionService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        result = await svc.execute_script(
+        result = await execution_service.execute_script(
             script="print('hello world')",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
         assert result.execution_id is not None
-        assert result.lang == "python"
-        assert result.lang_version == "3.11"
+        assert (result.lang, result.lang_version) == (DEFAULT_LANG, DEFAULT_LANG_VERSION)
         assert result.status in [
             ExecutionStatus.QUEUED,
             ExecutionStatus.SCHEDULED,
             ExecutionStatus.RUNNING,
         ]
 
-    @pytest.mark.asyncio
-    async def test_execute_script_with_custom_timeout(self, scope: AsyncContainer) -> None:
+    async def test_execute_script_with_custom_timeout(self, execution_service: ExecutionService) -> None:
         """Execute script with custom timeout override."""
-        svc: ExecutionService = await scope.get(ExecutionService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        result = await svc.execute_script(
+        result = await execution_service.execute_script(
             script="import time; time.sleep(1); print('done')",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
         assert result.execution_id is not None
@@ -123,24 +118,18 @@ class TestExecuteScript:
             ExecutionStatus.RUNNING,
         ]
 
-    @pytest.mark.asyncio
-    async def test_execute_script_returns_unique_ids(self, scope: AsyncContainer) -> None:
+    async def test_execute_script_returns_unique_ids(self, execution_service: ExecutionService) -> None:
         """Each execution gets unique ID."""
-        svc: ExecutionService = await scope.get(ExecutionService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        result1 = await svc.execute_script(
+        result1 = await execution_service.execute_script(
             script="print(1)",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
-        result2 = await svc.execute_script(
+        result2 = await execution_service.execute_script(
             script="print(2)",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
         assert result1.execution_id != result2.execution_id
@@ -149,89 +138,77 @@ class TestExecuteScript:
 class TestGetExecutionResult:
     """Tests for get_execution_result method."""
 
-    @pytest.mark.asyncio
-    async def test_get_execution_result(self, scope: AsyncContainer) -> None:
+    async def test_get_execution_result(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
         """Get execution result for existing execution."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        execution_id, owner_id = await _stored_execution(execution_repository, ExecutionStatus.COMPLETED)
 
-        # Create execution
-        exec_result = await svc.execute_script(
-            script="print('test')",
-            user_id=user_id,
-            lang="python",
-            lang_version="3.11",
-        )
+        result = await execution_service.get_execution_result(execution_id)
 
-        # Get result
-        result = await svc.get_execution_result(exec_result.execution_id)
+        assert (result.execution_id, result.user_id) == (execution_id, owner_id)
 
-        assert result.execution_id == exec_result.execution_id
-        assert result.lang == "python"
-        assert result.user_id == user_id
-
-    @pytest.mark.asyncio
-    async def test_get_execution_result_not_found(self, scope: AsyncContainer) -> None:
+    async def test_get_execution_result_not_found(self, execution_service: ExecutionService) -> None:
         """Get nonexistent execution raises error."""
-        svc: ExecutionService = await scope.get(ExecutionService)
 
         with pytest.raises(ExecutionNotFoundError):
-            await svc.get_execution_result("nonexistent-execution-id")
+            await execution_service.get_execution_result("nonexistent-execution-id")
 
 
 class TestExecutionAccess:
     """Tests for get_execution_for_user and retry_execution."""
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("requester", "role", "allowed"),
         [("owner", UserRole.USER, True), ("other", UserRole.USER, False), ("other", UserRole.ADMIN, True)],
     )
     async def test_get_execution_for_user(
-        self, scope: AsyncContainer, requester: str, role: UserRole, allowed: bool
+        self,
+        execution_repository: ExecutionRepository,
+        requester: str,
+        role: UserRole,
+        allowed: bool,
+        execution_service: ExecutionService,
     ) -> None:
-        svc: ExecutionService = await scope.get(ExecutionService)
-        execution_id, owner_id = await _stored_execution(scope, ExecutionStatus.COMPLETED)
+        execution_id, owner_id = await _stored_execution(execution_repository, ExecutionStatus.COMPLETED)
         user = _user(owner_id if requester == "owner" else f"{owner_id}_other", role)
 
         if allowed:
-            result = await svc.get_execution_for_user(execution_id, user)
+            result = await execution_service.get_execution_for_user(execution_id, user)
             assert result.execution_id == execution_id
             assert result.user_id == owner_id
         else:
             with pytest.raises(ExecutionAccessDeniedError, match=f"Access denied to execution '{execution_id}'"):
-                await svc.get_execution_for_user(execution_id, user)
+                await execution_service.get_execution_for_user(execution_id, user)
 
-    @pytest.mark.asyncio
-    async def test_get_execution_for_user_not_found(self, scope: AsyncContainer) -> None:
-        svc: ExecutionService = await scope.get(ExecutionService)
+    async def test_get_execution_for_user_not_found(self, execution_service: ExecutionService) -> None:
 
         with pytest.raises(ExecutionNotFoundError):
-            await svc.get_execution_for_user("nonexistent-execution-id", _user("anyone"))
+            await execution_service.get_execution_for_user("nonexistent-execution-id", _user("anyone"))
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize("status", [ExecutionStatus.QUEUED, ExecutionStatus.RUNNING])
-    async def test_retry_active_execution_rejected(self, scope: AsyncContainer, status: ExecutionStatus) -> None:
-        svc: ExecutionService = await scope.get(ExecutionService)
-        execution_id, owner_id = await _stored_execution(scope, status)
+    async def test_retry_active_execution_rejected(
+        self, execution_repository: ExecutionRepository, status: ExecutionStatus, execution_service: ExecutionService
+    ) -> None:
+        execution_id, owner_id = await _stored_execution(execution_repository, status)
 
         with pytest.raises(ExecutionNotRetryableError, match=f"Cannot retry execution in {status} state"):
-            await svc.retry_execution(execution_id, _user(owner_id))
+            await execution_service.retry_execution(execution_id, _user(owner_id))
 
-    @pytest.mark.asyncio
-    async def test_retry_other_users_execution_denied(self, scope: AsyncContainer) -> None:
-        svc: ExecutionService = await scope.get(ExecutionService)
-        execution_id, owner_id = await _stored_execution(scope, ExecutionStatus.COMPLETED)
+    async def test_retry_other_users_execution_denied(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
+        execution_id, owner_id = await _stored_execution(execution_repository, ExecutionStatus.COMPLETED)
 
         with pytest.raises(ExecutionAccessDeniedError):
-            await svc.retry_execution(execution_id, _user(f"{owner_id}_other"))
+            await execution_service.retry_execution(execution_id, _user(f"{owner_id}_other"))
 
-    @pytest.mark.asyncio
-    async def test_retry_completed_execution_creates_new_one(self, scope: AsyncContainer) -> None:
-        svc: ExecutionService = await scope.get(ExecutionService)
-        execution_id, owner_id = await _stored_execution(scope, ExecutionStatus.COMPLETED)
+    async def test_retry_completed_execution_creates_new_one(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
+        execution_id, owner_id = await _stored_execution(execution_repository, ExecutionStatus.COMPLETED)
 
-        retried = await svc.retry_execution(execution_id, _user(owner_id))
+        retried = await execution_service.retry_execution(execution_id, _user(owner_id))
 
         assert retried.execution_id != execution_id
         assert retried.user_id == owner_id
@@ -242,211 +219,124 @@ class TestExecutionAccess:
 class TestGetExecutionEvents:
     """Tests for get_events_by_aggregate via EventService."""
 
-    @pytest.mark.asyncio
-    async def test_get_execution_events(self, scope: AsyncContainer) -> None:
+    async def test_get_execution_events(self, execution_service: ExecutionService, event_service: EventService) -> None:
         """Get events for execution returns list."""
-        exec_svc: ExecutionService = await scope.get(ExecutionService)
-        event_svc: EventService = await scope.get(EventService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        exec_result = await exec_svc.execute_script(
+        exec_result = await execution_service.execute_script(
             script="print('events test')",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
-        events = await event_svc.get_events_by_aggregate(
+        events = await event_service.get_events_by_aggregate(
             aggregate_id=exec_result.execution_id,
         )
 
-        assert isinstance(events, list)
-        if events:
-            event_types = {e.event_type for e in events}
-            assert EventType.EXECUTION_REQUESTED in event_types
+        assert EventType.EXECUTION_REQUESTED in {e.event_type for e in events}
 
-    @pytest.mark.asyncio
-    async def test_get_execution_events_with_filter(self, scope: AsyncContainer) -> None:
+    async def test_get_execution_events_with_filter(
+        self, execution_service: ExecutionService, event_service: EventService
+    ) -> None:
         """Get events filtered by type."""
-        exec_svc: ExecutionService = await scope.get(ExecutionService)
-        event_svc: EventService = await scope.get(EventService)
         user_id = f"test_user_{uuid.uuid4().hex[:8]}"
 
-        exec_result = await exec_svc.execute_script(
+        exec_result = await execution_service.execute_script(
             script="print('filter test')",
             user_id=user_id,
-            lang="python",
-            lang_version="3.11",
         )
 
-        events = await event_svc.get_events_by_aggregate(
+        events = await event_service.get_events_by_aggregate(
             aggregate_id=exec_result.execution_id,
             event_types=[EventType.EXECUTION_REQUESTED],
         )
 
-        assert isinstance(events, list)
-        for event in events:
-            assert event.event_type == EventType.EXECUTION_REQUESTED
+        assert {e.event_type for e in events} == {EventType.EXECUTION_REQUESTED}
 
 
 class TestGetUserExecutions:
     """Tests for get_user_executions method."""
 
-    @pytest.mark.asyncio
-    async def test_get_user_executions(self, scope: AsyncContainer) -> None:
-        """Get user executions returns list."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+    async def test_get_user_executions(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
+        """Get user executions returns exactly the user's executions."""
+        user_id, ids = await _stored_executions(execution_repository, 3)
 
-        # Create some executions
-        for i in range(3):
-            await svc.execute_script(
-                script=f"print({i})",
-                user_id=user_id,
-                lang="python",
-                lang_version="3.11",
-            )
+        executions = await execution_service.get_user_executions(user_id=user_id, limit=10, skip=0)
 
-        # Get user executions
-        executions = await svc.get_user_executions(user_id=user_id, limit=10, skip=0)
+        assert {e.execution_id for e in executions} == ids
 
-        assert isinstance(executions, list)
-        assert len(executions) >= 3
-        for execution in executions:
-            assert execution.user_id == user_id
+    async def test_get_user_executions_pagination(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
+        """Pages split the user's executions without overlap."""
+        user_id, ids = await _stored_executions(execution_repository, 5)
 
-    @pytest.mark.asyncio
-    async def test_get_user_executions_pagination(self, scope: AsyncContainer) -> None:
-        """Pagination works for user executions."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        page1 = await execution_service.get_user_executions(user_id=user_id, limit=2, skip=0)
+        page2 = await execution_service.get_user_executions(user_id=user_id, limit=2, skip=2)
+        page3 = await execution_service.get_user_executions(user_id=user_id, limit=2, skip=4)
 
-        # Create executions
-        for i in range(5):
-            await svc.execute_script(
-                script=f"print({i})",
-                user_id=user_id,
-                lang="python",
-                lang_version="3.11",
-            )
+        assert [len(page1), len(page2), len(page3)] == [2, 2, 1]
+        assert {e.execution_id for e in page1 + page2 + page3} == ids
 
-        # Get first page
-        page1 = await svc.get_user_executions(user_id=user_id, limit=2, skip=0)
-        assert len(page1) == 2
-
-        # Get second page
-        page2 = await svc.get_user_executions(user_id=user_id, limit=2, skip=2)
-        assert len(page2) == 2
-
-        # Ensure different results
-        page1_ids = {e.execution_id for e in page1}
-        page2_ids = {e.execution_id for e in page2}
-        assert page1_ids.isdisjoint(page2_ids)
-
-    @pytest.mark.asyncio
-    async def test_get_user_executions_filter_by_language(self, scope: AsyncContainer) -> None:
+    async def test_get_user_executions_filter_by_language(
+        self, execution_service: ExecutionService, execution_repository: ExecutionRepository
+    ) -> None:
         """Filter executions by language."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
-
-        await svc.execute_script(
-            script="print('python')",
-            user_id=user_id,
-            lang="python",
-            lang_version="3.11",
+        user_id, python_ids = await _stored_executions(execution_repository, 1)
+        await execution_repository.create_execution(
+            DomainExecutionCreate(script="echo hi", user_id=user_id, lang="bash")
         )
 
-        executions = await svc.get_user_executions(user_id=user_id, lang="python", limit=10, skip=0)
+        executions = await execution_service.get_user_executions(user_id=user_id, lang="python", limit=10, skip=0)
 
-        assert isinstance(executions, list)
-        for execution in executions:
-            assert execution.lang == "python"
+        assert {e.execution_id for e in executions} == python_ids
 
 
 class TestCountUserExecutions:
     """Tests for count_user_executions method."""
 
-    @pytest.mark.asyncio
-    async def test_count_user_executions(self, scope: AsyncContainer) -> None:
+    async def test_count_user_executions(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
         """Count user executions returns correct count."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        user_id, _ = await _stored_executions(execution_repository, 3)
 
-        # Get initial count
-        initial_count = await svc.count_user_executions(user_id=user_id)
-
-        # Create executions
-        for _ in range(3):
-            await svc.execute_script(
-                script="print('count')",
-                user_id=user_id,
-                lang="python",
-                lang_version="3.11",
-            )
-
-        # Count again
-        new_count = await svc.count_user_executions(user_id=user_id)
-
-        assert new_count == initial_count + 3
+        assert await execution_service.count_user_executions(user_id=user_id) == 3
 
 
 class TestDeleteExecution:
     """Tests for delete_execution method."""
 
-    @pytest.mark.asyncio
-    async def test_delete_execution(self, scope: AsyncContainer) -> None:
+    async def test_delete_execution(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
         """Delete execution removes it from database."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        execution_id, _ = await _stored_execution(execution_repository, ExecutionStatus.COMPLETED)
 
-        # Create execution
-        exec_result = await svc.execute_script(
-            script="print('to delete')",
-            user_id=user_id,
-            lang="python",
-            lang_version="3.11",
-        )
+        assert await execution_service.delete_execution(execution_id, "test-admin") is True
 
-        # Delete it
-        deleted = await svc.delete_execution(exec_result.execution_id, "test-admin")
-        assert deleted is True
-
-        # Verify it's gone
         with pytest.raises(ExecutionNotFoundError):
-            await svc.get_execution_result(exec_result.execution_id)
+            await execution_service.get_execution_result(execution_id)
 
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent_execution(self, scope: AsyncContainer) -> None:
+    async def test_delete_nonexistent_execution(self, execution_service: ExecutionService) -> None:
         """Delete nonexistent execution raises error."""
-        svc: ExecutionService = await scope.get(ExecutionService)
 
         with pytest.raises(ExecutionNotFoundError):
-            await svc.delete_execution("nonexistent-id", "test-admin")
+            await execution_service.delete_execution("nonexistent-id", "test-admin")
 
 
 class TestGetExecutionStats:
     """Tests for get_execution_stats method."""
 
-    @pytest.mark.asyncio
-    async def test_get_execution_stats(self, scope: AsyncContainer) -> None:
+    async def test_get_execution_stats(
+        self, execution_repository: ExecutionRepository, execution_service: ExecutionService
+    ) -> None:
         """Get execution statistics for user."""
-        svc: ExecutionService = await scope.get(ExecutionService)
-        user_id = f"test_user_{uuid.uuid4().hex[:8]}"
+        user_id, _ = await _stored_executions(execution_repository, 2)
 
-        # Create some executions
-        for i in range(2):
-            await svc.execute_script(
-                script=f"print({i})",
-                user_id=user_id,
-                lang="python",
-                lang_version="3.11",
-            )
+        stats = await execution_service.get_execution_stats(user_id=user_id)
 
-        # Get stats
-        stats = await svc.get_execution_stats(user_id=user_id)
-
-        assert isinstance(stats, dict)
-        assert "total" in stats
-        assert stats["total"] >= 2
+        assert stats["total"] == 2
         assert "by_status" in stats
         assert "by_language" in stats

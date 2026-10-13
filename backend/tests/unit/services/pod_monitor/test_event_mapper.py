@@ -48,7 +48,6 @@ def _make_mock_api(logs: bytes = b"") -> MagicMock:
     return mock
 
 
-@pytest.mark.asyncio
 async def test_pending_running_and_succeeded_mapping() -> None:
     logs = _framed("ok", "")
     pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
@@ -98,7 +97,6 @@ async def test_pending_running_and_succeeded_mapping() -> None:
     assert comp.resource_usage.peak_memory_kb == 1024
 
 
-@pytest.mark.asyncio
 async def test_failed_timeout_and_deleted() -> None:
     logs = _framed("", "")
     pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)
@@ -192,7 +190,6 @@ def test_extract_id_and_metadata_priority_and_duplicates() -> None:
     assert pem._is_duplicate("n1", "Running") is True
 
 
-@pytest.mark.asyncio
 async def test_scheduled_requires_condition() -> None:
     pem = PodEventMapper(k8s_api=_make_mock_api(), logger=_test_logger)
     pod = make_pod(name="p", phase="Pending")
@@ -210,7 +207,6 @@ async def test_scheduled_requires_condition() -> None:
     assert await pem._map_scheduled(_ctx(pod)) is not None
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_with_framed_output() -> None:
     """Test log extraction with length-prefixed framing and termination message."""
     logs = _framed("hello world", "some warning")
@@ -231,7 +227,6 @@ async def test_extract_logs_with_framed_output() -> None:
     assert result.resource_usage.execution_time_wall_seconds == 0.5
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_reads_from_the_start_as_bytes() -> None:
     """The STDOUT header is at the start, so a capped read from the start always keeps it."""
     api = _make_mock_api(_framed("ok", ""))
@@ -249,7 +244,6 @@ async def test_extract_logs_reads_from_the_start_as_bytes() -> None:
     assert "tail_lines" not in kwargs
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_utf8_output() -> None:
     """Non-ASCII output used to overrun the char-sliced STDOUT frame and lose both streams."""
     pem = PodEventMapper(k8s_api=_make_mock_api(_framed("héllo ✓\n", "🚀 done\n")), logger=_test_logger)
@@ -264,7 +258,6 @@ async def test_extract_logs_utf8_output() -> None:
     assert result.stderr == "🚀 done\n"
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_empty_stdout_stderr() -> None:
     """Test extraction when both stdout and stderr are empty."""
     logs = _framed("", "")
@@ -280,7 +273,6 @@ async def test_extract_logs_empty_stdout_stderr() -> None:
     assert result.stderr == ""
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_large_stdout() -> None:
     """Test extraction with large stdout content."""
     large_content = "x" * 50_000
@@ -297,7 +289,6 @@ async def test_extract_logs_large_stdout() -> None:
     assert result.stderr == "err"
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_missing_termination_message() -> None:
     """Test extraction when termination message is absent — defaults to zero values."""
     logs = _framed("out", "")
@@ -315,7 +306,6 @@ async def test_extract_logs_missing_termination_message() -> None:
     assert result.resource_usage.peak_memory_kb == 0
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_malformed_framing_returns_empty() -> None:
     """Test that malformed log framing returns empty strings."""
     pem = PodEventMapper(k8s_api=_make_mock_api(b"garbage data"), logger=_test_logger)
@@ -330,7 +320,6 @@ async def test_extract_logs_malformed_framing_returns_empty() -> None:
     assert result.stderr == ""
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_error_paths() -> None:
     """Without a K8s API client there are no logs to extract."""
     pod = make_pod(
@@ -343,7 +332,6 @@ async def test_extract_logs_error_paths() -> None:
     assert await pem_no_api._extract_logs(pod) is None
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "error",
     [ApiException(status=500, reason="boom"), aiohttp.ClientConnectionError("boom"), TimeoutError("boom")],
@@ -359,7 +347,6 @@ async def test_extract_logs_returns_none_on_api_failure(error: Exception) -> Non
     assert await PodEventMapper(k8s_api=mock_err, logger=_test_logger)._extract_logs(pod) is None
 
 
-@pytest.mark.asyncio
 async def test_extract_logs_returns_none_on_http_error_status() -> None:
     """A raw response does not raise on its own, so an error status must still be caught."""
     pod = make_pod(
@@ -409,7 +396,6 @@ def test_analyze_failure_variants() -> None:
     assert pem._analyze_failure(pod_oom).error_type == ExecutionErrorType.RESOURCE_LIMIT
 
 
-@pytest.mark.asyncio
 async def test_all_containers_succeeded_and_cache_behavior() -> None:
     logs = _framed("", "")
     pem = PodEventMapper(k8s_api=_make_mock_api(logs), logger=_test_logger)

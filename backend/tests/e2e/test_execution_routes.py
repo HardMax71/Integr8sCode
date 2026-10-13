@@ -1,13 +1,13 @@
 import asyncio
 
 import pytest
-import redis.asyncio as redis
 from httpx2 import AsyncClient
 from pydantic import TypeAdapter
 
 from app.domain.enums import EventType, ExecutionStatus
 from app.domain.events import DomainEvent
-from app.runtime_registry import at_least
+from app.infrastructure.kafka.topics import RESULT_TYPES
+from app.runtime_registry import DEFAULT_LANG, DEFAULT_LANG_VERSION, at_least
 from app.schemas_pydantic.execution import (
     CancelExecutionRequest,
     CancelResponse,
@@ -20,9 +20,9 @@ from app.schemas_pydantic.execution import (
     LanguageLimits,
     ResourceLimits,
 )
-from tests.e2e.conftest import wait_for_pod_created, wait_for_result
+from tests.e2e.conftest import create_execution, store_execution, wait_for_event
 
-pytestmark = [pytest.mark.e2e, pytest.mark.k8s]
+pytestmark = [pytest.mark.e2e]
 
 # TypeAdapter for parsing list of execution events from API response
 ExecutionEventsAdapter = TypeAdapter(list[DomainEvent])
@@ -36,17 +36,11 @@ INITIAL_STATES = {
 
 
 async def submit_and_wait(
-    client: AsyncClient,
-    redis_client: redis.Redis,
-    request: ExecutionRequest,
-    *,
-    timeout: float = 30.0,
+    client: AsyncClient, request: ExecutionRequest, *, timeout: float = 30.0
 ) -> tuple[ExecutionResponse, ExecutionResult]:
-    """Submit script and wait for result via Redis pub/sub — no polling."""
-    resp = await client.post("/api/v1/execute", json=request.model_dump())
-    assert resp.status_code == 200
-    execution = ExecutionResponse.model_validate(resp.json())
-    await wait_for_result(redis_client, execution.execution_id, timeout=timeout)
+    """Submit a script and wait until its result is stored."""
+    execution = await create_execution(client, request)
+    await wait_for_event(execution.execution_id, *RESULT_TYPES, timeout=timeout)
     result_resp = await client.get(f"/api/v1/executions/{execution.execution_id}/result")
     assert result_resp.status_code == 200
     return execution, ExecutionResult.model_validate(result_resp.json())
@@ -55,10 +49,9 @@ async def submit_and_wait(
 class TestExecutionAuthentication:
     """Authentication requirement tests."""
 
-    @pytest.mark.asyncio
     async def test_execute_requires_authentication(self, client: AsyncClient) -> None:
         """Unauthenticated request returns 401."""
-        request = ExecutionRequest(script="print('test')", lang="python", lang_version="3.11")
+        request = ExecutionRequest(script="print('test')")
         response = await client.post("/api/v1/execute", json=request.model_dump())
 
         assert response.status_code == 401
@@ -67,47 +60,39 @@ class TestExecutionAuthentication:
 class TestExecutionHappyPath:
     """Tests for successful execution scenarios."""
 
-    @pytest.mark.asyncio
     async def test_execute_simple_script_completes(
-        self, test_user: AsyncClient, redis_client: redis.Redis, exec_request: ExecutionRequest
+        self, test_user: AsyncClient, exec_request: ExecutionRequest
     ) -> None:
         """Simple script executes and completes successfully."""
-        exec_response, result = await submit_and_wait(test_user, redis_client, exec_request)
+        exec_response, result = await submit_and_wait(test_user, exec_request)
 
         assert exec_response.execution_id
         assert result.status == ExecutionStatus.COMPLETED
         assert result.execution_id == exec_response.execution_id
-        assert result.lang == "python"
-        assert result.lang_version == "3.11"
+        assert (result.lang, result.lang_version) == (DEFAULT_LANG, DEFAULT_LANG_VERSION)
         assert result.stdout is not None
         assert result.stdout.strip() == "test"
         assert result.exit_code == 0
 
-    @pytest.mark.asyncio
-    async def test_execute_multiline_output(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_execute_multiline_output(self, test_user: AsyncClient) -> None:
         """Script with multiple print statements produces correct output."""
         request = ExecutionRequest(
             script="print('Line 1')\nprint('Line 2')\nprint('Line 3')",
-            lang="python",
-            lang_version="3.11",
         )
 
-        _, result = await submit_and_wait(test_user, redis_client, request)
+        _, result = await submit_and_wait(test_user, request)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
         assert result.stdout.strip() == "Line 1\nLine 2\nLine 3"
 
-    @pytest.mark.asyncio
-    async def test_execute_tracks_resource_usage(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_execute_tracks_resource_usage(self, test_user: AsyncClient) -> None:
         """Execution tracks resource usage metrics."""
         request = ExecutionRequest(
             script="import time; data = list(range(10000)); time.sleep(0.1); print('done')",
-            lang="python",
-            lang_version="3.11",
         )
 
-        _, result = await submit_and_wait(test_user, redis_client, request)
+        _, result = await submit_and_wait(test_user, request)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.resource_usage is not None
@@ -117,16 +102,13 @@ class TestExecutionHappyPath:
         assert result.resource_usage.clk_tck_hertz > 0
         assert result.exit_code == 0
 
-    @pytest.mark.asyncio
-    async def test_execute_large_output(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_execute_large_output(self, test_user: AsyncClient) -> None:
         """Script with large output completes successfully."""
         request = ExecutionRequest(
             script="for i in range(500): print(f'Line {i}: ' + 'x' * 50)\nprint('END')",
-            lang="python",
-            lang_version="3.11",
         )
 
-        _, result = await submit_and_wait(test_user, redis_client, request, timeout=120)
+        _, result = await submit_and_wait(test_user, request, timeout=60)
 
         assert result.status == ExecutionStatus.COMPLETED
         assert result.stdout is not None
@@ -139,16 +121,13 @@ class TestExecutionHappyPath:
 class TestExecutionErrors:
     """Tests for execution error handling."""
 
-    @pytest.mark.asyncio
-    async def test_execute_syntax_error(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_execute_syntax_error(self, test_user: AsyncClient) -> None:
         """Script with syntax error fails with proper error info."""
         request = ExecutionRequest(
             script="def broken(\n    pass",  # Missing closing paren
-            lang="python",
-            lang_version="3.11",
         )
 
-        _, result = await submit_and_wait(test_user, redis_client, request)
+        _, result = await submit_and_wait(test_user, request)
 
         # Script errors result in COMPLETED status with non-zero exit code
         # FAILED is reserved for infrastructure/timeout failures
@@ -157,16 +136,13 @@ class TestExecutionErrors:
         assert "SyntaxError" in result.stderr
         assert result.exit_code != 0
 
-    @pytest.mark.asyncio
-    async def test_execute_runtime_error(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_execute_runtime_error(self, test_user: AsyncClient) -> None:
         """Script with runtime error fails with traceback."""
         request = ExecutionRequest(
             script="print('before')\nraise ValueError('test error')\nprint('after')",
-            lang="python",
-            lang_version="3.11",
         )
 
-        _, result = await submit_and_wait(test_user, redis_client, request)
+        _, result = await submit_and_wait(test_user, request)
 
         # Script errors result in COMPLETED status with non-zero exit code
         # FAILED is reserved for infrastructure/timeout failures
@@ -182,9 +158,8 @@ class TestExecutionErrors:
 class TestExecutionCancel:
     """Tests for execution cancellation."""
 
-    @pytest.mark.asyncio
     async def test_cancel_running_execution(
-        self, test_user: AsyncClient, redis_client: redis.Redis, long_running_execution_request: ExecutionRequest
+        self, test_user: AsyncClient, long_running_execution_request: ExecutionRequest
     ) -> None:
         """Running execution can be cancelled."""
         response = await test_user.post("/api/v1/execute", json=long_running_execution_request.model_dump())
@@ -193,7 +168,7 @@ class TestExecutionCancel:
         exec_response = ExecutionResponse.model_validate(response.json())
 
         # Wait for pod creation (saga started + command dispatched) instead of blind sleep
-        await wait_for_pod_created(redis_client, exec_response.execution_id)
+        await wait_for_event(exec_response.execution_id, EventType.POD_CREATED)
 
         cancel_req = CancelExecutionRequest(reason="Test cancellation")
         cancel_response = await test_user.post(
@@ -207,11 +182,10 @@ class TestExecutionCancel:
         assert cancel_result.status == "cancellation_requested"
         assert cancel_result.message
 
-    @pytest.mark.asyncio
-    async def test_cancel_completed_execution_fails(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_cancel_completed_execution_fails(self, test_user: AsyncClient) -> None:
         """Cannot cancel already completed execution."""
-        request = ExecutionRequest(script="print('quick')", lang="python", lang_version="3.11")
-        exec_response, _ = await submit_and_wait(test_user, redis_client, request)
+        request = ExecutionRequest(script="print('quick')")
+        exec_response, _ = await submit_and_wait(test_user, request)
 
         cancel_req = CancelExecutionRequest(reason="Too late")
         cancel_response = await test_user.post(
@@ -226,11 +200,10 @@ class TestExecutionCancel:
 class TestExecutionRetry:
     """Tests for execution retry."""
 
-    @pytest.mark.asyncio
-    async def test_retry_completed_execution(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_retry_completed_execution(self, test_user: AsyncClient) -> None:
         """Completed execution can be retried."""
-        request = ExecutionRequest(script="print('original')", lang="python", lang_version="3.11")
-        original, _ = await submit_and_wait(test_user, redis_client, request)
+        request = ExecutionRequest(script="print('original')")
+        original, _ = await submit_and_wait(test_user, request)
 
         retry_response = await test_user.post(
             f"/api/v1/executions/{original.execution_id}/retry",
@@ -241,7 +214,7 @@ class TestExecutionRetry:
         assert retried.execution_id != original.execution_id
 
         # Wait for retried execution to complete
-        await wait_for_result(redis_client, retried.execution_id)
+        await wait_for_event(retried.execution_id, *RESULT_TYPES)
         result_resp = await test_user.get(f"/api/v1/executions/{retried.execution_id}/result")
         assert result_resp.status_code == 200
         result = ExecutionResult.model_validate(result_resp.json())
@@ -249,32 +222,23 @@ class TestExecutionRetry:
         assert result.stdout is not None
         assert result.stdout.strip() == "original"
 
-    @pytest.mark.asyncio
-    async def test_retry_running_execution_fails(
-        self, test_user: AsyncClient, long_running_execution_request: ExecutionRequest
-    ) -> None:
+    async def test_retry_running_execution_fails(self, test_user: AsyncClient) -> None:
         """Cannot retry execution that is still running."""
-        response = await test_user.post("/api/v1/execute", json=long_running_execution_request.model_dump())
-        assert response.status_code == 200
+        execution_id = await store_execution(test_user, status=ExecutionStatus.RUNNING)
 
-        exec_response = ExecutionResponse.model_validate(response.json())
-
-        retry_response = await test_user.post(
-            f"/api/v1/executions/{exec_response.execution_id}/retry",
-        )
+        retry_response = await test_user.post(f"/api/v1/executions/{execution_id}/retry")
 
         assert retry_response.status_code == 400
         body = retry_response.json()
         assert body["status"] == 400
         assert body["detail"].startswith("Cannot retry execution in ")
 
-    @pytest.mark.asyncio
     async def test_retry_other_users_execution_forbidden(
-        self, test_user: AsyncClient, another_user: AsyncClient, redis_client: redis.Redis
+        self, test_user: AsyncClient, another_user: AsyncClient
     ) -> None:
         """Cannot retry another user's execution."""
-        request = ExecutionRequest(script="print('owned')", lang="python", lang_version="3.11")
-        original, _ = await submit_and_wait(test_user, redis_client, request)
+        request = ExecutionRequest(script="print('owned')")
+        original, _ = await submit_and_wait(test_user, request)
 
         retry_response = await another_user.post(
             f"/api/v1/executions/{original.execution_id}/retry",
@@ -290,11 +254,10 @@ class TestExecutionRetry:
 class TestExecutionEvents:
     """Tests for execution events."""
 
-    @pytest.mark.asyncio
-    async def test_get_execution_events(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_get_execution_events(self, test_user: AsyncClient) -> None:
         """Get events for completed execution."""
-        request = ExecutionRequest(script="print('events test')", lang="python", lang_version="3.11")
-        exec_response, _ = await submit_and_wait(test_user, redis_client, request)
+        request = ExecutionRequest(script="print('events test')")
+        exec_response, _ = await submit_and_wait(test_user, request)
 
         events_response = await test_user.get(f"/api/v1/executions/{exec_response.execution_id}/events")
         assert events_response.status_code == 200
@@ -304,11 +267,10 @@ class TestExecutionEvents:
         event_types = {e.event_type for e in events}
         assert {EventType.EXECUTION_REQUESTED, EventType.EXECUTION_COMPLETED} <= event_types
 
-    @pytest.mark.asyncio
-    async def test_get_events_filtered_by_type(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_get_events_filtered_by_type(self, test_user: AsyncClient) -> None:
         """Filter events by event type."""
-        request = ExecutionRequest(script="print('filter test')", lang="python", lang_version="3.11")
-        exec_response, _ = await submit_and_wait(test_user, redis_client, request)
+        request = ExecutionRequest(script="print('filter test')")
+        exec_response, _ = await submit_and_wait(test_user, request)
 
         events_response = await test_user.get(
             f"/api/v1/executions/{exec_response.execution_id}/events",
@@ -320,20 +282,14 @@ class TestExecutionEvents:
         for event in events:
             assert event.event_type == EventType.EXECUTION_REQUESTED
 
-    @pytest.mark.asyncio
     async def test_get_events_access_denied(self, test_user: AsyncClient, another_user: AsyncClient) -> None:
         """Cannot access another user's execution events."""
-        request = ExecutionRequest(script="print('private')", lang="python", lang_version="3.11")
+        execution_id = await store_execution(test_user)
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-
-        events_response = await another_user.get(f"/api/v1/executions/{exec_response.execution_id}/events")
+        events_response = await another_user.get(f"/api/v1/executions/{execution_id}/events")
         assert events_response.status_code == 403
         assert events_response.json() == {
-            "detail": f"Access denied to execution '{exec_response.execution_id}'",
+            "detail": f"Access denied to execution '{execution_id}'",
             "status": 403,
         }
 
@@ -341,41 +297,27 @@ class TestExecutionEvents:
 class TestExecutionDelete:
     """Tests for execution deletion (admin only)."""
 
-    @pytest.mark.asyncio
-    @pytest.mark.admin
-    async def test_admin_delete_execution(
-        self, test_user: AsyncClient, test_admin: AsyncClient, redis_client: redis.Redis
-    ) -> None:
+    async def test_admin_delete_execution(self, test_user: AsyncClient, test_admin: AsyncClient) -> None:
         """Admin can delete an execution."""
-        request = ExecutionRequest(script="print('to delete')", lang="python", lang_version="3.11")
-        exec_response, _ = await submit_and_wait(test_user, redis_client, request)
+        execution_id = await store_execution(test_user)
 
-        delete_response = await test_admin.delete(f"/api/v1/executions/{exec_response.execution_id}")
+        delete_response = await test_admin.delete(f"/api/v1/executions/{execution_id}")
         assert delete_response.status_code == 200
 
         result = DeleteResponse.model_validate(delete_response.json())
-        assert result.execution_id == exec_response.execution_id
+        assert result.execution_id == execution_id
         assert result.message == "Execution deleted successfully"
 
-        # Verify gone
-        get_response = await test_admin.get(f"/api/v1/executions/{exec_response.execution_id}/result")
+        get_response = await test_admin.get(f"/api/v1/executions/{execution_id}/result")
         assert get_response.status_code == 404
 
-    @pytest.mark.asyncio
     async def test_user_cannot_delete_execution(self, test_user: AsyncClient) -> None:
         """Regular user cannot delete execution."""
-        request = ExecutionRequest(script="print('no delete')", lang="python", lang_version="3.11")
+        execution_id = await store_execution(test_user)
 
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
-
-        exec_response = ExecutionResponse.model_validate(response.json())
-
-        delete_response = await test_user.delete(f"/api/v1/executions/{exec_response.execution_id}")
+        delete_response = await test_user.delete(f"/api/v1/executions/{execution_id}")
         assert delete_response.status_code == 403
 
-    @pytest.mark.asyncio
-    @pytest.mark.admin
     async def test_delete_nonexistent_execution(self, test_admin: AsyncClient) -> None:
         """Deleting nonexistent execution returns 404."""
         delete_response = await test_admin.delete("/api/v1/executions/nonexistent-id-xyz")
@@ -385,31 +327,20 @@ class TestExecutionDelete:
 class TestExecutionList:
     """Tests for execution listing."""
 
-    @pytest.mark.asyncio
-    async def test_get_user_executions(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_get_user_executions(self, test_user: AsyncClient) -> None:
         """User can list their executions."""
-        request = ExecutionRequest(script="print('list test')", lang="python", lang_version="3.11")
-        exec_response, _ = await submit_and_wait(test_user, redis_client, request)
+        execution_id = await store_execution(test_user)
 
         list_response = await test_user.get("/api/v1/user/executions", params={"limit": 10, "skip": 0})
         assert list_response.status_code == 200
 
         result = ExecutionListResponse.model_validate(list_response.json())
-        assert result.limit == 10
-        assert result.skip == 0
-        assert result.total >= 1
-        assert len(result.executions) >= 1
-        exec_ids = {e.execution_id for e in result.executions}
-        assert exec_response.execution_id in exec_ids
+        assert (result.limit, result.skip, result.total) == (10, 0, 1)
+        assert [e.execution_id for e in result.executions] == [execution_id]
 
-    @pytest.mark.asyncio
     async def test_list_executions_pagination(self, test_user: AsyncClient) -> None:
         """Pagination works for execution list."""
-        # Create executions
-        for i in range(3):
-            request = ExecutionRequest(script=f"print('page {i}')", lang="python", lang_version="3.11")
-            response = await test_user.post("/api/v1/execute", json=request.model_dump())
-            assert response.status_code == 200
+        stored = {await store_execution(test_user) for _ in range(3)}
 
         # Get first page
         page1_response = await test_user.get("/api/v1/user/executions", params={"limit": 2, "skip": 0})
@@ -426,35 +357,26 @@ class TestExecutionList:
 
         page2 = ExecutionListResponse.model_validate(page2_response.json())
         assert page2.skip == 2
-        assert len(page2.executions) >= 1
+        assert {e.execution_id for e in page1.executions + page2.executions} == stored
 
-        ids1 = {e.execution_id for e in page1.executions}
-        ids2 = {e.execution_id for e in page2.executions}
-        assert ids1.isdisjoint(ids2)
-
-    @pytest.mark.asyncio
     async def test_list_executions_filter_by_language(self, test_user: AsyncClient) -> None:
         """Filter executions by language."""
-        request = ExecutionRequest(script="print('python')", lang="python", lang_version="3.11")
-        response = await test_user.post("/api/v1/execute", json=request.model_dump())
-        assert response.status_code == 200
+        python_id = await store_execution(test_user)
+        await store_execution(test_user, lang="bash")
 
-        list_response = await test_user.get("/api/v1/user/executions", params={"lang": "python"})
+        list_response = await test_user.get("/api/v1/user/executions", params={"lang": DEFAULT_LANG})
         assert list_response.status_code == 200
 
         result = ExecutionListResponse.model_validate(list_response.json())
-        assert len(result.executions) >= 1
-        for execution in result.executions:
-            assert execution.lang == "python"
+        assert [e.execution_id for e in result.executions] == [python_id]
 
 
 class TestExecutionIdempotency:
     """Tests for idempotency."""
 
-    @pytest.mark.asyncio
     async def test_same_idempotency_key_returns_same_execution(self, test_user: AsyncClient) -> None:
         """Same idempotency key returns same execution ID."""
-        request = ExecutionRequest(script="print('idempotent')", lang="python", lang_version="3.11")
+        request = ExecutionRequest(script="print('idempotent')")
         headers = {"Idempotency-Key": "unique-key-12345"}
 
         response1 = await test_user.post("/api/v1/execute", json=request.model_dump(), headers=headers)
@@ -471,13 +393,11 @@ class TestExecutionIdempotency:
 class TestExecutionConcurrency:
     """Tests for concurrent executions."""
 
-    @pytest.mark.asyncio
-    @pytest.mark.xdist_group("execution_concurrency")
-    async def test_concurrent_executions(self, test_user: AsyncClient, redis_client: redis.Redis) -> None:
+    async def test_concurrent_executions(self, test_user: AsyncClient) -> None:
         """Multiple concurrent executions work correctly."""
         tasks = []
         for i in range(3):
-            request = ExecutionRequest(script=f"print('concurrent {i}')", lang="python", lang_version="3.11")
+            request = ExecutionRequest(script=f"print('concurrent {i}')")
             tasks.append(test_user.post("/api/v1/execute", json=request.model_dump()))
 
         responses = await asyncio.gather(*tasks)
@@ -492,7 +412,7 @@ class TestExecutionConcurrency:
         assert len(execution_ids) == 3
 
         # Wait for all to complete — parallel subscriptions, not sequential polling
-        await asyncio.gather(*(wait_for_result(redis_client, eid) for eid in execution_ids))
+        await asyncio.gather(*(wait_for_event(eid, *RESULT_TYPES) for eid in execution_ids))
         for exec_id in execution_ids:
             result_resp = await test_user.get(f"/api/v1/executions/{exec_id}/result")
             assert result_resp.status_code == 200
@@ -505,7 +425,6 @@ class TestExecutionConcurrency:
 class TestPublicEndpoints:
     """Tests for public (unauthenticated) endpoints."""
 
-    @pytest.mark.asyncio
     async def test_get_example_scripts(self, client: AsyncClient) -> None:
         """Example scripts endpoint returns scripts."""
         response = await client.get("/api/v1/example-scripts")
@@ -516,7 +435,6 @@ class TestPublicEndpoints:
         assert "python" in result.scripts
         assert len(result.scripts["python"]) > 0
 
-    @pytest.mark.asyncio
     async def test_get_k8s_resource_limits(self, client: AsyncClient) -> None:
         """K8s limits endpoint returns resource limits."""
         response = await client.get("/api/v1/k8s-limits")

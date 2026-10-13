@@ -51,7 +51,6 @@ def service(
 
 
 class TestListExecutions:
-    @pytest.mark.asyncio
     async def test_list_executions_no_filters(
         self,
         service: AdminExecutionService,
@@ -73,7 +72,6 @@ class TestListExecutions:
         )
         mock_repo.count_executions.assert_awaited_once_with({})
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_status(
         self,
         service: AdminExecutionService,
@@ -84,7 +82,6 @@ class TestListExecutions:
         call_kwargs = mock_repo.get_executions.call_args
         assert call_kwargs.kwargs["query"] == {"status": ExecutionStatus.RUNNING}
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_priority(
         self,
         service: AdminExecutionService,
@@ -94,7 +91,6 @@ class TestListExecutions:
         call_kwargs = mock_repo.get_executions.call_args
         assert call_kwargs.kwargs["query"] == {"priority": QueuePriority.HIGH}
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_user_id(
         self,
         service: AdminExecutionService,
@@ -104,7 +100,6 @@ class TestListExecutions:
         call_kwargs = mock_repo.get_executions.call_args
         assert call_kwargs.kwargs["query"] == {"user_id": "u1"}
 
-    @pytest.mark.asyncio
     async def test_list_executions_with_all_filters(
         self,
         service: AdminExecutionService,
@@ -122,7 +117,6 @@ class TestListExecutions:
             "user_id": "u1",
         }
 
-    @pytest.mark.asyncio
     async def test_list_executions_pagination(
         self,
         service: AdminExecutionService,
@@ -135,7 +129,6 @@ class TestListExecutions:
 
 
 class TestUpdatePriority:
-    @pytest.mark.asyncio
     async def test_update_priority_success(
         self,
         service: AdminExecutionService,
@@ -151,7 +144,6 @@ class TestUpdatePriority:
         assert result.priority == QueuePriority.HIGH
         mock_repo.update_priority.assert_awaited_once_with("e1", QueuePriority.HIGH)
 
-    @pytest.mark.asyncio
     async def test_update_priority_not_found(
         self,
         service: AdminExecutionService,
@@ -162,7 +154,6 @@ class TestUpdatePriority:
         with pytest.raises(ExecutionNotFoundError):
             await service.update_priority("missing", QueuePriority.HIGH)
 
-    @pytest.mark.asyncio
     async def test_update_priority_updates_redis(
         self,
         service: AdminExecutionService,
@@ -177,7 +168,6 @@ class TestUpdatePriority:
 
 
 class TestGetQueueStatus:
-    @pytest.mark.asyncio
     async def test_get_queue_status(
         self,
         service: AdminExecutionService,

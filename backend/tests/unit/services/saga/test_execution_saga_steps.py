@@ -25,7 +25,6 @@ def _req(timeout: int = 30, script: str = "print('x')") -> ExecutionRequestedEve
     return make_execution_requested_event(execution_id="e1", script=script, timeout_seconds=timeout)
 
 
-@pytest.mark.asyncio
 async def test_validate_execution_step_success_and_failures() -> None:
     ctx = SagaContext("s1", "e1")
     ok = await ValidateExecutionStep(logger=_logger).execute(ctx, _req())
@@ -70,7 +69,6 @@ class _FakeAllocRepo(ResourceAllocationRepository):
         return True
 
 
-@pytest.mark.asyncio
 async def test_allocate_resources_step_paths() -> None:
     ctx = SagaContext("s1", "e1")
     ctx.set("execution_id", "e1")
@@ -99,7 +97,6 @@ class _FakeProducer(UnifiedProducer):
         self.events.append(event_to_produce)
 
 
-@pytest.mark.asyncio
 async def test_create_pod_step_publish_flag_and_compensation() -> None:
     prod = _FakeProducer()
 
@@ -123,7 +120,6 @@ async def test_create_pod_step_publish_flag_and_compensation() -> None:
     assert await comp.compensate(ctx2) is True
 
 
-@pytest.mark.asyncio
 async def test_release_resources_compensation() -> None:
     repo = _FakeAllocRepo()
     comp = ReleaseResourcesCompensation(alloc_repo=repo, logger=_logger)
@@ -136,7 +132,6 @@ async def test_release_resources_compensation() -> None:
     assert await ReleaseResourcesCompensation(alloc_repo=repo, logger=_logger).compensate(ctx2) is True
 
 
-@pytest.mark.asyncio
 async def test_delete_pod_compensation_variants() -> None:
     prod = _FakeProducer()
 

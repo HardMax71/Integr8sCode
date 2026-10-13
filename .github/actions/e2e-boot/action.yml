@@ -56,8 +56,7 @@ runs:
         echo $! > /tmp/kueue-download.pid
 
         nohup bash -c '
-          sudo k3s crictl pull docker.io/library/python:3.11-slim \
-            && sudo k3s crictl pull docker.io/library/python:3.14-slim
+          sudo k3s crictl pull docker.io/library/python:3.14-slim
           echo $? > /tmp/crictl-python.exit
         ' > /tmp/crictl-python.log 2>&1 &
         echo $! > /tmp/crictl-python.pid

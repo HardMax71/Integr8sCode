@@ -14,7 +14,7 @@ from app.services.idempotency import IdempotencyConfig, IdempotencyManager, Redi
 from app.settings import Settings
 from tests.conftest import make_execution_requested_event
 
-pytestmark = [pytest.mark.e2e, pytest.mark.redis]
+pytestmark = [pytest.mark.e2e]
 
 # Test logger for all tests
 _test_logger = structlog.get_logger("test.idempotency")
@@ -37,7 +37,6 @@ class TestIdempotencyManager:
         idempotency_metrics = IdempotencyMetrics(test_settings)
         return IdempotencyManager(cfg, repo, _test_logger, idempotency_metrics=idempotency_metrics)
 
-    @pytest.mark.asyncio
     async def test_complete_flow_new_event(self, manager: IdempotencyManager) -> None:
         """Test the complete flow for a new event"""
         real_event = make_execution_requested_event(execution_id="exec-123")
@@ -65,7 +64,6 @@ class TestIdempotencyManager:
         assert record.completed_at is not None
         assert record.processing_duration_ms is not None
 
-    @pytest.mark.asyncio
     async def test_duplicate_detection(self, manager: IdempotencyManager) -> None:
         """Test that duplicates are properly detected"""
         real_event = make_execution_requested_event(execution_id="exec-dupe-1")
@@ -81,7 +79,6 @@ class TestIdempotencyManager:
         assert result2.is_duplicate is True
         assert result2.status == IdempotencyStatus.COMPLETED
 
-    @pytest.mark.asyncio
     async def test_concurrent_requests_race_condition(self, manager: IdempotencyManager) -> None:
         """Test handling of concurrent requests for the same event"""
         real_event = make_execution_requested_event(execution_id="exec-race-1")
@@ -98,7 +95,6 @@ class TestIdempotencyManager:
         duplicate_count = sum(1 for r in results if r.is_duplicate)
         assert duplicate_count == 4
 
-    @pytest.mark.asyncio
     async def test_processing_timeout_allows_retry(self, manager: IdempotencyManager) -> None:
         """Test that stuck processing allows retry after timeout"""
         real_event = make_execution_requested_event(execution_id="exec-timeout-1")
@@ -117,7 +113,6 @@ class TestIdempotencyManager:
         assert result2.is_duplicate is False  # Allowed to retry
         assert result2.status == IdempotencyStatus.PROCESSING
 
-    @pytest.mark.asyncio
     async def test_content_hash_strategy(self, manager: IdempotencyManager) -> None:
         """Test content-based deduplication"""
         # Two events with same content and same execution_id
@@ -141,7 +136,6 @@ class TestIdempotencyManager:
         result2 = await manager.check_and_reserve(event2, key_strategy=KeyStrategy.CONTENT_HASH)
         assert result2.is_duplicate is True
 
-    @pytest.mark.asyncio
     async def test_failed_event_handling(self, manager: IdempotencyManager) -> None:
         """Test marking events as failed"""
         real_event = make_execution_requested_event(execution_id="exec-failed-1")
@@ -161,7 +155,6 @@ class TestIdempotencyManager:
         assert record.error == error_msg
         assert record.completed_at is not None
 
-    @pytest.mark.asyncio
     async def test_result_caching(self, manager: IdempotencyManager) -> None:
         """Test caching of results"""
         real_event = make_execution_requested_event(execution_id="exec-cache-1")
@@ -185,21 +178,18 @@ class TestIdempotencyManager:
         assert duplicate_result.is_duplicate is True
         assert duplicate_result.has_cached_result is True
 
-    @pytest.mark.asyncio
     async def test_invalid_key_strategy(self, manager: IdempotencyManager) -> None:
         """Test that invalid key strategy raises error"""
         real_event = make_execution_requested_event(execution_id="invalid-strategy-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
             await manager.check_and_reserve(real_event, key_strategy="invalid_strategy")  # type: ignore[arg-type]  # testing invalid use
 
-    @pytest.mark.asyncio
     async def test_custom_key_without_custom_key_param(self, manager: IdempotencyManager) -> None:
         """Test that custom strategy without custom_key raises error"""
         real_event = make_execution_requested_event(execution_id="custom-key-missing-1")
         with pytest.raises(ValueError, match="Invalid key strategy"):
             await manager.check_and_reserve(real_event, key_strategy=KeyStrategy.CUSTOM)
 
-    @pytest.mark.asyncio
     async def test_get_cached_json_existing(self, manager: IdempotencyManager) -> None:
         """Test retrieving cached JSON result"""
         real_event = make_execution_requested_event(execution_id="cache-exist-1")
@@ -210,14 +200,12 @@ class TestIdempotencyManager:
         retrieved = await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
         assert retrieved == cached_data
 
-    @pytest.mark.asyncio
     async def test_get_cached_json_non_existing(self, manager: IdempotencyManager) -> None:
         """Test retrieving non-existing cached result returns None"""
         real_event = make_execution_requested_event(execution_id="cache-miss-1")
         result = await manager.get_cached_json(real_event, KeyStrategy.EVENT_BASED, None)
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_cleanup_expired_keys(self, manager: IdempotencyManager) -> None:
         """Test cleanup of expired keys"""
         expired_key = f"{manager.config.key_prefix}:expired"
@@ -235,7 +223,6 @@ class TestIdempotencyManager:
         record = await manager._repo.find_by_key(expired_key)
         assert record is not None
 
-    @pytest.mark.asyncio
     async def test_content_hash_with_fields(self, manager: IdempotencyManager) -> None:
         """Test content hash with specific fields"""
         event1 = make_execution_requested_event(

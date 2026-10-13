@@ -33,7 +33,6 @@ def _service(test_settings: Settings, metrics: NotificationMetrics, bus: SSERedi
     )
 
 
-@pytest.mark.asyncio
 async def test_retried_delivery_counts_the_retry(test_settings: Settings) -> None:
     metrics = MagicMock(spec=NotificationMetrics)
     bus = AsyncMock(spec=SSERedisBus)
@@ -48,7 +47,6 @@ async def test_retried_delivery_counts_the_retry(test_settings: Settings) -> Non
     metrics.record_notification_failed.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_failed_delivery_labels_the_error_by_type(test_settings: Settings) -> None:
     metrics = MagicMock(spec=NotificationMetrics)
     bus = AsyncMock(spec=SSERedisBus)

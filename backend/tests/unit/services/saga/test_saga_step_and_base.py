@@ -14,7 +14,6 @@ class _DummyComp(CompensationStep):
         return True
 
 
-@pytest.mark.asyncio
 async def test_context_add_compensation() -> None:
     ctx = SagaContext("s1", "e1")
     comp = _DummyComp()

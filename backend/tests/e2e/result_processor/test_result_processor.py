@@ -1,6 +1,5 @@
 import pytest
 import structlog
-from dishka import AsyncContainer
 
 from app.core.metrics import ExecutionMetrics
 from app.db.docs import ExecutionDocument
@@ -16,32 +15,25 @@ from app.events.core import UnifiedProducer
 from app.services.result_processor import ResultProcessor
 from app.services.runtime_settings import RuntimeSettingsLoader
 
-pytestmark = [
-    pytest.mark.e2e,
-    pytest.mark.kafka,
-    pytest.mark.mongodb,
-    pytest.mark.xdist_group("kafka_consumers"),
-]
+pytestmark = [pytest.mark.e2e]
 
 _test_logger = structlog.get_logger("test.result_processor.processor")
 
 
-@pytest.mark.asyncio
-async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> None:
-    runtime_settings: RuntimeSettingsLoader = await scope.get(RuntimeSettingsLoader)
-    execution_metrics: ExecutionMetrics = await scope.get(ExecutionMetrics)
+async def test_result_processor_persists_and_emits(
+    runtime_settings_loader: RuntimeSettingsLoader,
+    execution_metrics: ExecutionMetrics,
+    execution_repository: ExecutionRepository,
+    unified_producer: UnifiedProducer,
+) -> None:
 
     # Dependencies
-    repo: ExecutionRepository = await scope.get(ExecutionRepository)
-    producer: UnifiedProducer = await scope.get(UnifiedProducer)
 
     # Create a base execution to satisfy ResultProcessor lookup
-    created = await repo.create_execution(
+    created = await execution_repository.create_execution(
         DomainExecutionCreate(
             script="print('x')",
             user_id="u1",
-            lang="python",
-            lang_version="3.11",
             status=ExecutionStatus.RUNNING,
         )
     )
@@ -49,9 +41,9 @@ async def test_result_processor_persists_and_emits(scope: AsyncContainer) -> Non
 
     # Build the processor
     processor = ResultProcessor(
-        execution_repo=repo,
-        producer=producer,
-        runtime_settings=runtime_settings,
+        execution_repo=execution_repository,
+        producer=unified_producer,
+        runtime_settings=runtime_settings_loader,
         logger=_test_logger,
         execution_metrics=execution_metrics,
     )

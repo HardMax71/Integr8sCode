@@ -187,7 +187,6 @@ def _orch(
     )
 
 
-@pytest.mark.asyncio
 async def test_handle_event_enqueues_and_starts_saga() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
@@ -204,7 +203,6 @@ async def test_handle_event_enqueues_and_starts_saga() -> None:
     assert first_saved.saga_name == ExecutionSaga.get_name()
 
 
-@pytest.mark.asyncio
 async def test_existing_saga_short_circuits() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
@@ -222,7 +220,6 @@ async def test_existing_saga_short_circuits() -> None:
     assert fake_queue.released == []
 
 
-@pytest.mark.asyncio
 async def test_resolve_completion_releases_queue() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
@@ -254,7 +251,6 @@ async def test_resolve_completion_releases_queue() -> None:
     assert "e1" in fake_queue.released_user_slots
 
 
-@pytest.mark.asyncio
 async def test_start_saga_failure_requeues_execution() -> None:
     fake_repo = _FakeRepo()
     fake_queue = _FakeQueue()
@@ -273,7 +269,6 @@ async def test_start_saga_failure_requeues_execution() -> None:
     assert fake_queue.enqueued[1].execution_id == "e1"
 
 
-@pytest.mark.asyncio
 async def test_resolve_completion_releases_slot_when_saga_already_terminal() -> None:
     """Slot must be released even when the saga is already in a terminal state."""
     fake_repo = _FakeRepo()
@@ -309,7 +304,6 @@ async def test_resolve_completion_releases_slot_when_saga_already_terminal() -> 
     assert "e1" in fake_queue.released
 
 
-@pytest.mark.asyncio
 async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
     """Slot must be released even when no saga record exists."""
     fake_repo = _FakeRepo()
@@ -336,7 +330,6 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
     assert "orphan" in fake_queue.released
 
 
-@pytest.mark.asyncio
 async def test_resolve_completion_releases_slot_when_saga_deleted_before_update() -> None:
     """A saga removed between the read and the update (user deletion) must not keep the slot."""
 
@@ -368,7 +361,6 @@ async def test_resolve_completion_releases_slot_when_saga_deleted_before_update(
     assert fake_queue.released == ["e1"]
 
 
-@pytest.mark.asyncio
 async def test_max_retries_exceeded_fails_execution() -> None:
     """After _MAX_SAGA_START_RETRIES failures, the execution is not re-enqueued and the slot is released."""
     fake_repo = _FakeRepo()
@@ -390,7 +382,6 @@ async def test_max_retries_exceeded_fails_execution() -> None:
     assert "e1" in fake_queue.released
 
 
-@pytest.mark.asyncio
 async def test_retry_count_increments_across_failures() -> None:
     """Each saga start failure increments the retry count via the queue service."""
     fake_repo = _FakeRepo()
@@ -411,13 +402,11 @@ async def test_retry_count_increments_across_failures() -> None:
     assert fake_queue.released_user_slots == ["e1"]
 
 
-@pytest.mark.asyncio
 async def test_cancel_missing_saga_raises_not_found() -> None:
     with pytest.raises(SagaNotFoundError):
         await _orch().cancel_saga("missing")
 
 
-@pytest.mark.asyncio
 async def test_update_of_missing_saga_raises_not_found() -> None:
     with pytest.raises(SagaNotFoundError):
         await _orch()._fail_saga("missing", "boom")

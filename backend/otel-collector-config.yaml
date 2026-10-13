@@ -111,9 +111,6 @@ processors:
   
   resource:
     attributes:
-      - key: service.name
-        from_attribute: service_name
-        action: upsert
       - key: service.namespace
         value: integr8scode
         action: insert

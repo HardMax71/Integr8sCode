@@ -18,13 +18,13 @@ class Tracer:
     """DI-managed OpenTelemetry tracer. Initialization happens on construction."""
 
     def __init__(self, settings: Settings, logger: structlog.stdlib.BoundLogger) -> None:
-        name = settings.TRACING_SERVICE_NAME
+        name = settings.SERVICE_NAME
         rate = settings.TRACING_SAMPLING_RATE
 
         resource = Resource.create(
             {
                 SERVICE_NAME: name,
-                SERVICE_VERSION: settings.TRACING_SERVICE_VERSION,
+                SERVICE_VERSION: settings.SERVICE_VERSION,
                 "deployment.environment": settings.ENVIRONMENT,
                 "service.namespace": "integr8scode",
                 "service.instance.id": settings.HOSTNAME,

@@ -15,7 +15,7 @@ flowchart LR
 
 The only switch is `OTEL_EXPORTER_OTLP_ENDPOINT`: empty means no export. config.toml sets it to `http://otel-collector:4317`; config.test.toml leaves it unset.
 
-The OTel resource on every record has `service.name` from `SERVICE_NAME`, `service.version`, `service.namespace=integr8scode`, `deployment.environment` and `service.instance.id` from `HOSTNAME`.
+The OTel resource on every record has `service.name` from `SERVICE_NAME` (`integr8scode-backend` for the API, `integr8scode-worker` for the worker), `service.version`, `service.namespace=integr8scode`, `deployment.environment` and `service.instance.id` from `HOSTNAME`.
 
 ## Collector
 
@@ -35,11 +35,7 @@ The container has a 256m memory limit, keeps data in the `loki_data` volume and 
 
 ## Known problems
 
-Two things don't work as intended today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)).
-
-Every process logs as `service_name="integr8scode-backend"`. `config.worker.toml` only overrides `TRACING_SERVICE_NAME`, not `SERVICE_NAME`, and the collector's `resource` processor copies from a `service_name` attribute that doesn't exist. So the API and the worker share one `service_name` label (Loki tells their streams apart by `service_instance_id`), and a selector such as `{service_name="integr8scode-worker"}` returns nothing.
-
-The Loki datasource has a derived field that should link `trace_id` to Jaeger, but its regex is `"trace_id":"(\w+)"` and structlog writes `"trace_id": "..."` with a space after the colon. The link never appears.
+One thing doesn't work as intended today ([#294](https://github.com/HardMax71/Integr8sCode/issues/294)). The Loki datasource has a derived field that should link `trace_id` to Jaeger, but its regex is `"trace_id":"(\w+)"` and structlog writes `"trace_id": "..."` with a space after the colon. The link never appears.
 
 ## Queries
 
@@ -48,6 +44,9 @@ Open Grafana Explore at `http://localhost:3000/explore` and pick the Loki dataso
 ```logql
 # everything, from all processes
 {service_namespace="integr8scode"}
+
+# the worker only
+{service_name="integr8scode-worker"}
 
 # errors
 {service_namespace="integr8scode"} | json | level="error"

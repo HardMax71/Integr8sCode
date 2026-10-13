@@ -11,7 +11,6 @@ from typing import Any
 from .config import LoadConfig
 from .http_client import APIClient, APIUser
 from .stats import StatsCollector
-from .strategies import json_value
 
 
 def _rand(n: int = 8) -> str:
@@ -61,57 +60,39 @@ def build_monkey_catalog(cfg: LoadConfig) -> list[tuple[str, str]]:
     return out
 
 
+async def _monkey_client(
+    cfg: LoadConfig,
+    stats: StatsCollector,
+    catalog: list[tuple[str, str]],
+    deadline: float,
+    sem: asyncio.Semaphore,
+) -> None:
+    async with sem, APIClient(cfg, stats) as c:
+        # Half of the clients sign up first
+        if random.random() < 0.5:
+            uname = f"monkey_{_rand(6)}"
+            await c.register(APIUser(username=uname, email=f"{uname}@{cfg.user_domain}", password=cfg.user_password))
+            await c.login(uname, cfg.user_password)
+
+        while time.time() < deadline:
+            method, url = random.choice(catalog)
+            headers = c._with_csrf() if random.random() < 0.5 else {}
+            if method in ("POST", "PUT") and random.random() < 0.8:
+                body = _random_body()
+                # 70% JSON, the rest as raw text with the wrong content type
+                if random.random() < 0.7:
+                    await c._request(method, url, json=body, headers=headers)
+                else:
+                    await c._request(method, url, content=json.dumps(body), headers=headers)
+            else:
+                await c._request(method, url)
+            await asyncio.sleep(0)
+
+
 async def run_monkey_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:
     catalog = build_monkey_catalog(cfg)
     sem = asyncio.Semaphore(cfg.concurrency)
     deadline = time.time() + max(1, cfg.duration_seconds)
-
-    async def one_client(i: int) -> None:
-        c = APIClient(cfg, stats)
-        try:
-            # Half of clients attempt to login/register first
-            if random.random() < 0.5:
-                uname = f"monkey_{_rand(6)}"
-                user = APIUser(username=uname, email=f"{uname}@{cfg.user_domain}", password=cfg.user_password)
-                await c.register(user)
-                await c.login(uname, cfg.user_password)
-
-            # Run until deadline
-            while time.time() < deadline:
-                method, url = random.choice(catalog)
-                headers = {}
-                # Randomly include/omit CSRF header
-                if random.random() < 0.5:
-                    headers = c._with_csrf()
-                # Random bodies for POST/PUT
-                body = None
-                if method in ("POST", "PUT") and random.random() < 0.8:
-                    # Prefer Hypothesis-generated JSON payloads when available
-                    try:
-                        body = json_value.example()
-                    except Exception:
-                        body = _random_body()
-                    # 70% send JSON, 30% send text or wrong content type
-                    if random.random() < 0.7:
-                        await c._request(method, url, json=body, headers=headers)
-                    else:
-                        await c._request(method, url, content=json.dumps(body), headers=headers)
-                else:
-                    await c._request(method, url)
-                # Yield a tiny bit to share the loop
-                await asyncio.sleep(0)
-        finally:
-            await c.close()
-
-    tasks = []
-    for i in range(clients):
-        await sem.acquire()
-
-        async def _spawn(idx: int) -> None:
-            try:
-                await one_client(idx)
-            finally:
-                sem.release()
-
-        tasks.append(asyncio.create_task(_spawn(i)))
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(
+        *(_monkey_client(cfg, stats, catalog, deadline, sem) for _ in range(clients)), return_exceptions=True
+    )

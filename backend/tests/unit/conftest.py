@@ -9,9 +9,11 @@ from kubernetes_asyncio.client import (
     V1ContainerStateTerminated,
     V1ContainerStateWaiting,
     V1ContainerStatus,
+    V1ListMeta,
     V1ObjectMeta,
     V1Pod,
     V1PodCondition,
+    V1PodList,
     V1PodSpec,
     V1PodStatus,
 )
@@ -181,16 +183,12 @@ def make_mock_v1_api(
     list_resource_version: str = "list-rv1",
 ) -> MagicMock:
     """Create a mock CoreV1Api with configurable responses."""
-
-    class PodList:
-        def __init__(self, items: list[V1Pod], resource_version: str) -> None:
-            self.items = items
-            self.metadata = V1ObjectMeta(resource_version=resource_version)
-
     mock = MagicMock()
     mock.read_namespaced_pod_log = AsyncMock(return_value=make_pod_log_response(logs))
     mock.get_api_resources = AsyncMock(return_value=None)
-    mock.list_namespaced_pod = AsyncMock(return_value=PodList(list(pods or []), list_resource_version))
+    mock.list_namespaced_pod = AsyncMock(
+        return_value=V1PodList(items=list(pods or []), metadata=V1ListMeta(resource_version=list_resource_version))
+    )
     return mock
 
 

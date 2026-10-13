@@ -26,20 +26,27 @@ def _event() -> UserRegisteredEvent:
     )
 
 
+class _Subscriber:
+    """Hands each delivered event to the test's mock, so the test sees what the handler got."""
+
+    def __init__(self, handler: AsyncMock) -> None:
+        self.handler = handler
+
+    async def on_user_registered(self, body: UserRegisteredEvent) -> None:
+        await self.handler(body)
+
+
 async def _deliver(manager: AsyncMock, handler: AsyncMock, headers: dict[str, str] | None = None) -> None:
     """Publish one event to a group-a subscriber, wired the way the workers wire it."""
     provider = Provider(scope=Scope.APP)
-    provider.provide(lambda: manager, provides=DLQManager)
+    provider.from_context(provides=DLQManager, scope=Scope.APP)
 
     router = KafkaRouter(middlewares=(DeadLetterMiddleware,))
-
-    @router.subscriber("user_registered", group_id="group-a")
-    async def on_user_registered(body: UserRegisteredEvent) -> None:
-        await handler(body)
+    router.subscriber("user_registered", group_id="group-a")(_Subscriber(handler).on_user_registered)
 
     broker = KafkaBroker(middlewares=(RetryTargetMiddleware,))
     broker.include_router(router)
-    setup_dishka(make_async_container(provider), broker=broker, auto_inject=True)
+    setup_dishka(make_async_container(provider, context={DLQManager: manager}), broker=broker, auto_inject=True)
     async with TestKafkaBroker(broker) as test_broker:
         await test_broker.publish(_event(), "user_registered", headers=headers)
 

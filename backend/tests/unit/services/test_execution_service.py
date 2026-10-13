@@ -11,6 +11,8 @@ from app.domain.admin import SystemSettings
 from app.domain.enums import EventType, ExecutionStatus, UserRole
 from app.domain.exceptions import ConflictError, InfrastructureError
 from app.domain.execution import (
+    DomainExecution,
+    DomainExecutionCreate,
     ExecutionAccessDeniedError,
     ExecutionLimitExceededError,
     ExecutionNotRetryableError,
@@ -44,6 +46,11 @@ def _user(user_id: str) -> User:
         created_at=now,
         updated_at=now,
     )
+
+
+def _created(data: DomainExecutionCreate) -> DomainExecution:
+    """What the repository returns for a create: an execution under the id the service chose."""
+    return make_domain_execution(execution_id=data.execution_id)
 
 
 @pytest.fixture
@@ -265,7 +272,7 @@ async def test_execute_refuses_a_user_at_the_execution_limit(
 async def test_execute_reserves_the_slot_under_the_new_execution_id(
     service: ExecutionService, repo: AsyncMock, queue: AsyncMock
 ) -> None:
-    repo.create_execution.side_effect = lambda data: make_domain_execution(execution_id=data.execution_id)
+    repo.create_execution.side_effect = _created
 
     created = await service.execute_script(script="print(1)", user_id="u1")
 
@@ -277,7 +284,7 @@ async def test_execute_reserves_the_slot_under_the_new_execution_id(
 async def test_execute_gives_the_slot_back_when_submission_fails(
     service: ExecutionService, repo: AsyncMock, producer: AsyncMock, queue: AsyncMock, failing: str
 ) -> None:
-    repo.create_execution.side_effect = lambda data: make_domain_execution(execution_id=data.execution_id)
+    repo.create_execution.side_effect = _created
     if failing == "create":
         repo.create_execution.side_effect = InfrastructureError("mongo down")
     else:

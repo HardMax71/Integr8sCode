@@ -49,26 +49,29 @@ class TestExceptionMapping:
         assert _map_to_status_code(exception) == expected_status
 
 
+async def _domain() -> None:
+    raise NotFoundError("Saga", "s-1")
+
+
+async def _http() -> None:
+    raise HTTPException(status_code=401, detail="Not authenticated", headers={"WWW-Authenticate": "Bearer"})
+
+
+async def _validated(limit: int) -> int:
+    return limit
+
+
+async def _crash() -> None:
+    raise RuntimeError("boom")
+
+
 def _app() -> FastAPI:
     app = FastAPI()
     configure_exception_handlers(app)
-
-    @app.get("/domain")
-    async def domain() -> None:
-        raise NotFoundError("Saga", "s-1")
-
-    @app.get("/http")
-    async def http() -> None:
-        raise HTTPException(status_code=401, detail="Not authenticated", headers={"WWW-Authenticate": "Bearer"})
-
-    @app.get("/validated")
-    async def validated(limit: int) -> int:
-        return limit
-
-    @app.get("/crash")
-    async def crash() -> None:
-        raise RuntimeError("boom")
-
+    app.add_api_route("/domain", _domain)
+    app.add_api_route("/http", _http)
+    app.add_api_route("/validated", _validated)
+    app.add_api_route("/crash", _crash)
     return app
 
 

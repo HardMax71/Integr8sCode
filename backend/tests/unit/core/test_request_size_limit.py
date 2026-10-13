@@ -17,15 +17,31 @@ class _Payload(BaseModel):
     data: str
 
 
+async def _echo(payload: _Payload) -> dict[str, int]:
+    return {"size": len(payload.data)}
+
+
 def _app() -> RequestSizeLimitMiddleware:
     api = FastAPI()
     configure_exception_handlers(api)
-
-    @api.post("/echo")
-    async def echo(payload: _Payload) -> dict[str, int]:
-        return {"size": len(payload.data)}
-
+    api.add_api_route("/echo", _echo, methods=["POST"])
     return RequestSizeLimitMiddleware(api, max_size_mb=1)
+
+
+class _Channel:
+    """Feeds the request body in chunks and keeps every message the app sends back."""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self.pending: list[Message] = [
+            {"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1} for i, chunk in enumerate(chunks)
+        ]
+        self.sent: list[Message] = []
+
+    async def receive(self) -> Message:
+        return self.pending.pop(0) if self.pending else {"type": "http.disconnect"}
+
+    async def send(self, message: Message) -> None:
+        self.sent.append(message)
 
 
 async def _post(chunks: list[bytes], content_length: int | None) -> tuple[int, dict[str, object]]:
@@ -46,20 +62,10 @@ async def _post(chunks: list[bytes], content_length: int | None) -> tuple[int, d
         "client": ("203.0.113.7", 50000),
         "server": ("test", 443),
     }
-    pending = [
-        {"type": "http.request", "body": chunk, "more_body": i < len(chunks) - 1} for i, chunk in enumerate(chunks)
-    ]
-    sent: list[Message] = []
-
-    async def receive() -> Message:
-        return pending.pop(0) if pending else {"type": "http.disconnect"}
-
-    async def send(message: Message) -> None:
-        sent.append(message)
-
-    await _app()(scope, receive, send)
-    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
-    return int(sent[0]["status"]), json.loads(body)
+    channel = _Channel(chunks)
+    await _app()(scope, channel.receive, channel.send)
+    body = b"".join(m.get("body", b"") for m in channel.sent if m["type"] == "http.response.body")
+    return int(channel.sent[0]["status"]), json.loads(body)
 
 
 _TOO_LARGE = {"status": 413, "detail": "Request too large. Maximum size is 1.0MB"}

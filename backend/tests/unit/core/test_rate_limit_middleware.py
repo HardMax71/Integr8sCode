@@ -20,14 +20,21 @@ async def _ok_app(scope: Scope, receive: Receive, send: Send) -> None:
     await PlainTextResponse("ok")(scope, receive, send)
 
 
-async def _request(middleware: RateLimitMiddleware, path: str, cookies: str = "") -> int:
-    messages: list[Message] = []
+class _Channel:
+    """An empty request body, and every message the app sends back."""
 
-    async def receive() -> Message:
+    def __init__(self) -> None:
+        self.sent: list[Message] = []
+
+    async def receive(self) -> Message:
         return {"type": "http.request", "body": b"", "more_body": False}
 
-    async def send(message: Message) -> None:
-        messages.append(message)
+    async def send(self, message: Message) -> None:
+        self.sent.append(message)
+
+
+async def _request(middleware: RateLimitMiddleware, path: str, cookies: str = "") -> int:
+    channel = _Channel()
 
     scope: Scope = {
         "type": "http",
@@ -42,8 +49,8 @@ async def _request(middleware: RateLimitMiddleware, path: str, cookies: str = ""
         "root_path": "",
         "http_version": "1.1",
     }
-    await middleware(scope, receive, send)
-    return int(messages[0]["status"])
+    await middleware(scope, channel.receive, channel.send)
+    return int(channel.sent[0]["status"])
 
 
 def _rate_limit_service(allowed: bool) -> AsyncMock:
@@ -57,7 +64,7 @@ def _rate_limit_service(allowed: bool) -> AsyncMock:
 def _middleware(service: AsyncMock, security: SecurityService, settings: Settings) -> RateLimitMiddleware:
     services: dict[type, object] = {RateLimitService: service, SecurityService: security}
     container = AsyncMock(spec=AsyncContainer)
-    container.get.side_effect = lambda dependency: services[dependency]
+    container.get.side_effect = services.get
     enabled = settings.model_copy(update={"RATE_LIMIT_ENABLED": True})
     return RateLimitMiddleware(_ok_app, container=container, settings=enabled)
 

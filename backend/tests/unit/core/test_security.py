@@ -1,5 +1,4 @@
 import time
-from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -263,33 +262,30 @@ class TestDecodeUserId:
         assert svc.decode_user_id(token) == "user-1"
 
     @pytest.mark.parametrize(
-        "make_token",
+        ("claims", "lifetime", "key"),
         [
-            lambda s: jwt.encode(
-                {"sub": "u", "user_id": "user-1", "exp": datetime.now(timezone.utc) - timedelta(seconds=5)},
-                s.SECRET_KEY,
-                algorithm=s.ALGORITHM,
-            ),
-            lambda s: jwt.encode(
-                {"sub": "u", "user_id": "user-1", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-                "wrong-secret-key-padded-to-32-bytes",
-                algorithm=s.ALGORITHM,
-            ),
-            lambda s: jwt.encode(
-                {"sub": "u", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-                s.SECRET_KEY,
-                algorithm=s.ALGORITHM,
-            ),
-            lambda s: "not.a.token",
+            ({"sub": "u", "user_id": "user-1"}, timedelta(seconds=-5), None),
+            ({"sub": "u", "user_id": "user-1"}, timedelta(minutes=5), "wrong-secret-key-padded-to-32-bytes"),
+            ({"sub": "u"}, timedelta(minutes=5), None),
+            (None, timedelta(minutes=5), None),
         ],
         ids=["expired", "wrong_signature", "no_user_id", "malformed"],
     )
     def test_unusable_token_raises_without_counting_a_failure(
-        self, test_settings: Settings, make_token: Callable[[Settings], str]
+        self, test_settings: Settings, claims: dict[str, object] | None, lifetime: timedelta, key: str | None
     ) -> None:
         metrics = MagicMock(spec=SecurityMetrics)
         svc = SecurityService(test_settings, metrics)
+        token = (
+            "not.a.token"
+            if claims is None
+            else jwt.encode(
+                {**claims, "exp": datetime.now(timezone.utc) + lifetime},
+                key or test_settings.SECRET_KEY,
+                algorithm=test_settings.ALGORITHM,
+            )
+        )
 
         with pytest.raises(InvalidCredentialsError):
-            svc.decode_user_id(make_token(test_settings))
+            svc.decode_user_id(token)
         metrics.record_token_validation_failure.assert_not_called()

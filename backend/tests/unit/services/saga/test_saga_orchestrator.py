@@ -330,15 +330,17 @@ async def test_resolve_completion_releases_slot_when_no_saga_found() -> None:
     assert "orphan" in fake_queue.released
 
 
+
+class _VanishingRepo(_FakeRepo):
+    """A repository whose saga disappears once ``vanished`` is set, as a user deletion does mid-flight."""
+
+    vanished = False
+
+    async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
+        return None if self.vanished else await super().save_saga(saga_id, **updates)
+
 async def test_resolve_completion_releases_slot_when_saga_deleted_before_update() -> None:
     """A saga removed between the read and the update (user deletion) must not keep the slot."""
-
-    class _VanishingRepo(_FakeRepo):
-        vanished = False
-
-        async def save_saga(self, saga_id: str, **updates: Any) -> Saga | None:
-            return None if self.vanished else await super().save_saga(saga_id, **updates)
-
     fake_repo = _VanishingRepo()
     fake_queue = _FakeQueue()
     orch = _orch(repo=fake_repo, queue=fake_queue)

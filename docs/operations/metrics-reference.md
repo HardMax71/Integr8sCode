@@ -111,8 +111,8 @@ The status snapshot a stream sends first comes from the database, not Redis, and
 | `pod_monitor_events_total` | counter | event_type, pod_phase | `PodMonitor` in worker: each application event it publishes |
 | `pod_monitor_processing_duration_seconds` | histogram | event_type: ADDED, MODIFIED, DELETED | `PodMonitor` in worker: mapping and publishing one watch event |
 | `pod_monitor_reconciliations_total` | counter | none | `PodMonitor` in worker: each full LIST, on start and after 410 Gone |
-| `pod_monitor_watch_errors_total` | counter | error_type: resource_version_expired, api_error, unexpected, processing_error | `PodMonitor` and `app/worker.py` in worker |
-| `pod_monitor_watch_reconnects_total` | counter | none | `app/worker.py` in worker, after a failed watch cycle |
+| `pod_monitor_watch_errors_total` | counter | error_type: resource_version_expired, api_error, unexpected, processing_error | `PodMonitor` in worker |
+| `pod_monitor_watch_reconnects_total` | counter | none | `PodMonitor.watch_cycle` in worker, after a failed watch cycle |
 
 ### Notifications (backend)
 

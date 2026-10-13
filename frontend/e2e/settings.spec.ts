@@ -26,40 +26,40 @@ test('the theme picker offers every theme and applies the pick at once', async (
     await expect(userPage.locator('html')).not.toHaveClass(/\bdark\b/);
 });
 
-test('the editor tab edits font size, tab size and the toggles', async ({ userPage }) => {
+const TOGGLES = {
+    editor: ['use_tabs', 'word_wrap', 'show_line_numbers'],
+    notifications: ['execution_completed', 'execution_failed', 'system_updates', 'security_alerts'],
+};
+
+for (const [tab, keys] of Object.entries(TOGGLES)) {
+    test(`the ${tab} tab flips each of its toggles`, async ({ userPage }) => {
+        await userPage.goto('/settings');
+        await userPage
+            .getByRole('main')
+            .getByRole('button', { name: fieldTitle(tab), exact: true })
+            .click();
+        await expect(userPage.getByRole('heading', { name: fieldTitle(tab), exact: true })).toBeVisible();
+        for (const key of keys) {
+            const toggle = userPage.getByRole('checkbox', { name: fieldTitle(key) });
+            const checked = await toggle.isChecked();
+            await toggle.click();
+            await expect(toggle).toBeChecked({ checked: !checked });
+        }
+    });
+}
+
+test('the editor tab edits font size and tab size', async ({ userPage }) => {
     await userPage.goto('/settings');
     await userPage
         .getByRole('main')
         .getByRole('button', { name: fieldTitle('editor'), exact: true })
         .click();
-    await expect(userPage.getByRole('heading', { name: fieldTitle('editor'), exact: true })).toBeVisible();
     const fontSize = userPage.getByLabel(fieldTitle('font_size'));
     await fontSize.fill('16');
     await expect(fontSize).toHaveValue('16');
     const tabSize = userPage.getByLabel(fieldTitle('tab_size'));
     await tabSize.selectOption('2');
     await expect(tabSize).toHaveValue('2');
-    for (const key of ['use_tabs', 'word_wrap', 'show_line_numbers']) {
-        const toggle = userPage.getByRole('checkbox', { name: fieldTitle(key) });
-        const checked = await toggle.isChecked();
-        await toggle.click();
-        await expect(toggle).toBeChecked({ checked: !checked });
-    }
-});
-
-test('the notifications tab toggles each notification type', async ({ userPage }) => {
-    await userPage.goto('/settings');
-    await userPage
-        .getByRole('main')
-        .getByRole('button', { name: fieldTitle('notifications'), exact: true })
-        .click();
-    await expect(userPage.getByRole('heading', { name: fieldTitle('notifications'), exact: true })).toBeVisible();
-    for (const key of ['execution_completed', 'execution_failed', 'system_updates', 'security_alerts']) {
-        const toggle = userPage.getByRole('checkbox', { name: fieldTitle(key) });
-        const checked = await toggle.isChecked();
-        await toggle.click();
-        await expect(toggle).toBeChecked({ checked: !checked });
-    }
 });
 
 test('a saved change shows in the history and can be restored', async ({ userPage }) => {

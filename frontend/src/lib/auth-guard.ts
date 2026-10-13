@@ -10,7 +10,7 @@ import { authStore } from '#stores/auth.svelte.ts';
  */
 export async function requireAuth(url: URL): Promise<void> {
     const signedIn = await authStore.waitForInit().catch(() => false);
-    if (signedIn && authStore.isAuthenticated) return;
+    if (signedIn && authStore.session.status === 'signed-in') return;
     sessionStorage.setItem('redirectAfterLogin', url.pathname + url.search);
     redirect(307, resolve('/login'));
 }
@@ -21,7 +21,7 @@ export async function requireAuth(url: URL): Promise<void> {
  */
 export async function requireAdmin(url: URL): Promise<void> {
     await requireAuth(url);
-    if (authStore.user?.role === UserRole.ADMIN) return;
+    if (authStore.session.status === 'signed-in' && authStore.session.user.role === UserRole.ADMIN) return;
     toast.error('Admin access required');
     redirect(307, resolve('/'));
 }

@@ -62,7 +62,7 @@
                         Tools & Info
                     </h3>
                     <ul class="space-y-3 text-sm">
-                        {#if authStore.user?.role === UserRole.ADMIN}
+                        {#if authStore.session.status === 'signed-in' && authStore.session.user.role === UserRole.ADMIN}
                             <li>
                                 <a
                                     href="/grafana"

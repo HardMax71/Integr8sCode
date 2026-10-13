@@ -9,7 +9,7 @@
     let filters = $state(noFilters());
     let refreshEnabled = $state(true);
     let refreshRate = $state(5);
-    let selectedSagaId = $state<string | null>(null);
+    let selectedSagaId = $state('');
 
     // A new filter goes back to the first page, since the old one may not exist under it
     let pageSize = $state(10);
@@ -30,7 +30,7 @@
     const sagas = $derived(list.data?.sagas ?? []);
 
     function showExecution(executionId: string): void {
-        selectedSagaId = null;
+        selectedSagaId = '';
         filters.execution_id = executionId;
     }
 </script>
@@ -71,5 +71,5 @@
 </div>
 
 {#if selectedSagaId}
-    <SagaDetailsModal sagaId={selectedSagaId} onClose={() => (selectedSagaId = null)} onViewExecution={showExecution} />
+    <SagaDetailsModal sagaId={selectedSagaId} onClose={() => (selectedSagaId = '')} onViewExecution={showExecution} />
 {/if}

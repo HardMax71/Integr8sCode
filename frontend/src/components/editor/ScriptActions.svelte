@@ -133,7 +133,7 @@
         >
             <Upload class="w-4 h-4" /><span>Upload</span>
         </button>
-        {#if authStore.isAuthenticated}
+        {#if authStore.session.status === 'signed-in'}
             <button
                 type="button"
                 class="btn btn-primary btn-sm inline-flex items-center justify-center space-x-1"

@@ -3,12 +3,12 @@ import { isRedirect } from '@sveltejs/kit';
 import { toast } from 'svelte-sonner';
 import { requireAdmin, requireAuth } from '#lib/auth-guard.ts';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
-import { UserRole, type UserResponse } from '#lib/api/index.ts';
+import { UserRole } from '#lib/api/index.ts';
+import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
     authStore: {
-        isAuthenticated: true as boolean | null,
-        user: null as UserResponse | null,
+        session: { status: 'signed-out' } as Session,
         waitForInit: vi.fn(),
     },
 }));
@@ -27,8 +27,11 @@ describe('auth guards', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         sessionStorage.clear();
-        mocks.authStore.isAuthenticated = true;
-        mocks.authStore.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
+        mocks.authStore.session = {
+            status: 'signed-in',
+            user: { ...fakeUserResponse(), role: UserRole.ADMIN },
+            csrfToken: 'csrf',
+        };
         mocks.authStore.waitForInit.mockResolvedValue(true);
     });
 
@@ -37,7 +40,7 @@ describe('auth guards', () => {
     });
 
     it('sends a signed-out visitor to /login and remembers the path', async () => {
-        mocks.authStore.isAuthenticated = false;
+        mocks.authStore.session = { status: 'signed-out' };
         mocks.authStore.waitForInit.mockResolvedValue(false);
 
         const redirect = await redirectFrom(requireAuth(url));
@@ -58,7 +61,11 @@ describe('auth guards', () => {
     });
 
     it('sends a non-admin home with a toast', async () => {
-        mocks.authStore.user = { ...fakeUserResponse(), role: UserRole.USER };
+        mocks.authStore.session = {
+            status: 'signed-in',
+            user: { ...fakeUserResponse(), role: UserRole.USER },
+            csrfToken: 'csrf',
+        };
 
         expect((await redirectFrom(requireAdmin(url))).location).toBe('/');
         expect(toast.error).toHaveBeenCalledWith('Admin access required');

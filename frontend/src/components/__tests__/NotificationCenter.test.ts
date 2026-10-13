@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
 import { match } from '$app/paths';
 import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
-import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
+import { fakeNotificationResponse, fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
     getNotificationsApiV1NotificationsGet,
     markAllReadApiV1NotificationsMarkAllReadPost,
@@ -13,7 +13,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     mockAuthStore: {
-        isAuthenticated: true as boolean | null,
+        session: { status: 'signed-out' } as Session,
     },
     mockGoto: vi.fn(),
     mockStreamConnect: vi.fn(),
@@ -43,6 +43,7 @@ vi.stubGlobal('Notification', {
 });
 
 import NotificationCenter from '#components/NotificationCenter.svelte';
+import type { Session } from '#stores/auth.svelte.ts';
 
 const createNotification = (overrides: Partial<NotificationResponse> = {}): NotificationResponse => ({
     ...fakeNotificationResponse(),
@@ -156,7 +157,7 @@ describe('NotificationCenter', () => {
     };
 
     beforeEach(() => {
-        mocks.mockAuthStore.isAuthenticated = true;
+        mocks.mockAuthStore.session = { status: 'signed-in', user: fakeUserResponse(), csrfToken: 'csrf' };
         setNotifications([]);
         mocks.mockGoto.mockReset();
         vi.mocked(getNotificationsApiV1NotificationsGet).mockClear();
@@ -396,7 +397,7 @@ describe('NotificationCenter', () => {
         });
 
         it('neither loads nor connects when signed out', async () => {
-            mocks.mockAuthStore.isAuthenticated = false;
+            mocks.mockAuthStore.session = { status: 'signed-out' };
             renderWithQueryClient(NotificationCenter);
             await vi.advanceTimersByTimeAsync(100);
             expect(vi.mocked(getNotificationsApiV1NotificationsGet)).not.toHaveBeenCalled();

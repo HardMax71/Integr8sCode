@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
-import { UserRole, type UserResponse } from '#lib/api/index.ts';
+import { UserRole } from '#lib/api/index.ts';
 
 const mocks = vi.hoisted(() => ({
-    mockAuthStore: { user: null as UserResponse | null },
+    mockAuthStore: { session: { status: 'signed-out' } as Session },
 }));
 
 vi.mock('#stores/auth.svelte.ts', () => ({
@@ -14,12 +14,13 @@ vi.mock('#stores/auth.svelte.ts', () => ({
 }));
 
 import Footer from '#components/Footer.svelte';
+import type { Session } from '#stores/auth.svelte.ts';
 
 describe('Footer', () => {
     let originalDate: DateConstructor;
 
     beforeEach(() => {
-        mocks.mockAuthStore.user = null;
+        mocks.mockAuthStore.session = { status: 'signed-out' };
         originalDate = globalThis.Date;
         const mockDate = class extends Date {
             constructor() {
@@ -82,7 +83,11 @@ describe('Footer', () => {
         });
 
         it('shows admins a Grafana link to the nginx redirect', () => {
-            mocks.mockAuthStore.user = { ...fakeUserResponse(), role: UserRole.ADMIN };
+            mocks.mockAuthStore.session = {
+                status: 'signed-in',
+                user: { ...fakeUserResponse(), role: UserRole.ADMIN },
+                csrfToken: 'csrf',
+            };
             render(Footer);
 
             const grafanaLink = screen.getByRole('link', { name: /Grafana/i });
@@ -91,8 +96,11 @@ describe('Footer', () => {
             expect(grafanaLink.getAttribute('rel')).toContain('noopener');
         });
 
-        it.each([null, UserRole.USER])('hides the Grafana link for role %s', (role) => {
-            mocks.mockAuthStore.user = role && { ...fakeUserResponse(), role };
+        it.each([
+            { status: 'signed-out' },
+            { status: 'signed-in', user: { ...fakeUserResponse(), role: UserRole.USER }, csrfToken: 'csrf' },
+        ] as Session[])('hides the Grafana link when $status as a regular user', (session) => {
+            mocks.mockAuthStore.session = session;
             render(Footer);
 
             expect(screen.queryByRole('link', { name: /Grafana/i })).not.toBeInTheDocument();

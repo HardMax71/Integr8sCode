@@ -21,7 +21,7 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
 };
 
 function handle401(): void {
-    const wasAuthenticated = authStore.isAuthenticated;
+    const wasAuthenticated = authStore.session.status === 'signed-in';
     if (wasAuthenticated && !isHandling401) {
         isHandling401 = true;
         const currentPath = window.location.pathname + window.location.search;
@@ -82,11 +82,8 @@ export function initializeApiInterceptors(): void {
 
     // --8<-- [start:csrf_injection]
     client.interceptors.request.use((request, _opts) => {
-        if (request.method !== 'GET') {
-            const token = authStore.csrfToken;
-            if (token) {
-                request.headers.set('X-CSRF-Token', token);
-            }
+        if (request.method !== 'GET' && authStore.session.status === 'signed-in' && authStore.session.csrfToken) {
+            request.headers.set('X-CSRF-Token', authStore.session.csrfToken);
         }
         return request;
     });

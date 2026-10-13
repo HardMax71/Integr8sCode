@@ -2,15 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { fakeUserResponse } from '#lib/api/@faker-js/faker.gen.ts';
-import { UserRole, type UserResponse } from '#lib/api/index.ts';
+import { UserRole } from '#lib/api/index.ts';
 import AdminLayout from '#routes/admin/+layout.svelte';
+import type { Session } from '#stores/auth.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
     page: { url: new URL('https://localhost/admin/events') },
     mockAuthStore: {
-        isAuthenticated: true,
-        user: null as UserResponse | null,
-        csrfToken: 'token',
+        session: { status: 'signed-out' } as Session,
         verifyAuth: vi.fn(),
     },
 }));
@@ -21,7 +20,11 @@ vi.mock('$app/state', () => ({ page: mocks.page }));
 describe('AdminLayout', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.mockAuthStore.user = { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN };
+        mocks.mockAuthStore.session = {
+            status: 'signed-in',
+            user: { ...fakeUserResponse(), username: 'adminuser', role: UserRole.ADMIN },
+            csrfToken: 'csrf',
+        };
     });
 
     function renderLayout(path = '/admin/events') {

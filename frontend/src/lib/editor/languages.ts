@@ -1,19 +1,26 @@
-import { python } from '@codemirror/lang-python';
-import { javascript } from '@codemirror/lang-javascript';
-import { go } from '@codemirror/lang-go';
-import { StreamLanguage, type LanguageSupport } from '@codemirror/language';
-import { ruby } from '@codemirror/legacy-modes/mode/ruby';
-import { shell } from '@codemirror/legacy-modes/mode/shell';
 import type { Extension } from '@codemirror/state';
 
-const languageExtensions: Record<string, () => LanguageSupport | Extension> = {
-    python: () => python(),
-    node: () => javascript(),
-    go: () => go(),
-    ruby: () => StreamLanguage.define(ruby),
-    bash: () => StreamLanguage.define(shell),
+const loaders: Record<string, () => Promise<Extension>> = {
+    python: async () => (await import('@codemirror/lang-python')).python(),
+    node: async () => (await import('@codemirror/lang-javascript')).javascript(),
+    go: async () => (await import('@codemirror/lang-go')).go(),
+    ruby: async () => {
+        const [{ StreamLanguage }, { ruby }] = await Promise.all([
+            import('@codemirror/language'),
+            import('@codemirror/legacy-modes/mode/ruby'),
+        ]);
+        return StreamLanguage.define(ruby);
+    },
+    bash: async () => {
+        const [{ StreamLanguage }, { shell }] = await Promise.all([
+            import('@codemirror/language'),
+            import('@codemirror/legacy-modes/mode/shell'),
+        ]);
+        return StreamLanguage.define(shell);
+    },
 };
 
-export function getLanguageExtension(lang: string): LanguageSupport | Extension {
-    return languageExtensions[lang]?.() ?? [];
+/** Loads a language's editor mode on first use, so the editor chunk carries none of them */
+export function loadLanguage(lang: string): Promise<Extension> {
+    return loaders[lang]?.() ?? Promise.resolve([]);
 }

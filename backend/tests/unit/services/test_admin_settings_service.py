@@ -67,18 +67,11 @@ async def test_reset_calls_repo_invalidates_cache_and_reloads() -> None:
 async def test_update_invalidates_before_returning() -> None:
     """Cache invalidation happens so subsequent reads see updated values."""
     service, repo, runtime = _make_service()
-    call_order: list[str] = []
-
-    async def _track_update(**kw: object) -> SystemSettings:
-        call_order.append("repo_update")
-        return SystemSettings()
-
-    def _track_invalidate() -> None:
-        call_order.append("invalidate")
-
-    repo.update_system_settings.side_effect = _track_update
-    runtime.invalidate_cache.side_effect = _track_invalidate
+    repo.update_system_settings.return_value = SystemSettings()
+    calls = MagicMock()
+    calls.attach_mock(repo.update_system_settings, "repo_update")
+    calls.attach_mock(runtime.invalidate_cache, "invalidate")
 
     await service.update_system_settings(SystemSettings(), "u1")
 
-    assert call_order == ["repo_update", "invalidate"]
+    assert [name for name, _, _ in calls.mock_calls] == ["repo_update", "invalidate"]

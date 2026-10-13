@@ -1,76 +1,53 @@
-from collections.abc import Awaitable, Callable, Coroutine, Sequence
-from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
+from faststream.kafka import KafkaBroker
 
 from app import worker as module
 from app.settings import Settings
 
 pytestmark = pytest.mark.unit
 
-_Hook = Callable[[], Awaitable[None]]
 
-
-async def test_worker_wires_routers_and_jobs_and_closes_the_container_last(
+async def test_run_wires_the_routers_and_orders_shutdown(
     monkeypatch: pytest.MonkeyPatch, test_settings: Settings
 ) -> None:
-    order: list[str] = []
-
-    class FakeFastStream:
-        """Calls the hooks in FastStream 0.7's order: on_shutdown, broker.stop(), after_shutdown."""
-
-        def __init__(
-            self,
-            broker: object,
-            *,
-            on_startup: Sequence[_Hook] = (),
-            on_shutdown: Sequence[_Hook] = (),
-            after_shutdown: Sequence[_Hook] = (),
-        ) -> None:
-            self.hooks = (on_startup, on_shutdown, after_shutdown)
-
-        async def run(self) -> None:
-            on_startup, on_shutdown, after_shutdown = self.hooks
-            for hook in on_startup:
-                await hook()
-            for hook in on_shutdown:
-                await hook()
-            order.append("broker.stop")
-            for hook in after_shutdown:
-                await hook()
-
+    broker = MagicMock(spec=KafkaBroker)
     container = MagicMock()
-    dependency = AsyncMock()
-    dependency.include_routers = MagicMock()
-    container.get = AsyncMock(return_value=dependency)
-    container.close = AsyncMock(side_effect=lambda: order.append("container.close"))
+    container.get = AsyncMock(return_value=broker)
     scheduler = MagicMock()
-    scheduler.shutdown.side_effect = lambda **_: order.append("scheduler.shutdown")
-    runs: list[Coroutine[Any, Any, None]] = []
-
-    monkeypatch.setattr(module, "asyncio", SimpleNamespace(run=runs.append))
-    monkeypatch.setattr(module, "Settings", lambda **_: test_settings)
-    monkeypatch.setattr(module, "setup_logger", lambda _level: structlog.get_logger("test"))
-    monkeypatch.setattr(module, "setup_log_exporter", MagicMock())
-    monkeypatch.setattr(module, "setup_metrics", MagicMock())
+    fast_stream = MagicMock()
+    fast_stream.return_value.run = AsyncMock()
     monkeypatch.setattr(module, "AsyncMongoClient", MagicMock())
     monkeypatch.setattr(module, "init_beanie", AsyncMock())
-    monkeypatch.setattr(module, "create_worker_container", lambda _settings: container)
+    monkeypatch.setattr(module, "create_worker_container", MagicMock(return_value=container))
     monkeypatch.setattr(module, "setup_dishka", MagicMock())
-    monkeypatch.setattr(module, "FastStream", FakeFastStream)
-    monkeypatch.setattr(module, "AsyncIOScheduler", lambda: scheduler)
+    monkeypatch.setattr(module, "start_jobs", AsyncMock(return_value=scheduler))
+    monkeypatch.setattr(module, "FastStream", fast_stream)
 
-    module.main()
-    await runs[0]
+    await module.run(test_settings, structlog.get_logger("test"))
 
-    assert order == ["scheduler.shutdown", "broker.stop", "container.close"]
-    assert len(dependency.include_routers.call_args.args) == 3
+    assert len(broker.include_routers.call_args.args) == 3
+    fast_stream.assert_called_once_with(broker, on_shutdown=[scheduler.shutdown], after_shutdown=[container.close])
+    fast_stream.return_value.run.assert_awaited_once()
+
+
+async def test_start_jobs_prepares_the_cluster_and_schedules_the_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    dependency = AsyncMock()
+    container = MagicMock()
+    container.get = AsyncMock(return_value=dependency)
+    scheduler = MagicMock()
+    monkeypatch.setattr(module, "AsyncIOScheduler", MagicMock(return_value=scheduler))
+
+    assert await module.start_jobs(container) is scheduler
+
+    dependency.ensure_namespace_security.assert_awaited_once()
+    dependency.ensure_image_pre_puller_daemonset.assert_awaited_once()
     assert [c.kwargs["id"] for c in scheduler.add_job.call_args_list] == [
         "pod_monitor_watch",
         "saga_try_schedule",
         "saga_check_timeouts",
         "dlq_monitor_retries",
     ]
+    scheduler.start.assert_called_once()

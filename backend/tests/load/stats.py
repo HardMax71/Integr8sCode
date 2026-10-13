@@ -17,6 +17,16 @@ def _pct(values: list[float], p: float) -> float:
     return s[k]
 
 
+def _latency(values: list[float]) -> dict[str, float]:
+    return {
+        "min": min(values) if values else 0.0,
+        "p50": _pct(values, 0.50),
+        "p90": _pct(values, 0.90),
+        "p99": _pct(values, 0.99),
+        "max": max(values) if values else 0.0,
+    }
+
+
 @dataclass(slots=True)
 class EndpointStats:
     count: int = 0
@@ -39,24 +49,15 @@ class EndpointStats:
             self.durations_ms_success.append(duration_ms)
 
     def summary(self) -> dict[str, Any]:
-        def _latency_dict(values: list[float]) -> dict[str, float]:
-            return {
-                "min": min(values) if values else 0.0,
-                "p50": _pct(values, 0.50),
-                "p90": _pct(values, 0.90),
-                "p99": _pct(values, 0.99),
-                "max": max(values) if values else 0.0,
-            }
-
         return {
             "count": self.count,
             "errors": self.errors,
             "status": dict(self.status_count),
             # Overall latency distribution (all statuses)
-            "latency_ms": _latency_dict(self.durations_ms),
+            "latency_ms": _latency(self.durations_ms),
             # Separate latency distributions
-            "latency_ms_success": _latency_dict(self.durations_ms_success),
-            "latency_ms_error": _latency_dict(self.durations_ms_error),
+            "latency_ms_success": _latency(self.durations_ms_success),
+            "latency_ms_error": _latency(self.durations_ms_error),
             "bytes_rx": self.bytes_rx,
         }
 

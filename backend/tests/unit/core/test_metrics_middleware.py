@@ -38,15 +38,17 @@ def _middleware(app: ASGIApp) -> tuple[MetricsMiddleware, MagicMock, MagicMock, 
     return middleware, counter, duration, active
 
 
+async def _receive() -> Message:
+    return {"type": "http.request", "body": b"", "more_body": False}
+
+
+async def _send(message: Message) -> None:
+    return None
+
+
 async def _call(middleware: MetricsMiddleware) -> None:
-    async def receive() -> Message:
-        return {"type": "http.request", "body": b"", "more_body": False}
-
-    async def send(message: Message) -> None:
-        return None
-
     scope: Scope = {"type": "http", "method": "GET", "path": "/api/v1/things/42", "headers": []}
-    await middleware(scope, receive, send)
+    await middleware(scope, _receive, _send)
 
 
 @pytest.mark.parametrize(

@@ -11,7 +11,7 @@ from beanie.operators import In
 from dishka import AsyncContainer
 from fastapi import FastAPI
 from httpx2 import AsyncClient
-from starlette.types import ASGIApp, Message
+from starlette.types import ASGIApp, Message, Scope
 
 from app.core.metrics import DLQMetrics, ExecutionMetrics, RateLimitMetrics
 from app.core.security import SecurityService
@@ -49,20 +49,51 @@ from app.services.sse import SSERedisBus
 from app.services.user_settings_service import UserSettingsService
 
 
+class _Exchange:
+    """One request's ASGI side: the body to hand over, the response chunks and the client's disconnect."""
+
+    def __init__(self, body: bytes) -> None:
+        self.body = body
+        self.request_sent = False
+        self.chunks: asyncio.Queue[bytes | None] = asyncio.Queue()
+        self.started: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
+        self.disconnect = asyncio.Event()
+
+    async def receive(self) -> Message:
+        if not self.request_sent:
+            self.request_sent = True
+            return {"type": "http.request", "body": self.body, "more_body": False}
+        await self.disconnect.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            self.started.set_result(message)
+        elif message["type"] == "http.response.body":
+            await self.chunks.put(message.get("body", b""))
+            if not message.get("more_body", False):
+                await self.chunks.put(None)
+
+    async def run(self, app: ASGIApp, scope: Scope) -> None:
+        await app(scope, self.receive, self.send)
+
+    def end_body(self, _app_task: asyncio.Task[None]) -> None:
+        self.chunks.put_nowait(None)
+
+
 class _QueuedBody(httpx2.AsyncByteStream):
-    def __init__(self, chunks: asyncio.Queue[bytes | None], disconnect: asyncio.Event, app_task: asyncio.Task[None]):
-        self._chunks = chunks
-        self._disconnect = disconnect
+    def __init__(self, exchange: _Exchange, app_task: asyncio.Task[None]) -> None:
+        self._exchange = exchange
         self._app_task = app_task
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
-        while (chunk := await self._chunks.get()) is not None:
+        while (chunk := await self._exchange.chunks.get()) is not None:
             yield chunk
         if self._app_task.done() and not self._app_task.cancelled() and (error := self._app_task.exception()):
             raise error
 
     async def aclose(self) -> None:
-        self._disconnect.set()
+        self._exchange.disconnect.set()
         await asyncio.wait({self._app_task}, timeout=1.0)
         self._app_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -76,29 +107,8 @@ class StreamingASGITransport(httpx2.AsyncBaseTransport):
         self._app = app
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
-        body = await request.aread()
-        chunks: asyncio.Queue[bytes | None] = asyncio.Queue()
-        started: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
-        disconnect = asyncio.Event()
-        request_sent = False
-
-        async def receive() -> Message:
-            nonlocal request_sent
-            if not request_sent:
-                request_sent = True
-                return {"type": "http.request", "body": body, "more_body": False}
-            await disconnect.wait()
-            return {"type": "http.disconnect"}
-
-        async def send(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                started.set_result(message)
-            elif message["type"] == "http.response.body":
-                await chunks.put(message.get("body", b""))
-                if not message.get("more_body", False):
-                    await chunks.put(None)
-
-        scope = {
+        exchange = _Exchange(await request.aread())
+        scope: Scope = {
             "type": "http",
             "asgi": {"version": "3.0"},
             "http_version": "1.1",
@@ -112,22 +122,18 @@ class StreamingASGITransport(httpx2.AsyncBaseTransport):
             "client": ("127.0.0.1", 123),
             "root_path": "",
         }
-
-        async def run_app() -> None:
-            await self._app(scope, receive, send)
-
-        app_task = asyncio.create_task(run_app())
-        app_task.add_done_callback(lambda _: chunks.put_nowait(None))
-        first: set[asyncio.Future[Any]] = {app_task, started}
+        app_task = asyncio.create_task(exchange.run(self._app, scope))
+        app_task.add_done_callback(exchange.end_body)
+        first: set[asyncio.Future[Any]] = {app_task, exchange.started}
         await asyncio.wait(first, return_when=asyncio.FIRST_COMPLETED)
-        if not started.done():
+        if not exchange.started.done():
             app_task.result()
             raise RuntimeError("ASGI app returned without starting a response")
-        start = started.result()
+        start = exchange.started.result()
         return httpx2.Response(
             start["status"],
             headers=start.get("headers", []),
-            stream=_QueuedBody(chunks, disconnect, app_task),
+            stream=_QueuedBody(exchange, app_task),
             request=request,
         )
 

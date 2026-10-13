@@ -107,15 +107,11 @@ class TestListUsers:
         update = UserUpdate(is_active=False)
         await test_admin.put(f"/api/v1/admin/users/{user_id}", json=update.model_dump(exclude_none=True))
 
-        async def matches(is_active: bool) -> list[str]:
-            response = await test_admin.get(
-                "/api/v1/admin/users/", params={"search": request.username, "is_active": is_active}
-            )
-            assert response.status_code == 200
-            return [u.user_id for u in UserListResponse.model_validate(response.json()).users]
+        disabled = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, "is_active": False})
+        active = await test_admin.get("/api/v1/admin/users/", params={"search": request.username, "is_active": True})
 
-        assert await matches(False) == [user_id]
-        assert await matches(True) == []
+        assert [u.user_id for u in UserListResponse.model_validate(disabled.json()).users] == [user_id]
+        assert UserListResponse.model_validate(active.json()).users == []
 
     @pytest.mark.parametrize(
         ("limits", "params", "listed"),

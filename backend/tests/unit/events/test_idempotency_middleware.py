@@ -31,21 +31,29 @@ def _reservation(is_duplicate: bool) -> IdempotencyResult:
     )
 
 
+class _Subscriber:
+    """Hands each delivered event to the test's mock, so the test sees what the handler got."""
+
+    def __init__(self, handler: AsyncMock) -> None:
+        self.handler = handler
+
+    async def on_user_registered(self, body: UserRegisteredEvent) -> None:
+        await self.handler(body)
+
+
 async def _deliver(idem: AsyncMock, handler: AsyncMock) -> None:
     """Publish one event through a router guarded by the middleware, wired the way the workers wire it."""
     provider = Provider(scope=Scope.APP)
-    provider.provide(lambda: idem, provides=IdempotencyManager)
-    provider.provide(lambda: MagicMock(spec=structlog.stdlib.BoundLogger), provides=structlog.stdlib.BoundLogger)
+    provider.from_context(provides=IdempotencyManager, scope=Scope.APP)
+    provider.from_context(provides=structlog.stdlib.BoundLogger, scope=Scope.APP)
 
     router = KafkaRouter(middlewares=(idempotent(KeyStrategy.EVENT_BASED, ttl_seconds=60),))
-
-    @router.subscriber("user_registered", group_id="test")
-    async def on_user_registered(body: UserRegisteredEvent) -> None:
-        await handler(body)
+    router.subscriber("user_registered", group_id="test")(_Subscriber(handler).on_user_registered)
 
     broker = KafkaBroker()
     broker.include_router(router)
-    setup_dishka(make_async_container(provider), broker=broker, auto_inject=True)
+    context = {IdempotencyManager: idem, structlog.stdlib.BoundLogger: MagicMock(spec=structlog.stdlib.BoundLogger)}
+    setup_dishka(make_async_container(provider, context=context), broker=broker, auto_inject=True)
     async with TestKafkaBroker(broker) as test_broker:
         await test_broker.publish(_event(), "user_registered")
 

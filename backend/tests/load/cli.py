@@ -6,6 +6,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx2
+
 from .config import LoadConfig
 from .http_client import APIClient
 from .monkey_runner import run_monkey_swarm
@@ -22,15 +24,12 @@ async def _run(cfg: LoadConfig) -> int:
         f"duration={cfg.duration_seconds}s verify_tls={cfg.verify_tls}"
     )
     # Quick preflight to catch prefix/port mistakes early
-    pre_stats = StatsCollector()
-    pre = APIClient(cfg, pre_stats)
-    try:
-        r = await pre._request("GET", cfg.api("/example-scripts"))
-        print(f"Preflight /example-scripts status={r.status_code}")
-    except Exception as e:
-        print(f"Preflight error: {e}")
-    finally:
-        await pre.close()
+    async with APIClient(cfg, StatsCollector()) as pre:
+        try:
+            r = await pre._request("GET", cfg.api("/example-scripts"))
+            print(f"Preflight /example-scripts status={r.status_code}")
+        except httpx2.HTTPError as e:
+            print(f"Preflight error: {e}")
     stats = StatsCollector()
 
     if cfg.mode in ("monkey", "both"):

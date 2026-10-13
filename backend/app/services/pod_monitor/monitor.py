@@ -44,8 +44,7 @@ class PodMonitor:
       and a resource_version cursor.
     - Subsequent calls WATCH from that cursor, receiving only new changes.
 
-    Stateless service — all lifecycle (watch scheduling, error handling,
-    shutdown) is managed by APScheduler in the DI provider.
+    The worker's scheduler runs watch_cycle every 5 seconds.
     """
 
     def __init__(
@@ -86,7 +85,7 @@ class PodMonitor:
         that cursor.
 
         Returns normally when the server-side timeout expires.
-        Raises on K8s API errors — the caller (provider) handles retries.
+        Raises on K8s API errors; watch_cycle counts them and resets the cursor on a 410.
         """
         if not self._last_resource_version:
             await self._list_and_process_existing_pods()
@@ -115,6 +114,28 @@ class PodMonitor:
         finally:
             if self._watch.resource_version:
                 self._last_resource_version = self._watch.resource_version
+
+    async def watch_cycle(self) -> None:
+        """Run one watch and count the error that ended it, so the next cycle starts over cleanly.
+
+        A 410 Gone means the cursor expired, so the next cycle lists again before watching.
+        """
+        try:
+            await self.watch_pod_events()
+            return
+        except ApiException as e:
+            if e.status == 410:
+                self.logger.warning("Resource version expired, resetting watch cursor")
+                self._last_resource_version = None
+                error_type = ErrorType.RESOURCE_VERSION_EXPIRED
+            else:
+                self.logger.error("API error in watch", status=e.status, reason=e.reason)
+                error_type = ErrorType.API_ERROR
+        except Exception:
+            self.logger.error("Unexpected error in watch", exc_info=True)
+            error_type = ErrorType.UNEXPECTED
+        self._metrics.record_pod_monitor_watch_error(error_type)
+        self._metrics.increment_pod_monitor_watch_reconnects()
 
     async def _list_and_process_existing_pods(self) -> None:
         """LIST all matching pods to bootstrap state and get a resource_version cursor."""

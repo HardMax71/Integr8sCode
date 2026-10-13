@@ -76,52 +76,37 @@ async def _flow_settings_and_notifications(c: APIClient) -> None:
         await c.mark_all_read()
 
 
+async def _user_client(
+    cfg: LoadConfig,
+    stats: StatsCollector,
+    idx: int,
+    population: list[UserTask],
+    deadline: float,
+    sem: asyncio.Semaphore,
+) -> None:
+    async with sem, APIClient(cfg, stats) as c:
+        uname = f"{cfg.user_prefix}_{idx}_{int(time.time())}"
+        user = APIUser(username=uname, email=f"{uname}@{cfg.user_domain}", password=cfg.user_password)
+        if cfg.auto_register_users:
+            await c.register(user)
+        if not await c.login(user.username, user.password):
+            return
+        await c.me()
+        while time.time() < deadline:
+            await random.choice(population).fn(c)
+            await asyncio.sleep(0)
+
+
 async def run_user_swarm(cfg: LoadConfig, stats: StatsCollector, clients: int) -> None:
-    tasks: list[asyncio.Task[None]] = []
     sem = asyncio.Semaphore(cfg.concurrency)
     deadline = time.time() + max(1, cfg.duration_seconds)
-
     user_tasks: list[UserTask] = [
         UserTask("execute_and_get_result", 5, _flow_execute_and_get_result),
         UserTask("events_and_history", 2, _flow_events_and_history),
         UserTask("saved_scripts", 2, _flow_saved_scripts),
         UserTask("settings_and_notifications", 2, _flow_settings_and_notifications),
     ]
-
-    population: list[UserTask] = []
-    for t in user_tasks:
-        population.extend([t] * t.weight)
-
-    async def one_client(idx: int) -> None:
-        c = APIClient(cfg, stats)
-        try:
-            # register/login
-            uname = f"{cfg.user_prefix}_{idx}_{int(time.time())}"
-            user = APIUser(username=uname, email=f"{uname}@{cfg.user_domain}", password=cfg.user_password)
-            if cfg.auto_register_users:
-                await c.register(user)
-            ok = await c.login(user.username, user.password)
-            if not ok:
-                return
-            # basic /auth/me to ensure session
-            await c.me()
-            # run random tasks until deadline
-            while time.time() < deadline:
-                t = random.choice(population)
-                await t.fn(c)
-                await asyncio.sleep(0)
-        finally:
-            await c.close()
-
-    for i in range(clients):
-        await sem.acquire()
-
-        async def _spawn(j: int) -> None:
-            try:
-                await one_client(j)
-            finally:
-                sem.release()
-
-        tasks.append(asyncio.create_task(_spawn(i)))
-
-    await asyncio.gather(*tasks, return_exceptions=True)
+    population = [task for task in user_tasks for _ in range(task.weight)]
+    await asyncio.gather(
+        *(_user_client(cfg, stats, idx, population, deadline, sem) for idx in range(clients)), return_exceptions=True
+    )

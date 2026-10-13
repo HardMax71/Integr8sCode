@@ -21,13 +21,14 @@ async def test_context_add_compensation() -> None:
     assert len(ctx.compensations) == 1
 
 
+class _NamedStep(SagaStep[SystemErrorEvent]):
+    async def execute(self, context: SagaContext, event: SystemErrorEvent) -> bool:
+        return True
+
+    def get_compensation(self) -> CompensationStep | None:
+        return None
+
+
 def test_saga_step_str() -> None:
-    class S(SagaStep[SystemErrorEvent]):
-        async def execute(self, context: SagaContext, event: SystemErrorEvent) -> bool:
-            return True
-
-        def get_compensation(self) -> CompensationStep | None:
-            return None
-
-    s = S("nm")
+    s = _NamedStep("nm")
     assert str(s) == "SagaStep(nm)"

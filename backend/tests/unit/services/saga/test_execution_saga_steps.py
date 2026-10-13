@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 import structlog
 
@@ -160,16 +162,13 @@ async def test_delete_pod_compensation_variants() -> None:
 
 
 def test_execution_saga_bind_and_get_steps_sets_flags_and_types() -> None:
-    class DummyProd(UnifiedProducer):
-        def __init__(self) -> None:
-            pass
-
-    class DummyAlloc(ResourceAllocationRepository):
-        def __init__(self) -> None:
-            pass
-
     s = ExecutionSaga()
-    s.bind_dependencies(producer=DummyProd(), alloc_repo=DummyAlloc(), publish_commands=True, logger=_logger)
+    s.bind_dependencies(
+        producer=AsyncMock(spec=UnifiedProducer),
+        alloc_repo=AsyncMock(spec=ResourceAllocationRepository),
+        publish_commands=True,
+        logger=_logger,
+    )
     steps = s.get_steps()
     assert len(steps) == 3
     cps = [st for st in steps if isinstance(st, CreatePodStep)][0]

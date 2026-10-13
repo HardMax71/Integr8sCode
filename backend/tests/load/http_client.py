@@ -37,7 +37,10 @@ class APIClient:
         self.client = httpx2.AsyncClient(verify=cfg.verify_tls, timeout=20.0)
         self.csrf_token: str | None = None
 
-    async def close(self) -> None:
+    async def __aenter__(self) -> APIClient:
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
         await self.client.aclose()
 
     async def _request(self, method: str, url: str, **kwargs: Any) -> httpx2.Response:

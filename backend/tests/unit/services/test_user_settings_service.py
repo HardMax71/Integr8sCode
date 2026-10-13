@@ -28,6 +28,11 @@ class _MemoryRepo(UserSettingsRepository):
     async def create_snapshot(self, settings: DomainUserSettings) -> None:
         self.snapshot = settings
 
+    async def store_produced(self, event_to_produce: DomainEvent, key: str) -> None:
+        """Keep a produced settings event, as the producer stores every event before publishing it."""
+        data = {k: v for k, v in event_to_produce.model_dump().items() if k in _event_fields}
+        self.events.append(DomainUserSettingsChangedEvent(**data))
+
     async def get_settings_events(
         self,
         user_id: str,
@@ -66,12 +71,8 @@ def repo() -> _MemoryRepo:
 
 @pytest.fixture
 def service(repo: _MemoryRepo, test_settings: Settings) -> UserSettingsService:
-    async def store(event_to_produce: DomainEvent, key: str) -> None:
-        data = {k: v for k, v in event_to_produce.model_dump().items() if k in _event_fields}
-        repo.events.append(DomainUserSettingsChangedEvent(**data))
-
     producer = AsyncMock(spec=UnifiedProducer)
-    producer.produce.side_effect = store
+    producer.produce.side_effect = repo.store_produced
     return UserSettingsService(repo, producer, test_settings, structlog.get_logger("test"))
 
 

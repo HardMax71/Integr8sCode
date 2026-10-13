@@ -10,16 +10,18 @@ from unittest.mock import MagicMock
 
 import pytest
 import yaml
+from fastapi import FastAPI
 from faststream.kafka.opentelemetry import KafkaTelemetryMiddleware
 from opentelemetry import metrics as otel_api
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
 from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from prometheus_client.metrics_core import Metric
 
 import app.core.metrics as metrics_pkg
-from app.core.metrics.base import BaseMetrics
-from app.core.middlewares.metrics import MetricsMiddleware, create_system_metrics
+from app.core.metrics.base import PROCESS_METRICS, BaseMetrics
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
 GRAFANA_DIR = BACKEND_ROOT / "grafana" / "provisioning"
@@ -29,7 +31,7 @@ ALERTING_DIR = GRAFANA_DIR / "alerting"
 # Series written by otel-collector receivers rather than by any Python process, keyed by name prefix.
 COLLECTOR_PREFIXES: dict[str, str] = {
     "mongodb_": "mongodb receiver",
-    "system_memory_utilization_": "host_metrics receiver, memory scraper",
+    "system_": "host_metrics receiver",
 }
 
 PROMQL_BUILTINS = frozenset(
@@ -191,10 +193,13 @@ def _families(reader: PrometheusMetricReader) -> dict[str, set[str]]:
 
 @pytest.fixture(scope="module")
 def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str]]]]:
-    """Run every app metric class and FastStream's Kafka middleware through the real OTel SDK.
+    """Run every app metric class and the libraries' telemetry through the real OTel SDK.
+
+    The libraries are FastStream's Kafka middleware and the FastAPI and system metrics instrumentations,
+    configured the way the app configures them.
 
     Yields:
-        App families and FastStream families, each mapping family name to its sample names.
+        App families and library families, each mapping family name to its sample names.
     """
     with pytest.MonkeyPatch.context() as mp:
         # pytest-env sets OTEL_SDK_DISABLED=true, and the providers below need the real SDK
@@ -209,13 +214,18 @@ def produced_families() -> Iterator[tuple[dict[str, set[str]], dict[str, set[str
             importlib.import_module(f"app.core.metrics.{mod_name}")
         for cls in BaseMetrics.__subclasses__():
             cls(MagicMock())
-        MetricsMiddleware(MagicMock())
-        create_system_metrics()
         KafkaTelemetryMiddleware(meter_provider=lib_provider)
+        api = FastAPI()
+        FastAPIInstrumentor.instrument_app(api, meter_provider=lib_provider)
+        # The instrumentation's ASGI middleware creates its instruments when the stack is built
+        api.build_middleware_stack()
+        system_metrics = SystemMetricsInstrumentor(config=PROCESS_METRICS)
+        system_metrics.instrument(meter_provider=lib_provider)
 
         _trigger_instruments(app_provider)
         _trigger_instruments(lib_provider)
         yield _families(app_reader), _families(lib_reader)
+    system_metrics.uninstrument()
     app_provider.shutdown()
     lib_provider.shutdown()
 
@@ -267,7 +277,7 @@ def _from_collector(name: str) -> bool:
 def test_grafana_metrics_have_a_source(
     produced_families: tuple[dict[str, set[str]], dict[str, set[str]]],
 ) -> None:
-    """Every metric a dashboard or alert queries is emitted by app code, FastStream, or a collector receiver."""
+    """Every metric a dashboard or alert queries comes from app code, a library's telemetry or a collector receiver."""
     known: set[str] = set()
     for families in produced_families:
         for samples in families.values():

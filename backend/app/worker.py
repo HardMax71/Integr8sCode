@@ -12,7 +12,7 @@ from pymongo import AsyncMongoClient
 
 from app.core.container import create_worker_container
 from app.core.logging import setup_log_exporter, setup_logger
-from app.core.middlewares import setup_metrics
+from app.core.metrics import setup_metrics
 from app.db.docs import ALL_DOCUMENTS
 from app.dlq.manager import DLQManager
 from app.events.handlers import k8s_worker_router, result_processor_router, saga_router

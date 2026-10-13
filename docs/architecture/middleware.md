@@ -1,6 +1,6 @@
 # Middleware
 
-`create_app` in `app/main.py` adds seven ASGI middlewares. Starlette's `add_middleware` puts each new one outside the previous ones, so the last one added runs first. A request passes through them in this order, and the response comes back in reverse:
+`create_app` in `app/main.py` adds six ASGI middlewares. Starlette's `add_middleware` puts each new one outside the previous ones, so the last one added runs first. A request passes through them in this order, and the response comes back in reverse:
 
 1. `CORSMiddleware`
 2. `CacheControlMiddleware`
@@ -8,9 +8,8 @@
 4. `RequestSizeLimitMiddleware`
 5. `CSRFMiddleware`
 6. `RateLimitMiddleware`
-7. `MetricsMiddleware`
 
-The order has visible effects. A request that fails CSRF or the rate limit, or declares a `Content-Length` over the size limit, is answered before it reaches `MetricsMiddleware`, so those 403, 429 and 413 responses never show up in the HTTP metrics. They still get CORS and security headers, since those two sit further out. Domain exceptions are turned into responses by the exception handlers inside the app, so every middleware sees them as normal responses.
+The OpenTelemetry FastAPI instrumentation wraps all six from the outside, so its HTTP metrics and spans include the 403, 429 and 413 responses that the CSRF, rate limit and size checks answer with. Those responses still get CORS and security headers, since those two sit further out. Domain exceptions are turned into responses by the exception handlers inside the app, so every middleware sees them as normal responses.
 
 ## CORS
 
@@ -72,24 +71,6 @@ Then it wraps `receive` and counts bytes as they stream in, which catches chunke
 
 ## Metrics
 
-`MetricsMiddleware` records HTTP telemetry through the OpenTelemetry API:
+No middleware of ours measures HTTP. `create_app` calls `FastAPIInstrumentor().instrument_app` from `opentelemetry-instrumentation-fastapi`, which records every request except health, metrics, docs and `openapi.json` as `http.server.request.duration`, `http.server.active_requests` and the request and response body sizes, labelled by method, FastAPI route template and status code. It has to run in `create_app`: Starlette builds the middleware stack on its first ASGI call, which is the lifespan's, and an instrumentation added after that never runs. The backend image sets `OTEL_SEMCONV_STABILITY_OPT_IN=http`, so the names follow the stable HTTP semantic conventions.
 
-```python
---8<-- "backend/app/core/middlewares/metrics.py:instruments"
-```
-
-Count, duration and response size are labelled with method, path template and status, the other two with method and path template only. The path template replaces UUIDs, numeric segments and MongoDB ObjectIds with `{id}` to keep cardinality down:
-
-```python
---8<-- "backend/app/core/middlewares/metrics.py:path_template"
-```
-
-Request size comes from `Content-Length` and is only recorded when the header is present, the same for response size. The `/metrics` path is skipped. If a route raises an exception no handler maps, the request is counted with status 500 and `http_requests_active` still goes back down.
-
-`setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise the instruments use the no-op provider. When it does run, it also registers three gauges, two for the host and one for the process:
-
-```python
---8<-- "backend/app/core/middlewares/metrics.py:system_metrics"
-```
-
-`system_memory_bytes` reports used, available and percent, `system_cpu_percent` the host CPU, and `process_metrics` the process RSS, VMS, CPU and thread count.
+`setup_metrics` installs the OTLP exporter, exporting every 60 seconds, only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Otherwise every instrument uses the no-op provider. It also starts `opentelemetry-instrumentation-system-metrics` for the process's own CPU, memory, threads and file descriptors. The host's CPU and memory come from the collector's `host_metrics` receiver instead.

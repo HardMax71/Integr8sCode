@@ -2,6 +2,7 @@ import uvicorn
 from dishka.integrations.fastapi import setup_dishka as setup_dishka_fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.api.routes import (
     auth,
@@ -33,14 +34,13 @@ from app.core.container import create_app_container
 from app.core.dishka_lifespan import lifespan
 from app.core.exceptions import configure_exception_handlers
 from app.core.logging import setup_log_exporter, setup_logger
+from app.core.metrics import setup_metrics
 from app.core.middlewares import (
     CacheControlMiddleware,
     CSRFMiddleware,
-    MetricsMiddleware,
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
     SecurityHeadersMiddleware,
-    setup_metrics,
 )
 from app.settings import Settings
 
@@ -89,7 +89,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     setup_metrics(settings, logger)
     setup_log_exporter(settings, logger)
-    app.add_middleware(MetricsMiddleware)
+    # Starlette builds the middleware stack on its first call, the lifespan's, so instrumenting later does nothing
+    FastAPIInstrumentor().instrument_app(app, excluded_urls="health,metrics,docs,openapi.json")
     app.add_middleware(RateLimitMiddleware, container=container, settings=settings)
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(RequestSizeLimitMiddleware)

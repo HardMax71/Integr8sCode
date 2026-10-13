@@ -49,6 +49,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx==0.66b1",
     "opentelemetry-instrumentation-logging==0.66b1",
     "opentelemetry-instrumentation-pymongo==0.66b1",
+    "opentelemetry-instrumentation-system-metrics==0.66b1",
     "opentelemetry-proto==1.45.1",
     "opentelemetry-sdk==1.45.1",
     "opentelemetry-semantic-conventions==0.66b1",
@@ -60,7 +61,6 @@ dependencies = [
     "prometheus_client==0.26.0",
     "propcache==0.5.4",
     "protobuf==7.36.2",
-    "psutil==7.2.2",
     "pyasn1==0.6.4",
     "pyasn1_modules==0.4.2",
     "pydantic==2.14.0",
@@ -190,6 +190,7 @@ timeout_method = "signal"
 # pytest-env: Sets env vars before test execution
 [tool.pytest_env]
 OTEL_SDK_DISABLED = "true"  # Prevents teardown delays from OTLP exporter retries
+OTEL_SEMCONV_STABILITY_OPT_IN = "http"  # The stable HTTP metric names, as in the image
 
 # Coverage configuration
 [tool.coverage.run]

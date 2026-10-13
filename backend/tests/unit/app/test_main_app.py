@@ -71,7 +71,6 @@ def test_route_is_registered(app: FastAPI, path: str) -> None:
         "CORSMiddleware",
         "RequestSizeLimitMiddleware",
         "CacheControlMiddleware",
-        "MetricsMiddleware",
         "RateLimitMiddleware",
         "CSRFMiddleware",
     ],

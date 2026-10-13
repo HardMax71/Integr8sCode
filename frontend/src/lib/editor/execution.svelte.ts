@@ -9,7 +9,6 @@ import {
     type ExecutionResult,
     type SseControlEvent,
 } from '#lib/api/index.ts';
-import { getErrorMessage } from '#lib/api-interceptors.ts';
 
 type ActiveStatus = Extract<ExecutionStatus, 'queued' | 'scheduled' | 'running'>;
 
@@ -44,7 +43,7 @@ class ExecutionState {
 
     get error(): string | null {
         if (this.#streamError) return this.#streamError;
-        return this.#start.error ? getErrorMessage(this.#start.error, 'Failed to start execution.') : null;
+        return this.#start.error?.detail ?? null;
     }
 
     get isExecuting() {

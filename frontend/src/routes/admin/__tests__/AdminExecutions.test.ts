@@ -212,7 +212,7 @@ describe('AdminExecutions', () => {
             const execs: AdminExecutionResponse[] = [
                 { ...fakeAdminExecutionResponse(), execution_id: 'e1', priority: 'normal' },
             ];
-            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).err({ detail: 'Not found' });
+            mockApi(updatePriorityApiV1AdminExecutionsExecutionIdPriorityPut).err({ status: 404, detail: 'Not found' });
             await renderWithExecutions(execs);
 
             const [prioritySelect] = screen.getAllByDisplayValue('normal');

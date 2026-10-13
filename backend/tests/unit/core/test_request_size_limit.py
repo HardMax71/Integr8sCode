@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from starlette.types import Message
 
+from app.core.exceptions import configure_exception_handlers
 from app.core.middlewares import RequestSizeLimitMiddleware
 
 pytestmark = pytest.mark.unit
@@ -18,6 +19,7 @@ class _Payload(BaseModel):
 
 def _app() -> RequestSizeLimitMiddleware:
     api = FastAPI()
+    configure_exception_handlers(api)
 
     @api.post("/echo")
     async def echo(payload: _Payload) -> dict[str, int]:
@@ -60,7 +62,7 @@ async def _post(chunks: list[bytes], content_length: int | None) -> tuple[int, d
     return int(sent[0]["status"]), json.loads(body)
 
 
-_TOO_LARGE = {"detail": "Request too large. Maximum size is 1.0MB"}
+_TOO_LARGE = {"status": 413, "detail": "Request too large. Maximum size is 1.0MB"}
 
 
 async def test_small_body_passes() -> None:

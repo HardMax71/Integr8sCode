@@ -272,7 +272,7 @@ class TestGetEventDetail:
         response = await test_admin.get("/api/v1/admin/events/nonexistent-event-id")
 
         assert response.status_code == 404
-        assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "type": "EventNotFoundError"}
+        assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_get_event_detail_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:
@@ -334,7 +334,7 @@ class TestStreamReplayStatus:
         assert response.status_code == 404
         assert response.json() == {
             "detail": "Replay session 'nonexistent-session' not found",
-            "type": "ReplaySessionNotFoundError",
+            "status": 404,
         }
 
     @pytest.mark.asyncio
@@ -420,7 +420,7 @@ class TestDeleteEvent:
         response = await test_admin.delete("/api/v1/admin/events/nonexistent-event-id")
 
         assert response.status_code == 404
-        assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "type": "EventNotFoundError"}
+        assert response.json() == {"detail": "Event 'nonexistent-event-id' not found", "status": 404}
 
     @pytest.mark.asyncio
     async def test_delete_event_forbidden_for_regular_user(self, test_user: AsyncClient) -> None:

@@ -87,7 +87,7 @@ class TestAuthLogin:
         assert response.status_code == 403
         assert response.json() == {
             "detail": f"Account '{new_user_request.username}' is deactivated",
-            "type": "AccountDeactivatedError",
+            "status": 403,
         }
 
 
@@ -171,7 +171,7 @@ class TestAuthRegister:
         )
 
         assert response.status_code == 422
-        assert [error["loc"] for error in response.json()["detail"]] == [["body", "password"]]
+        assert response.json() == {"status": 422, "detail": "password: String should have at least 8 characters"}
 
 
 class TestAuthMe:
@@ -227,4 +227,4 @@ class TestAuthLogout:
         response = await test_user.post("/api/v1/auth/logout")
 
         assert response.status_code == 403
-        assert response.json() == {"detail": "CSRF validation failed", "type": "CSRFValidationError"}
+        assert response.json() == {"detail": "CSRF validation failed", "status": 403}

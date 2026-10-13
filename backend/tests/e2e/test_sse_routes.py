@@ -105,4 +105,4 @@ class TestExecutionStream:
         assert response.status_code == 403
         body = response.json()
         assert body["detail"] == "Access denied"
-        assert body["type"] == "ForbiddenError"
+        assert body["status"] == 403

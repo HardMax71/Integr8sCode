@@ -19,17 +19,8 @@ from app.services.saved_script_service import SavedScriptService
 router = APIRouter(route_class=DishkaRoute, tags=["scripts"])
 
 _RUNTIME_NOT_OFFERED: dict[str, Any] = {
+    "model": ErrorResponse,
     "description": "Language version is not offered, or invalid request body",
-    "content": {
-        "application/json": {
-            "schema": {
-                "anyOf": [
-                    {"$ref": "#/components/schemas/ErrorResponse"},
-                    {"$ref": "#/components/schemas/HTTPValidationError"},
-                ]
-            }
-        }
-    },
 }
 
 

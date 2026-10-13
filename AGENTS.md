@@ -211,7 +211,7 @@ class AccountLockedError(DomainError): # HTTP 423; too many failed login attempt
 class InfrastructureError(DomainError):# HTTP 500; DB, Kafka, K8s failures
 ```
 
-The global handler in `app/core/exceptions/handlers.py` maps every `DomainError` subclass to its HTTP status and returns `{"detail": exc.message, "type": "ClassName"}`.
+Every error the API returns is one body, `ErrorResponse`: `{"status": 404, "detail": "..."}`, the `status` and `detail` members of RFC 9457 problem details. The handlers in `app/core/exceptions/handlers.py` give it to a `DomainError` (with the status its class maps to), to FastAPI's `HTTPException` and request validation errors (one line of `field: message` pairs joined by `; `) and to anything unexpected (500 "Internal server error"). The rate-limit, CSRF and request-size middlewares reject with the same body. `create_app` declares it as every route's `default` response, so the spec and the generated client know exactly one error type.
 
 Rules:
 - Repositories return `T | None` for reads and **never raise `NotFoundError`**; they raise only for write-constraint violations (e.g. `ConflictError` for a duplicate key)
@@ -252,7 +252,7 @@ async def get_user(user_id: str, service: FromDishka[AdminUserService]) -> UserR
     return UserResponse.model_validate(user)
 ```
 
-The API error response schema is `ErrorResponse(detail: str, type: str | None)` from `app/schemas_pydantic/common.py`.
+The API error response schema is `ErrorResponse(status: int, detail: str)` from `app/schemas_pydantic/common.py`.
 
 ## Backend: FastAPI Routes
 
@@ -365,7 +365,7 @@ class UserResponse(BaseModel):
 - `json_schema_serialization_defaults_required=True` for OpenAPI correctness
 - Separate schemas: Create / Update / Response
 - A field's key is its only name: no `alias`, `validation_alias`, `serialization_alias`, alias generator or custom `title`, since the frontend labels every field from its key (tests/unit/app/test_one_name.py)
-- `ErrorResponse(detail: str, type: str | None)` is the standard error shape
+- `ErrorResponse(status: int, detail: str)` is the one error shape; list a route's error codes with `{"model": ErrorResponse}`
 
 ## Backend: Beanie ODM (MongoDB)
 
@@ -692,7 +692,7 @@ const cancel = createMutation(() => ({
 
 ## Frontend: Error Handling & API Interceptors
 
-The fetch error interceptor in `src/lib/api-interceptors.ts` wraps every failure in an `ApiError` (`src/lib/api-error.ts`) that keeps the HTTP status, since `throwOnError` would throw only the body. The query client's cache `onError` then calls `showApiError`, once a query has used up its retries:
+The generated client throws the API's error body, the generated `ErrorResponse`, which carries the status. The error interceptor in `src/lib/api-interceptors.ts` only fills in the failures without one: a body that isn't an `ErrorResponse`, like a proxy's error page, becomes `{status, detail: "HTTP <status>"}`, and no response at all becomes status 0. `ErrorResponse` is registered as TanStack Query's `defaultError`, so `query.error`, `mutation.error` and the cache handlers are typed. The query client's cache `onError` then calls `showApiError`, once a query has used up its retries:
 
 | Status | Action |
 |--------|--------|
@@ -703,9 +703,9 @@ The fetch error interceptor in `src/lib/api-interceptors.ts` wraps every failure
 | 429 | Toast warning "Too many requests. Please slow down." |
 | 500+ | Toast error "Server error. Please try again later." |
 | Other 4xx | Toast error with the response `detail` |
-| Network | Toast error "Network error. Check your connection." |
+| 0 (no response) | Toast error "Network error. Check your connection." |
 
-A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `getErrorMessage(mutation.error, ...)` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
+A 401 also empties the query cache, as `authStore.clearAuth()` does. Mutations with `meta: { inlineErrors: true }` (the login and register forms) skip only the 401, network and other-4xx handling and show `mutation.error.detail` under the form; 403, 422, 423, 429 and 5xx still toast. The CSRF token (`X-CSRF-Token`) is attached to every non-GET request from `authStore.csrfToken`.
 
 **Do not add try/catch around API calls**; the cache handlers do the display. To react to one specific failure, pass `onError` to `mutate` (the editor turns a 404 on update into a create). Two kinds of catch are fine: the auth store's `verifyAuth`, which tells a 401 from a network error, and `.catch(() => null)` on an awaited `queryClient.query()` or `mutateAsync()` that only needs to know whether it worked (the admin detail modals, the editor's execution start), since the cache handler has already shown the error.
 
@@ -773,7 +773,7 @@ Test quality rules:
 async def test_admin_routes_reject_regular_users(test_user: AsyncClient, path: str) -> None:
     response = await test_user.get(path)
     assert response.status_code == 403
-    assert response.json()["type"] == "AdminAccessRequiredError"
+    assert response.json()["detail"].startswith("Admin access required")
 ```
 
 SSE routes need a streaming transport, because `httpx2.ASGITransport` waits for the whole body. Use `streaming_client(app, user)` from `tests/e2e/conftest.py` (built on its `StreamingASGITransport`) and read events with httpx2's `client.sse()`:
@@ -806,7 +806,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 - `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner`, `$app/navigation` and `match` from `$app/paths` (a test sets the route it returns), stubs storage, and runs `cleanup()`, clears the query cache and seeds faker before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
 - bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
 - Fixtures come from the generated Faker factories in `#lib/api/@faker-js/faker.gen.ts` (`fakeUserResponse()` and one per schema), with the values a test depends on spread over them, never a local copy of an API type or an `as any`. The setup seeds faker before every test, so fakes repeat from run to run but shift when the spec changes: set every field the test asserts on. API calls are mocked at the SDK functions, so the MSW plugin isn't used; `mockApi(fn).ok(data)` takes the data type from `fn`'s generated return type, and `mockStreamEvents(fn, ...events)` feeds an SSE function
-- Components that run queries render with `renderWithQueryClient(Component, props)`; state that builds queries outside a component (the editor's execution state) is created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status
+- Components that run queries render with `renderWithQueryClient(Component, props)`; state that builds queries outside a component (the editor's execution state) is created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`. `err()` takes an `ErrorResponse`, so give it the status the test is about; the query client retries 0 and 5xx, so a failed-load test that shouldn't wait uses a 4xx
 - `vi.clearAllMocks()` in `beforeEach`
 - `await tick()` after render, `waitFor()` for async state
 - Coverage thresholds: statements 92, branches 76, functions 90, lines 92; the generated client (`src/lib/api/`) is excluded

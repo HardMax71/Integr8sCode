@@ -8,6 +8,7 @@ import { render, type RenderResult } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import QueryClientWrapper from '#test/QueryClientWrapper.svelte';
 import RunInContext from '#test/RunInContext.svelte';
+import type { ErrorResponse } from '#lib/api/index.ts';
 
 export type UserEventInstance = ReturnType<typeof userEvent.setup>;
 
@@ -23,8 +24,8 @@ type ApiData<F> = F extends (...args: any[]) => Promise<infer R>
 
 /**
  * Fluent mock wrapper for hey-api SDK functions.
- * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects
- * when the call passes `throwOnError`, which the generated query and mutation options always do.
+ * Hides the `request`/`response` fields that `RequestResult` requires. Like the real client, `err` rejects with an
+ * ErrorResponse when the call passes `throwOnError`, which the generated query and mutation options always do.
  */
 export function mockApi<F extends (...args: any[]) => any>(fn: F) {
     const mock = vi.mocked(fn) as ReturnType<typeof vi.fn>;
@@ -41,7 +42,7 @@ export function mockApi<F extends (...args: any[]) => any>(fn: F) {
                 response: _s,
             }));
         },
-        err(error: unknown) {
+        err(error: ErrorResponse) {
             mock.mockImplementation((options?: { throwOnError?: boolean }) =>
                 options?.throwOnError
                     ? Promise.reject(error)

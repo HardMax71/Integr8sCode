@@ -91,7 +91,7 @@ describe('AdminEvents', () => {
         });
 
         it('shows the empty state when the events fail to load', async () => {
-            mockApi(browseEventsApiV1AdminEventsBrowsePost).err({ detail: 'Network error' });
+            mockApi(browseEventsApiV1AdminEventsBrowsePost).err({ status: 403, detail: 'Access denied' });
             renderWithQueryClient(AdminEvents);
             expect(await screen.findByText(/No events found/i)).toBeInTheDocument();
         });
@@ -542,7 +542,7 @@ describe('AdminEvents', () => {
         });
 
         it('reports no success when the delete fails', async () => {
-            mockApi(deleteEventApiV1AdminEventsEventIdDelete).err({ detail: 'Cannot delete' });
+            mockApi(deleteEventApiV1AdminEventsEventIdDelete).err({ status: 500, detail: 'Cannot delete' });
             const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
@@ -661,7 +661,10 @@ describe('AdminEvents', () => {
         });
 
         it('shows no data in the overview when it fails to load', async () => {
-            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err({ detail: 'Failed to load' });
+            mockApi(getUserOverviewApiV1AdminUsersUserIdOverviewGet).err({
+                status: 404,
+                detail: "User 'user-error' not found",
+            });
             const events = [
                 { ...fakeExecutionCompletedEvent(), metadata: { ...fakeEventMetadata(), user_id: 'user-error' } },
             ];
@@ -716,7 +719,7 @@ describe('AdminEvents', () => {
 
     describe('error handling', () => {
         it('opens no details when the event fails to load', async () => {
-            mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ detail: 'Detail not found' });
+            mockApi(getEventDetailApiV1AdminEventsEventIdGet).err({ status: 404, detail: 'Detail not found' });
             const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 
@@ -728,7 +731,7 @@ describe('AdminEvents', () => {
         });
 
         it('starts no progress tracking when the replay fails', async () => {
-            mockApi(replayEventsApiV1AdminEventsReplayPost).err({ detail: 'Replay failed' });
+            mockApi(replayEventsApiV1AdminEventsReplayPost).err({ status: 500, detail: 'Replay failed' });
             const events = [fakeExecutionCompletedEvent()];
             await renderWithEvents(events);
 

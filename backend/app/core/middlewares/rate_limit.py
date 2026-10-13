@@ -8,6 +8,7 @@ from app.core.security import SecurityService
 from app.core.utils import get_client_ip
 from app.domain.rate_limit import RateLimitStatus
 from app.domain.user import InvalidCredentialsError
+from app.schemas_pydantic.common import ErrorResponse
 from app.services.rate_limit_service import RateLimitService
 from app.settings import Settings
 
@@ -103,11 +104,5 @@ class RateLimitMiddleware:
         }
 
         return JSONResponse(
-            status_code=429,
-            content={
-                "detail": "Rate limit exceeded",
-                "retry_after": status.retry_after,
-                "reset_at": status.reset_at.isoformat(),
-            },
-            headers=headers,
+            ErrorResponse(status=429, detail="Rate limit exceeded").model_dump(), status_code=429, headers=headers
         )

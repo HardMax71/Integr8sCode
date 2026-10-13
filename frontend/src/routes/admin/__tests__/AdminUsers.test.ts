@@ -7,7 +7,6 @@ import {
     fakeUserRateLimitsResponse,
     fakeUserResponse,
 } from '#lib/api/@faker-js/faker.gen.ts';
-import { ApiError } from '#lib/api-error.ts';
 import { queryClient } from '#lib/query-client.ts';
 import {
     listUsersApiV1AdminUsersGet,
@@ -21,7 +20,6 @@ import {
     UserRole,
     zDeleteUserResponse,
     zRateLimitUpdateRequest,
-    type HttpValidationError,
     type UserRateLimitConfigResponse,
 } from '#lib/api/index.ts';
 
@@ -56,7 +54,7 @@ describe('AdminUsers', () => {
         });
 
         it('shows no users when loading fails', async () => {
-            mockApi(listUsersApiV1AdminUsersGet).err(new ApiError(500, { detail: 'Server error', type: null }));
+            mockApi(listUsersApiV1AdminUsersGet).err({ status: 500, detail: 'Server error' });
             renderWithQueryClient(AdminUsers);
             await waitFor(() => expect(vi.mocked(listUsersApiV1AdminUsersGet)).toHaveBeenCalled());
             expect(screen.queryByText('testuser')).not.toBeInTheDocument();
@@ -232,10 +230,7 @@ describe('AdminUsers', () => {
         });
 
         it('keeps the dialog open when the server rejects a new user', async () => {
-            const body: HttpValidationError = {
-                detail: [{ loc: ['body', 'username'], msg: 'Required', type: 'missing' }],
-            };
-            mockApi(createUserApiV1AdminUsersPost).err(new ApiError(422, body));
+            mockApi(createUserApiV1AdminUsersPost).err({ status: 422, detail: 'username: Field required' });
             await renderWithUsers();
             const [createButton] = screen.getAllByRole('button', { name: /Create User/i });
             await user.click(createButton!);
@@ -389,9 +384,7 @@ describe('AdminUsers', () => {
         });
 
         it('keeps the dialog open when deletion fails', async () => {
-            mockApi(deleteUserApiV1AdminUsersUserIdDelete).err(
-                new ApiError(500, { detail: 'Cannot delete', type: null }),
-            );
+            mockApi(deleteUserApiV1AdminUsersUserIdDelete).err({ status: 500, detail: 'Cannot delete' });
             const users = [{ ...fakeUserResponse(), username: 'deleteme' }];
             await renderWithUsers(users);
 
@@ -528,9 +521,7 @@ describe('AdminUsers', () => {
                 rate_limit_config: mockRateLimitConfig,
                 current_usage: {},
             });
-            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).err(
-                new ApiError(422, { detail: 'Invalid config', type: null }),
-            );
+            mockApi(updateUserRateLimitsApiV1AdminRateLimitsUserIdPut).err({ status: 422, detail: 'Invalid config' });
             const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
@@ -704,9 +695,7 @@ describe('AdminUsers', () => {
 
     describe('error handling', () => {
         it('shows no rate limit settings when loading them fails', async () => {
-            mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).err(
-                new ApiError(500, { detail: 'Failed to load', type: null }),
-            );
+            mockApi(getUserRateLimitsApiV1AdminRateLimitsUserIdGet).err({ status: 500, detail: 'Failed to load' });
             const users = [{ ...fakeUserResponse(), username: 'testuser' }];
             await renderWithUsers(users);
 
@@ -727,9 +716,10 @@ describe('AdminUsers', () => {
                 },
                 current_usage: { '/api': { algorithm: 'sliding_window', remaining: 1 } },
             });
-            mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).err(
-                new ApiError(500, { detail: 'Reset failed', type: null }),
-            );
+            mockApi(resetUserRateLimitsApiV1AdminRateLimitsUserIdResetPost).err({
+                status: 500,
+                detail: 'Reset failed',
+            });
             const users = [{ ...fakeUserResponse(), user_id: 'u1', username: 'testuser' }];
             await renderWithUsers(users);
 

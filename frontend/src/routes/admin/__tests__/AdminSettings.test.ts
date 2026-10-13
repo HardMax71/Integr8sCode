@@ -114,7 +114,7 @@ describe('AdminSettings', () => {
         });
 
         it('handles save error without crashing', async () => {
-            mockApi(updateSystemSettingsApiV1AdminSettingsPut).err({ detail: 'Save failed' });
+            mockApi(updateSystemSettingsApiV1AdminSettingsPut).err({ status: 500, detail: 'Save failed' });
             await renderAdminSettings();
             await waitFor(() => {
                 expect(screen.getByRole('button', { name: /save settings/i })).toBeInTheDocument();

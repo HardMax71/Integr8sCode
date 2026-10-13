@@ -12,7 +12,6 @@
     import { fade, fly } from 'svelte/transition';
     import Spinner from '#components/Spinner.svelte';
     import { onMount } from 'svelte';
-    import { getErrorMessage } from '#lib/api-interceptors.ts';
 
     const login = createMutation(() => ({
         ...loginApiV1AuthLoginPostMutation(),
@@ -29,9 +28,7 @@
     }));
 
     let loading = $derived(login.isPending);
-    let error = $derived(
-        login.error ? getErrorMessage(login.error, 'Login failed. Please check your credentials.') : null,
-    );
+    const error = $derived(login.error?.detail);
 
     onMount(() => {
         // Check for authentication message from redirect

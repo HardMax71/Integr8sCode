@@ -1,10 +1,8 @@
-import * as z from 'zod/mini';
-import { client, zErrorResponse, zHttpValidationError, type ValidationError } from '#lib/api/index.ts';
+import { client, zErrorResponse, type ErrorResponse } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { authStore } from '#stores/auth.svelte.ts';
-import { ApiError } from '#lib/api-error.ts';
 import { setQueryErrorHandler } from '#lib/query-client.ts';
 import { logger } from '#lib/logger.ts';
 
@@ -21,34 +19,6 @@ const STATUS_MESSAGES: Record<number, { message: string; type: 'error' | 'warnin
     },
     429: { message: 'Too many requests. Please slow down.', type: 'warning' },
 };
-
-// FastAPI's own errors carry only `detail`, without the `type` our handler adds
-const zErrorDetail = z.pick(zErrorResponse, { detail: true });
-
-function formatValidationErrors(errors: ValidationError[]): string {
-    return errors
-        .map((e) => {
-            if (!e.loc.length) return e.msg;
-            const field = e.loc.at(-1);
-            return `${typeof field === 'string' ? field : 'field'}: ${e.msg}`;
-        })
-        .join(', ');
-}
-
-export function getErrorMessage(err: unknown, fallback = 'An error occurred'): string {
-    if (!err) return fallback;
-    if (err instanceof ApiError) return getErrorMessage(err.body, fallback);
-    if (typeof err === 'string') return err;
-
-    const message = zErrorDetail.safeParse(err);
-    if (message.success) return message.data.detail;
-    const validation = zHttpValidationError.safeParse(err);
-    if (validation.success && validation.data.detail?.length) return formatValidationErrors(validation.data.detail);
-
-    if (err instanceof Error) return err.message;
-
-    return fallback;
-}
 
 function handle401(): void {
     const wasAuthenticated = authStore.isAuthenticated;
@@ -72,31 +42,22 @@ function handle401(): void {
 // --8<-- [start:error_handling]
 /**
  * Shows a failed query or mutation; the query client calls it once a query has used up its retries.
- * @param error - What the request threw; anything but an ApiError failed before it was sent and is only logged
  * @param inlineErrors - The form shows 401s, network errors and other 4xx itself
  */
-export function showApiError(error: unknown, inlineErrors: boolean): void {
-    if (!(error instanceof ApiError)) return;
-    const { status } = error;
-
-    if (status === undefined) {
-        if (!inlineErrors) toast.error('Network error. Check your connection.');
-        return;
-    }
+export function showApiError({ status, detail }: ErrorResponse, inlineErrors: boolean): void {
     if (status === 401) {
         if (!inlineErrors) handle401();
         return;
     }
-
     const mapped = STATUS_MESSAGES[status];
     if (mapped) {
         toast[mapped.type](mapped.message);
     } else if (status === 422) {
-        toast.error(`Validation error: ${getErrorMessage(error)}`);
+        toast.error(`Validation error: ${detail}`);
     } else if (status >= 500) {
         toast.error('Server error. Please try again later.');
     } else if (!inlineErrors) {
-        toast.error(getErrorMessage(error));
+        toast.error(detail);
     }
 }
 // --8<-- [end:error_handling]
@@ -109,10 +70,14 @@ export function initializeApiInterceptors(): void {
 
     setQueryErrorHandler(showApiError);
 
-    client.interceptors.error.use((error, response: Response | undefined, request, opts) => {
+    // A body that isn't an ErrorResponse, like a proxy's error page, or no response at all becomes one
+    client.interceptors.error.use((error, response, request, opts) => {
         log.error('API Error', { status: response?.status, url: request?.url ?? opts.url, error });
-        // No request means it failed before it was sent, so there's no status to report
-        return request ? new ApiError(response?.status, error) : error;
+        const problem = zErrorResponse.safeParse(error);
+        if (problem.success) return problem.data;
+        return response
+            ? { status: response.status, detail: `HTTP ${response.status}` }
+            : { status: 0, detail: 'Network error. Check your connection.' };
     });
 
     // --8<-- [start:csrf_injection]

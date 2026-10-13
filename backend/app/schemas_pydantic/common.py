@@ -1,8 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class ErrorResponse(BaseModel):
-    detail: str = Field(description="Human-readable error message")
-    type: str | None = Field(default=None, description="Error type identifier")
+    """Every error the API returns: the `status` and `detail` members of RFC 9457 problem details."""
 
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+    status: int = Field(description="HTTP status code")
+    detail: str = Field(description="Human-readable error message")

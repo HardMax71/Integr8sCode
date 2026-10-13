@@ -6,7 +6,6 @@ import {
     type LoginResponse,
     type UserResponse,
 } from '#lib/api/index.ts';
-import { ApiError } from '#lib/api-error.ts';
 import { queryClient } from '#lib/query-client.ts';
 import { logger } from '#lib/logger.ts';
 
@@ -132,12 +131,12 @@ class AuthStore {
                 staleTime: forceRefresh ? 0 : VERIFY_STALE_MS,
                 retry: false,
             });
-        } catch (err) {
-            if (err instanceof ApiError && err.status === 401) {
+        } catch {
+            if (queryClient.getQueryState(getCurrentUserProfileApiV1AuthMeGetQueryKey())?.error?.status === 401) {
                 this.clearAuth();
                 return false;
             }
-            log.warn('Auth verification failed, keeping cached state:', err);
+            log.warn('Auth verification failed, keeping cached state');
             return queryClient.getQueryData(getCurrentUserProfileApiV1AuthMeGetQueryKey()) !== undefined;
         }
 

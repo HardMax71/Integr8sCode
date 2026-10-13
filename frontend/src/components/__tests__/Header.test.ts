@@ -209,7 +209,7 @@ describe('Header', () => {
 
         it.each([
             ['succeeds', () => mockApi(logoutApiV1AuthLogoutPost).ok({ message: 'Logged out' })],
-            ['fails', () => mockApi(logoutApiV1AuthLogoutPost).err({ detail: 'Server error' })],
+            ['fails', () => mockApi(logoutApiV1AuthLogoutPost).err({ status: 500, detail: 'Server error' })],
         ])('logout ends the session and goes to /login when the call %s', async (_label, arrange) => {
             arrange();
             await openUserDropdown();

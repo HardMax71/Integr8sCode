@@ -43,7 +43,7 @@ Coverage excludes the generated client in `src/lib/api/` and fails below the thr
 - fake timers with `shouldAdvanceTime: true`
 - `#lib/api/sdk.gen.ts` with every generated API function replaced by a `vi.fn()`, while enums, Zod schemas, the client and the TanStack options stay real; mocking sdk.gen rather than the index means the generated query options, which import it directly, call the mocks too. A test that overrides `#lib/api/index.ts` spreads `importOriginal()` into its factory so the rest stays available
 - `#lib/api-interceptors.ts` with a no-op `initializeApiInterceptors`, so no test gets the toast handler unless it sets one; `getErrorMessage` and `showApiError` stay real
-- `svelte-sonner`'s `toast` and `goto` from `$app/navigation`; a test that needs `page` from `$app/state` mocks it in its own file
+- `svelte-sonner`'s `toast`, `goto` from `$app/navigation`, and `match` from `$app/paths`, which needs the router of a started app; a test sets the route it returns with `vi.mocked(match).mockResolvedValue(...)`, and `resolve` stays real. A test that needs `page` from `$app/state` mocks it in its own file
 - `localStorage`, `sessionStorage` and `matchMedia`, plus `ResizeObserver` and `IntersectionObserver` as classes, since floating-ui (behind the bits-ui menus and popovers) constructs them with `new`
 - `Element.prototype.animate`, which Svelte transitions call
 - a `:checked` polyfill for `<select>`, since happy-dom lacks it and `bind:value` depends on it

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { match, resolve } from '$app/paths';
     import { goto } from '$app/navigation';
     import { createMutation } from '@tanstack/svelte-query';
     import * as z from 'zod/mini';
@@ -20,14 +21,10 @@
             await authStore.startSession(data);
             toast.success('Login successful! Welcome back.');
 
-            // Only a local path, so a crafted link can't send the user off-site
-            const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+            // match() only knows this app's pages, so a crafted path can't send the user off-site
+            const route = await match(sessionStorage.getItem('redirectAfterLogin') ?? resolve('/(auth)/editor'));
             sessionStorage.removeItem('redirectAfterLogin');
-            if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
-                void goto(redirectPath);
-            } else {
-                void goto('/editor');
-            }
+            void goto(resolve(route?.id ?? '/(auth)/editor'));
         },
     }));
 
@@ -89,7 +86,7 @@
             <h2 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Sign in to your account</h2>
             <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
                 Or <a
-                    href="/register"
+                    href={resolve('/register')}
                     class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary"
                     >create a new account</a
                 >

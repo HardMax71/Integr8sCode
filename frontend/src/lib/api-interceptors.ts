@@ -2,6 +2,7 @@ import * as z from 'zod/mini';
 import { client, zErrorResponse, zHttpValidationError, type ValidationError } from '#lib/api/index.ts';
 import { toast } from 'svelte-sonner';
 import { goto } from '$app/navigation';
+import { resolve } from '$app/paths';
 import { authStore } from '#stores/auth.svelte.ts';
 import { ApiError } from '#lib/api-error.ts';
 import { setQueryErrorHandler } from '#lib/query-client.ts';
@@ -59,7 +60,7 @@ function handle401(): void {
         if (currentPath !== '/login' && currentPath !== '/register') {
             sessionStorage.setItem('redirectAfterLogin', currentPath);
         }
-        void goto('/login');
+        void goto(resolve('/login'));
         setTimeout(() => {
             isHandling401 = false;
         }, 1000);

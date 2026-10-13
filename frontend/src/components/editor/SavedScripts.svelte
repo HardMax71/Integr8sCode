@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { slide } from 'svelte/transition';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { List, Trash } from '@lucide/svelte';
@@ -52,7 +53,7 @@
             Saved Scripts
         </h4>
         <p class="text-xs text-fg-muted dark:text-dark-fg-muted">
-            <a href="/login" class="link">Log in</a> to save and manage your scripts.
+            <a href={resolve('/login')} class="link">Log in</a> to save and manage your scripts.
         </p>
     </div>
 {:else}

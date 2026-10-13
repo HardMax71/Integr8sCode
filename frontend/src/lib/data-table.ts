@@ -13,7 +13,6 @@ import {
     type TableFeatures,
 } from '@tanstack/svelte-table';
 
-/* eslint-disable @typescript-eslint/no-unused-vars -- a merged declaration repeats the type parameters it doesn't use */
 declare module '@tanstack/table-core' {
     interface ColumnMeta<
         in out TFeatures extends TableFeatures,
@@ -24,7 +23,6 @@ declare module '@tanstack/table-core' {
         class?: string;
     }
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export const features = tableFeatures({ rowPaginationFeature });
 

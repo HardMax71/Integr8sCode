@@ -83,7 +83,7 @@
             <div class="card p-4 {STATS_BG_COLORS.purple}">
                 <div class="text-sm {STATS_TEXT_COLORS.purple} font-medium">{fieldTitle('by_priority')}</div>
                 <div class="text-sm text-fg-default dark:text-dark-fg-default mt-1">
-                    {#each Object.entries(queueStatus.by_priority) as [priority, count]}
+                    {#each Object.entries(queueStatus.by_priority) as [priority, count] (priority)}
                         <span class="mr-2">{priority}: {count}</span>
                     {:else}
                         <span class="text-fg-muted dark:text-dark-fg-muted">Empty</span>

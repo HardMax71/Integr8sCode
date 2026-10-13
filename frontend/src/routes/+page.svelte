@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { onMount, type Component } from 'svelte';
     import { Zap, ShieldCheck, Clock } from '@lucide/svelte';
 
@@ -58,7 +59,7 @@
                 </div>
                 <div class="mt-8 sm:mt-10 hero-animate-fly-in" style="--fly-y: 15px; --fly-delay: 500ms;">
                     <a
-                        href="/editor"
+                        href={resolve('/(auth)/editor')}
                         class="btn btn-primary btn-lg px-6 sm:px-8 py-2.5 sm:py-3 text-sm sm:text-base font-semibold shadow-lg hover:shadow-primary/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-all duration-300 ease-out-expo hover:-translate-y-0.5 hover:text-white"
                     >
                         Start Coding Now
@@ -87,7 +88,7 @@
             <div
                 class="mx-auto max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 features-grid"
             >
-                {#each features as feature, i}
+                {#each features as feature, i (feature.title)}
                     {@const Icon = feature.icon}
                     <div
                         class="feature-card group relative flex flex-col items-start text-left pl-5 pr-5 py-5 sm:pl-6 sm:pr-6 sm:py-6 bg-bg-alt dark:bg-dark-bg-alt rounded-xl border border-border-default/50 dark:border-dark-border-default/50 shadow-xs transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40 hero-animate-fly-in h-full"

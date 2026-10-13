@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { resolve } from '$app/paths';
 import { toast } from 'svelte-sonner';
 import { UserRole } from '#lib/api/index.ts';
 import { authStore } from '#stores/auth.svelte.ts';
@@ -11,7 +12,7 @@ export async function requireAuth(url: URL): Promise<void> {
     const signedIn = await authStore.waitForInit().catch(() => false);
     if (signedIn && authStore.isAuthenticated) return;
     sessionStorage.setItem('redirectAfterLogin', url.pathname + url.search);
-    redirect(307, '/login');
+    redirect(307, resolve('/login'));
 }
 
 /**
@@ -22,5 +23,5 @@ export async function requireAdmin(url: URL): Promise<void> {
     await requireAuth(url);
     if (authStore.user?.role === UserRole.ADMIN) return;
     toast.error('Admin access required');
-    redirect(307, '/');
+    redirect(307, resolve('/'));
 }

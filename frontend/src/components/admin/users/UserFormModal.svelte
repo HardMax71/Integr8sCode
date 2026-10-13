@@ -119,62 +119,47 @@
 {/snippet}
 
 <Modal open title={editing ? 'Edit User' : 'Create New User'} {onClose} size="sm">
-    {#snippet children()}
-        <form method="post" use:enhance novalidate autocomplete="off">
-            <div class="space-y-4">
-                {@render textField('username', 'text', 'username', 'johndoe')}
-                {@render textField('email', 'email', 'email', 'john@example.com')}
-                {@render textField('password', 'password', 'new-password')}
-                <Field {form} name="role">
-                    <Control id="user-form-role">
-                        {#snippet children({ props })}
-                            <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
-                                >{fieldTitle('role')}</Label
+    <form method="post" use:enhance novalidate autocomplete="off">
+        <div class="space-y-4">
+            {@render textField('username', 'text', 'username', 'johndoe')}
+            {@render textField('email', 'email', 'email', 'john@example.com')}
+            {@render textField('password', 'password', 'new-password')}
+            <Field {form} name="role">
+                <Control id="user-form-role">
+                    {#snippet children({ props })}
+                        <Label class="block text-sm font-medium text-fg-muted dark:text-dark-fg-muted mb-1"
+                            >{fieldTitle('role')}</Label
+                        >
+                        <select {...props} bind:value={$formData.role} class="form-select-standard" disabled={saving}>
+                            {#each Object.values(UserRole) as option (option)}
+                                <option value={option}>{option}</option>
+                            {/each}
+                        </select>
+                    {/snippet}
+                </Control>
+            </Field>
+            <Field {form} name="is_active">
+                <Control>
+                    {#snippet children({ props })}
+                        <div class="flex items-center gap-2">
+                            <input {...props} type="checkbox" bind:checked={$formData.is_active} disabled={saving} />
+                            <Label class="text-sm font-medium text-fg-default dark:text-dark-fg-default cursor-pointer"
+                                >{fieldTitle('is_active')}</Label
                             >
-                            <select
-                                {...props}
-                                bind:value={$formData.role}
-                                class="form-select-standard"
-                                disabled={saving}
-                            >
-                                {#each Object.values(UserRole) as option (option)}
-                                    <option value={option}>{option}</option>
-                                {/each}
-                            </select>
-                        {/snippet}
-                    </Control>
-                </Field>
-                <Field {form} name="is_active">
-                    <Control>
-                        {#snippet children({ props })}
-                            <div class="flex items-center gap-2">
-                                <input
-                                    {...props}
-                                    type="checkbox"
-                                    bind:checked={$formData.is_active}
-                                    disabled={saving}
-                                />
-                                <Label
-                                    class="text-sm font-medium text-fg-default dark:text-dark-fg-default cursor-pointer"
-                                    >{fieldTitle('is_active')}</Label
-                                >
-                            </div>
-                        {/snippet}
-                    </Control>
-                </Field>
-            </div>
-            <div class="flex justify-end gap-2 mt-6">
-                <button type="button" onclick={onClose} class="btn btn-secondary-outline" disabled={saving}
-                    >Cancel</button
-                >
-                <button type="submit" class="btn btn-primary flex items-center gap-2" disabled={saving}>
-                    {#if saving}
-                        <Spinner size="small" />Saving...
-                    {:else}
-                        {editing ? 'Update User' : 'Create User'}
-                    {/if}
-                </button>
-            </div>
-        </form>
-    {/snippet}
+                        </div>
+                    {/snippet}
+                </Control>
+            </Field>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+            <button type="button" onclick={onClose} class="btn btn-secondary-outline" disabled={saving}>Cancel</button>
+            <button type="submit" class="btn btn-primary flex items-center gap-2" disabled={saving}>
+                {#if saving}
+                    <Spinner size="small" />Saving...
+                {:else}
+                    {editing ? 'Update User' : 'Create User'}
+                {/if}
+            </button>
+        </div>
+    </form>
 </Modal>

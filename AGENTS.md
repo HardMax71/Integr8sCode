@@ -618,6 +618,7 @@ Strict mode plus extra strictness in `tsconfig.json`:
 - `"noUncheckedIndexedAccess": true`: array/object access returns `T | undefined`
 - `"noImplicitReturns": true`
 - `"verbatimModuleSyntax": true`: use `import type` for type-only imports
+- `"noUnusedLocals"` and `"noUnusedParameters"`: svelte-check fails on an unused declaration, in `.svelte` files too. They replace typescript-eslint's `no-unused-vars`, which flags the type parameters a merged declaration has to repeat
 
 Imports go through the package.json subpath imports (SvelteKit 3 dropped `$lib`), always with the file extension; never relative `../../lib/`:
 ```text
@@ -663,6 +664,7 @@ UI-only maps keyed by a generated enum (`Record<ExecutionStatus, string>` for ba
 - A label, column header, detail row or filter for an API field shows `fieldTitle(key)` from `#lib/formatters.ts`, which titles the key the way Pydantic does in the spec (`created_at` is "Created At"). A hint goes in a description next to the field, never into its label
 - `DataTable` titles each column by its id, so a column is named after its API key and has no `header`
 - Enum values show exactly as the API sends them, and a boolean reads Yes or No through `formatBoolean`
+- ESLint runs eslint-plugin-svelte's recommended rules: keyed `{#each}` blocks, `resolve()` on every link and `goto()`, no `{@html}` (ANSI output renders as spans from anser's tokens). Fix a finding in the code; the repo has no `eslint-disable` comments
 - ESLint rejects literal text inside `<label>`, formsnap's `Label`, `<dt>` and `<th>`, and a `header` on a column. A UI-only label (one that names no API field) goes outside those elements or on the control's `aria-label`
 
 Server state goes through TanStack Query with the options the `@tanstack/svelte-query` plugin generates, never a hand-rolled loading flag, polling loop, cache or retry. A component calls the query or mutation for the data it renders; a page doesn't fetch on behalf of its children, since the query cache already shares one request between them. Every page does this; only the three SSE streams call the SDK directly. `docs/frontend/server-state.md` has the details.
@@ -728,7 +730,7 @@ export const load: LayoutLoad = async ({ url }) => {
 };
 ```
 
-Navigation: plain `<a href>` for links (SvelteKit handles them), `goto('/path')` from `$app/navigation` in code, and `page` from `$app/state` for the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
+Navigation: links and `goto()` take a path from `resolve()` in `$app/paths` (`<a href={resolve('/admin/users')}>`, `goto(resolve('/login'))`), which checks it against the routes. A route in a group goes by its route ID, so the editor is `resolve('/(auth)/editor')`. A path known only at runtime, like a notification's `action_url` or the page saved before login, goes through `match()` first, which returns null for an API path or another site. A link nginx serves, like `/grafana`, carries `rel="external"`. `page` from `$app/state` gives the current URL. Page titles go in `<svelte:head>` as `<title>Page - Integr8sCode</title>`. Errors while loading or rendering show `src/routes/+error.svelte`.
 
 ## Frontend: Overlays
 
@@ -801,7 +803,7 @@ vi.mock('#lib/api/index.ts', async (importOriginal) => ({
 ```
 
 - Tests sit next to the source in `__tests__/` directories
-- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner` and `$app/navigation`, stubs storage, and runs `cleanup()`, clears the query cache and seeds faker before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
+- `vitest.setup.ts` already mocks `#lib/api/sdk.gen.ts` (SDK functions only; enums, Zod schemas, the client and the TanStack options stay real, and the options call the mocks), `initializeApiInterceptors` (so no toast handler is set), `svelte-sonner`, `$app/navigation` and `match` from `$app/paths` (a test sets the route it returns), stubs storage, and runs `cleanup()`, clears the query cache and seeds faker before every test; override a mock per file with `vi.mock`, spread `importOriginal()` into a `#lib/api/index.ts` or `#lib/formatters.ts` factory so the real exports stay available, and mock `$app/state` in the file when a component reads `page`
 - bits-ui content renders in a portal, so query it through `screen` or `document.body`, not the render container. happy-dom gives every element a 0x0 box, so outside clicks can't be tested there; cover them in Playwright
 - Fixtures come from the generated Faker factories in `#lib/api/@faker-js/faker.gen.ts` (`fakeUserResponse()` and one per schema), with the values a test depends on spread over them, never a local copy of an API type or an `as any`. The setup seeds faker before every test, so fakes repeat from run to run but shift when the spec changes: set every field the test asserts on. API calls are mocked at the SDK functions, so the MSW plugin isn't used; `mockApi(fn).ok(data)` takes the data type from `fn`'s generated return type, and `mockStreamEvents(fn, ...events)` feeds an SSE function
 - Components that run queries render with `renderWithQueryClient(Component, props)`; state that builds queries outside a component (the editor's execution state) is created with `createInQueryContext(factory)`. Both come from `#test/test-utils.ts`. `mockApi(fn).err()` rejects when the call passes `throwOnError`, as the generated options do, so check SDK calls with `expect.objectContaining`; reject with an `ApiError` when the code branches on the status

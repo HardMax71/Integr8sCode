@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import Anser from 'anser';
     import type { ExecutionResult } from '#lib/api/index.ts';
     import type { ExecutionPhase } from '#lib/editor/index.ts';
     import { fieldTitle } from '#lib/formatters.ts';
@@ -18,32 +18,6 @@
         error: string | null;
     } = $props();
 
-    let ansiConverter = $state<import('ansi_up').AnsiUp | null>(null);
-    let purify = $state<typeof import('dompurify').default | null>(null);
-    let depsReady = $state(false);
-
-    async function ensureDeps() {
-        if (!ansiConverter) {
-            const [{ AnsiUp }, dp] = await Promise.all([import('ansi_up'), import('dompurify')]);
-            ansiConverter = new AnsiUp();
-            ansiConverter.use_classes = true;
-            ansiConverter.escape_html = true;
-            purify = dp.default;
-        }
-        depsReady = true;
-    }
-
-    onMount(() => {
-        ensureDeps();
-    });
-
-    function sanitize(html: string): string {
-        return purify!.sanitize(html, {
-            ALLOWED_TAGS: ['span', 'br', 'div'],
-            ALLOWED_ATTR: ['class'],
-        });
-    }
-
     async function copyToClipboard(text: string, label: string) {
         try {
             await navigator.clipboard.writeText(text);
@@ -61,6 +35,13 @@
         return 'Executing...';
     });
 </script>
+
+{#snippet ansi(
+    text: string,
+)}{#each Anser.ansiToJson(text, { use_classes: true, remove_empty: true }) as part, i (i)}<span
+            class={[part.fg && `${part.fg}-fg`, part.bg && `${part.bg}-bg`, part.decorations.map((d) => `ansi-${d}`)]}
+            >{part.content}</span
+        >{/each}{/snippet}
 
 {#snippet usageField(key: string, value: string | number)}
     <div class="flex flex-col">
@@ -89,7 +70,7 @@
                 <p class="text-sm font-medium text-red-700 dark:text-red-300">Execution Failed</p>
                 <p class="mt-1 text-xs text-fg-muted dark:text-dark-fg-muted max-w-xs">{error}</p>
             </div>
-        {:else if result && depsReady}
+        {:else if result}
             <div class="space-y-5 animate-fly-in">
                 <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
                     <span class="badge whitespace-nowrap {EXECUTION_STATUS_BADGE[result.status]}">
@@ -125,8 +106,8 @@
                             {fieldTitle('stdout')}
                         </h4>
                         <div class="relative">
-                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@html sanitize(
-                                    ansiConverter!.ansi_to_html(result.stdout),
+                            <pre class="output-pre custom-scrollbar" data-testid="output-pre">{@render ansi(
+                                    result.stdout,
                                 )}</pre>
                             <div class="absolute bottom-2 right-2 group">
                                 <button
@@ -157,8 +138,8 @@
                                 class="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800"
                             >
                                 <pre
-                                    class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@html sanitize(
-                                        ansiConverter!.ansi_to_html(result.stderr),
+                                    class="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words font-mono bg-transparent p-0 pr-8">{@render ansi(
+                                        result.stderr,
                                     )}</pre>
                             </div>
                             <div class="absolute bottom-2 right-2 group">

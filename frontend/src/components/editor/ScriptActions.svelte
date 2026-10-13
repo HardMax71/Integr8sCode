@@ -13,12 +13,13 @@
     import { ApiError } from '#lib/api-error.ts';
     import { firstIssue } from '#lib/validation.ts';
     import { authStore } from '#stores/auth.svelte.ts';
-    import { draft, executionContext, newScript } from '#lib/editor/index.ts';
+    import { draft, executionContext, newScript, pickRuntime } from '#lib/editor/index.ts';
 
     const queryClient = useQueryClient();
     const execution = executionContext.get();
     const limits = createQuery(() => getK8sResourceLimitsApiV1K8sLimitsGetOptions());
     const runtimes = $derived(limits.data?.supported_runtimes ?? {});
+    const runtime = $derived(pickRuntime(draft.current, runtimes));
     const extensions = $derived(Object.values(runtimes).map((info) => `.${info.file_ext}`));
     let fileInput: HTMLInputElement;
 
@@ -48,7 +49,8 @@
     }
 
     function save(): void {
-        const { script_id, ...body } = draft.current;
+        const { script_id, ...script } = draft.current;
+        const body = { ...script, ...runtime };
         if (!body.name.trim()) {
             toast.warning('Please provide a name for your script.');
             return;
@@ -101,7 +103,7 @@
     }
 
     function download(): void {
-        const ext = runtimes[draft.current.lang]?.file_ext ?? 'txt';
+        const ext = runtimes[runtime.lang]?.file_ext ?? 'txt';
         const base = draft.current.name.trim().replace(/\.[^.]+$/, '') || 'script';
         const link = document.createElement('a');
         link.href = URL.createObjectURL(new Blob([draft.current.script], { type: 'text/plain;charset=utf-8' }));

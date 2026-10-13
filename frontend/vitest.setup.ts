@@ -20,6 +20,12 @@ vi.mock('svelte-sonner', () => ({
     toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
+// match() reads the router of a started app, which unit tests don't have, so a test sets the route it returns
+vi.mock('$app/paths', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('$app/paths')>()),
+    match: vi.fn(),
+}));
+
 vi.mock('$app/navigation', () => ({
     goto: vi.fn(),
     beforeNavigate: vi.fn(),

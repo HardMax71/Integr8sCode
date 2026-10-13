@@ -58,7 +58,7 @@
                     onchange={() => onRateChange?.(rate)}
                     class="form-select-standard"
                 >
-                    {#each rateOptions as option}
+                    {#each rateOptions as option (option.value)}
                         <option value={option.value}>{option.label}</option>
                     {/each}
                 </select>

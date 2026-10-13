@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { createQuery } from '@tanstack/svelte-query';
     import { getUserOverviewApiV1AdminUsersUserIdOverviewGetOptions } from '#lib/api/index.ts';
     import { fieldTitle, formatBoolean, formatTimestamp } from '#lib/formatters.ts';
@@ -109,7 +110,7 @@
                     {fieldTitle('recent_events')}
                 </h3>
                 <div class="space-y-1 max-h-48 overflow-auto">
-                    {#each recentEvents as ev}
+                    {#each recentEvents as ev (ev.event_id)}
                         <div class="flex justify-between items-center p-2 bg-neutral-50 dark:bg-neutral-800 rounded">
                             <div class="text-sm">
                                 <span class={getEventTypeColor(ev.event_type)}>{ev.event_type}</span>
@@ -130,6 +131,6 @@
     {/if}
 
     {#snippet footer()}
-        <a href="/admin/users" class="btn btn-secondary-outline">Open User Management</a>
+        <a href={resolve('/admin/users')} class="btn btn-secondary-outline">Open User Management</a>
     {/snippet}
 </Modal>

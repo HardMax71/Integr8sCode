@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/svelte';
+import { match } from '$app/paths';
 import { mockApi, renderWithQueryClient, user, type UserEventInstance } from '#test/test-utils.ts';
 import { fakeNotificationResponse } from '#lib/api/@faker-js/faker.gen.ts';
 import {
@@ -125,11 +126,21 @@ const badgeTestCases = [
 ];
 
 const interactionTestCases = [
-    { method: 'click' as const, hasUrl: true, url: '/builds/123' },
-    { method: 'click' as const, hasUrl: false, url: undefined },
-    { method: 'keyboard' as const, hasUrl: true, url: '/test' },
-    { method: 'keyboard' as const, hasUrl: false, url: undefined },
-];
+    {
+        method: 'click',
+        url: '/notifications',
+        route: { id: '/(auth)/notifications', params: {} },
+        goesTo: '/notifications',
+    },
+    {
+        method: 'keyboard',
+        url: '/notifications',
+        route: { id: '/(auth)/notifications', params: {} },
+        goesTo: '/notifications',
+    },
+    { method: 'click', url: '/api/v1/executions/e1/result', route: null, goesTo: null },
+    { method: 'keyboard', url: '', route: null, goesTo: null },
+] as const;
 
 describe('NotificationCenter', () => {
     const openDropdown = async () => {
@@ -297,19 +308,18 @@ describe('NotificationCenter', () => {
     });
 
     describe('notification interaction', () => {
-        it.each(interactionTestCases)('$method: navigates=$hasUrl', async ({ method, hasUrl, url }) => {
-            const subject = `${method}-${hasUrl}`;
-            setNotifications([createNotification({ subject, action_url: url })]);
+        it.each(interactionTestCases)('$method on "$url" opens $goesTo', async ({ method, url, route, goesTo }) => {
+            vi.mocked(match).mockResolvedValue(route);
+            setNotifications([createNotification({ subject: method, action_url: url })]);
             await openDropdown();
-            const button = await screen.findByRole('button', {
-                name: new RegExp(`View notification: ${subject}`, 'i'),
-            });
+            const button = await screen.findByRole('button', { name: new RegExp(`View notification: ${method}`, 'i') });
             await interactWithButton(user, button, method);
 
             await waitFor(() =>
                 expect(markRead).toHaveBeenCalledWith(expect.objectContaining({ path: { notification_id: '1' } })),
             );
-            hasUrl ? expect(mocks.mockGoto).toHaveBeenCalledWith(url) : expect(mocks.mockGoto).not.toHaveBeenCalled();
+            if (goesTo) await waitFor(() => expect(mocks.mockGoto).toHaveBeenCalledWith(goesTo));
+            else expect(mocks.mockGoto).not.toHaveBeenCalled();
         });
 
         it('ignores non-Enter keydown', async () => {
@@ -322,17 +332,22 @@ describe('NotificationCenter', () => {
         });
     });
 
-    describe('external URL navigation', () => {
-        it.each(['click', 'keyboard'] as const)('navigates via %s', async (method) => {
+    describe('outside URLs', () => {
+        it.each(['click', 'keyboard'] as const)('stays in the app on %s', async (method) => {
             await withMockedLocation(async (mockHref) => {
-                const url = `https://example.com/${method}`;
-                setNotifications([createNotification({ subject: method, action_url: url })]);
+                vi.mocked(match).mockResolvedValue(null);
+                setNotifications([
+                    createNotification({ subject: method, action_url: `https://example.com/${method}` }),
+                ]);
                 await openDropdown();
                 const button = await screen.findByRole('button', {
                     name: new RegExp(`View notification: ${method}`, 'i'),
                 });
                 await interactWithButton(user, button, method);
-                expect(mockHref).toHaveBeenCalledWith(url);
+
+                await waitFor(() => expect(match).toHaveBeenCalledWith(`https://example.com/${method}`));
+                expect(mocks.mockGoto).not.toHaveBeenCalled();
+                expect(mockHref).not.toHaveBeenCalled();
             });
         });
     });

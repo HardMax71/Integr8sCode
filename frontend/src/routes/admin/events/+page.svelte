@@ -193,7 +193,7 @@
     {#if !showFilters && hasActiveFilters(applied)}
         <div class="mb-4 flex flex-wrap items-center gap-2">
             <span class="text-xs font-medium text-fg-muted dark:text-dark-fg-muted">Active filters:</span>
-            {#each getActiveFilterSummary(applied) as filter}
+            {#each getActiveFilterSummary(applied) as filter (filter)}
                 <span
                     class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light"
                 >

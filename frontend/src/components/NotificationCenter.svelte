@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { match, resolve } from '$app/paths';
     import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
     import { authStore } from '#stores/auth.svelte.ts';
     import { goto } from '$app/navigation';
@@ -72,14 +73,15 @@
 
     function handleNotificationClick(notification: NotificationResponse): void {
         markAsRead(notification);
-        if (notification.action_url) {
-            if (notification.action_url.startsWith('/')) {
-                showDropdown = false;
-                goto(notification.action_url);
-            } else {
-                window.location.href = notification.action_url;
-            }
-        }
+        if (notification.action_url) void openPage(notification.action_url);
+    }
+
+    // Only a page of this app opens; an API path or an outside URL in action_url matches no route
+    async function openPage(url: string): Promise<void> {
+        const route = await match(url);
+        if (!route) return;
+        showDropdown = false;
+        await goto(resolve(route.id));
     }
 
     let notificationPermission = $state(
@@ -140,7 +142,7 @@
                 {:else if notifications.length === 0}
                     <div class="p-8 text-center text-fg-muted dark:text-dark-fg-muted">No notifications yet</div>
                 {:else}
-                    {#each notifications as notification}
+                    {#each notifications as notification (notification.notification_id)}
                         {@const NotifIcon = notificationIcon(notification.tags)}
                         <button
                             type="button"
@@ -179,7 +181,7 @@
                     type="button"
                     onclick={() => {
                         showDropdown = false;
-                        goto('/notifications');
+                        goto(resolve('/(auth)/notifications'));
                     }}
                     class="block w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:underline bg-transparent border-none cursor-pointer"
                 >

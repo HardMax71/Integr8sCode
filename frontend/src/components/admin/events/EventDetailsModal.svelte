@@ -70,7 +70,7 @@
                 <div>
                     <h4 class="font-semibold mb-2">{fieldTitle('related_events')}</h4>
                     <div class="space-y-1">
-                        {#each relatedEvents as related}
+                        {#each relatedEvents as related (related.event_id)}
                             <button
                                 type="button"
                                 onclick={() => onViewRelated(related.event_id)}

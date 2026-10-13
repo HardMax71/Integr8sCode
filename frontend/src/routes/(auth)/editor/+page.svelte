@@ -8,7 +8,8 @@
         zEditorSettingsInput,
     } from '#lib/api/index.ts';
     import { authStore } from '#stores/auth.svelte.ts';
-    import { createExecutionState, draft, executionContext } from '#lib/editor/index.ts';
+    import { createExecutionState, draft, executionContext, pickRuntime } from '#lib/editor/index.ts';
+    import { toast } from 'svelte-sonner';
     import {
         CodeMirrorEditor,
         OutputPanel,
@@ -32,8 +33,18 @@
 
     let showOptions = $state(false);
 
+    const runtime = $derived(pickRuntime(draft.current, limits.data?.supported_runtimes ?? {}));
+
     function run(): void {
-        void execution.execute(draft.current.script, draft.current.lang, draft.current.lang_version);
+        const { lang, lang_version } = runtime;
+        if (lang === draft.current.lang && lang_version !== draft.current.lang_version) {
+            toast.info(
+                `Version ${draft.current.lang_version} of ${lang} is no longer available, switched to ${lang_version}.`,
+            );
+        }
+        draft.current.lang = lang;
+        draft.current.lang_version = lang_version;
+        void execution.execute(draft.current.script, lang, lang_version);
     }
 </script>
 
@@ -60,7 +71,7 @@
         <div class="editor-wrapper h-full w-full relative">
             <CodeMirrorEditor
                 bind:content={draft.current.script}
-                lang={draft.current.lang}
+                lang={runtime.lang}
                 settings={settings.data?.editor ?? DEFAULT_EDITOR_SETTINGS}
             />
             {#if draft.current.script.trim() === ''}

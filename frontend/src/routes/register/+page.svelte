@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { resolve } from '$app/paths';
     import { goto } from '$app/navigation';
     import { toast } from 'svelte-sonner';
     import { fade, fly } from 'svelte/transition';
@@ -28,7 +29,7 @@
         meta: { inlineErrors: true },
         onSuccess: () => {
             toast.success('Registration successful! Please log in.');
-            void goto('/login');
+            void goto(resolve('/login'));
         },
     }));
 
@@ -87,7 +88,7 @@
             <h2 class="text-3xl font-bold text-fg-default dark:text-dark-fg-default">Create a new account</h2>
             <p class="mt-2 text-sm text-fg-muted dark:text-dark-fg-muted">
                 Or <a
-                    href="/login"
+                    href={resolve('/login')}
                     class="font-medium text-primary-dark hover:text-primary dark:text-primary-light dark:hover:text-primary"
                     >sign in to your existing account</a
                 >

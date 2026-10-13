@@ -36,10 +36,12 @@ Since the guard runs in `load`, a regular user never mounts an admin page, so it
 
 ## Navigation
 
-Use plain links; SvelteKit handles same-origin `<a href>` clicks itself:
+Links and `goto()` take their path from `resolve()` in `$app/paths`. It type-checks the path against the app's routes and adds the base path, and ESLint's `svelte/no-navigation-without-resolve` rejects a link or `goto()` without it. A route inside a group goes by its route ID, and `resolve()` drops the group:
 
 ```svelte
-<a href="/editor">Open editor</a>
+<a href={resolve('/(auth)/editor')}>Open editor</a>
 ```
 
-In code, use `goto('/path')` from `$app/navigation`. It returns a promise and rejects for a URL that isn't a route in the app; use `window.location.href` for an external one. The admin sidebar entries come from `ADMIN_ROUTES` in `src/lib/admin/constants.ts`, and the active entry follows `page.url.pathname` from `$app/state`.
+A path that only exists at runtime goes through `match()` first, which returns the route it belongs to, or null for an API path or another site; `resolve(route.id)` turns the match back into a link. The login page does that with the page saved before a 401, and the notification dropdown with a notification's `action_url`, so neither can be sent off-site or to an API path. A link to something nginx serves instead of the app, like `/grafana`, carries `rel="external"` so the router leaves it alone.
+
+The admin sidebar entries come from `ADMIN_ROUTES` in `src/lib/admin/constants.ts`, and the active entry follows `page.url.pathname` from `$app/state`.

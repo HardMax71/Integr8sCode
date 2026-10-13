@@ -44,7 +44,7 @@
             <h3 class="font-medium text-fg-default dark:text-dark-fg-default mb-2">
                 {fieldTitle('events_preview')}
             </h3>
-            {#each preview.events_preview as event}
+            {#each preview.events_preview as event (event.event_id)}
                 <div class="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
                     <div class="flex justify-between items-start">
                         <div>
